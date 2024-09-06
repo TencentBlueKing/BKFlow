@@ -1,0 +1,29 @@
+# This is a basic workflow to help you get started with Actions
+
+name: frontend code eslint
+
+on:
+  push:
+    branches: [ master, develop, release*, feature* ]
+  pull_request:
+    branches: [ master, develop, release*, feature* ]
+
+jobs:
+  eslint:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install dependencies
+        run: |
+              cd frontend
+              npm install
+
+      - name: Run Eslint
+        run: |
+              cd frontend
+              npx eslint --ext .js,.vue src/
