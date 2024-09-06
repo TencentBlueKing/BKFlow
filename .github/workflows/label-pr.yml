@@ -1,0 +1,25 @@
+name: "Label PR based on title"
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  label-pr:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Label PR
+      run: |
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        if [[ "$PR_TITLE" == "fix:"* ]]; then
+          gh pr edit ${{ github.event.pull_request.number }} --add-label bugfix
+        elif [[ "$PR_TITLE" == "feat:"* ]]; then
+          gh pr edit ${{ github.event.pull_request.number }} --add-label feature
+        else
+          echo "No label with this title: $PR_TITLE" 
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
