@@ -1,0 +1,331 @@
+# -*- coding: utf-8 -*-
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
+"""
+
+import json
+import logging
+import os
+
+import requests
+from django.core.files.uploadedfile import UploadedFile
+from requests import HTTPError
+
+from . import env
+from .client_decorators import (
+    check_use_plugin_service,
+    data_parser,
+    json_response_decoder,
+)
+from .conf import PLUGIN_CLIENT_LOGGER
+from .exceptions import PluginServiceException, PluginServiceNotUse
+
+logger = logging.getLogger(PLUGIN_CLIENT_LOGGER)
+
+
+class PluginServiceApiClient:
+    def __init__(self, plugin_code, plugin_host=None):
+        if not env.USE_PLUGIN_SERVICE == "1":
+            raise PluginServiceNotUse("插件服务未启用，请联系管理员进行配置")
+        self.plugin_code = plugin_code
+
+        # 如果请求报错，会抛出PluginServiceException类型异常，需要调用方进行捕获处理
+        result = PluginServiceApiClient.get_plugin_app_detail(plugin_code)
+        if not result["result"]:
+            raise PluginServiceException(result["message"])
+        self.plugin_host = plugin_host or os.path.join(result["data"]["url"], "bk_plugin/")
+        self.plugin_apigw_name = result["data"]["apigw_name"] or plugin_code
+
+    @data_parser
+    @json_response_decoder
+    def invoke(self, version, data, extra_headers: dict):
+        url, headers = self._prepare_apigw_api_request(path_params=["invoke", version])
+        return requests.post(url, data=json.dumps(data), headers={**headers, **extra_headers})
+
+    @json_response_decoder
+    def dispatch_plugin_api_request(self, request_params, inject_headers=None, inject_authorization: dict = None):
+        url, headers = self._prepare_apigw_api_request(
+            path_params=["plugin_api_dispatch"], inject_authorization=inject_authorization
+        )
+        if inject_headers:
+            headers.update(inject_headers)
+        # 上传文件的情况
+        if any([isinstance(data, UploadedFile) for data in request_params["data"].values()]):
+            headers.pop("Content-Type")
+            files = dict(
+                [
+                    (key, (value.name, value.file.read()))
+                    for key, value in request_params["data"].items()
+                    if isinstance(value, UploadedFile)
+                ]
+            )
+            request_params.pop("data")
+            return PluginServiceApiClient._request_api_and_error_retry(
+                url, method="post", data=request_params, headers=headers, files=files
+            )
+        return PluginServiceApiClient._request_api_and_error_retry(
+            url, method="post", data=json.dumps(request_params), headers=headers
+        )
+
+    @json_response_decoder
+    def get_meta(self):
+        url = os.path.join(self.plugin_host, "meta")
+
+        return PluginServiceApiClient._request_api_and_error_retry(url, method="get")
+
+    @json_response_decoder
+    def get_detail(self, version):
+        url = os.path.join(self.plugin_host, "detail", version)
+
+        return PluginServiceApiClient._request_api_and_error_retry(url, method="get")
+
+    @data_parser
+    @json_response_decoder
+    def get_schedule(self, trace_id):
+        url = os.path.join(self.plugin_host, "schedule", trace_id)
+
+        return PluginServiceApiClient._request_api_and_error_retry(url, method="get")
+
+    @staticmethod
+    @check_use_plugin_service
+    def get_plugin_logs(plugin_code, trace_id, scroll_id=None):
+        result = PluginServiceApiClient.get_paas_logs(plugin_code, trace_id, scroll_id, environment="prod")
+        if result.get("result") is False:
+            return result
+        return {"result": True, "message": None, "data": result}
+
+    @staticmethod
+    def get_plugin_list(search_term=None, limit=100, offset=0, distributor_code_name=None, **kwargs):
+        """获取插件服务列表"""
+        # 如果不启动插件服务，直接返回空列表
+        if not env.USE_PLUGIN_SERVICE == "1":
+            return {
+                "result": True,
+                "message": "插件服务未启用，请联系管理员进行配置",
+                "data": {"count": 0, "plugins": []},
+            }
+        result = PluginServiceApiClient.get_paas_plugin_info(
+            search_term=search_term,
+            environment="prod",
+            limit=limit,
+            offset=offset,
+            distributor_code_name=distributor_code_name,
+            **kwargs,
+        )
+        if result.get("result") is False:
+            return result
+
+        plugins = [
+            {
+                "code": plugin["code"],
+                "name": plugin["name"],
+                "logo_url": plugin["logo_url"],
+                "creator": plugin["creator"],
+            }
+            for plugin in result["results"]
+        ]
+        count = result["count"]
+
+        return {"result": True, "message": None, "data": {"count": count, "plugins": plugins}}
+
+    @staticmethod
+    def get_plugin_tags_list(**kwargs):
+        """获取插件tag列表"""
+        # 如果不启动插件服务，直接返回空列表
+        if not env.USE_PLUGIN_SERVICE == "1":
+            return {"result": True, "message": "插件服务未启用，请联系管理员进行配置", "data": None}
+        result = PluginServiceApiClient.get_paas_plugin_tags(environment="prod", **kwargs)
+        if isinstance(result, dict) and result.get("result") is False:
+            return result
+        return {"result": True, "message": None, "data": result}
+
+    @staticmethod
+    def get_plugin_detail_list(search_term=None, **kwargs):
+        """获取插件服务列表及详情信息"""
+        # 如果不启动插件服务，直接返回空列表
+        if not env.USE_PLUGIN_SERVICE == "1":
+            return {
+                "result": True,
+                "message": "插件服务未启用，请联系管理员进行配置",
+                "data": {"count": 0, "plugins": []},
+            }
+        result = PluginServiceApiClient.batch_get_paas_plugin_detailed_info(
+            search_term=search_term, environment="prod", **kwargs
+        )
+        if result.get("result") is False:
+            return result
+        return {"result": True, "message": None, "data": {"count": result["count"], "plugins": result["results"]}}
+
+    @staticmethod
+    @check_use_plugin_service
+    def get_plugin_app_detail(plugin_code):
+        result = PluginServiceApiClient.get_paas_plugin_info(plugin_code, environment="prod")
+
+        if result.get("result") is False:
+            return {
+                "result": False,
+                "data": None,
+                "message": f"Plugin Service {plugin_code} network error: {result.get('message')}",
+            }
+
+        info = result["deployed_statuses"][env.APIGW_ENVIRONMENT]
+        if not info["deployed"]:
+            return {"result": False, "data": None, "message": f"Plugin Service {plugin_code} does not deployed."}
+        plugin = result["plugin"]
+        profile = result["profile"]
+
+        default_host = ""
+        hosts = []
+        DEFAULT_HOST_TYPE = 2
+        for address in info["addresses"]:
+            if address["type"] == DEFAULT_HOST_TYPE:
+                default_host = address["address"]
+            hosts.append(address["address"])
+
+        return {
+            "result": True,
+            "message": None,
+            "data": {
+                "url": default_host,
+                "urls": hosts,
+                "name": plugin["name"],
+                "code": plugin["code"],
+                "updated": plugin["updated"],
+                "apigw_name": profile["api_gw_name"],
+                "tag_info": plugin.get("tag_info"),
+            },
+        }
+
+    @staticmethod
+    @json_response_decoder
+    def get_paas_plugin_info(
+        plugin_code=None, environment=None, limit=100, offset=0, search_term=None, distributor_code_name=None, **kwargs
+    ):
+        """可支持通过PaaS平台请求获取插件服务列表或插件详情"""
+        url, params = PluginServiceApiClient._prepare_paas_api_request(
+            path_params=["system/bk_plugins", plugin_code if plugin_code else ""], environment=environment
+        )
+        if not plugin_code:
+            # list接口相关参数
+            params.update({"limit": limit, "offset": offset, "has_deployed": True})
+            if search_term:
+                params.update({"search_term": search_term})
+            if distributor_code_name:
+                params.update({"distributor_code_name": distributor_code_name})
+        return PluginServiceApiClient._request_api_and_error_retry(url, method="get", params={**params, **kwargs})
+
+    @staticmethod
+    @json_response_decoder
+    def batch_get_paas_plugin_detailed_info(environment=None, search_term=None, distributor_code_name=None, **kwargs):
+        """通过PaaS平台批量请求插件服务列表及对应详情"""
+        url, params = PluginServiceApiClient._prepare_paas_api_request(
+            path_params=["system/bk_plugins/batch/detailed"], environment=environment
+        )
+        params.update({"has_deployed": True, **kwargs})
+        if search_term:
+            params.update({"search_term": search_term})
+        if distributor_code_name:
+            params.update({"distributor_code_name": distributor_code_name})
+        return PluginServiceApiClient._request_api_and_error_retry(url, method="get", params=params)
+
+    @staticmethod
+    @json_response_decoder
+    def get_paas_logs(plugin_code, trace_id, scroll_id=None, environment=None):
+        """通过PaaS平台查询插件服务日志"""
+        url, data = PluginServiceApiClient._prepare_paas_api_request(
+            path_params=["system/bk_plugins", plugin_code, "logs"], environment=environment
+        )
+        data.update({"trace_id": trace_id})
+        if scroll_id:
+            data.update({"scroll_id": scroll_id})
+
+        return PluginServiceApiClient._request_api_and_error_retry(url, method="post", data=data)
+
+    @staticmethod
+    @json_response_decoder
+    def get_paas_plugin_tags(environment=None, **kwargs):
+        """通过PaaS获取插件分类列表"""
+        url, params = PluginServiceApiClient._prepare_paas_api_request(
+            path_params=["system/bk_plugin_tags"], environment=environment, force_add_app_info=True
+        )
+        return PluginServiceApiClient._request_api_and_error_retry(url, method="get", params=params)
+
+    def _prepare_apigw_api_request(self, path_params: list, inject_authorization: dict = None):
+        """插件服务APIGW接口请求信息准备"""
+        try:
+            base_url = env.PLUGIN_APIGW_API_HOST_FORMAT.format(self.plugin_apigw_name)
+        except KeyError:
+            base_url = env.PLUGIN_APIGW_API_HOST_FORMAT.format(api_name=self.plugin_apigw_name)
+        url = os.path.join(base_url, env.APIGW_ENVIRONMENT, *path_params)
+        authorization_info = {
+            "bk_app_code": env.PLUGIN_SERVICE_APIGW_APP_CODE,
+            "bk_app_secret": env.PLUGIN_SERVICE_APIGW_APP_SECRET,
+        }
+
+        if inject_authorization:
+            authorization_info.update(inject_authorization)
+
+        headers = {
+            "X-Bkapi-Authorization": json.dumps(authorization_info),
+            "Content-Type": "application/json",
+        }
+        return url, headers
+
+    @staticmethod
+    def _prepare_paas_api_request(path_params: list, environment=None, force_add_app_info=False):
+        """PaaS平台服务接口请求信息准备"""
+        url = os.path.join(
+            env.PAASV3_APIGW_API_HOST or f"{env.APIGW_NETWORK_PROTOCAL}://paasv3.{env.APIGW_URL_SUFFIX}",
+            environment or env.APIGW_ENVIRONMENT,
+            *path_params,
+        )
+        params = (
+            {"private_token": env.PAASV3_APIGW_API_TOKEN}
+            if env.PAASV3_APIGW_API_TOKEN
+            else {
+                "bk_app_code": env.PLUGIN_SERVICE_APIGW_APP_CODE,
+                "bk_app_secret": env.PLUGIN_SERVICE_APIGW_APP_SECRET,
+            }
+        )
+        if force_add_app_info:
+            params.update(
+                {"bk_app_code": env.PLUGIN_SERVICE_APIGW_APP_CODE, "bk_app_secret": env.PLUGIN_SERVICE_APIGW_APP_SECRET}
+            )
+        return url, params
+
+    @staticmethod
+    def _request_api_and_error_retry(url, method, **kwargs):
+        """请求API接口,失败进行重试"""
+        message = f"request url {url} with method {method} and kwargs {kwargs}".replace(
+            env.PAASV3_APIGW_API_TOKEN or env.PLUGIN_SERVICE_APIGW_APP_SECRET, "******"
+        )
+        result = None
+        for invoke_num in range(1, env.BKAPP_INVOKE_PAAS_RETRY_NUM + 1):
+            try:
+                logger.info(f"[PluginServiceApiClient] {message}")
+                result = getattr(requests, method)(url, **kwargs)
+                result.raise_for_status()
+                break
+            except HTTPError as e:
+                logger.error(
+                    f"[PluginServiceApiClient] request api error, invoke_num: {invoke_num}, error: {str(e)}, {message}"
+                )
+            except Exception as e:
+                logger.exception(f"[PluginServiceApiClient] request exception: {e}")
+                raise
+        return result

@@ -1,0 +1,10 @@
+version: 1
+events:
+  - code: template_update
+    name: 模板更新
+  - code: template_create
+    name: 模板创建
+  - code: task_failed
+    name: 任务失败
+  - code: task_finished
+    name: 任务完成
