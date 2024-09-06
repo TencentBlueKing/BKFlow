@@ -1,0 +1,252 @@
+# -*- coding: utf-8 -*-
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
+"""
+from enum import Enum
+
+from django.db import models
+from django.utils.translation import ugettext_lazy as _
+
+import env
+from bkflow.exceptions import ValidationError
+from bkflow.space.configs import (
+    BaseSpaceConfig,
+    SpaceConfigHandler,
+    SpaceConfigValueType,
+    SuperusersConfig,
+)
+from bkflow.space.credential import CredentialDispatcher
+from bkflow.space.exceptions import SpaceNotExists
+from bkflow.utils.models import CommonModel
+
+
+class SpaceCreateType(Enum):
+    # 通过API创建
+    API = "API"
+    # 通过页面创建
+    WEB = "WEB"
+
+
+class SpaceManager(models.Manager):
+    MAX_SPACE_NUM_PER_APP = env.MAX_SPACE_NUM_PER_APP
+
+    def is_app_code_reach_limit(self, app_code):
+        return self.filter(app_code=app_code).count() > self.MAX_SPACE_NUM_PER_APP
+
+
+class Space(CommonModel):
+    CREATE_TYPE = (
+        (SpaceCreateType.API.value, _("API")),
+        (SpaceCreateType.WEB.value, _("WEB")),
+    )
+
+    id = models.AutoField(_("空间ID"), primary_key=True)
+    # 空间名不允许重复
+    name = models.CharField(_("空间名称"), max_length=32, null=False, blank=False, unique=True)
+    app_code = models.CharField(_("APP Code"), max_length=32, null=False, blank=False)
+    desc = models.CharField(_("空间描述"), max_length=128, null=True, blank=True)
+    platform_url = models.CharField(_("平台提供服务的地址"), max_length=256, null=False, blank=False)
+    create_type = models.CharField(
+        _("空间创建的方式"), max_length=32, choices=CREATE_TYPE, default=SpaceCreateType.API.value
+    )
+
+    objects = SpaceManager()
+
+    def to_json(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "desc": self.desc,
+            "platform_url": self.platform_url,
+            "app_code": self.app_code,
+            "create_type": self.create_type,
+        }
+
+    @classmethod
+    def exists(cls, space_id):
+        return cls.objects.filter(id=space_id, is_deleted=False).exists()
+
+    class Meta:
+        verbose_name = _("空间信息")
+        verbose_name_plural = _("空间信息表")
+        ordering = ["-id"]
+
+
+class SpaceConfigManager(models.Manager):
+    def get_space_ids_of_superuser(self, username):
+        return self.filter(name=SuperusersConfig.name, json_value__contains=username).values_list("space_id", flat=True)
+
+    def get_space_config_info(self, space_id: int, simplified: bool = True) -> list:
+        """
+        @summary: 获取space_id对应的空间相关配置信息
+        @param space_id: 空间ID
+        @param simplified: 是否简化返回结果
+        @return: 所有空间相关配置信息
+        非简化结果会返回所有过滤数据
+        简化结果：[{"key": "name1", "value": "value1"}]
+        """
+        space_configs = self.filter(space_id=space_id)
+        if simplified:
+            return [
+                {
+                    "key": config.name,
+                    "value": (
+                        config.json_value if config.value_type == SpaceConfigValueType.JSON.value else config.text_value
+                    ),
+                }
+                for config in space_configs
+            ]
+
+        return [config.to_json() for config in space_configs]
+
+    def batch_update(self, space_id: int, configs: dict):
+        existing_space_configs = list(self.filter(space_id=space_id, name__in=list(configs.keys())))
+        existing_space_config_keys = [space_config.name for space_config in existing_space_configs]
+        for existing_space_config in existing_space_configs:
+            if existing_space_config.name not in configs:
+                continue
+            if SpaceConfigHandler.get_config(existing_space_config.name).value_type == SpaceConfigValueType.JSON.value:
+                existing_space_config.json_value = configs[existing_space_config.name]
+            else:
+                existing_space_config.text_value = configs[existing_space_config.name]
+
+        create_space_configs = []
+        valid_keys = list(SpaceConfigHandler.get_all_configs().keys())
+        for k, v in configs.items():
+            if k in existing_space_config_keys or k not in valid_keys:
+                continue
+            data = {"space_id": space_id, "name": k, "value_type": SpaceConfigHandler.get_config(k).value_type}
+            if data["value_type"] == SpaceConfigValueType.JSON.value:
+                data["json_value"] = v
+            else:
+                data["text_value"] = v
+            create_space_configs.append(SpaceConfig(**data))
+
+        SpaceConfig.objects.bulk_update(existing_space_configs, ["text_value", "json_value"])
+        SpaceConfig.objects.bulk_create(create_space_configs)
+
+
+class SpaceConfig(models.Model):
+    CONFIG_CHOICES = [(name, config.desc) for name, config in SpaceConfigHandler.get_all_configs().items()]
+    CONFIG_VALUE_TYPE_CHOICES = [
+        (SpaceConfigValueType.JSON.value, "JSON"),
+        (SpaceConfigValueType.TEXT.value, _("文本")),
+    ]
+
+    space_id = models.IntegerField(_("空间ID"))
+    value_type = models.CharField(
+        _("配置类型"), choices=CONFIG_VALUE_TYPE_CHOICES, default=SpaceConfigValueType.TEXT.value, max_length=32
+    )
+    name = models.CharField(_("配置项"), choices=CONFIG_CHOICES, max_length=32)
+    text_value = models.CharField(_("配置值"), max_length=128, default="")
+    json_value = models.JSONField(_("配置值(JSON)"), default=dict, blank=True)
+
+    objects = SpaceConfigManager()
+
+    class Meta:
+        verbose_name = _("空间配置")
+        verbose_name_plural = _("空间配置表")
+        unique_together = ("space_id", "name")
+
+    def to_json(self):
+        return {
+            "id": self.id,
+            "space_id": self.space_id,
+            "name": self.name,
+            "value_type": self.value_type,
+            "value": self.text_value,
+            "json_value": self.json_value,
+        }
+
+    @classmethod
+    def exists(cls, space_id, config_name):
+        return cls.objects.filter(space_id=space_id, name=config_name).exists()
+
+    @classmethod
+    def get_config(cls, space_id, config_name):
+        try:
+            config: SpaceConfig = cls.objects.get(space_id=space_id, name=config_name)
+            return config.text_value if config.value_type == SpaceConfigValueType.TEXT.value else config.json_value
+        except cls.DoesNotExist:
+            config: BaseSpaceConfig = SpaceConfigHandler.get_config(config_name)
+            if not config:
+                raise ValidationError(_("不存在该配置项"))
+            return config.default_value
+
+
+class CredentialType(Enum):
+    # 蓝鲸应用凭证
+    BK_APP = "BK_APP"
+
+
+class Credential(CommonModel):
+    CREDENTIAL_CHOICES = [(CredentialType.BK_APP.value, _("蓝鲸应用凭证"))]
+
+    space_id = models.IntegerField(_("空间ID"))
+    name = models.CharField(_("凭证名"), max_length=32)
+    desc = models.CharField(_("凭证描述"), max_length=128, null=True, blank=True)
+    type = models.CharField(_("凭证类型"), max_length=32, choices=CREDENTIAL_CHOICES)
+    content = models.JSONField(_("凭证内容"), null=True, blank=True, default=dict)
+
+    def display_json(self):
+        credential = CredentialDispatcher(self.type, data=self.content)
+        display_value = credential.display_value()
+        return {
+            "id": self.id,
+            "space_id": self.space_id,
+            "desc": self.desc,
+            "type": self.type,
+            "content": display_value,
+        }
+
+    @property
+    def value(self):
+        credential = CredentialDispatcher(self.type, data=self.content)
+        return credential.value()
+
+    @classmethod
+    def create_credential(cls, space_id, name, type, content, creator, desc=None):
+        """
+        创建一个凭证
+        """
+        if not Space.exists(space_id):
+            raise SpaceNotExists("space_id: {}".format(space_id))
+        credential = CredentialDispatcher(type, data=content)
+        validate_data = credential.validate_data()
+        credential = cls(
+            space_id=space_id,
+            name=name,
+            desc=desc,
+            type=type,
+            content=validate_data,
+            creator=creator,
+            updated_by=creator,
+        )
+        credential.save()
+        return credential
+
+    def update_credential(self, content):
+        credential = CredentialDispatcher(self.type, data=content)
+        validate_data = credential.validate_data()
+        self.data = validate_data
+        self.save()
+
+    class Meta:
+        verbose_name = _("空间凭证")
+        verbose_name_plural = _("空间凭证表")
+        unique_together = ("space_id", "name")

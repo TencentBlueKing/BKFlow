@@ -1,0 +1,41 @@
+# -*- coding: utf-8 -*-
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
+"""
+
+
+from bkflow.pipeline_web.constants import PWE
+
+MIN_LEN = 1
+DUMMY_NODE_TYPE = "DummyNode"
+DUMMY_FLOW_TYPE = "DummyFlow"
+
+CANVAS_WIDTH = 1300
+POSITION = {"activity_size": (150, 54), "event_size": (44, 44), "gateway_size": (34, 34), "start": (60, 100)}
+PIPELINE_ELEMENT_TO_WEB = {
+    DUMMY_NODE_TYPE: DUMMY_NODE_TYPE,
+    PWE.ServiceActivity: PWE.tasknode,
+    PWE.SubProcess: PWE.subflow,
+    PWE.EmptyStartEvent: PWE.startpoint,
+    PWE.EmptyEndEvent: PWE.endpoint,
+    PWE.ExclusiveGateway: PWE.branchgateway,
+    PWE.ParallelGateway: PWE.parallelgateway,
+    PWE.ConvergeGateway: PWE.convergegateway,
+    PWE.ConditionalParallelGateway: PWE.conditionalparallelgateway,
+}
+PIPELINE_WEB_TO_ELEMENT = {value: key for key, value in PIPELINE_ELEMENT_TO_WEB.items()}

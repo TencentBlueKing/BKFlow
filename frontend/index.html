@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>BKFlow</title>
+    </head>
+    <body>
+        <div id="app"></div>
+        <script>
+            var SITE_URL = "{{SITE_URL}}";
+            var BK_STATIC_URL = "{{BK_STATIC_URL}}/";
+            var REMOTE_STATIC_URL = "";
+            var MEMBER_SELECTOR_DATA_HOST = '{{MEMBER_SELECTOR_DATA_HOST}}';
+            var MAX_NODE_EXECUTE_TIMEOUT = '{{MAX_NODE_EXECUTE_TIMEOUT}}';
+            var APP_CODE = '{{APP_CODE}}'
+            var USERNAME = '{{USERNAME}}'
+            var BK_DOC_URL = '{{BK_DOC_URL}}'
+            var BK_PAAS_SHARED_RES_URL = '{{BK_PAAS_SHARED_RES_URL}}'
+            var APP_NAME = '{{APP_NAME}}'
+            var RUN_VER_NAME = '{{RUN_VER_NAME}}'
+            var MESSAGE_HELPER_URL = '{{MESSAGE_HELPER_URL}}'
+            var LOGIN_URL = '{{LOGIN_URL}}'
+            var BK_DOMAIN = '{{BK_DOMAIN}}';
+            var BK_PAAS_ESB_HOST = '{{BK_PAAS_ESB_HOST}}'
+            // 是否开启通知中心
+            var ENABLE_NOTICE_CENTER = {{ENABLE_NOTICE_CENTER}}
+        </script>
+        <script>
+            // var pathname = window.location.pathname;
+            // var SITE_URL = pathname.endsWith("/") ? pathname : pathname + "/";
+            function getCookie(name) {
+                var arr, reg = new RegExp("(^| )" + name + "=([^;]*)(;|$)")
+                return (arr = document.cookie.match(reg)) ? unescape(arr[2]) : null
+            }
+        </script>
+    </body>
+</html>

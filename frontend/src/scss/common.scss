@@ -1,0 +1,423 @@
+@import './mixins/scrollbar.scss';
+
+.common-section-title {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 10px;
+  line-height: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: #666666;
+  &:before {
+    content: '';
+    display: inline-block;
+    position: absolute;
+    top: -2px;
+    left: 0;
+    width: 2px;
+    height: 20px;
+    background: #a3c5fd;
+  }
+}
+
+.common-form-item {
+  margin-bottom: 20px;
+  @include clearfix;
+  &:last-child {
+    margin-bottom: 0;
+  }
+  &>label {
+    position: relative;
+    float: left;
+    margin-top: 6px;
+    width: 100px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #666666;
+    text-align: right;
+    &.required:after {
+      content: '*';
+      position: absolute;
+      top: 0px;
+      right: -10px;
+      color: #ff2602;
+      font-family: "SimSun";
+    }
+  }
+  .common-form-content {
+    margin-left: 120px;
+    min-height: 36px;
+  }
+}
+.common-form-block-item {
+  padding: 0 20px;
+  margin-bottom: 20px;
+  @include clearfix;
+  &:last-child {
+    margin-bottom: 0;
+  }
+  &>label {
+    margin-bottom: 8px;
+    display: block;
+    font-size: 14px;
+    color: #666666;
+    text-align: left;
+    &.required:after {
+      content: '*';
+      position: absolute;
+      top: 0px;
+      right: -10px;
+      color: #ff2602;
+      font-family: "SimSun";
+    }
+  }
+}
+.common-dialog .bk-dialog {
+  .bk-dialog-tool {
+    min-height: 20px;
+  }
+  .bk-dialog-header {
+    line-height: 1.3;
+    padding: 16px 20px 16px;
+    border-bottom: 1px solid #ebebeb;
+    .bk-dialog-header-inner {
+        font-size: 20px;
+    }
+  }
+  .bk-dialog-body {
+    padding: 0;
+  }
+}
+.reuse-rule-tip,
+.citations-waivers-guide-tip {
+  .tippy-tooltip {
+    &.light-theme {
+      color: #63656e;
+      line-height: 16px;
+      padding: 6px 10px;
+      border: 1px solid #dcdee5;
+      box-shadow: 0 0 5px 0 rgba(0,0,0,0.09);
+      .tippy-arrow {
+        border: 1px solid #dcdee5 !important;
+      }
+    }
+  }
+}
+
+.common-error-tip {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1;
+  color: #ff5757;
+}
+
+.common-warning-tip {
+  display: inline-block;
+  font-size: 14px;
+  color: #ffb400;
+}
+// 模板编辑设置面板 sideslider 通用样式
+.common-template-setting-sideslider {
+  position: absolute !important;
+  background: none !important;
+  .bk-sideslider-content {
+    max-height: none !important;
+    height: calc(100vh - 168px);
+    overflow: hidden;
+  }
+}
+
+.panagation {
+  padding: 10px 20px;
+  text-align: right;
+  border: 1px solid #dde4eb;
+  border-top: none;
+  background: #ffffff;
+  overflow: hidden;
+  .page-info {
+    float: left;
+    line-height: 36px;
+    font-size: 12px;
+  }
+}
+// 无权限按钮统一样式
+.btn-permission-disable {
+  background-color: #fafafa !important;
+  border-color: #e6e6e6 !important;
+  color: #cccccc !important;
+  cursor: pointer !important;
+}
+// 无权限文本统一样式
+.text-permission-disable {
+  color: #cccccc !important;
+  cursor: pointer !important;
+}
+
+.cursor-element {
+  width: 12px;
+  height: 16px;
+  background: url('~@/assets/images/lock.svg') no-repeat;
+}
+
+.bk-select-inline {
+  display: inline-block;
+  width: 260px;
+}
+// 新手引导 Popover 主题
+.tippy-tooltip.guide-theme {
+  background-color: #444d62;
+  color: #d2d5dd;
+  padding: 0;
+  border-radius: 6px;
+  box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, .15);
+  .tippy-content {
+    border-radius: 6px;
+    overflow: hidden;
+  }
+}
+.tippy-tooltip .tippy-arrow { // 解决人员选择器组件单独引入tippyjs，导致箭头不显示问题
+  width: 0;
+  height: 0;
+}
+.tippy-tooltip.guide-theme[x-placement^='top'] .tippy-arrow {
+  border-top-color: #656e82;
+}
+.tippy-tooltip.guide-theme[x-placement^='bottom'] .tippy-arrow {
+  border-bottom-color: #656e82;
+}
+.tippy-tooltip.guide-theme[x-placement^='left'] .tippy-arrow {
+  border-left-color: #656e82;
+}
+.tippy-tooltip.guide-theme[x-placement^='right'] .tippy-arrow {
+  border-right-color: #656e82;
+}
+
+// 列表页展开操作项
+.common-dropdown-btn-popver {
+  .tippy-tooltip[data-size="small"] {
+    padding: 2px 0;
+  }
+  .tippy-tooltip.light-theme[data-animatefill] {
+    background: #ffffff;
+  }
+  .opt-btn {
+    padding: 0 12px;
+    line-height: 32px;
+    color: #63656e;
+    cursor: pointer;
+    &:hover {
+      background: #eaf3ff;
+      color: #3a84ff;
+      a {
+        color: #3a84ff;
+      }
+    }
+    a {
+      display: inline-block;
+      min-width: 60px;
+      color: #63656e;
+      &.disable {
+        color: #dcdee5;
+      }
+    }
+  }
+}
+
+.label-select-popover {
+  .label-select-option {
+    display: flex;
+    align-items: center;
+    .label-select-color {
+      margin-right: 4px;
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 2px;
+    }
+    .bk-option-icon {
+      display: none;
+    }
+  }
+  .bk-option.is-selected .bk-option-icon{
+    display: inline-block;
+  }
+  .bk-select-extension {
+    padding: 0;
+    &:hover {
+      background-color: initial;
+    }
+  }
+    .label-select-extension {
+      height: 40px;
+      display: flex;
+      text-align: center;
+      line-height: 40px;
+      cursor: pointer;
+      .add-label,
+      .label-manage {
+        position: relative;
+        flex: 1;
+        &:hover {
+            background: #f0f1f5;
+        }
+        &::after {
+          content: '';
+          position: absolute;
+          width: 1px;
+          height: 16px;
+          display: block;
+          right: -1px;
+          top: 12px;
+          background: #dcdee5;
+        }
+      }
+      .refresh-label {
+        flex-shrink: 0;
+        padding: 0 16px;
+        &:hover {
+          background: #f0f1f5;
+        }
+      }
+      & .common-icon-label,
+      & .icon-plus-circle {
+        font-size: 14px;
+        color: #979ba5;
+      }
+      & > span {
+        font-size: 12px;
+      }
+    }
+}
+.label-dialog {
+  .bk-dialog .bk-dialog-header {
+    padding: 6px 20px 26px;
+    border-bottom: none;
+  }
+  .bk-form {
+    padding: 0 24px 24px 0;
+    word-break: break-all;
+    .bk-label {
+      font-size: 12px;
+      width: 110px !important;
+    }
+    .bk-form-content {
+      margin-left: 110px !important;
+    }
+      .color-dropdown {
+        .dropdown-trigger-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 7px;
+          height: 32px;
+          border: 1px solid #c4c6cc;
+          border-radius: 2px;
+          cursor: pointer;
+          &>i {
+            margin: 0 6px;
+            font-size: 16px;
+          }
+        }
+        .color-block {
+          display: inline-block;
+          width: 20px;
+          height: 20px;
+        }
+        .color-list {
+          width: 268px;
+          padding: 6px 16px 6px;
+          overflow: hidden;
+          .tip {
+            margin-bottom: 10px;
+            color: #b2bed4;
+            font-size: 12px;
+            line-height: 1;
+          }
+          .color-item {
+            float: left;
+            margin-right: 4px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            &:nth-child(10n) {
+              margin-right: 0;
+            }
+          }
+        }
+      }
+      .user-selector {
+        width: 100%;
+      }
+  }
+}
+
+.bk-notify-content-text {
+  @include scrollbar;
+  &.is-expand {
+    display: block !important;
+    max-height: 300px;
+    overflow-y: auto !important;
+  }
+}
+
+// 流程模板跨页全选和本页全选下拉框样式
+.tippy-popper.select-all-tpl-popover {
+  .tippy-tooltip {
+    padding: 6px 0;
+  }
+  .mode-item {
+    padding: 0 12px;
+    line-height: 28px;
+    font-size: 12px;
+    color: #333333;
+    cursor: pointer;
+    &:hover {
+      color: #3a84ff;
+      background: #f4f6fa;
+    }
+  }
+}
+
+// 表格空数据/搜索为空样式
+.bk-table {
+  .bk-table-empty-block {
+    height: 280px;
+    .bk-table-empty-text {
+      padding: 0;
+    }
+  }
+  .bk-table-header-label {
+    .label-text {
+      overflow: hidden;
+      white-space: nowrap;
+      word-wrap: normal;
+      text-overflow: ellipsis;
+  }
+  }
+}
+// 异常提示固定高度
+.bk-exception {
+  height: 280px;
+  justify-content: center;
+}
+
+.dialog-custom-header-title {
+  .bk-dialog-sub-header {
+    padding: 0 !important;
+  }
+  .custom-header-title {
+    padding: 15px 30px 10px;
+    line-height: 1.2;
+    text-align: center;
+    display: inline-block;
+    width: 100%;
+    font-size: 20px;
+    color: #313238;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .custom-header-sub-title {
+    padding: 5px 50px 21px;
+  }
+}
+
