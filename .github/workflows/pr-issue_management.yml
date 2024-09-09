@@ -18,7 +18,7 @@ jobs:
             echo "Issue ID: $ISSUE_ID"
             gh api repos/${{ github.repository }}/issues/$ISSUE_ID/comments \
               -F body="Linked to PR #${{ github.event.pull_request.number }}"
-            gh issue edit $ISSUE_ID --add-label "for_test"
+            gh issue edit $ISSUE_ID --add-label "stage/for_test"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -29,7 +29,7 @@ jobs:
           ISSUE_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oE '#[0-9]+$' | sed 's/#//')
           if [ ! -z "$ISSUE_ID" ]; then
             echo "Issue ID: $ISSUE_ID"
-            gh issue edit $ISSUE_ID --add-label "done"
+            gh issue edit $ISSUE_ID --add-label "stage/done"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
