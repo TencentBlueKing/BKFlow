@@ -414,7 +414,7 @@
           params: {
             spaceId: this.spaceId,
           },
-          query: { type: this.$route.query.activeTab }
+          query: { type: this.$route.query.activeTab },
         });
       },
     },

@@ -52,18 +52,22 @@
     </div>
     <!-- 用户icon -->
     <div
-      class="user-avatar"
       v-bk-tooltips="{
         ...basicTipsConfig,
         distance: 25,
         extCls: 'logout-tips',
         content: '#logout-html'
-      }">
+      }"
+      class="user-avatar">
       {{ username }}
-      <i class="bk-icon icon-down-shape"></i>
+      <i class="bk-icon icon-down-shape" />
     </div>
     <div id="logout-html">
-      <div class="operate-item" @click="handleLogout">{{ $t('退出登录') }}</div>
+      <div
+        class="operate-item"
+        @click="handleLogout">
+        {{ $t('退出登录') }}
+      </div>
     </div>
     <!-- 日志组件 -->
     <version-log
@@ -102,7 +106,7 @@
           distance: 17,
           theme: 'light',
           hideOnClick: false,
-        }
+        },
       };
     },
     computed: {
@@ -191,17 +195,17 @@
         const version = data[0];
         this.loadLogDetail(version);
       },
-      async handleLogout () {
+      async handleLogout() {
         try {
-          await this.logout()
+          await this.logout();
         } catch (error) {
-          console.warn(error)
+          console.warn(error);
         } finally {
-          let loginUrl = window.LOGIN_URL
-          loginUrl = /\/$/.test(loginUrl) ? loginUrl : `${loginUrl}/`
-          window.location.replace(`${loginUrl}?is_from_logout=1&c_url=${window.location.href}`)
+          let loginUrl = window.LOGIN_URL;
+          loginUrl = /\/$/.test(loginUrl) ? loginUrl : `${loginUrl}/`;
+          window.location.replace(`${loginUrl}?is_from_logout=1&c_url=${window.location.href}`);
         }
-      }
+      },
     },
   };
 </script>

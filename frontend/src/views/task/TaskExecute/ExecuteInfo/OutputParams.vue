@@ -51,7 +51,9 @@
               <full-code-editor
                 :value="JSON.stringify(output.value, null, 4)" />
             </td>
-            <td v-else class="output-value">
+            <td
+              v-else
+              class="output-value">
               {{ output.value }}
             </td>
           </tr>

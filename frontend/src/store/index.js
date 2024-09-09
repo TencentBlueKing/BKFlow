@@ -72,7 +72,7 @@ const store = new Vuex.Store({
     token: '',
     spaceId: '',
     spaceList: [],
-    isAdmin: false, 
+    isAdmin: false,
     isSpaceSuperuser: false, // 是否为某个空间下的管理员
     isCurSpaceSuperuser: false, // 是否为当前空间管理员
     hasAlertNotice: false,
@@ -329,8 +329,8 @@ const store = new Vuex.Store({
       return resp;
     },
     // 退出登录
-    logout () {
-      return axios.get('logout').then(response => response.data)
+    logout() {
+      return axios.get('logout').then(response => response.data);
     },
   },
 });

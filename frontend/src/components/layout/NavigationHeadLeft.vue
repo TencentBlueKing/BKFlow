@@ -29,7 +29,7 @@
         isAdmin: state => state.isAdmin,
         isSpaceSuperuser: state => state.isSpaceSuperuser,
       }),
-      headerList () {
+      headerList() {
         return [
           {
             name: this.$t('空间管理'),
@@ -41,21 +41,21 @@
             id: 'system-manager',
             show: this.isAdmin,
           },
-        ]
-      }
+        ];
+      },
     },
     watch: {
       '$route.name': {
         handler(val) {
           if (!val || val === 'home') {
-            this.navActive = ''
-            return
+            this.navActive = '';
+            return;
           }
           this.navActive = val === 'systemAdmin' ? 'system-manager' : 'space-manager';
         },
         deep: true,
         immediate: true,
-      }
+      },
     },
     methods: {
       onHandleNavClick(nav) {

@@ -164,8 +164,8 @@
             required: true,
             message: this.$t('必填项'),
             trigger: 'change',
-          }]
-        }
+          }],
+        },
       };
     },
     computed: {

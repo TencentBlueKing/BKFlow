@@ -211,17 +211,15 @@
         isAdmin: state => state.isAdmin,
         isIframe: state => state.isIframe,
       }),
-      varSortList () {
+      varSortList() {
         const priority = {
-          'custom': 1,
-          'component_inputs': 2,
-          'component_outputs': 2,
-          'system': 3,
+          custom: 1,
+          component_inputs: 2,
+          component_outputs: 2,
+          system: 3,
         };
-        return this.variableList.sort((a, b) => {
-          return priority[a.source_type] - priority[b.source_type];
-        });
-      }
+        return this.variableList.sort((a, b) => priority[a.source_type] - priority[b.source_type]);
+      },
     },
     watch: {
       formData: {

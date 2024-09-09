@@ -18,7 +18,9 @@
         :src="image4"
         alt="">
       <p class="project-presentation">
-        <i18n tag="div" path="projectPresentationTips">
+        <i18n
+          tag="div"
+          path="projectPresentationTips">
           <span class="highlight">{{ $t('高效') }}</span>
           <span class="highlight">{{ $t('灵活') }}</span>
           <span class="highlight">{{ $t('流程执行') }}</span>

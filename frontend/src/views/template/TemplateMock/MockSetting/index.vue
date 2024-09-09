@@ -628,8 +628,8 @@
       async handleConfirm() {
         try {
           const { mockDataList, initDataList, validate } = this.$refs.mockConfig;
-          const valid = await validate()
-          if (!valid) return
+          const valid = await validate();
+          if (!valid) return;
           if (!tools.isDataEqual(mockDataList, initDataList)) {
             // json字段解析
             const jsonFields = this.outputs.filter(item => item.type === 'json').map(item => item.key);

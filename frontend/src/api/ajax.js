@@ -70,7 +70,7 @@ axios.interceptors.response.use(
             const successUrl = `${window.location.origin}${window.SITE_URL}static/bkflow/login_success.html`;
             let [loginUrl] = data.login_url.split('?');
             loginUrl = `${loginUrl}?c_url=${encodeURIComponent(successUrl)}`;
-  
+
             showLoginModal({ loginUrl });
           }
         }

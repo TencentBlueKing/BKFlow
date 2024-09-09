@@ -33,16 +33,18 @@
               @click.stop>
               <bk-input
                 v-model="item.name"
+                v-validate="{ required: true }"
                 :maxlength="64"
                 :show-word-limit="true"
-                v-validate="{ required: true }"
                 data-vv-validate-on=" "
                 :name="`mockName_${item.uuid}`"
                 :class="[{ 'vee-error': veeErrors.has(`mockName_${item.uuid}`)}]"
                 @blur="handleNameInputBlur(item)" />
-                <span v-if="veeErrors.has(`mockName_${item.uuid}`)" class="error-msg">
-                  {{ veeErrors.first(`mockName_${item.uuid}`) }}
-                </span>
+              <span
+                v-if="veeErrors.has(`mockName_${item.uuid}`)"
+                class="error-msg">
+                {{ veeErrors.first(`mockName_${item.uuid}`) }}
+              </span>
             </div>
           </div>
           <div
@@ -261,10 +263,10 @@
           data: {},
         });
       },
-      handleNameInputBlur (val) {
-        this.$validator.validateAll().then(result => {
-          val.isNameEditing = !result
-        })
+      handleNameInputBlur(val) {
+        this.$validator.validateAll().then((result) => {
+          val.isNameEditing = !result;
+        });
       },
       toggleSchemeDefault(val) {
         if (val.is_default) {
@@ -277,7 +279,7 @@
       },
       copyScheme(val) {
         if (this.veeErrors.has(`mockName_${val.uuid}`)) {
-          return
+          return;
         }
         const index = this.mockDataList.findIndex(item => item.uuid === val.uuid);
         this.mockDataList.splice(index + 1, 0, {
@@ -292,9 +294,9 @@
       deleteScheme(val) {
         this.mockDataList = this.mockDataList.filter(item => item.uuid !== val.uuid);
       },
-      validate () {
-        return this.$validator.validateAll().then(valid => valid); 
-      }
+      validate() {
+        return this.$validator.validateAll().then(valid => valid);
+      },
     },
   };
 </script>

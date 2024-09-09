@@ -70,7 +70,7 @@
   import ConditionEdit from '../TemplateEdit/ConditionEdit.vue';
   import tools from '@/utils/tools';
   import moment from 'moment-timezone';
-  import bus from '@/utils/bus.js'
+  import bus from '@/utils/bus.js';
   export default {
     name: 'TemplateMock',
     components: {
@@ -179,10 +179,10 @@
       },
     },
     created() {
-      window.addEventListener('beforeunload', this.handleBeforeUnload, false)
+      window.addEventListener('beforeunload', this.handleBeforeUnload, false);
     },
-    beforeDestroy () {
-      window.removeEventListener('beforeunload', this.handleBeforeUnload, false)
+    beforeDestroy() {
+      window.removeEventListener('beforeunload', this.handleBeforeUnload, false);
     },
     methods: {
       ...mapActions([
@@ -272,7 +272,7 @@
             }
             return acc;
           }, {});
-          this.initMockData = tools.deepClone(this.mockData)
+          this.initMockData = tools.deepClone(this.mockData);
         } catch (error) {
           console.warn(error);
         }
@@ -394,7 +394,7 @@
               },
             });
           }
-          return
+          return;
         }
         const { mockExecute } = this.$refs;
         const isEqual = mockExecute ? mockExecute.judgeDataEqual() : true;
@@ -405,7 +405,7 @@
               templateId: this.templateId,
             },
           });
-        }
+        };
         if (!isEqual) {
           this.$bkInfo({
             ...this.infoBasicConfig,
@@ -442,7 +442,7 @@
           console.warn(error);
         }
       },
-      async confirmExecute () {
+      async confirmExecute() {
         try {
           this.executeLoading = true;
           await this.onSaveTplMockData();
@@ -495,7 +495,7 @@
               template_id: this.templateId,
               data: this.mockData,
             });
-            this.initMockData = tools.deepClone(this.mockData)
+            this.initMockData = tools.deepClone(this.mockData);
           }
           // 更新节点勾选方案
           const resp = await this.updateTplMockScheme({
@@ -531,12 +531,12 @@
           console.warn(error);
         }
       },
-      handleBeforeUnload (e) {
-        e.returnValue = this.$t('系统不会保存您所做的更改，确认离开？')
-        return this.$t('系统不会保存您所做的更改，确认离开？')
-      }
+      handleBeforeUnload(e) {
+        e.returnValue = this.$t('系统不会保存您所做的更改，确认离开？');
+        return this.$t('系统不会保存您所做的更改，确认离开？');
+      },
     },
-    beforeRouteLeave (to, from, next) {
+    beforeRouteLeave(to, from, next) {
       let isEqual = true;
       if (this.mockStep === 'setting') {
         isEqual = this.judgeDataEqual();
@@ -548,17 +548,17 @@
         this.$bkInfo({
           ...this.infoBasicConfig,
           cancelFn: () => {
-            bus.$emit('cancelRoute')
+            bus.$emit('cancelRoute');
             this.setSpaceId(this.tplSpaceId);
           },
           confirmFn: () => {
-            next()
+            next();
           },
         });
       } else {
         next();
       }
-    }
+    },
   };
 </script>
 
