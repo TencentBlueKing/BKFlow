@@ -1,0 +1,33 @@
+name: PR and Issue Management
+
+on:
+  pull_request:
+    types: [opened, reopened, closed]
+
+jobs:
+  manage-pr-and-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract issue ID and link PR to issue
+        if: github.event.action == 'opened' || github.event.action == 'reopened'
+        run: |
+          ISSUE_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oE '#[0-9]+$' | sed 's/#//')
+          if [ ! -z "$ISSUE_ID" ]; then
+            echo "Issue ID: $ISSUE_ID"
+            gh api repos/${{ github.repository }}/issues/$ISSUE_ID/comments \
+              -F body="Linked to PR #${{ github.event.pull_request.number }}"
+            gh issue edit $ISSUE_ID --add-label "for_test"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set 'done' label when PR is merged
+        if: github.event.pull_request.merged == true
+        run: |
+          ISSUE_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oE '#[0-9]+$' | sed 's/#//')
+          if [ ! -z "$ISSUE_ID" ]; then
+            echo "Issue ID: $ISSUE_ID"
+            gh issue edit $ISSUE_ID --add-label "done"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
