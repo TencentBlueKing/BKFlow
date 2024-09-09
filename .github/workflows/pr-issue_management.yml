@@ -1,8 +1,7 @@
 name: PR and Issue Management
 
 on:
-  pull_request_target:
-    types: [opened, reopened, closed]
+- pull_request_target
 
 jobs:
   manage-pr-and-issue:
