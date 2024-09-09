@@ -13,7 +13,7 @@ module.exports = {
     browser: true,
   },
   // https://github.com/standard/standard/blob/master/docs/RULES-en.md
-  extends: ['@tencent/eslint-config-tencent', 'plugin:vue/recommended'],
+  extends: ['eslint-config-tencent', 'plugin:vue/recommended'],
   // required to lint *.vue files
   plugins: [
     'vue',

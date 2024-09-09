@@ -126,12 +126,12 @@
     },
     created() {
       bus.$on('cancelRoute', () => {
-        const { name } = this.$route
+        const { name } = this.$route;
         if (name !== this.currentNav) {
-            this.setNavigationTitle(this.$route)
-            this.randomKey = new Date().getTime()
+            this.setNavigationTitle(this.$route);
+            this.randomKey = new Date().getTime();
         }
-      })
+      });
     },
     methods: {
       setNavigationTitle(route) {
@@ -141,8 +141,8 @@
           return;
         }
         if (route.name === 'EnginePanel') {
-          this.currentNav = route.query.type || 'task'
-          return
+          this.currentNav = route.query.type || 'task';
+          return;
         }
         this.routerList.some((item) => {
           if (item.subRoutes?.includes(route.name)) {

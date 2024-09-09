@@ -219,7 +219,7 @@
       async getApiAtomConfig(sourceInfo, sourceTag) {
         try {
           const sourceNodeId = Object.keys(sourceInfo)[0];
-          if (!sourceNodeId) return []
+          if (!sourceNodeId) return [];
           const { api_meta: apiMeta = {} } = this.activities[sourceNodeId].component;
           const { meta_url: metaUrl } = apiMeta;
           if (!metaUrl) return;

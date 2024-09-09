@@ -248,7 +248,6 @@
   import axios from 'axios';
   import tools from '@/utils/tools.js';
   import { TASK_STATE_DICT, NODE_DICT } from '@/constants/index.js';
-  import dom from '@/utils/dom.js';
   import ModifyParams from './ModifyParams.vue';
   import ExecuteInfo from './ExecuteInfo.vue';
   import RetryNode from './RetryNode.vue';
@@ -536,7 +535,7 @@
       },
       // 只有mock任务才可以跳转到流程
       isShowViewProcess() {
-        return this.createMethod === 'MOCK'
+        return this.createMethod === 'MOCK';
       },
       adminView() {
         return false;

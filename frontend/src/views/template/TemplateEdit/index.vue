@@ -2124,7 +2124,7 @@
         this.$bkInfo({
           ...this.infoBasicConfig,
           cancelFn: () => {
-            bus.$emit('cancelRoute')
+            bus.$emit('cancelRoute');
             this.setSpaceId(this.tplSpaceId);
           },
           confirmFn: () => {

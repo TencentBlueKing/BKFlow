@@ -134,7 +134,7 @@
       });
       await this.getSpaceList();
       // 如果没有空间列表则打开空间申请弹框
-      this.isVisible = !this.spaceList.length && (this.isAdmin || this.isSpaceSuperuser)
+      this.isVisible = !this.spaceList.length && (this.isAdmin || this.isSpaceSuperuser);
     },
     methods: {
       ...mapActions([

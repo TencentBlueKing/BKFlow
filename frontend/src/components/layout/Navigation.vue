@@ -53,8 +53,8 @@
       isNeedMenu() {
         const { name, meta } = this.$route;
         let isShow = meta.admin || this.isAdmin || this.isCurSpaceSuperuser;
-        isShow = isShow && name && name !== 'home'
-        return isShow
+        isShow = isShow && name && name !== 'home';
+        return isShow;
       },
       appName() {
         const { i18n, name } = this.platformInfo;

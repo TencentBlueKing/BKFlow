@@ -34,7 +34,6 @@
 <script>
   import { mapMutations, mapActions } from 'vuex';
   import TaskOperation from './TaskOperation.vue';
-  import dom from '@/utils/dom.js';
 
   export default {
     name: 'TaskExecute',

@@ -55,10 +55,10 @@
         siteUrl: state => state.site_url,
         isIframe: state => state.isIframe,
       }),
-      spaceId () {
+      spaceId() {
         const { params, query } = this.$route;
-        return params.spaceId || query.space_id
-      }
+        return params.spaceId || query.space_id;
+      },
     },
     watch: {
       '$route'(val, oldVal) {
@@ -85,10 +85,10 @@
         }
         // 路由发生变化时清空失败message列表
         if (val.name !== oldVal.name && this.errorMsgList.length) {
-          this.errorMsgList.forEach(msgInstance => {
-            msgInstance.close()
-          })
-          this.errorMsgList = []
+          this.errorMsgList.forEach((msgInstance) => {
+            msgInstance.close();
+          });
+          this.errorMsgList = [];
         }
       },
       spaceId: {
