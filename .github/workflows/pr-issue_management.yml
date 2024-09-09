@@ -22,14 +22,3 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set 'done' label when PR is merged
-        if: github.event.pull_request.merged == true
-        run: |
-          ISSUE_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oE '#[0-9]+$' | sed 's/#//')
-          if [ ! -z "$ISSUE_ID" ]; then
-            echo "Issue ID: $ISSUE_ID"
-            gh issue edit $ISSUE_ID --add-label "stage/done"
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
