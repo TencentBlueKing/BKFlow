@@ -17,6 +17,12 @@ jobs:
           gh pr edit ${{ github.event.pull_request.number }} --add-label bugfix
         elif [[ "$PR_TITLE" == "feat:"* ]]; then
           gh pr edit ${{ github.event.pull_request.number }} --add-label feature
+        elif [[ "$PR_TITLE" == "docs:"* ]]; then
+          gh pr edit ${{ github.event.pull_request.number }} --add-label optimization
+        elif [[ "$PR_TITLE" == "refactor:"* ]]; then
+          gh pr edit ${{ github.event.pull_request.number }} --add-label feature
+        elif [[ "$PR_TITLE" == "perf:"* ]]; then
+          gh pr edit ${{ github.event.pull_request.number }} --add-label optimization
         else
           echo "No label with this title: $PR_TITLE" 
         fi
