@@ -10,6 +10,9 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
       - name: Extract issue ID and link PR to issue
         if: github.event.action == 'opened' || github.event.action == 'reopened'
         run: |
