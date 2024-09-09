@@ -7,6 +7,9 @@ on:
 jobs:
   manage-pr-and-issue:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
     steps:
       - name: Extract issue ID and link PR to issue
         if: github.event.action == 'opened' || github.event.action == 'reopened'
@@ -19,7 +22,7 @@ jobs:
             gh issue edit $ISSUE_ID --add-label "for_test"
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set 'done' label when PR is merged
         if: github.event.pull_request.merged == true
@@ -30,4 +33,4 @@ jobs:
             gh issue edit $ISSUE_ID --add-label "done"
           fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
