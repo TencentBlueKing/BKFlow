@@ -242,7 +242,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
     BK_APIGW_GRANT_APPS = env.BK_APIGW_GRANT_APPS
 
     # version log config
-    VERSION_LOG = {"FILE_TIME_FORMAT": "%Y-%m-%d"}
+    VERSION_LOG = {"FILE_TIME_FORMAT": "%Y-%m-%d", "LANGUAGE_MAPPINGS": {"en": "en"}}
 
     # bk notice config
     DISABLE_REGISTER_BKFLOW_TO_BKNOTICE = env.DISABLE_REGISTER_BKFLOW_TO_BKNOTICE
