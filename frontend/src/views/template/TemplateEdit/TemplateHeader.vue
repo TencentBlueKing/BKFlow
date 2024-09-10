@@ -108,12 +108,6 @@
           @click.stop="$emit('jumpToTemplateMock')">
           {{ $t('调试') }}
         </bk-button>
-        <bk-button
-          :class="['task-btn']"
-          data-test-id="templateEdit_form_exportCanvas"
-          @click.stop="onDownloadCanvas">
-          {{ $t('导出为图片') }}
-        </bk-button>
       </div>
       <div
         v-if="schemeInfo"
@@ -350,9 +344,6 @@
           this.saveTemplate(saveAndCreate);
         }
         this.$emit('onOpenExecuteScheme', false);
-      },
-      onDownloadCanvas() {
-        this.$emit('onDownloadCanvas');
       },
       saveTemplate(saveAndCreate = false) {
         this.$validator.validateAll().then((result) => {

@@ -150,6 +150,7 @@ export const graphToJson = (canvasData) => {
             width: 6,
             height: 8,
           },
+          class: id,
         },
       },
       zIndex: 0,

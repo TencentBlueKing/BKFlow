@@ -18,13 +18,11 @@
       @onFrameSelectToggle="isSelectionOpen = $event"
       @onFormatPosition="onFormatPosition"
       @onLocationMoveDone="onLocationMoveDone"
+      @onDownloadCanvas="onDownloadCanvas"
       @onTogglePerspective="onTogglePerspective" />
     <Dnd
       v-if="graph && showPalette"
       :instance="graph"
-      :common="common"
-      :atom-type-list="atomTypeList"
-      :template-labels="templateLabels"
       @dragging="onNodeMoving"
       @dragEnd="onNodeMoveStop" />
     <div class="canvas-material-container" />
@@ -101,20 +99,6 @@
       showPalette: {
         type: Boolean,
         default: true,
-      },
-      common: {
-        type: [String, Number],
-        default: '',
-      },
-      atomTypeList: {
-        type: Object,
-        default() {
-          return {};
-        },
-      },
-      templateLabels: {
-        type: Array,
-        default: () => ([]),
       },
       isAllSelected: {
         type: Boolean,
@@ -325,6 +309,8 @@
           this.onShowNodeConfig(cell.id);
           this.closeShortcutPanel();
         });
+        // 标签沿着连线拖拽
+        this.graph.on('edge:change:labels', this.handleLabelDrag);
       },
       initCanvasData() {
         if (!this.canvasData.length) return;
@@ -358,16 +344,16 @@
         // 结束节点不展示快捷面板
         if (cell.data?.type === 'end') return;
         this.activeCell = cell;
+        const canvasDom = this.getNodeElement();
+        const { left: canvasLeft, top: canvasTop } = canvasDom.getBoundingClientRect();
         let top; let left;
         if (cell.shape === 'edge') {
-          left = e.clientX + 6; // 10-偏移宽度
-          top = e.clientY - 48 + 6; // 10-偏移高度
+          left = e.clientX - canvasLeft + 60 + 6; // 6-偏移宽度
+          top = e.clientY - canvasTop + 6; // 6-偏移高度
         } else  {
           const nodeDom = this.getNodeElement(`[data-cell-id=${cell.id}] .custom-node`);
           if (!nodeDom) return;
           const { height, width, top: nodeT, left: nodeL  } = nodeDom.getBoundingClientRect();
-          const canvasDom = this.getNodeElement();
-          const { left: canvasLeft, top: canvasTop } = canvasDom.getBoundingClientRect();
           left = nodeL - canvasLeft + width / 2 + 80;
           top = nodeT - canvasTop + height + 6;
         }
@@ -757,6 +743,7 @@
                 width: 6,
                 height: 8,
               },
+              class: edgeId,
             },
           },
           data,
@@ -895,6 +882,11 @@
           if (existLineInfo) {
             this.graph.removeEdge(id);
             const { source: oldSource = {}, target: oldTarget = {} } = existLineInfo;
+            const conditionInfo = this.getConditionInfo({
+              lineId: id,
+              sourceId: source.cell,
+              targetId: target.cell,
+            });
             this.onLineChange('delete', {
               id,
               source: {
@@ -905,11 +897,6 @@
                 cell: oldTarget.id,
                 port: `port_${oldTarget.arrow?.toLowerCase()}`,
               },
-            });
-            const conditionInfo = this.getConditionInfo({
-              lineId: id,
-              sourceId: source.cell,
-              targetId: target.cell,
             });
             this.createEdge({
               source,
@@ -1019,14 +1006,17 @@
           if (branchInfo && Object.keys(branchInfo).length > 0) {
             const conditionInfo = cell.data?.conditionInfo || branchInfo[cell.id] || {};
             if (!Object.keys(conditionInfo).length) return;
+            const { width: edgeWidth } = cell.getBBox()
             const textDom = document.createElement('span');
             textDom.innerText = conditionInfo.name;
             textDom.style.fontSize = '12px';
+            textDom.style.padding = '0 6px';
             document.body.appendChild(textDom);
             let { width = 0 } = textDom.getBoundingClientRect();
-            width = (width + 12) < 60 ? 60 : width;
+            width = width > 60 ? width : 60
             width = width > 112 ? 112 : width;
             document.body.removeChild(textDom);
+            const distance = conditionInfo.loc || (-width/2 - 20)
             cell.appendLabel({
               markup: Markup.getForeignObjectMarkup(),
               attrs: {
@@ -1043,27 +1033,13 @@
                 sourceId: cell.source.cell,
               },
               position: {
-                distance: -40,
+                distance,
+                offset: {
+                  x: width/2,
+                  y: 0,
+                }
               },
             });
-            // 更新本地condition配置
-            if (cell.data?.conditionInfo) {
-              const condition = {
-                id: cell.id,
-                nodeId: cell.source.cell,
-                name: conditionInfo.name,
-                tag: conditionInfo.tag,
-                value: conditionInfo.evaluate,
-              };
-              if (conditionInfo.default_condition) {
-                condition.default_condition = {
-                  name: conditionInfo.name,
-                  tag: conditionInfo.tag,
-                  flow_id: cell.id,
-                };
-              }
-              this.$emit('updateCondition', condition);
-            }
           }
         });
       },
@@ -1087,6 +1063,40 @@
           return false;
         });
         return branchConditions;
+      },
+      // 标签拖拽
+      handleLabelDrag ({ edge, current, previous }) {
+        if (!previous || !previous.length || !current.length) return
+        // 边的长度
+        const svgPath = this.getNodeElement(`.${edge.id}`)
+        const edgeLength = svgPath.getTotalLength()
+        current.forEach((item) => {
+          const { width } = item.attrs.fo
+          item.position.offset = {
+            x: width / 2,
+            y: 0
+          };
+          // 限制label.position.distance的值在min到max之间
+          const min = (width / 2 + 20) / edgeLength
+          const max = 1 - min
+          const distance = Math.max(min, Math.min(max, item.position.distance))
+          item.position.distance = distance
+          // 更新本地condition配置
+          const condition = {
+            ...item.label,
+            id: edge.id,
+            nodeId: edge.source.cell,
+            loc: distance,
+            value: item.label.evaluate,
+          };
+          if (item.label.isDefault) {
+            condition.default_condition = {
+              ...item.label,
+              loc: distance,
+            };
+          }
+          this.$emit('updateCondition', condition);
+        });
       },
       // 获取画布中节点元素
       getNodeElement(className) {
@@ -1163,9 +1173,11 @@
         // 计算判断节点右边的距离是否够展示气泡卡片
         const nodeDom = this.getNodeElement(`[data-cell-id=${node.id}] .custom-node`);
         if (!nodeDom) return;
-        const { left: nodeLeft, right: nodeRight, top: nodeTop } = nodeDom.getBoundingClientRect();
+        const { width, left: nodeLeft, right: nodeRight, top: nodeTop } = nodeDom.getBoundingClientRect();
         const canvasDom = this.getNodeElement();
         const { left: canvasLeft, top: canvasTop } = canvasDom.getBoundingClientRect();
+        // dnd侧栏宽度
+        const dndWidth = this.showPalette ? 60 : 0
         // 200节点的气泡卡片展示最小宽度
         const bodyWidth = document.body.offsetWidth;
         const isRight = bodyWidth - nodeRight > 200;
@@ -1173,11 +1185,11 @@
         let top = nodeTop - canvasTop - 10;
         let left; let padding;
         if (isRight) {
-          left = nodeRight - canvasLeft + 60;
-          padding = '0 0 0 15px';
+          left = nodeLeft - canvasLeft + width + dndWidth;
+          padding = '0 0 0 10px';
         } else {
-          left = nodeLeft - canvasLeft - 200 + 60;
-          padding = '0 15px 0 0';
+          left = nodeLeft - canvasLeft - 200 + dndWidth;
+          padding = '0 10px 0 0';
         }
         top = top > 0 ? top : 0;
         this.nodeTipsPanelPosition = {
@@ -1246,15 +1258,11 @@
           height: canvasHeight,
           width: canvasWidth,
           cloneBack: (clone) => {
-            clone.style.width = `${canvasWidth}px`;
-            clone.style.height = `${canvasHeight}px`;
-            const canvasDom = clone.querySelector('.x6-graph-svg');
-            canvasDom.style.left = `${offsetX + 30}px`;
-            canvasDom.style.top = `${offsetY + 30}px`;
-            canvasDom.style.right = `${0}px`;
-            canvasDom.style.bottom = `${0}px`;
-            canvasDom.style.transform = 'inherit';
-            canvasDom.style.border = 0;
+            const svgCloneDom = clone.querySelector('.x6-graph-svg');
+            svgCloneDom.style.width = `${canvasWidth}px`;
+            svgCloneDom.style.height = `${canvasHeight}px`;
+            const viewCloneDom = clone.querySelector('.x6-graph-svg-viewport');
+            viewCloneDom.style.transform = `translate(${offsetX + 30 + 'px'}, ${offsetY + 30 + 'px'})`;
           },
         });
       },

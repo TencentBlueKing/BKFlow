@@ -24,7 +24,6 @@
         :show-palette="false"
         :is-all-selected="isAllSelected"
         :is-show-select-all-tool="isSelectAllShow"
-        :common="common"
         @onNodeCheckClick="onNodeCheckClick"
         @onConditionClick="onOpenConditionEdit"
         @onToggleAllNode="onToggleAllNode"

@@ -52,15 +52,15 @@
     </div>
     <!-- 用户icon -->
     <div
+      class="user-avatar"
       v-bk-tooltips="{
         ...basicTipsConfig,
         distance: 25,
         extCls: 'logout-tips',
         content: '#logout-html'
-      }"
-      class="user-avatar">
+      }">
       {{ username }}
-      <i class="bk-icon icon-down-shape" />
+      <i class="bk-icon icon-down-shape"></i>
     </div>
     <div id="logout-html">
       <div

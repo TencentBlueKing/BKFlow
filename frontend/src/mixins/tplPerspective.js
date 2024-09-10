@@ -108,7 +108,6 @@ const tplPerspective = {
           }
           return acc;
         }, {});
-        console.log(resp, nodeCitedInfo);
         // 去重
         Object.keys(nodeCitedInfo).forEach((key) => {
           const values = nodeCitedInfo[key];

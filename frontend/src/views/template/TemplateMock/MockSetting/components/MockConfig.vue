@@ -33,9 +33,9 @@
               @click.stop>
               <bk-input
                 v-model="item.name"
-                v-validate="{ required: true }"
                 :maxlength="64"
                 :show-word-limit="true"
+                v-validate="{ required: true }"
                 data-vv-validate-on=" "
                 :name="`mockName_${item.uuid}`"
                 :class="[{ 'vee-error': veeErrors.has(`mockName_${item.uuid}`)}]"
