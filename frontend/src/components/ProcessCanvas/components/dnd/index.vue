@@ -11,8 +11,7 @@
           node.id === 'group' ? 'group-node' : `common-icon-node-${node.icon}`,
           { disabled: ['start', 'end'].includes(node.id) },
         ]"
-        :data-type="node.id">
-      </li>
+        :data-type="node.id" />
     </ul>
   </div>
 </template>

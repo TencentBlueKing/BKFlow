@@ -1562,9 +1562,11 @@
           line.oldSouceId = data.oldSouceId;
         }
         // 添加语法标识
-        const gatewayInfo = this.gateways[line.source.id]
+        line.parseLang = this.spaceRelatedConfig.gateway_expression;
+        const gatewayInfo = this.gateways[line.source.id];
         if (gatewayInfo) {
-          line.parseLang = gatewayInfo ? gatewayInfo.extra_info?.parse_lang : this.spaceRelatedConfig.gateway_expression;
+          const { parse_lang: parseLang } = gatewayInfo.extra_info || {};
+          line.parseLang = parseLang;
         }
         this.setLine({ type, line });
         // 对校验失败节点进行处理

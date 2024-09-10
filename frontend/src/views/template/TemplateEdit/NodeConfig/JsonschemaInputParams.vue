@@ -98,23 +98,6 @@
           }
         });
       },
-      setDisabledProps (properties) {
-        Object.keys(properties).forEach(form => {
-          const component = properties[form]['ui:component']
-          if (!component) {
-            properties[form]['ui:component'] = {
-              props: { disabled: true }
-            }
-          } else if ('props' in component) {
-            component.props.disabled = true
-          } else {
-            component.props = { disabled: true }
-          }
-          if (properties[form].items?.properties) {
-            this.setDisabledProps(properties[form].items?.properties)
-          }
-        })
-      },
     },
   };
 </script>

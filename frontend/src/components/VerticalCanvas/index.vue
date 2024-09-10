@@ -807,7 +807,7 @@
             svgCloneDom.style.width = `${canvasWidth}px`;
             svgCloneDom.style.height = `${canvasHeight}px`;
             const viewCloneDom = clone.querySelector('.x6-graph-svg-viewport');
-            viewCloneDom.style.transform = `translate(${offsetX + 30 + 'px'}, ${offsetY + 30 + 'px'})`;
+            viewCloneDom.style.transform = `translate(${`${offsetX + 30}px`}, ${`${offsetY + 30}px`})`;
           },
         });
       },
