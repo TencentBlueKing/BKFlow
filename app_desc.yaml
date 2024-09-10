@@ -1,36 +1,19 @@
 spec_version: 2
-app_version: "1.8.0"
 app:
-  region: default
-  bk_app_code: &APP_CODE bk_flow_engine
-  bk_app_name: 蓝鲸流程引擎服务
-  bk_app_name_en: BKFlow
   market:
     category: 运维工具
     introduction: 流程引擎服务
-    introduction_en: Process Engine Service
     description: 为上层应用提供快捷接入流程引擎服务能力
-    description_en: Provide upper-level applications with quick access to process engine service capabilities
     display_options:
-      width: 1280
-      height: 720
-      is_win_maximize: true
-      open_mode: "new_tab"
+      width: 800
+      height: 600
 modules:
   default:
     is_default: True
     language: Python
-    source_dir: ./src
-    services:
-      - name: mysql
-      - name: rabbitmq
     scripts:
       pre_release_hook: bin/pre_release.sh
     env_variables:
-      - &ENV_PIP_VERSION
-        key: PIP_VERSION
-        value: 23.0.1
-        description: pip版本
       - key: BKFLOW_MODULE_TYPE
         value: interface
         description: 模块类型
@@ -40,19 +23,12 @@ modules:
       - key: GUNICORN_THREAD_NUM
         value: 10
         description: GunicornThread数量
-      - key: BK_APIGW_NAME
-        value: *APP_CODE
-        description: APIGW名称
-      - &ENV_APP_INTERNAL_TOKEN
-        key: APP_INTERNAL_TOKEN
-        value: &INTERFACE_INTERNAL_TOKEN df1da1fc5b134858b0743838d7db256b
-        description: 应用模块内部调用token
-      - key: DEFAULT_ENGINE_APP_INTERNAL_TOKEN
-        value: &DEFAULT_ENGINE_INTERNAL_TOKEN a35230d7a282485dba66a867e07d8125
-        description: default-engine模块内部调用token
+      - key: MEMBER_SELECTOR_DATA_HOST
+        value: //open.woa.com/
+        description: 人员选择器数据源地址
       - &ENV_BK_APIGW_NETLOC_PATTERN
         key: BK_APIGW_NETLOC_PATTERN
-        value: ^bkapi.{hostname}
+        value: ^(?P<api_name>[\w-]+)\.apigw\.o\.woa\.com
         description: 用于识别请求地址是否来自 APIGW
       - &ENV_BKAPP_USE_PLUGIN_SERVICE
         key: BKAPP_USE_PLUGIN_SERVICE
@@ -62,6 +38,12 @@ modules:
         key: BKFLOW_DEFAULT_CALLBACK_KEY
         value: jbSH1_3PFsM8WRZZpUXJPhlJuvuA44A7Ov0nPhFk5ZY=
         description: 默认回调KEY
+      - key: BK_APIGW_NAME
+        value: &APP_CODE bkflow-eng-svc
+        description: APIGW名称
+      - key: BK_APIGW_GRANT_APPS
+        value: visual-layout
+        description: 授权网关接口的app列表
     processes:
       web:
         command: bin/start_web.sh
@@ -77,24 +59,12 @@ modules:
         replicas: 2
     svc_discovery:
       bk_saas:
-        - bk_app_code: 'bk-user'
-        - bk_app_code: *APP_CODE
-        - bk_app_code: *APP_CODE
-          module_name: 'default-engine'
+        - 'bk-user'
+        - *APP_CODE
   default-engine:
-    is_default: False
     language: Python
-    source_dir: ./src
     scripts:
       pre_release_hook: bin/pre_release.sh
-    services:
-      - name: mysql
-      - name: rabbitmq
-      - name: redis
-        spec: reusable
-    svc_discovery:
-      bk_saas:
-        - *APP_CODE
     env_variables:
       - key: BKFLOW_MODULE_TYPE
         value: engine
@@ -108,15 +78,8 @@ modules:
       - key: GUNICORN_THREAD_NUM
         value: 10
         description: GunicornThread数量
-      - key: INTERFACE_APP_INTERNAL_TOKEN
-        value: *INTERFACE_INTERNAL_TOKEN
-        description: Interface模块内部调用token
-      - <<: *ENV_PIP_VERSION
       - <<: *ENV_BK_APIGW_NETLOC_PATTERN
       - <<: *ENV_BKAPP_USE_PLUGIN_SERVICE
-      - <<: *DEFAULT_CALLBACK_KEY
-      - <<: *ENV_APP_INTERNAL_TOKEN
-        value: *DEFAULT_ENGINE_INTERNAL_TOKEN
     processes: &default_engine_processes
       er-e:
         command: celery worker -A blueapps.core.celery -P threads -Q er_execute_${BKFLOW_MODULE_CODE} -n er_e_worker@%h -c 100 -l info
@@ -142,3 +105,24 @@ modules:
         command: celery beat -A blueapps.core.celery -l info
         plan: 4C1G5R
         replicas: 1
+  sap-engine:
+    language: Python
+    scripts:
+      pre_release_hook: bin/pre_release.sh
+    env_variables:
+      - key: BKFLOW_MODULE_TYPE
+        value: engine
+        description: 模块类型
+      - key: BKFLOW_MODULE_CODE
+        value: sap_engine
+        description: 空间编码
+      - key: GUNICORN_WORKER_NUM
+        value: 2
+        description: GunicornWorker数量
+      - key: GUNICORN_THREAD_NUM
+        value: 10
+        description: GunicornThread数量
+      - <<: *ENV_BK_APIGW_NETLOC_PATTERN
+      - <<: *ENV_BKAPP_USE_PLUGIN_SERVICE
+      - <<: *DEFAULT_CALLBACK_KEY
+    processes: *default_engine_processes
