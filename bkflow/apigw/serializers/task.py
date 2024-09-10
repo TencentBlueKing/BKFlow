@@ -18,9 +18,12 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 from django.utils.translation import ugettext_lazy as _
+from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TASK_NAME, USER_NAME_MAX_LENGTH
+from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
+from bkflow.utils.strings import standardize_pipeline_node_name
 
 
 class CreateTaskSerializer(serializers.Serializer):
@@ -66,6 +69,17 @@ class CreateTaskWithoutTemplateSerializer(serializers.Serializer):
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
 
 
+class PipelineTreeSerializer(serializers.Serializer):
+    pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
+
+    def validate_pipeline_tree(self, pipeline_tree):
+        try:
+            standardize_pipeline_node_name(pipeline_tree)
+            validate_web_pipeline_tree(pipeline_tree)
+        except PipelineException as e:
+            raise serializers.ValidationError(str(e))
+
+
 class GetTaskListSerializer(serializers.Serializer):
     scope_type = serializers.CharField(help_text=_("流程范围类型"), max_length=128, required=False)
     scope_value = serializers.CharField(help_text=_("流程范围值"), max_length=128, required=False)
@@ -75,6 +89,10 @@ class GetTaskListSerializer(serializers.Serializer):
     create_at_end = serializers.DateTimeField(help_text=_("创建时间结束"), required=False)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=False)
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
+
+
+class GetTasksStatesSerializer(serializers.Serializer):
+    task_ids = serializers.ListField(required=True, child=serializers.IntegerField())
 
 
 class OperateTaskSerializer(serializers.Serializer):

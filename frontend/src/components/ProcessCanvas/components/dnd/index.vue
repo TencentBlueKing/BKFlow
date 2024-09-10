@@ -10,25 +10,10 @@
           'node-item',
           node.id === 'group' ? 'group-node' : `common-icon-node-${node.icon}`,
           { disabled: ['start', 'end'].includes(node.id) },
-          { actived: node.id === 'task' && menuType === 'plugin' }
         ]"
-        :data-type="node.id"
-        @click="menuType = node.id === 'task' ? 'plugin' : ''">
-        <span
-          v-if="node.id === 'group'"
-          class="text">group</span>
+        :data-type="node.id">
       </li>
     </ul>
-    <transition name="slideLeft">
-      <node-menu
-        v-if="menuType !== ''"
-        :menu-type="menuType"
-        :template-labels="templateLabels"
-        :built-in-plugins="atomTypeList.tasknode"
-        :common="common"
-        @change="menuType = $event === 'task' ? 'plugin' : 'subflow'"
-        @close="menuType = ''" />
-    </transition>
   </div>
 </template>
 <script>
@@ -37,7 +22,6 @@
   import { uuid } from '@/utils/uuid.js';
   import Guide from '@/utils/guide.js';
   import dom from '@/utils/dom.js';
-  import NodeMenu from './NodeMenu/NodeMenu.vue';
   import i18n from '@/config/i18n/index.js';
 
   const NODES = [
@@ -54,31 +38,13 @@
 
   export default {
     name: 'ProcessDnd',
-    components: {
-      NodeMenu,
-    },
     props: {
       instance: Graph,
-      common: {
-        type: [String, Number],
-        default: '',
-      },
-      atomTypeList: {
-        type: Object,
-        default() {
-          return {};
-        },
-      },
-      templateLabels: {
-        type: Array,
-        default: () => ([]),
-      },
     },
     data() {
       return {
         NODES,
         dnd: null,
-        menuType: '',
       };
     },
     mounted() {

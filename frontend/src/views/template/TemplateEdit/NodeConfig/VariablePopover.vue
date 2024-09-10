@@ -77,12 +77,13 @@
           </div>
         </bk-table-column>
         <bk-table-column
+          v-if="!isViewMode"
           :label="$t('操作')"
           width="80">
           <template slot-scope="props">
             <bk-link
               :theme="props.row.source_type === 'system' ? 'default' : 'primary'"
-              :disabled="isViewMode || props.row.source_type === 'system'"
+              :disabled="props.row.source_type === 'system'"
               @click="openVariablePanel(props.row)">
               {{ $t('编辑') }}
             </bk-link>

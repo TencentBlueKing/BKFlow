@@ -127,6 +127,30 @@ paths:
           userVerifiedRequired: false
         disabledStages: [ ]
         descriptionEn: Create a task without template
+  /space/{space_id}/validate_pipeline_tree/:
+    post:
+      operationId: validate_pipeline_tree
+      description: 校验 pipeline_tree 是否合法
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/validate_pipeline_tree/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: false
+        disabledStages: [ ]
+        descriptionEn: Validate a pipeline tree
   /space/{space_id}/create_mock_task/:
     post:
       operationId: create_mock_task
@@ -319,6 +343,30 @@ paths:
           userVerifiedRequired: false
         disabledStages: []
         descriptionEn: Get states of a task
+  /space/{space_id}/get_tasks_states/:
+    post:
+      operationId: get_tasks_states
+      description: 批量获取任务状态
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_tasks_states/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: false
+        disabledStages: [ ]
+        descriptionEn: Get states of a task with filter params
   /space/{space_id}/task/{task_id}/operate_task/{operation}/:
     post:
       operationId: operate_task
