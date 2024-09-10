@@ -5,3 +5,4 @@
 - 流程引擎: [bkflow-engine](https://github.com/TencentBlueKing/bamboo-engine)
 - 决策引擎: [bkflow-dmn](https://github.com/TencentBlueKing/bkflow-dmn)
 - FEEL 表达式解析器: [bkflow-feel](https://github.com/TencentBlueKing/bkflow-feel)
+- Webhook Django App: [bkflow-django-webhook](https://pypi.org/project/bkflow-django-webhook/)

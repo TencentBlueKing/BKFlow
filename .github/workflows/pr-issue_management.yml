@@ -1,0 +1,24 @@
+name: PR and Issue Management
+
+on:
+- pull_request_target
+
+jobs:
+  manage-pr-and-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Extract issue ID and link PR to issue
+        if: github.event.action == 'opened' || github.event.action == 'reopened'
+        run: |
+          ISSUE_ID=$(echo "${{ github.event.pull_request.title }}" | grep -oE '#[0-9]+$' | sed 's/#//')
+          if [ ! -z "$ISSUE_ID" ]; then
+            echo "Issue ID: $ISSUE_ID"
+            gh api repos/${{ github.repository }}/issues/$ISSUE_ID/comments \
+              -F body="Linked to PR #${{ github.event.pull_request.number }}"
+            gh issue edit $ISSUE_ID --add-label "stage/for_test"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

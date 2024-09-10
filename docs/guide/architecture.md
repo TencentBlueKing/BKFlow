@@ -40,7 +40,7 @@ BKFlow 服务是一款采用 Python 编写实现的 SaaS 平台产品，依赖�
 - [bkflow-engine](https://github.com/TencentBlueKing/bamboo-engine)：一款基于事件驱动的通用流程引擎，用于任务的异步执行。
 - [bkflow-dmn](https://github.com/TencentBlueKing/bkflow-dmn)：一款基于 Python 的 DMN(Decision Model Notation) 库，使用 FEEL(Friendly Enough Expression Language) 作为描述语言，可以作为决策引擎，用于解决实际业务场景中的决策问题。
 - [bkflow-feel](https://github.com/TencentBlueKing/bkflow-feel)：一款基于 Python 的 FEEL (Friendly Enough Expression Language) 语法解析器，用于对 FEEL 语法表达式进行解析和运算，得到对应的 Python 对象作为计算结果。
-- bkflow-django-webhook：一款支持系统快速集成 webhook 功能的 Django app。
+- [bkflow-django-webhook](https://pypi.org/project/bkflow-django-webhook/)：一款支持系统快速集成 webhook 功能的 Django app。
 
 **依赖系统**
 - 必要依赖
