@@ -37,14 +37,13 @@
       </div>
       <router-link
         v-if="isShowViewProcess"
-        class="common-icon-jump-link"
         v-bk-tooltips="{
           content: $t('查看流程'),
           placements: ['top']
         }"
+        class="common-icon-jump-link"
         :target="isIframe ? '_self' : '_blank'"
-        :to="`/template/view/${templateId}/`">
-      </router-link>
+        :to="`/template/view/${templateId}/`" />
       <span
         v-if="stateStr"
         :class="['task-state', state]">{{ stateStr }}</span>

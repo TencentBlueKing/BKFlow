@@ -78,8 +78,7 @@
           </label>
           <div class="code-wrapper">
             <condition-expression
-              :parse-lang="gwConfig.extra_info && gwConfig.extra_info.parse_lang">
-            </condition-expression>
+              :parse-lang="gwConfig.extra_info && gwConfig.extra_info.parse_lang" />
             <full-code-editor
               v-validate="expressionRule"
               name="expression"
@@ -188,7 +187,8 @@
       },
       expressionRule() {
         const rule = { required: true };
-        if (this.gwConfig.extra_info?.parse_lang === 'MAKO') {
+        const { parse_lang: parseLang } = this.gwConfig.extra_info || {};
+        if (parseLang === 'MAKO') {
           rule.regex = /^[^\$\{\}]*$/;
         }
         return rule;
@@ -219,7 +219,8 @@
       },
       toggleExpressionFormat(str, slice = true) {
         const gwConfig = this.gateways[this.conditionData.nodeId];
-        if (gwConfig.extra_info?.parse_lang !== 'MAKO') {
+        const { parse_lang: parseLang } = gwConfig.extra_info || {};
+        if (parseLang !== 'MAKO') {
           return str;
         }
         if (slice) {

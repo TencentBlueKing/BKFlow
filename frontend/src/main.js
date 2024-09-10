@@ -215,7 +215,7 @@ Validator.localize({
         regex: i18n.t('请输入 test 之间的数'),
       },
       expression: {
-        regex: i18n.t("因 MAKO 语法限制：请勿使用 '$', '{' 和 '}' 字符"),
+        regex: i18n.t('因 MAKO 语法限制：请勿使用 \'$\', \'{\' 和 \'}\' 字符'),
       },
     },
   },

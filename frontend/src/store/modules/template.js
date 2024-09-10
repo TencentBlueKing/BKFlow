@@ -589,7 +589,7 @@ const template = {
                   evaluate = Object.keys(conditions).length ? '1 == 0' : '1 == 1';
                 }
                 if (line.parseLang === 'MAKO') {
-                  evaluate = `\${${evaluate}}`
+                  evaluate = `\${${evaluate}}`;
                 }
                 const defaultName = i18n.t('条件');
                 const regStr = `^${i18n.t('条件')}[0-9]*$`;
@@ -803,9 +803,12 @@ const template = {
           if (location.type === 'branchgateway' || location.type === 'conditionalparallelgateway') {
             state.gateways[location.id].conditions = {};
             // 网关分支表达式解析类型字段
-            let { parseLang } = location
-            const oldGatewayInfo = state.gateways[location.oldSouceId]
-            parseLang = oldGatewayInfo ? oldGatewayInfo.extra_info?.parse_lang : parseLang
+            let { parseLang } = location;
+            const oldGatewayInfo = state.gateways[location.oldSouceId];
+            if (oldGatewayInfo) {
+              const { parse_lang: oldParseLang } = oldGatewayInfo.extra_info || {};
+              parseLang = oldParseLang;
+            }
             if (['FEEL', 'MAKO'].includes(parseLang)) {
               state.gateways[location.id].extra_info = { parse_lang: parseLang };
             }

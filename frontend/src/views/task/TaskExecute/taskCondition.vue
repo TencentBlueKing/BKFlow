@@ -41,8 +41,7 @@
         </label>
         <div class="code-wrapper">
           <condition-expression
-            :parse-lang="gwConfig.extra_info && gwConfig.extra_info.parse_lang">
-          </condition-expression>
+            :parse-lang="gwConfig.extra_info && gwConfig.extra_info.parse_lang" />
           <full-code-editor
             v-validate="expressionRule"
             name="expression"
@@ -99,7 +98,7 @@
       if (defaultCondition && defaultCondition.flow_id !== id) {
         hasDefaultBranch = true;
       }
-      const expression = this.toggleExpressionFormat(value)
+      const expression = this.toggleExpressionFormat(value);
       return {
         gwConfig,
         branchType, // 当前分支类型
@@ -146,13 +145,14 @@
       },
       toggleExpressionFormat(str, slice = true) {
         const gwConfig = this.gateways[this.conditionData.nodeId];
-        if (gwConfig.extra_info?.parse_lang !== 'MAKO') {
-          return str
+        const { parse_lang: parseLang } = gwConfig.extra_info || {};
+        if (parseLang !== 'MAKO') {
+          return str;
         }
         if (slice) {
-          return /^\${.+\}$/.test(str) ? str.slice(2, -1) : str
+          return /^\${.+\}$/.test(str) ? str.slice(2, -1) : str;
         }
-        return `\${${str}}`
+        return `\${${str}}`;
       },
     },
   };

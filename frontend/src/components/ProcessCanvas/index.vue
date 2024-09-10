@@ -1006,17 +1006,16 @@
           if (branchInfo && Object.keys(branchInfo).length > 0) {
             const conditionInfo = cell.data?.conditionInfo || branchInfo[cell.id] || {};
             if (!Object.keys(conditionInfo).length) return;
-            const { width: edgeWidth } = cell.getBBox()
             const textDom = document.createElement('span');
             textDom.innerText = conditionInfo.name;
             textDom.style.fontSize = '12px';
             textDom.style.padding = '0 6px';
             document.body.appendChild(textDom);
             let { width = 0 } = textDom.getBoundingClientRect();
-            width = width > 60 ? width : 60
+            width = width > 60 ? width : 60;
             width = width > 112 ? 112 : width;
             document.body.removeChild(textDom);
-            const distance = conditionInfo.loc || (-width/2 - 20)
+            const distance = conditionInfo.loc || (-width / 2 - 20);
             cell.appendLabel({
               markup: Markup.getForeignObjectMarkup(),
               attrs: {
@@ -1035,9 +1034,9 @@
               position: {
                 distance,
                 offset: {
-                  x: width/2,
+                  x: width / 2,
                   y: 0,
-                }
+                },
               },
             });
           }
@@ -1065,22 +1064,22 @@
         return branchConditions;
       },
       // 标签拖拽
-      handleLabelDrag ({ edge, current, previous }) {
-        if (!previous || !previous.length || !current.length) return
+      handleLabelDrag({ edge, current, previous }) {
+        if (!previous || !previous.length || !current.length) return;
         // 边的长度
-        const svgPath = this.getNodeElement(`.${edge.id}`)
-        const edgeLength = svgPath.getTotalLength()
+        const svgPath = this.getNodeElement(`.${edge.id}`);
+        const edgeLength = svgPath.getTotalLength();
         current.forEach((item) => {
-          const { width } = item.attrs.fo
+          const { width } = item.attrs.fo;
           item.position.offset = {
             x: width / 2,
-            y: 0
+            y: 0,
           };
           // 限制label.position.distance的值在min到max之间
-          const min = (width / 2 + 20) / edgeLength
-          const max = 1 - min
-          const distance = Math.max(min, Math.min(max, item.position.distance))
-          item.position.distance = distance
+          const min = (width / 2 + 20) / edgeLength;
+          const max = 1 - min;
+          const distance = Math.max(min, Math.min(max, item.position.distance));
+          item.position.distance = distance;
           // 更新本地condition配置
           const condition = {
             ...item.label,
@@ -1177,7 +1176,7 @@
         const canvasDom = this.getNodeElement();
         const { left: canvasLeft, top: canvasTop } = canvasDom.getBoundingClientRect();
         // dnd侧栏宽度
-        const dndWidth = this.showPalette ? 60 : 0
+        const dndWidth = this.showPalette ? 60 : 0;
         // 200节点的气泡卡片展示最小宽度
         const bodyWidth = document.body.offsetWidth;
         const isRight = bodyWidth - nodeRight > 200;
@@ -1262,7 +1261,7 @@
             svgCloneDom.style.width = `${canvasWidth}px`;
             svgCloneDom.style.height = `${canvasHeight}px`;
             const viewCloneDom = clone.querySelector('.x6-graph-svg-viewport');
-            viewCloneDom.style.transform = `translate(${offsetX + 30 + 'px'}, ${offsetY + 30 + 'px'})`;
+            viewCloneDom.style.transform = `translate(${`${offsetX + 30}px`}, ${`${offsetY + 30}px`})`;
           },
         });
       },
