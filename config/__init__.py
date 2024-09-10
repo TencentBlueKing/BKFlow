@@ -53,7 +53,7 @@ BK_APP_SECRET = SECRET_KEY
 BK_APP_CODE = APP_CODE
 APP_TOKEN = SECRET_KEY
 # SaaS运行版本，如非必要请勿修改
-RUN_VER = os.getenv("RUN_VER", "open")
+RUN_VER = "ieod"
 # 蓝鲸SaaS平台URL，例如 http://paas.bking.com
 BK_URL = None
 
