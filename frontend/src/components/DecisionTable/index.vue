@@ -10,6 +10,7 @@
         :data="tableData"
         :width-map="widthMap"
         :readonly="readonly || partiallyEdited"
+        @updateData="updateData"
         @updateField="updateField" />
       <!-- 表格列 -->
       <TableColumn
@@ -224,6 +225,10 @@
         const emptyWidth = Math.max(emptyMin, Math.min(width, emptyMax));
         this.widthMap.inputs = inputLength ? inputLength * width : emptyWidth;
         this.widthMap.outputs = outputLength ? outputLength * width : emptyWidth;
+      },
+      // 导入更新表格数据
+      updateData(data = {}) {
+        this.tableData = { ...data };
       },
       // 更新表格列字段
       updateField(type, operate, index = -1) {
