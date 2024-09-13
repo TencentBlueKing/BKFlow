@@ -21,10 +21,7 @@ to the current version of the project delivered to anyone in the future.
 
 import logging
 
-import requests
-from django.conf import settings
 from django.http import JsonResponse
-from django.utils.translation import ugettext_lazy as _
 
 logger = logging.getLogger("root")
 
