@@ -44,6 +44,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.get_tasks_states import get_tasks_states
     from bkflow.apigw.views.get_template_detail import get_template_detail
     from bkflow.apigw.views.get_template_list import get_template_list
+    from bkflow.apigw.views.get_template_mock_data import get_template_mock_data
     from bkflow.apigw.views.grant_apigw_permissions_to_app import (
         grant_apigw_permissions_to_app,
     )
@@ -62,6 +63,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/create_template/$", create_template),
         url(r"^space/(?P<space_id>\d+)/get_template_list/$", get_template_list),
         url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_detail/$", get_template_detail),
+        url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_mock_data/$", get_template_mock_data),
         url(r"^space/(?P<space_id>\d+)/renew_space_config/$", renew_space_config),
         url(r"^space/(?P<space_id>\d+)/get_space_configs/$", get_space_configs),
         url(r"^space/(?P<space_id>\d+)/update_template/(?P<template_id>\d+)/$", update_template),
