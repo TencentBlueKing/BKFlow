@@ -51,8 +51,8 @@ class AutoRetryNodeStrategyAdmin(admin.ModelAdmin):
 
 @admin.register(models.TaskMockData)
 class TaskMockDataAdmin(admin.ModelAdmin):
-    list_display = ["id", "taskflow_id", "data"]
-    search_fields = ["taskflow_id"]
+    list_display = ["id", "taskflow_id", "mock_data_ids", "data"]
+    search_fields = ["taskflow_id", "mock_data_ids"]
 
 
 admin.site.register(TaskOperationRecord, BaseOperateRecordAdmin)
