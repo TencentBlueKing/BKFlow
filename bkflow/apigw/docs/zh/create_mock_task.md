@@ -11,14 +11,14 @@
 
 #### 接口参数
 
-| 字段          | 类型     | 必选 | 描述                                                                         |
-|-------------|--------|----|----------------------------------------------------------------------------|
-| template_id | int    | 是  | 模板id                                                                       |
-| name        | string | 否  | 任务名                                                                        |
-| creator     | string | 是  | 创建者                                                                        |
-| description | string | 否  | 描述                                                                         |
-| constants   | dict   | 否  | 任务启动参数                                                                     |
-| mock_data   | dict   | 否  | mock 数据，包含 nodes（mock 执行选中的节点) 和 outputs（mock 执行对应节点的 mock 数据，没有则表示不 mock) |
+| 字段          | 类型     | 必选 | 描述                                                                                                                                                              |
+|-------------|--------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| template_id | int    | 是  | 模板id                                                                                                                                                            |
+| name        | string | 否  | 任务名                                                                                                                                                             |
+| creator     | string | 是  | 创建者                                                                                                                                                             |
+| description | string | 否  | 描述                                                                                                                                                              |
+| constants   | dict   | 否  | 任务启动参数                                                                                                                                                          |
+| mock_data   | dict   | 否  | mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock 执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs 没有传参，则会自动将创建任务时对应的 mock 数据 作为 outputs） |
 
 ### 请求参数示例
 
@@ -38,6 +38,9 @@
             "nd7927122ef6310eb309c2c8d3f70c23": {
                 "callback_data": "abc"
             }
+        },
+        "mock_data_ids": {
+            "nd7927122ef6310eb309c2c8d3f70c23": 1
         }
     }
 }
