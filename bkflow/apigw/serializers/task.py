@@ -23,6 +23,7 @@ from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TASK_NAME, USER_NAME_MAX_LENGTH
 from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
+from bkflow.template.models import TemplateMockData
 from bkflow.utils.strings import standardize_pipeline_node_name
 
 
@@ -35,11 +36,10 @@ class CreateTaskSerializer(serializers.Serializer):
 
 
 class TaskMockDataSerializer(serializers.Serializer):
-    nodes = serializers.ListSerializer(
-        help_text=_("要 Mock 执行的节点 ID 列表"), child=serializers.CharField(), default=[]
-    )
-    outputs = serializers.JSONField(
-        help_text=_('节点 Mock 输出, 形如{"node_id": {"output1": "output_value1"}}'), default={}
+    nodes = serializers.ListSerializer(help_text=_("要 Mock 执行的节点 ID 列表"), child=serializers.CharField(), default=[])
+    outputs = serializers.JSONField(help_text=_('节点 Mock 输出, 形如{"node_id": {"output1": "output_value1"}}'), default={})
+    mock_data_ids = serializers.JSONField(
+        help_text=_("节点 Mock 数据，当 outputs 为空时会提取对应 mock_data_ids 设置 outputs，否则仅记录作用"), default={}
     )
 
 
@@ -57,6 +57,24 @@ class CreateMockTaskWithPipelineTreeSerializer(CreateMockTaskBaseSerializer):
 
 class CreateMockTaskWithTemplateIdSerializer(CreateMockTaskBaseSerializer):
     template_id = serializers.IntegerField(help_text=_("模版ID"))
+
+    def validate(self, attrs):
+        if attrs["mock_data"]["mock_data_ids"] and not attrs["mock_data"]["outputs"]:
+            mock_data = TemplateMockData.objects.filter(
+                template_id=attrs["template_id"], id__in=list(attrs["mock_data"]["mock_data_ids"].values())
+            ).values("id", "data")
+            mock_data = {item["id"]: item["data"] for item in mock_data}
+            outputs = {}
+            for node_id, mock_data_id in attrs["mock_data"]["mock_data_ids"].items():
+                if node_id not in attrs["mock_data"].get("nodes"):
+                    continue
+                if mock_data_id not in mock_data:
+                    raise serializers.ValidationError(
+                        f"mock data of node {node_id} with mock_data_id {mock_data_id} not found"
+                    )
+                outputs[node_id] = mock_data[mock_data_id].get("data", {})
+            attrs["mock_data"]["outputs"] = outputs
+        return attrs
 
 
 class CreateTaskWithoutTemplateSerializer(serializers.Serializer):

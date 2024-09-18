@@ -108,7 +108,9 @@ class TaskInstanceManager(models.Manager):
                 new_mock_data["outputs"] = {
                     act_mappings[node_id]: outputs for node_id, outputs in mock_data.get("outputs", {}).items()
                 }
-                TaskMockData.objects.create(taskflow_id=instance.id, data=new_mock_data)
+                TaskMockData.objects.create(
+                    taskflow_id=instance.id, data=new_mock_data, mock_data_ids=mock_data.get("mock_data_ids", {})
+                )
             # create auto retry strategy
             arn_creator = AutoRetryNodeStrategyCreator(taskflow_id=instance.id, root_pipeline_id=instance.instance_id)
             arn_creator.batch_create_strategy(pipeline_tree)
@@ -149,12 +151,8 @@ class TaskInstance(models.Model):
     is_deleted = models.BooleanField("是否已经删除", default=False, help_text="表示当前实例是否删除")
     is_expired = models.BooleanField("是否已经过期", default=False, help_text="运行时被定期清理即为过期")
     snapshot_id = models.BigIntegerField(verbose_name="实例结构数据ID", null=True, blank=True, db_index=True)
-    execution_snapshot_id = models.BigIntegerField(
-        verbose_name="用于实例执行的结构数据ID", null=True, blank=True, db_index=True
-    )
-    tree_info_id = models.BigIntegerField(
-        verbose_name="提前计算好的一些流程结构数据ID", null=True, blank=True, db_index=True
-    )
+    execution_snapshot_id = models.BigIntegerField(verbose_name="用于实例执行的结构数据ID", null=True, blank=True, db_index=True)
+    tree_info_id = models.BigIntegerField(verbose_name="提前计算好的一些流程结构数据ID", null=True, blank=True, db_index=True)
     extra_info = models.JSONField(verbose_name="额外信息", default=dict)
 
     objects = TaskInstanceManager()
@@ -375,6 +373,7 @@ class TaskMockData(models.Model):
     id = models.BigAutoField(verbose_name="ID", primary_key=True)
     taskflow_id = models.BigIntegerField(verbose_name="taskflow id", db_index=True)
     data = models.JSONField(verbose_name="task mock data")
+    mock_data_ids = models.JSONField(verbose_name="task mock data ids", default=dict)
     create_time = models.DateTimeField("创建时间", auto_now_add=True, db_index=True)
 
     class Meta:
@@ -386,5 +385,6 @@ class TaskMockData(models.Model):
             "id": self.id,
             "taskflow_id": self.taskflow_id,
             "data": self.data,
+            "mock_data_ids": self.mock_data_ids,
             "create_time": self.create_time,
         }
