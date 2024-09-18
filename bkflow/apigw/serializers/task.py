@@ -72,7 +72,7 @@ class CreateMockTaskWithTemplateIdSerializer(CreateMockTaskBaseSerializer):
                     raise serializers.ValidationError(
                         f"mock data of node {node_id} with mock_data_id {mock_data_id} not found"
                     )
-                outputs[node_id] = mock_data[mock_data_id].get("data", {})
+                outputs[node_id] = mock_data[mock_data_id]
             attrs["mock_data"]["outputs"] = outputs
         return attrs
 
