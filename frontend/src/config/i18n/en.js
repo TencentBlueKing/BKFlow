@@ -906,6 +906,7 @@ const en = {
   流程的入参: 'Input Parameters of the Process',
   scopeType: 'Indicates the type of the scope to which the corresponding resource belongs in the access platform. For example, if the resource belongs to Business 1, the value of this field can be set to "project".',
   scopeValue: 'Indicates the value of the scope to which the corresponding resource belongs in the access platform. For example, if the resource belongs to Business 1, the value of this field can be set to "1".',
+  名字: 'Name',
 };
 
 export default en;
