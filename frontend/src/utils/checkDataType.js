@@ -35,6 +35,7 @@ export const getDefaultValueFormat = (scheme) => {
     case 'tree':
     case 'upload':
     case 'cascader':
+    case 'datetime_range':
       valueFormat = {
         type: 'Array',
         value: [],
