@@ -20,7 +20,7 @@
           :key="field.key"
           :label="field.label"
           :required="true"
-          :rules="rules.required"
+          :rules="field.key === 'platform_url' ? rules.url: rules.required"
           :property="field.key">
           <bk-select
             v-if="field.choices"
@@ -105,6 +105,18 @@
             {
               required: true,
               message: i18n.t('必填项'),
+              trigger: 'blur',
+            },
+          ],
+          url: [
+            {
+              required: true,
+              message: i18n.t('必填项'),
+              trigger: 'blur',
+            },
+            {
+              validator: val => /^(https?:\/\/)/.test(val),
+              message: i18n.t('请提供以 https:// 或 http:// 开头的服务地址'),
               trigger: 'blur',
             },
           ],

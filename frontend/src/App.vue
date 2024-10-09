@@ -191,8 +191,8 @@ body {
   min-width: 1366px;
 }
 .with-system-notice {
-  height: calc(100vh - 40px);
-  /deep/.container-content {
+  height: calc(100vh - 40px) !important;
+  .container-content {
     max-height: calc(100vh - 92px)!important;
   }
 }
