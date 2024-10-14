@@ -192,6 +192,7 @@ body {
 }
 .with-system-notice {
   height: calc(100vh - 40px) !important;
+  .navigation-nav,
   .container-content {
     max-height: calc(100vh - 92px)!important;
   }
