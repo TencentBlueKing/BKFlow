@@ -373,7 +373,7 @@ const en = {
   关联流程: 'Related Process',
   描述: 'Description',
   规则配置: 'Rule Configuration',
-  需保证有且仅有一条规则被命中: 'Ensure that one and only one rule is hit',
+  'Unique：需保证有且仅有一条规则被命中': 'Unique: Ensure that one and only one rule is hit',
   '该决策表已被流程中的节点引用，仅支持修改规则，不支持修改字段(修改字段需要修改节点引用后重新保存流程)。': 'This decision table is referenced by a node in a process. Only rule modifications are supported, not field modifications (field modifications require updating the node references and saving the process again).',
   '{0}成功': '{0} Successful',
   新建: 'Add',
@@ -908,6 +908,17 @@ const en = {
   天: 'Day | one day | {n} days',
   新建全局变量: 'Add Global Variables',
   error_handle_秒: 'Sec Interval',
+  流程的入参: 'Input Parameters of the Process',
+  scopeType: 'Indicates the type of the scope to which the corresponding resource belongs in the access platform. For example, if the resource belongs to Business 1, the value of this field can be set to "project".',
+  scopeValue: 'Indicates the value of the scope to which the corresponding resource belongs in the access platform. For example, if the resource belongs to Business 1, the value of this field can be set to "1".',
+  名字: 'Name',
+  mockReuseTips: 'Some variables and Mock schemes have changed. Continuing will {0} the following mismatched data:',
+  忽略: 'ignore',
+  继续复用: 'Continue Reuse',
+  '调试数据已发生变化，请确认是否继续复用': 'Debug data has changed, please confirm whether to continue reusing',
+  当前调试任务: 'Current Debug Task',
+  待复用调试任务: 'Pending Reuse Debug Task',
+  复用成功: 'Reuse success',
 };
 
 export default en;
