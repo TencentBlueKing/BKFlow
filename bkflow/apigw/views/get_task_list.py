@@ -44,6 +44,8 @@ def get_task_list(request, space_id):
         "create_at_start": "create_time__gte",
         "create_at_end": "create_time__lte",
         "name": "name__icontains",
+        "is_started": "is_started",
+        "is_finished": "is_finished",
     }
     for k, v in filter_map.items():
         if k in data:

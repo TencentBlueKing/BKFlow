@@ -21,6 +21,7 @@ import json
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
+from django.conf import settings
 from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -46,7 +47,7 @@ def create_space(request):
     }
     """
     data = json.loads(request.body)
-    if hasattr(request, "app"):
+    if hasattr(request, "app") and request.app.bk_app_code not in settings.APP_WHITE_LIST:
         data["app_code"] = request.app.bk_app_code
 
     ser = CreateSpaceSerializer(data=data)

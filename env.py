@@ -131,3 +131,6 @@ BKPAAS_BK_DOMAIN = os.getenv("BKPAAS_BK_DOMAIN", "") or os.getenv("BK_DOMAIN", "
 
 # 文档中心链接
 BK_DOC_CENTER_HOST = os.getenv("BK_DOC_CENTER_HOST", os.getenv("BK_DOCS_URL_PREFIX", "")).rstrip("/")
+
+# APP 白名单
+APP_WHITE_LIST_STR = os.getenv("BKAPP_APP_WHITE_LIST", "")  # 逗号分隔的字符串

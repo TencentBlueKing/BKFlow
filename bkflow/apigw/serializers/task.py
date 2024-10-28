@@ -85,6 +85,7 @@ class CreateTaskWithoutTemplateSerializer(serializers.Serializer):
     description = serializers.CharField(help_text=_("任务描述"), required=False)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
+    notify_config = serializers.JSONField(help_text=_("通知配置"), required=False, default={})
 
 
 class PipelineTreeSerializer(serializers.Serializer):

@@ -46,7 +46,8 @@ def create_task_without_template(request, space_id):
         "notify_type": {"fail": [], "success": []},
         "notify_receivers": {"more_receiver": "", "receiver_group": []},
     }
-    create_task_data.setdefault("extra_info", {}).update({"notify_config": DEFAULT_NOTIFY_CONFIG})
+    notify_config = create_task_data.pop("notify_config", {}) or DEFAULT_NOTIFY_CONFIG
+    create_task_data.setdefault("extra_info", {}).update({"notify_config": notify_config})
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)
