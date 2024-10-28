@@ -3,7 +3,7 @@
     <table-operate
       ref="tableOperate"
       :space-id="spaceId"
-      :placeholder="$t('ID/模板名称/创建人/更新人/启用/所属作用域类型/所属作用域值')"
+      :placeholder="$t('ID/流程名称/创建人/更新人/启用/所属作用域类型/所属作用域值')"
       :search-list="searchList"
       @updateSearchValue="searchValue = $event"
       @changeRequest="handleSearchSelectChange">
@@ -193,7 +193,7 @@
     },
     {
       id: 'name',
-      name: i18n.t('模板名称'),
+      name: i18n.t('流程名称'),
       isDefaultOption: true,
     },
     {

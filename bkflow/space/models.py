@@ -58,7 +58,7 @@ class Space(CommonModel):
     id = models.AutoField(_("空间ID"), primary_key=True)
     # 空间名不允许重复
     name = models.CharField(_("空间名称"), max_length=32, null=False, blank=False, unique=True)
-    app_code = models.CharField(_("APP Code"), max_length=32, null=False, blank=False)
+    app_code = models.CharField(_("应用ID"), max_length=32, null=False, blank=False)
     desc = models.CharField(_("空间描述"), max_length=128, null=True, blank=True)
     platform_url = models.CharField(_("平台提供服务的地址"), max_length=256, null=False, blank=False)
     create_type = models.CharField(

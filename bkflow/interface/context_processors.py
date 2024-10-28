@@ -27,6 +27,7 @@ def bkflow_settings(request):
     frontend_entry_url = "{}bkflow".format(settings.STATIC_URL) if settings.RUN_VER == "open" else "/static/bkflow"
     enable_notice_center = int(EnvironmentVariables.objects.get_var("ENABLE_NOTICE_CENTER", 0))
     language = request.COOKIES.get("blueking_language", "zh-cn")
+    doc_lang_mappings = {"zh-cn": "ZH", "en": "EN"}
     run_ver_key = "BKAPP_RUN_VER_NAME" if language == "zh-cn" else "BKAPP_RUN_VER_NAME_{}".format(language.upper())
 
     ctx = {
@@ -36,7 +37,8 @@ def bkflow_settings(request):
         "MEMBER_SELECTOR_DATA_HOST": settings.MEMBER_SELECTOR_DATA_HOST,
         "APP_CODE": settings.APP_CODE,
         "USERNAME": request.user.username,
-        "BK_DOC_URL": f"{env.BK_DOC_CENTER_HOST}/markdown/ZH/BKFlow/1.8/UserGuide/Introduce/introduce.md",
+        "BK_DOC_URL": f"{env.BK_DOC_CENTER_HOST}/markdown/{doc_lang_mappings.get(language, 'ZH')}/BKFlow/1.8"
+                      f"/UserGuide/Introduce/introduce.md",
         # 是否开启通知中心
         "ENABLE_NOTICE_CENTER": enable_notice_center,
         "BK_PAAS_SHARED_RES_URL": env.BKPAAS_SHARED_RES_URL,
