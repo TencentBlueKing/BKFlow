@@ -118,7 +118,7 @@
   const TABLE_FIELDS = [
     {
       id: 'name',
-      label: 'Name',
+      label: i18n.t('名字'),
     },
     {
       id: 'desc',

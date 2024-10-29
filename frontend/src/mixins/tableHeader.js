@@ -1,5 +1,6 @@
 
 import TableRenderHeader from '@/components/common/TableRenderHeader.vue';
+import i18n from '@/config/i18n/index.js';
 
 const tableHeader = {
   methods: {
@@ -17,8 +18,8 @@ const tableHeader = {
         </TableRenderHeader>;
       } if (['scope_type', 'scope_value'].includes(column.property)) {
         const tips = column.property === 'scope_type'
-          ? '指对应资源在接入平台所属的作用域范围的类型，方便接入平台对资源进行自定义过滤。如该资源属于业务 1，则该字段的值可设为"project"。'
-          : '指对应资源在接入平台所属的作用域范围的值，方便接入平台对资源进行自定义过滤。如该资源属于业务1，则该字段的值可设为"1"。';
+          ? i18n.t('scopeType')
+          : i18n.t('scopeValue');
         return h('span', {
           class: 'scope-column-label',
         }, [

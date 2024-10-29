@@ -391,7 +391,10 @@
       white-space: nowrap;
       word-wrap: normal;
       text-overflow: ellipsis;
+    }
   }
+  .bk-table-fixed-right {
+    border-bottom: none;
   }
 }
 // 异常提示固定高度

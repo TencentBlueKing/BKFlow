@@ -59,7 +59,8 @@
     },
     methods: {
       onHandleNavClick(nav) {
-        if (this.navActive === nav.id) return;
+        const { meta } = this.$route;
+        if (this.navActive === nav.id && meta.admin) return;
 
         if (nav.id === 'space-manager') {
           this.$router.push({ name: 'spaceAdmin' });
