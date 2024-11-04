@@ -451,7 +451,7 @@
       onSelectNotifyConfig(formData) {
         const { notifyType, receiverGroup, receiver } = formData;
         this.formData.notifyType = notifyType;
-        this.formData.receiver = receiver;
+        this.formData.notifyReceiver = receiver;
         this.formData.receiverGroup = receiverGroup;
       },
       onSaveConfig() {
