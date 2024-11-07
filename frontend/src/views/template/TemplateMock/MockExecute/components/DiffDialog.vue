@@ -32,18 +32,10 @@
           <tr
             v-for="(item, index) in diffList"
             :key="index">
-            <template v-if="item.isConstants">
-              <td>{{ item.left.name || '--' }}</td>
-              <td :class="{ 'is-deleted': !item.right.name, 'is-extra': !item.left.name }">
-                {{ item.right.name || '--' }}
-              </td>
-            </template>
-            <template v-else>
-              <td>{{ item.left.name ? `${item.left.node_name}: ${item.left.name}` : '--' }}</td>
-              <td :class="{ 'is-deleted': !item.right.name, 'is-extra': !item.left.name }">
-                {{ getTdName(item.right) }}
-              </td>
-            </template>
+            <td>{{ item.left.name ? `${item.left.node_name}: ${item.left.name}` : '--' }}</td>
+            <td style="background: #FFEEEE;">
+              {{ `${item.right.node_name}: ID 为 【${item.right.id}】 的 mock 方案不存在` }}
+            </td>
           </tr>
         </tbody>
       </table>
@@ -61,18 +53,6 @@
       diffList: {
         type: Array,
         default: () => ([]),
-      },
-    },
-    data() {
-      return {
-
-      };
-    },
-    methods: {
-      getTdName(data) {
-        let name = data.name ? `${data.node_name}: ${data.name}` : `${data.node_name}: ID 为 【${data.id}】 的 mock 方案不存在`;
-        name = !data.node_name ? '--' : name;
-        return name;
       },
     },
   };

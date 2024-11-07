@@ -129,54 +129,36 @@
           // 新旧diff
           const { constants } = resp1.pipeline_tree;
           const { mock_data_ids } = resp2.data;
-          const diffList = this.getDiffList(constants, mock_data_ids);
-
+          const diffList = this.getDiffList(mock_data_ids);
+          this.recodeData = { constants, mock_data_ids };
 
           if (!diffList.length) {
-            this.$bkMessage({
-              message: this.$t('复用成功'),
-              theme: 'success',
-            });
+            this.onConfirmReuse();
             return;
           }
 
           this.diffList = diffList;
           this.isDiffDialogShow = !!diffList.length;
-          this.recodeData = { constants, mock_data_ids };
         } catch (error) {
           console.warn(error);
         }
       },
-      getDiffList(constants, mockIds) {
-        // 复用的变量
-        const oldConstants = this.filterConstants(constants);
-        // 当前的变量
-        const { taskParamEdit: paramEditComp } = this.$parent.$refs;
-        let newConstants = paramEditComp ? paramEditComp.renderData : {};
-        newConstants = this.filterConstants(this.constants);
-
-        // constants diff
-        const keys = [...new Set([...Object.keys(oldConstants), ...Object.keys(newConstants)])];
-        let diffList = keys.reduce((acc, key) => {
-          // 如果该变量有一方没有则记录下来
-          if (newConstants[key] && oldConstants[key]) return acc;
-          acc.push({
-            isConstants: true,
-            left: newConstants[key] || {},
-            right: oldConstants[key] || {},
-          });
-          return acc;
-        }, []);
-
+      getDiffList(mockIds) {
         // mock diff
         const oldMock = mockIds;
         const newMock = this.mockFormData;
-        const nodeIds = [...new Set([...Object.keys(oldMock), ...Object.keys(newMock)])];
-        diffList = nodeIds.reduce((acc, nodeId) => {
+        const diffList = Object.keys(newMock).reduce((acc, nodeId) => {
           const nodeName = this.activities[nodeId]?.name;
-          if (!nodeName) return acc;
-
           let mockId = 0;
+
+          // 只记录历史mock方案不存在的diff
+          mockId = oldMock[nodeId];
+          if (!mockId || mockId === -1) return acc;
+          const isExist = this.nodeMockMap[nodeId].some(item => item.id === mockId);
+          if (isExist) return acc;
+
+          // right
+          const right = { id: mockId, node_name: nodeName };
           // left
           let left = {};
           mockId = newMock[nodeId];
@@ -186,38 +168,16 @@
             const mockInfo = this.nodeMockMap[nodeId].find(item => item.id === mockId);
             left = { ...mockInfo, node_name: nodeName };
           }
-          // right
-          let right = {};
-          mockId = oldMock[nodeId];
-          if (mockId === -1) {
-            left = { name: '无需Mock，真执行', node_name: nodeName };
-          } else if (mockId && this.nodeMockMap[nodeId]) {
-            const mockInfo = this.nodeMockMap[nodeId].find(item => item.id === mockId) || { id: mockId };
-            right = { ...mockInfo, node_name: nodeName };
-          }
-
-          // 如果新旧的mock方案都存在，则不算入diff
-          if (left.name && right.name) return acc;
 
           acc.push({
-            isMock: true,
             left,
             right,
           });
 
           return acc;
-        }, diffList);
+        }, []);
 
         return diffList;
-      },
-      filterConstants(constants) {
-        return Object.keys(constants).reduce((acc, key) => {
-          const value = constants[key];
-          if (value.show_type === 'show') {
-            acc[key] = value;
-          }
-          return acc;
-        }, {});
       },
       onConfirmReuse() {
         this.$emit('change', this.recodeData);
