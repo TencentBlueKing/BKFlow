@@ -71,6 +71,7 @@
         const inputs = [];
         const outputs = [];
         const records = [];
+        console.log(jsonData, sheetValue);
         const result = jsonData.some((row, rIndex) => {
           // 类型
           if (rIndex === 0) return false;
@@ -114,7 +115,13 @@
       },
       getHeader(row, sheetValue) {
         const header = [];
+        const titleRegex = /^([^\(]+)\(([^)]+)\)$/;
         const result = row.every((cell) => {
+          if (!titleRegex.test(cell)) {
+            this.showMessage(`表格【${cell}】列标题数据结构不对`);
+            return false;
+          }
+
           const comment = sheetValue.find(value => Object.prototype.toString.call(value) === '[object Object]' && value.v === cell);
 
           if (!comment || !comment.c) {
@@ -127,7 +134,12 @@
             this.showMessage(`表格【${cell}】列的配置注释不是json格式`);
             return false;
           }
-          header.push(JSON.parse(t));
+          const [, name, id] = cell.match(titleRegex);
+          header.push({
+            id,
+            name,
+            ...JSON.parse(t),
+          });
 
           return true;
         });
@@ -154,7 +166,7 @@
 
           // 生成record
           if (col.from === 'outputs') {
-            outputs[col.id] = value;
+            outputs[col.id] = value.trim();
           }
           if (col.from === 'inputs') {
             inputs.conditions.push({

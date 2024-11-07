@@ -373,7 +373,7 @@ const en = {
   关联流程: 'Related Process',
   描述: 'Description',
   规则配置: 'Rule Configuration',
-  'Unique：需保证有且仅有一条规则被命中': 'Unique: Ensure that one and only one rule is hit',
+  需保证有且仅有一条规则被命中: 'Ensure that one and only one rule is hit',
   '该决策表已被流程中的节点引用，仅支持修改规则，不支持修改字段(修改字段需要修改节点引用后重新保存流程)。': 'This decision table is referenced by a node in a process. Only rule modifications are supported, not field modifications (field modifications require updating the node references and saving the process again).',
   '{0}成功': '{0} Successful',
   新建: 'Add',
