@@ -7,7 +7,6 @@
       :style="{ width: `${widthMap[item.type]}px` }"
       :class="['header-cell', { 'index-header': item.type === 'index' }]">
       <template v-if="item.type === 'index'">
-        <span>{{ 'U' }}</span>
         <i
           v-bk-tooltips="$t('需保证有且仅有一条规则被命中')"
           class="common-icon-info" />
@@ -128,6 +127,7 @@
     .index-header {
       position: sticky;
       left: 0;
+      justify-content: space-around;
       z-index: 5;
       padding: 0 12px;
       background: #fafbfd;

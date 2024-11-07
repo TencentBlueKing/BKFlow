@@ -42,23 +42,27 @@
             horizontal: 'center',  // 水平居中
             vertical: 'center',     // 垂直居中
           },
-          border: {
-            top: { style: 'thin', color: { rgb: '000000' } },
-            bottom: { style: 'thin', color: { rgb: '000000' } },
-            left: { style: 'thin', color: { rgb: '000000' } },
-            right: { style: 'thin', color: { rgb: '000000' } },
-          },
+          border: ['top', 'bottom', 'left', 'right'].reduce((acc, side) => {
+            acc[side] = { style: 'thin', color: { rgb: '000000' } };
+            return acc;
+          }, {}),
         };
 
         // 定义表头和注释
         const headers =  [
           {
             label: 'Input',
-            children: inputs.map(item => ({ label: `${item.name}(${item.id})`, description: JSON.stringify(item) })),
+            children: inputs.map((item) => {
+              const { id, name, ...rest } = item;
+              return { label: `${name}(${id})`, description: JSON.stringify(rest) };
+            }),
           },
           {
             label: 'Output',
-            children: outputs.map(item => ({ label: `${item.name}(${item.id})`, description: JSON.stringify(item) })),
+            children: outputs.map((item) => {
+              const { id, name, ...rest } = item;
+              return { label: `${name}(${id})`, description: JSON.stringify(rest) };
+            }),
           },
         ];
         const data = records.reduce((acc, cur) => {
