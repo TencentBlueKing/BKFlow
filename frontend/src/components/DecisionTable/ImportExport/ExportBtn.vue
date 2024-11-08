@@ -69,11 +69,25 @@
           // 暂时过滤【条件组合】类型！！！
           if (cur.inputs.type !== 'common') return acc;
           const arr = [];
-          cur.inputs.conditions.forEach((item) => {
-            arr.push({ v: getCellText(item), t: 's', s: cellStyles });
+          cur.inputs.conditions.forEach((item, index) => {
+            const inputInfo = inputs[index];
+            const v = getCellText(item);
+            if (inputInfo.type === 'select') {
+              // 下拉框类型导出为text
+              const option = inputInfo.options.items.find(o => o.id === v);
+              arr.push({ v: option.name, t: 's', s: cellStyles });
+            } else {
+              arr.push({ v, t: 's', s: cellStyles });
+            }
           });
           outputs.forEach((item) => {
-            arr.push({ v: cur.outputs[item.id], t: 's', s: cellStyles });
+            if (item.type === 'select') {
+              // 下拉框类型导出为text
+              const option = item.options.items.find(o => o.id === cur.outputs[item.id]);
+              arr.push({ v: option.name, t: 's', s: cellStyles });
+            } else {
+              arr.push({ v: cur.outputs[item.id], t: 's', s: cellStyles });
+            }
           });
           acc.push(arr);
           return acc;
@@ -112,8 +126,9 @@
                 fill: { fgColor: { rgb: '9FE3FF' } },
               },
             });
+            const c = headerIndex === 0 ? childIndex : (headers[headerIndex - 1].children.length + childIndex);
             comments.push({
-              cell: XLSX.utils.encode_cell({ c: headerIndex * header.children.length + childIndex, r: 1 }),
+              cell: XLSX.utils.encode_cell({ c, r: 1 }),
               comment: child.description,
             });
           });

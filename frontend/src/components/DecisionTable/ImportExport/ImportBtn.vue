@@ -17,7 +17,7 @@
 <script>
   import * as XLSX from 'xlsx';
   import tools from '@/utils/tools.js';
-  import { validateFiled, parseValue, validateValue, getValueRight } from './dataTransfer.js';
+  import { validateFiled, parseValue, getValueRight } from './dataTransfer.js';
   export default {
     props: {
       data: {
@@ -71,7 +71,6 @@
         const inputs = [];
         const outputs = [];
         const records = [];
-        console.log(jsonData, sheetValue);
         const result = jsonData.some((row, rIndex) => {
           // 类型
           if (rIndex === 0) return false;
@@ -154,11 +153,8 @@
         const outputs = {};
 
         const result = header.every((col, colIndex) => {
-          // 解析value和操作方式
-          const { value, type } = parseValue(row[colIndex]);
-
-          // 校验value
-          const message = validateValue(value, col);
+          // 解析并校验value和操作方式
+          const { value, type, message } = parseValue(row[colIndex], col);
           if (message) {
             this.showMessage(message);
             return false;
@@ -166,7 +162,7 @@
 
           // 生成record
           if (col.from === 'outputs') {
-            outputs[col.id] = value.trim();
+            outputs[col.id] = value;
           }
           if (col.from === 'inputs') {
             inputs.conditions.push({

@@ -919,6 +919,7 @@ const en = {
   当前调试任务: 'Current Debug Task',
   待复用调试任务: 'Pending Reuse Debug Task',
   复用成功: 'Reuse success',
+  id或name不唯一: 'ID or name is not unique',
 };
 
 export default en;
