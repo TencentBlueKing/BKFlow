@@ -18,7 +18,7 @@ export const getCellText = (data = {}) => {
   const { type, value } = right.obj;
   // 非范围条件
   if (compare in operateMap) {
-    return `${operateMap[compare]} ${value}`;
+    return compare === 'equals' ? value : `${operateMap[compare]} ${value}`;
   }
   // 范围条件
   const isIntRange = type === 'int[Range]';
@@ -82,10 +82,22 @@ export const validateFiled = (data = []) => {
       let isOptionsValid = Object.prototype.toString.call(options) === '[object Object]';
       isOptionsValid = isOptionsValid && (Array.isArray(options.items) && options.type === 'custom');
       isOptionsValid = isOptionsValid && options.items.every(item => (item.id && item.name));
-      if (!isOptionsValid) {
-        message = `【${field.name}】列注释配置中options结构不对`;
-        return false;
+      if (isOptionsValid) {
+        const names = new Set();
+        const ids = new Set();
+        const isUnique = options.items.every((item) => {
+          if (names.has(item.name) || ids.has(item.id)) {
+            return false;
+          }
+          names.add(item.name);
+          ids.add(item.id);
+          return true;
+        });
+        message = isUnique ? '' : `【${field.name}】列注释配置中option的id和name不唯一`;
+        return isUnique;
       }
+      message = `【${field.name}】列注释配置中options结构不对`;
+      return false;
     }
 
     return true;
@@ -94,53 +106,64 @@ export const validateFiled = (data = []) => {
   return message;
 };
 
-export const parseValue = (data = '') => {
+export const parseValue = (data = '', config) => {
   // 解析出表格实际值，类型
   let value = String(data).trim();
   let type = 'equals';
-
-  Object.keys(operateMap).forEach((key) => {
-    const text = operateMap[key];
-    if (text) {
-      const regex = new RegExp(`^${text}`);
-      if (regex.test(value)) {
-        [, value] = value.split(text);
-        type = key;
-      }
-      return;
-    }
-    // 数字
-    value = intRegex.test(value) ? Number(value) : value;
-    // 范围条件
-    if (value && /^(!)?\[.*\]$/.test(value)) {
-      const [v1, v2] = value.match(/^(!)?\[.*\]$/);
-      value = v1.slice(v2 ? 2 : 1, -1).split(',')
-        .map(item => intRegex.test(item) ? Number(item) : item.trim());
-      type = `${v2 ? 'not-' : ''}in-range`;
-    }
-  });
-
-  return { value, type };
-};
-
-export const validateValue = (value, config) => {
   let message = '';
 
-  // 判断数据类型是否合规
-  if (config.type === 'int') {
-    const isMatch = Array.isArray(value) ? value.every(item => intRegex.test(item)) : intRegex.test(value);
-    if (!isMatch) {
-      message = `【${config.name}】列存在非数字类型`;
-    }
-  } else if (config.type === 'select' && value) {
-    const ids = Array.isArray(value) ? value : [value];
-    const isMatch = ids.every(id => config.options.items.some(item => item.id === id));
-    if (!isMatch) {
-      message = `【${config.name}】列存在所填选项不存在`;
+  // 检查是否有操作符匹配
+  for (const [key, text] of Object.entries(operateMap)) {
+    if (text && new RegExp(`^${text}`).test(value)) {
+      [, value] = value.split(text);
+      value = value.trim();
+      type = key;
+      break;
     }
   }
 
-  return message;
+  // 定义一个函数来验证整数
+  const validateInt = (val) => {
+    if (!intRegex.test(val)) {
+      message = `【${config.name}】列存在非数字类型`;
+      return '';
+    }
+    return Number(val);
+  };
+
+  // 处理范围条件（只有数字和下拉框类型有范围条件）
+  if (!operateMap[type] && value && /^(!)?\[.*\]$/.test(value)) {
+    const [v1, v2] = value.match(/^(!)?\[.*\]$/);
+    value = v1.slice(v2 ? 2 : 1, -1).split(',')
+      .map((item) => {
+        if (config.type === 'int') {
+          return validateInt(item);
+        }
+        const option = config.options.items.find(option => option.name === item.trim());
+        if (!option) {
+          message = `【${config.name}】列存在所填选项不存在`;
+          return '';
+        }
+        return option.id;
+      });
+    type = `${v2 ? 'not-' : ''}in-range`;
+    return { value, type, message };
+  }
+
+  // 处理等于和其他条件
+  if (config.type === 'int') {
+    value = validateInt(value);
+  } else if (config.type === 'select') {
+    const option = config.options.items.find(option => option.name === value);
+    if (!option) {
+      message = `【${config.name}】列存在所填选项不存在`;
+      value = '';
+    } else {
+      value = option.id;
+    }
+  }
+
+  return { value, type, message };
 };
 
 export const getValueRight = (value, type, config) => {
