@@ -229,6 +229,7 @@
       // 导入更新表格数据
       updateData(data = {}) {
         this.tableData = { ...data };
+        this.computeWidth();
       },
       // 更新表格列字段
       updateField(type, operate, index = -1) {
