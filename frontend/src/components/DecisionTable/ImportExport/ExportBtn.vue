@@ -13,10 +13,6 @@
   import { getCellText } from './dataTransfer.js';
   export default {
     props: {
-      name: {
-        type: String,
-        default: '',
-      },
       data: {
         type: Object,
         default: () => ({}),
@@ -173,7 +169,7 @@
         XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
 
         // 导出工作簿
-        XLSX.writeFile(wb, `${this.name || 'Decision'}_${moment().format('YYYYMMDDHHmmss')}.xlsx`);
+        XLSX.writeFile(wb, `${window.APP_CODE}_decision_${moment().format('YYYYMMDDHHmmss')}.xlsx`);
       },
     },
   };
