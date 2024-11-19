@@ -2,84 +2,93 @@
   <div
     v-bkloading="{ isLoading: isLoading, opacity: 1 }"
     class="mock-execute">
-    <div class="form-wrapper">
-      <div class="variable-wrap">
-        <p class="wrap-title">
-          {{ $t('填写调试入参') }}
-        </p>
-        <TaskParamEdit
-          ref="taskParamEdit"
-          :editable="tplActions.includes('MOCK')"
-          :constants="pipelineTree.constants" />
-      </div>
-      <div class="mock-wrap">
-        <p class="wrap-title">
-          {{ $t('选择 Mock 数据') }}
-        </p>
-        <template v-if="!!Object.keys(nodeMockMap).length">
-          <bk-form
-            ref="mockForm"
-            :label-width="200"
-            :model="mockFormData"
-            form-type="vertical"
-            :rules="rules">
-            <bk-form-item
-              v-for="key in Object.keys(nodeMockMap)"
-              :key="key"
-              :label="pipelineTree.activities[key].name"
-              :required="true"
-              :property="key"
-              :error-display-type="'normal'">
-              <bk-select v-model="mockFormData[key]">
-                <bk-option
-                  :id="-1"
-                  :name="$t('无需Mock，真执行')" />
-                <bk-option
-                  v-for="option in nodeMockMap[key]"
-                  :id="option.id"
-                  :key="option.id"
-                  :name="option.name" />
-              </bk-select>
-            </bk-form-item>
-          </bk-form>
-        </template>
-        <template v-if="!!unMockNodes.length">
-          <p
-            class="un-mock-title"
-            @click="unMockExpend = !unMockExpend">
-            <i
-              class="bk-icon icon-angle-double-down"
-              :class="{ 'is-expend': unMockExpend }" />
-            <span>{{ unMockExpend ? $t('收起未设置 Mock数据 的节点') : $t('显示未设置 Mock数据 的节点') }}</span>
+    <div class="left-wrapper">
+      <div class="form-wrapper">
+        <div class="variable-wrap">
+          <p class="wrap-title">
+            {{ $t('填写调试入参') }}
           </p>
-          <ul
-            v-if="unMockExpend"
-            class="un-mock-list">
-            <li
-              v-for="key in unMockNodes"
-              :key="key">
-              {{ pipelineTree.activities[key].name }}
-            </li>
-          </ul>
-        </template>
+          <TaskParamEdit
+            ref="taskParamEdit"
+            :editable="tplActions.includes('MOCK')"
+            :constants="pipelineTree.constants" />
+        </div>
+        <div class="mock-wrap">
+          <p class="wrap-title">
+            {{ $t('选择 Mock 数据') }}
+          </p>
+          <template v-if="!!Object.keys(nodeMockMap).length">
+            <bk-form
+              ref="mockForm"
+              :label-width="200"
+              :model="mockFormData"
+              form-type="vertical"
+              :rules="rules">
+              <bk-form-item
+                v-for="key in Object.keys(nodeMockMap)"
+                :key="key"
+                :label="pipelineTree.activities[key].name"
+                :required="true"
+                :property="key"
+                :error-display-type="'normal'">
+                <bk-select v-model="mockFormData[key]">
+                  <bk-option
+                    :id="-1"
+                    :name="$t('无需Mock，真执行')" />
+                  <bk-option
+                    v-for="option in nodeMockMap[key]"
+                    :id="option.id"
+                    :key="option.id"
+                    :name="option.name" />
+                </bk-select>
+              </bk-form-item>
+            </bk-form>
+          </template>
+          <template v-if="!!unMockNodes.length">
+            <p
+              class="un-mock-title"
+              @click="unMockExpend = !unMockExpend">
+              <i
+                class="bk-icon icon-angle-double-down"
+                :class="{ 'is-expend': unMockExpend }" />
+              <span>{{ unMockExpend ? $t('收起未设置 Mock数据 的节点') : $t('显示未设置 Mock数据 的节点') }}</span>
+            </p>
+            <ul
+              v-if="unMockExpend"
+              class="un-mock-list">
+              <li
+                v-for="key in unMockNodes"
+                :key="key">
+                {{ pipelineTree.activities[key].name }}
+              </li>
+            </ul>
+          </template>
+        </div>
+      </div>
+      <div
+        v-if="!isLoading"
+        class="action-wrapper">
+        <bk-button
+          theme="primary"
+          :loading="createLoading"
+          :disabled="!tplActions.includes('MOCK')"
+          @click="onCreateTask">
+          {{ $t('执行') }}
+        </bk-button>
+        <bk-button
+          :disabled="createLoading"
+          @click="$emit('onReturn')">
+          {{ $t('取消') }}
+        </bk-button>
       </div>
     </div>
-    <div
-      v-if="!isLoading"
-      class="action-wrapper">
-      <bk-button
-        theme="primary"
-        :loading="createLoading"
-        :disabled="!tplActions.includes('MOCK')"
-        @click="onCreateTask">
-        {{ $t('执行') }}
-      </bk-button>
-      <bk-button
-        :disabled="createLoading"
-        @click="$emit('onReturn')">
-        {{ $t('取消') }}
-      </bk-button>
-    </div>
+    <MockRecode
+      :template-id="templateId"
+      :node-mock-map="nodeMockMap"
+      :mock-form-data="mockFormData"
+      :activities="pipelineTree.activities"
+      :constants="pipelineTree.constants"
+      @change="updateFormData" />
   </div>
 </template>
 
@@ -87,13 +96,15 @@
   import { mapActions } from 'vuex';
   import tools from '@/utils/tools';
   import TaskParamEdit from './components/TaskParamEdit.vue';
+  import MockRecode from './components/MockRecode.vue';
   export default {
     name: 'MockExecute',
     components: {
       TaskParamEdit,
+      MockRecode,
     },
     props: {
-      headerLabel: {
+      mockTaskName: {
         type: String,
         default: '',
       },
@@ -173,8 +184,34 @@
           this.isLoading = false;
         }
       },
+      updateFormData(data) {
+        const { constants, mock_data_ids } = data;
+
+        Object.entries(mock_data_ids).forEach(([key, value]) => {
+          const isMockExist = this.mockDataList.some(item => item.id === value && item.node_id === key);
+          if (key in this.mockFormData && isMockExist) {
+            this.mockFormData[key] = value;
+          }
+        });
+
+        const { taskParamEdit: paramEditComp } = this.$refs;
+        if (!paramEditComp) return;
+
+        paramEditComp.renderData = Object.keys(constants).reduce((acc, key) => {
+          if (key in paramEditComp.renderData) {
+            acc[key] = constants[key].value;
+          }
+          return acc;
+        }, {});
+
+        this.$bkMessage({
+          message: this.$t('复用成功'),
+          theme: 'success',
+        });
+      },
       async onCreateTask() {
         try {
+          if (!this.mockTaskName) return;
           const { taskParamEdit: paramEditComp, mockForm } = this.$refs;
           let validate = true;
           if (paramEditComp) {
@@ -195,11 +232,16 @@
               acc.nodes.push(cur);
               const mockInfo = this.mockDataList.find(item => item.id === value);
               acc.outputs[cur] = mockInfo ? mockInfo.data : {};
+              acc.mock_data_ids[cur] = value;
             }
             return acc;
-          }, { nodes: [], outputs: {} });
+          }, {
+            nodes: [],
+            outputs: {},
+            mock_data_ids: {},
+          });
           const params = {
-            name: this.headerLabel,
+            name: this.mockTaskName,
             pipeline_tree: pipelineTree,
             mock_data: mockData,
             creator: this.creator,
@@ -251,13 +293,20 @@
 .mock-execute {
   flex: 1;
   display: flex;
-  flex-direction: column;
   max-height: calc(100% - 60px);
   background: #f5f7fa;
-  .form-wrapper {
+  .left-wrapper {
     flex: 1;
-    padding: 24px 270px;
+    display: flex;
+    flex-direction: column;
+    margin: 24px;
+  }
+  .form-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
     overflow-y: auto;
+    position: relative;
     @include scrollbar;
     .wrap-title {
       font-size: 14px;
@@ -267,13 +316,18 @@
       margin-bottom: 16px;
     }
     .variable-wrap {
+      flex: 1;
       padding: 16px 24px;
       margin-bottom: 16px;
       background: #fff;
+      box-shadow: 0 2px 4px 0 #1919290d;
     }
     .mock-wrap {
+      flex: 1;
       padding: 16px 24px;
+      margin-bottom: 4px;
       background: #fff;
+      box-shadow: 0 2px 4px 0 #1919290d;
       .bk-form {
         margin-bottom: 16px;
       }
@@ -319,14 +373,12 @@
     }
   }
   .action-wrapper {
-    height: 48px;
-    z-index: 2;
-    padding-left: 270px;
-    background: #fafbfd;
-    box-shadow: 0 -1px 0 0 #dcdee5;
+    position: sticky;
+    bottom: 0;
+    padding-top: 20px;
+    background: #f5f7fa;
     .bk-button {
       width: 88px;
-      margin-top: 8px;
     }
   }
 }

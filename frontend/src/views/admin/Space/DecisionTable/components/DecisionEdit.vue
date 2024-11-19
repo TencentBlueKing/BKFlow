@@ -273,6 +273,13 @@
               || ['is-null', 'not-null'].includes(conditions[0]?.compare)
               || conditions[0]?.right.obj.value;
           });
+          if (!data.records.length) {
+            this.$bkMessage({
+              message: this.$t('请至少完整填写一条规则'),
+              theme: 'error',
+            });
+            return;
+          }
           const params = {
             id: this.decisionId,
             space_id: this.spaceId,

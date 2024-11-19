@@ -17,7 +17,7 @@
 <script>
   import * as XLSX from 'xlsx';
   import tools from '@/utils/tools.js';
-  import { validateFiled, parseValue, validateValue, getValueRight } from './dataTransfer.js';
+  import { validateFiled, parseValue, getValueRight } from './dataTransfer.js';
   export default {
     props: {
       data: {
@@ -114,7 +114,13 @@
       },
       getHeader(row, sheetValue) {
         const header = [];
+        const titleRegex = /^([^\(]+)\(([^)]+)\)$/;
         const result = row.every((cell) => {
+          if (!titleRegex.test(cell)) {
+            this.showMessage(`表格【${cell}】列标题数据结构不对`);
+            return false;
+          }
+
           const comment = sheetValue.find(value => Object.prototype.toString.call(value) === '[object Object]' && value.v === cell);
 
           if (!comment || !comment.c) {
@@ -127,7 +133,12 @@
             this.showMessage(`表格【${cell}】列的配置注释不是json格式`);
             return false;
           }
-          header.push(JSON.parse(t));
+          const [, name, id] = cell.match(titleRegex);
+          header.push({
+            id,
+            name,
+            ...JSON.parse(t),
+          });
 
           return true;
         });
@@ -142,11 +153,8 @@
         const outputs = {};
 
         const result = header.every((col, colIndex) => {
-          // 解析value和操作方式
-          const { value, type } = parseValue(row[colIndex]);
-
-          // 校验value
-          const message = validateValue(value, col);
+          // 解析并校验value和操作方式
+          const { value, type, message } = parseValue(row[colIndex], col);
           if (message) {
             this.showMessage(message);
             return false;

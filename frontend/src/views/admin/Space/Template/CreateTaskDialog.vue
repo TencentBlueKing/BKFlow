@@ -15,7 +15,7 @@
       :label-width="100"
       :model="taskFormData">
       <bk-form-item
-        :label="$t('模板Id')"
+        :label="$t('模板ID')"
         :required="true"
         :property="'template_id'">
         <bk-input
@@ -43,13 +43,14 @@
       <bk-form-item
         ref="codeFormItem"
         :label="$t('请求参数')"
+        :desc="$t('流程的入参')"
         :property="'constants'"
         class="code-form-item">
         <div class="code-wrapper">
           <FullCodeEditor
             ref="fullCodeEditor"
             v-model="taskFormData.constants"
-            :options="{ language: 'json' }" />
+            :options="{ language: 'json', placeholder: { '${key}': 'value' } }" />
         </div>
       </bk-form-item>
       <bk-form-item>

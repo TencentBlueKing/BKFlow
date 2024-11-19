@@ -13,10 +13,6 @@
   import { getCellText } from './dataTransfer.js';
   export default {
     props: {
-      name: {
-        type: String,
-        default: '',
-      },
       data: {
         type: Object,
         default: () => ({}),
@@ -42,34 +38,52 @@
             horizontal: 'center',  // 水平居中
             vertical: 'center',     // 垂直居中
           },
-          border: {
-            top: { style: 'thin', color: { rgb: '000000' } },
-            bottom: { style: 'thin', color: { rgb: '000000' } },
-            left: { style: 'thin', color: { rgb: '000000' } },
-            right: { style: 'thin', color: { rgb: '000000' } },
-          },
+          border: ['top', 'bottom', 'left', 'right'].reduce((acc, side) => {
+            acc[side] = { style: 'thin', color: { rgb: '000000' } };
+            return acc;
+          }, {}),
         };
 
         // 定义表头和注释
         const headers =  [
           {
             label: 'Input',
-            children: inputs.map(item => ({ label: `${item.name}(${item.id})`, description: JSON.stringify(item) })),
+            children: inputs.map((item) => {
+              const { id, name, ...rest } = item;
+              return { label: `${name}(${id})`, description: JSON.stringify(rest) };
+            }),
           },
           {
             label: 'Output',
-            children: outputs.map(item => ({ label: `${item.name}(${item.id})`, description: JSON.stringify(item) })),
+            children: outputs.map((item) => {
+              const { id, name, ...rest } = item;
+              return { label: `${name}(${id})`, description: JSON.stringify(rest) };
+            }),
           },
         ];
         const data = records.reduce((acc, cur) => {
           // 暂时过滤【条件组合】类型！！！
           if (cur.inputs.type !== 'common') return acc;
           const arr = [];
-          cur.inputs.conditions.forEach((item) => {
-            arr.push({ v: getCellText(item), t: 's', s: cellStyles });
+          cur.inputs.conditions.forEach((item, index) => {
+            const inputInfo = inputs[index];
+            const v = getCellText(item);
+            if (inputInfo.type === 'select') {
+              // 下拉框类型导出为text
+              const option = inputInfo.options.items.find(o => o.id === v);
+              arr.push({ v: option.name, t: 's', s: cellStyles });
+            } else {
+              arr.push({ v, t: 's', s: cellStyles });
+            }
           });
           outputs.forEach((item) => {
-            arr.push({ v: cur.outputs[item.id], t: 's', s: cellStyles });
+            if (item.type === 'select') {
+              // 下拉框类型导出为text
+              const option = item.options.items.find(o => o.id === cur.outputs[item.id]);
+              arr.push({ v: option.name, t: 's', s: cellStyles });
+            } else {
+              arr.push({ v: cur.outputs[item.id], t: 's', s: cellStyles });
+            }
           });
           acc.push(arr);
           return acc;
@@ -108,8 +122,9 @@
                 fill: { fgColor: { rgb: '9FE3FF' } },
               },
             });
+            const c = headerIndex === 0 ? childIndex : (headers[headerIndex - 1].children.length + childIndex);
             comments.push({
-              cell: XLSX.utils.encode_cell({ c: headerIndex * header.children.length + childIndex, r: 1 }),
+              cell: XLSX.utils.encode_cell({ c, r: 1 }),
               comment: child.description,
             });
           });
@@ -154,7 +169,7 @@
         XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
 
         // 导出工作簿
-        XLSX.writeFile(wb, `${this.name || 'Decision'}_${moment().format('YYYYMMDDHHmmss')}.xlsx`);
+        XLSX.writeFile(wb, `${window.APP_CODE}_decision_${moment().format('YYYYMMDDHHmmss')}.xlsx`);
       },
     },
   };
