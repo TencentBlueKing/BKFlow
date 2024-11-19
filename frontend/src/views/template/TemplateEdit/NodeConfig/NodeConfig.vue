@@ -1542,10 +1542,10 @@
             version: this.isThirdParty ? '1.0.0' : version,
           };
           if (this.isApiPlugin && this.basicInfo.pluginId) { // 新版api插件中component包含pluginId字段
-            const { pluginId, nodeName, metaUrl, groupId, groupName } = this.basicInfo;
+            const { pluginId, name, metaUrl, groupId, groupName } = this.basicInfo;
             component.api_meta = {
               id: pluginId,
-              name: nodeName,
+              name: name.split('-')[1],
               meta_url: metaUrl,
               category: {
                 id: groupId,
