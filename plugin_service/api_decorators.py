@@ -42,7 +42,7 @@ def inject_plugin_client(func):
             plugin_client = PluginServiceApiClient(plugin_code)
         except PluginServiceException as e:
             logger.error(f"[inject_plugin_client] error: {e}")
-            return JsonResponse({"message": e, "result": False, "data": None})
+            return JsonResponse({"message": str(e), "result": False, "data": None})
         setattr(request, "plugin_client", plugin_client)
         return func(request)
 
