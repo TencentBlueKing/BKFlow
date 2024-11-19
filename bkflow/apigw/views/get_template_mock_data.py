@@ -23,8 +23,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.serializers.task import GetTaskListSerializer
-from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.template.models import TemplateMockData
+from bkflow.template.serializers.template import TemplateMockDataSerializer
+from bkflow.utils import err_code
 
 
 @login_exempt
@@ -33,24 +34,15 @@ from bkflow.contrib.api.collections.task import TaskComponentClient
 @apigw_require
 @check_jwt_and_space
 @return_json_response
-def get_task_list(request, space_id):
-    ser = GetTaskListSerializer(data=request.GET)
-    ser.is_valid(raise_exception=True)
-
-    data = dict(ser.data)
-    data["space_id"] = space_id
-
-    filter_map = {
-        "create_at_start": "create_time__gte",
-        "create_at_end": "create_time__lte",
-        "name": "name__icontains",
-        "is_started": "is_started",
-        "is_finished": "is_finished",
+def get_template_mock_data(request, space_id, template_id):
+    mock_data_qs = TemplateMockData.objects.filter(space_id=space_id, template_id=template_id)
+    if "node_id" in request.GET:
+        mock_data_qs = mock_data_qs.filter(node_id=request.GET.get("node_id"))
+    response_ser = TemplateMockDataSerializer(mock_data_qs, many=True)
+    response = {
+        "result": True,
+        "data": response_ser.data,
+        "code": err_code.SUCCESS.code,
+        "message": "",
     }
-    for k, v in filter_map.items():
-        if k in data:
-            data[v] = data.pop(k)
-
-    client = TaskComponentClient(space_id=space_id)
-    result = client.task_list(data=data)
-    return result
+    return response

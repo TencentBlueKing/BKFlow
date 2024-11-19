@@ -88,14 +88,6 @@
     },
     data() {
       return {
-        nodeTypeList: [
-          { key: 'tasknode', id: 'task', tips: this.$t('标准插件节点') },
-          // { key: 'subflow', id: 'subflow', tips: '子流程节点' },
-          { key: 'branchgateway', id: 'branch-gateway', tips: this.$t('分支网关') },
-          { key: 'parallelgateway', id: 'parallel-gateway', tips: this.$t('并行网关') },
-          { key: 'conditionalparallelgateway', id: 'conditional-parallel-gateway', tips: this.$t('条件并行网关') },
-          { key: 'convergegateway', id: 'converge-gateway', tips: this.$t('汇聚网关') },
-        ],
         nodeType: '',
         operate: '',
       };
@@ -109,6 +101,20 @@
         startNode: state => state.template.start_event,
         endNode: state => state.template.end_event,
       }),
+      nodeTypeList() {
+        const list = [
+          { key: 'tasknode', id: 'task', tips: this.$t('标准插件节点') },
+          // { key: 'subflow', id: 'subflow', tips: '子流程节点' },
+          { key: 'branchgateway', id: 'branch-gateway', tips: this.$t('分支网关') },
+          { key: 'parallelgateway', id: 'parallel-gateway', tips: this.$t('并行网关') },
+          { key: 'conditionalparallelgateway', id: 'conditional-parallel-gateway', tips: this.$t('条件并行网关') },
+          { key: 'convergegateway', id: 'converge-gateway', tips: this.$t('汇聚网关') },
+        ];
+        if (this.activeCell.data.type === 'parallel-gateway') {
+          return list.filter(item => item.id !== 'converge-gateway');
+        }
+        return list;
+      },
       branchConditions() {
         const branchConditions = {};
         Object.keys(this.gateways).forEach((gKey) => {
@@ -227,6 +233,8 @@
             nodeId,
           });
         } else if (specialType.indexOf(currLoc.type) > -1 && isHaveNodeBehind) {
+          // 如果网管分支已有输出连线则后续连线输出端点都由bottom出发
+          edges[0].source.port = 'port_bottom';
           // 拿到并行中最靠下的节点
           const { x: parallelX, y: parallelY } = this.getParallelNodeMinDistance(id);
           location.y = parallelY + 100;
@@ -355,6 +363,7 @@
                 width: 6,
                 height: 8,
               },
+              class: edgeId,
             },
           },
           data,

@@ -132,14 +132,13 @@
         <i class="common-icon-perspective" />
       </div>
       <div
-        v-if="isShowSelectAllTool"
         v-bk-tooltips="{
-          content: $t('导出'),
+          content: $t('导出图片'),
           delay: 300,
           placements: ['bottom']
         }"
         class="tool-icon"
-        @click="onExportData">
+        @click="$emit('onDownloadCanvas')">
         <i class="common-icon-export-scheme" />
       </div>
     </div>
@@ -498,6 +497,7 @@
                 height: 8,
               },
             },
+            class: edgeId,
           },
           data,
           zIndex: 0,
@@ -624,6 +624,12 @@
       }
       .x6-widget-minimap-viewport {
         border: 1px solid #3a84ff;
+      }
+    }
+    // 小画布tooltip取消固定定位
+    /deep/ .x6-cell.x6-node {
+      .bk-tooltip {
+        position: relative;
       }
     }
   }

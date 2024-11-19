@@ -5,7 +5,21 @@
         class="bk-icon icon-arrows-left back-icon"
         @click="onCancelMock" />
       <span class="title">{{ mockStep === 'setting' ? $t('流程调试') : $t('调试执行') }}</span>
-      <span class="template-name">{{ headerLabel }}</span>
+      <span
+        v-if="mockStep === 'setting'"
+        class="template-name">{{ name }}</span>
+      <template v-else>
+        <bk-input
+          v-model="taskName"
+          v-validate="taskNameRule"
+          class="name-input"
+          name="taskName"
+          :maxlength="stringLength.TASK_NAME_MAX_LENGTH"
+          :show-word-limit="true" />
+        <span
+          v-show="veeErrors.has('taskName')"
+          class="common-error-tip">{{ veeErrors.first('taskName') }}</span>
+      </template>
     </div>
     <div
       v-if="mockStep === 'setting'"
@@ -38,10 +52,12 @@
 </template>
 
 <script>
+  import moment from 'moment-timezone';
+  import { STRING_LENGTH, NAME_REG } from '@/constants/index.js';
   export default {
     name: 'TemplateMockHeader',
     props: {
-      headerLabel: {
+      tplName: {
         type: String,
         default: '',
       },
@@ -60,6 +76,33 @@
       tplActions: {
         type: Array,
         default: () => ([]),
+      },
+    },
+    data() {
+      return {
+        taskName: '',
+        stringLength: STRING_LENGTH,
+        taskNameRule: {
+          required: true,
+          max: STRING_LENGTH.TASK_NAME_MAX_LENGTH,
+          regex: NAME_REG,
+        },
+      };
+    },
+    watch: {
+      tplName: {
+        handler(val) {
+          if (this.mockStep === 'setting') {
+            this.taskName = val;
+            return;
+          }
+          const nowTime = moment(new Date()).format('YYYYMMDDHHmmss');
+          this.taskName = `${val}_${this.$t('调试任务')}_${nowTime}`;
+        },
+        immediate: true,
+      },
+      taskName(val) {
+        this.$emit('onChange', val);
       },
     },
     methods: {
@@ -122,6 +165,10 @@
       width: 1px;
       background: #dcdee5;
     }
+  }
+  .name-input {
+    width: 320px;
+    margin-left: 16px;
   }
 }
 </style>

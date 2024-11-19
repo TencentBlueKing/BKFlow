@@ -73,6 +73,8 @@ class TaskInstanceFilterSet(FilterSet):
             "start_time": ["gte", "lte"],
             "finish_time": ["gte", "lte"],
             "create_method": ["exact"],
+            "is_started": ["exact"],
+            "is_finished": ["exact"],
         }
 
 

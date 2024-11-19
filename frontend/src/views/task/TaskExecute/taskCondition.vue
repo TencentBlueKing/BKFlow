@@ -40,42 +40,8 @@
           <span class="required">*</span>
         </label>
         <div class="code-wrapper">
-          <div class="condition-tips">
-            <template v-if="gwConfig.extra_info && gwConfig.extra_info.parse_lang === 'FEEL'">
-              <p>{{ $t('支持 "=、!=、>、>=、&lt;、&lt;=" 等二元比较操作符') }}</p>
-              <p>{{ $t('支持 "and、or、true、false" 等关键字语法') }}</p>
-              <p>{{ $t('支持 FEEL (Friendly Enough Expression Language) 基础语法') }}</p>
-              <br>
-              <p>{{ $t('支持使用全局变量，如') }}<code class="code">${key}</code>、<code class="code">${int(key)}</code></p>
-              <p>{{ $t('${}中支持使用内置函数、datetime、re、hashlib、random、time、os.path模块处理全局变量') }}</p>
-              <br>
-              <p>{{ $t('示例：') }}</p>
-              <p>{{ $t('字符串比较：') }}<code class="code">"${key}" = "my string"</code></p>
-              <p>{{ $t('数值比较：') }}<code class="code">${int(key)} >= 3</code></p>
-              <p>{{ $t('包含：') }}<code class="code">list contains([1, 2, 3], ${int(key)})</code></p>
-            </template>
-            <template v-else>
-              <p>{{ $t('支持 "==、!=、>、>=、&lt;、&lt;=、in、notin" 等二元比较操作符') }}</p>
-              <p>{{ $t('支持 "and、or、True/true、False/false" 等关键字语法') }}</p>
-              <p>
-                {{ $t('表达式更多细节请参考') }}
-                <bk-link
-                  theme="primary"
-                  href="https://boolrule.readthedocs.io/en/latest/expressions.html#basic-comparison-operators"
-                  target="_blank">
-                  {{ 'boolrule' }}
-                </bk-link>
-              </p>
-              <br>
-              <p>{{ $t('支持使用全局变量，如') }}<code class="code">${key}</code>、<code class="code">${int(key)}</code></p>
-              <p>{{ $t('支持使用内置函数、datetime、re、hashlib、random、time、os.path模块处理全局变量') }}</p>
-              <br>
-              <p>{{ $t('示例：') }}</p>
-              <p>{{ $t('字符串比较：') }}<code class="code">"${key}" == "my string"</code></p>
-              <p>{{ $t('数值比较：') }}<code class="code">${int(key)} >= 3</code></p>
-              <p>{{ $t('包含：') }}<code class="code">${key} in (1,2,3)</code></p>
-            </template>
-          </div>
+          <condition-expression
+            :parse-lang="gwConfig.extra_info && gwConfig.extra_info.parse_lang" />
           <full-code-editor
             v-validate="expressionRule"
             name="expression"
@@ -98,10 +64,12 @@
   import { mapMutations } from 'vuex';
   import { NAME_REG } from '@/constants/index.js';
   import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
+  import ConditionExpression from '../../template/TemplateEdit/components/ConditionExpression.vue';
 
   export default {
     name: 'ConditionEdit',
     components: {
+      ConditionExpression,
       FullCodeEditor,
     },
     props: {
@@ -130,6 +98,7 @@
       if (defaultCondition && defaultCondition.flow_id !== id) {
         hasDefaultBranch = true;
       }
+      const expression = this.toggleExpressionFormat(value);
       return {
         gwConfig,
         branchType, // 当前分支类型
@@ -140,7 +109,7 @@
           placements: ['bottom-start'],
         },
         conditionName: name,
-        expression: value,
+        expression,
         conditionRule: {
           required: true,
           max: 20,
@@ -155,7 +124,7 @@
       conditionData(val) {
         const { name, value } = val;
         this.conditionName = name;
-        this.expression = value;
+        this.expression = this.toggleExpressionFormat(value);
       },
       branchType: {
         handler(val) {
@@ -174,46 +143,16 @@
       onDataChange(val) {
         this.expression = val;
       },
-      // 关闭配置面板
-      onBeforeClose() {
-        if (this.isReadonly) {
-          this.close();
-          return true;
+      toggleExpressionFormat(str, slice = true) {
+        const gwConfig = this.gateways[this.conditionData.nodeId];
+        const { parse_lang: parseLang } = gwConfig.extra_info || {};
+        if (parseLang !== 'MAKO') {
+          return str;
         }
-        const { name, value } = this.conditionData;
-        if (this.conditionName === name && this.expression === value) {
-          this.close();
-          return true;
+        if (slice) {
+          return /^\${.+\}$/.test(str) ? str.slice(2, -1) : str;
         }
-        this.$emit('onBeforeClose');
-      },
-      confirm() {
-        this.$validator.validateAll().then((result) => {
-          if (result) {
-            const { id, nodeId, tag, overlayId, loc } = this.conditionData;
-            const data = {
-              id,
-              nodeId,
-              overlayId,
-              loc,
-              value: this.branchType === 'default' ? undefined : this.expression.trim(),
-              name: this.conditionName,
-            };
-            if (this.branchType === 'default') {
-              data.default_condition = {
-                name: this.conditionName,
-                tag,
-                flow_id: id,
-              };
-            }
-            this.setBranchCondition(data);
-            this.$emit('updataCanvasCondition', data);
-            this.close();
-          }
-        });
-      },
-      close(openVariablePanel) {
-        this.$emit('close', openVariablePanel);
+        return `\${${str}}`;
       },
     },
   };
@@ -247,27 +186,6 @@
                 font-size: 14px;
                 .required {
                     color: #ff2602;
-                }
-            }
-            .code-wrapper {
-                .condition-tips {
-                    margin-bottom: 10px;
-                    font-size: 12px;
-                    color: #b8b8b8;
-                    /deep/.bk-link {
-                        vertical-align: initial;
-                        .bk-link-text {
-                            font-size: 12px;
-                        }
-                    }
-                    .code {
-                        background-color: #eff1f3;
-                        color: #9e938a;
-                        border-radius: 4px;
-                        padding: 0 4px;
-                        margin: 0 2px;
-                        font: 0.85em/1.5 ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
-                    }
                 }
             }
             .bk-form-radio {

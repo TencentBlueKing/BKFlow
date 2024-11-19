@@ -41,8 +41,10 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.get_task_list import get_task_list
     from bkflow.apigw.views.get_task_node_detail import get_task_node_detail
     from bkflow.apigw.views.get_task_states import get_task_states
+    from bkflow.apigw.views.get_tasks_states import get_tasks_states
     from bkflow.apigw.views.get_template_detail import get_template_detail
     from bkflow.apigw.views.get_template_list import get_template_list
+    from bkflow.apigw.views.get_template_mock_data import get_template_mock_data
     from bkflow.apigw.views.grant_apigw_permissions_to_app import (
         grant_apigw_permissions_to_app,
     )
@@ -51,6 +53,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.renew_space_config import renew_space_config
     from bkflow.apigw.views.revoke_token import revoke_token
     from bkflow.apigw.views.update_template import update_template
+    from bkflow.apigw.views.validate_pipeline_tree import validate_pipeline_tree
 
     urlpatterns += [
         url(r"^create_space/$", create_space),
@@ -60,6 +63,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/create_template/$", create_template),
         url(r"^space/(?P<space_id>\d+)/get_template_list/$", get_template_list),
         url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_detail/$", get_template_detail),
+        url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_mock_data/$", get_template_mock_data),
         url(r"^space/(?P<space_id>\d+)/renew_space_config/$", renew_space_config),
         url(r"^space/(?P<space_id>\d+)/get_space_configs/$", get_space_configs),
         url(r"^space/(?P<space_id>\d+)/update_template/(?P<template_id>\d+)/$", update_template),
@@ -67,10 +71,12 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/create_task/$", create_task),
         url(r"^space/(?P<space_id>\d+)/create_mock_task/$", create_mock_task),
         url(r"^space/(?P<space_id>\d+)/create_task_without_template/$", create_task_without_template),
+        url(r"^space/(?P<space_id>\d+)/validate_pipeline_tree/$", validate_pipeline_tree),
         url(r"^space/(?P<space_id>\d+)/create_credential/$", create_credential),
         url(r"^space/(?P<space_id>\d+)/get_task_list/$", get_task_list),
         url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/get_task_detail/$", get_task_detail),
         url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/get_task_states/$", get_task_states),
+        url(r"^space/(?P<space_id>\d+)/get_tasks_states/$", get_tasks_states),
         url(
             r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/node/(?P<node_id>\w+)/get_task_node_detail/$",
             get_task_node_detail,

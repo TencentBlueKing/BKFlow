@@ -22,6 +22,7 @@ import base64
 import datetime
 import json
 
+from bamboo_engine.config import Settings as BambooSettings
 from blueapps.conf.default_settings import *  # noqa
 from blueapps.conf.log import get_logging_config_dict
 from blueapps.opentelemetry.utils import inject_logging_trace_info
@@ -84,6 +85,8 @@ APP_INTERNAL_SPACE_ID_HEADER_KEY = "Bkflow-Internal-Space-Id"
 APP_INTERNAL_FROM_SUPERUSER_HEADER_KEY = "Bkflow-Internal-From-SuperUser"
 APP_INTERNAL_TOKEN_REQUEST_META_KEY = "HTTP_BKFLOW_INTERNAL_TOKEN"
 
+APP_WHITE_LIST = env.APP_WHITE_LIST_STR.split(",") if env.APP_WHITE_LIST_STR else []
+
 # PAAS SERVICE DETECTION
 BKPAAS_SERVICE_ADDRESSES_BKSAAS = os.getenv("BKPAAS_SERVICE_ADDRESSES_BKSAAS")
 BKSAAS_DEFAULT_MODULE_NAME = "default"
@@ -127,6 +130,62 @@ PIPELINE_TEMPLATE_CONTEXT = "bkflow.template.context.get_template_context"
 PIPELINE_INSTANCE_CONTEXT = "bkflow.task.context.get_task_context"
 UUID_DIGIT_STARTS_SENSITIVE = True
 PIPELINE_EXCLUSIVE_GATEWAY_EXPR_FUNC = pipeline_gateway_expr_func
+
+# pipeline mako render settings
+MAKO_SANDBOX_SHIELD_WORDS = [
+    "ascii",
+    "bytearray",
+    "bytes",
+    "callable",
+    "chr",
+    "classmethod",
+    "compile",
+    "delattr",
+    "dir",
+    "divmod",
+    "exec",
+    "eval",
+    "filter",
+    "frozenset",
+    "getattr",
+    "globals",
+    "hasattr",
+    "hash",
+    "help",
+    "id",
+    "input",
+    "isinstance",
+    "issubclass",
+    "iter",
+    "locals",
+    "map",
+    "memoryview",
+    "next",
+    "object",
+    "open",
+    "print",
+    "property",
+    "repr",
+    "setattr",
+    "staticmethod",
+    "super",
+    "type",
+    "vars",
+    "__import__",
+]
+BambooSettings.MAKO_SANDBOX_SHIELD_WORDS = MAKO_SANDBOX_SHIELD_WORDS
+MAKO_SANDBOX_IMPORT_MODULES = {
+    "datetime": "datetime",
+    "re": "re",
+    "hashlib": "hashlib",
+    "random": "random",
+    "time": "time",
+    "os.path": "os.path",
+    "json": "json",
+}
+BambooSettings.MAKO_SANDBOX_IMPORT_MODULES = MAKO_SANDBOX_IMPORT_MODULES
+# 支持 mako 表达式在 dict/list/tuple 情况下嵌套索引
+BambooSettings.ENABLE_RENDER_OBJ_BY_MAKO_STRING = True
 
 # 所有环境的日志级别可以在这里配置
 # LOG_LEVEL = 'INFO'

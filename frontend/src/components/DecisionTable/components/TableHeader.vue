@@ -6,7 +6,24 @@
       :title="item.name"
       :style="{ width: `${widthMap[item.type]}px` }"
       :class="['header-cell', { 'index-header': item.type === 'index' }]">
-      <template v-if="item.type !== 'index'">
+      <template v-if="item.type === 'index'">
+        <i
+          v-bk-tooltips="$t('需保证有且仅有一条规则被命中')"
+          class="common-icon-info" />
+        <bk-popover
+          placement="bottom"
+          theme="light"
+          :tippy-options="{ arrow: false }">
+          <i class="bk-icon icon-more" />
+          <template slot="content">
+            <ImportBtn
+              :data="data"
+              @updateData="$emit('updateData', $event)" />
+            <ExportBtn :data="data" />
+          </template>
+        </bk-popover>
+      </template>
+      <template v-else>
         <span class="label">{{ item.name }}</span>
         <bk-button
           v-if="!readonly"
@@ -20,8 +37,14 @@
   </div>
 </template>
 <script>
+  import ExportBtn from '../ImportExport/ExportBtn.vue';
+  import ImportBtn from '../ImportExport/ImportBtn.vue';
   export default {
     name: 'DecisionTableHeader',
+    components: {
+      ExportBtn,
+      ImportBtn,
+    },
     props: {
       data: {
         type: Object,
@@ -104,9 +127,22 @@
     .index-header {
       position: sticky;
       left: 0;
+      justify-content: space-around;
       z-index: 5;
+      padding: 0 12px;
       background: #fafbfd;
       border-bottom: 1px solid #dcdee5;
+      .common-icon-info {
+        color: #c4c6cc;
+        margin-top: 2px;
+      }
+      .icon-more {
+        font-size: 16px;
+        cursor: pointer;
+        &:hover {
+          color: #3a84ff;
+        }
+      }
     }
   }
 </style>

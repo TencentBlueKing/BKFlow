@@ -72,14 +72,13 @@
         <i class="common-icon-perspective" />
       </div>
       <div
-        v-if="isShowSelectAllTool"
         v-bk-tooltips="{
-          content: $t('导出'),
+          content: $t('导出图片'),
           delay: 300,
           placements: ['bottom']
         }"
         class="tool-icon"
-        @click="onExportData">
+        @click="$emit('onDownloadCanvas')">
         <i class="common-icon-export-scheme" />
       </div>
     </div>

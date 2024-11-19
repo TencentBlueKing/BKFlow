@@ -17,40 +17,26 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import json
+
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.serializers.task import GetTaskListSerializer
-from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.apigw.serializers.task import PipelineTreeSerializer
+from bkflow.utils import err_code
 
 
 @login_exempt
 @csrf_exempt
-@require_GET
+@require_POST
 @apigw_require
 @check_jwt_and_space
 @return_json_response
-def get_task_list(request, space_id):
-    ser = GetTaskListSerializer(data=request.GET)
+def validate_pipeline_tree(request, space_id):
+    data = json.loads(request.body)
+    ser = PipelineTreeSerializer(data=data)
     ser.is_valid(raise_exception=True)
-
-    data = dict(ser.data)
-    data["space_id"] = space_id
-
-    filter_map = {
-        "create_at_start": "create_time__gte",
-        "create_at_end": "create_time__lte",
-        "name": "name__icontains",
-        "is_started": "is_started",
-        "is_finished": "is_finished",
-    }
-    for k, v in filter_map.items():
-        if k in data:
-            data[v] = data.pop(k)
-
-    client = TaskComponentClient(space_id=space_id)
-    result = client.task_list(data=data)
-    return result
+    return {"result": True, "data": {}, "message": "", "code": err_code.SUCCESS.code}
