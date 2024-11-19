@@ -1415,10 +1415,10 @@
       // 节点配置面板表单校验，基础信息和输入参数
       validate() {
         return this.$refs.basicInfo.validate().then(() => {
-          if (this.isApiPlugin) {
-            const { jsonSchemaInput } = this.$refs;
-            let result = jsonSchemaInput ? jsonSchemaInput.validate() : true;
-            if (result) {
+          if (this.$refs.inputParams) {
+            let result = this.$refs.inputParams.validate();
+            // api插件额外校验json类型
+            if (this.isApiPlugin && result) {
               // 校验api插件中json数据是否符合JSON格式
               result = this.handleJsonValueParse(true);
               if (!result) {
@@ -1429,9 +1429,6 @@
               }
             }
             return result;
-          }
-          if (this.$refs.inputParams) {
-            return this.$refs.inputParams.validate();
           }
           if (this.$refs.dmnInputParams) {
             return this.$refs.dmnInputParams.validate();
