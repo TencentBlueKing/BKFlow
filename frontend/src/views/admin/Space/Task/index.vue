@@ -3,7 +3,7 @@
     <table-operate
       ref="taskOperate"
       :space-id="spaceId"
-      :placeholder="$t('ID/任务名称/创建人/执行人/所属模板 Id/所属作用域类型/所属作用域值')"
+      :placeholder="$t('ID/任务名称/创建人/执行人/所属模板 ID/所属作用域类型/所属作用域值')"
       :search-list="searchList"
       @updateSearchValue="searchValue = $event"
       @changeRequest="handleSearchSelectChange">
@@ -128,7 +128,7 @@
     },
     {
       id: 'template_id',
-      label: i18n.t('所属模板 Id'),
+      label: i18n.t('所属模板 ID'),
       width: 100,
     },
     {
@@ -187,7 +187,7 @@
     },
     {
       id: 'template_id',
-      name: i18n.t('所属模板 Id'),
+      name: i18n.t('所属模板 ID'),
     },
     {
       id: 'scope_type',

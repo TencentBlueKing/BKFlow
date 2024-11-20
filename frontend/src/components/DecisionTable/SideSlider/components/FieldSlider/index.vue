@@ -170,6 +170,11 @@
               message: this.$t('必填项不能为空'),
               trigger: 'blur',
             },
+            {
+              validator: this.checkOption,
+              message: this.$t('id或name不唯一'),
+              trigger: 'blur',
+            },
           ],
         },
       };
@@ -189,6 +194,20 @@
           return acc;
         }, []);
         return !keys.includes(val);
+      },
+      // 校验option是否存在相同id和name
+      checkOption(val) {
+        if (!val) return false;
+        const names = new Set();
+        const ids = new Set();
+        return val.items.every((item) => {
+          if (names.has(item.name) || ids.has(item.id)) {
+            return false;
+          }
+          names.add(item.name);
+          ids.add(item.id);
+          return true;
+        });
       },
       updateOptions(options) {
         this.formData.options = options;

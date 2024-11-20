@@ -229,7 +229,9 @@ export const getFormMixins = (attrs = {}) => {
               let valueEmpty = false;
               if (valueType === 'Object') {
                 valueEmpty = !Object.keys(value).length;
-              } else if (valueType === 'String' || valueType === 'Array') {
+              } else if (valueType === 'Array') {
+                valueEmpty = !value.filter(item => item).length;
+              } else if (valueType === 'String') {
                 valueEmpty = !value.length;
               } else if (valueType === 'Number') {
                 valueEmpty = !value.toString();

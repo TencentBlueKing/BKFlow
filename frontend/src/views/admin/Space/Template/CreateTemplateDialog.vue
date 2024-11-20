@@ -26,6 +26,7 @@
       </bk-form-item>
       <bk-form-item
         :label="$t('所属作用域类型')"
+        :desc="$t('scopeType')"
         :property="'scope_type'">
         <bk-input
           v-model="templateFormData.scope_type"
@@ -34,6 +35,7 @@
       </bk-form-item>
       <bk-form-item
         :label="$t('所属作用域值')"
+        :desc="$t('scopeValue')"
         :property="'scope_value'">
         <bk-input
           v-model="templateFormData.scope_value"
