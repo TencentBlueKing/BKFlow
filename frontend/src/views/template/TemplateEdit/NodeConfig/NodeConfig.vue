@@ -845,7 +845,7 @@
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
             Object.assign(data, {
               plugin: 'uniform_api',
-              name: `${category.name}_${name}`,
+              name: `${category.name}-${name}`,
               pluginId: id,
               method: method.value,
               groupId: category.id,

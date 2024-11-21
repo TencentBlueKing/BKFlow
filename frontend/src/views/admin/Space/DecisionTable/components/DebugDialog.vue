@@ -130,6 +130,9 @@
           if (editorInstance) {
             editorInstance.layoutCodeEditorInstance();
           }
+          if (!val) {
+            this.formData = {};
+          }
         });
       },
     },
