@@ -80,6 +80,7 @@ modules:
         description: GunicornThread数量
       - <<: *ENV_BK_APIGW_NETLOC_PATTERN
       - <<: *ENV_BKAPP_USE_PLUGIN_SERVICE
+      - <<: *DEFAULT_CALLBACK_KEY
     processes: &default_engine_processes
       er-e:
         command: celery worker -A blueapps.core.celery -P threads -Q er_execute_${BKFLOW_MODULE_CODE} -n er_e_worker@%h -c 100 -l info
