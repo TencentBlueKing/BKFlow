@@ -51,7 +51,6 @@
       v-else-if="!templateDataLoading"
       ref="mockExecute"
       :mock-task-name="mockTaskName"
-      :creator="creator"
       :template-id="templateId"
       :selected-nodes="selectedNodes"
       :tpl-actions="tplActions"
@@ -106,7 +105,6 @@
         curSelectedNodeId: '',
         saveLoading: false,
         executeLoading: false,
-        creator: '',
         mockSchemeId: '',
         lastSchemeMsg: null,
         isShowConditionEdit: false,
@@ -227,7 +225,6 @@
           };
           const templateData = await this.loadTemplateData(data);
           this.tplActions = templateData.auth;
-          this.creator = templateData.creator;
           this.tplSpaceId = templateData.space_id;
           this.setTemplateData(templateData);
           this.setSpaceId(templateData.space_id);
