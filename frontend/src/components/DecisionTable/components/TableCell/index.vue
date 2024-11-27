@@ -34,7 +34,7 @@
       class="is-error"
       @click="toggleEditing">
       <i
-        v-bk-tooltips="$t('内容填写不完整')"
+        v-bk-tooltips="{ content: errorTipContent }"
         class="bk-icon icon-exclamation-circle-shape" />
     </div>
   </div>
@@ -44,6 +44,7 @@
   import OutputCell from './components/OutputCell.vue';
   import { generateCellText } from '../../common/field.js';
   import tools from '@/utils/tools.js';
+  import i18n from '@/config/i18n/index.js';
   export default {
     name: 'DecisionTableCell',
     components: {
@@ -92,6 +93,9 @@
       isEditMode() {
         const { rowIndex, colIndex } = this.cell;
         return rowIndex === this.editCell.rowIndex && colIndex === this.editCell.colIndex;
+      },
+      errorTipContent() {
+        return this.cellText ? i18n.t('暂不支持带有英文双引号(") 的输入值') : i18n.t('内容填写不完整');
       },
     },
     watch: {

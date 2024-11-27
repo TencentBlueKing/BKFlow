@@ -218,8 +218,8 @@
       },
       validate() {
         return this.$refs.fieldForm.validate().then((valid) => {
-          if (valid) {
-            return this.formData.options.items.every(item => item.id && item.name);
+          if (valid && this.formData.type === 'select') {
+            return this.formData.options.items.every(item => item.id && item.name && !/\"/g.test(item.id));
           }
           return valid;
         });
