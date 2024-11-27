@@ -324,6 +324,19 @@
               }
             });
           }
+          // 校验文本内容值是否包含英文双引号(")
+          if (result) {
+            row.forEach((cell) => {
+              const { from, type } = cell.column;
+              if (type === 'string') {
+                const value = from === 'outputs' ? cell.condition.value : cell.condition.right.obj.value;
+                if (/\"/g.test(value)) {
+                  cell.isError = true;
+                  result = false;
+                }
+              }
+            });
+          }
         });
         return result;
       },

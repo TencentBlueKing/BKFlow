@@ -77,7 +77,7 @@
           <value-selector
             :key="`${item.left.obj.key}-${item.compare}-value`"
             v-model="item.right.obj.value"
-            v-validate="{ required: judgeRequired(item, 'right') }"
+            v-validate="{ required: judgeRequired(item, 'right'), decisionValueRegex: { pattern: valueRegex } }"
             :class="[
               'value-input',
               {
@@ -157,11 +157,13 @@
         acc[cur.id] = cur.type;
         return acc;
       }, {});
+      const valueRegex = /^((?!\").)*$/;
       return {
         ruleInfo: {},
         fieldList: this.inputs,
         fieldTypeMap,
         optionList: [],
+        valueRegex,
       };
     },
     watch: {
