@@ -93,7 +93,7 @@
 </template>
 
 <script>
-  import { mapActions } from 'vuex';
+  import { mapActions, mapState } from 'vuex';
   import tools from '@/utils/tools';
   import TaskParamEdit from './components/TaskParamEdit.vue';
   import MockRecode from './components/MockRecode.vue';
@@ -105,10 +105,6 @@
     },
     props: {
       mockTaskName: {
-        type: String,
-        default: '',
-      },
-      creator: {
         type: String,
         default: '',
       },
@@ -138,6 +134,11 @@
         unMockNodes: [],
         unMockExpend: false,
       };
+    },
+    computed: {
+      ...mapState({
+        creator: state => state.username,
+      }),
     },
     created() {
       this.loadData();

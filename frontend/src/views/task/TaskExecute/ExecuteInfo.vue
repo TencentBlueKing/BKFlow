@@ -526,7 +526,7 @@
       },
       // 补充记录缺少的字段
       async setFillRecordField(record) {
-        const { version, component_code: componentCode } = this.nodeDetailConfig;
+        const { version, component_code: componentCode, componentData } = this.nodeDetailConfig;
         const { inputs, state } = record;
         let { outputs } = record;
         // 执行记录的outputs可能为Object格式，需要转为Array格式
@@ -563,7 +563,8 @@
           const { constants } = islegacySubProcess ? this.pipelineData : this.componentValue.pipeline;
           this.renderConfig = await this.getSubflowInputsConfig(constants);
         } else if (componentCode) { // 任务节点需要加载标准插件
-          await this.getNodeConfig(componentCode, version, inputs.plugin_version);
+          const pluginVersion = componentData.plugin_version.value;
+          await this.getNodeConfig(componentCode, version, pluginVersion);
         }
         inputsInfo = Object.keys(inputs).reduce((acc, cur) => {
           const scheme = Array.isArray(this.renderConfig)
