@@ -920,6 +920,7 @@ const en = {
   待复用调试任务: 'Pending Reuse Debug Task',
   复用成功: 'Reuse success',
   id或name不唯一: 'ID or name is not unique',
+  '暂不支持带有英文双引号(") 的输入值': 'Input values containing English double quotes (\") are not supported at the moment',
 };
 
 export default en;

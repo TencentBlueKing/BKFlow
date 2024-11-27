@@ -122,6 +122,12 @@ export const parseValue = (data = '', config) => {
     }
   }
 
+  // 检查value是否包含(")
+  if (typeof data === 'string' && /\"/g.test(data)) {
+    message = '暂不支持带有英文双引号(") 的输入值';
+    return { value, type, message };
+  }
+
   // 定义一个函数来验证整数
   const validateInt = (val) => {
     if (!intRegex.test(val)) {
