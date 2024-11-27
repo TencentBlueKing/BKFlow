@@ -56,7 +56,7 @@
                   :label="$t('选项名称')"
                   :required="true"
                   :property="'name'"
-                  :rules="rules.required">
+                  :rules="rules.name">
                   <bk-input
                     v-model="optionFormData.name"
                     :maxlength="16"
@@ -66,7 +66,7 @@
                   :label="$t('选项值')"
                   :required="true"
                   :property="'id'"
-                  :rules="rules.required">
+                  :rules="rules.value">
                   <bk-input
                     ref="idInput"
                     v-model="optionFormData.id" />
@@ -108,6 +108,7 @@
 <script>
   import VueDraggable from 'vuedraggable';
   import tools from '@/utils/tools.js';
+  import i18n from '@/config/i18n/index.js';
   export default {
     name: 'SelectField',
     components: {
@@ -137,11 +138,23 @@
         dropRowIndex: -1,
         optionFormData: {},
         rules: {
-          required: [
+          name: [
             {
               required: true,
               message: this.$t('必填项'),
               trigger: 'blur',
+            },
+          ],
+          value: [
+            {
+              required: true,
+              message: this.$t('必填项'),
+              trigger: 'blur',
+            },
+            {
+              validator: val => (!/\"/g.test(val)),
+              message: i18n.t('暂不支持带有英文双引号(") 的输入值'),
+              trigger: 'change',
             },
           ],
         },
@@ -275,12 +288,15 @@
         if (optionInfo) {
           optionInfo.name = name;
           optionInfo.id = id;
-          optionInfo.incomplete = !name || !id;
+          optionInfo.incomplete = !name || !id || /\"/g.test(id);
         }
         this.optionFormData = {};
       },
       handlePopoverShow(index) {
         this.$refs.optionPopover[index].showHandler();
+        this.$nextTick(() => {
+          this.optionFormData.id && this.$refs.optionForm[index].validate();
+        });
       },
     },
   };
