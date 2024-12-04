@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-07-17 21:52+0800\n"
+"POT-Creation-Date: 2024-12-04 16:07+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,812 +18,804 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: .\bkflow\admin\models.py:22
+#: bkflow/admin/models.py:40
 msgid "任务模块"
 msgstr ""
 
-#: .\bkflow\admin\models.py:25
+#: bkflow/admin/models.py:43
 msgid "仅隔离计算"
 msgstr ""
 
-#: .\bkflow\admin\models.py:26
+#: bkflow/admin/models.py:44
 msgid "全部隔离"
 msgstr ""
 
-#: .\bkflow\admin\models.py:29 .\bkflow\apigw\serializers\template.py:62
-#: .\bkflow\permission\models.py:53 .\bkflow\space\models.py:40
-#: .\bkflow\space\models.py:128 .\bkflow\space\models.py:177
-#: .\bkflow\space\serializers.py:42 .\bkflow\space\serializers.py:46
-#: .\bkflow\template\models.py:25 .\bkflow\template\serializers\template.py:156
-#: .\bkflow\template\serializers\template.py:188
-#: .\bkflow\template\serializers\template.py:196
-#: .\bkflow\template\serializers\template.py:202
+#: bkflow/admin/models.py:47 bkflow/apigw/serializers/template.py:82
+#: bkflow/permission/models.py:71 bkflow/space/models.py:58
+#: bkflow/space/models.py:151 bkflow/space/models.py:200
+#: bkflow/space/serializers.py:60 bkflow/space/serializers.py:64
+#: bkflow/template/models.py:43 bkflow/template/serializers/template.py:177
+#: bkflow/template/serializers/template.py:209
+#: bkflow/template/serializers/template.py:217
+#: bkflow/template/serializers/template.py:223
 msgid "空间ID"
 msgstr ""
 
-#: .\bkflow\admin\models.py:30
+#: bkflow/admin/models.py:48
 msgid "模块code"
 msgstr ""
 
-#: .\bkflow\admin\models.py:31
+#: bkflow/admin/models.py:49
 msgid "模块提供的地址"
 msgstr ""
 
-#: .\bkflow\admin\models.py:32
+#: bkflow/admin/models.py:50
 msgid "模块的token"
 msgstr ""
 
-#: .\bkflow\admin\models.py:33
+#: bkflow/admin/models.py:51
 msgid "模块类型"
 msgstr ""
 
-#: .\bkflow\admin\models.py:34
+#: bkflow/admin/models.py:52
 msgid "隔离类型"
 msgstr ""
 
-#: .\bkflow\admin\models.py:37 .\bkflow\admin\models.py:38
+#: bkflow/admin/models.py:55 bkflow/admin/models.py:56
 msgid "模块信息表"
 msgstr ""
 
-#: .\bkflow\apigw\exceptions.py:9
+#: bkflow/apigw/exceptions.py:27
 msgid "创建Token失败"
 msgstr ""
 
-#: .\bkflow\apigw\exceptions.py:15
+#: bkflow/apigw/exceptions.py:33
 msgid "模板更新失败"
 msgstr ""
 
-#: .\bkflow\apigw\exceptions.py:21
+#: bkflow/apigw/exceptions.py:39
 msgid "分页参数校验失败"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\credential.py:7
+#: bkflow/apigw/serializers/credential.py:25
 msgid "凭证名称"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\credential.py:8 .\bkflow\space\models.py:179
+#: bkflow/apigw/serializers/credential.py:26 bkflow/space/models.py:202
 msgid "凭证描述"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\credential.py:9 .\bkflow\space\models.py:180
+#: bkflow/apigw/serializers/credential.py:27 bkflow/space/models.py:203
 msgid "凭证类型"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\credential.py:10 .\bkflow\space\models.py:181
+#: bkflow/apigw/serializers/credential.py:28 bkflow/space/models.py:204
 msgid "凭证内容"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\space.py:16 .\bkflow\space\models.py:42
+#: bkflow/apigw/serializers/space.py:34 bkflow/space/models.py:60
 msgid "空间名称"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\space.py:17 .\bkflow\space\models.py:44
+#: bkflow/apigw/serializers/space.py:35 bkflow/space/models.py:62
 msgid "空间描述"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\space.py:18 .\bkflow\space\models.py:45
+#: bkflow/apigw/serializers/space.py:36 bkflow/space/models.py:63
 msgid "平台提供服务的地址"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\space.py:19
+#: bkflow/apigw/serializers/space.py:37
 msgid "app id"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\space.py:21
-#: .\bkflow\apigw\serializers\space_config.py:10
+#: bkflow/apigw/serializers/space.py:39
+#: bkflow/apigw/serializers/space_config.py:28
 msgid "配置信息"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\space.py:31
-#: .\bkflow\apigw\serializers\space_config.py:15
+#: bkflow/apigw/serializers/space.py:49
+#: bkflow/apigw/serializers/space_config.py:33
 #, python-brace-format
 msgid "配置信息中存在不支持的配置项, 支持的配置有: {support_choices}"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:9 .\bkflow\apigw\serializers\task.py:34
-#: .\bkflow\template\models.py:24
+#: bkflow/apigw/serializers/task.py:31 bkflow/apigw/serializers/task.py:59
+#: bkflow/template/models.py:42
 msgid "模版ID"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:10 .\bkflow\apigw\serializers\task.py:22
-#: .\bkflow\apigw\serializers\task.py:38 .\bkflow\apigw\serializers\task.py:55
+#: bkflow/apigw/serializers/task.py:32 bkflow/apigw/serializers/task.py:47
+#: bkflow/apigw/serializers/task.py:81 bkflow/apigw/serializers/task.py:110
 msgid "任务名"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:11 .\bkflow\apigw\serializers\task.py:23
-#: .\bkflow\apigw\serializers\task.py:39 .\bkflow\apigw\serializers\task.py:54
+#: bkflow/apigw/serializers/task.py:33 bkflow/apigw/serializers/task.py:48
+#: bkflow/apigw/serializers/task.py:82 bkflow/apigw/serializers/task.py:109
 msgid "创建者"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:12 .\bkflow\apigw\serializers\task.py:25
-#: .\bkflow\apigw\serializers\task.py:42
+#: bkflow/apigw/serializers/task.py:34 bkflow/apigw/serializers/task.py:50
+#: bkflow/apigw/serializers/task.py:85
 msgid "任务描述"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:13 .\bkflow\apigw\serializers\task.py:26
-#: .\bkflow\apigw\serializers\task.py:43
+#: bkflow/apigw/serializers/task.py:35 bkflow/apigw/serializers/task.py:51
+#: bkflow/apigw/serializers/task.py:86
 msgid "任务启动参数"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:17
+#: bkflow/apigw/serializers/task.py:39
 msgid "要 Mock 执行的节点 ID 列表"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:18
+#: bkflow/apigw/serializers/task.py:40
 msgid "节点 Mock 输出, 形如{\"node_id\": {\"output1\": \"output_value1\"}}"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:24
+#: bkflow/apigw/serializers/task.py:42
+msgid ""
+"节点 Mock 数据，当 outputs 为空时会提取对应 mock_data_ids 设置 outputs，否则"
+"仅记录作用"
+msgstr ""
+
+#: bkflow/apigw/serializers/task.py:49
 msgid "Mock 数据"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:30 .\bkflow\apigw\serializers\task.py:44
-#: .\bkflow\apigw\serializers\template.py:30
+#: bkflow/apigw/serializers/task.py:55 bkflow/apigw/serializers/task.py:87
+#: bkflow/apigw/serializers/task.py:92 bkflow/apigw/serializers/template.py:48
 msgid "任务树"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:40
+#: bkflow/apigw/serializers/task.py:83
 msgid "任务范围类型"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:41
+#: bkflow/apigw/serializers/task.py:84
 msgid "任务范围值"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\task.py:48
-#: .\bkflow\apigw\serializers\template.py:25
-#: .\bkflow\apigw\serializers\template.py:76
-#: .\bkflow\apigw\serializers\template.py:94 .\bkflow\template\models.py:30
-msgid "流程范围类型"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\task.py:49
-#: .\bkflow\apigw\serializers\template.py:26
-#: .\bkflow\apigw\serializers\template.py:77
-#: .\bkflow\apigw\serializers\template.py:95
-msgid "流程范围值"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\task.py:50
-msgid "偏移量"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\task.py:51
-msgid "返回数量"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\task.py:52
-msgid "创建时间开始"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\task.py:53
-msgid "创建时间结束"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\task.py:59
-#: .\bkflow\contrib\operation_record\models.py:8
-msgid "操作人"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\task.py:63
-msgid "循环次数"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\task.py:64
-msgid "组件code"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\template.py:20
-#: .\bkflow\apigw\serializers\template.py:92 .\bkflow\utils\models.py:15
-msgid "创建人"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\template.py:21
-msgid "来源的模板id"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\template.py:22
-#: .\bkflow\apigw\serializers\template.py:73 .\bkflow\template\models.py:27
-msgid "模版名称"
-msgstr ""
-
-#: .\bkflow\apigw\serializers\template.py:23
-#: .\bkflow\apigw\serializers\template.py:74
+#: bkflow/apigw/serializers/task.py:88 bkflow/apigw/serializers/template.py:41
+#: bkflow/apigw/serializers/template.py:94
 msgid "通知配置"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:24
-#: .\bkflow\apigw\serializers\template.py:75
-#: .\bkflow\pipeline_plugins\components\collections\pause\legacy.py:39
-#: .\bkflow\pipeline_plugins\components\collections\pause\legacy.py:42
-#: .\bkflow\template\models.py:28
+#: bkflow/apigw/serializers/task.py:103 bkflow/apigw/serializers/template.py:43
+#: bkflow/apigw/serializers/template.py:96
+#: bkflow/apigw/serializers/template.py:114 bkflow/template/models.py:48
+msgid "流程范围类型"
+msgstr ""
+
+#: bkflow/apigw/serializers/task.py:104 bkflow/apigw/serializers/template.py:44
+#: bkflow/apigw/serializers/template.py:97
+#: bkflow/apigw/serializers/template.py:115
+msgid "流程范围值"
+msgstr ""
+
+#: bkflow/apigw/serializers/task.py:105
+msgid "偏移量"
+msgstr ""
+
+#: bkflow/apigw/serializers/task.py:106
+msgid "返回数量"
+msgstr ""
+
+#: bkflow/apigw/serializers/task.py:107
+msgid "创建时间开始"
+msgstr ""
+
+#: bkflow/apigw/serializers/task.py:108
+msgid "创建时间结束"
+msgstr ""
+
+#: bkflow/apigw/serializers/task.py:118 bkflow/apigw/serializers/task.py:122
+#: bkflow/contrib/operation_record/models.py:26
+msgid "操作人"
+msgstr ""
+
+#: bkflow/apigw/serializers/task.py:126
+msgid "循环次数"
+msgstr ""
+
+#: bkflow/apigw/serializers/task.py:127
+msgid "组件code"
+msgstr ""
+
+#: bkflow/apigw/serializers/template.py:38
+#: bkflow/apigw/serializers/template.py:112 bkflow/utils/models.py:33
+msgid "创建人"
+msgstr ""
+
+#: bkflow/apigw/serializers/template.py:39
+msgid "来源的模板id"
+msgstr ""
+
+#: bkflow/apigw/serializers/template.py:40
+#: bkflow/apigw/serializers/template.py:93 bkflow/template/models.py:45
+msgid "模版名称"
+msgstr ""
+
+#: bkflow/apigw/serializers/template.py:42
+#: bkflow/apigw/serializers/template.py:95
+#: bkflow/pipeline_plugins/components/collections/pause/legacy.py:47
+#: bkflow/pipeline_plugins/components/collections/pause/legacy.py:50
+#: bkflow/template/models.py:46
 msgid "描述"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:27
-#: .\bkflow\apigw\serializers\template.py:78 .\bkflow\template\models.py:32
+#: bkflow/apigw/serializers/template.py:45
+#: bkflow/apigw/serializers/template.py:98 bkflow/template/models.py:50
 msgid "来源"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:28
-#: .\bkflow\apigw\serializers\template.py:79 .\bkflow\template\models.py:33
+#: bkflow/apigw/serializers/template.py:46
+#: bkflow/apigw/serializers/template.py:99 bkflow/template/models.py:51
 msgid "版本号"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:29
-#: .\bkflow\apigw\serializers\template.py:80
+#: bkflow/apigw/serializers/template.py:47
+#: bkflow/apigw/serializers/template.py:100
 msgid "额外扩展信息"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:39
+#: bkflow/apigw/serializers/template.py:57
 #, python-brace-format
 msgid "复制的源模板不存在, 请检查: {source_template_id}"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:42
+#: bkflow/apigw/serializers/template.py:61
 #, python-brace-format
 msgid "只能复制同一个空间下的模板, space_id={space_id}"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:51
-#: .\bkflow\template\serializers\template.py:76
+#: bkflow/apigw/serializers/template.py:71
+#: bkflow/template/serializers/template.py:95
 msgid "参数校验失败，pipeline校验不通过, err={}"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:55
+#: bkflow/apigw/serializers/template.py:75
 msgid "网关用户和creator都为空，请检查"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:61 .\bkflow\template\models.py:98
-#: .\bkflow\template\serializers\template.py:189
-#: .\bkflow\template\serializers\template.py:197
-#: .\bkflow\template\serializers\template.py:203
+#: bkflow/apigw/serializers/template.py:81 bkflow/template/models.py:118
+#: bkflow/template/serializers/template.py:210
+#: bkflow/template/serializers/template.py:218
+#: bkflow/template/serializers/template.py:224
 msgid "模板ID"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:66
+#: bkflow/apigw/serializers/template.py:86
 #, python-brace-format
 msgid "校验失败，space_id={space_id}对应的空间不存在"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:72
-#: .\bkflow\apigw\serializers\template.py:93
+#: bkflow/apigw/serializers/template.py:92
+#: bkflow/apigw/serializers/template.py:113
 msgid "更新人"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:85
+#: bkflow/apigw/serializers/template.py:105
 msgid "网关用户和operator都为空，请检查"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:91
+#: bkflow/apigw/serializers/template.py:111
 msgid "模板名称"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:96
+#: bkflow/apigw/serializers/template.py:116
 msgid "开始时间小于等于"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:97
+#: bkflow/apigw/serializers/template.py:117
 msgid "开始时间大于等于"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:98
+#: bkflow/apigw/serializers/template.py:118
 msgid "排序字段"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\template.py:102
+#: bkflow/apigw/serializers/template.py:122
 msgid "是否包含 mock 数据"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\token.py:43
+#: bkflow/apigw/serializers/token.py:61
 msgid "token申请失败，不支持的资源类型"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\token.py:46
+#: bkflow/apigw/serializers/token.py:64
 msgid "token申请失败，对应的资源不存在"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\token.py:54
-#: .\bkflow\apigw\serializers\token.py:64 .\bkflow\permission\models.py:55
+#: bkflow/apigw/serializers/token.py:72 bkflow/apigw/serializers/token.py:82
+#: bkflow/permission/models.py:73
 msgid "资源类型"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\token.py:55
-#: .\bkflow\apigw\serializers\token.py:65 .\bkflow\permission\models.py:56
+#: bkflow/apigw/serializers/token.py:73 bkflow/apigw/serializers/token.py:83
+#: bkflow/permission/models.py:74
 msgid "资源ID"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\token.py:56
-#: .\bkflow\apigw\serializers\token.py:66 .\bkflow\permission\models.py:58
+#: bkflow/apigw/serializers/token.py:74 bkflow/apigw/serializers/token.py:84
+#: bkflow/permission/models.py:76
 msgid "权限类型"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\token.py:62
+#: bkflow/apigw/serializers/token.py:80
 msgid "token"
 msgstr ""
 
-#: .\bkflow\apigw\serializers\token.py:63
+#: bkflow/apigw/serializers/token.py:81
 msgid "user"
 msgstr ""
 
-#: .\bkflow\apigw\views\apply_token.py:50
+#: bkflow/apigw/views/apply_token.py:68
 msgid "用户名不能为空"
 msgstr ""
 
-#: .\bkflow\apigw\views\create_mock_task.py:34
-#: .\bkflow\apigw\views\create_task.py:31
-#: .\bkflow\template\views\template.py:118
+#: bkflow/apigw/views/create_mock_task.py:50
+#: bkflow/apigw/views/create_task.py:50 bkflow/template/views/template.py:134
 #, python-brace-format
 msgid "模版不存在，space_id={space_id}, template_id={template_id}"
 msgstr ""
 
-#: .\bkflow\apigw\views\update_template.py:47
+#: bkflow/apigw/views/update_template.py:65
 #, python-brace-format
 msgid "请检查参数，params:{validated_data_dict}"
 msgstr ""
 
-#: .\bkflow\constants.py:30 .\bkflow\constants.py:60
+#: bkflow/constants.py:48 bkflow/constants.py:78
 msgid "创建"
 msgstr ""
 
-#: .\bkflow\constants.py:31 .\bkflow\constants.py:61
+#: bkflow/constants.py:49 bkflow/constants.py:79
 msgid "删除"
 msgstr ""
 
-#: .\bkflow\constants.py:32 .\bkflow\constants.py:62
+#: bkflow/constants.py:50 bkflow/constants.py:80
 msgid "修改"
 msgstr ""
 
-#: .\bkflow\constants.py:33
+#: bkflow/constants.py:51
 msgid "执行"
 msgstr ""
 
-#: .\bkflow\constants.py:34
-#: .\bkflow\pipeline_plugins\components\collections\pause\legacy.py:61
+#: bkflow/constants.py:52
+#: bkflow/pipeline_plugins/components/collections/pause/legacy.py:69
 msgid "暂停"
 msgstr ""
 
-#: .\bkflow\constants.py:35
+#: bkflow/constants.py:53
 msgid "继续"
 msgstr ""
 
-#: .\bkflow\constants.py:36
+#: bkflow/constants.py:54
 msgid "撤消"
 msgstr ""
 
-#: .\bkflow\constants.py:39
+#: bkflow/constants.py:57
 msgid "回调"
 msgstr ""
 
-#: .\bkflow\constants.py:40
+#: bkflow/constants.py:58
 msgid "重试"
 msgstr ""
 
-#: .\bkflow\constants.py:41
+#: bkflow/constants.py:59
 msgid "跳过"
 msgstr ""
 
-#: .\bkflow\constants.py:42
+#: bkflow/constants.py:60
 msgid "跳过失败网关"
 msgstr ""
 
-#: .\bkflow\constants.py:43
+#: bkflow/constants.py:61
 msgid "跳过并行条件网关"
 msgstr ""
 
-#: .\bkflow\constants.py:44
+#: bkflow/constants.py:62
 msgid "暂停节点"
 msgstr ""
 
-#: .\bkflow\constants.py:45
+#: bkflow/constants.py:63
 msgid "继续节点"
 msgstr ""
 
-#: .\bkflow\constants.py:46
+#: bkflow/constants.py:64
 msgid "强制失败"
 msgstr ""
 
-#: .\bkflow\constants.py:48
+#: bkflow/constants.py:66
 msgid "任务操作"
 msgstr ""
 
-#: .\bkflow\constants.py:49
+#: bkflow/constants.py:67
 msgid "节点操作"
 msgstr ""
 
-#: .\bkflow\constants.py:55 .\bkflow\constants.py:68
+#: bkflow/constants.py:73 bkflow/constants.py:86
 msgid "app 页面"
 msgstr ""
 
-#: .\bkflow\constants.py:56 .\bkflow\constants.py:69
+#: bkflow/constants.py:74 bkflow/constants.py:87
 msgid "api 接口"
 msgstr ""
 
-#: .\bkflow\constants.py:75
+#: bkflow/constants.py:93
 msgid "任务实例"
 msgstr ""
 
-#: .\bkflow\constants.py:76
+#: bkflow/constants.py:94
 msgid "任务节点"
 msgstr ""
 
-#: .\bkflow\constants.py:77
+#: bkflow/constants.py:95
 msgid "模版实例"
 msgstr ""
 
-#: .\bkflow\contrib\operation_record\models.py:7
+#: bkflow/contrib/operation_record/models.py:25
 msgid "ID"
 msgstr ""
 
-#: .\bkflow\contrib\operation_record\models.py:9 .\bkflow\task\models.py:338
-#: .\bkflow\template\models.py:114
+#: bkflow/contrib/operation_record/models.py:27 bkflow/task/models.py:359
+#: bkflow/template/models.py:134
 msgid "操作类型"
 msgstr ""
 
-#: .\bkflow\contrib\operation_record\models.py:10 .\bkflow\task\models.py:341
-#: .\bkflow\template\models.py:117
+#: bkflow/contrib/operation_record/models.py:28 bkflow/task/models.py:362
+#: bkflow/template/models.py:137
 msgid "操作来源"
 msgstr ""
 
-#: .\bkflow\contrib\operation_record\models.py:11
+#: bkflow/contrib/operation_record/models.py:29
 msgid "记录对象实例ID"
 msgstr ""
 
-#: .\bkflow\contrib\operation_record\models.py:12
+#: bkflow/contrib/operation_record/models.py:30
 msgid "操作时间"
 msgstr ""
 
-#: .\bkflow\contrib\operation_record\models.py:13
+#: bkflow/contrib/operation_record/models.py:31
 msgid "额外信息"
 msgstr ""
 
-#: .\bkflow\interface\task\view.py:122
+#: bkflow/interface/task/view.py:145
 #, python-brace-format
 msgid "当前token已过期或不存在，token={token}, user={username}"
 msgstr ""
 
-#: .\bkflow\interface\views.py:66
+#: bkflow/interface/views.py:118
 #, python-brace-format
 msgid ""
 "节点回调失败: 无效的请求, 请重试. 如持续失败可联系管理员处理. {msg} | api "
 "callback"
 msgstr ""
 
-#: .\bkflow\interface\views.py:76
+#: bkflow/interface/views.py:130
 #, python-brace-format
 msgid "节点回调失败: 请求失败task模块失败. {msg} | api callback"
 msgstr ""
 
-#: .\bkflow\permission\exceptions.py:9
+#: bkflow/permission/exceptions.py:27
 msgid "Token不存在"
 msgstr ""
 
-#: .\bkflow\permission\exceptions.py:15
+#: bkflow/permission/exceptions.py:33
 msgid "Token续期失败"
 msgstr ""
 
-#: .\bkflow\permission\models.py:42
+#: bkflow/permission/models.py:60
 msgid "任务"
 msgstr ""
 
-#: .\bkflow\permission\models.py:43
+#: bkflow/permission/models.py:61
 msgid "流程"
 msgstr ""
 
-#: .\bkflow\permission\models.py:47
+#: bkflow/permission/models.py:65
 msgid "查看"
 msgstr ""
 
-#: .\bkflow\permission\models.py:48
+#: bkflow/permission/models.py:66
 msgid "编辑"
 msgstr ""
 
-#: .\bkflow\permission\models.py:49
+#: bkflow/permission/models.py:67
 msgid "操作"
 msgstr ""
 
-#: .\bkflow\permission\models.py:50
+#: bkflow/permission/models.py:68
 msgid "调试"
 msgstr ""
 
-#: .\bkflow\permission\models.py:52
+#: bkflow/permission/models.py:70
 msgid "Token值"
 msgstr ""
 
-#: .\bkflow\permission\models.py:54
+#: bkflow/permission/models.py:72
 msgid "用户名"
 msgstr ""
 
-#: .\bkflow\permission\models.py:60
+#: bkflow/permission/models.py:78
 msgid "过期时间"
 msgstr ""
 
-#: .\bkflow\permission\models.py:63 .\bkflow\permission\models.py:64
+#: bkflow/permission/models.py:81 bkflow/permission/models.py:82
 msgid "token 表"
 msgstr ""
 
-#: .\bkflow\permission\views.py:27
+#: bkflow/permission/views.py:45
 msgid "Token 续期失败，当前续期的用户与正在登录的用户不一致"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\approve\v1_0.py:21
-#: .\bkflow\pipeline_plugins\components\collections\debug_plugin\v1_0_0.py:16
-#: .\bkflow\pipeline_plugins\components\collections\display\v1_0.py:20
-#: .\bkflow\pipeline_plugins\components\collections\dmn_plugin\v1_0_0.py:12
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:35
-#: .\bkflow\pipeline_plugins\components\collections\pause\legacy.py:21
-#: .\bkflow\pipeline_plugins\components\collections\sleep_time\legacy.py:27
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v1_0_0.py:14
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:29
+#: bkflow/pipeline_plugins/components/collections/debug_plugin/v1_0_0.py:34
+#: bkflow/pipeline_plugins/components/collections/display/v1_0.py:28
+#: bkflow/pipeline_plugins/components/collections/dmn_plugin/v1_0_0.py:30
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:44
+#: bkflow/pipeline_plugins/components/collections/pause/legacy.py:29
+#: bkflow/pipeline_plugins/components/collections/sleep_time/legacy.py:35
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v1_0_0.py:32
 msgid "蓝鲸服务(BK)"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\approve\v1_0.py:35
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:43
 msgid "审核人"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\approve\v1_0.py:38
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:46
 msgid "审核人,多个用英文逗号`,`分隔"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\approve\v1_0.py:41
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:49
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:52
 msgid "审核标题"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\approve\v1_0.py:44
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:55
 msgid "审核内容"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\approve\v1_0.py:44
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:58
 msgid "通知的标题"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\approve\v1_0.py:50
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:65
 msgid "单据sn"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\approve\v1_0.py:52
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:68
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:71
 msgid "审核结果"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\approve\v1_0.py:103
+#: bkflow/pipeline_plugins/components/collections/approve/v1_0.py:122
 msgid "审批"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\display\v1_0.py:27
+#: bkflow/pipeline_plugins/components/collections/display/v1_0.py:35
+#: bkflow/pipeline_plugins/components/collections/display/v1_0.py:38
 msgid "展示内容"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\display\v1_0.py:39
+#: bkflow/pipeline_plugins/components/collections/display/v1_0.py:50
 msgid "消息展示"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\display\v1_0.py:44
+#: bkflow/pipeline_plugins/components/collections/display/v1_0.py:55
 msgid "本插件为仅用于消息展示的空节点"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\dmn_plugin\v1_0_0.py:21
-#: .\bkflow\pipeline_plugins\components\collections\dmn_plugin\v1_0_0.py:24
+#: bkflow/pipeline_plugins/components/collections/dmn_plugin/v1_0_0.py:39
+#: bkflow/pipeline_plugins/components/collections/dmn_plugin/v1_0_0.py:42
 msgid "决策表"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\dmn_plugin\v1_0_0.py:27
-#: .\bkflow\pipeline_plugins\components\collections\dmn_plugin\v1_0_0.py:30
+#: bkflow/pipeline_plugins/components/collections/dmn_plugin/v1_0_0.py:45
+#: bkflow/pipeline_plugins/components/collections/dmn_plugin/v1_0_0.py:48
 msgid "决策表 facts"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\dmn_plugin\v1_0_0.py:75
+#: bkflow/pipeline_plugins/components/collections/dmn_plugin/v1_0_0.py:93
 msgid "决策插件"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:45
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:48
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:54
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:57
 msgid "HTTP 请求方法"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:51
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:54
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:60
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:63
 msgid "HTTP 请求目标地址"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:57
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:66
 msgid "HTTP 请求 header"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:61
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:70
 msgid "HTTP 请求头部列表"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:63
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:72
 msgid "单个头部信息"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:65
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:74
 msgid "请求头名称"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:66
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:75
 msgid "请求头值"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:72
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:75
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:81
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:84
 msgid "HTTP 请求 body"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:78
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:81
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:87
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:90
 msgid "HTTP 请求超时时间"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:84
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:93
 msgid "HTTP 请求成功条件"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:88
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:98
 msgid ""
 "根据返回的 JSON 的数据来控制节点的成功或失败, 使用 resp 引用返回的 JSON 对"
 "象，例 resp.result==True"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:96
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v1_0_0.py:24
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v2_0_0.py:47
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:108
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v1_0_0.py:42
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v2_0_0.py:71
 msgid "响应内容"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:99
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v1_0_0.py:27
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v2_0_0.py:50
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:111
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v1_0_0.py:45
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v2_0_0.py:74
 msgid "HTTP 请求响应内容，内部结构不固定"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:102
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v1_0_0.py:30
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v2_0_0.py:53
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:114
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v1_0_0.py:48
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v2_0_0.py:77
 msgid "状态码"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:102
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v1_0_0.py:30
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v2_0_0.py:53
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:117
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v1_0_0.py:51
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v2_0_0.py:80
 msgid "HTTP 请求响应状态码"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:134
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:151
 #, python-brace-format
 msgid "请求异常，详细信息: {msg}"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:149
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:166
 msgid "请求响应数据格式非 JSON"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:155
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:172
 #, python-brace-format
 msgid "请求失败，状态码: {status_code}，响应: {resp}"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:164
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:181
 msgid "请求成功判定失败"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:167
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:184
 #, python-brace-format
 msgid "请求成功条件判定出错: {msg}"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:183
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:200
 msgid "HTTP 请求"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\http\v1_0.py:184
+#: bkflow/pipeline_plugins/components/collections/http/v1_0.py:202
 msgid ""
 "提示: 1.请求URL需要在当前网络下可以访问，否则会超时失败 2.响应状态码在"
 "200-300(不包括300)之间，并且响应内容是 JSON 格式才会执行成功"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\pause\legacy.py:49
+#: bkflow/pipeline_plugins/components/collections/pause/legacy.py:57
 msgid "API回调数据"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\pause\legacy.py:53
+#: bkflow/pipeline_plugins/components/collections/pause/legacy.py:61
 msgid "通过node_callback API接口回调并传入数据,支持dict数据"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\pause\legacy.py:65
+#: bkflow/pipeline_plugins/components/collections/pause/legacy.py:74
 msgid ""
 "该节点可以通过node_callback API接口进行回调并传入数据，callback_data参数为"
 "dict类型，回调数据会作为该节点的输出数据"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\remote_plugin\v1_0_0.py:59
-#: .\bkflow\pipeline_plugins\components\collections\remote_plugin\v1_0_0.py:113
+#: bkflow/pipeline_plugins/components/collections/remote_plugin/v1_0_0.py:67
+#: bkflow/pipeline_plugins/components/collections/remote_plugin/v1_0_0.py:123
 #, python-brace-format
 msgid "第三方插件client初始化失败, 错误内容: {e}"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\remote_plugin\v1_0_0.py:66
+#: bkflow/pipeline_plugins/components/collections/remote_plugin/v1_0_0.py:74
 #, python-brace-format
 msgid "获取第三方插件详情失败, 错误内容: {message}"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\remote_plugin\v1_0_0.py:84
+#: bkflow/pipeline_plugins/components/collections/remote_plugin/v1_0_0.py:92
 #, python-brace-format
 msgid "调用第三方插件invoke接口错误, 错误内容: {message}, trace_id: {trace_id}"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\remote_plugin\v1_0_0.py:133
+#: bkflow/pipeline_plugins/components/collections/remote_plugin/v1_0_0.py:143
 msgid "请通过第三方节点日志查看任务失败原因"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\sleep_time\legacy.py:51
+#: bkflow/pipeline_plugins/components/collections/sleep_time/legacy.py:59
 msgid "定时时间"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\sleep_time\legacy.py:54
+#: bkflow/pipeline_plugins/components/collections/sleep_time/legacy.py:62
 #, python-format
 msgid "定时时间，格式为秒(s) 或 (%%Y-%%m-%%d %%H:%%M:%%S)"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\sleep_time\legacy.py:57
+#: bkflow/pipeline_plugins/components/collections/sleep_time/legacy.py:65
 msgid "是否强制晚于当前时间"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\sleep_time\legacy.py:60
+#: bkflow/pipeline_plugins/components/collections/sleep_time/legacy.py:69
 msgid ""
 "用户输入日期格式时是否强制要求时间晚于当前时间，只对日期格式定时输入有效"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\sleep_time\legacy.py:82
+#: bkflow/pipeline_plugins/components/collections/sleep_time/legacy.py:92
 msgid "定时时间需晚于当前时间"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\sleep_time\legacy.py:89
+#: bkflow/pipeline_plugins/components/collections/sleep_time/legacy.py:99
 #, python-format
 msgid "输入参数%s不符合【秒(s) 或 时间(%%Y-%%m-%%d %%H:%%M:%%S)】格式"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\sleep_time\legacy.py:124
+#: bkflow/pipeline_plugins/components/collections/sleep_time/legacy.py:134
 msgid "定时"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v1_0_0.py:122
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v2_0_0.py:280
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v1_0_0.py:143
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v2_0_0.py:363
 msgid "统一API调用"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v1_0_0.py:125
-#: .\bkflow\pipeline_plugins\components\collections\uniform_api\v2_0_0.py:283
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v1_0_0.py:146
+#: bkflow/pipeline_plugins/components/collections/uniform_api/v2_0_0.py:366
 msgid "用于调用符合接口协议的统一API"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\query\select.py:35
-#, python-brace-format
-msgid "请求数据异常: {error}"
-msgstr ""
-
-#: .\bkflow\pipeline_plugins\query\select.py:51
-msgid "返回数据格式错误，不是合法 JSON 格式"
-msgstr ""
-
-#: .\bkflow\pipeline_plugins\query\select.py:65
-#, python-brace-format
-msgid "远程数据源数据转换失败: {error}"
-msgstr ""
-
-#: .\bkflow\pipeline_plugins\variables\collections\bk_user_selector.py:18
+#: bkflow/pipeline_plugins/variables/collections/bk_user_selector.py:36
 msgid "人员选择器"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\datatable.py:43
+#: bkflow/pipeline_plugins/variables/collections/datatable.py:51
 msgid "表格"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\datatable.py:48
+#: bkflow/pipeline_plugins/variables/collections/datatable.py:56
 msgid "表格变量"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\datatable.py:50
+#: bkflow/pipeline_plugins/variables/collections/datatable.py:58
 #, python-brace-format
 msgid ""
 "引用表格变量某一列某一行的属性，如 ${KEY.columnA[0]} -> \"test1\"\n"
@@ -832,565 +824,547 @@ msgid ""
 "test2\""
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\datetime.py:18
+#: bkflow/pipeline_plugins/variables/collections/datetime.py:36
 msgid "日期时间"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\datetime.py:22
+#: bkflow/pipeline_plugins/variables/collections/datetime.py:40
 msgid "日期时间变量"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\datetime.py:23
+#: bkflow/pipeline_plugins/variables/collections/datetime.py:41
 msgid "输出格式: 2000-04-19 14:45:16"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\datetime_range.py:18
+#: bkflow/pipeline_plugins/variables/collections/datetime_range.py:36
 msgid "日期时间范围"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\datetime_range.py:22
+#: bkflow/pipeline_plugins/variables/collections/datetime_range.py:40
 msgid "日期时间范围变量"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\datetime_range.py:23
+#: bkflow/pipeline_plugins/variables/collections/datetime_range.py:41
 msgid "输出格式: [\"2023-01-1 00:00:00\", \"2023-01-01 23:59:59\"]"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\input.py:18
+#: bkflow/pipeline_plugins/variables/collections/input.py:36
 msgid "输入框"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\input.py:22
+#: bkflow/pipeline_plugins/variables/collections/input.py:40
 msgid "输入框变量"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\int.py:18
+#: bkflow/pipeline_plugins/variables/collections/int.py:36
 msgid "整数"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\int.py:22
+#: bkflow/pipeline_plugins/variables/collections/int.py:40
 msgid "整数变量"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\json_variable.py:12
+#: bkflow/pipeline_plugins/variables/collections/json_variable.py:30
 msgid "JSON 变量"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\json_variable.py:16
+#: bkflow/pipeline_plugins/variables/collections/json_variable.py:34
 msgid "内部结构不固定"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\password.py:18
-msgid "密码"
-msgstr ""
-
-#: .\bkflow\pipeline_plugins\variables\collections\password.py:22
-msgid "密码变量"
-msgstr ""
-
-#: .\bkflow\pipeline_plugins\variables\collections\password.py:23
-msgid "请注意，并非所有插件字段都支持密码变量的使用，请结合具体插件进行使用"
-msgstr ""
-
-#: .\bkflow\pipeline_plugins\variables\collections\password.py:27
-msgid "用户输入的密码加密后的值"
-msgstr ""
-
-#: .\bkflow\pipeline_plugins\variables\collections\select.py:17
+#: bkflow/pipeline_plugins/variables/collections/select.py:36
 msgid "下拉框"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\select.py:22
+#: bkflow/pipeline_plugins/variables/collections/select.py:41
 msgid "下拉框变量"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\select.py:23
+#: bkflow/pipeline_plugins/variables/collections/select.py:43
 msgid ""
 "单选模式下输出选中的 value，多选模式下输出选中 value 以 ',' 拼接的字符串\n"
 "该变量默认不支持输入任意值，仅在子流程节点配置填参时支持输入任意值"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\textarea.py:18
+#: bkflow/pipeline_plugins/variables/collections/textarea.py:36
 msgid "文本框"
 msgstr ""
 
-#: .\bkflow\pipeline_plugins\variables\collections\textarea.py:22
+#: bkflow/pipeline_plugins/variables/collections/textarea.py:40
 msgid "文本框变量"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\abstract.py:19
-#: .\bkflow\template\serializers\template.py:198
-#: .\bkflow\template\serializers\template.py:208
+#: bkflow/pipeline_web/core/abstract.py:27
+#: bkflow/template/serializers/template.py:219
+#: bkflow/template/serializers/template.py:229
 msgid "节点ID"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\abstract.py:20
+#: bkflow/pipeline_web/core/abstract.py:28
 msgid "节点类型"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\abstract.py:21 .\bkflow\template\models.py:203
-#: .\bkflow\template\models.py:220 .\bkflow\utils\models.py:16
-#: .\bkflow\utils\models.py:50
+#: bkflow/pipeline_web/core/abstract.py:29 bkflow/template/models.py:223
+#: bkflow/template/models.py:240 bkflow/utils/models.py:34
+#: bkflow/utils/models.py:68
 msgid "创建时间"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\abstract.py:22
+#: bkflow/pipeline_web/core/abstract.py:30
 msgid "修改时间"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\models.py:91
+#: bkflow/pipeline_web/core/models.py:99
 msgid "所属模板ID"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\models.py:92
+#: bkflow/pipeline_web/core/models.py:100
 msgid "所属模板版本"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\models.py:97
-#: .\bkflow\pipeline_web\core\models.py:98
+#: bkflow/pipeline_web/core/models.py:105
+#: bkflow/pipeline_web/core/models.py:106
 msgid "流程模板节点 NodeInTemplate"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\models.py:104
+#: bkflow/pipeline_web/core/models.py:112
 msgid "流程模板节点"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\models.py:134
+#: bkflow/pipeline_web/core/models.py:142
 msgid "所属实例ID"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\models.py:139
-#: .\bkflow\pipeline_web\core\models.py:140
+#: bkflow/pipeline_web/core/models.py:147
+#: bkflow/pipeline_web/core/models.py:148
 msgid "流程实例节点 NodeInInstance"
 msgstr ""
 
-#: .\bkflow\pipeline_web\core\models.py:145
+#: bkflow/pipeline_web/core/models.py:153
 msgid "流程实例节点"
 msgstr ""
 
-#: .\bkflow\pipeline_web\label\models.py:22
+#: bkflow/pipeline_web/label/models.py:30
 msgid "标签分组编码"
 msgstr ""
 
-#: .\bkflow\pipeline_web\label\models.py:23
+#: bkflow/pipeline_web/label/models.py:31
 msgid "标签分组名称"
 msgstr ""
 
-#: .\bkflow\pipeline_web\label\models.py:26
-#: .\bkflow\pipeline_web\label\models.py:27
+#: bkflow/pipeline_web/label/models.py:34
+#: bkflow/pipeline_web/label/models.py:35
 msgid "标签分组 LabelGroup"
 msgstr ""
 
-#: .\bkflow\pipeline_web\label\models.py:38
+#: bkflow/pipeline_web/label/models.py:46
 msgid "标签编码"
 msgstr ""
 
-#: .\bkflow\pipeline_web\label\models.py:39
+#: bkflow/pipeline_web/label/models.py:47
 msgid "标签名称"
 msgstr ""
 
-#: .\bkflow\pipeline_web\label\models.py:42
-#: .\bkflow\pipeline_web\label\models.py:43
+#: bkflow/pipeline_web/label/models.py:50
+#: bkflow/pipeline_web/label/models.py:51
 msgid "标签 Label"
 msgstr ""
 
-#: .\bkflow\pipeline_web\label\models.py:69
-#: .\bkflow\pipeline_web\label\models.py:82
+#: bkflow/pipeline_web/label/models.py:77
+#: bkflow/pipeline_web/label/models.py:90
 msgid "节点标签"
 msgstr ""
 
-#: .\bkflow\pipeline_web\label\models.py:74
-#: .\bkflow\pipeline_web\label\models.py:75
+#: bkflow/pipeline_web/label/models.py:82
+#: bkflow/pipeline_web/label/models.py:83
 msgid "流程模板节点标签 NodeInTemplateAttrLabel"
 msgstr ""
 
-#: .\bkflow\pipeline_web\label\models.py:87
-#: .\bkflow\pipeline_web\label\models.py:88
+#: bkflow/pipeline_web/label/models.py:95
+#: bkflow/pipeline_web/label/models.py:96
 msgid "流程实例节点标签 NodeInInstanceAttrLabel"
 msgstr ""
 
-#: .\bkflow\pipeline_web\plugin_management\models.py:75
+#: bkflow/pipeline_web/plugin_management/models.py:82
 msgid "插件编码"
 msgstr ""
 
-#: .\bkflow\pipeline_web\plugin_management\models.py:76
+#: bkflow/pipeline_web/plugin_management/models.py:83
 msgid "插件版本"
 msgstr ""
 
-#: .\bkflow\pipeline_web\plugin_management\models.py:77
+#: bkflow/pipeline_web/plugin_management/models.py:84
 msgid "插件类型"
 msgstr ""
 
-#: .\bkflow\pipeline_web\plugin_management\models.py:78
+#: bkflow/pipeline_web/plugin_management/models.py:85
 msgid "生命周期"
 msgstr ""
 
-#: .\bkflow\space\configs.py:101
+#: bkflow/space/configs.py:119
 msgid "Token过期时间"
 msgstr ""
 
-#: .\bkflow\space\configs.py:134
+#: bkflow/space/configs.py:152
 msgid "是否开启Token自动续期"
 msgstr ""
 
-#: .\bkflow\space\configs.py:150
+#: bkflow/space/configs.py:168
 msgid "回调配置"
 msgstr ""
 
-#: .\bkflow\space\configs.py:188
+#: bkflow/space/configs.py:206
 msgid "是否开启统一API"
 msgstr ""
 
-#: .\bkflow\space\configs.py:225
+#: bkflow/space/configs.py:243
 msgid "空间管理员"
 msgstr ""
 
-#: .\bkflow\space\configs.py:239
+#: bkflow/space/configs.py:257
 msgid "画布模式"
 msgstr ""
 
-#: .\bkflow\space\configs.py:254
+#: bkflow/space/configs.py:272
 msgid "网关表达式"
 msgstr ""
 
-#: .\bkflow\space\configs.py:270
+#: bkflow/space/configs.py:288
 msgid "API_GATEWAY使用的凭证名称"
 msgstr ""
 
-#: .\bkflow\space\configs.py:275
+#: bkflow/space/configs.py:293
 msgid "空间插件配置"
 msgstr ""
 
-#: .\bkflow\space\credential.py:49
+#: bkflow/space/credential.py:67
 msgid "type={}"
 msgstr ""
 
-#: .\bkflow\space\exceptions.py:9
+#: bkflow/space/exceptions.py:27
 msgid "该空间配置项没有配置默认值"
 msgstr ""
 
-#: .\bkflow\space\exceptions.py:15
+#: bkflow/space/exceptions.py:33
 msgid "不支持该凭证操作"
 msgstr ""
 
-#: .\bkflow\space\exceptions.py:20
+#: bkflow/space/exceptions.py:38
 msgid "凭证不存在"
 msgstr ""
 
-#: .\bkflow\space\exceptions.py:25
+#: bkflow/space/exceptions.py:43
 msgid "不支持的凭证类型"
 msgstr ""
 
-#: .\bkflow\space\exceptions.py:30
+#: bkflow/space/exceptions.py:48
 msgid "空间不存在"
 msgstr ""
 
-#: .\bkflow\space\models.py:36
+#: bkflow/space/models.py:54
 msgid "API"
 msgstr ""
 
-#: .\bkflow\space\models.py:37
+#: bkflow/space/models.py:55
 msgid "WEB"
 msgstr ""
 
-#: .\bkflow\space\models.py:43
-msgid "APP Code"
+#: bkflow/space/models.py:61
+msgid "应用ID"
 msgstr ""
 
-#: .\bkflow\space\models.py:46
+#: bkflow/space/models.py:65
 msgid "空间创建的方式"
 msgstr ""
 
-#: .\bkflow\space\models.py:65
+#: bkflow/space/models.py:85
 msgid "空间信息"
 msgstr ""
 
-#: .\bkflow\space\models.py:66
+#: bkflow/space/models.py:86
 msgid "空间信息表"
 msgstr ""
 
-#: .\bkflow\space\models.py:126
+#: bkflow/space/models.py:148
 msgid "文本"
 msgstr ""
 
-#: .\bkflow\space\models.py:130
+#: bkflow/space/models.py:153
 msgid "配置类型"
 msgstr ""
 
-#: .\bkflow\space\models.py:132
+#: bkflow/space/models.py:155
 msgid "配置项"
 msgstr ""
 
-#: .\bkflow\space\models.py:133
+#: bkflow/space/models.py:156
 msgid "配置值"
 msgstr ""
 
-#: .\bkflow\space\models.py:134
+#: bkflow/space/models.py:157
 msgid "配置值(JSON)"
 msgstr ""
 
-#: .\bkflow\space\models.py:139 .\bkflow\space\serializers.py:47
+#: bkflow/space/models.py:162 bkflow/space/serializers.py:65
 msgid "空间配置"
 msgstr ""
 
-#: .\bkflow\space\models.py:140
+#: bkflow/space/models.py:163
 msgid "空间配置表"
 msgstr ""
 
-#: .\bkflow\space\models.py:165
+#: bkflow/space/models.py:188
 msgid "不存在该配置项"
 msgstr ""
 
-#: .\bkflow\space\models.py:175
+#: bkflow/space/models.py:198
 msgid "蓝鲸应用凭证"
 msgstr ""
 
-#: .\bkflow\space\models.py:178
+#: bkflow/space/models.py:201
 msgid "凭证名"
 msgstr ""
 
-#: .\bkflow\space\models.py:227
+#: bkflow/space/models.py:250
 msgid "空间凭证"
 msgstr ""
 
-#: .\bkflow\space\models.py:228
+#: bkflow/space/models.py:251
 msgid "空间凭证表"
 msgstr ""
 
-#: .\bkflow\space\serializers.py:18
+#: bkflow/space/serializers.py:36
 msgid "平台地址"
 msgstr ""
 
-#: .\bkflow\task\utils.py:92
+#: bkflow/task/utils.py:111
 #, python-brace-format
 msgid ""
 "节点执行失败: 节点[ID: {act_id}]配置了非法的超时时间: {timeout_seconds}, 请修"
 "改配置后重试"
 msgstr ""
 
-#: .\bkflow\template\exceptions.py:9
+#: bkflow/template/exceptions.py:27
 msgid "变量引用计算失败"
 msgstr ""
 
-#: .\bkflow\template\models.py:26
+#: bkflow/template/models.py:44
 msgid "模板对应的数据ID"
 msgstr ""
 
-#: .\bkflow\template\models.py:29
+#: bkflow/template/models.py:47
 msgid "流程事件通知配置"
 msgstr ""
 
-#: .\bkflow\template\models.py:31
+#: bkflow/template/models.py:49
 msgid "流程范围"
 msgstr ""
 
-#: .\bkflow\template\models.py:32
+#: bkflow/template/models.py:50
 msgid "第三方系统对应的资源ID"
 msgstr ""
 
-#: .\bkflow\template\models.py:34
+#: bkflow/template/models.py:52
 msgid "是否启用"
 msgstr ""
 
-#: .\bkflow\template\models.py:35
+#: bkflow/template/models.py:53
 msgid "额外的扩展信息"
 msgstr ""
 
-#: .\bkflow\template\models.py:38
+#: bkflow/template/models.py:56
 msgid "流程模板"
 msgstr ""
 
-#: .\bkflow\template\models.py:39
+#: bkflow/template/models.py:57
 msgid "流程模板信息表"
 msgstr ""
 
-#: .\bkflow\template\models.py:101
+#: bkflow/template/models.py:121
 msgid "模板快照"
 msgstr ""
 
-#: .\bkflow\template\models.py:102
+#: bkflow/template/models.py:122
 msgid "模板快照表"
 msgstr ""
 
-#: .\bkflow\template\models.py:121 .\bkflow\template\models.py:122
+#: bkflow/template/models.py:141 bkflow/template/models.py:142
 msgid "模版操作记录"
 msgstr ""
 
-#: .\bkflow\template\models.py:204 .\bkflow\template\models.py:221
-#: .\bkflow\utils\models.py:17
+#: bkflow/template/models.py:224 bkflow/template/models.py:241
+#: bkflow/utils/models.py:35
 msgid "更新时间"
 msgstr ""
 
-#: .\bkflow\template\serializers.py:18
-#: .\bkflow\template\serializers\template.py:58 .\bkflow\utils\models.py:48
+#: bkflow/template/serializers.py:36 bkflow/template/serializers/template.py:77
+#: bkflow/utils/models.py:66
 msgid "快照ID"
 msgstr ""
 
-#: .\bkflow\template\serializers.py:19
-#: .\bkflow\template\serializers\template.py:59
+#: bkflow/template/serializers.py:37 bkflow/template/serializers/template.py:78
 msgid "配置"
 msgstr ""
 
-#: .\bkflow\template\serializers.py:25
-#: .\bkflow\template\serializers\template.py:65
+#: bkflow/template/serializers.py:43 bkflow/template/serializers/template.py:84
 msgid "创建失败，对应的空间不存在"
 msgstr ""
 
-#: .\bkflow\template\serializers.py:35
+#: bkflow/template/serializers.py:53
 #, python-brace-format
 msgid "参数校验失败，pipeline校验不通过, err={msg}"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:60
+#: bkflow/template/serializers/template.py:79
 msgid "版本"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:61
+#: bkflow/template/serializers/template.py:80
 msgid "流程说明"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:137
+#: bkflow/template/serializers/template.py:158
 msgid "pipeline tree"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:138
+#: bkflow/template/serializers/template.py:159
 msgid "画布宽度"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:157
+#: bkflow/template/serializers/template.py:178
 msgid "模板ID列表"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:158
+#: bkflow/template/serializers/template.py:179
 msgid "是否全量删除"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:181
+#: bkflow/template/serializers/template.py:202
 msgid "mock数据名称"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:182
+#: bkflow/template/serializers/template.py:203
 msgid "mock数据"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:183
+#: bkflow/template/serializers/template.py:204
 msgid "是否为默认mock数据"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:184
+#: bkflow/template/serializers/template.py:205
 msgid "mock数据ID"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:191
+#: bkflow/template/serializers/template.py:212
 msgid "mock数据列表"
 msgstr ""
 
-#: .\bkflow\template\serializers\template.py:208
+#: bkflow/template/serializers/template.py:229
 msgid "包含的节点ID列表"
 msgstr ""
 
-#: .\bkflow\template\views\template.py:228
+#: bkflow/template/views/template.py:228
 #, python-brace-format
 msgid "流程自动排版失败: 流程排版发生异常: {e}, 请检查流程 | draw_pipeline"
 msgstr ""
 
-#: .\bkflow\utils\context.py:41
+#: bkflow/utils/context.py:59
 msgid "任务名称"
 msgstr ""
 
-#: .\bkflow\utils\context.py:45
+#: bkflow/utils/context.py:66
 msgid "任务ID"
 msgstr ""
 
-#: .\bkflow\utils\context.py:48
+#: bkflow/utils/context.py:71
 msgid "任务开始时间"
 msgstr ""
 
-#: .\bkflow\utils\context.py:54
+#: bkflow/utils/context.py:77
 msgid "任务的执行人（点击开始执行的人员）"
 msgstr ""
 
-#: .\bkflow\utils\handlers.py:15
+#: bkflow/utils/handlers.py:33
 #, python-brace-format
 msgid "调用{system}接口{api_name}返回失败, params={params}, error={error}"
 msgstr ""
 
-#: .\bkflow\utils\mixins.py:22 .\bkflow\utils\mixins.py:31
+#: bkflow/utils/mixins.py:40 bkflow/utils/mixins.py:49
 msgid "用户名不存在"
 msgstr ""
 
-#: .\bkflow\utils\models.py:18
+#: bkflow/utils/models.py:36
 msgid "修改人"
 msgstr ""
 
-#: .\bkflow\utils\models.py:19
+#: bkflow/utils/models.py:37
 msgid "是否软删除"
 msgstr ""
 
-#: .\bkflow\utils\models.py:49
+#: bkflow/utils/models.py:67
 msgid "快照字符串的md5sum"
 msgstr ""
 
-#: .\bkflow\utils\models.py:51
+#: bkflow/utils/models.py:69
 msgid "存储的数据"
 msgstr ""
 
-#: .\config\__init__.py:53
+#: config/__init__.py:61
 msgid "蓝鲸智云"
 msgstr ""
 
-#: .\templates\403.html:6
+#: templates/403.html:6
 msgid "系统权限不足"
 msgstr ""
 
-#: .\templates\403.html:7
+#: templates/403.html:7
 msgid "你的角色所拥有的权限不足"
 msgstr ""
 
-#: .\templates\500.html:6
+#: templates/500.html:6
 msgid "系统出现异常"
 msgstr ""
 
-#: .\templates\500.html:7
+#: templates/500.html:7
 msgid "请记录下错误场景并及时与开发人员联系"
 msgstr ""
 
-#: .\templates\base.html:42
+#: templates/base.html:42
 msgid "蓝鲸开发框架(Django模板)"
 msgstr ""
 
-#: .\templates\base.html:58
+#: templates/base.html:58
 msgid "首页"
 msgstr ""
 
-#: .\templates\base.html:59
+#: templates/base.html:59
 msgid "开发指引"
 msgstr ""
 
-#: .\templates\base.html:60
+#: templates/base.html:60
 msgid "联系我们"
 msgstr ""
 
-#: .\templates\base.html:63
+#: templates/base.html:63
 msgid "语言"
 msgstr ""
 
-#: .\templates\base.html:94
+#: templates/base.html:94
 msgid "QQ咨询(800802001)"
 msgstr ""
 
-#: .\templates\base.html:96
+#: templates/base.html:96
 msgid "蓝鲸论坛"
 msgstr ""
 
-#: .\templates\base.html:98
+#: templates/base.html:98
 msgid "蓝鲸官网"
 msgstr ""
 
-#: .\templates\base.html:99
+#: templates/base.html:99
 msgid "蓝鲸智云工作台"
 msgstr ""
 
-#: .\templates\base.html:102
+#: templates/base.html:102
 msgid "蓝鲸智云 版权所有"
 msgstr ""
