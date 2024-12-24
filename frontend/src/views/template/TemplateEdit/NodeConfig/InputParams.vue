@@ -550,7 +550,10 @@
         this.reuseableVarList = [];
       },
       validate() {
-        return this.$refs.inputParamsForm.validate();
+        if (this.$refs.inputParamsForm) {
+          return this.$refs.inputParamsForm.validate();
+        }
+        return true;
       },
     },
   };
