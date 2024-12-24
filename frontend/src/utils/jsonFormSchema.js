@@ -2,7 +2,7 @@ import tools from './tools';
 
 function getProperties(data = [], config = {}) {
   return data.reduce((acc, cur) => {
-    const { key, name, desc, type, required, form_type: formType, options, meta_desc: metaDesc } = cur;
+    const { key, name, desc, type, required, form_type: formType, options, meta_desc: metaDesc, multiple } = cur;
 
     let dataType = type === 'bool' ? 'boolean' : 'string';
     dataType = type === 'int' ? 'number' : dataType;
@@ -70,13 +70,16 @@ function getProperties(data = [], config = {}) {
         };
       } else if (formType !== 'time_range') {
         // checkbox为数组类型
-        acc[key].items = {
-          type: 'string',
-          enum: options.map(item => item.value || item) || [],
-        };
-        acc[key].uniqueItems = true;
         acc[key]['ui:props'] = {
           ...config,
+        };
+        const dataSource = options.map(item => ({
+          label: item.text || item,
+          value: item.value || item,
+        })) || [];
+        acc[key]['ui:component'] = {
+          name: 'checkbox',
+          props: { datasource: dataSource },
         };
         return acc;
       }
@@ -107,6 +110,8 @@ function getProperties(data = [], config = {}) {
         return result;
       }) || [];
       acc[key]['ui:component'].props.datasource = dataSource;
+      acc[key].type = multiple ? 'array' :  acc[key].type;
+      acc[key]['ui:component'].props.multiple = multiple;
     } else if (['int', 'string', 'textarea'].includes(type)) {
       // 区分文本框和数字框
       let inputType = type === 'int' ? 'number' : 'text';
