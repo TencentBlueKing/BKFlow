@@ -160,6 +160,7 @@ export const graphToJson = (canvasData) => {
           padding: 1,
         },
       },
+      data: {},
     });
     return acc;
   }, []) || [];
