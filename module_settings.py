@@ -108,10 +108,8 @@ def check_engine_admin_permission(request, *args, **kwargs):
 BKFLOW_MODULE = BKFLOWModule.get_module()
 
 if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
-
     if BKFLOW_MODULE.broker_url:
         BROKER_URL = env.BKFLOW_CELERY_BROKER_URL
-
     if BKFLOW_MODULE.isolation_level == BKFLOWResourceIsolationLevel.all_resource.value:
         db_config = BKFLOWDatabaseConfig.get_database_config()
         DATABASES = {
@@ -132,7 +130,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
     CELERY_QUEUES.extend(get_task_queues(BKFLOW_MODULE.code))
 
     PIPELINE_ENGINE_ADMIN_API_PERMISSION = "module_settings.check_engine_admin_permission"
-
+    BKAPP_ENGINE_PLUGIN_TIMEOUT = env.BKAPP_ENGINE_PLUGIN_TIMEOUT
     INSTALLED_APPS += (
         "rest_framework",
         "drf_yasg",
@@ -186,7 +184,6 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
     LOG_PERSISTENT_DAYS = env.LOG_PERSISTENT_DAYS
 
 elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
-
     INSTALLED_APPS += (
         "rest_framework",
         "drf_yasg",
