@@ -130,7 +130,9 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
     CELERY_QUEUES.extend(get_task_queues(BKFLOW_MODULE.code))
 
     PIPELINE_ENGINE_ADMIN_API_PERMISSION = "module_settings.check_engine_admin_permission"
+
     BKAPP_ENGINE_PLUGIN_TIMEOUT = env.BKAPP_ENGINE_PLUGIN_TIMEOUT
+
     INSTALLED_APPS += (
         "rest_framework",
         "drf_yasg",
