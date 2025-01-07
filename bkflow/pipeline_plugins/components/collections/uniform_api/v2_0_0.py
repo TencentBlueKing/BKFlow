@@ -270,7 +270,11 @@ class UniformAPIService(BKFlowBaseService):
         )
         try:
             request_result: HttpRequestResult = client.request(
-                url=polling_config.url, method="get", data=api_data, headers=headers, timeout=30
+                url=polling_config.url,
+                method="get",
+                data=api_data,
+                headers=headers,
+                timeout=settings.BKAPP_ENGINE_PLUGIN_TIMEOUT,
             )
         except Exception as e:
             message = handle_plain_log("[uniform_api polling error] url request failed: {}".format(e))
