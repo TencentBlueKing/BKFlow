@@ -133,7 +133,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
 
     PIPELINE_ENGINE_ADMIN_API_PERMISSION = "module_settings.check_engine_admin_permission"
 
-    BKAPP_ENGINE_PLUGIN_TIMEOUT = env.BKAPP_ENGINE_PLUGIN_TIMEOUT
+    BKAPP_API_PLUGIN_REQUEST_TIMEOUT = env.BKAPP_API_PLUGIN_REQUEST_TIMEOUT
 
     INSTALLED_APPS += (
         "rest_framework",

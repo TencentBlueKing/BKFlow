@@ -274,7 +274,7 @@ class UniformAPIService(BKFlowBaseService):
                 method="get",
                 data=api_data,
                 headers=headers,
-                timeout=settings.BKAPP_ENGINE_PLUGIN_TIMEOUT,
+                timeout=settings.BKAPP_API_PLUGIN_REQUEST_TIMEOUT,
             )
         except Exception as e:
             message = handle_plain_log("[uniform_api polling error] url request failed: {}".format(e))
