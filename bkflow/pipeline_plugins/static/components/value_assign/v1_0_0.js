@@ -12,7 +12,7 @@
                 empty_text: gettext("赋值变量或常量与被赋值变量的映射列表，一行填写一个映射"),
                 columns: [
                     {
-                        tag_code: "bk_assign_source_var",
+                        tag_code: "bk_assign_source_val",
                         type: "textarea",
                         attrs: {
                             name: gettext("赋值变量或常量"),
