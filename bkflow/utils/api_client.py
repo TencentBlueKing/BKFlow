@@ -94,11 +94,11 @@ class HttpRequestMixin:
     ) -> HttpRequestResult:
 
         masked_data, masked_headers = {}, {}
-        if isinstance(headers, dict) and "X-Bkapi-Authorization" in masked_headers:
+        if isinstance(headers, dict) and "X-Bkapi-Authorization" in headers:
             masked_headers = copy.deepcopy(headers)
             masked_headers["X-Bkapi-Authorization"] = "******"
 
-        if isinstance(data, dict) and "bk_app_secret" in masked_data:
+        if isinstance(data, dict) and "bk_app_secret" in data:
             masked_data = copy.deepcopy(data)
             masked_data["bk_app_secret"] = "******"
 
