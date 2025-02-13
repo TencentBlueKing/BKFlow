@@ -101,6 +101,7 @@ class HttpRequestMixin:
             masked_data = copy.deepcopy(data)
             if "bk_app_secret" in masked_data:
                 masked_data["bk_app_secret"] = "******"
+
         base_message = (
             f"[request api base info] url: {url}, method: {method}, headers: {masked_headers}, "
             f"data: {masked_data}, verify: {verify}, cert: {cert}, timeout: {timeout}, "
