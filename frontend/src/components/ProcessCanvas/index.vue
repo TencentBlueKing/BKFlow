@@ -1004,7 +1004,7 @@
           const branchInfo = this.getBranchConditions(cell.source.cell) || {};
           // 增加分支网关 label
           if (branchInfo && Object.keys(branchInfo).length > 0) {
-            const conditionInfo = cell.data?.conditionInfo || branchInfo[cell.id] || {};
+            const conditionInfo = branchInfo[cell.id] || {};
             if (!Object.keys(conditionInfo).length) return;
             const textDom = document.createElement('span');
             textDom.innerText = conditionInfo.name;
