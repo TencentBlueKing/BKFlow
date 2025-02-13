@@ -91,9 +91,17 @@ class HttpRequestMixin:
         *args,
         **kwargs,
     ) -> HttpRequestResult:
+        if headers and isinstance(headers, dict):
+            masked_headers = headers.deepcopy()
+            if "X-Bkapi-Authorization" in masked_headers and "bk_app_secret" in masked_headers["X-Bkapi-Authorization"]:
+                masked_headers["X-Bkapi-Authorization"]["bk_app_secret"] = "******"
+        if data and isinstance(data, dict):
+            masked_data = data.deepcopy()
+            if "bk_app_secret" in masked_data:
+                masked_data["bk_app_secret"] = "******"
         base_message = (
-            f"[request api base info] url: {url}, method: {method}, headers: {headers}, "
-            f"data: {data}, verify: {verify}, cert: {cert}, timeout: {timeout}, "
+            f"[request api base info] url: {url}, method: {method}, headers: {masked_headers}, "
+            f"data: {masked_data}, verify: {verify}, cert: {cert}, timeout: {timeout}, "
             f"cookie: {cookie}, request_id_key: {request_id_key}."
         )
 
