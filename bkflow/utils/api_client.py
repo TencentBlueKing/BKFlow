@@ -92,18 +92,11 @@ class HttpRequestMixin:
         *args,
         **kwargs,
     ) -> HttpRequestResult:
-        masked_headers, masked_data = {}, {}
 
         if headers and isinstance(headers, dict):
             masked_headers = copy.deepcopy(headers)
-            if "X-Bkapi-Authorization" in masked_headers and "bk_app_secret" in masked_headers["X-Bkapi-Authorization"]:
-                if not isinstance(masked_headers["X-Bkapi-Authorization"], dict):
-                    try:
-                        masked_authorization = json.loads(masked_headers["X-Bkapi-Authorization"])
-                        masked_authorization["bk_app_secret"] = "******"
-                        masked_headers["X-Bkapi-Authorization"] = masked_authorization
-                    except Exception:
-                        masked_headers["X-Bkapi-Authorization"] = "******"
+            if "X-Bkapi-Authorization" in masked_headers:
+                masked_headers["X-Bkapi-Authorization"]
 
         if data and isinstance(data, dict):
             masked_data = copy.deepcopy(data)
@@ -111,8 +104,8 @@ class HttpRequestMixin:
                 masked_data["bk_app_secret"] = "******"
 
         base_message = (
-            f"[request api base info] url: {url}, method: {method}, headers: {masked_headers}, "
-            f"data: {masked_data}, verify: {verify}, cert: {cert}, timeout: {timeout}, "
+            f"[request api base info] url: {url}, method: {method}, headers: {masked_headers or headers}, "
+            f"data: {masked_data or data}, verify: {verify}, cert: {cert}, timeout: {timeout}, "
             f"cookie: {cookie}, request_id_key: {request_id_key}."
         )
 
