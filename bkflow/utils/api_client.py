@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import copy
 import json
 import logging
 from functools import reduce
@@ -92,12 +93,12 @@ class HttpRequestMixin:
         **kwargs,
     ) -> HttpRequestResult:
         if headers and isinstance(headers, dict):
-            masked_headers = headers.deepcopy()
+            masked_headers = copy.deepcopy(headers)
             if "X-Bkapi-Authorization" in masked_headers and "bk_app_secret" in masked_headers["X-Bkapi-Authorization"]:
                 masked_headers["X-Bkapi-Authorization"]["bk_app_secret"] = "******"
 
         if data and isinstance(data, dict):
-            masked_data = data.deepcopy()
+            masked_data = copy.deepcopy(data)
             if "bk_app_secret" in masked_data:
                 masked_data["bk_app_secret"] = "******"
         base_message = (
