@@ -94,12 +94,14 @@
         v-bkloading="{ isLoading: inputLoading, zIndex: 100 }"
         class="input-wrap">
         <template v-if="!inputLoading">
-          <DmnInputParams
-            v-if="isDmnPlugin"
+          <SpecialPluginInputForm
+            v-if="isSpecialPlugin"
             :value="inputsFormData"
+            :code="pluginCode"
             :is-view-mode="true"
             :space-id="spaceId"
             :template-id="templateId"
+            :variable-list="variableList"
             @updateOutputs="updateOutputs" />
           <template v-else-if="Array.isArray(inputs)">
             <render-form
@@ -198,14 +200,14 @@
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
-  import DmnInputParams from '@/views/template/TemplateEdit/NodeConfig/DmnInputParams/index.vue';
+  import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
 
   export default {
     components: {
       RenderForm,
       JsonschemaInputParams,
       NoData,
-      DmnInputParams,
+      SpecialPluginInputForm,
     },
     props: {
       nodeActivity: {
@@ -240,17 +242,13 @@
         type: Number,
         default: 0,
       },
-      isApiPlugin: {
-        type: Boolean,
-        default: false,
-      },
       scopeInfo: {
         type: Object,
         default: () => ({}),
       },
-      isDmnPlugin: {
-        type: Boolean,
-        default: false,
+      pluginCode: {
+        type: String,
+        default: '',
       },
       templateId: {
         type: [Number, String],
@@ -319,6 +317,17 @@
       isAutoOperate() {
         const { ignorable, skippable, retryable, auto_retry: autoRetry } = this.templateConfig;
         return ignorable || skippable || retryable || (autoRetry && autoRetry.enable);
+      },
+      isApiPlugin() {
+        return this.pluginCode === 'uniform_api';
+      },
+      // 特殊输入参数插件
+      isSpecialPlugin() {
+        return ['dmn_plugin', 'value_assign'].includes(this.pluginCode);
+      },
+      variableList() {
+        const constants = this.isSubProcessNode ? this.subflowForms : this.constants;
+        return [...Object.values(constants)];
       },
     },
     mounted() {
