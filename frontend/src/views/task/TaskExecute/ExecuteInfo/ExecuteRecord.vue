@@ -69,9 +69,9 @@
           :admin-view="adminView"
           :inputs="executeInfo.inputs"
           :render-config="executeInfo.renderConfig"
-          :constants="executeInfo.constants"
+          :constants="constants"
           :render-data="executeInfo.renderData"
-          :is-dmn-plugin="isDmnPlugin"
+          :plugin-code="pluginCode"
           :space-id="spaceId"
           :template-id="templateId"
           @updateOutputs="$emit('updateOutputs', $event)" />
@@ -129,9 +129,9 @@
         type: Boolean,
         default: false,
       },
-      isDmnPlugin: {
-        type: Boolean,
-        default: false,
+      pluginCode: {
+        type: String,
+        default: '',
       },
       spaceId: {
         type: Number,
@@ -140,6 +140,10 @@
       templateId: {
         type: [Number, String],
         default: '',
+      },
+      constants: {
+        type: Object,
+        default: () => ({}),
       },
     },
     data() {

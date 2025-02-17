@@ -177,6 +177,10 @@
         type: Array,
         default: () => ([]),
       },
+      variableCited: {
+        type: Object,
+        default: () => ({}),
+      },
     },
     data() {
       return {
@@ -196,7 +200,6 @@
         decisionListLoading: false,
         decisionTableList: [],
         varModeFields: [], // 初始化时是变量模式的字段
-        variableCited: {}, // 变量引用
         tabledDesc: '', // 决策表描述
         isNotExist: false, // 决策表是否存在
         selectedOption: {}, // 选中的决策表
@@ -233,6 +236,9 @@
           this.$emit('update', val, varModeFields);
         },
         deep: true,
+      },
+      inputs(val) {
+        this.$emit('updateInput', val);
       },
     },
     async created() {
@@ -289,13 +295,8 @@
         }
       },
       async handleSelectToggle(val) {
-        if (!val || Object.keys(this.variableCited).length) return;
-        try {
-          const nodeConfig = this.$parent.$parent;
-          this.variableCited = await nodeConfig.getVariableCitedData() || {};
-        } catch (error) {
-          console.warn(error);
-        }
+        if (!val) return;
+        this.$emit('updateVarCitedData');
       },
       handleSelectChange() {
         const { table_id: tableId } = this.formData;
@@ -353,11 +354,7 @@
             confirmLoading: true,
             cancelText: this.$t('取消'),
             confirmFn: async () => {
-              // 清除已勾选为全局变量的输出参数勾选状态
-              const nodeConfig = this.$parent.$parent;
-              await nodeConfig.clearParamsSourceInfo();
               this.formData.table_id = option.id;
-              this.variableCited = {};
               this.close();
             },
           });
