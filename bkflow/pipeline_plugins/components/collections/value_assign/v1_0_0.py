@@ -47,12 +47,11 @@ class ValueAssignService(BKFlowBaseService):
         return []
 
     def plugin_execute(self, data, parent_data):
-        self.logger.info(data)
         runtime = BambooDjangoRuntime()
         upsert_dict = {}
-        pipeline_id = self._runtime_attrs["root_pipeline_id"]
+        pipeline_id = self.top_pipeline_id
         assign_list = data.get_one_of_inputs("bk_assignment_list")
-        self.logger.info(assign_list)
+        self.logger.info("assign_list: %s", assign_list)
         # 构建目标变量集合
         target_var_set = {"${{{}}}".format(assign["key"]) for assign in assign_list}
 
