@@ -21,7 +21,7 @@ to the current version of the project delivered to anyone in the future.
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
-from pipeline.core.flow.io import ArrayItemSchema, ObjectItemSchema, StringItemSchema
+from pipeline.core.flow.io import ObjectItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
@@ -35,16 +35,9 @@ class ValueAssignService(BKFlowBaseService):
             self.InputItem(
                 name=_("赋值变量或常量与被赋值变量列表"),
                 key="bk_assignment_list",
-                type="array",
-                schema=ArrayItemSchema(
+                type="object",
+                schema=ObjectItemSchema(
                     description=_("赋值变量或常量与被赋值变量的映射列表"),
-                    item_schema=ObjectItemSchema(
-                        description=_("单个赋值关系"),
-                        property_schemas={
-                            "bk_assign_source_val": StringItemSchema(description=_("赋值变量或常量")),
-                            "bk_assgin_target_var": StringItemSchema(description=_("被赋值变量")),
-                        },
-                    ),
                 ),
             )
         ]
@@ -54,12 +47,14 @@ class ValueAssignService(BKFlowBaseService):
         return []
 
     def plugin_execute(self, data, parent_data):
+        self.logger.info(data)
         runtime = BambooDjangoRuntime()
         upsert_dict = {}
         pipeline_id = self._runtime_attrs["root_pipeline_id"]
         assign_list = data.get_one_of_inputs("bk_assignment_list")
+        self.logger.info(assign_list)
         # 构建目标变量集合
-        target_var_set = {"${{{}}}".format(assign["bk_assgin_target_var"]) for assign in assign_list}
+        target_var_set = {"${{{}}}".format(assign["key"]) for assign in assign_list}
 
         try:
             # 批量查询目标变量的上下文值
@@ -74,8 +69,8 @@ class ValueAssignService(BKFlowBaseService):
 
         for assign in assign_list:
             # 循环处理表格中的内容 检查是否存在/类型问题后再统一事务批量执行
-            input_val = assign["bk_assign_source_val"]
-            target_var = assign["bk_assgin_target_var"]
+            input_val = assign["value"]
+            target_var = assign["key"]
             target_var_str = "${{{}}}".format(target_var)
             context = context_dict.get(target_var_str)
             if not context:
