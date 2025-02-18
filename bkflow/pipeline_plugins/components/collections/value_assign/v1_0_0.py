@@ -104,4 +104,4 @@ class ValueAssignComponent(Component):
     bound_service = ValueAssignService
     form = settings.STATIC_URL + "components/value_assign/v1_0_0.js"
     version = "v1.0.0"
-    desc = "提供内置赋值功能"
+    desc = "提供内置赋值功能 目标变量必须存在 且会进行类型校验"
