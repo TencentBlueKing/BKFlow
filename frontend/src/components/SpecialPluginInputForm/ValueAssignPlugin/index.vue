@@ -79,7 +79,7 @@
       },
     },
     data() {
-      let { value: data = [{ key: '', value: '' }] } = this.value;
+      let { bk_assignment_list: data = [{ key: '', value: '' }] } = this.value;
       data = data.map((item) => {
         if (item.key) {
           return { key: `\${${item.key}}`, value: item.value };
@@ -131,7 +131,7 @@
         handler(val) {
           // 存的时候需要将【被赋值变量】解除变量格式
           const value = val.value.map(item => ({ key: item.key.slice(2, -1), value: item.value }));
-          this.$emit('update', { value });
+          this.$emit('update', { bk_assignment_list: value });
         },
         deep: true,
       },
