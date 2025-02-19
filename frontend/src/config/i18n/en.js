@@ -921,6 +921,8 @@ const en = {
   复用成功: 'Reuse success',
   id或name不唯一: 'ID or name is not unique',
   '暂不支持带有英文双引号(") 的输入值': 'Input values containing English double quotes (\") are not supported at the moment',
+  变量列表: 'Variable List',
+  被赋值变量: 'Assigned Variable',
 };
 
 export default en;

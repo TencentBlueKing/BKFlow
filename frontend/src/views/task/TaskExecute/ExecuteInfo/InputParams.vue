@@ -15,12 +15,14 @@
       {{ 'Code' }}
     </div>
     <template v-if="!adminView">
-      <DmnInputParams
-        v-if="isDmnPlugin && !isShowInputOrigin"
+      <SpecialPluginInputForm
+        v-if="isSpecialPlugin && !isShowInputOrigin"
         :value="inputs"
+        :code="pluginCode"
         :space-id="spaceId"
         :template-id="templateId"
         :is-view-mode="true"
+        :variable-list="variableList"
         @updateOutputs="$emit('updateOutputs', $event)" />
       <div
         v-else-if="!isShowInputOrigin"
@@ -66,7 +68,7 @@
   import JsonschemaForm from './JsonschemaForm.vue';
   import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
   import tools from '@/utils/tools.js';
-  import DmnInputParams from '@/views/template/TemplateEdit/NodeConfig/DmnInputParams/index.vue';
+  import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
   export default {
     components: {
       VueJsonPretty,
@@ -74,7 +76,7 @@
       RenderForm,
       JsonschemaForm,
       FullCodeEditor,
-      DmnInputParams,
+      SpecialPluginInputForm,
     },
     props: {
       adminView: {
@@ -101,9 +103,9 @@
         type: Object,
         default: () => ({}),
       },
-      isDmnPlugin: {
-        type: Boolean,
-        default: false,
+      pluginCode: {
+        type: String,
+        default: '',
       },
       spaceId: {
         type: Number,
@@ -133,6 +135,13 @@
     computed: {
       isEmptyParams() {
         return this.renderConfig && this.renderConfig.length === 0;
+      },
+      // 特殊输入参数插件
+      isSpecialPlugin() {
+        return ['dmn_plugin', 'value_assign'].includes(this.pluginCode);
+      },
+      variableList() {
+        return [...Object.values(this.constants)];
       },
     },
     watch: {
