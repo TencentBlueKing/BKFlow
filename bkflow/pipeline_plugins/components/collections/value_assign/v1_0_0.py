@@ -24,6 +24,7 @@ from pipeline.component_framework.component import Component
 from pipeline.core.flow.io import ObjectItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 
+from bkflow.constants import formatted_key_pattern
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 
 __group_name__ = _("蓝鲸服务(BK)")
@@ -48,7 +49,7 @@ class ValueAssignService(BKFlowBaseService):
 
     def plugin_execute(self, data, parent_data):
         runtime = BambooDjangoRuntime()
-        upsert_dict = {}
+        contexts = []
         pipeline_id = self.top_pipeline_id
         assign_list = data.get_one_of_inputs("bk_assignment_list")
         self.logger.info("assign_list: %s", assign_list)
@@ -81,7 +82,7 @@ class ValueAssignService(BKFlowBaseService):
             # 处理输入变量与目标变量的类型转换(输入常量时) 如果是相同类型则必然成功
             try:
                 # 尝试将输入转换为目标变量类型
-                input_val = type(context.value)(input_val)
+                input_val = type(context.value)(input_val) if not formatted_key_pattern.search(input_val) else input_val
             except (ValueError, TypeError):
                 err_msg = "input variable '{}' cannot be converted to the type of target variable '{}': {}".format(
                     input_val, target_var, type(context.value).__name__
@@ -92,8 +93,8 @@ class ValueAssignService(BKFlowBaseService):
 
             # 更新上下文并放入字典
             context.value = input_val
-            upsert_dict[target_var_str] = context
-        runtime.upsert_plain_context_values(pipeline_id=pipeline_id, update=upsert_dict)
+            contexts.append(context)
+        runtime.update_context_values(pipeline_id=pipeline_id, context_values=contexts)
         # 批量更新内容 事务原子操作
         return True
 
