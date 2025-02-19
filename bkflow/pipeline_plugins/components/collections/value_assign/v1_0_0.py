@@ -82,7 +82,8 @@ class ValueAssignService(BKFlowBaseService):
             # 处理输入变量与目标变量的类型转换(输入常量时) 如果是相同类型则必然成功
             try:
                 # 尝试将输入转换为目标变量类型
-                input_val = type(context.value)(input_val) if not formatted_key_pattern.search(input_val) else input_val
+                if not formatted_key_pattern.fullmatch(input_val):
+                    input_val = type(context.value)(input_val)
             except (ValueError, TypeError):
                 err_msg = "input variable '{}' cannot be converted to the type of target variable '{}': {}".format(
                     input_val, target_var, type(context.value).__name__
