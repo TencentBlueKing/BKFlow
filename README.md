@@ -31,7 +31,7 @@ BKFlow 提供三大核心功能服务：
 - **支持多种集成方式**：BKFlow 已开源部分核心模块，接入系统可以根据需要采用不同的集成方式，包括 Web 服务集成和 SDK 集成。
 - **数据管理能力**：BKFlow 为接入系统提供了 Admin 管理端，方便接入系统管理员进行数据管理；同时，BKFlow 提供了 Webhook 订阅机制，方便接入系统进行流程任务感知和自动化。
 
-了解更多功能，请参考[产品白皮书](https://bk.tencent.com/docs/)
+了解更多功能，请参考[产品白皮书](https://bk.tencent.com/docs/markdown/ZH/BKFlow/1.8/UserGuide/Introduce/introduce.md)
 
 ## Getting started
 
