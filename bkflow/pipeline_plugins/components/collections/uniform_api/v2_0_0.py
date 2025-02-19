@@ -121,7 +121,7 @@ class UniformAPIService(BKFlowBaseService):
         polling = api_data.pop("uniform_api_plugin_polling", None)
         callback = api_data.pop("uniform_api_plugin_callback", None)
         method = api_data.pop("uniform_api_plugin_method")
-        timeout = api_data.pop("uniform_api_plugin_timeout", 30)
+        timeout = api_data.pop("uniform_api_plugin_timeout", settings.BKAPP_API_PLUGIN_REQUEST_TIMEOUT)
         resp_data_path: str = api_data.pop("response_data_path", None)
 
         # 获取空间相关配置信息
