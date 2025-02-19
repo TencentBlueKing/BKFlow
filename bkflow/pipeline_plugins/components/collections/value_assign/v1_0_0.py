@@ -60,7 +60,7 @@ class ValueAssignService(BKFlowBaseService):
             # 批量查询目标变量的上下文值
             context_values = runtime.get_context_values(pipeline_id=pipeline_id, keys=target_var_set)
         except ValueError as e:
-            self.logger.exception(str(e))
+            self.logger.exception("get context values error {e}")
             data.outputs.ex_data = str(e)
             return False
 
@@ -100,9 +100,9 @@ class ValueAssignService(BKFlowBaseService):
 
 
 class ValueAssignComponent(Component):
-    name = _("赋值节点")
+    name = _("变量赋值")
     code = "value_assign"
     bound_service = ValueAssignService
     form = settings.STATIC_URL + "components/value_assign/v1_0_0.js"
     version = "v1.0.0"
-    desc = "提供内置赋值功能 目标变量必须存在 且会进行类型校验"
+    desc = "该插件用于对变量进行赋值操作，并在赋值前进行基础的类型校验"
