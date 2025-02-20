@@ -40,5 +40,5 @@ class CollectionsBKCMDB(object):
             method="POST",
             host=self.host,
             path="/{stage}/api/{bk_apigw_ver}/hosts/app/{bk_biz_id}/list_hosts",
-            description="查询业务列表",
+            description="查询业务下的主机",
         )
