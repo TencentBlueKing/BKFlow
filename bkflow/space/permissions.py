@@ -46,8 +46,12 @@ class SpaceSuperuserPermission(permissions.BasePermission):
         if view.action in self.obj_actions:
             # 在 has_object_permission 中校验
             return True
-
-        space_id = request.query_params.get("space_id") or request.data.get("space_id") or view.kwargs.get("space_id")
+        candidate_space_ids = set(
+            [request.query_params.get("space_id"), request.data.get("space_id"), view.kwargs.get("space_id")]
+        )
+        if len(candidate_space_ids) != 1:
+            return False
+        space_id = candidate_space_ids.pop()
         if not space_id:
             return False
         space_superusers = SpaceConfig.get_config(space_id, SuperusersConfig.name)
