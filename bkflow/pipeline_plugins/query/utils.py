@@ -17,10 +17,16 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 from functools import wraps
 
+from django.conf import settings as django_settings
 from rest_framework.response import Response
+
+from api.shortcuts import get_client_by_request
+from bkflow.constants import JobBizScopeType
+from bkflow.utils.requests import batch_request
 
 logger = logging.getLogger("root")
 
@@ -37,3 +43,33 @@ def query_response_handler(func):
         return Response({"result": True, "message": "", "data": data})
 
     return wrapper
+
+
+def _job_get_scripts_data(request, biz_cc_id=None):
+    client = get_client_by_request(request, stage=django_settings.BK_APIGW_STAGE)
+    source_type = request.GET.get("type")
+    script_type = request.GET.get("script_type")
+
+    if biz_cc_id is None or source_type == "public":
+        kwargs = {"script_language": script_type or 0}
+        func = client.jobv3.get_public_script_list
+    else:
+        kwargs = {
+            "bk_scope_type": JobBizScopeType.BIZ.value,
+            "bk_scope_id": str(biz_cc_id),
+            "bk_biz_id": biz_cc_id,
+            "script_language": script_type or 0,
+        }
+        func = client.jobv3.get_script_list
+
+    script_list = batch_request(
+        func=func,
+        params=kwargs,
+        get_data=lambda x: x["data"]["data"],
+        get_count=lambda x: x["data"]["total"],
+        page_param={"cur_page_param": "start", "page_size_param": "length"},
+        is_page_merge=True,
+        check_iam_auth_fail=True,
+    )
+
+    return script_list

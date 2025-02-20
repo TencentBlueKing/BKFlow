@@ -22,7 +22,7 @@ gunicorn==19.6.0
 # jwt
 pyCryptodome==3.9.7
 PyJWT==1.7.1
-cryptography==3.3
+cryptography==44.0.1
 
 # PaaS 增强服务需要的依赖包，请不要修改，否则可能导增强服务不可用
 # for sentry

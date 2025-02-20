@@ -108,3 +108,8 @@ class WebhookEventType(Enum):
     TEMPLATE_CREATE = "template_create"
     TASK_FAILED = "task_failed"
     TASK_FINISHED = "task_finished"
+
+
+class JobBizScopeType(Enum):
+    BIZ = "biz"
+    BIZ_SET = "biz_set"
