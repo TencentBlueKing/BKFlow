@@ -57,6 +57,8 @@ class SpaceSuperuserPermission(permissions.BasePermission):
                 if space_id
             ]
         )
+        if len(candidate_space_ids) != 1:
+            return False
         space_id = candidate_space_ids.pop()
         if not space_id:
             return False
