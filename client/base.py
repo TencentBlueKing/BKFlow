@@ -28,7 +28,7 @@ def render_string(tmpl, context):
     return tmpl.format(**context)
 
 
-class RequestAPI(object):
+class RequestAPI:
     """Single request api"""
 
     HTTP_STATUS_OK = 200

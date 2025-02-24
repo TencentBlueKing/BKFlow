@@ -66,7 +66,6 @@ BK_APIGW_URL_TMPL = os.getenv("BK_API_URL_TMPL") or os.getenv("BK_COMPONENT_API_
 BK_APIGW_NAME = os.getenv("BK_APIGW_NAME", "").replace("_", "-")
 # 用于校验网关地址是否合法，形如^(?P<api_name>[\w-]+)\.xxx.com
 BK_APIGW_NETLOC_PATTERN = os.getenv("BK_APIGW_NETLOC_PATTERN")
-BK_APIGW_STAGE = os.getenv("BK_APIGW_STAGE", "prod")
 
 BK_ITSM_API_ENTRY = os.getenv("BK_ITSM_API_ENTRY")
 
@@ -139,5 +138,5 @@ BK_DOC_CENTER_HOST = os.getenv("BK_DOC_CENTER_HOST", os.getenv("BK_DOCS_URL_PREF
 # APP 白名单
 APP_WHITE_LIST_STR = os.getenv("BKAPP_APP_WHITE_LIST", "")  # 逗号分隔的字符串
 
-# JOB 平台配置
-BK_JOB_HOST = os.getenv("BK_JOB_HOST", "")
+if BKPAAS_ENGINE_REGION == "ieod":
+    from ieod_env import *  # noqa: F403, F401

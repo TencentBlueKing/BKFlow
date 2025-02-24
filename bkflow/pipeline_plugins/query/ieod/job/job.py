@@ -21,18 +21,19 @@ from django.conf import settings
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view
 
-from api.shortcuts import get_client_by_request
 from bkflow.constants import JobBizScopeType
+from bkflow.pipeline_plugins.query.utils import query_response_handler
 from bkflow.utils.requests import batch_request
+from client.shortcuts import get_client_by_request
 
-from .utils import _job_get_scripts_data, query_response_handler
+from .utils import _job_get_scripts_data
 
 
 @swagger_auto_schema(methods=["GET"])
 @api_view(["GET"])
 @query_response_handler
 def get_business(request):
-    client = get_client_by_request(request, stage=settings.BK_APIGW_STAGE)
+    client = get_client_by_request(request, stage=settings.BK_APIGW_STAGE_NAME)
     result = client.bkcmdb.search_business(
         {
             "condition": {"bk_data_status": {"$in": ["enable", "disabled", None]}},
@@ -76,7 +77,7 @@ def job_get_script_name_list(request, biz_cc_id):
 def get_job_account_list(request, biz_cc_id):
     bk_scope_type = request.GET.get("bk_scope_type", JobBizScopeType.BIZ.value)
     job_kwargs = {"bk_scope_id": biz_cc_id, "bk_scope_type": bk_scope_type, "category": 1}
-    client = get_client_by_request(request, stage=settings.BK_APIGW_STAGE)
+    client = get_client_by_request(request, stage=settings.BK_APIGW_STAGE_NAME)
     account_list = batch_request(
         client.jobv3.get_account_list,
         job_kwargs,

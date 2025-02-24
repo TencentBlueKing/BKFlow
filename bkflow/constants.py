@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import re
 from enum import Enum
 
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 
 MAX_LEN_OF_TASK_NAME = 128
@@ -28,6 +29,9 @@ TEMPLATE_NODE_NAME_MAX_LENGTH = 50
 USER_NAME_MAX_LENGTH = 32
 
 formatted_key_pattern = re.compile(r"^\${(.*?)}$")
+
+if settings.RUN_VER == "ieod":
+    from .ieod_constants import *  # noqa: F403, F401
 
 
 class PipelineContextObjType(Enum):
@@ -108,8 +112,3 @@ class WebhookEventType(Enum):
     TEMPLATE_CREATE = "template_create"
     TASK_FAILED = "task_failed"
     TASK_FINISHED = "task_finished"
-
-
-class JobBizScopeType(Enum):
-    BIZ = "biz"
-    BIZ_SET = "biz_set"

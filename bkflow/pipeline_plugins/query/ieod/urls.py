@@ -18,16 +18,18 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+from django.conf.urls import url
 
-# 判断是否在Django环境下，如果在Django环境下，默认从settings中读取配置信息，否则，使用默认配置
-# 客户端可采用import后再修改的方式来改变配置
-try:
-    from django.conf import settings
+from .job.job import (
+    get_business,
+    get_job_account_list,
+    job_get_public_script_name_list,
+    job_get_script_name_list,
+)
 
-    APP_CODE = settings.APP_CODE
-    SECRET_KEY = settings.SECRET_KEY
-    HOST = settings.BK_API_URL_TMPL
-except Exception:
-    APP_CODE = None
-    SECRET_KEY = None
-    HOST = None
+urlpatterns = [
+    url(r"^get_business_list/$", get_business),
+    url(r"^job_get_public_script_name_list/$", job_get_public_script_name_list),
+    url(r"^job_get_script_name_list/(?P<biz_cc_id>\d+)/$", job_get_script_name_list),
+    url(r"^get_job_account_list/(?P<biz_cc_id>\d+)/$", get_job_account_list),
+]

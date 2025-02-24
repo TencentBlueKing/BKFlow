@@ -19,14 +19,9 @@ to the current version of the project delivered to anyone in the future.
 """
 
 
-from django.conf.urls import url
+from django.conf import settings
+from django.conf.urls import include, url
 
-from .job import (
-    get_business,
-    get_job_account_list,
-    job_get_public_script_name_list,
-    job_get_script_name_list,
-)
 from .select import variable_select_source_data_proxy
 from .uniform_api import uniform_api
 
@@ -35,8 +30,7 @@ urlpatterns = [
     url(r"^uniform_api/category_list/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_category_list),
     url(r"^uniform_api/meta/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_meta),
     url(r"^variable_select_source_data_proxy/$", variable_select_source_data_proxy),
-    url(r"^get_business_list/$", get_business),
-    url(r"^job_get_public_script_name_list/$", job_get_public_script_name_list),
-    url(r"^job_get_script_name_list/(?P<biz_cc_id>\d+)/$", job_get_script_name_list),
-    url(r"^get_job_account_list/(?P<biz_cc_id>\d+)/$", get_job_account_list),
 ]
+
+if settings.RUN_VER == "ieod":
+    urlpatterns += [url(r"^", include("bkflow.pipeline_plugins.query.ieod.urls"))]

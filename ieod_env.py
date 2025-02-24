@@ -17,24 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import os
 
-import logging
-from functools import wraps
-
-from rest_framework.response import Response
-
-logger = logging.getLogger("root")
-
-
-def query_response_handler(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            data = func(*args, **kwargs)
-        except Exception as e:
-            logger.exception(f"call query function {func.__name__} error: {e}")
-            return Response({"result": False, "message": str(e), "data": None})
-
-        return Response({"result": True, "message": "", "data": data})
-
-    return wrapper
+# JOB 平台配置
+BK_JOB_HOST = os.getenv("BK_JOB_HOST", "")

@@ -32,90 +32,24 @@ from pipeline.core.flow.io import (
     StringItemSchema,
 )
 
-from api.shortcuts import get_client_by_user
 from bkflow.constants import JobBizScopeType
 from bkflow.exceptions import APIRequestError
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
-from bkflow.pipeline_plugins.utils import (
+from bkflow.pipeline_plugins.utils import get_node_callback_url
+from bkflow.utils.requests import batch_request
+from client.shortcuts import get_client_by_user
+
+from ..job import GetJobHistoryResultMixin
+from ..utils import (
     JOB_SUCCESS,
     JOB_VAR_TYPE_IP,
     get_job_instance_url,
     get_job_sops_var_dict,
     get_job_tagged_ip_dict_complex,
-    get_node_callback_url,
-    handle_api_error,
     job_handle_api_error,
 )
-from bkflow.utils.requests import batch_request
 
 __group_name__ = _("作业平台(JOB)")
-
-
-class GetJobHistoryResultMixin(object):
-    def get_job_history_result(self, data, parent_data):
-        # get job_instance[job_success_id] execute status
-        job_success_id = data.get_one_of_inputs("job_success_id")
-        client = get_client_by_user(parent_data.inputs.executor)
-        bk_scope_type = getattr(self, "biz_scope_type", JobBizScopeType.BIZ.value)
-        job_kwargs = {
-            "bk_scope_type": bk_scope_type,
-            "bk_scope_id": str(data.inputs.biz_cc_id),
-            "bk_biz_id": data.inputs.biz_cc_id,
-            "job_instance_id": job_success_id,
-        }
-        job_result = client.jobv3.get_job_instance_status(**job_kwargs)
-
-        if not job_result["result"]:
-            message = handle_api_error(
-                __group_name__,
-                "jobv3.get_job_instance_status",
-                job_kwargs,
-                job_result,
-            )
-            self.logger.error(message)
-            data.outputs.ex_data = message
-            self.logger.info(data.outputs)
-            return False
-
-        # judge success status
-        if job_result["data"]["job_instance"]["status"] not in JOB_SUCCESS:
-            message = _(f"执行历史请求失败: 任务实例[ID: {job_success_id}], 异常信息: {job_result['result']} | get_job_history_result")
-            self.logger.error(message)
-            data.outputs.ex_data = message
-            self.logger.info(data.outputs)
-            return False
-
-        # get job_var
-        if not self.need_get_sops_var:
-            self.logger.info(data.outputs)
-            return True
-
-        get_job_sops_var_dict_return = get_job_sops_var_dict(
-            client,
-            self.logger,
-            job_success_id,
-            data.get_one_of_inputs("biz_cc_id", parent_data.inputs.biz_cc_id),
-        )
-        if not get_job_sops_var_dict_return["result"]:
-            self.logger.error(
-                _("{group}.{job_service_name}: 提取日志失败，{message}").format(
-                    group=__group_name__,
-                    job_service_name=self.__class__.__name__,
-                    message=get_job_sops_var_dict_return["message"],
-                )
-            )
-            data.set_outputs("log_outputs", {})
-            self.logger.info(data.outputs)
-            return False
-        log_outputs = get_job_sops_var_dict_return["data"]
-        self.logger.info(
-            _("{group}.{job_service_name}：输出日志提取变量为：{log_outputs}").format(
-                group=__group_name__, job_service_name=self.__class__.__name__, log_outputs=log_outputs
-            )
-        )
-        data.set_outputs("log_outputs", log_outputs)
-        self.logger.info(data.outputs)
-        return True
 
 
 class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
@@ -423,9 +357,6 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
             return False
 
     def plugin_schedule(self, data, parent_data, callback_data=None):
-        return self.schedule(data, parent_data, callback_data)
-
-    def schedule(self, data, parent_data, callback_data=None):
         try:
             job_instance_id = callback_data.get("job_instance_id", None)
             status = callback_data.get("status", None)

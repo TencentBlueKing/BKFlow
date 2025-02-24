@@ -28,7 +28,7 @@ from .config import APP_CODE, SECRET_KEY
 logger = logging.getLogger(__name__)
 
 
-class BaseClient(object):
+class BaseClient:
     """Base client class for api"""
 
     @classmethod
@@ -71,16 +71,6 @@ class BaseClient(object):
             __package__,
             api_name,
         )
-
-    def set_stage(self, stage):
-        """Change the value of stage
-
-        :param str stage: Stage for api gateway
-        """
-        self.stage = stage
-
-    def set_timeout(self, timeout):
-        self.timeout = timeout
 
     def merge_params_data_with_common_args(self, method, params, data):
         """Add common args to params every request"""
