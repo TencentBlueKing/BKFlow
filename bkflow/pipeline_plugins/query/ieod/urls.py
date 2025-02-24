@@ -18,23 +18,18 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-import logging
-from functools import wraps
+from django.conf.urls import url
 
-from rest_framework.response import Response
+from .job.job import (
+    get_business,
+    get_job_account_list,
+    job_get_public_script_name_list,
+    job_get_script_name_list,
+)
 
-logger = logging.getLogger("root")
-
-
-def query_response_handler(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            data = func(*args, **kwargs)
-        except Exception as e:
-            logger.exception(f"call query function {func.__name__} error: {e}")
-            return Response({"result": False, "message": str(e), "data": None})
-
-        return Response({"result": True, "message": "", "data": data})
-
-    return wrapper
+urlpatterns = [
+    url(r"^get_business_list/$", get_business),
+    url(r"^job_get_public_script_name_list/$", job_get_public_script_name_list),
+    url(r"^job_get_script_name_list/(?P<biz_cc_id>\d+)/$", job_get_script_name_list),
+    url(r"^get_job_account_list/(?P<biz_cc_id>\d+)/$", get_job_account_list),
+]
