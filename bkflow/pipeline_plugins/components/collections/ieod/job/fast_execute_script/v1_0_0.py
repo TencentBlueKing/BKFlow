@@ -486,5 +486,5 @@ class JobFastExecuteScriptComponent(Component):
     code = "job_fast_execute_script"
     bound_service = JobFastExecuteScriptService
     version = "v1.0.0"
-    form = "%scomponents/job/v1_0_0.js" % settings.STATIC_URL
+    form = "%scomponents/ieod/job/fast_execute_scripts/v1_0_0.js" % settings.STATIC_URL
     desc = _("快速执行脚本")
