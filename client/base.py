@@ -85,7 +85,7 @@ class RequestAPI:
                 raise APIException(f"{e} is not in path_params")
         url = self.host.rstrip("/") + path
         try:
-            resp = self.client.request(self.method, url, params=params, data=data)
+            resp = self.client.request(method=self.method, url=url, params=params, data=data)
         except Exception as e:
             logger.exception("Error occurred when requesting method=%s, url=%s", self.method, url)
             raise APIException("API调用出错, Exception: %s" % str(e), url=url)

@@ -43,8 +43,8 @@ from ..job import GetJobHistoryResultMixin
 from ..utils import (
     JOB_SUCCESS,
     JOB_VAR_TYPE_IP,
+    get_job_bkflow_var_dict,
     get_job_instance_url,
-    get_job_sops_var_dict,
     get_job_tagged_ip_dict_complex,
     job_handle_api_error,
 )
@@ -53,7 +53,7 @@ __group_name__ = _("作业平台(JOB)")
 
 
 class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
-    need_get_sops_var = True
+    need_get_bkflow_var = True
     need_is_tagged_ip = True
 
     __need_schedule__ = True
@@ -62,9 +62,9 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
 
     def is_need_log_outputs_even_fail(self, data):
         """
-        默认开启失败时提取变量
+        默认关闭失败时提取变量
         """
-        return True
+        return False
 
     def get_tagged_ip_dict(self, data, parent_data, job_instance_id):
         result, tagged_ip_dict = get_job_tagged_ip_dict_complex(
@@ -178,7 +178,7 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
                 type="object",
                 schema=ObjectItemSchema(
                     description=_(
-                        "输出日志中提取的全局变量，日志中形如 <SOPS_VAR>key:val</SOPS_VAR> 的变量会被提取到 log_outputs['key'] 中，值为 val"
+                        "输出日志中提取的全局变量，日志中形如 <BKFLOW_VAR>key:val</BKFLOW_VAR> 的变量会被提取到 log_outputs['key'] 中，值为 val"
                     ),
                     property_schemas={
                         "name": StringItemSchema(description=_("全局变量名称")),
@@ -201,15 +201,28 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
             ),
         ]
 
-    def get_target_server(self, client, biz_cc_id, ip_info):
+    def get_target_server(self, client, biz_cc_id, ip_info: list):
+        """
+        根据业务和传入的主机信息进行检查校验 支持云管控区域 以逗号分隔一组对象 以冒号分隔 管控区域:主机ip
+        """
+        # TODO: 这里的切割不严谨
+        ips = [ip.split(":", 1) if ":" in ip else [0, ip] for ip in ip_info]
+        err_msg = "目标主机未找到"
         host_property_filter = {
-            "condition": "AND",
+            "condition": "OR",
             "rules": [
                 {
-                    "field": "bk_host_innerip",
-                    "operator": "in",
-                    "value": ip_info,
+                    "condition": "AND",
+                    "rules": [
+                        {
+                            "field": "bk_host_innerip",
+                            "operator": "equal",
+                            "value": ip,
+                        },
+                        {"field": "bk_cloud_id", "operator": "equal", "value": int(cloud_id)},
+                    ],
                 }
+                for cloud_id, ip in ips
             ],
         }
         path_params = {"bk_biz_id": biz_cc_id}
@@ -221,8 +234,9 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
         ip_results = client.bkcmdb.list_biz_hosts(path_params=path_params, **list_biz_hosts_kwargs)
 
         if not ip_results["result"] or not ip_results["data"]["count"]:
-            self.logger.error("获取ip信息失败 %s", ip_results["message"])
-            return None
+            err_msg = f"获取ip信息失败: {ip_results['message']}"
+            self.logger.error(err_msg)
+            return None, err_msg
         target_server = {
             "ip_list": [
                 {"bk_cloud_id": ip_data["bk_cloud_id"], "ip": ip_data["bk_host_innerip"]}
@@ -230,21 +244,17 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
             ]
         }
 
-        return target_server
+        return target_server, err_msg
 
     def plugin_execute(self, data, parent_data):
-        job_success_id = data.get_one_of_inputs("job_success_id")
-        if job_success_id:
-            history_result = self.get_job_history_result(data, parent_data)
-            self.logger.info(history_result)
-            if history_result:
-                self.__need_schedule__ = False
-            return history_result
-
+        """
+        Job 插件执行逻辑 暂未启用历史成功记录功能
+        """
         executor = parent_data.get_one_of_inputs("executor")
-        client = get_client_by_user(executor)
+        job_client = get_client_by_user(executor, stage=settings.BK_JOB_APIGW_STAGE)
+        cc_client = get_client_by_user(executor, stage=settings.BK_CMDB_APIGW_STAGE)
         if parent_data.get_one_of_inputs("language"):
-            setattr(client, "language", parent_data.get_one_of_inputs("language"))
+            setattr(job_client, "language", parent_data.get_one_of_inputs("language"))
             translation.activate(parent_data.get_one_of_inputs("language"))
         biz_cc_id = data.get_one_of_inputs("biz_cc_id", parent_data.get_one_of_inputs("biz_cc_id"))
         script_source = data.get_one_of_inputs("job_script_source")
@@ -253,8 +263,9 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
         job_rolling_execute = job_rolling_config.get("job_rolling_execute", None)
         # 获取 IP
 
-        target_server = self.get_target_server(client, biz_cc_id, ip_info.split())
+        target_server, err_msg = self.get_target_server(cc_client, biz_cc_id, ip_info.split(","))
         if not target_server:
+            data.outputs.ex_data = f"获取目标主机失败: {err_msg}"
             return False
 
         space_id = parent_data.get_one_of_inputs("task_space_id")
@@ -291,9 +302,9 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
                 kwargs.update(
                     {"bk_scope_type": JobBizScopeType.BIZ.value, "bk_scope_id": str(biz_cc_id), "bk_biz_id": biz_cc_id}
                 )
-                func = client.jobv3.get_script_list
+                func = job_client.jobv3.get_script_list
             else:
-                func = client.jobv3.get_public_script_list
+                func = job_client.jobv3.get_public_script_list
 
             try:
                 script_list = batch_request(
@@ -341,14 +352,14 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
                     ),
                 }
             )
-        job_result = client.jobv3.fast_execute_script(**job_kwargs)
+        job_result = job_client.jobv3.fast_execute_script(**job_kwargs)
         self.logger.info("job_result: {result}, job_kwargs: {kwargs}".format(result=job_result, kwargs=job_kwargs))
         if job_result["result"]:
             job_instance_id = job_result["data"]["job_instance_id"]
             data.outputs.job_inst_id = job_instance_id
             data.outputs.job_inst_name = job_result["data"]["job_instance_name"]
-            data.outputs.job_inst_url = get_job_instance_url(biz_cc_id, job_instance_id)
-            data.outputs.client = client
+            data.outputs.job_inst_url = get_job_instance_url(job_instance_id)
+            data.outputs.client = job_client
             return True
         else:
             message = job_handle_api_error("jobv3.fast_execute_script", job_kwargs, job_result)
@@ -357,6 +368,9 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
             return False
 
     def plugin_schedule(self, data, parent_data, callback_data=None):
+        """
+        插件调度逻辑 回调时执行 检查执行状态 进行 ip 分组并提取对应日志和变量
+        """
         try:
             job_instance_id = callback_data.get("job_instance_id", None)
             status = callback_data.get("status", None)
@@ -435,37 +449,36 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
                             data.set_outputs(global_var["name"], global_var["value"])
 
             # 无需提取全局变量的Service直接返回
-            if not self.need_get_sops_var and not need_log_outputs_even_fail:
+            if not self.need_get_bkflow_var and not need_log_outputs_even_fail:
                 self.finish_schedule()
-                return True if job_success else False
-            get_job_sops_var_dict_return = get_job_sops_var_dict(
+                return True
+            get_job_bkflow_var_dict_return = get_job_bkflow_var_dict(
                 data.outputs.client,
                 self.logger,
                 job_instance_id,
                 data.get_one_of_inputs("biz_cc_id", parent_data.get_one_of_inputs("biz_cc_id")),
                 self.biz_scope_type,
             )
-            if not get_job_sops_var_dict_return["result"]:
-                self.logger.error(
-                    _("{group}.{job_service_name}: 提取日志失败，{message}").format(
-                        group=__group_name__,
-                        job_service_name=self.__class__.__name__,
-                        message=get_job_sops_var_dict_return["message"],
-                    )
+            if not get_job_bkflow_var_dict_return["result"]:
+                message = _("{group}.{job_service_name}: 提取日志失败，{message}").format(
+                    group=__group_name__,
+                    job_service_name=self.__class__.__name__,
+                    message=get_job_bkflow_var_dict_return["message"],
                 )
+                self.logger.error(message)
                 data.set_outputs("log_outputs", {})
+                data.outputs.ex_data = message
                 self.finish_schedule()
                 return False
 
-            log_outputs = get_job_sops_var_dict_return["data"]
-            self.logger.info(
-                _("{group}.{job_service_name}：输出日志提取变量为：{log_outputs}").format(
-                    group=__group_name__, job_service_name=self.__class__.__name__, log_outputs=log_outputs
-                )
+            log_outputs = get_job_bkflow_var_dict_return["data"]
+            message = _("{group}.{job_service_name}：输出日志提取变量为：{log_outputs}").format(
+                group=__group_name__, job_service_name=self.__class__.__name__, log_outputs=log_outputs
             )
+            self.logger.info(message)
             data.set_outputs("log_outputs", log_outputs)
             self.finish_schedule()
-            return True if job_success else False
+            return True
         else:
             data.set_outputs(
                 "ex_data",

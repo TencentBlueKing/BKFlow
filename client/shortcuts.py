@@ -20,6 +20,8 @@ to the current version of the project delivered to anyone in the future.
 import json
 import logging
 
+from django.conf import settings
+
 from .client import RequestAPIClient
 from .config import APP_CODE, SECRET_KEY
 from .exceptions import APIException
@@ -33,9 +35,10 @@ __all__ = [
 
 
 HEADER_BK_AUTHORIZATION = "X-Bkapi-Authorization"
+DEFAULT_STAGE = settings.BK_APIGW_STAGE_NAME
 
 
-def get_client_by_request(request, stage="prod", common_args=None, headers=None):
+def get_client_by_request(request, stage=DEFAULT_STAGE, common_args=None, headers=None):
     """根据当前请求返回一个client
     :param request: 一个django request实例
     :param stage: 请求环境，默认为prod
@@ -68,10 +71,11 @@ def get_client_by_request(request, stage="prod", common_args=None, headers=None)
     )
 
 
-def get_client_by_user(user, stage="prod", common_args=None, headers=None):
+def get_client_by_user(user, stage=DEFAULT_STAGE, common_args=None, headers=None):
     """根据user实例返回一个client
     :param user: 用户
     :param stage: 请求环境，默认为prod
+    :param common_args: 公共请求参数
     :param common_args: 公共请求参数
     :param headers: 头部信息
     :returns: 一个初始化好的APIClint对象

@@ -33,11 +33,10 @@ JOB_SUCCESS = {3}
 JOB_VAR_TYPE_IP = 2
 
 job_handle_api_error = partial(handle_api_error, __group_name__)
-LOG_VAR_SEARCH_CONFIGS = [{"re": r"<SOPS_VAR>(.+?)</SOPS_VAR>", "kv_sep": ":"}]
+LOG_VAR_SEARCH_CONFIGS = [{"re": r"<BKFLOW_VAR>(.+?)</BKFLOW_VAR>", "kv_sep": ":"}]
 
 
-def get_job_instance_url(biz_cc_id, job_instance_id):
-
+def get_job_instance_url(job_instance_id):
     url_format = "{}/api_execute/{}"
     return url_format.format(settings.BK_JOB_HOST, job_instance_id)
 
@@ -91,7 +90,9 @@ def get_ip_from_step_ip_result(step_ip_result):
     return ip or ""
 
 
-def get_job_sops_var_dict(client, service_logger, job_instance_id, bk_biz_id, job_scope_type=JobBizScopeType.BIZ.value):
+def get_job_bkflow_var_dict(
+    client, service_logger, job_instance_id, bk_biz_id, job_scope_type=JobBizScopeType.BIZ.value
+):
     """
     解析作业日志：默认取每个步骤/节点的第一个ip_logs
     :param client:
@@ -109,7 +110,7 @@ def get_job_sops_var_dict(client, service_logger, job_instance_id, bk_biz_id, jo
         return get_job_instance_log_result
     log_text = get_job_instance_log_result["data"]
     service_logger.info(log_text)
-    return {"result": True, "data": get_sops_var_dict_from_log_text(log_text, service_logger)}
+    return {"result": True, "data": get_bkflow_var_dict_from_log_text(log_text, service_logger)}
 
 
 def get_job_instance_log(
@@ -134,7 +135,7 @@ def get_job_instance_log(
                             "total_time": 0.363,
                             "ip": "1.1.1.1",
                             "start_time": "2020-06-15 17:23:11 +0800",
-                            "log_content": "<SOPS_VAR>key1:value1</SOPS_VAR>\ngsectl\n-rwxr-xr-x 1",
+                            "log_content": "<BKFLOW_VAR>key1:value1</BKFLOW_VAR>\ngsectl\n-rwxr-xr-x 1",
                             "exit_code": 0,
                             "bk_cloud_id": 0,
                             "retry_count": 0,
@@ -221,18 +222,18 @@ def get_job_instance_log(
     return {"result": True, "data": log_text}
 
 
-def get_sops_var_dict_from_log_text(log_text, service_logger):
+def get_bkflow_var_dict_from_log_text(log_text, service_logger):
     """
     在日志文本中提取全局变量
     :param service_logger:
     :param log_text: 日志文本，如下：
-    "<SOPS_VAR>key1:value1</SOPS_VAR>\ngsectl\n-rwxr-xr-x 1 root<SOPS_VAR>key2:value2</SOPS_VAR>\n"
+    "<BKFLOW_VAR>key1:value1</BKFLOW_VAR>\ngsectl\n-rwxr-xr-x 1 root<BKFLOW_VAR>key2:value2</BKFLOW_VAR>\n"
     或者已转义的日志文本
-    &lt;SOPS_VAR&gt;key2:value2&lt;/SOPS_VAR&gt;
+    &lt;BKFLOW_VAR&gt;key2:value2&lt;/BKFLOW_VAR&gt;
     :return:
     {"key1": "value1", "key2": "value2"}
     """
-    sops_var_dict = {}
+    bkflow_var_dict = {}
     # 支持跨行匹配全局变量
     service_logger.info("search log var with config: {}".format(LOG_VAR_SEARCH_CONFIGS))
     for var_search_config in LOG_VAR_SEARCH_CONFIGS:
@@ -240,21 +241,21 @@ def get_sops_var_dict_from_log_text(log_text, service_logger):
         excape_reg = reg.replace("<", "&lt;").replace(">", "&gt;")
         kv_sep = var_search_config["kv_sep"]
 
-        sops_key_val_list = re.findall(reg, log_text, re.DOTALL)
-        sops_key_val_list.extend(re.findall(excape_reg, log_text, re.DOTALL))
-        service_logger.info(f"search log var with sops key val list: {sops_key_val_list}")
-        if len(sops_key_val_list) == 0:
+        bkflow_key_val_list = re.findall(reg, log_text, re.DOTALL)
+        bkflow_key_val_list.extend(re.findall(excape_reg, log_text, re.DOTALL))
+        service_logger.info(f"search log var with bkflow key val list: {bkflow_key_val_list}")
+        if len(bkflow_key_val_list) == 0:
             continue
-        for sops_key_val in sops_key_val_list:
-            if kv_sep not in sops_key_val:
+        for bkflow_key_val in bkflow_key_val_list:
+            if kv_sep not in bkflow_key_val:
                 continue
-            sops_key, sops_val = sops_key_val.split(kv_sep, 1)
+            bkflow_key, bkflow_val = bkflow_key_val.split(kv_sep, 1)
             # 限制变量名不为空
-            if len(sops_key) == 0:
+            if len(bkflow_key) == 0:
                 continue
-            sops_var_dict.update({sops_key: sops_val})
-    service_logger.info(f"search log var result: {sops_var_dict}")
-    return sops_var_dict
+            bkflow_var_dict.update({bkflow_key: bkflow_val})
+    service_logger.info(f"search log var result: {bkflow_var_dict}")
+    return bkflow_var_dict
 
 
 def get_job_tagged_ip_dict_complex(

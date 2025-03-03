@@ -103,12 +103,16 @@ class RequestAPIClient(BaseClient):
         # update headers
         headers = kwargs.pop("headers", {})
         headers.update(self.headers)
+        method = kwargs.get("method", "GET")
+        if method.upper() in ["POST", "PUT", "PATCH", "DELETE"]:
+            headers["Content-Type"] = "application/json"
+        logger.info(f"request headers: {headers}")
         return self._request(headers=headers, *args, **kwargs)
 
     def _request(self, method, url, params=None, data=None, **kwargs):
         """Send request direct"""
         params, data = self.merge_params_data_with_common_args(method, params, data)
-        logger.debug("Calling %s %s with params=%s, data=%s", method, url, params, data)
+        logger.info("Calling %s %s with params=%s, data=%s", method, url, params, data)
         return requests.request(method, url, params=params, data=data, timeout=self.timeout, **kwargs)
 
 

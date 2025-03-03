@@ -33,7 +33,10 @@ from .utils import _job_get_scripts_data
 @api_view(["GET"])
 @query_response_handler
 def get_business(request):
-    client = get_client_by_request(request, stage=settings.BK_APIGW_STAGE_NAME)
+    """
+    根据请求拉取对应业务
+    """
+    client = get_client_by_request(request, stage=settings.BK_CMDB_APIGW_STAGE)
     result = client.bkcmdb.search_business(
         {
             "condition": {"bk_data_status": {"$in": ["enable", "disabled", None]}},
@@ -51,6 +54,9 @@ def get_business(request):
 @api_view(["GET"])
 @query_response_handler
 def job_get_public_script_name_list(request):
+    """
+    根据请求拉取Job平台公共脚本
+    """
     script_list = _job_get_scripts_data(request)
     script_names = []
     for script in script_list:
@@ -63,6 +69,9 @@ def job_get_public_script_name_list(request):
 @api_view(["GET"])
 @query_response_handler
 def job_get_script_name_list(request, biz_cc_id):
+    """
+    根据请求拉取Job平台对应业务脚本
+    """
     script_list = _job_get_scripts_data(request, biz_cc_id)
     script_names = []
     for script in script_list:
@@ -75,9 +84,12 @@ def job_get_script_name_list(request, biz_cc_id):
 @api_view(["GET"])
 @query_response_handler
 def get_job_account_list(request, biz_cc_id):
+    """
+    根据请求拉取Job平台对应业务下执行账号
+    """
     bk_scope_type = request.GET.get("bk_scope_type", JobBizScopeType.BIZ.value)
     job_kwargs = {"bk_scope_id": biz_cc_id, "bk_scope_type": bk_scope_type, "category": 1}
-    client = get_client_by_request(request, stage=settings.BK_APIGW_STAGE_NAME)
+    client = get_client_by_request(request, stage=settings.BK_JOB_APIGW_STAGE)
     account_list = batch_request(
         client.jobv3.get_account_list,
         job_kwargs,

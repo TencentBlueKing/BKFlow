@@ -64,6 +64,8 @@ VARIABLE_KEY_BLACKLIST = os.getenv("BKAPP_VARIABLE_KEY_BLACKLIST", "context,")
 # APIGW 访问地址
 BK_APIGW_URL_TMPL = os.getenv("BK_API_URL_TMPL") or os.getenv("BK_COMPONENT_API_URL")
 BK_APIGW_NAME = os.getenv("BK_APIGW_NAME", "").replace("_", "-")
+BK_JOB_APIGW_STAGE = os.getenv("BK_JOB_APIGW_STAGE", "")
+BK_CMDB_APIGW_STAGE = os.getenv("BK_CMDB_APIGW_STAGE", "")
 # 用于校验网关地址是否合法，形如^(?P<api_name>[\w-]+)\.xxx.com
 BK_APIGW_NETLOC_PATTERN = os.getenv("BK_APIGW_NETLOC_PATTERN")
 

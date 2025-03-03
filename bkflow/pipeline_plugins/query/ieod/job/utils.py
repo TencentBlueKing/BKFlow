@@ -25,7 +25,10 @@ from client.shortcuts import get_client_by_request
 
 
 def _job_get_scripts_data(request, biz_cc_id=None):
-    client = get_client_by_request(request, stage=settings.BK_APIGW_STAGE_NAME)
+    """
+    根据请求拉取脚本
+    """
+    client = get_client_by_request(request, stage=settings.BK_JOB_APIGW_STAGE)
     source_type = request.GET.get("type")
     script_type = request.GET.get("script_type")
 

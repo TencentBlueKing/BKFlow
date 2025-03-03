@@ -17,22 +17,27 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 
 from bkflow.constants import JobBizScopeType
 from bkflow.utils.handlers import handle_api_error
 from client.shortcuts import get_client_by_user
 
-from .utils import JOB_SUCCESS, get_job_sops_var_dict
+from .utils import JOB_SUCCESS, get_job_bkflow_var_dict
 
 __group_name__ = _("作业平台(JOB)")
 
 
 class GetJobHistoryResultMixin:
+    """
+    公共类 Job 成功历史记录 暂未启用
+    """
+
     def get_job_history_result(self, data, parent_data):
         # get job_instance[job_success_id] execute status
         job_success_id = data.get_one_of_inputs("job_success_id")
-        client = get_client_by_user(parent_data.inputs.executor)
+        client = get_client_by_user(parent_data.inputs.executor, stage=settings.BK_JOB_APIGW_STAGE)
         bk_scope_type = getattr(self, "biz_scope_type", JobBizScopeType.BIZ.value)
         job_kwargs = {
             "bk_scope_type": bk_scope_type,
@@ -63,28 +68,28 @@ class GetJobHistoryResultMixin:
             return False
 
         # get job_var
-        if not self.need_get_sops_var:
+        if not self.need_get_bkflow_var:
             self.logger.info(data.outputs)
             return True
 
-        get_job_sops_var_dict_return = get_job_sops_var_dict(
+        get_job_bkflow_var_dict_return = get_job_bkflow_var_dict(
             client,
             self.logger,
             job_success_id,
             data.get_one_of_inputs("biz_cc_id", parent_data.inputs.biz_cc_id),
         )
-        if not get_job_sops_var_dict_return["result"]:
+        if not get_job_bkflow_var_dict_return["result"]:
             self.logger.error(
                 _("{group}.{job_service_name}: 提取日志失败，{message}").format(
                     group=__group_name__,
                     job_service_name=self.__class__.__name__,
-                    message=get_job_sops_var_dict_return["message"],
+                    message=get_job_bkflow_var_dict_return["message"],
                 )
             )
             data.set_outputs("log_outputs", {})
             self.logger.info(data.outputs)
             return False
-        log_outputs = get_job_sops_var_dict_return["data"]
+        log_outputs = get_job_bkflow_var_dict_return["data"]
         self.logger.info(
             _("{group}.{job_service_name}：输出日志提取变量为：{log_outputs}").format(
                 group=__group_name__, job_service_name=self.__class__.__name__, log_outputs=log_outputs

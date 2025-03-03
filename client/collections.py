@@ -21,6 +21,7 @@ from .apis.bkcmdb import CollectionsBKCMDB
 from .apis.jobv3 import CollectionsJOBV3
 
 # Available components
+# 网关 API 请求模块 在此添加新增模块
 AVAILABLE_COLLECTIONS = {
     "bkcmdb": CollectionsBKCMDB,
     "jobv3": CollectionsJOBV3,
