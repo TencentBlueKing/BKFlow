@@ -820,7 +820,7 @@
           if (pluginGroup && pluginGroup[version]) {
             return pluginGroup[version];
           }
-          await this.loadAtomConfig({ atom: plugin, version, classify, name, project_id: this.project_id });
+          await this.loadAtomConfig({ atom: plugin, version, classify, name, space_id: this.spaceId });
           const config = $.atoms[plugin];
           return config;
         } catch (e) {

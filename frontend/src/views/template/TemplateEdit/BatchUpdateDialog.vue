@@ -225,6 +225,7 @@
     },
     computed: {
       ...mapState({
+        spaceId: state => state.template.spaceId,
         activities: state => state.template.activities,
         constants: state => state.template.constants,
         gateways: state => state.template.gateways,
@@ -405,7 +406,6 @@
       },
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
-        const projectId = this.common ? undefined : this.project_id;
         try {
           // 先取标准节点缓存的数据
           const pluginGroup = this.pluginConfigs[plugin];
@@ -432,7 +432,7 @@
             /* eslint-disable-next-line */
                         eval(renderFrom)
           } else {
-            await this.loadAtomConfig({ atom: plugin, version, classify, name, project_id: projectId });
+            await this.loadAtomConfig({ atom: plugin, version, classify, name, space_id: this.spaceId });
           }
           const config = $.atoms[plugin];
           return config;
