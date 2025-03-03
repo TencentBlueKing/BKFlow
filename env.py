@@ -137,3 +137,6 @@ BK_DOC_CENTER_HOST = os.getenv("BK_DOC_CENTER_HOST", os.getenv("BK_DOCS_URL_PREF
 
 # APP 白名单
 APP_WHITE_LIST_STR = os.getenv("BKAPP_APP_WHITE_LIST", "")  # 逗号分隔的字符串
+
+# 系统空间插件列表
+SPACE_PLUGIN_LIST_STR = os.getenv("SPACE_PLUGIN_LIST_STR", "")  # 逗号分隔的字符串
