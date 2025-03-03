@@ -30,9 +30,6 @@ USER_NAME_MAX_LENGTH = 32
 
 formatted_key_pattern = re.compile(r"^\${(.*?)}$")
 
-if settings.RUN_VER == "ieod":
-    from .ieod_constants import *  # noqa: F403, F401
-
 
 class PipelineContextObjType(Enum):
     instance = "instance"
@@ -112,3 +109,7 @@ class WebhookEventType(Enum):
     TEMPLATE_CREATE = "template_create"
     TASK_FAILED = "task_failed"
     TASK_FINISHED = "task_finished"
+
+
+if settings.RUN_VER == "ieod":
+    from .ieod_constants import *  # noqa: F403, F401

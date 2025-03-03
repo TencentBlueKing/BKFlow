@@ -53,18 +53,9 @@ __group_name__ = _("作业平台(JOB)")
 
 
 class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
-    need_get_bkflow_var = True
-    need_is_tagged_ip = True
 
     __need_schedule__ = True
-    reload_outputs = True
     biz_scope_type = JobBizScopeType.BIZ.value
-
-    def is_need_log_outputs_even_fail(self, data):
-        """
-        默认关闭失败时提取变量
-        """
-        return False
 
     def get_tagged_ip_dict(self, data, parent_data, job_instance_id):
         result, tagged_ip_dict = get_job_tagged_ip_dict_complex(
@@ -184,19 +175,6 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
                         "name": StringItemSchema(description=_("全局变量名称")),
                         "value": StringItemSchema(description=_("全局变量值")),
                     },
-                ),
-            ),
-            self.OutputItem(
-                name=_("JOB执行IP分组"),
-                key="job_tagged_ip_dict",
-                type="string",
-                schema=StringItemSchema(
-                    description=_(
-                        '按照执行结果将 IP 进行分组：1. 使用 job_tagged_ip_dict["value"]["SUCCESS"]["TAGS"]["ALL"]  获取「执行成功」的 IP， '
-                        "ALL 代表所有 IP，可指定分组名获取特定分组的 IP ；"
-                        '2. 使用 job_tagged_ip_dict["value"]["SCRIPT_NOT_ZERO_EXIT_CODE"]["TAGS"]["ALL"]'
-                        " 获取「脚本返回值非零」的 IP"
-                    )
                 ),
             ),
         ]
@@ -386,9 +364,8 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
             return False
 
         job_success = status in JOB_SUCCESS
-        need_log_outputs_even_fail = self.is_need_log_outputs_even_fail(data)
         # 失败情况下也需要要进行ip tag分组
-        if job_success or need_log_outputs_even_fail or self.need_is_tagged_ip:
+        if job_success:
 
             if not job_success:
                 data.set_outputs(
@@ -402,56 +379,36 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
                     },
                 )
 
-            if self.reload_outputs:
+            client = data.outputs.client
 
-                client = data.outputs.client
+            bk_biz_id = data.get_one_of_inputs("biz_cc_id", parent_data.get_one_of_inputs("biz_cc_id"))
+            # 全局变量重载
+            get_var_kwargs = {
+                "bk_scope_type": self.biz_scope_type,
+                "bk_scope_id": str(bk_biz_id),
+                "bk_biz_id": bk_biz_id,
+                "job_instance_id": job_instance_id,
+            }
+            global_var_result = client.jobv3.get_job_instance_global_var_value(**get_var_kwargs)
+            self.logger.info("get_job_instance_global_var_value return: {}".format(global_var_result))
 
-                # 判断是否对IP进行Tag分组, 兼容之前的配置，默认从inputs拿
-                is_tagged_ip = data.get_one_of_inputs("is_tagged_ip", False)
-                tagged_ip_dict = {}
-                if is_tagged_ip or self.need_is_tagged_ip:
-                    result, tagged_ip_dict = self.get_tagged_ip_dict(data, parent_data, job_instance_id)
-                    if not result:
-                        self.logger.error(tagged_ip_dict)
-                        data.outputs.ex_data = tagged_ip_dict
-                        self.finish_schedule()
-                        return False
-
-                if "is_tagged_ip" in data.get_inputs() or self.need_is_tagged_ip:
-                    data.set_outputs("job_tagged_ip_dict", tagged_ip_dict)
-
-                bk_biz_id = data.get_one_of_inputs("biz_cc_id", parent_data.get_one_of_inputs("biz_cc_id"))
-                # 全局变量重载
-                get_var_kwargs = {
-                    "bk_scope_type": self.biz_scope_type,
-                    "bk_scope_id": str(bk_biz_id),
-                    "bk_biz_id": bk_biz_id,
-                    "job_instance_id": job_instance_id,
-                }
-                global_var_result = client.jobv3.get_job_instance_global_var_value(**get_var_kwargs)
-                self.logger.info("get_job_instance_global_var_value return: {}".format(global_var_result))
-
-                if not global_var_result["result"]:
-                    message = job_handle_api_error(
-                        "jobv3.get_job_instance_global_var_value",
-                        get_var_kwargs,
-                        global_var_result,
-                    )
-                    self.logger.error(message)
-                    data.outputs.ex_data = message
-                    self.finish_schedule()
-                    return False
-
-                global_var_list = global_var_result["data"].get("step_instance_var_list", [])
-                if global_var_list:
-                    for global_var in global_var_list[-1]["global_var_list"] or []:
-                        if global_var["type"] != JOB_VAR_TYPE_IP:
-                            data.set_outputs(global_var["name"], global_var["value"])
-
-            # 无需提取全局变量的Service直接返回
-            if not self.need_get_bkflow_var and not need_log_outputs_even_fail:
+            if not global_var_result["result"]:
+                message = job_handle_api_error(
+                    "jobv3.get_job_instance_global_var_value",
+                    get_var_kwargs,
+                    global_var_result,
+                )
+                self.logger.error(message)
+                data.outputs.ex_data = message
                 self.finish_schedule()
-                return True
+                return False
+
+            global_var_list = global_var_result["data"].get("step_instance_var_list", [])
+            if global_var_list:
+                for global_var in global_var_list[-1]["global_var_list"] or []:
+                    if global_var["type"] != JOB_VAR_TYPE_IP:
+                        data.set_outputs(global_var["name"], global_var["value"])
+
             get_job_bkflow_var_dict_return = get_job_bkflow_var_dict(
                 data.outputs.client,
                 self.logger,

@@ -24,7 +24,7 @@ from bkflow.utils.requests import batch_request
 from client.shortcuts import get_client_by_request
 
 
-def _job_get_scripts_data(request, biz_cc_id=None):
+def job_get_scripts_data(request, biz_cc_id=None):
     """
     根据请求拉取脚本
     """

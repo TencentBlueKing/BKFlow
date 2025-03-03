@@ -26,7 +26,7 @@ from bkflow.pipeline_plugins.query.utils import query_response_handler
 from bkflow.utils.requests import batch_request
 from client.shortcuts import get_client_by_request
 
-from .utils import _job_get_scripts_data
+from .utils import job_get_scripts_data
 
 
 @swagger_auto_schema(methods=["GET"])
@@ -57,7 +57,7 @@ def job_get_public_script_name_list(request):
     """
     根据请求拉取Job平台公共脚本
     """
-    script_list = _job_get_scripts_data(request)
+    script_list = job_get_scripts_data(request)
     script_names = []
     for script in script_list:
         if script.get("online_script_version_id"):
@@ -72,7 +72,7 @@ def job_get_script_name_list(request, biz_cc_id):
     """
     根据请求拉取Job平台对应业务脚本
     """
-    script_list = _job_get_scripts_data(request, biz_cc_id)
+    script_list = job_get_scripts_data(request, biz_cc_id)
     script_names = []
     for script in script_list:
         if script.get("online_script_version_id"):
