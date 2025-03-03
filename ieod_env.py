@@ -21,3 +21,6 @@ import os
 
 # JOB 平台配置
 BK_JOB_HOST = os.getenv("BK_JOB_HOST", "")
+# 网关环境配置
+BK_JOB_APIGW_STAGE = os.getenv("BK_JOB_APIGW_STAGE", "")
+BK_CMDB_APIGW_STAGE = os.getenv("BK_CMDB_APIGW_STAGE", "")

@@ -205,11 +205,6 @@ PAASV3_APIGW_API_HOST = env.BK_APIGW_URL_TMPL.format(
 )
 PLUGIN_APIGW_API_HOST_FORMAT = env.BK_APIGW_URL_TMPL
 
-BK_JOB_APIGW_STAGE = env.BK_JOB_APIGW_STAGE
-BK_CMDB_APIGW_STAGE = env.BK_CMDB_APIGW_STAGE
-if env.BKPAAS_ENGINE_REGION == "ieod":
-    BK_JOB_HOST = env.BK_JOB_HOST
-
 # 忽略 example 插件
 ENABLE_EXAMPLE_COMPONENTS = False
 
@@ -221,6 +216,12 @@ STATIC_VERSION = "1.0.0"
 DEPLOY_DATETIME = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
+
+# 网关 API 环境配置
+BK_JOB_APIGW_STAGE = env.BK_JOB_APIGW_STAGE
+BK_CMDB_APIGW_STAGE = env.BK_CMDB_APIGW_STAGE
+if env.BKPAAS_ENGINE_REGION == "ieod":
+    BK_JOB_HOST = env.BK_JOB_HOST
 
 # CELERY 开关，使用时请改为 True，修改项目目录下的 Procfile 文件，添加以下两行命令：
 # worker: python manage.py celery worker -l info

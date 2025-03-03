@@ -39,7 +39,8 @@ DEFAULT_STAGE = settings.BK_APIGW_STAGE_NAME
 
 
 def get_client_by_request(request, stage=DEFAULT_STAGE, common_args=None, headers=None):
-    """根据当前请求返回一个client
+    """
+    根据当前请求返回一个client
     :param request: 一个django request实例
     :param stage: 请求环境，默认为prod
     :param common_args: 公共请求参数
@@ -72,7 +73,8 @@ def get_client_by_request(request, stage=DEFAULT_STAGE, common_args=None, header
 
 
 def get_client_by_user(user, stage=DEFAULT_STAGE, common_args=None, headers=None):
-    """根据user实例返回一个client
+    """
+    根据user实例返回一个client
     :param user: 用户
     :param stage: 请求环境，默认为prod
     :param common_args: 公共请求参数
