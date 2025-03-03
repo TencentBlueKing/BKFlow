@@ -615,7 +615,7 @@
           await this.loadAtomConfig({
             classify,
             name: this.atomType,
-            project_id: this.common ? undefined : this.project_id,
+            space_id: this.spaceId,
             version,
             atom,
           });
