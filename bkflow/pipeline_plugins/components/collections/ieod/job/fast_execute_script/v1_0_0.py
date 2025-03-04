@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 """
 
 import base64
+import re
 import traceback
 
 from django.utils import translation
@@ -56,8 +57,14 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
 
     __need_schedule__ = True
     biz_scope_type = JobBizScopeType.BIZ.value
+    ip_pattern = re.compile(
+        r"(?:(?P<region>\d+):)?(?P<ip>(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})){3})$"  # noqa: E501
+    )
 
     def get_tagged_ip_dict(self, data, parent_data, job_instance_id):
+        """
+        暂时未启用 ip 分组功能
+        """
         result, tagged_ip_dict = get_job_tagged_ip_dict_complex(
             data.outputs.client,
             self.logger,
@@ -179,12 +186,31 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
             ),
         ]
 
+    def parse_ip_info(self, ip_info_list):
+        parsed_ips = []
+        # 更严格的正则表达式来匹配 IPv4 地址
+
+        for ip_info in ip_info_list:
+            match = self.ip_pattern.match(ip_info)
+            if match:
+                region = match.group("region") if match.group("region") else "0"
+                ip = match.group("ip")
+                parsed_ips.append([region, ip])
+            else:
+                # 处理不符合格式的情况
+                raise ValueError(f"不正确的管控区域和ip格式: {ip_info}")
+
+        return parsed_ips
+
     def get_target_server(self, client, biz_cc_id, ip_info: list):
         """
         根据业务和传入的主机信息进行检查校验 支持云管控区域 以逗号分隔一组对象 以冒号分隔 管控区域:主机ip
         """
-        # TODO: 这里的切割不严谨
-        ips = [ip.split(":", 1) if ":" in ip else [0, ip] for ip in ip_info]
+        try:
+            ips = self.parse_ip_info(ip_info)
+        except ValueError as e:
+            self.logger.error(str(e))
+            return None, str(e)
         err_msg = "目标主机未找到"
         host_property_filter = {
             "condition": "OR",
@@ -234,7 +260,7 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
         if parent_data.get_one_of_inputs("language"):
             setattr(job_client, "language", parent_data.get_one_of_inputs("language"))
             translation.activate(parent_data.get_one_of_inputs("language"))
-        biz_cc_id = data.get_one_of_inputs("biz_cc_id", parent_data.get_one_of_inputs("biz_cc_id"))
+        biz_cc_id = data.get_one_of_inputs("biz_cc_id")
         script_source = data.get_one_of_inputs("job_script_source")
         ip_info = data.get_one_of_inputs("job_ip_list")
         job_rolling_config = data.get_one_of_inputs("job_rolling_config", {})
@@ -378,10 +404,9 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
                         "show_ip_log": True,
                     },
                 )
-
             client = data.outputs.client
 
-            bk_biz_id = data.get_one_of_inputs("biz_cc_id", parent_data.get_one_of_inputs("biz_cc_id"))
+            bk_biz_id = data.get_one_of_inputs("biz_cc_id")
             # 全局变量重载
             get_var_kwargs = {
                 "bk_scope_type": self.biz_scope_type,
@@ -410,10 +435,10 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
                         data.set_outputs(global_var["name"], global_var["value"])
 
             get_job_bkflow_var_dict_return = get_job_bkflow_var_dict(
-                data.outputs.client,
+                client,
                 self.logger,
                 job_instance_id,
-                data.get_one_of_inputs("biz_cc_id", parent_data.get_one_of_inputs("biz_cc_id")),
+                data.get_one_of_inputs("biz_cc_id"),
                 self.biz_scope_type,
             )
             if not get_job_bkflow_var_dict_return["result"]:
