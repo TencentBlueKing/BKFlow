@@ -24,7 +24,7 @@ from django_filters import FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from pipeline.component_framework.models import ComponentModel
 
-from bkflow.plugin.permissions import TokenPluginPermissions
+from bkflow.plugin.permissions import PluginSpaceSuperuserPermission, PluginTokenPermissions
 from bkflow.plugin.serializers.comonent import (
     ComponentListQuerySerializer,
     ComponentModelDetailSerializer,
@@ -35,7 +35,6 @@ from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 from bkflow.space.configs import SpacePluginConfig
 from bkflow.space.models import SpaceConfig
-from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import ReadOnlyViewSet
@@ -57,7 +56,7 @@ class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
     filterset_class = ComponentModelFilter
     pagination_class = None
     lookup_field = "code"
-    permission_classes = [AdminPermission | SpaceSuperuserPermission | TokenPluginPermissions]
+    permission_classes = [AdminPermission | PluginSpaceSuperuserPermission | PluginTokenPermissions]
 
     def get_queryset(self):
         queryset = super().get_queryset()
