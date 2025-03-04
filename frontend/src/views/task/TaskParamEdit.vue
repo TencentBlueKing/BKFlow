@@ -87,6 +87,7 @@
     },
     computed: {
       ...mapState({
+        spaceId: state => state.template.spaceId,
         atomFormConfig: state => state.atomForm.config,
       }),
       ...mapState('project', {
@@ -170,7 +171,7 @@
             if (pluginCode) {
               atomConfig = await this.getThirdPartyAtomConfig(pluginCode, version);
             } else {
-              await this.loadAtomConfig({ name, atom, classify, version, project_id: this.project_id });
+              await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
               atomConfig = tools.deepClone(this.atomFormConfig[atom][version]);
             }
           }
@@ -354,7 +355,7 @@
                 if (pluginCode) {
                   atomConfig = await this.getThirdPartyAtomConfig(pluginCode, version);
                 } else {
-                  await this.loadAtomConfig({ name, atom, classify, version, project_id: this.project_id });
+                  await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
                   atomConfig = this.atomFormConfig[atom][version];
                 }
               }

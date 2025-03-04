@@ -21,12 +21,15 @@ to the current version of the project delivered to anyone in the future.
 
 import re
 
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.library import ComponentLibrary
 from pipeline.component_framework.models import ComponentModel
 from pipeline.exceptions import ComponentNotExistException
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound
+
+from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 
 group_en_pattern = re.compile(r"(?:\()(.*)(?:\))")
 
@@ -97,6 +100,17 @@ class ComponentListQuerySerializer(serializers.Serializer):
     space_id = serializers.CharField(help_text="空间ID")
     scope_type = serializers.CharField(help_text="空间下scope类型", required=False)
     scope_id = serializers.CharField(help_text="空间下scope ID", required=False)
+
+
+class ComponentDetailQuerySerializer(serializers.Serializer):
+    space_id = serializers.CharField(help_text="空间ID")
+
+    def validate_space_id(self, space_id):
+        plugin_code = self.context["plugin_code"]
+        space_allow_list = SpacePluginConfigModel.objects.get_space_allow_list(space_id)
+        if plugin_code in settings.SPACE_PLUGIN_LIST and plugin_code not in space_allow_list:
+            raise serializers.ValidationError(_("插件 {} 不在空间 {} 的插件白名单中").format(plugin_code, space_id))
+        return space_id
 
 
 class ComponentModelDetailSerializer(ComponentModelSerializer):

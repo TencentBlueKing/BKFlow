@@ -564,7 +564,6 @@
        */
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
-        const projectId = this.componentValue.template_source === 'common' ? undefined : this.project_id;
         try {
           // 先取标准节点缓存的数据
           const pluginGroup = this.pluginConfigs[plugin];
@@ -594,7 +593,7 @@
           if (isThird) {
             await this.getThirdConfig(plugin, version);
           } else {
-            await this.loadAtomConfig({ atom: plugin, version, classify, name, project_id: projectId });
+            await this.loadAtomConfig({ atom: plugin, version, classify, name, space_id: this.spaceId });
             this.outputs = this.pluginOutput[plugin][version];
           }
           const config = $.atoms[plugin];
