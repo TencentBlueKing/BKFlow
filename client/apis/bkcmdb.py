@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,23 +17,28 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-import logging
-from functools import wraps
-
-from rest_framework.response import Response
-
-logger = logging.getLogger("root")
+from .. import config
+from ..base import RequestAPI
 
 
-def query_response_handler(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            data = func(*args, **kwargs)
-        except Exception as e:
-            logger.exception(f"call query function {func.__name__} error: {e}")
-            return Response({"result": False, "message": str(e), "data": None})
+class CollectionsBKCMDB(object):
+    def __init__(self, client):
 
-        return Response({"result": True, "message": "", "data": data})
+        self.client = client
+        self.host = config.HOST.format(api_name="bk-cmdb")
 
-    return wrapper
+        self.search_business = RequestAPI(
+            client=self.client,
+            method="POST",
+            host=self.host,
+            path="/{stage}/api/{bk_apigw_ver}/biz/search/-",
+            description="查询业务列表",
+        )
+
+        self.list_biz_hosts = RequestAPI(
+            client=self.client,
+            method="POST",
+            host=self.host,
+            path="/{stage}/api/{bk_apigw_ver}/hosts/app/{bk_biz_id}/list_hosts",
+            description="查询业务下的主机",
+        )

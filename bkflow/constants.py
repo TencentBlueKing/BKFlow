@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import re
 from enum import Enum
 
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 
 MAX_LEN_OF_TASK_NAME = 128
@@ -108,3 +109,7 @@ class WebhookEventType(Enum):
     TEMPLATE_CREATE = "template_create"
     TASK_FAILED = "task_failed"
     TASK_FINISHED = "task_finished"
+
+
+if settings.RUN_VER == "ieod":
+    from .ieod_constants import *  # noqa: F403, F401

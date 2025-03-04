@@ -19,7 +19,8 @@ to the current version of the project delivered to anyone in the future.
 """
 
 
-from django.conf.urls import url
+from django.conf import settings
+from django.conf.urls import include, url
 
 from .select import variable_select_source_data_proxy
 from .uniform_api import uniform_api
@@ -30,3 +31,6 @@ urlpatterns = [
     url(r"^uniform_api/meta/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_meta),
     url(r"^variable_select_source_data_proxy/$", variable_select_source_data_proxy),
 ]
+
+if settings.RUN_VER == "ieod":
+    urlpatterns += [url(r"^", include("bkflow.pipeline_plugins.query.ieod.urls"))]

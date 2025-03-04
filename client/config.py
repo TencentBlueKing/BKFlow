@@ -18,23 +18,12 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-import logging
-from functools import wraps
 
-from rest_framework.response import Response
+# 判断是否在Django环境下，如果在Django环境下，默认从settings中读取配置信息，否则，使用默认配置
+# 客户端可采用import后再修改的方式来改变配置
 
-logger = logging.getLogger("root")
+from django.conf import settings
 
-
-def query_response_handler(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            data = func(*args, **kwargs)
-        except Exception as e:
-            logger.exception(f"call query function {func.__name__} error: {e}")
-            return Response({"result": False, "message": str(e), "data": None})
-
-        return Response({"result": True, "message": "", "data": data})
-
-    return wrapper
+APP_CODE = settings.APP_CODE
+SECRET_KEY = settings.SECRET_KEY
+HOST = settings.PLUGIN_APIGW_API_HOST_FORMAT

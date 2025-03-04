@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,23 +17,19 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-import logging
-from functools import wraps
 
-from rest_framework.response import Response
-
-logger = logging.getLogger("root")
+class BaseException(Exception):
+    pass
 
 
-def query_response_handler(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            data = func(*args, **kwargs)
-        except Exception as e:
-            logger.exception(f"call query function {func.__name__} error: {e}")
-            return Response({"result": False, "message": str(e), "data": None})
+class APIException(BaseException):
+    """Exception for API"""
 
-        return Response({"result": True, "message": "", "data": data})
+    def __init__(self, error_message, resp=None, url=""):
+        self.url = url
+        self.error_message = error_message
+        self.resp = resp
 
-    return wrapper
+        if self.resp is not None:
+            error_message = "%s, resp=%s" % (error_message, self.resp.text)
+        super(APIException, self).__init__(error_message)

@@ -137,3 +137,6 @@ BK_DOC_CENTER_HOST = os.getenv("BK_DOC_CENTER_HOST", os.getenv("BK_DOCS_URL_PREF
 
 # APP 白名单
 APP_WHITE_LIST_STR = os.getenv("BKAPP_APP_WHITE_LIST", "")  # 逗号分隔的字符串
+
+if BKPAAS_ENGINE_REGION == "ieod":
+    from ieod_env import *  # noqa: F403, F401
