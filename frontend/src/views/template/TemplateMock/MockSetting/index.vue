@@ -526,7 +526,7 @@
           const outputs = [];
           // 获取第三方插件公共输出参数
           if (!this.pluginOutput.remote_plugin) {
-            await this.loadAtomConfig({ atom: 'remote_plugin', version: '1.0.0' });
+            await this.loadAtomConfig({ atom: 'remote_plugin', version: '1.0.0', space_id: this.spaceId });
           }
           const storeOutputs = this.pluginOutput.remote_plugin['1.0.0'];
           for (const [key, val] of Object.entries(respOutputs.properties)) {
