@@ -58,15 +58,19 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
     __need_schedule__ = True
     biz_scope_type = JobBizScopeType.BIZ.value
     ip_pattern = re.compile(
-        r"(?:(?P<region>\d+):)?(?P<ip>(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})){3})$"  # noqa: E501
+        r"(?:(?P<region>\d+):)?"
+        r"(?P<ip>(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})"
+        r"(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})){3})"
     )
 
     def get_tagged_ip_dict(self, data, parent_data, job_instance_id):
         """
         暂时未启用 ip 分组功能
         """
+        executor = parent_data.get_one_of_inputs("executor")
+        job_client = get_client_by_user(executor, stage=settings.BK_JOB_APIGW_STAGE)
         result, tagged_ip_dict = get_job_tagged_ip_dict_complex(
-            data.outputs.client,
+            job_client,
             self.logger,
             job_instance_id,
             data.get_one_of_inputs("biz_cc_id", parent_data.get_one_of_inputs("biz_cc_id")),
@@ -186,19 +190,16 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
             ),
         ]
 
-    def parse_ip_info(self, ip_info_list):
+    def parse_ip_info(self, ip_info_string):
+        matches = self.ip_pattern.finditer(ip_info_string)
+        if not matches:
+            raise ValueError(f"非法的管控区域和ip格式: {ip_info_string}")
         parsed_ips = []
-        # 更严格的正则表达式来匹配 IPv4 地址
 
-        for ip_info in ip_info_list:
-            match = self.ip_pattern.match(ip_info)
-            if match:
-                region = match.group("region") if match.group("region") else "0"
-                ip = match.group("ip")
-                parsed_ips.append([region, ip])
-            else:
-                # 处理不符合格式的情况
-                raise ValueError(f"不正确的管控区域和ip格式: {ip_info}")
+        for match in matches:
+            region = match.group("region") if match.group("region") else "0"
+            ip = match.group("ip")
+            parsed_ips.append([region, ip])
 
         return parsed_ips
 
@@ -267,7 +268,7 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
         job_rolling_execute = job_rolling_config.get("job_rolling_execute", None)
         # 获取 IP
 
-        target_server, err_msg = self.get_target_server(cc_client, biz_cc_id, ip_info.split(","))
+        target_server, err_msg = self.get_target_server(cc_client, biz_cc_id, ip_info)
         if not target_server:
             data.outputs.ex_data = f"获取目标主机失败: {err_msg}"
             return False
@@ -363,7 +364,6 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
             data.outputs.job_inst_id = job_instance_id
             data.outputs.job_inst_name = job_result["data"]["job_instance_name"]
             data.outputs.job_inst_url = get_job_instance_url(job_instance_id)
-            data.outputs.client = job_client
             return True
         else:
             message = job_handle_api_error("jobv3.fast_execute_script", job_kwargs, job_result)
@@ -404,7 +404,8 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
                         "show_ip_log": True,
                     },
                 )
-            client = data.outputs.client
+            executor = parent_data.get_one_of_inputs("executor")
+            client = get_client_by_user(executor, stage=settings.BK_JOB_APIGW_STAGE)
 
             bk_biz_id = data.get_one_of_inputs("biz_cc_id")
             # 全局变量重载
