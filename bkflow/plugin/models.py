@@ -20,24 +20,29 @@ to the current version of the project delivered to anyone in the future.
 
 from django.db import models
 
-from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
+
+class SpacePluginConfigManager(models.Manager):
+    def get_space_allow_list(self, space_id):
+        qs = self.filter(space_id=space_id)
+        if not qs.exists():
+            return []
+        return qs.first().allow_list
 
 
 class SpacePluginConfig(models.Model):
     """
-    空间插件配置, Deprecated, 使用 SpaceConfig 替代
-    config格式如:
-    {
-        "default": {"mode": "allow_list", "plugin_codes": ["plugin1", "plugin2"]},
-        "{scope_type}_{scope_id}": {"mode": "deny_list", "plugin_codes": ["plugin3"]
-    }
-    default 字段必须存在，表示默认配置，落库之前通过SpacePluginConfigParser进行校验
+    插件空间配置, 系统级配置，用于限制内置插件的空间使用范围
+    config格式如: {"allow_list": ["plugin_code1", "plugin_code2"]}
     """
+
+    ALLOW_LIST = "allow_list"
 
     space_id = models.IntegerField(verbose_name="空间ID", db_index=True)
     config = models.JSONField(verbose_name="插件配置")
     create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     update_time = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    objects = SpacePluginConfigManager()
 
     class Meta:
         verbose_name = "空间插件配置"
@@ -46,7 +51,6 @@ class SpacePluginConfig(models.Model):
     def __str__(self):
         return f"{self.space_id}: {self.config}"
 
-    def clean(self):
-        parser = SpacePluginConfigParser(self.config)
-        parser.is_valid(raise_exception=True)
-        return
+    @property
+    def allow_list(self):
+        return self.config.get(self.ALLOW_LIST, [])

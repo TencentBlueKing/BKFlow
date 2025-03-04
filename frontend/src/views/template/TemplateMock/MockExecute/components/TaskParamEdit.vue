@@ -135,7 +135,7 @@
             } else if (pluginCode) {
               atomConfig = await this.getThirdPartyAtomConfig(pluginCode, version);
             } else {
-              await this.loadAtomConfig({ name, atom, classify, version, project_id: this.project_id });
+              await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
               atomConfig = tools.deepClone(this.atomFormConfig[atom][version]);
             }
           }

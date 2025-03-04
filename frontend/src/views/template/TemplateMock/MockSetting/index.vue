@@ -448,7 +448,6 @@
        */
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
-        const projectId = this.componentValue.template_source === 'common' ? undefined : this.project_id;
         try {
           // 先取标准节点缓存的数据
           const pluginGroup = this.pluginConfigs[plugin];
@@ -461,7 +460,7 @@
             const { api_meta: apiMeta } = this.nodeConfig.component || {};
             if (!apiMeta) return;
             // 统一api基础配置
-            await this.loadAtomConfig({ atom: plugin, version, project_id: projectId });
+            await this.loadAtomConfig({ atom: plugin, version, space_id: this.spaceId });
             // api插件配置
             const resp = await this.loadUniformApiMeta({
               spaceId: this.spaceId,
@@ -488,7 +487,7 @@
               version,
               classify,
               name,
-              project_id: projectId,
+              space_id: this.spaceId,
             });
             this.outputs = this.pluginOutput[plugin][version];
           }

@@ -84,6 +84,7 @@
     },
     computed: {
       ...mapState({
+        spaceId: state => state.template.spaceId,
         atomFormConfig: state => state.atomForm.config,
       }),
       ...mapState('project', {
@@ -156,7 +157,7 @@
               const { constants } = this.componentValue.pipeline;
               this.renderConfig = await this.getSubflowInputsConfig(constants);
             } else {
-              await this.loadAtomConfig({ atom: type, version, project_id: this.project_id });
+              await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
               this.renderConfig = this.atomFormConfig[type][version];
             }
           } catch (e) {
@@ -234,7 +235,7 @@
           if (pluginGroup && pluginGroup[version]) {
             return pluginGroup[version];
           }
-          await this.loadAtomConfig({ atom: plugin, version, classify, name, project_id: this.project_id });
+          await this.loadAtomConfig({ atom: plugin, version, classify, name, space_id: this.spaceId });
           const config = $.atoms[plugin];
           return config;
         } catch (e) {

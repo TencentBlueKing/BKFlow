@@ -208,6 +208,9 @@ PLUGIN_APIGW_API_HOST_FORMAT = env.BK_APIGW_URL_TMPL
 # 忽略 example 插件
 ENABLE_EXAMPLE_COMPONENTS = False
 
+# 特定空间插件列表
+SPACE_PLUGIN_LIST = env.SPACE_PLUGIN_LIST_STR.split(",") if env.SPACE_PLUGIN_LIST_STR else []
+
 # 静态资源文件(js,css等）在APP上线更新后, 由于浏览器有缓存,
 # 可能会造成没更新的情况. 所以在引用静态资源的地方，都把这个加上
 # Django 模板中：<script src="/a.js?v="></script>
