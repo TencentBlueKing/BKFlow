@@ -21,8 +21,6 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.utils.translation import ugettext_lazy as _
-from iam.contrib.http import HTTP_AUTH_FORBIDDEN_CODE
-from iam.exceptions import RawAuthFailedException
 
 from bkflow.exceptions import APIRequestError
 from bkflow.utils.handlers import handle_api_error
@@ -31,12 +29,6 @@ from .thread import ThreadPool
 
 logger = logging.getLogger("root")
 logger_celery = logging.getLogger("celery")
-
-
-def check_and_raise_raw_auth_fail_exception(result: dict, message=None):
-    if result.get("code", 0) == HTTP_AUTH_FORBIDDEN_CODE:
-        logger.warning(message or result.get("message", "[check_and_raise_raw_auth_fail_exception]"))
-        raise RawAuthFailedException(permissions=result.get("permission", {}))
 
 
 def local_wrapper(target_func, request_params, node_id=None, node_info=None):
@@ -98,8 +90,6 @@ def batch_request(
     if not result["result"]:
         message = handle_api_error("[batch_request]", func.path, params, result)
         logger.error(message)
-        if check_iam_auth_fail:
-            check_and_raise_raw_auth_fail_exception(result, message)
         raise APIRequestError(message)
 
     count = get_count(result)
@@ -137,8 +127,6 @@ def batch_request(
         if not result:
             message = handle_api_error("[batch_request]", func.path, params_and_future["params"], result)
             logger.error(message)
-            if check_iam_auth_fail:
-                check_and_raise_raw_auth_fail_exception(result, message)
             raise APIRequestError(message)
 
         try:
