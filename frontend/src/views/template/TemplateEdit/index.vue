@@ -678,7 +678,7 @@
         // 接口获取最新配置信息
         this.atomConfigLoading = true;
         try {
-          await this.loadAtomConfig({ atom: code, version });
+          await this.loadAtomConfig({ atom: code, version, space_id: this.spaceId });
           const config = this.atomConfig[code] && this.atomConfig[code][version];
           if (config) {
             this.addSingleAtomActivities(location, config);
@@ -711,7 +711,7 @@
             // 全局变量版本
             const version = form.version || 'legacy';
             if (!atomFilter.isConfigExists(atom, version, this.atomConfig)) {
-              await this.loadAtomConfig({ name, atom, classify, version });
+              await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
             }
             const atomConfig = this.atomConfig[atom][version];
             let currentFormConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));

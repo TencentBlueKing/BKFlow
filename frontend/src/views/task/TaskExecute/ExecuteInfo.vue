@@ -679,7 +679,7 @@
           this.isRenderOutputForm = true;
         } else {
           try {
-            const res = await this.loadAtomConfig({ atom: type, version });
+            const res = await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
             // api插件输入输出
             if (this.pluginCode === 'uniform_api') {
               const { api_meta: apiMeta } = this.nodeActivity.component || {};
