@@ -4,13 +4,14 @@
       {{ $t('输入参数') }}
     </h4>
     <div class="input-wrap">
-      <template v-if="isDmnPlugin">
-        <dmn-input-params
-          v-if="Object.keys(inputsFormData).length"
+      <template v-if="isSpecialPlugin">
+        <SpecialPluginInputForm
           :value="inputsFormData"
+          :code="pluginCode"
           :is-view-mode="true"
           :space-id="spaceId"
           :template-id="templateId"
+          :variable-list="variableList"
           @updateOutputs="$emit('updateOutputs', $event)" />
       </template>
       <template v-else-if="Array.isArray(inputs)">
@@ -105,14 +106,14 @@
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
-  import DmnInputParams from '@/views/template/TemplateEdit/NodeConfig/DmnInputParams/index.vue';
+  import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
 
   export default {
     components: {
       RenderForm,
       JsonschemaInputParams,
       NoData,
-      DmnInputParams,
+      SpecialPluginInputForm,
     },
     props: {
       nodeConfig: {
@@ -205,9 +206,16 @@
         });
         return list;
       },
-      isDmnPlugin() {
-        const compCode = this.nodeConfig.component.code;
-        return compCode && compCode === 'dmn_plugin';
+      pluginCode() {
+        const { code = '' } = this.nodeConfig.component || {};
+        return code;
+      },
+      // 特殊输入参数插件
+      isSpecialPlugin() {
+        return ['dmn_plugin', 'value_assign'].includes(this.pluginCode);
+      },
+      variableList() {
+        return [...Object.values(this.constants)];
       },
     },
     methods: {

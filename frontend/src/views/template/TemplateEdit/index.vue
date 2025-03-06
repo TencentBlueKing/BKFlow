@@ -35,7 +35,6 @@
         :exclude-node="excludeNode"
         :execute-scheme-saving="executeSchemeSaving"
         @jumpToTemplateMock="jumpToTemplateMock"
-        @onDownloadCanvas="onDownloadCanvas"
         @goBackViewMode="goBackViewMode"
         @goBackToTplEdit="goBackToTplEdit"
         @onClosePreview="onClosePreview"
@@ -63,9 +62,6 @@
           :show-palette="!isViewMode"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
-          :common="common"
-          :atom-type-list="atomTypeList"
-          :template-labels="templateLabels"
           @onLineChange="onLineChange"
           @onLocationChange="onLocationChange"
           @onLocationMoveDone="onLocationMoveDone"
@@ -74,7 +70,7 @@
           @templateDataChanged="templateDataChanged"
           @onConditionClick="onOpenConditionEdit"
           @onShowNodeConfig="onShowNodeConfig"
-          @updateCondition="updateCondition" />
+          @updateCondition="setBranchCondition($event)" />
       </template>
       <!-- <TaskSelectNode
         v-else
@@ -464,6 +460,7 @@
         const data = this.getTplTabData();
         if (val === 'edit') {
           tplTabCount.setTab(data, 'add');
+          this.snapshoots = this.getTplSnapshoots();
         } else {
           tplTabCount.setTab(data, 'del');
         }
@@ -565,10 +562,10 @@
         // 获取流程内置变量
         this.getSystemVars();
         this.templateDataLoading = true;
-        this.snapshoots = this.getTplSnapshoots();
         if (['edit', 'clone', 'view'].includes(this.type)) {
           await this.getTemplateData();
           this.getSingleAtomList();
+          this.snapshoots = this.getTplSnapshoots();
         } else {
           let name = `new${moment.tz(this.timeZone).format('YYYYMMDDHHmmss')}`;
           if (this.common) {
@@ -681,7 +678,7 @@
         // 接口获取最新配置信息
         this.atomConfigLoading = true;
         try {
-          await this.loadAtomConfig({ atom: code, version });
+          await this.loadAtomConfig({ atom: code, version, space_id: this.spaceId });
           const config = this.atomConfig[code] && this.atomConfig[code][version];
           if (config) {
             this.addSingleAtomActivities(location, config);
@@ -714,7 +711,7 @@
             // 全局变量版本
             const version = form.version || 'legacy';
             if (!atomFilter.isConfigExists(atom, version, this.atomConfig)) {
-              await this.loadAtomConfig({ name, atom, classify, version });
+              await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
             }
             const atomConfig = this.atomConfig[atom][version];
             let currentFormConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
@@ -1361,7 +1358,6 @@
           this.canvasDataLoading = false;
         }
       },
-      updateCondition() {},
       /**
        * 节点变更(添加、删除、编辑)
        * @param {String} changeType 变更类型,添加、删除、编辑
@@ -1447,6 +1443,8 @@
           case 'parallel-gateway':
           case 'converge-gateway':
           case 'conditional-parallel-gateway':
+            // 添加语法标识
+            location.parseLang = this.spaceRelatedConfig.gateway_expression;
             this.setGateways({ type, location });
             break;
           case 'startpoint':
@@ -1563,9 +1561,12 @@
         if (data?.oldSouceId) {
           line.oldSouceId = data.oldSouceId;
         }
-        // 添加FEEL语法标识
-        if (type === 'add' && this.spaceRelatedConfig.gateway_expression === 'FEEL') {
-          line.isFeel = true;
+        // 添加语法标识
+        line.parseLang = this.spaceRelatedConfig.gateway_expression;
+        const gatewayInfo = this.gateways[line.source.id];
+        if (gatewayInfo) {
+          const { parse_lang: parseLang } = gatewayInfo.extra_info || {};
+          line.parseLang = parseLang;
         }
         this.setLine({ type, line });
         // 对校验失败节点进行处理
@@ -1657,9 +1658,6 @@
             },
           });
         }
-      },
-      onDownloadCanvas() {
-        this.$refs.processCanvas.onDownloadCanvas();
       },
       async onSaveExecuteSchemeClick(isDefault) {
         try {

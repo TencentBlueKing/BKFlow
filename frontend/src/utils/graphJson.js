@@ -150,6 +150,7 @@ export const graphToJson = (canvasData) => {
             width: 6,
             height: 8,
           },
+          class: id,
         },
       },
       zIndex: 0,
@@ -159,6 +160,7 @@ export const graphToJson = (canvasData) => {
           padding: 1,
         },
       },
+      data: {},
     });
     return acc;
   }, []) || [];

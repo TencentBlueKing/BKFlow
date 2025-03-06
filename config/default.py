@@ -22,6 +22,7 @@ import base64
 import datetime
 import json
 
+from bamboo_engine.config import Settings as BambooSettings
 from blueapps.conf.default_settings import *  # noqa
 from blueapps.conf.log import get_logging_config_dict
 from blueapps.opentelemetry.utils import inject_logging_trace_info
@@ -84,6 +85,8 @@ APP_INTERNAL_SPACE_ID_HEADER_KEY = "Bkflow-Internal-Space-Id"
 APP_INTERNAL_FROM_SUPERUSER_HEADER_KEY = "Bkflow-Internal-From-SuperUser"
 APP_INTERNAL_TOKEN_REQUEST_META_KEY = "HTTP_BKFLOW_INTERNAL_TOKEN"
 
+APP_WHITE_LIST = env.APP_WHITE_LIST_STR.split(",") if env.APP_WHITE_LIST_STR else []
+
 # PAAS SERVICE DETECTION
 BKPAAS_SERVICE_ADDRESSES_BKSAAS = os.getenv("BKPAAS_SERVICE_ADDRESSES_BKSAAS")
 BKSAAS_DEFAULT_MODULE_NAME = "default"
@@ -128,6 +131,62 @@ PIPELINE_INSTANCE_CONTEXT = "bkflow.task.context.get_task_context"
 UUID_DIGIT_STARTS_SENSITIVE = True
 PIPELINE_EXCLUSIVE_GATEWAY_EXPR_FUNC = pipeline_gateway_expr_func
 
+# pipeline mako render settings
+MAKO_SANDBOX_SHIELD_WORDS = [
+    "ascii",
+    "bytearray",
+    "bytes",
+    "callable",
+    "chr",
+    "classmethod",
+    "compile",
+    "delattr",
+    "dir",
+    "divmod",
+    "exec",
+    "eval",
+    "filter",
+    "frozenset",
+    "getattr",
+    "globals",
+    "hasattr",
+    "hash",
+    "help",
+    "id",
+    "input",
+    "isinstance",
+    "issubclass",
+    "iter",
+    "locals",
+    "map",
+    "memoryview",
+    "next",
+    "object",
+    "open",
+    "print",
+    "property",
+    "repr",
+    "setattr",
+    "staticmethod",
+    "super",
+    "type",
+    "vars",
+    "__import__",
+]
+BambooSettings.MAKO_SANDBOX_SHIELD_WORDS = MAKO_SANDBOX_SHIELD_WORDS
+MAKO_SANDBOX_IMPORT_MODULES = {
+    "datetime": "datetime",
+    "re": "re",
+    "hashlib": "hashlib",
+    "random": "random",
+    "time": "time",
+    "os.path": "os.path",
+    "json": "json",
+}
+BambooSettings.MAKO_SANDBOX_IMPORT_MODULES = MAKO_SANDBOX_IMPORT_MODULES
+# 支持 mako 表达式在 dict/list/tuple 情况下嵌套索引
+BambooSettings.ENABLE_RENDER_OBJ_BY_MAKO_STRING = True
+
 # 所有环境的日志级别可以在这里配置
 # LOG_LEVEL = 'INFO'
 
@@ -146,9 +205,11 @@ PAASV3_APIGW_API_HOST = env.BK_APIGW_URL_TMPL.format(
 )
 PLUGIN_APIGW_API_HOST_FORMAT = env.BK_APIGW_URL_TMPL
 
-
 # 忽略 example 插件
 ENABLE_EXAMPLE_COMPONENTS = False
+
+# 特定空间插件列表
+SPACE_PLUGIN_LIST = env.SPACE_PLUGIN_LIST_STR.split(",") if env.SPACE_PLUGIN_LIST_STR else []
 
 # 静态资源文件(js,css等）在APP上线更新后, 由于浏览器有缓存,
 # 可能会造成没更新的情况. 所以在引用静态资源的地方，都把这个加上
@@ -158,6 +219,12 @@ STATIC_VERSION = "1.0.0"
 DEPLOY_DATETIME = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
+
+# 网关 API 环境配置
+BK_JOB_APIGW_STAGE = env.BK_JOB_APIGW_STAGE
+BK_CMDB_APIGW_STAGE = env.BK_CMDB_APIGW_STAGE
+if env.BKPAAS_ENGINE_REGION == "ieod":
+    BK_JOB_HOST = env.BK_JOB_HOST
 
 # CELERY 开关，使用时请改为 True，修改项目目录下的 Procfile 文件，添加以下两行命令：
 # worker: python manage.py celery worker -l info

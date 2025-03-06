@@ -58,9 +58,6 @@
       <div class="ruler-wrap">
         <div class="title-tag mb5">
           {{ $t('规则配置') }}
-          <i
-            v-bk-tooltips="$t('需保证有且仅有一条规则被命中')"
-            class="common-icon-info" />
         </div>
         <p
           v-if="isPartiallyEdited"
@@ -276,6 +273,13 @@
               || ['is-null', 'not-null'].includes(conditions[0]?.compare)
               || conditions[0]?.right.obj.value;
           });
+          if (!data.records.length) {
+            this.$bkMessage({
+              message: this.$t('请至少完整填写一条规则'),
+              theme: 'error',
+            });
+            return;
+          }
           const params = {
             id: this.decisionId,
             space_id: this.spaceId,
@@ -447,10 +451,6 @@
       font-weight: 600;
       color: #313238;
       margin-bottom: 15px;
-    }
-    .common-icon-info {
-      font-size: 16px;
-      color: #c4c6cc;
     }
     .basic-form {
       /deep/.bk-form-content {

@@ -471,7 +471,7 @@ const template = {
     },
     // 配置分支网关条件
     setBranchCondition(state, condition) {
-      const { id, nodeId, name, value, loc, default_condition: defaultCondition, extraInfo } = condition;
+      const { id, nodeId, name, value, loc, default_condition: defaultCondition } = condition;
       const { conditions } = state.gateways[nodeId];
       if (defaultCondition) {
         state.gateways[nodeId].default_condition = defaultCondition;
@@ -493,16 +493,6 @@ const template = {
           state.gateways[nodeId].default_condition.loc = loc;
         } else if (conditions[id]) {
           conditions[id].loc = loc;
-        }
-      }
-      // 网关分支表达式解析类型字段
-      if (extraInfo) {
-        if (extraInfo.gateway_expression === 'FEEL') {
-          state.gateways[nodeId].extra_info = {
-            parse_lang: 'FEEL',
-          };
-        } else {
-          Vue.delete(state.gateways[nodeId], 'extra_info');
         }
       }
     },
@@ -593,10 +583,13 @@ const template = {
                 evaluate = line.condition.evaluate;
                 name = line.condition.name;
               } else {
-                if (line.isFeel) {
+                if (line.parseLang === 'FEEL') {
                   evaluate = Object.keys(conditions).length ? '1 = 0' : '1 = 1';
                 } else {
                   evaluate = Object.keys(conditions).length ? '1 == 0' : '1 == 1';
+                }
+                if (line.parseLang === 'MAKO') {
+                  evaluate = `\${${evaluate}}`;
                 }
                 const defaultName = i18n.t('条件');
                 const regStr = `^${i18n.t('条件')}[0-9]*$`;
@@ -618,12 +611,6 @@ const template = {
                 tag: `branch_${sourceNode}_${targetNode}`,
               };
               Vue.set(conditions, id, conditionItem);
-              // 如果连线携带空间语法参数则记录到网关配置中
-              if (line.isFeel) {
-                gatewayNode.extra_info = {
-                  parse_lang: 'FEEL',
-                };
-              }
             }
           } else {
             gatewayNode.outgoing = id;
@@ -815,6 +802,16 @@ const template = {
           };
           if (location.type === 'branchgateway' || location.type === 'conditionalparallelgateway') {
             state.gateways[location.id].conditions = {};
+            // 网关分支表达式解析类型字段
+            let { parseLang } = location;
+            const oldGatewayInfo = state.gateways[location.oldSouceId];
+            if (oldGatewayInfo) {
+              const { parse_lang: oldParseLang } = oldGatewayInfo.extra_info || {};
+              parseLang = oldParseLang;
+            }
+            if (['FEEL', 'MAKO'].includes(parseLang)) {
+              state.gateways[location.id].extra_info = { parse_lang: parseLang };
+            }
           }
           if (location.type !== 'convergegateway') {
             state.gateways[location.id].converge_gateway_id = location.convergeGatewayId || '';

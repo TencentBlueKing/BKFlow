@@ -49,9 +49,6 @@
                 width: 100px !important;
                 font-size: 12px;
             }
-            .bk-form-content {
-                margin-left: 100px !important;
-            }
             .bk-form-radio {
                 margin-right: 30px;
                 .bk-radio-text {

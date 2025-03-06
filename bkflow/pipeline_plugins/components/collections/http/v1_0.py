@@ -21,6 +21,7 @@ to the current version of the project delivered to anyone in the future.
 
 from __future__ import absolute_import
 
+import json
 import traceback
 from copy import deepcopy
 
@@ -133,6 +134,8 @@ class HttpRequestService(BKFlowBaseService):
         other = {"headers": {}, "timeout": timeout}
 
         if method.upper() not in ["GET", "HEAD"]:
+            if not isinstance(body, str):
+                body = json.dumps(body)
             other["data"] = body.encode("utf-8")
             other["headers"] = {"Content-type": "application/json"}
 

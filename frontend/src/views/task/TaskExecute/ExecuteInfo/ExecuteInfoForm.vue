@@ -94,12 +94,14 @@
         v-bkloading="{ isLoading: inputLoading, zIndex: 100 }"
         class="input-wrap">
         <template v-if="!inputLoading">
-          <DmnInputParams
-            v-if="isDmnPlugin"
+          <SpecialPluginInputForm
+            v-if="isSpecialPlugin"
             :value="inputsFormData"
+            :code="pluginCode"
             :is-view-mode="true"
             :space-id="spaceId"
             :template-id="templateId"
+            :variable-list="variableList"
             @updateOutputs="updateOutputs" />
           <template v-else-if="Array.isArray(inputs)">
             <render-form
@@ -198,14 +200,14 @@
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
-  import DmnInputParams from '@/views/template/TemplateEdit/NodeConfig/DmnInputParams/index.vue';
+  import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
 
   export default {
     components: {
       RenderForm,
       JsonschemaInputParams,
       NoData,
-      DmnInputParams,
+      SpecialPluginInputForm,
     },
     props: {
       nodeActivity: {
@@ -240,17 +242,13 @@
         type: Number,
         default: 0,
       },
-      isApiPlugin: {
-        type: Boolean,
-        default: false,
-      },
       scopeInfo: {
         type: Object,
         default: () => ({}),
       },
-      isDmnPlugin: {
-        type: Boolean,
-        default: false,
+      pluginCode: {
+        type: String,
+        default: '',
       },
       templateId: {
         type: [Number, String],
@@ -319,6 +317,17 @@
       isAutoOperate() {
         const { ignorable, skippable, retryable, auto_retry: autoRetry } = this.templateConfig;
         return ignorable || skippable || retryable || (autoRetry && autoRetry.enable);
+      },
+      isApiPlugin() {
+        return this.pluginCode === 'uniform_api';
+      },
+      // 特殊输入参数插件
+      isSpecialPlugin() {
+        return ['dmn_plugin', 'value_assign'].includes(this.pluginCode);
+      },
+      variableList() {
+        const constants = this.isSubProcessNode ? this.subflowForms : this.constants;
+        return [...Object.values(constants)];
       },
     },
     mounted() {
@@ -555,7 +564,6 @@
        */
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
-        const projectId = this.componentValue.template_source === 'common' ? undefined : this.project_id;
         try {
           // 先取标准节点缓存的数据
           const pluginGroup = this.pluginConfigs[plugin];
@@ -585,7 +593,7 @@
           if (isThird) {
             await this.getThirdConfig(plugin, version);
           } else {
-            await this.loadAtomConfig({ atom: plugin, version, classify, name, project_id: projectId });
+            await this.loadAtomConfig({ atom: plugin, version, classify, name, space_id: this.spaceId });
             this.outputs = this.pluginOutput[plugin][version];
           }
           const config = $.atoms[plugin];
@@ -623,7 +631,7 @@
           const outputs = [];
           // 获取第三方插件公共输出参数
           if (!this.pluginOutput.remote_plugin) {
-            await this.loadAtomConfig({ atom: 'remote_plugin', version: '1.0.0' });
+            await this.loadAtomConfig({ atom: 'remote_plugin', version: '1.0.0', space_id: this.spaceId });
           }
           const storeOutputs = this.pluginOutput.remote_plugin['1.0.0'];
           for (const [key, val] of Object.entries(respOutputs.properties)) {

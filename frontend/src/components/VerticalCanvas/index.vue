@@ -14,6 +14,7 @@
       @onFrameSelectToggle="isSelectionOpen = $event"
       @onFormatPosition="onFormatPosition"
       @onLocationMoveDone="onLocationMoveDone"
+      @onDownloadCanvas="onDownloadCanvas"
       @onTogglePerspective="onTogglePerspective" />
     <div class="canvas-material-container" />
     <template v-if="graph">
@@ -83,20 +84,6 @@
       showPalette: {
         type: Boolean,
         default: true,
-      },
-      common: {
-        type: [String, Number],
-        default: '',
-      },
-      atomTypeList: {
-        type: Object,
-        default() {
-          return {};
-        },
-      },
-      templateLabels: {
-        type: Array,
-        default: () => ([]),
       },
     },
     data() {
@@ -733,7 +720,7 @@
         // 计算判断节点右边的距离是否够展示气泡卡片
         const nodeDom = this.getNodeElement(`[data-cell-id=${node.id}] .custom-node`);
         if (!nodeDom) return;
-        const { left: nodeLeft, right: nodeRight, top: nodeTop } = nodeDom.getBoundingClientRect();
+        const { width, left: nodeLeft, right: nodeRight, top: nodeTop } = nodeDom.getBoundingClientRect();
         const canvasDom = this.getNodeElement();
         const { left: canvasLeft, top: canvasTop } = canvasDom.getBoundingClientRect();
         // 200节点的气泡卡片展示最小宽度
@@ -743,11 +730,11 @@
         let top = nodeTop - canvasTop - 10;
         let left; let padding;
         if (isRight) {
-          left = nodeRight - canvasLeft + 60;
-          padding = '0 0 0 15px';
+          left = nodeLeft - canvasLeft + width;
+          padding = '0 0 0 10px';
         } else {
-          left = nodeLeft - canvasLeft - 200 + 60;
-          padding = '0 15px 0 0';
+          left = nodeLeft - canvasLeft - 200;
+          padding = '0 10px 0 0';
         }
         top = top > 0 ? top : 0;
         this.nodeTipsPanelPosition = {
@@ -816,15 +803,11 @@
           height: canvasHeight,
           width: canvasWidth,
           cloneBack: (clone) => {
-            clone.style.width = `${canvasWidth}px`;
-            clone.style.height = `${canvasHeight}px`;
-            const canvasDom = clone.querySelector('.x6-graph-svg');
-            canvasDom.style.left = `${offsetX + 30}px`;
-            canvasDom.style.top = `${offsetY + 30}px`;
-            canvasDom.style.right = `${0}px`;
-            canvasDom.style.bottom = `${0}px`;
-            canvasDom.style.transform = 'inherit';
-            canvasDom.style.border = 0;
+            const svgCloneDom = clone.querySelector('.x6-graph-svg');
+            svgCloneDom.style.width = `${canvasWidth}px`;
+            svgCloneDom.style.height = `${canvasHeight}px`;
+            const viewCloneDom = clone.querySelector('.x6-graph-svg-viewport');
+            viewCloneDom.style.transform = `translate(${`${offsetX + 30}px`}, ${`${offsetY + 30}px`})`;
           },
         });
       },

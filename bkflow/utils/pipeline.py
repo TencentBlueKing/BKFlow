@@ -23,6 +23,8 @@ from bamboo_engine.utils.boolrule import BoolRule
 from bkflow_feel.api import parse_expression
 from pipeline.parser.utils import recursive_replace_id
 
+from bkflow.utils.mako import parse_mako_expression
+
 DEFAULT_HORIZONTAL_PIPELINE_TREE = {
     "activities": {
         "node89f4f55f853d71c6a15e83d0d0ca": {
@@ -208,4 +210,6 @@ def build_default_pipeline_tree(horizontal_canvas=True):
 def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args, **kwargs) -> bool:
     if extra_info.get("parse_lang") == "FEEL":
         return parse_expression(expression=expr)
+    if extra_info.get("parse_lang") == "MAKO":
+        return parse_mako_expression(expression=expr, context=context)
     return BoolRule(expr).test()

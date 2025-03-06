@@ -271,14 +271,14 @@ class GatewayExpressionConfig(BaseSpaceConfig):
     name = "gateway_expression"
     desc = _("网关表达式")
     default_value = "boolrule"
-    choices = ["boolrule", "FEEL"]
+    choices = ["boolrule", "FEEL", "MAKO"]
 
     @classmethod
     def validate(cls, value: str):
         if value not in cls.choices:
             raise ValidationError(
                 f"[validate gateway expression error]: gateway expression only support "
-                f"'boolrule' or 'FEEL', value: {value}"
+                f"'boolrule' or 'FEEL' or 'MAKO', value: {value}"
             )
         return True
 

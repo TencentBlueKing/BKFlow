@@ -115,10 +115,11 @@
               :node-activity="nodeActivity"
               :execute-info="executeRecord"
               :node-detail-config="nodeDetailConfig"
-              :is-dmn-plugin="isDmnPlugin"
+              :plugin-code="pluginCode"
               :space-id="spaceId"
               :template-id="templateId"
               :is-sub-process-node="isSubProcessNode"
+              :constants="pipelineData.constants"
               @updateOutputs="updateOutputs" />
             <ExecuteInfoForm
               v-else-if="curActiveTab === 'config'"
@@ -129,8 +130,7 @@
               :is-third-party-node="isThirdPartyNode"
               :third-party-node-code="thirdPartyNodeCode"
               :space-id="spaceId"
-              :is-api-plugin="isApiPlugin"
-              :is-dmn-plugin="isDmnPlugin"
+              :plugin-code="pluginCode"
               :template-id="templateId"
               :scope-info="scopeInfo"
               :is-sub-process-node="isSubProcessNode" />
@@ -391,21 +391,14 @@
           return result;
         });
       },
+      pluginCode() {
+        return this.nodeDetailConfig.component_code;
+      },
       isThirdPartyNode() {
-        const compCode = this.nodeDetailConfig.component_code;
-        return !!compCode && compCode === 'remote_plugin';
+        return this.pluginCode === 'remote_plugin';
       },
       isSubProcessNode() {
-        const compCode = this.nodeDetailConfig.component_code;
-        return !!compCode && compCode === 'subprocess_plugin';
-      },
-      isDmnPlugin() {
-        const compCode = this.nodeDetailConfig.component_code;
-        return compCode && compCode === 'dmn_plugin';
-      },
-      isApiPlugin() {
-        const compCode = this.nodeDetailConfig.component_code;
-        return compCode && compCode === 'uniform_api';
+        return this.pluginCode === 'subprocess_plugin';
       },
       thirdPartyNodeCode() {
         if (!this.isThirdPartyNode) return '';
@@ -526,7 +519,7 @@
       },
       // 补充记录缺少的字段
       async setFillRecordField(record) {
-        const { version, component_code: componentCode } = this.nodeDetailConfig;
+        const { version, component_code: componentCode, componentData = {} } = this.nodeDetailConfig;
         const { inputs, state } = record;
         let { outputs } = record;
         // 执行记录的outputs可能为Object格式，需要转为Array格式
@@ -563,7 +556,8 @@
           const { constants } = islegacySubProcess ? this.pipelineData : this.componentValue.pipeline;
           this.renderConfig = await this.getSubflowInputsConfig(constants);
         } else if (componentCode) { // 任务节点需要加载标准插件
-          await this.getNodeConfig(componentCode, version, inputs.plugin_version);
+          const pluginVersion = componentData.plugin_version?.value;
+          await this.getNodeConfig(componentCode, version, pluginVersion);
         }
         inputsInfo = Object.keys(inputs).reduce((acc, cur) => {
           const scheme = Array.isArray(this.renderConfig)
@@ -603,7 +597,7 @@
             return true;
           });
         } else {
-          if (this.isDmnPlugin) {
+          if (this.pluginCode === 'dmn_plugin') {
             outputsInfo.push(...outputs);
           } else if (this.isThirdPartyNode) {
             const excludeList = [];
@@ -685,9 +679,9 @@
           this.isRenderOutputForm = true;
         } else {
           try {
-            const res = await this.loadAtomConfig({ atom: type, version });
+            const res = await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
             // api插件输入输出
-            if (this.isApiPlugin) {
+            if (this.pluginCode === 'uniform_api') {
               const { api_meta: apiMeta } = this.nodeActivity.component || {};
               if (!apiMeta) return;
               // api插件配置
@@ -826,7 +820,7 @@
           if (pluginGroup && pluginGroup[version]) {
             return pluginGroup[version];
           }
-          await this.loadAtomConfig({ atom: plugin, version, classify, name, project_id: this.project_id });
+          await this.loadAtomConfig({ atom: plugin, version, classify, name, space_id: this.spaceId });
           const config = $.atoms[plugin];
           return config;
         } catch (e) {

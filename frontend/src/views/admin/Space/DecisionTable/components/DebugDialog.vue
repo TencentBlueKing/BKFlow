@@ -61,7 +61,7 @@
 </template>
 
 <script>
-  import InputItem from '@/views/template/TemplateEdit/NodeConfig/DmnInputParams/InputItem.vue';
+  import InputItem from '@/components/SpecialPluginInputForm/DmnPlugin/InputItem.vue';
   import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
   import { mapActions } from 'vuex';
   export default {
@@ -129,6 +129,9 @@
           const editorInstance = this.$refs.fullCodeEditor;
           if (editorInstance) {
             editorInstance.layoutCodeEditorInstance();
+          }
+          if (!val) {
+            this.formData = {};
           }
         });
       },

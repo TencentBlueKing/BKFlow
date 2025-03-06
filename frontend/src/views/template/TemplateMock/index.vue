@@ -4,11 +4,12 @@
     class="template-mock">
     <Header
       ref="mockHeader"
-      :header-label="headerLabel"
+      :tpl-name="tplName"
       :mock-step="mockStep"
       :save-loading="saveLoading"
       :execute-loading="executeLoading"
       :tpl-actions="tplActions"
+      @onChange="mockTaskName = $event"
       @onReturn="onReturnMock"
       @onExecute="onExecuteMock"
       @onSave="onSaveTplMockData" />
@@ -24,7 +25,6 @@
         :show-palette="false"
         :is-all-selected="isAllSelected"
         :is-show-select-all-tool="isSelectAllShow"
-        :common="common"
         @onNodeCheckClick="onNodeCheckClick"
         @onConditionClick="onOpenConditionEdit"
         @onToggleAllNode="onToggleAllNode"
@@ -50,8 +50,7 @@
     <MockExecute
       v-else-if="!templateDataLoading"
       ref="mockExecute"
-      :header-label="headerLabel"
-      :creator="creator"
+      :mock-task-name="mockTaskName"
       :template-id="templateId"
       :selected-nodes="selectedNodes"
       :tpl-actions="tplActions"
@@ -69,7 +68,6 @@
   import MockExecute from './MockExecute/index.vue';
   import ConditionEdit from '../TemplateEdit/ConditionEdit.vue';
   import tools from '@/utils/tools';
-  import moment from 'moment-timezone';
   import bus from '@/utils/bus.js';
   export default {
     name: 'TemplateMock',
@@ -107,13 +105,13 @@
         curSelectedNodeId: '',
         saveLoading: false,
         executeLoading: false,
-        creator: '',
         mockSchemeId: '',
         lastSchemeMsg: null,
         isShowConditionEdit: false,
         conditionData: {},
         spaceRelatedConfig: {}, // 空间相关配置
         tplSpaceId: '', // 模板对应的空间id
+        mockTaskName: '',
       };
     },
     computed: {
@@ -160,13 +158,6 @@
         let hasSelected = !!this.selectedNodes.length;
         hasSelected = hasSelected || Object.values(this.activities).some(item => !item.optional);
         return hasSelected;
-      },
-      headerLabel() {
-        if (this.mockStep === 'setting') {
-          return this.tplName;
-        }
-        const nowTime = moment(new Date()).format('YYYYMMDDHHmmss');
-        return `${this.tplName}_${this.$t('调试任务')}_${nowTime}`;
       },
     },
     watch: {
@@ -234,7 +225,6 @@
           };
           const templateData = await this.loadTemplateData(data);
           this.tplActions = templateData.auth;
-          this.creator = templateData.creator;
           this.tplSpaceId = templateData.space_id;
           this.setTemplateData(templateData);
           this.setSpaceId(templateData.space_id);

@@ -111,6 +111,9 @@
 
     /deep/.nav-slider {
       background: #1f2738 !important;
+      .nav-slider-list {
+        height: 100% !important;
+      }
     }
   }
 </style>

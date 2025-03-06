@@ -43,7 +43,7 @@
         }"
         class="common-icon-jump-link"
         :target="isIframe ? '_self' : '_blank'"
-        :to="`/template/view/${spaceId}/?template_id=${templateId}`" />
+        :to="`/template/view/${templateId}/`" />
       <span
         v-if="stateStr"
         :class="['task-state', state]">{{ stateStr }}</span>

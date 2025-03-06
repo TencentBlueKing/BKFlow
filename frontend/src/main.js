@@ -93,6 +93,15 @@ Validator.extend('integer', {
   getMessage: (field, args) => args + i18n.t('间隔时间必须是正整数'),
   validate: value => Number(value) >= 1 && Number(value) % 1 === 0,
 });
+// 扩展自定义值正则表达式规则
+Validator.extend('decisionValueRegex', {
+  validate(value, { pattern }) {
+    const regex = new RegExp(pattern);
+    return regex.test(value);
+  },
+  params: ['pattern'], // 定义参数
+  getMessage: () => i18n.t('暂不支持带有英文双引号(") 的输入值'),
+});
 Validator.localize({
   en: {
     messages: {
@@ -213,6 +222,9 @@ Validator.localize({
       testName: {
         required: i18n.t('test不能为空'),
         regex: i18n.t('请输入 test 之间的数'),
+      },
+      expression: {
+        regex: i18n.t('因 MAKO 语法限制：请勿使用 \'$\', \'{\' 和 \'}\' 字符'),
       },
     },
   },
