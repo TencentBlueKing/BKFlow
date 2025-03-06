@@ -116,17 +116,18 @@
                 v-bkloading="{ isLoading: inputLoading, zIndex: 100 }"
                 class="inputs-wrapper">
                 <template v-if="!inputLoading">
-                  <DmnInputParams
-                    v-if="basicInfo.plugin === 'dmn_plugin'"
-                    ref="dmnInputParams"
+                  <SpecialPluginInputForm
+                    v-if="isSpecialPlugin"
+                    ref="specialPluginInputParams"
                     :value="inputsParamValue"
+                    :code="basicInfo.plugin"
                     :is-view-mode="isViewMode"
                     :space-id="spaceId"
                     :template-id="$route.params.templateId"
                     :variable-list="variableList"
                     :node-id="nodeId"
-                    :inputs-variable-fields="inputsVariableFields"
-                    @hookChange="onHookChange"
+                    :variable-cited="variableCited"
+                    @updateVarCitedData="updateVarCitedData"
                     @updateOutputs="updateOutputs"
                     @update="updateInputsValue" />
                   <input-params
@@ -208,7 +209,7 @@
   import SelectPanel from './SelectPanel/index.vue';
   import VariableEdit from '../TemplateSetting/TabGlobalVariables/VariableEdit.vue';
   import SliderHeader from './SliderHeader.vue';
-  import DmnInputParams from './DmnInputParams/index.vue';
+  import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
   import bus from '@/utils/bus.js';
   import permission from '@/mixins/permission.js';
   import formSchema from '@/utils/formSchema.js';
@@ -224,7 +225,7 @@
       SelectPanel,
       VariableEdit,
       SliderHeader,
-      DmnInputParams,
+      SpecialPluginInputForm,
     },
     mixins: [permission, copy],
     props: {
@@ -297,7 +298,6 @@
         isDataChange: false, // 数据是否改变
         isApiPlugin: false, // 是否为Api插件
         apiInputs: [], // api数据
-        inputsVariableFields: [], // 决策表插件字段值为变量
       };
     },
     computed: {
@@ -338,6 +338,10 @@
       // 子流程节点是否为公共流程
       isCommonTpl() {
         return this.common || this.nodeConfig.template_source === 'common';
+      },
+      // 特殊输入参数插件
+      isSpecialPlugin() {
+        return ['dmn_plugin', 'value_assign'].includes(this.basicInfo.plugin);
       },
     },
     watch: {
@@ -570,7 +574,6 @@
        */
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
-        const projectId = this.isCommonTpl ? undefined : this.projectId;
         try {
           // 先取标准节点缓存的数据
           const pluginGroup = this.pluginConfigs[plugin];
@@ -580,7 +583,7 @@
           // api插件输入输出
           if (this.isApiPlugin && this.basicInfo.metaUrl) {
             // 统一api基础配置
-            await this.loadAtomConfig({ atom: plugin, version, project_id: projectId });
+            await this.loadAtomConfig({ atom: plugin, version, space_id: this.spaceId });
             // api插件配置
             const resp = await this.loadUniformApiMeta({
               spaceId: this.spaceId,
@@ -610,7 +613,7 @@
           if (isThird) {
             await this.getThirdConfig(plugin, version);
           } else {
-            await this.loadAtomConfig({ atom: plugin, version, classify, name, project_id: projectId });
+            await this.loadAtomConfig({ atom: plugin, version, classify, name, space_id: this.spaceId });
           }
           const config = $.atoms[plugin];
           return config;
@@ -654,7 +657,7 @@
           const outputs = [];
           // 获取第三方插件公共输出参数
           if (!this.pluginOutput.remote_plugin) {
-            await this.loadAtomConfig({ atom: 'remote_plugin', version: '1.0.0' });
+            await this.loadAtomConfig({ atom: 'remote_plugin', version: '1.0.0', space_id: this.spaceId });
           }
           const storeOutputs = this.pluginOutput.remote_plugin['1.0.0'];
           for (const [key, val] of Object.entries(respOutputs.properties)) {
@@ -1150,10 +1153,9 @@
         this.basicInfo = Object.assign({}, this.basicInfo, data);
       },
       // 输入参数表单值更新
-      updateInputsValue(val, variableFields = []) {
+      updateInputsValue(val) {
         this.isDataChange = true;
         this.inputsParamValue = val;
-        this.inputsVariableFields = variableFields;
       },
       /**
        * 子流程版本更新
@@ -1430,8 +1432,8 @@
             }
             return result;
           }
-          if (this.$refs.dmnInputParams) {
-            return this.$refs.dmnInputParams.validate();
+          if (this.$refs.specialPluginInputParams) {
+            return this.$refs.specialPluginInputParams.validate();
           }
           return true;
         });
@@ -1640,7 +1642,7 @@
           }  else {
             let variable = false;
             // 判断节点是否使用了变量
-            const inputRef = this.$refs.dmnInputParams;
+            const inputRef = this.$refs.specialPluginInputParams;
             if (inputRef) {
               const info = inputRef.inputs.find(item => item.id === key);
               variable = info && info.variableMode;
@@ -1851,9 +1853,22 @@
         this.$emit('close', openVariablePanel);
       },
       // 决策表插件切换表的时候更新输出参数配置
-      updateOutputs(outputs) {
-        this.outputs = this.outputs.filter(item => !item.fromDmn);
-        this.outputs.push(...outputs);
+      async updateOutputs(outputs) {
+        try {
+          await this.clearParamsSourceInfo();
+          this.outputs = this.outputs.filter(item => !item.fromDmn);
+          this.outputs.push(...outputs);
+        } catch (error) {
+          console.warn(error);
+        }
+      },
+      // 决策表插件-切换决策表选项时需更新变量引用情况
+      async updateVarCitedData() {
+        try {
+          this.variableCited = await this.getVariableCitedData() || {};
+        } catch (error) {
+          console.warn(error);
+        }
       },
     },
   };

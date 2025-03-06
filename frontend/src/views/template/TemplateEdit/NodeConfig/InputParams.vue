@@ -238,7 +238,7 @@
                 this.hookFormData[form] = varItem.value;
                 this.hookFormSchema[form] = { ...schema };
                 this.formData[form] = `\${${form}}`;
-                this.setHookFormItem(formSchema, { form, title: schema.title });
+                this.setHookFormItem(formSchema, { form, schema });
                 result = true;
               }
             }
@@ -261,18 +261,19 @@
           const result = await this.hookForm(path);
           if (!result) return;
           this.formData[path] = `\${${path}}`;
-          this.setHookFormItem(this.formsScheme, { form: path, title: schema.title });
+          this.setHookFormItem(this.formsScheme, { form: path, schema });
           this.$emit('update', tools.deepClone(this.formData));
         }
         this.randomKey = new Date().getTime();
       },
-      setHookFormItem(formSchema, { form, title }) {
+      setHookFormItem(formSchema, { form, schema }) {
         formSchema.properties[form] = {
           extend: {
             can_hook: true,
             hook: true,
           },
-          title,
+          title: schema.title,
+          description: schema.description,
           type: 'string',
           'ui:component': {
             name: 'bfInput',
@@ -535,7 +536,7 @@
         // jsonSchema表单重置hook态
         if (this.isJsonSchema) {
           const schema = this.hookFormSchema[form];
-          this.setHookFormItem(this.formsScheme, { form, title: schema.title });
+          this.setHookFormItem(this.formsScheme, { form, schema });
           this.randomKey = new Date().getTime();
         }
       },
@@ -550,7 +551,10 @@
         this.reuseableVarList = [];
       },
       validate() {
-        return this.$refs.inputParamsForm.validate();
+        if (this.$refs.inputParamsForm) {
+          return this.$refs.inputParamsForm.validate();
+        }
+        return true;
       },
     },
   };

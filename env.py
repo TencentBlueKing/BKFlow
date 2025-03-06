@@ -75,6 +75,9 @@ BKAPP_INNER_CALLBACK_ENTRY = os.getenv("BKAPP_INNER_CALLBACK_ENTRY", "")
 # 默认引擎模块入口
 BKAPP_DEFAULT_ENGINE_MODULE_ENTRY = os.getenv("BKAPP_DEFAULT_ENGINE_MODULE_ENTRY", "")
 
+# 默认引擎插件超时时间
+BKAPP_API_PLUGIN_REQUEST_TIMEOUT = int(os.getenv("BKAPP_API_PLUGIN_REQUEST_TIMEOUT", 30))
+
 CALLBACK_KEY = os.getenv("BKFLOW_DEFAULT_CALLBACK_KEY", "").encode("utf-8")
 
 BK_PAAS_ESB_HOST = os.getenv("BK_COMPONENT_API_URL", "")
@@ -134,3 +137,6 @@ BK_DOC_CENTER_HOST = os.getenv("BK_DOC_CENTER_HOST", os.getenv("BK_DOCS_URL_PREF
 
 # APP 白名单
 APP_WHITE_LIST_STR = os.getenv("BKAPP_APP_WHITE_LIST", "")  # 逗号分隔的字符串
+
+# 系统空间插件列表
+SPACE_PLUGIN_LIST_STR = os.getenv("SPACE_PLUGIN_LIST_STR", "")  # 逗号分隔的字符串

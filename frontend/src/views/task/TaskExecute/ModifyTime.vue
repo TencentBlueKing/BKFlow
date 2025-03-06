@@ -79,6 +79,7 @@
     },
     computed: {
       ...mapState({
+        spaceId: state => state.template.spaceId,
         atomFormConfig: state => state.atomForm.config,
       }),
       ...mapState('project', {
@@ -123,7 +124,7 @@
           return this.atomFormConfig[type][version];
         }
         try {
-          await this.loadAtomConfig({ atom: type, version, project_id: this.project_id });
+          await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
           return this.atomFormConfig[type][version];
         } catch (e) {
           console.log(e);
