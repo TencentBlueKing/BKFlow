@@ -53,17 +53,17 @@ def get_client_by_request(request, stage=DEFAULT_STAGE, common_args=None, header
     if callable(is_authenticated):
         is_authenticated = is_authenticated()
     if is_authenticated:
-        try:
-            from bkoauth import get_access_token
-
-            access_token = get_access_token(request)
-            headers.update(
-                {
-                    HEADER_BK_AUTHORIZATION: json.dumps({"access_token": access_token.access_token}),
-                }
-            )
-        except Exception:
-            pass
+        headers.update(
+            {
+                HEADER_BK_AUTHORIZATION: json.dumps(
+                    {
+                        "bk_ticket": request.COOKIES.get('bk_ticket', ''),
+                        "bk_app_code": APP_CODE,
+                        "bk_app_secret": SECRET_KEY
+                    }
+                )
+            }
+        )
     else:
         raise APIException("用户未通过验证")
 
@@ -96,7 +96,7 @@ def get_client_by_user(user, stage=DEFAULT_STAGE, common_args=None, headers=None
             }
         )
     except Exception as e:
-        logger.warn("get_access_token_by_user error %s, using header authorization", str(e))
+        logger.warning("get_access_token_by_user error %s, using header authorization", str(e))
         headers.update(
             {
                 HEADER_BK_AUTHORIZATION: json.dumps(
