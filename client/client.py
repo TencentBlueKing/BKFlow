@@ -106,7 +106,6 @@ class RequestAPIClient(BaseClient):
         method = kwargs.get("method", "GET")
         if method.upper() in ["POST", "PUT", "PATCH", "DELETE"]:
             headers["Content-Type"] = "application/json"
-        logger.info(f"request headers: {headers}")
         return self._request(headers=headers, *args, **kwargs)
 
     def _request(self, method, url, params=None, data=None, **kwargs):
