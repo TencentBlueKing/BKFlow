@@ -24,7 +24,7 @@ from rest_framework.decorators import api_view
 from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_plugins.query.utils import query_response_handler
-from bkflow.space.configs import UniformApiConfig
+from bkflow.space.configs import UniformApiConfig, UniformAPIConfigHandler
 from bkflow.space.models import SpaceConfig
 from bkflow.utils.api_client import HttpRequestResult
 
@@ -32,7 +32,8 @@ from bkflow.utils.api_client import HttpRequestResult
 class UniformAPICategorySerializer(serializers.Serializer):
     scope_type = serializers.CharField(required=False)
     scope_value = serializers.CharField(required=False)
-    key = serializers.CharField(required=True)
+    key = serializers.CharField(required=False)
+    api_name = serializers.CharField(required=True)
 
 
 class UniformAPIListSerializer(serializers.Serializer):
@@ -41,7 +42,8 @@ class UniformAPIListSerializer(serializers.Serializer):
     scope_type = serializers.CharField(required=False)
     scope_value = serializers.CharField(required=False)
     category = serializers.CharField(required=False)
-    key = serializers.CharField(required=True)
+    key = serializers.CharField(required=False)
+    api_name = serializers.CharField(required=True)
 
 
 class UniformAPIMetaSerializer(serializers.Serializer):
@@ -51,19 +53,20 @@ class UniformAPIMetaSerializer(serializers.Serializer):
 
 
 def _get_space_uniform_api_list_info(space_id, request_data, config_key):
-    uniform_api_configs = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
-    if not uniform_api_configs:
+    uniform_api_config = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
+    if not uniform_api_config:
         raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
     client = UniformAPIClient()
-    if uniform_api_configs.get("api"):
-        # 新协议多一层 api
-        api_config = uniform_api_configs.get("api").get(request_data.get("key"), None)
-        if not api_config:
-            raise ValidationError("对应统一API未配置")
-        url = api_config[config_key]
+    uniform_api_config = UniformAPIConfigHandler.is_valid(uniform_api_config)
+    # 弹出此参数避免透传
+    api_name = request_data.pop("api_name")
+    # 旧协议直接获取
+    if not uniform_api_config.api:
+        url = uniform_api_config.get(config_key)
     else:
-        url = uniform_api_configs[config_key]
-        # 旧协议直接获取
+        url = uniform_api_config.api.get(api_name, {}).get(config_key)
+        if not url:
+            raise ValidationError("对应API未配置, 请联系对应接入平台管理员")
     request_result: HttpRequestResult = client.request(url=url, method="GET", data=request_data)
     if not request_result.result:
         raise APIResponseError(f"请求统一API列表失败: {request_result.message}")

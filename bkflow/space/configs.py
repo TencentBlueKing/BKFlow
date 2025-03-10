@@ -18,10 +18,11 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 from enum import Enum
-from typing import Type
+from typing import Dict, Optional, Type
 
 import jsonschema
 from django.utils.translation import ugettext_lazy as _
+from pydantic import BaseModel
 from pytimeparse import parse
 
 from bkflow.exceptions import ValidationError
@@ -206,8 +207,8 @@ class UniformApiConfig(BaseSpaceConfig):
     desc = _("是否开启统一API")
     value_type = SpaceConfigValueType.JSON.value
     default_value = {}
-    example = {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}
-    # 拓展后也支持 example = {"key": {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}}
+    example = {"api": {"key": {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}}}
+    # 仍然支持读取 旧 SCHEMA 但不能继续新增
 
     class Keys(Enum):
         META_APIS = "meta_apis"
@@ -237,6 +238,15 @@ class UniformApiConfig(BaseSpaceConfig):
         },
         "required": ["api"],
         "additionalProperties": False,
+    }
+
+    SCHEMA_V1 = {
+        "type": "object",
+        "required": ["meta_apis"],
+        "properties": {
+            Keys.META_APIS.value: {"type": "string"},
+            Keys.API_CATEGORIES.value: {"type": "string"},
+        },
     }
 
     @classmethod
@@ -324,3 +334,54 @@ class SpacePluginConfig(BaseSpaceConfig):
     @classmethod
     def validate(cls, value: dict):
         return SpacePluginConfigParser(config=value).is_valid()
+
+
+# 定义 SCHEMA_V1 对应的模型
+class SchemaV1Model(BaseModel):
+    meta_apis: str
+    api_categories: Optional[str] = None
+
+
+# 定义 SCHEMA 对应的模型
+class ApiModel(BaseModel):
+    meta_apis: str
+    api_categories: str
+    display_name: str
+
+    class Config:
+        extra = "forbid"
+
+    def get(self, field_name, default=None):
+        # 由于获取插件种类/列表时候传入的 key 不确定 需要提供一个 get 方法
+        return getattr(self, field_name, default)
+
+
+class CommonModel(BaseModel):
+    # 允许任何额外的属性
+    class Config:
+        extra = "allow"
+
+
+class SchemaModel(BaseModel):
+    api: Dict[str, ApiModel]
+    common: Optional[CommonModel] = None
+
+    class Config:
+        # 禁止额外的属性
+        extra = "forbid"
+
+
+class UniformAPIConfigHandler:
+    @classmethod
+    def is_valid(cls, value: dict):
+        try:
+            # 尝试按新协议解析
+            return SchemaModel(**value)
+        except ValueError:
+            pass
+
+        try:
+            # 兼容旧协议校验
+            return SchemaV1Model(**value)
+        except ValueError as e:
+            raise ValidationError(f"[validate uniform api config error]: {str(e)}")

@@ -34,6 +34,7 @@ from bkflow.pipeline_plugins.components.collections.base import (
 )
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_plugins.utils import convert_dict_value
+from bkflow.space.configs import UniformAPIConfigHandler
 from bkflow.utils.api_client import HttpRequestResult
 from bkflow.utils.handlers import handle_plain_log
 
@@ -136,7 +137,9 @@ class UniformAPIService(BKFlowBaseService):
             return False
 
         space_configs = space_infos_result.get("data", {}).get("configs", {})
-        if space_configs.get("uniform_api", {}).get("common", {}).get("exclude_none_fields", False):
+        uniform_api_config = space_configs.get("uniform_api", {})
+        validated_config = UniformAPIConfigHandler.is_valid(uniform_api_config)
+        if validated_config.common.exclude_none_fields:
             self.logger.info("exclude_none_fields config true, poping none fields variable...")
             # 过滤字符串为空的基础类型
             keys_to_remove = [key for key, value in api_data.items() if value == ""]
@@ -145,10 +148,7 @@ class UniformAPIService(BKFlowBaseService):
             self.logger.info(f"plugin_data after poping: {api_data}")
 
         # 开启的enable_api_parameter_conversion配置只对POST参数生效
-        if (
-            space_configs.get("uniform_api", {}).get("common", {}).get("enable_api_parameter_conversion", False)
-            and method.upper() == "POST"
-        ):
+        if validated_config.common.enable_api_parameter_conversion:
             # 启动参数转换
             api_data = convert_dict_value(api_data)
 
