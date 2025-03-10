@@ -26,6 +26,7 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.viewsets import GenericViewSet
 
 from bkflow.apigw.serializers.task import (
     CreateMockTaskWithPipelineTreeSerializer,
@@ -70,6 +71,7 @@ from bkflow.template.serializers.template import (
     TemplateMockSchemeSerializer,
     TemplateOperationRecordSerializer,
     TemplateSerializer,
+    TemplateRelatedResourceSerializer,
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
@@ -419,3 +421,17 @@ class TemplateMockSchemeViewSet(
     def perform_update(self, serializer):
         user = serializer.context.get("request").user
         serializer.save(operator=user.username)
+
+
+class TemplateMockTaskViewSet(mixins.ListModelMixin, GenericViewSet):
+    DEFAULT_PERMISSION = TemplateRelatedResourcePermission.MOCK_PERMISSION
+    permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
+
+    @swagger_auto_schema(query_serializer=TemplateRelatedResourceSerializer)
+    def list(self, request, *args, **kwargs):
+        ser = TemplateRelatedResourceSerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
+        client = TaskComponentClient(space_id=space_id)
+        result = client.task_list(data={"template_id": template_id, "space_id": space_id, "create_method": "MOCK"})
+        return Response(result)
