@@ -122,7 +122,6 @@ class UniformAPIService(BKFlowBaseService):
         callback = api_data.pop("uniform_api_plugin_callback", None)
         method = api_data.pop("uniform_api_plugin_method")
         resp_data_path: str = api_data.pop("response_data_path", None)
-
         # 获取空间相关配置信息
         interface_client = InterfaceModuleClient()
         space_infos_result = interface_client.get_space_infos(
@@ -137,10 +136,17 @@ class UniformAPIService(BKFlowBaseService):
             return False
 
         space_configs = space_infos_result.get("data", {}).get("configs", {})
+        if space_configs.get("uniform_api", {}).get("common", {}).get("exclude_none_fields", False):
+            self.logger.info("exclude_none_fields config true, poping none fields variable...")
+            # 过滤字符串为空的基础类型
+            keys_to_remove = [key for key, value in api_data.items() if value == ""]
+            for key in keys_to_remove:
+                api_data.pop(key)
+            self.logger.info(f"plugin_data after poping: {api_data}")
 
         # 开启的enable_api_parameter_conversion配置只对POST参数生效
         if (
-            space_configs.get("uniform_api", {}).get("enable_api_parameter_conversion", False)
+            space_configs.get("uniform_api", {}).get("common", {}).get("enable_api_parameter_conversion", False)
             and method.upper() == "POST"
         ):
             # 启动参数转换

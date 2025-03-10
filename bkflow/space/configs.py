@@ -207,27 +207,40 @@ class UniformApiConfig(BaseSpaceConfig):
     value_type = SpaceConfigValueType.JSON.value
     default_value = {}
     example = {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}
+    # 拓展后也支持 example = {"key": {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}}
 
     class Keys(Enum):
         META_APIS = "meta_apis"
         API_CATEGORIES = "api_categories"
+        APIS = "api"
 
-    SCHEMA = {
+    SCHEMAS = {
         "type": "object",
-        "required": ["meta_apis"],
         "properties": {
-            Keys.META_APIS.value: {"type": "string"},
-            Keys.API_CATEGORIES.value: {"type": "string"},
+            "api": {
+                "type": "object",
+                "patternProperties": {
+                    "^[a-zA-Z0-9_]+$": {
+                        "type": "object",
+                        "required": ["meta_apis"],
+                        "properties": {
+                            "meta_apis": {"type": "string"},
+                            "api_categories": {"type": "string"},
+                            "display_name": {"type": "string"},
+                        },
+                        "additionalProperties": False,
+                    }
+                },
+                "additionalProperties": False,
+            },
+            "common": {"type": "object", "additionalProperties": True},
         },
+        "required": ["api"],
+        "additionalProperties": False,
     }
 
     @classmethod
-    def validate(cls, value: dict):
-        try:
-            jsonschema.validate(value, cls.SCHEMA)
-        except jsonschema.ValidationError as e:
-            raise ValidationError(f"[validate uniform api config error]: {str(e)}")
-
+    def check_url(cls, value):
         meta_apis_from_apigw = check_url_from_apigw(value[cls.Keys.META_APIS.value])
         category_config = value.get(cls.Keys.API_CATEGORIES.value)
         api_categories_from_apigw = check_url_from_apigw(category_config) if category_config else True
@@ -235,6 +248,20 @@ class UniformApiConfig(BaseSpaceConfig):
             raise ValidationError(
                 "[validate uniform api config error]: both meta_apis and api_categories need apigw urls"
             )
+        return True
+
+    @classmethod
+    def validate(cls, value: dict):
+        try:
+            jsonschema.validate(value, cls.SCHEMAS)
+        except jsonschema.ValidationError as e:
+            raise ValidationError(f"[validate uniform api config error]: {str(e)}")
+        if cls.Keys.APIS.value in value.keys():
+            for obj in value.get(cls.Keys.APIS.value).values():
+                cls.check_url(obj)
+        else:
+            # 单层旧协议兼容
+            cls.check_url(value)
         return True
 
 
