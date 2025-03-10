@@ -214,7 +214,7 @@ class UniformApiConfig(BaseSpaceConfig):
         API_CATEGORIES = "api_categories"
         APIS = "api"
 
-    SCHEMAS = {
+    SCHEMA = {
         "type": "object",
         "properties": {
             "api": {
@@ -253,7 +253,7 @@ class UniformApiConfig(BaseSpaceConfig):
     @classmethod
     def validate(cls, value: dict):
         try:
-            jsonschema.validate(value, cls.SCHEMAS)
+            jsonschema.validate(value, cls.SCHEMA)
         except jsonschema.ValidationError as e:
             raise ValidationError(f"[validate uniform api config error]: {str(e)}")
         if cls.Keys.APIS.value in value.keys():
