@@ -849,7 +849,7 @@
             executor_proxy: executorProxy ? executorProxy.split(',') : [],
           };
           if (component.code === 'uniform_api' &&  component.api_meta) { // 新版api插件中component包含api_meta字段
-            const { id, name, apiKey = 'V1', meta_url, category = {} } = component.api_meta;
+            const { id, name, apiKey, meta_url, category = {} } = component.api_meta;
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
             Object.assign(data, {
               plugin: 'uniform_api',

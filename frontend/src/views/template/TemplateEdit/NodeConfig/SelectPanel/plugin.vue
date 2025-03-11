@@ -195,10 +195,8 @@
       },
     },
     data() {
-      let curTab = this.isThirdParty ? 'thirdParty' : 'builtIn';
-      curTab = this.isApiPlugin ? this.apiKey : curTab;
       return {
-        curTab,
+        curTab: '',
         builtInPluginGroup: this.builtInPlugin.slice(0),
         activeGroup: this.getDefaultActiveGroup(),
         thirdPartyPlugin: [],
@@ -225,6 +223,9 @@
     },
     created() {
       this.getApiTabList();
+      let curTab = this.isThirdParty ? 'thirdParty' : 'builtIn';
+      curTab = this.isApiPlugin ? (this.apiKey || this.apiTabList[0]?.key) : curTab;
+      this.curTab = curTab;
     },
     async mounted() {
       if (this.curTab === 'thirdParty') {
