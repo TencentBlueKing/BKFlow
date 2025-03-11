@@ -103,7 +103,7 @@ class TestSpaceConfigHandler:
         assert config_cls.validate(test_api)
         assert SpaceConfigHandler.validate(name="uniform_api", value=test_api)
         with pytest.raises(ValidationError):
-            config_cls.validate(test_api)
+            config_cls.validate({UniformApiConfig.Keys.META_APIS.value: "example.com"})
 
     def test_superusers(self):
         config_cls = SpaceConfigHandler.get_config("superusers")
