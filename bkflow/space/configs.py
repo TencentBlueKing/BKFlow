@@ -29,7 +29,7 @@ from bkflow.exceptions import ValidationError
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.utils.apigw import check_url_from_apigw
 
-valid_api_key = constr(regex=r"^(?!V1$)[A-Za-z0-9_]+$")
+valid_api_key = constr(regex=r"^[A-Za-z0-9_]+$")
 
 
 class SpaceConfigValueType(Enum):

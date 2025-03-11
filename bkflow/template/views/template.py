@@ -41,7 +41,11 @@ from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
-from bkflow.space.configs import GatewayExpressionConfig
+from bkflow.space.configs import (
+    GatewayExpressionConfig,
+    UniformApiConfig,
+    UniformAPIConfigHandler,
+)
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
@@ -70,8 +74,8 @@ from bkflow.template.serializers.template import (
     TemplateMockDataSerializer,
     TemplateMockSchemeSerializer,
     TemplateOperationRecordSerializer,
-    TemplateSerializer,
     TemplateRelatedResourceSerializer,
+    TemplateSerializer,
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
@@ -157,9 +161,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             raise APIResponseError(result["message"])
         return Response(result["data"])
 
-    @swagger_auto_schema(
-        method="POST", operation_description="流程批量删除", request_body=TemplateBatchDeleteSerializer
-    )
+    @swagger_auto_schema(method="POST", operation_description="流程批量删除", request_body=TemplateBatchDeleteSerializer)
     @action(methods=["POST"], detail=False, url_path="batch_delete")
     def batch_delete(self, request, *args, **kwargs):
         ser = TemplateBatchDeleteSerializer(data=request.data)
@@ -257,6 +259,11 @@ class TemplateViewSet(UserModelViewSet):
         except SpaceConfigDefaultValueNotExists as e:
             logger.error(f"space_id={template.space_id}, config_name={GatewayExpressionConfig.name}, error={e}")
             raise
+        # 增加 uniform api 的配置项返回
+        uniform_api_config = SpaceConfig.get_config(space_id=template.space_id, config_name=UniformApiConfig.name)
+        if uniform_api_config:
+            uniform_api_config = UniformAPIConfigHandler(uniform_api_config).handle().dict()
+        data.update({UniformApiConfig.name: uniform_api_config})
         return Response(data)
 
     @swagger_auto_schema(methods=["post"], operation_description="流程树预览", request_body=PreviewTaskTreeSerializer)
