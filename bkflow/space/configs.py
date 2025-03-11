@@ -18,15 +18,18 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 from enum import Enum
-from typing import Type
+from typing import Dict, Optional, Type
 
 import jsonschema
 from django.utils.translation import ugettext_lazy as _
+from pydantic import BaseModel, constr
 from pytimeparse import parse
 
 from bkflow.exceptions import ValidationError
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.utils.apigw import check_url_from_apigw
+
+valid_api_key = constr(regex=r"^(?!V1$)[A-Za-z0-9_]+$")
 
 
 class SpaceConfigValueType(Enum):
@@ -206,35 +209,46 @@ class UniformApiConfig(BaseSpaceConfig):
     desc = _("是否开启统一API")
     value_type = SpaceConfigValueType.JSON.value
     default_value = {}
-    example = {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}
+    example = {
+        "api": {
+            "key": {
+                "meta_apis": "{meta_apis url}",
+                "api_categories": "{api_categories url}",
+                "display_name": "{display_name}",
+            }
+        }
+    }
+    """
+    仍然支持读取 旧 SCHEMA 但不能支持继续配置
+    旧 SCHEMA 格式 example = {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}
+    """
 
     class Keys(Enum):
         META_APIS = "meta_apis"
         API_CATEGORIES = "api_categories"
-
-    SCHEMA = {
-        "type": "object",
-        "required": ["meta_apis"],
-        "properties": {
-            Keys.META_APIS.value: {"type": "string"},
-            Keys.API_CATEGORIES.value: {"type": "string"},
-        },
-    }
+        DISPLAY_NAME = "display_name"
+        DEFAULT_DISPLAY_NAME = "-"
+        DEFAULT_API_KEY = "V1"
 
     @classmethod
-    def validate(cls, value: dict):
-        try:
-            jsonschema.validate(value, cls.SCHEMA)
-        except jsonschema.ValidationError as e:
-            raise ValidationError(f"[validate uniform api config error]: {str(e)}")
-
-        meta_apis_from_apigw = check_url_from_apigw(value[cls.Keys.META_APIS.value])
+    def check_url(cls, value):
+        meta_apis_from_apigw = check_url_from_apigw(value.get(cls.Keys.META_APIS.value))
         category_config = value.get(cls.Keys.API_CATEGORIES.value)
         api_categories_from_apigw = check_url_from_apigw(category_config) if category_config else True
         if not (api_categories_from_apigw and meta_apis_from_apigw):
             raise ValidationError(
                 "[validate uniform api config error]: both meta_apis and api_categories need apigw urls"
             )
+        return True
+
+    @classmethod
+    def validate(cls, value: dict):
+        try:
+            model = SchemaV2Model(**value)
+        except ValueError as e:
+            raise ValidationError(f"[validate uniform api config error]: {str(e)} should have {str(cls.example)}")
+        for obj in model.api.values():
+            cls.check_url(obj)
         return True
 
 
@@ -297,3 +311,68 @@ class SpacePluginConfig(BaseSpaceConfig):
     @classmethod
     def validate(cls, value: dict):
         return SpacePluginConfigParser(config=value).is_valid()
+
+
+# 定义 SCHEMA_V1 对应的模型
+class SchemaV1Model(BaseModel):
+    meta_apis: str
+    api_categories: Optional[str] = None
+
+
+# 定义 SCHEMA 对应的模型
+class ApiModel(BaseModel):
+    meta_apis: str
+    api_categories: str
+    display_name: str
+
+    def get(self, field_name, default=None):
+        # 由于获取插件种类/列表时候传入的 key 不确定 需要提供一个 get 方法
+        return getattr(self, field_name, default)
+
+
+class CommonModel(BaseModel):
+    exclude_none_fields: Optional[str] = None
+    enable_api_parameter_conversion: Optional[str] = None
+
+
+class SchemaV2Model(BaseModel):
+    api: Dict[valid_api_key, ApiModel]
+    common: Optional[CommonModel] = None
+
+    def __getattr__(self, key):
+        try:
+            super().__getattribute__(key)
+        except AttributeError:
+            # 当前没有则从 common 中获取
+            if self.common and hasattr(self.common, key):
+                return getattr(self.common, key)
+            else:
+                raise
+
+
+class UniformAPIConfigHandler:
+    def __init__(self, config: dict):
+        self.config = config
+
+    def handle(self):
+        model = None
+        try:
+            # 尝试按新协议解析
+            model = SchemaV2Model(**self.config)
+            return model
+        except ValueError:
+            pass
+        try:
+            # 兼容旧协议解析
+            v1_model = SchemaV1Model(**self.config)
+        except ValueError as e:
+            raise ValidationError(
+                f"[validate uniform api config error]: {str(e)} should have {UniformApiConfig.example}"
+            )
+        api_model = ApiModel(
+            meta_apis=v1_model.meta_apis,
+            api_categories=v1_model.api_categories,
+            display_name=UniformApiConfig.Keys.DEFAULT_DISPLAY_NAME.value,
+        )
+        model = SchemaV2Model(api={UniformApiConfig.Keys.DEFAULT_API_KEY.value: api_model})
+        return model

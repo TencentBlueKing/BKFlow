@@ -91,18 +91,19 @@ class TestSpaceConfigHandler:
         assert config_cls == UniformApiConfig
         assert config_cls.default_value == {}
         assert config_cls.value_type == SpaceConfigValueType.JSON.value
-        assert config_cls.validate({UniformApiConfig.Keys.META_APIS.value: "example.com"})
-        assert config_cls.validate(
-            {
-                UniformApiConfig.Keys.META_APIS.value: "example.com",
-                UniformApiConfig.Keys.API_CATEGORIES.value: "example.com",
+        test_api = {
+            "api": {
+                "test_api": {
+                    UniformApiConfig.Keys.META_APIS.value: "example.com",
+                    UniformApiConfig.Keys.API_CATEGORIES.value: "example.com",
+                    UniformApiConfig.Keys.DISPLAY_NAME.value: "test_api",
+                }
             }
-        )
-        assert SpaceConfigHandler.validate(
-            name="uniform_api", value={UniformApiConfig.Keys.META_APIS.value: "example.com"}
-        )
+        }
+        assert config_cls.validate(test_api)
+        assert SpaceConfigHandler.validate(name="uniform_api", value=test_api)
         with pytest.raises(ValidationError):
-            config_cls.validate({UniformApiConfig.Keys.API_CATEGORIES.value: "example.com"})
+            config_cls.validate({UniformApiConfig.Keys.META_APIS.value: "example.com"})
 
     def test_superusers(self):
         config_cls = SpaceConfigHandler.get_config("superusers")
