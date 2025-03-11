@@ -347,7 +347,7 @@ class SchemaV2Model(BaseModel):
             if self.common and hasattr(self.common, key):
                 return getattr(self.common, key)
             else:
-                raise AttributeError(f"{key} not found")
+                raise
 
 
 class UniformAPIConfigHandler:
