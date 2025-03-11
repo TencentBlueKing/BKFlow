@@ -343,11 +343,12 @@ class SchemaV2Model(BaseModel):
         try:
             super().__getattribute__(key)
         except AttributeError:
-            # 当前没有则从 common 中获取
+            # 当前没有则从 common 中获取 如果出现不存在的字段则报错
+            if key not in CommonModel.__fields__:
+                raise
             if self.common and hasattr(self.common, key):
                 return getattr(self.common, key)
-            else:
-                raise
+            return None
 
 
 class UniformAPIConfigHandler:
