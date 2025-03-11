@@ -209,7 +209,15 @@ class UniformApiConfig(BaseSpaceConfig):
     desc = _("是否开启统一API")
     value_type = SpaceConfigValueType.JSON.value
     default_value = {}
-    example = {"api": {"key": {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}}}
+    example = {
+        "api": {
+            "key": {
+                "meta_apis": "{meta_apis url}",
+                "api_categories": "{api_categories url}",
+                "display_name": "{display_name}",
+            }
+        }
+    }
     """
     仍然支持读取 旧 SCHEMA 但不能支持继续配置
     旧 SCHEMA 格式 example = {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}
@@ -219,6 +227,8 @@ class UniformApiConfig(BaseSpaceConfig):
         META_APIS = "meta_apis"
         API_CATEGORIES = "api_categories"
         DISPLAY_NAME = "display_name"
+        DEFAULT_DISPLAY_NAME = "-"
+        DEFAULT_API_KEY = "V1"
 
     @classmethod
     def check_url(cls, value):
@@ -236,7 +246,7 @@ class UniformApiConfig(BaseSpaceConfig):
         try:
             model = SchemaV2Model(**value)
         except ValueError as e:
-            raise ValidationError(f"[validate uniform api config error]: {str(e)}")
+            raise ValidationError(f"[validate uniform api config error]: {str(e)} should have {str(cls.example)}")
         for obj in model.api.values():
             cls.check_url(obj)
         return True
@@ -321,8 +331,8 @@ class ApiModel(BaseModel):
 
 
 class CommonModel(BaseModel):
-    exclude_none_fields: str
-    enable_api_parameter_conversion: str
+    exclude_none_fields: Optional[str] = None
+    enable_api_parameter_conversion: Optional[str] = None
 
 
 class SchemaV2Model(BaseModel):
@@ -330,19 +340,14 @@ class SchemaV2Model(BaseModel):
     common: Optional[CommonModel] = None
 
     def __getattr__(self, key):
-        # 如果在 common 中存在这个属性，则返回它
-        if self.common and hasattr(self.common, key):
-            return getattr(self.common, key)
-        # 如果在 common 中找不到，则抛出 AttributeError
-        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
-
-    def __getattribute__(self, key):
-        # 先尝试从顶层获取属性
         try:
-            return super().__getattribute__(key)
+            super().__getattribute__(key)
         except AttributeError:
-            # 如果顶层没有这个属性，则调用 __getattr__
-            return self.__getattr__(key)
+            # 当前没有则从 common 中获取
+            if self.common and hasattr(self.common, key):
+                return getattr(self.common, key)
+            else:
+                raise AttributeError(f"{key} not found")
 
 
 class UniformAPIConfigHandler:
@@ -359,9 +364,15 @@ class UniformAPIConfigHandler:
             pass
         try:
             # 兼容旧协议解析
-            V1_model = SchemaV1Model(**self.config)
+            v1_model = SchemaV1Model(**self.config)
         except ValueError as e:
-            raise ValidationError(f"[validate uniform api config error]: {str(e)}")
-        api_model = ApiModel(meta_apis=V1_model.meta_apis, api_categories=V1_model.api_categories, display_name="-")
-        model = SchemaV2Model(api={"V1": api_model})
+            raise ValidationError(
+                f"[validate uniform api config error]: {str(e)} should have {UniformApiConfig.example}"
+            )
+        api_model = ApiModel(
+            meta_apis=v1_model.meta_apis,
+            api_categories=v1_model.api_categories,
+            display_name=UniformApiConfig.Keys.DEFAULT_DISPLAY_NAME.value,
+        )
+        model = SchemaV2Model(api={UniformApiConfig.Keys.DEFAULT_API_KEY.value: api_model})
         return model

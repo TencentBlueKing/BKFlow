@@ -59,7 +59,7 @@ def _get_space_uniform_api_list_info(space_id, request_data, config_key):
     client = UniformAPIClient()
     uniform_api_config = UniformAPIConfigHandler(uniform_api_config).handle()
     # 弹出此参数避免透传
-    api_name = request_data.pop("api_name", "V1")
+    api_name = request_data.pop("api_name", UniformApiConfig.Keys.DEFAULT_API_KEY.value)
     url = uniform_api_config.api.get(api_name, {}).get(config_key)
     if not url:
         raise ValidationError("对应API未配置, 请联系对应接入平台管理员")

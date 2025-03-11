@@ -140,9 +140,9 @@ class UniformAPIService(BKFlowBaseService):
         uniform_api_config = space_configs.get("uniform_api", {})
         validated_config = UniformAPIConfigHandler(uniform_api_config).handle()
         if validated_config.exclude_none_fields:
-            self.logger.info("exclude_none_fields config true, poping none fields variable...")
             # 过滤字符串为空的基础类型
             keys_to_remove = [key for key, value in api_data.items() if value == ""]
+            self.logger.info(f"none fields keys to remove: {keys_to_remove}")
             for key in keys_to_remove:
                 api_data.pop(key)
             self.logger.info(f"plugin_data after poping: {api_data}")
