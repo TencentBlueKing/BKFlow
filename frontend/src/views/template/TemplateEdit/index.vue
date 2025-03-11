@@ -99,6 +99,7 @@
           :node-id="idOfNodeInConfigPanel"
           :back-to-variable-panel="backToVariablePanel"
           :is-not-exist-atom-or-version="isNotExistAtomOrVersion"
+          :space-related-config="spaceRelatedConfig"
           @globalVariableUpdate="globalVariableUpdate"
           @updateNodeInfo="onUpdateNodeInfo"
           @templateDataChanged="templateDataChanged"

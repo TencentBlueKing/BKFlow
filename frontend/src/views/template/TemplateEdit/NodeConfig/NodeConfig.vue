@@ -59,6 +59,7 @@
           :is-api-plugin="isApiPlugin"
           :scope-info="scopeInfo"
           :space-id="spaceId"
+          :space-related-config="spaceRelatedConfig"
           @back="isSelectorPanelShow = false"
           @viewSubflow="onViewSubflow"
           @select="onPluginOrTplChange" />
@@ -264,6 +265,10 @@
       isNotExistAtomOrVersion: Boolean,
       pluginLoading: Boolean,
       isViewMode: Boolean,
+      spaceRelatedConfig: {
+        type: Object,
+        default: () => ({}),
+      },
     },
     data() {
       return {
@@ -844,7 +849,7 @@
             executor_proxy: executorProxy ? executorProxy.split(',') : [],
           };
           if (component.code === 'uniform_api' &&  component.api_meta) { // 新版api插件中component包含api_meta字段
-            const { id, name, meta_url, category = {} } = component.api_meta;
+            const { id, name, apiKey = 'V1', meta_url, category = {} } = component.api_meta;
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
             Object.assign(data, {
               plugin: 'uniform_api',
@@ -853,6 +858,7 @@
               method: method.value,
               groupId: category.id,
               groupName: category.name,
+              apiKey,
               metaUrl: meta_url,
               realMetaUrl,
               methodList: [],
@@ -1032,6 +1038,7 @@
           id: pluginId,
           group_id: groupId,
           metaUrl,
+          apiKey,
         } = val;
         let versionList = [];
         if (this.isThirdParty) {
@@ -1071,6 +1078,7 @@
             groupId,
             groupName,
             metaUrl,
+            apiKey,
           });
         }
         return config;
@@ -1541,11 +1549,12 @@
             version: this.isThirdParty ? '1.0.0' : version,
           };
           if (this.isApiPlugin && this.basicInfo.pluginId) { // 新版api插件中component包含pluginId字段
-            const { pluginId, name, metaUrl, groupId, groupName } = this.basicInfo;
+            const { pluginId, name, metaUrl, groupId, groupName, apiKey } = this.basicInfo;
             component.api_meta = {
               id: pluginId,
               name: name.split('-')[1],
               meta_url: metaUrl,
+              apiKey,
               category: {
                 id: groupId,
                 name: groupName,
