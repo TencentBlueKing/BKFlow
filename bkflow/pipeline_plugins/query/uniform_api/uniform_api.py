@@ -33,7 +33,7 @@ class UniformAPICategorySerializer(serializers.Serializer):
     scope_type = serializers.CharField(required=False)
     scope_value = serializers.CharField(required=False)
     key = serializers.CharField(required=False)
-    api_name = serializers.CharField(required=True)
+    api_name = serializers.CharField(required=False)
 
 
 class UniformAPIListSerializer(serializers.Serializer):
@@ -43,7 +43,7 @@ class UniformAPIListSerializer(serializers.Serializer):
     scope_value = serializers.CharField(required=False)
     category = serializers.CharField(required=False)
     key = serializers.CharField(required=False)
-    api_name = serializers.CharField(required=True)
+    api_name = serializers.CharField(required=False)
 
 
 class UniformAPIMetaSerializer(serializers.Serializer):
@@ -57,16 +57,12 @@ def _get_space_uniform_api_list_info(space_id, request_data, config_key):
     if not uniform_api_config:
         raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
     client = UniformAPIClient()
-    uniform_api_config = UniformAPIConfigHandler.is_valid(uniform_api_config)
+    uniform_api_config = UniformAPIConfigHandler(uniform_api_config).handle()
     # 弹出此参数避免透传
-    api_name = request_data.pop("api_name")
-    # 旧协议直接获取
-    if not uniform_api_config.api:
-        url = uniform_api_config.get(config_key)
-    else:
-        url = uniform_api_config.api.get(api_name, {}).get(config_key)
-        if not url:
-            raise ValidationError("对应API未配置, 请联系对应接入平台管理员")
+    api_name = request_data.pop("api_name", "V1")
+    url = uniform_api_config.api.get(api_name, {}).get(config_key)
+    if not url:
+        raise ValidationError("对应API未配置, 请联系对应接入平台管理员")
     request_result: HttpRequestResult = client.request(url=url, method="GET", data=request_data)
     if not request_result.result:
         raise APIResponseError(f"请求统一API列表失败: {request_result.message}")

@@ -138,8 +138,8 @@ class UniformAPIService(BKFlowBaseService):
 
         space_configs = space_infos_result.get("data", {}).get("configs", {})
         uniform_api_config = space_configs.get("uniform_api", {})
-        validated_config = UniformAPIConfigHandler.is_valid(uniform_api_config)
-        if validated_config.common.exclude_none_fields:
+        validated_config = UniformAPIConfigHandler(uniform_api_config).handle()
+        if validated_config.exclude_none_fields:
             self.logger.info("exclude_none_fields config true, poping none fields variable...")
             # 过滤字符串为空的基础类型
             keys_to_remove = [key for key, value in api_data.items() if value == ""]
@@ -148,7 +148,7 @@ class UniformAPIService(BKFlowBaseService):
             self.logger.info(f"plugin_data after poping: {api_data}")
 
         # 开启的enable_api_parameter_conversion配置只对POST参数生效
-        if validated_config.common.enable_api_parameter_conversion:
+        if validated_config.enable_api_parameter_conversion:
             # 启动参数转换
             api_data = convert_dict_value(api_data)
 

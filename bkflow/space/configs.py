@@ -22,12 +22,14 @@ from typing import Dict, Optional, Type
 
 import jsonschema
 from django.utils.translation import ugettext_lazy as _
-from pydantic import BaseModel
+from pydantic import BaseModel, constr
 from pytimeparse import parse
 
 from bkflow.exceptions import ValidationError
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.utils.apigw import check_url_from_apigw
+
+valid_api_key = constr(regex=r"^(?!V1$)[A-Za-z0-9_]+$")
 
 
 class SpaceConfigValueType(Enum):
@@ -208,50 +210,19 @@ class UniformApiConfig(BaseSpaceConfig):
     value_type = SpaceConfigValueType.JSON.value
     default_value = {}
     example = {"api": {"key": {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}}}
-    # 仍然支持读取 旧 SCHEMA 但不能继续新增
+    """
+    仍然支持读取 旧 SCHEMA 但不能支持继续配置
+    旧 SCHEMA 格式 example = {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}
+    """
 
     class Keys(Enum):
         META_APIS = "meta_apis"
         API_CATEGORIES = "api_categories"
-        APIS = "api"
-
-    SCHEMA = {
-        "type": "object",
-        "properties": {
-            "api": {
-                "type": "object",
-                "patternProperties": {
-                    "^[a-zA-Z0-9_]+$": {
-                        "type": "object",
-                        "required": ["meta_apis"],
-                        "properties": {
-                            "meta_apis": {"type": "string"},
-                            "api_categories": {"type": "string"},
-                            "display_name": {"type": "string"},
-                        },
-                        "additionalProperties": False,
-                    }
-                },
-                "additionalProperties": False,
-            },
-            "common": {"type": "object", "additionalProperties": True},
-        },
-        "required": ["api"],
-        "additionalProperties": False,
-    }
-
-    SCHEMA_V1 = {
-        "type": "object",
-        "required": ["meta_apis"],
-        "properties": {
-            Keys.META_APIS.value: {"type": "string"},
-            Keys.API_CATEGORIES.value: {"type": "string"},
-        },
-    }
+        DISPLAY_NAME = "display_name"
 
     @classmethod
     def check_url(cls, value):
-        meta_apis_from_apigw = check_url_from_apigw(value[cls.Keys.META_APIS.value])
+        meta_apis_from_apigw = check_url_from_apigw(value.get(cls.Keys.META_APIS.value))
         category_config = value.get(cls.Keys.API_CATEGORIES.value)
         api_categories_from_apigw = check_url_from_apigw(category_config) if category_config else True
         if not (api_categories_from_apigw and meta_apis_from_apigw):
@@ -263,15 +234,11 @@ class UniformApiConfig(BaseSpaceConfig):
     @classmethod
     def validate(cls, value: dict):
         try:
-            jsonschema.validate(value, cls.SCHEMA)
-        except jsonschema.ValidationError as e:
+            model = SchemaV2Model(**value)
+        except ValueError as e:
             raise ValidationError(f"[validate uniform api config error]: {str(e)}")
-        if cls.Keys.APIS.value in value.keys():
-            for obj in value.get(cls.Keys.APIS.value).values():
-                cls.check_url(obj)
-        else:
-            # 单层旧协议兼容
-            cls.check_url(value)
+        for obj in model.api.values():
+            cls.check_url(obj)
         return True
 
 
@@ -348,40 +315,53 @@ class ApiModel(BaseModel):
     api_categories: str
     display_name: str
 
-    class Config:
-        extra = "forbid"
-
     def get(self, field_name, default=None):
         # 由于获取插件种类/列表时候传入的 key 不确定 需要提供一个 get 方法
         return getattr(self, field_name, default)
 
 
 class CommonModel(BaseModel):
-    # 允许任何额外的属性
-    class Config:
-        extra = "allow"
+    exclude_none_fields: str
+    enable_api_parameter_conversion: str
 
 
-class SchemaModel(BaseModel):
-    api: Dict[str, ApiModel]
+class SchemaV2Model(BaseModel):
+    api: Dict[valid_api_key, ApiModel]
     common: Optional[CommonModel] = None
 
-    class Config:
-        # 禁止额外的属性
-        extra = "forbid"
+    def __getattr__(self, key):
+        # 如果在 common 中存在这个属性，则返回它
+        if self.common and hasattr(self.common, key):
+            return getattr(self.common, key)
+        # 如果在 common 中找不到，则抛出 AttributeError
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+
+    def __getattribute__(self, key):
+        # 先尝试从顶层获取属性
+        try:
+            return super().__getattribute__(key)
+        except AttributeError:
+            # 如果顶层没有这个属性，则调用 __getattr__
+            return self.__getattr__(key)
 
 
 class UniformAPIConfigHandler:
-    @classmethod
-    def is_valid(cls, value: dict):
+    def __init__(self, config: dict):
+        self.config = config
+
+    def handle(self):
+        model = None
         try:
             # 尝试按新协议解析
-            return SchemaModel(**value)
+            model = SchemaV2Model(**self.config)
+            return model
         except ValueError:
             pass
-
         try:
-            # 兼容旧协议校验
-            return SchemaV1Model(**value)
+            # 兼容旧协议解析
+            V1_model = SchemaV1Model(**self.config)
         except ValueError as e:
             raise ValidationError(f"[validate uniform api config error]: {str(e)}")
+        api_model = ApiModel(meta_apis=V1_model.meta_apis, api_categories=V1_model.api_categories, display_name="-")
+        model = SchemaV2Model(api={"V1": api_model})
+        return model
