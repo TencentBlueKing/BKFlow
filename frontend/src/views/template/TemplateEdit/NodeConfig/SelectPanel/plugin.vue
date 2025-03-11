@@ -4,7 +4,7 @@
     type="unborder-card"
     @tab-change="onTabChange">
     <bk-input
-      v-if="curTab !== 'apiPlugin'"
+      v-if="['builtIn', 'thirdParty'].includes(curTab)"
       v-model.trim="searchStr"
       class="search-input"
       right-icon="bk-icon icon-search"
@@ -140,6 +140,8 @@
       </div>
     </bk-tab-panel>
     <ApiPlugin
+      v-if="apiTabList.length"
+      :api-tab-list="apiTabList"
       :current-tab="curTab"
       :search-str="searchStr"
       :crt-plugin="crtPlugin"
@@ -183,12 +185,18 @@
         type: Object,
         default: () => ({}),
       },
+      spaceRelatedConfig: {
+        type: Object,
+        default: () => ({}),
+      },
+      apiKey: {
+        type: String,
+        default: '',
+      },
     },
     data() {
-      let curTab = this.isThirdParty ? 'thirdParty' : 'builtIn';
-      curTab = this.isApiPlugin ? 'apiPlugin' : curTab;
       return {
-        curTab,
+        curTab: '',
         builtInPluginGroup: this.builtInPlugin.slice(0),
         activeGroup: this.getDefaultActiveGroup(),
         thirdPartyPlugin: [],
@@ -201,6 +209,7 @@
         thirdPluginOffset: 0,
         searchStr: '',
         bkPluginDevelopUrl: window.BK_PLUGIN_DEVELOP_URL,
+        apiTabList: [],
       };
     },
     computed: {
@@ -211,6 +220,12 @@
       isThirdPartyGroupShow() {
         return this.thirdPluginGroup && this.thirdPluginGroup.some(item => item.isShow);
       },
+    },
+    created() {
+      this.getApiTabList();
+      let curTab = this.isThirdParty ? 'thirdParty' : 'builtIn';
+      curTab = this.isApiPlugin ? (this.apiKey || this.apiTabList[0]?.key) : curTab;
+      this.curTab = curTab;
     },
     async mounted() {
       if (this.curTab === 'thirdParty') {
@@ -223,6 +238,29 @@
       listWrapEl.removeEventListener('scroll', this.handleThirdParPluginScroll, false);
     },
     methods: {
+      getApiTabList() {
+        const { uniform_api: uniformApi = {} } = this.spaceRelatedConfig;
+
+        if (!uniformApi.api) {
+          this.apiTabList = [];
+          return;
+        }
+
+        this.apiTabList = Object.entries(uniformApi.api).reduce((acc, [key, value]) => {
+          if (key === 'V1' && value.display_name === '-') {
+            acc.push({
+              key,
+              name: 'Api插件',
+            });
+          } else {
+            acc.push({
+              key,
+              name: value.display_name || key,
+            });
+          }
+          return acc;
+        }, []);
+      },
       // 获取内置插件默认展开的分组，没有选择展开第一组，已选择展开选中的那组
       getDefaultActiveGroup() {
         let activeGroup = '';

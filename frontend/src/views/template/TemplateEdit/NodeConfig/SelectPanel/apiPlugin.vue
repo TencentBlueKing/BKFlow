@@ -3,9 +3,10 @@
     v-bkloading="{ isLoading: categoryLoading || apiLoading }"
     class="api-panel">
     <bk-tab-panel
-      ref="apiPanel"
-      name="apiPlugin"
-      :label="$t('API插件')"
+      v-for="tab in apiTabList"
+      :key="tab.key"
+      :name="tab.key"
+      :label="tab.name"
       class="api-plugin-panel">
       <div
         v-if="categoryList.length"
@@ -56,6 +57,10 @@
       NoData,
     },
     props: {
+      apiTabList: {
+        type: Array,
+        default: () => ([]),
+      },
       currentTab: {
         type: String,
         default: '',
@@ -96,10 +101,15 @@
         },
       };
     },
+    computed: {
+      crtApiKey() {
+        return this.apiTabList.find(item => item.key === this.currentTab)?.key;
+      },
+    },
     watch: {
-      currentTab: {
+      crtApiKey: {
         handler(val) {
-          if (val === 'apiPlugin') {
+          if (val) {
             this.getUniformCategoryList();
           } else {
             this.categoryActive = '';
@@ -109,12 +119,10 @@
           }
         },
         deep: true,
+        immediate: true,
       },
     },
     mounted() {
-      if (this.currentTab === 'apiPlugin') {
-        this.getUniformCategoryList();
-      }
       const listWrapEl = this.$el.querySelector('.api-list');
       listWrapEl.addEventListener('scroll', this.handleApiPluginScroll, false);
     },
@@ -134,6 +142,7 @@
           const resp = await this.loadUniformCategoryList({
             ...this.scopeInfo,
             spaceId: this.spaceId,
+            api_name: this.crtApiKey,
           });
           if (!resp.result) return;
           this.categoryList = resp.data;
@@ -158,6 +167,7 @@
             ...this.scopeInfo,
             category: this.categoryActive,
             key: this.searchStr || undefined,
+            api_name: this.crtApiKey,
           });
           if (!resp.result) return;
           const pluginList = resp.data.apis;
@@ -205,6 +215,7 @@
           group_id: this.categoryActive,
           group_name: category.name,
           metaUrl: plugin.meta_url,
+          apiKey: this.crtApiKey,
         });
       },
       escapeRegExp(str) {

@@ -1083,17 +1083,18 @@ const template = {
     },
     // api插件分类列表
     loadUniformCategoryList({}, data) {
-      const { spaceId, scope_type, scope_value } = data;
+      const { spaceId, scope_type, scope_value, api_name } = data;
       return axios.get(`api/plugin_query/uniform_api/category_list/${spaceId}/`, {
         params: {
           scope_type,
           scope_value,
+          api_name,
         },
       }).then(response => response.data);
     },
     // api插件请求列表
     loadUniformApiList({}, data) {
-      const { spaceId, scope_type, scope_value, offset, limit, category, key } = data;
+      const { spaceId, scope_type, scope_value, offset, limit, category, key, api_name } = data;
       return axios.get(`/api/plugin_query/uniform_api/list/${spaceId}/`, {
         params: {
           limit,
@@ -1102,6 +1103,7 @@ const template = {
           scope_value,
           category,
           key,
+          api_name,
         },
       }).then(response => response.data);
     },
