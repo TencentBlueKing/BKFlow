@@ -1148,6 +1148,10 @@ const template = {
         appoint_node_ids: selectedNodes,
       }).then(response => response.data);
     },
+    // 获取模板mock任务列表
+    getTemplateMockTaskList({}, data) {
+      return axios.get('/api/template/template_mock_task/', { params: data }).then(response => response.data);
+    },
   },
   getters: {
     // 获取所有模板数据
