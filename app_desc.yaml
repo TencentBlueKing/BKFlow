@@ -1,5 +1,5 @@
 spec_version: 2
-app_version: "1.9.1"
+app_version: "1.9.2"
 app:
   market:
     category: 运维工具

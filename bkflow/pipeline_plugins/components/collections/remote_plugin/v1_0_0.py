@@ -28,6 +28,7 @@ from bkflow.pipeline_plugins.components.collections.base import (
     BKFlowBaseService,
     StepIntervalGenerator,
 )
+from bkflow.utils.handlers import handle_plain_log
 from plugin_service.conf import PLUGIN_LOGGER
 from plugin_service.exceptions import PluginServiceException
 from plugin_service.plugin_client import PluginServiceApiClient
@@ -64,7 +65,7 @@ class RemotePluginService(BKFlowBaseService):
         try:
             plugin_client = PluginServiceApiClient(plugin_code)
         except PluginServiceException as e:
-            message = _(f"第三方插件client初始化失败, 错误内容: {e}")
+            message = _(f"第三方插件client初始化失败, 错误内容: {handle_plain_log(e)}")
             logger.error(message)
             data.set_outputs("ex_data", message)
             return False
@@ -120,7 +121,7 @@ class RemotePluginService(BKFlowBaseService):
         try:
             plugin_client = PluginServiceApiClient(plugin_code)
         except PluginServiceException as e:
-            message = _(f"第三方插件client初始化失败, 错误内容: {e}")
+            message = _(f"第三方插件client初始化失败, 错误内容: {handle_plain_log(e)}")
             logger.error(message)
             data.set_outputs("ex_data", message)
             return False
