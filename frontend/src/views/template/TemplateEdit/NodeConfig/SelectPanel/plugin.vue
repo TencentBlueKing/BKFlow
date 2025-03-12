@@ -224,7 +224,7 @@
     created() {
       this.getApiTabList();
       let curTab = this.isThirdParty ? 'thirdParty' : 'builtIn';
-      curTab = this.isApiPlugin ? (this.apiKey || this.apiTabList[0]?.key) : curTab;
+      curTab = this.isApiPlugin ? (this.apiKey || 'default') : curTab;
       this.curTab = curTab;
     },
     async mounted() {
