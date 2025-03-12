@@ -59,7 +59,7 @@ class PaaS3NodeLogDataSource(BaseNodeLogDataSource):
         if self.private_token:
             url_params.update({"private_token": self.private_token})
         url = self.url.rstrip("/") + f"/?{urlencode(url_params)}"
-        payload = {"query": {"query_string": f"json.node_id:{node_id} AND json.version:{version_id}"}}
+        payload = {"query": {"query_string": f"__ext_json.node_id:{node_id} AND __ext_json.version:{version_id}"}}
         response = requests.get(url, headers=self.headers, data=json.dumps(payload))
         logger.info(
             f"[PaaS3NodeLogDataSource fetch_node_logs] request {url} with payload {payload} and "
