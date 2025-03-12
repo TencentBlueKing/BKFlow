@@ -232,7 +232,7 @@ class UniformApiConfig(BaseSpaceConfig):
         META_APIS = "meta_apis"
         API_CATEGORIES = "api_categories"
         DISPLAY_NAME = "display_name"
-        DEFAULT_DISPLAY_NAME = "-"
+        DEFAULT_DISPLAY_NAME = "API插件"
         DEFAULT_API_KEY = "default"
 
     @classmethod
