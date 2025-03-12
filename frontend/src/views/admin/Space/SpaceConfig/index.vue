@@ -54,7 +54,7 @@
         :label-width="100"
         :rules="rules"
         :model="configFormData">
-        <bk-form-item label="Name">
+        <bk-form-item label="$t('名称')">
           {{ selectedRow.name }}
         </bk-form-item>
         <bk-form-item :label="$t('说明')">

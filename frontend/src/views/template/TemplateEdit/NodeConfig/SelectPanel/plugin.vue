@@ -247,17 +247,10 @@
         }
 
         this.apiTabList = Object.entries(uniformApi.api).reduce((acc, [key, value]) => {
-          if (key === 'V1' && value.display_name === '-') {
-            acc.push({
-              key,
-              name: 'Api插件',
-            });
-          } else {
-            acc.push({
-              key,
-              name: value.display_name || key,
-            });
-          }
+          acc.push({
+            key,
+            name: value.display_name || key,
+          });
           return acc;
         }, []);
       },
