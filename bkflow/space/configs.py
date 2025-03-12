@@ -206,18 +206,23 @@ class CallbackHooksConfig(BaseSpaceConfig):
 
 class UniformApiConfig(BaseSpaceConfig):
     name = "uniform_api"
-    desc = _("是否开启统一API")
     value_type = SpaceConfigValueType.JSON.value
     default_value = {}
     example = {
         "api": {
-            "key": {
+            "api_1": {
                 "meta_apis": "{meta_apis url}",
                 "api_categories": "{api_categories url}",
                 "display_name": "{display_name}",
-            }
+            },
+            "api_2": {
+                "meta_apis": "{meta_apis url}",
+                "api_categories": "{api_categories url}",
+                "display_name": "{display_name}",
+            },
         }
     }
+    desc = _("API 插件配置 （如更改配置，可能对已存在数据产生不兼容影响，请谨慎操作）")
     """
     仍然支持读取 旧 SCHEMA 但不能支持继续配置
     旧 SCHEMA 格式 example = {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}
@@ -228,7 +233,7 @@ class UniformApiConfig(BaseSpaceConfig):
         API_CATEGORIES = "api_categories"
         DISPLAY_NAME = "display_name"
         DEFAULT_DISPLAY_NAME = "-"
-        DEFAULT_API_KEY = "V1"
+        DEFAULT_API_KEY = "default"
 
     @classmethod
     def check_url(cls, value):
