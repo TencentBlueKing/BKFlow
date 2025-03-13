@@ -215,12 +215,11 @@ class UniformApiConfig(BaseSpaceConfig):
     default_value = {}
     example = {
         "api": {
-            "{api_1}": {
+            "{api_key}": {
                 "meta_apis": "{meta_apis url}",
                 "api_categories": "{api_categories url}",
                 "display_name": "{display_name}",
-            },
-            "{api_2}": {},
+            }
         }
     }
     desc = _("API 插件配置 （如更改配置，可能对已存在数据产生不兼容影响，请谨慎操作）")
