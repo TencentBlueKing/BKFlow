@@ -101,6 +101,7 @@ class SpaceConfigHandler:
 
     @classmethod
     def get_all_configs(cls, only_public=False):
+
         # copy, 降低被修改风险
         if only_public:
             return {name: config_cls for name, config_cls in cls.__hub.items() if config_cls.is_public}
@@ -210,16 +211,11 @@ class UniformApiConfig(BaseSpaceConfig):
     default_value = {}
     example = {
         "api": {
-            "api_1": {
+            "{api_key}": {
                 "meta_apis": "{meta_apis url}",
                 "api_categories": "{api_categories url}",
                 "display_name": "{display_name}",
-            },
-            "api_2": {
-                "meta_apis": "{meta_apis url}",
-                "api_categories": "{api_categories url}",
-                "display_name": "{display_name}",
-            },
+            }
         }
     }
     desc = _("API 插件配置 （如更改配置，可能对已存在数据产生不兼容影响，请谨慎操作）")
