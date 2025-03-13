@@ -227,16 +227,16 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
             raise PermissionDenied()
         return super().list(request, *args, **kwargs)
 
+    def process_config(self, config_dict):
+        if not config_dict.get("default_value"):
+            config_dict["default_value"] = None
+        return config_dict
+
     @swagger_auto_schema(method="get", operation_summary="获取所有空间配置元信息", query_serializer=SpaceConfigBaseQuerySerializer)
     @action(detail=False, methods=["GET"])
     def config_meta(self, request, *args, **kwargs):
-        def process_config(config_cls):
-            if not config_cls.default_value:
-                config_cls.default_value = None
-            return config_cls
-
         configs = SpaceConfigHandler.get_all_configs()
-        return Response({name: process_config(config).to_dict() for name, config in configs.items()})
+        return Response({name: self.process_config(config.to_dict()) for name, config in configs.items()})
 
     @swagger_auto_schema(
         method="post",
