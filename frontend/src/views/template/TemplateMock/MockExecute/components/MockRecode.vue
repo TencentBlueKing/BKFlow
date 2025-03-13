@@ -96,8 +96,8 @@
       this.getTaskList();
     },
     methods: {
-      ...mapActions('taskList/', [
-        'loadTaskList',
+      ...mapActions('template/', [
+        'getTemplateMockTaskList',
       ]),
       ...mapActions('task/', [
         'getTaskInstanceData',
@@ -107,10 +107,9 @@
         try {
           if (!this.spaceId) return;
           this.listLoading = true;
-          const resp = await this.loadTaskList({
+          const resp = await this.getTemplateMockTaskList({
             space_id: this.spaceId,
             template_id: this.templateId,
-            create_method: 'MOCK',
           });
           this.taskList = resp.data.results;
         } catch (error) {

@@ -196,9 +196,7 @@ class SpaceInternalViewSet(AdminModelViewSet):
                         space_id=data["space_id"], name=api_gateway_credential_name, type=CredentialType.BK_APP.value
                     ).value
                 except (Credential.DoesNotExist, SpaceConfigDefaultValueNotExists) as e:
-                    logger.exception(
-                        "CredentialViewSet 获取空间下的凭证异常, space_id={}, err={}, ".format(data["space_id"], e)
-                    )
+                    logger.exception("CredentialViewSet 获取空间下的凭证异常, space_id={}, err={}, ".format(data["space_id"], e))
                     value = {}
             else:
                 value = SpaceConfig.get_config(space_id=data["space_id"], config_name=config_name)
@@ -229,13 +227,16 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
             raise PermissionDenied()
         return super().list(request, *args, **kwargs)
 
-    @swagger_auto_schema(
-        method="get", operation_summary="获取所有空间配置元信息", query_serializer=SpaceConfigBaseQuerySerializer
-    )
+    def process_config(self, config_dict):
+        if not config_dict.get("default_value"):
+            config_dict["default_value"] = None
+        return config_dict
+
+    @swagger_auto_schema(method="get", operation_summary="获取所有空间配置元信息", query_serializer=SpaceConfigBaseQuerySerializer)
     @action(detail=False, methods=["GET"])
     def config_meta(self, request, *args, **kwargs):
         configs = SpaceConfigHandler.get_all_configs()
-        return Response({name: config.to_dict() for name, config in configs.items()})
+        return Response({name: self.process_config(config.to_dict()) for name, config in configs.items()})
 
     @swagger_auto_schema(
         method="post",
@@ -250,9 +251,7 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         SpaceConfig.objects.batch_update(space_id=space_id, configs=configs)
         return Response(SpaceConfig.objects.get_space_config_info(space_id=space_id, simplified=False))
 
-    @swagger_auto_schema(
-        method="get", operation_summary="获取空间下所有配置", query_serializer=SpaceConfigBaseQuerySerializer
-    )
+    @swagger_auto_schema(method="get", operation_summary="获取空间下所有配置", query_serializer=SpaceConfigBaseQuerySerializer)
     @action(detail=False, methods=["GET"])
     def get_all_space_configs(self, request, *args, **kwargs):
         ser = SpaceConfigBaseQuerySerializer(data=request.query_params)
