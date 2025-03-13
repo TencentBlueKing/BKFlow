@@ -101,10 +101,15 @@ class SpaceConfigHandler:
 
     @classmethod
     def get_all_configs(cls, only_public=False):
+        def process_config(config_cls):
+            if not config_cls.default_value:
+                config_cls.default_value = None
+            return config_cls
+
         # copy, 降低被修改风险
         if only_public:
-            return {name: config_cls for name, config_cls in cls.__hub.items() if config_cls.is_public}
-        return {name: config_cls for name, config_cls in cls.__hub.items()}
+            return {name: process_config(config_cls) for name, config_cls in cls.__hub.items() if config_cls.is_public}
+        return {name: process_config(config_cls) for name, config_cls in cls.__hub.items()}
 
     @classmethod
     def validate_configs(cls, configs: dict):
@@ -207,7 +212,7 @@ class CallbackHooksConfig(BaseSpaceConfig):
 class UniformApiConfig(BaseSpaceConfig):
     name = "uniform_api"
     value_type = SpaceConfigValueType.JSON.value
-    default_value = None
+    default_value = {}
     example = {
         "api": {
             "{api_1}": {
@@ -257,7 +262,7 @@ class SuperusersConfig(BaseSpaceConfig):
     name = "superusers"
     desc = _("空间管理员")
     value_type = SpaceConfigValueType.JSON.value
-    default_value = None
+    default_value = []
     example = ["super_user1", "super_user2", "super_user3"]
 
     @classmethod
