@@ -207,19 +207,15 @@ class CallbackHooksConfig(BaseSpaceConfig):
 class UniformApiConfig(BaseSpaceConfig):
     name = "uniform_api"
     value_type = SpaceConfigValueType.JSON.value
-    default_value = {}
+    default_value = None
     example = {
         "api": {
-            "api_1": {
+            "{api_1}": {
                 "meta_apis": "{meta_apis url}",
                 "api_categories": "{api_categories url}",
                 "display_name": "{display_name}",
             },
-            "api_2": {
-                "meta_apis": "{meta_apis url}",
-                "api_categories": "{api_categories url}",
-                "display_name": "{display_name}",
-            },
+            "{api_2}": {},
         }
     }
     desc = _("API 插件配置 （如更改配置，可能对已存在数据产生不兼容影响，请谨慎操作）")
@@ -261,7 +257,7 @@ class SuperusersConfig(BaseSpaceConfig):
     name = "superusers"
     desc = _("空间管理员")
     value_type = SpaceConfigValueType.JSON.value
-    default_value = []
+    default_value = None
     example = ["super_user1", "super_user2", "super_user3"]
 
     @classmethod
