@@ -101,15 +101,11 @@ class SpaceConfigHandler:
 
     @classmethod
     def get_all_configs(cls, only_public=False):
-        def process_config(config_cls):
-            if not config_cls.default_value:
-                config_cls.default_value = None
-            return config_cls
 
         # copy, 降低被修改风险
         if only_public:
-            return {name: process_config(config_cls) for name, config_cls in cls.__hub.items() if config_cls.is_public}
-        return {name: process_config(config_cls) for name, config_cls in cls.__hub.items()}
+            return {name: config_cls for name, config_cls in cls.__hub.items() if config_cls.is_public}
+        return {name: config_cls for name, config_cls in cls.__hub.items()}
 
     @classmethod
     def validate_configs(cls, configs: dict):
