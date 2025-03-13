@@ -13,8 +13,10 @@
       :built-in-plugin="atomTypeList.tasknode"
       :is-third-party="isThirdParty"
       :is-api-plugin="isApiPlugin"
+      :api-key="basicInfo.apiKey"
       :scope-info="scopeInfo"
       :space-id="spaceId"
+      :space-related-config="spaceRelatedConfig"
       @select="$emit('select', $event)" />
   </div>
 </template>
@@ -60,6 +62,10 @@
         default: '',
       },
       scopeInfo: {
+        type: Object,
+        default: () => ({}),
+      },
+      spaceRelatedConfig: {
         type: Object,
         default: () => ({}),
       },

@@ -158,6 +158,7 @@ limitations under the License. */
       word-break: break-all;
       color: rgb(117, 117, 117);
       pointer-events: none;
+      white-space: pre-wrap;
     }
 }
 </style>
