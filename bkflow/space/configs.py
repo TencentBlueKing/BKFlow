@@ -68,6 +68,7 @@ class BaseSpaceConfig(metaclass=SpaceConfigMeta):
     default_value = None  # 默认值
     choices = None  # 配置值可选项列表，适用于 TEXT 类型
     example = None  # 配置值示例
+    is_mix_type = False
 
     @classmethod
     def to_dict(cls):
@@ -79,6 +80,7 @@ class BaseSpaceConfig(metaclass=SpaceConfigMeta):
             "default_value": cls.default_value,
             "choices": cls.choices,
             "example": cls.example,
+            "is_mix_type": cls.is_mix_type,
         }
 
     @classmethod
@@ -301,7 +303,9 @@ class GatewayExpressionConfig(BaseSpaceConfig):
 class ApiGatewayCredentialConfig(BaseSpaceConfig):
     name = "api_gateway_credential_name"
     desc = _("API_GATEWAY使用的凭证配置")
-    example = [{"{scopeType_scopeId}": "{credential_name}"}]
+    example = [{"{scope_type}_{scope_id}": "{credential_name}"}]
+    value_type = SpaceConfigValueType.TEXT.value
+    is_mix_type = True
 
     SCHEMA = {
         "type": "object",

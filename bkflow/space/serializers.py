@@ -60,6 +60,10 @@ class SpaceConfigBaseQuerySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
 
 
+class CredentialBaseQuerySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+
+
 class SpaceConfigBatchApplySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
     configs = serializers.DictField(help_text=_("空间配置"))

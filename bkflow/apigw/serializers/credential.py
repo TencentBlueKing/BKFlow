@@ -26,3 +26,10 @@ class CreateCredentialSerializer(serializers.Serializer):
     desc = serializers.CharField(help_text=_("凭证描述"), max_length=32, required=False)
     type = serializers.CharField(help_text=_("凭证类型"), max_length=32, required=True)
     content = serializers.JSONField(help_text=_("凭证内容"), required=True)
+
+
+class UpdateCredentialSerializer(serializers.Serializer):
+    name = serializers.CharField(help_text=_("凭证名称"), max_length=32, required=False)
+    desc = serializers.CharField(help_text=_("凭证描述"), max_length=32, required=False)
+    type = serializers.CharField(help_text=_("凭证类型"), max_length=32, required=False)
+    content = serializers.JSONField(help_text=_("凭证内容"), required=False)

@@ -559,6 +559,30 @@ paths:
           userVerifiedRequired: false
         disabledStages: [ ]
         descriptionEn: delete a template
+  /space/{space_id}/create_credential/:
+    post:
+      operationId: create_credential
+      description: 创建凭证
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/create_credential/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: false
+        disabledStages: [ ]
+        descriptionEn: create a credential
   /grant_apigw_permissions_to_app:
     post:
       operationId: grant_apigw_permissions_to_app

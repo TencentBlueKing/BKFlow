@@ -35,11 +35,15 @@ from rest_framework.viewsets import ModelViewSet
 from webhook.base_models import Scope
 from webhook.signals import event_broadcast_signal
 
-from bkflow.apigw.serializers.credential import CreateCredentialSerializer
+from bkflow.apigw.serializers.credential import (
+    CreateCredentialSerializer,
+    UpdateCredentialSerializer,
+)
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
 from bkflow.exceptions import APIRequestError
 from bkflow.space.configs import ApiGatewayCredentialConfig, SpaceConfigHandler
+from bkflow.space.credential import BkAppCredential
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import (
     Credential,
@@ -50,6 +54,7 @@ from bkflow.space.models import (
 )
 from bkflow.space.permissions import SpaceExemptionPermission, SpaceSuperuserPermission
 from bkflow.space.serializers import (
+    CredentialBaseQuerySerializer,
     CredentialSerializer,
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
@@ -184,32 +189,30 @@ class SpaceInternalViewSet(AdminModelViewSet):
         event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=data.get("extra_info"))
         return Response("success")
 
+    def get_credential_config(self, data):
+        try:
+            config = SpaceConfig.get_config(data["space_id"], ApiGatewayCredentialConfig.name)
+            if isinstance(config, dict) and config.get(data["scope_params"]):
+                # 如果是分 scope 配置则多一层提取
+                config = config.get(data["scope_params"])
+            value = Credential.objects.get(
+                space_id=data["space_id"], name=config, type=CredentialType.BK_APP.value
+            ).value
+        except (Credential.DoesNotExist, SpaceConfigDefaultValueNotExists) as e:
+            logger.exception("CredentialViewSet 获取空间下的凭证异常, space_id={}, err={}, ".format(data["space_id"], e))
+            value = {}
+        return value
+
     @action(detail=False, methods=["GET"])
     def get_space_infos(self, request, *args, **kwargs):
         data = request.query_params
         configs = {}
         for config_name in data.get("config_names", "").split(","):
             if config_name == "credential":
-                try:
-                    api_gateway_credential_config = SpaceConfig.get_config(
-                        data["space_id"], ApiGatewayCredentialConfig.name
-                    )
-                    if isinstance(api_gateway_credential_config, dict) and api_gateway_credential_config.get(
-                        data["scope_params"]
-                    ):
-                        # 如果是分 scope 配置则多一层提取
-                        api_gateway_credential_config = api_gateway_credential_config.get(data["scope_params"])
-                    value = Credential.objects.get(
-                        space_id=data["space_id"], name=api_gateway_credential_config, type=CredentialType.BK_APP.value
-                    ).value
-                except (Credential.DoesNotExist, SpaceConfigDefaultValueNotExists) as e:
-                    logger.exception("CredentialViewSet 获取空间下的凭证异常, space_id={}, err={}, ".format(data["space_id"], e))
-                    value = {}
+                value = self.get_credential_config(data)
             else:
                 value = SpaceConfig.get_config(space_id=data["space_id"], config_name=config_name)
-
             configs[config_name] = value
-
         infos = {
             "configs": configs,
         }
@@ -289,7 +292,7 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     pagination_class = CredentialConfigPagination
 
     def get_object(self):
-        serializer = SpaceConfigBaseQuerySerializer(data=self.request.query_params)
+        serializer = CredentialBaseQuerySerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         space_id = serializer.validated_data.get("space_id")
 
@@ -299,8 +302,7 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # 复用 SpaceConfigBaseQuerySerializer
-        serializer = SpaceConfigBaseQuerySerializer(data=self.request.query_params)
+        serializer = CredentialBaseQuerySerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         space_id = serializer.validated_data.get("space_id")
         queryset = queryset.filter(space_id=space_id, is_deleted=False)
@@ -308,7 +310,6 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
 
     def list(self, request, *args, **kwargs):
         if not request.user.is_superuser:
-            # 空间管理员不应该调用
             raise PermissionDenied()
         return super().list(request, *args, **kwargs)
 
@@ -317,7 +318,7 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         credential_serializer.is_valid(raise_exception=True)
         credential_data = credential_serializer.validated_data
 
-        serializer = SpaceConfigBaseQuerySerializer(data=self.request.query_params)
+        serializer = CredentialBaseQuerySerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         space_id = serializer.validated_data.get("space_id")
         credential = Credential.create_credential(
@@ -334,12 +335,16 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
 
-        serializer = CreateCredentialSerializer(data=request.data)
+        serializer = UpdateCredentialSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if serializer.validated_data.get("content"):
+            content_ser = BkAppCredential.BkAppSerializer(data=serializer.validated_data["content"])
+            content_ser.is_valid(raise_exception=True)
+
         for attr, value in serializer.validated_data.items():
             setattr(instance, attr, value)
 
-        instance.save()
+        instance.save(update_fields=serializer.validated_data.keys())
         # 序列化更新后的对象
         response_serializer = CredentialSerializer(instance)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
