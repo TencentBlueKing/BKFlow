@@ -29,7 +29,6 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, PermissionDenied
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from webhook.base_models import Scope
@@ -271,16 +270,6 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         )
 
 
-class CredentialConfigPagination(PageNumberPagination):
-    """
-    凭证分页配置
-    """
-
-    page_size = 10
-    max_page_size = 100
-    page_size_query_param = "page_size"
-
-
 class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     """
     凭证接口
@@ -289,7 +278,7 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     queryset = Credential.objects.all()
     serializer_class = CredentialSerializer
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
-    pagination_class = CredentialConfigPagination
+    pagination_class = BKFLOWDefaultPagination
 
     def get_object(self):
         serializer = CredentialBaseQuerySerializer(data=self.request.query_params)
