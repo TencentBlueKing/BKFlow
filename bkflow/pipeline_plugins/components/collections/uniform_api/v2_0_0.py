@@ -125,9 +125,13 @@ class UniformAPIService(BKFlowBaseService):
         resp_data_path: str = api_data.pop("response_data_path", None)
         # 获取空间相关配置信息
         interface_client = InterfaceModuleClient()
-        space_infos_result = interface_client.get_space_infos(
-            {"space_id": space_id, "config_names": "uniform_api,credential"}
+        scope_type, scope_id = parent_data.get_one_of_inputs("task_scope_type"), parent_data.get_one_of_inputs(
+            "task_scope_value"
         )
+        space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
+        if scope_type and scope_id:
+            space_infos_params["scope_params"] = f"{scope_type}_{scope_id}"
+        space_infos_result = interface_client.get_space_infos(space_infos_params)
         if not space_infos_result["result"]:
             message = handle_plain_log(
                 "[uniform_api error] get apigw credential failed: {}".format(space_infos_result["message"])
@@ -155,9 +159,13 @@ class UniformAPIService(BKFlowBaseService):
         credential_data = space_configs.get("credential")
         if credential_data:
             app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
-        else:
+        elif settings.USE_BKFLOW_CREDENTIAL:
             app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
-
+        else:
+            message = "不存在调用凭证"
+            self.logger.error(message)
+            data.outputs.ex_data = message
+            return False
         client = UniformAPIClient()
         headers = client.gen_default_apigw_header(app_code=app_code, app_secret=app_secret, username=operator)
         try:
@@ -245,7 +253,13 @@ class UniformAPIService(BKFlowBaseService):
 
         # 获取空间相关配置信息
         interface_client = InterfaceModuleClient()
-        space_infos_result = interface_client.get_space_infos({"space_id": space_id, "config_names": "credential"})
+        scope_type, scope_id = parent_data.get_one_of_inputs("task_scope_type"), parent_data.get_one_of_inputs(
+            "task_scope_value"
+        )
+        space_infos_params = {"space_id": space_id, "config_names": "credential"}
+        if scope_type and scope_id:
+            space_infos_params["scope_params"] = f"{scope_type}_{scope_id}"
+        space_infos_result = interface_client.get_space_infos(space_infos_params)
         if not space_infos_result["result"]:
             message = handle_plain_log(
                 "[uniform_api error] get apigw credential failed: {}".format(space_infos_result["message"])
@@ -258,8 +272,13 @@ class UniformAPIService(BKFlowBaseService):
         credential_data = space_configs.get("credential")
         if credential_data:
             app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
-        else:
+        elif settings.USE_BKFLOW_CREDENTIAL:
             app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
+        else:
+            message = "不存在调用凭证"
+            self.logger.error(message)
+            data.outputs.ex_data = message
+            return False
 
         client = UniformAPIClient()
         headers = client.gen_default_apigw_header(app_code=app_code, app_secret=app_secret, username=operator)
