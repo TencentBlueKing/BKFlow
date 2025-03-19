@@ -22,6 +22,7 @@ import logging
 import django_filters
 from blueapps.account.decorators import login_exempt
 from django.conf import settings
+from django.db import DatabaseError
 from django.db.models import Q
 from django.utils.decorators import method_decorator
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
@@ -34,6 +35,10 @@ from rest_framework.viewsets import ModelViewSet
 from webhook.base_models import Scope
 from webhook.signals import event_broadcast_signal
 
+from bkflow.apigw.serializers.credential import (
+    CreateCredentialSerializer,
+    UpdateCredentialSerializer,
+)
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
 from bkflow.exceptions import APIRequestError
@@ -48,6 +53,7 @@ from bkflow.space.models import (
 )
 from bkflow.space.permissions import SpaceExemptionPermission, SpaceSuperuserPermission
 from bkflow.space.serializers import (
+    CredentialBaseQuerySerializer,
     CredentialSerializer,
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
@@ -182,27 +188,29 @@ class SpaceInternalViewSet(AdminModelViewSet):
         event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=data.get("extra_info"))
         return Response("success")
 
+    def get_credential_config(self, config, space_id, scope="default"):
+        try:
+            if isinstance(config, dict) and config.get(scope):
+                # 如果是分 scope 配置则多一层提取
+                config = config.get(scope)
+            value = Credential.objects.get(space_id=space_id, name=config, type=CredentialType.BK_APP.value).value
+        except (Credential.DoesNotExist, SpaceConfigDefaultValueNotExists) as e:
+            logger.exception("CredentialViewSet 获取空间下的凭证异常, space_id={}, err={}, ".format(space_id, e))
+            value = {}
+        return value
+
     @action(detail=False, methods=["GET"])
     def get_space_infos(self, request, *args, **kwargs):
         data = request.query_params
         configs = {}
         for config_name in data.get("config_names", "").split(","):
             if config_name == "credential":
-                try:
-                    api_gateway_credential_name = SpaceConfig.get_config(
-                        data["space_id"], ApiGatewayCredentialConfig.name
-                    )
-                    value = Credential.objects.get(
-                        space_id=data["space_id"], name=api_gateway_credential_name, type=CredentialType.BK_APP.value
-                    ).value
-                except (Credential.DoesNotExist, SpaceConfigDefaultValueNotExists) as e:
-                    logger.exception("CredentialViewSet 获取空间下的凭证异常, space_id={}, err={}, ".format(data["space_id"], e))
-                    value = {}
+                value = SpaceConfig.get_config(data["space_id"], ApiGatewayCredentialConfig.name)
+                scope = data.get("scope", "default")
+                value = self.get_credential_config(config=value, space_id=data["space_id"], scope=scope)
             else:
                 value = SpaceConfig.get_config(space_id=data["space_id"], config_name=config_name)
-
             configs[config_name] = value
-
         infos = {
             "configs": configs,
         }
@@ -259,3 +267,89 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         return Response(
             SpaceConfig.objects.get_space_config_info(space_id=ser.validated_data["space_id"], simplified=False)
         )
+
+
+class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
+    """
+    凭证接口
+    """
+
+    queryset = Credential.objects.all()
+    serializer_class = CredentialSerializer
+    permission_classes = [AdminPermission | SpaceSuperuserPermission]
+    pagination_class = BKFLOWDefaultPagination
+
+    def get_object(self):
+        serializer = CredentialBaseQuerySerializer(data=self.request.query_params)
+        serializer.is_valid(raise_exception=True)
+        space_id = serializer.validated_data.get("space_id")
+
+        pk = self.kwargs.get(self.lookup_field)
+        obj = self.queryset.get(pk=pk, space_id=space_id)
+        return obj
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        serializer = CredentialBaseQuerySerializer(data=self.request.query_params)
+        serializer.is_valid(raise_exception=True)
+        space_id = serializer.validated_data.get("space_id")
+        queryset = queryset.filter(space_id=space_id, is_deleted=False)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        credential_serializer = CreateCredentialSerializer(data=request.data)
+        credential_serializer.is_valid(raise_exception=True)
+        credential_data = credential_serializer.validated_data
+
+        serializer = CredentialBaseQuerySerializer(data=self.request.query_params)
+        serializer.is_valid(raise_exception=True)
+        space_id = serializer.validated_data.get("space_id")
+        try:
+            credential = Credential.create_credential(
+                space_id=space_id,
+                name=credential_data["name"],
+                type=credential_data["type"],
+                content=credential_data["content"],
+                creator=request.user.username,
+                desc=credential_data.get("desc"),
+            )
+        except DatabaseError as e:
+            errMsg = f"创建凭证失败 {str(e)}"
+            logger.error(errMsg)
+            return Response(errMsg, status=500)
+        response_serializer = CredentialSerializer(credential)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+        except Credential.DoesNotExist as e:
+            errMsg = f"更新凭证不存在 {str(e)}"
+            logger.error(errMsg)
+            return Response(errMsg, status=404)
+
+        serializer = UpdateCredentialSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        for attr, value in serializer.validated_data.items():
+            setattr(instance, attr, value)
+
+        try:
+            instance.save(update_fields=serializer.validated_data.keys())
+        except DatabaseError as e:
+            errMsg = f"更新凭证失败 {str(e)}"
+            logger.error(errMsg)
+            return Response(errMsg, status=500)
+        # 序列化更新后的对象
+        response_serializer = CredentialSerializer(instance)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            instance.hard_delete()
+        except Credential.DoesNotExist as e:
+            errMsg = f"删除凭证不存在 {str(e)}"
+            logger.error(errMsg)
+            return Response(errMsg, status=404)
+        return Response()

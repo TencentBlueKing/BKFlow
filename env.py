@@ -140,3 +140,6 @@ APP_WHITE_LIST_STR = os.getenv("BKAPP_APP_WHITE_LIST", "")  # 逗号分隔的字
 
 # 系统空间插件列表
 SPACE_PLUGIN_LIST_STR = os.getenv("SPACE_PLUGIN_LIST_STR", "")  # 逗号分隔的字符串
+
+# 是否支持API插件使用 BKFLOW 凭证
+USE_BKFLOW_CREDENTIAL = os.getenv("USE_BKFLOW_CREDENTIAL", False)  # 默认关闭使用
