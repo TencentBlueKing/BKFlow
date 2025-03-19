@@ -303,7 +303,7 @@ class GatewayExpressionConfig(BaseSpaceConfig):
 class ApiGatewayCredentialConfig(BaseSpaceConfig):
     name = "api_gateway_credential_name"
     desc = _("API_GATEWAY使用的凭证配置")
-    example = [{"{scope_type}_{scope_id}": "{credential_name}"}]
+    example = {"default": "{default_credential_name}", "{scope_type}_{scope_id}": "{credential_name}"}
     value_type = SpaceConfigValueType.TEXT.value
     is_mix_type = True
 

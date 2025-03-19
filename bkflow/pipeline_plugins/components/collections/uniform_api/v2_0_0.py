@@ -130,7 +130,7 @@ class UniformAPIService(BKFlowBaseService):
         )
         space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
         if scope_type and scope_id:
-            space_infos_params["scope_params"] = f"{scope_type}_{scope_id}"
+            space_infos_params["scope"] = f"{scope_type}_{scope_id}"
         space_infos_result = interface_client.get_space_infos(space_infos_params)
         if not space_infos_result["result"]:
             message = handle_plain_log(
@@ -258,7 +258,7 @@ class UniformAPIService(BKFlowBaseService):
         )
         space_infos_params = {"space_id": space_id, "config_names": "credential"}
         if scope_type and scope_id:
-            space_infos_params["scope_params"] = f"{scope_type}_{scope_id}"
+            space_infos_params["scope"] = f"{scope_type}_{scope_id}"
         space_infos_result = interface_client.get_space_infos(space_infos_params)
         if not space_infos_result["result"]:
             message = handle_plain_log(
