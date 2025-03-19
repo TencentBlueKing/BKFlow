@@ -43,7 +43,6 @@ from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
 from bkflow.exceptions import APIRequestError
 from bkflow.space.configs import ApiGatewayCredentialConfig, SpaceConfigHandler
-from bkflow.space.credential import BkAppCredential
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import (
     Credential,
@@ -297,11 +296,6 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         queryset = queryset.filter(space_id=space_id, is_deleted=False)
         return queryset
 
-    def list(self, request, *args, **kwargs):
-        if not request.user.is_superuser:
-            raise PermissionDenied()
-        return super().list(request, *args, **kwargs)
-
     def create(self, request, *args, **kwargs):
         credential_serializer = CreateCredentialSerializer(data=request.data)
         credential_serializer.is_valid(raise_exception=True)
@@ -336,9 +330,6 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
 
         serializer = UpdateCredentialSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        if serializer.validated_data.get("content"):
-            content_ser = BkAppCredential.BkAppSerializer(data=serializer.validated_data["content"])
-            content_ser.is_valid(raise_exception=True)
 
         for attr, value in serializer.validated_data.items():
             setattr(instance, attr, value)

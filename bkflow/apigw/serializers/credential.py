@@ -20,6 +20,8 @@ to the current version of the project delivered to anyone in the future.
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
+from bkflow.space.credential import BkAppCredential
+
 
 class CreateCredentialSerializer(serializers.Serializer):
     name = serializers.CharField(help_text=_("凭证名称"), max_length=32, required=True)
@@ -33,3 +35,8 @@ class UpdateCredentialSerializer(serializers.Serializer):
     desc = serializers.CharField(help_text=_("凭证描述"), max_length=32, required=False)
     type = serializers.CharField(help_text=_("凭证类型"), max_length=32, required=False)
     content = serializers.JSONField(help_text=_("凭证内容"), required=False)
+
+    def validate_content(self, value):
+        content_ser = BkAppCredential.BkAppSerializer(data=value)
+        content_ser.is_valid(raise_exception=True)
+        return value
