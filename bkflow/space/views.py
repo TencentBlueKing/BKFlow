@@ -190,9 +190,12 @@ class SpaceInternalViewSet(AdminModelViewSet):
 
     def get_credential_config(self, config, space_id, scope="default"):
         try:
-            if isinstance(config, dict) and config.get(scope):
-                # 如果是分 scope 配置则多一层提取
-                config = config.get(scope)
+            if isinstance(config, dict):
+                if config.get(scope):
+                    # 如果是分 scope 且配置存在则多一层提取
+                    config = config.get(scope)
+                else:
+                    config = "default"
             value = Credential.objects.get(space_id=space_id, name=config, type=CredentialType.BK_APP.value).value
         except (Credential.DoesNotExist, SpaceConfigDefaultValueNotExists) as e:
             logger.exception("CredentialViewSet 获取空间下的凭证异常, space_id={}, err={}, ".format(space_id, e))

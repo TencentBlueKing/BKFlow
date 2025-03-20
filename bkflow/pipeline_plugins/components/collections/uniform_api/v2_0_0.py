@@ -130,7 +130,9 @@ class UniformAPIService(BKFlowBaseService):
         )
         space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
         if scope_type and scope_id:
-            space_infos_params["scope"] = f"{scope_type}_{scope_id}"
+            scope_string = f"{scope_type}_{scope_id}"
+            self.logger.info(f"found scope {scope_string}")
+            space_infos_params["scope"] = scope_string
         space_infos_result = interface_client.get_space_infos(space_infos_params)
         if not space_infos_result["result"]:
             message = handle_plain_log(
@@ -159,7 +161,9 @@ class UniformAPIService(BKFlowBaseService):
         credential_data = space_configs.get("credential")
         if credential_data:
             app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
+            self.logger.info(f"using credential config app_code: {app_code}")
         elif settings.USE_BKFLOW_CREDENTIAL:
+            self.logger.info("using bkflow credential")
             app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
         else:
             message = "不存在调用凭证"
@@ -258,7 +262,9 @@ class UniformAPIService(BKFlowBaseService):
         )
         space_infos_params = {"space_id": space_id, "config_names": "credential"}
         if scope_type and scope_id:
-            space_infos_params["scope"] = f"{scope_type}_{scope_id}"
+            scope_string = f"{scope_type}_{scope_id}"
+            self.logger.info(f"found scope {scope_string}")
+            space_infos_params["scope"] = scope_string
         space_infos_result = interface_client.get_space_infos(space_infos_params)
         if not space_infos_result["result"]:
             message = handle_plain_log(
@@ -272,7 +278,9 @@ class UniformAPIService(BKFlowBaseService):
         credential_data = space_configs.get("credential")
         if credential_data:
             app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
+            self.logger.info(f"using credential config app_code: {app_code}")
         elif settings.USE_BKFLOW_CREDENTIAL:
+            self.logger.info("using bkflow credential")
             app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
         else:
             message = "不存在调用凭证"
