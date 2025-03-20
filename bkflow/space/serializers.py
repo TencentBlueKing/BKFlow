@@ -81,6 +81,7 @@ class CredentialSerializer(serializers.ModelSerializer):
         data = super(CredentialSerializer, self).to_representation(instance)
         credential = CredentialDispatcher(credential_type=instance.type, data=instance.content)
         if credential:
+            data["content"] = credential.display_value()
             data["data"] = credential.display_value()
         else:
             data["data"] = {}
