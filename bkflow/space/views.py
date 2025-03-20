@@ -24,6 +24,7 @@ from blueapps.account.decorators import login_exempt
 from django.conf import settings
 from django.db import DatabaseError
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
@@ -334,8 +335,11 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         for attr, value in serializer.validated_data.items():
             setattr(instance, attr, value)
 
+        instance.updated_by = request.user.username
+        instance.update_at = timezone.now()
+        updated_keys = list(serializer.validated_data.keys()) + ["updated_by", "update_at"]
         try:
-            instance.save(update_fields=serializer.validated_data.keys())
+            instance.save(update_fields=updated_keys)
         except DatabaseError as e:
             errMsg = f"更新凭证失败 {str(e)}"
             logger.error(errMsg)
