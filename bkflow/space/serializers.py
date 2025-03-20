@@ -77,6 +77,9 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
 
 
 class CredentialSerializer(serializers.ModelSerializer):
+    create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+    update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+
     def to_representation(self, instance):
         data = super(CredentialSerializer, self).to_representation(instance)
         credential = CredentialDispatcher(credential_type=instance.type, data=instance.content)

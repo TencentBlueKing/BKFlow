@@ -313,6 +313,8 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
             "^[^{]+_[^{]+$": {"type": "string"},
         },
         "additionalProperties": False,
+        "required": ["default"],  # 必须存在 default 配置
+        "properties": {"default": {"type": "string"}},
     }
 
     @classmethod

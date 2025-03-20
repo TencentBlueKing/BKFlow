@@ -334,8 +334,10 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         for attr, value in serializer.validated_data.items():
             setattr(instance, attr, value)
 
+        instance.updated_by = request.user.username
+        updated_keys = list(serializer.validated_data.keys()) + ["updated_by", "update_at"]
         try:
-            instance.save(update_fields=serializer.validated_data.keys())
+            instance.save(update_fields=updated_keys)
         except DatabaseError as e:
             errMsg = f"更新凭证失败 {str(e)}"
             logger.error(errMsg)
