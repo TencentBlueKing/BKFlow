@@ -18,6 +18,7 @@ import taskList from './modules/taskList';
 import spaceConfig from './modules/spaceConfig';
 import system from './modules/system';
 import decisionTable from './modules/decisionTable';
+import credentialConfig from './modules/credentialConfig';
 
 Vue.use(Vuex);
 
@@ -39,6 +40,7 @@ const store = new Vuex.Store({
     spaceConfig,
     system,
     decisionTable,
+    credentialConfig,
   },
   // 公共 store
   state: {

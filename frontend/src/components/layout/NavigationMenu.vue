@@ -69,6 +69,12 @@
       id: 'config',
       disabled: false,
     },
+    {
+      name: i18n.t('凭证管理'),
+      icon: 'common-icon-credential',
+      id: 'credential',
+      disabled: false,
+    },
   ];
   const MODULES_LIST = [
     {

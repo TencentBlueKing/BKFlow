@@ -923,6 +923,11 @@ const en = {
   '暂不支持带有英文双引号(") 的输入值': 'Input values containing English double quotes (\") are not supported at the moment',
   变量列表: 'Variable List',
   被赋值变量: 'Assigned Variable',
+  新建凭证: 'Credential Create',
+  编辑凭证: 'Credential Edit',
+  凭证管理: 'Credential Management',
+  内容: 'Content',
+  '凭证删除后不可恢复，确认删除？': 'The voucher cannot be recovered once deleted. Are you sure you want to delete it?',
 };
 
 export default en;
