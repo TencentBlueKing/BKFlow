@@ -189,9 +189,12 @@ class SpaceInternalViewSet(AdminModelViewSet):
         event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=data.get("extra_info"))
         return Response("success")
 
-    def get_credential_config(self, config, space_id, scope=CREDENTIAL_CONFIG_KEY):
+    def get_credential_config(self, config, space_id, scope):
         try:
+            credential_name = config
+            # 如果是字符串直接查询对应凭证 否则提取对应 {scope_type}_{scope_id} 下的内容
             if isinstance(config, dict):
+                # 提取过程中 需要考虑划分到其他没有配置凭证的 {scope_type}_{scope_id} 下的流程 使用 default 默认凭证
                 credential_name = config.get(scope, config.get(self.CREDENTIAL_CONFIG_KEY))
             value = Credential.objects.get(
                 space_id=space_id, name=credential_name, type=CredentialType.BK_APP.value
