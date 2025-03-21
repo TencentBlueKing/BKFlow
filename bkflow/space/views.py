@@ -180,6 +180,7 @@ class SpaceInternalViewSet(AdminModelViewSet):
     queryset = Space.objects.filter(is_deleted=False)
     serializer_class = SpaceSerializer
     permission_classes = [AdminPermission | AppInternalPermission]
+    CREDENTIAL_CONFIG_KEY = "default"
 
     @action(detail=False, methods=["POST"])
     def broadcast_task_events(self, request, *args, **kwargs):
@@ -188,12 +189,13 @@ class SpaceInternalViewSet(AdminModelViewSet):
         event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=data.get("extra_info"))
         return Response("success")
 
-    def get_credential_config(self, config, space_id, scope="default"):
+    def get_credential_config(self, config, space_id, scope=CREDENTIAL_CONFIG_KEY):
         try:
-            if isinstance(config, dict) and config.get(scope):
-                # 如果是分 scope 配置则多一层提取
-                config = config.get(scope)
-            value = Credential.objects.get(space_id=space_id, name=config, type=CredentialType.BK_APP.value).value
+            if isinstance(config, dict):
+                credential_name = config.get(scope, config.get(self.CREDENTIAL_CONFIG_KEY))
+            value = Credential.objects.get(
+                space_id=space_id, name=credential_name, type=CredentialType.BK_APP.value
+            ).value
         except (Credential.DoesNotExist, SpaceConfigDefaultValueNotExists) as e:
             logger.exception("CredentialViewSet 获取空间下的凭证异常, space_id={}, err={}, ".format(space_id, e))
             value = {}
@@ -206,7 +208,7 @@ class SpaceInternalViewSet(AdminModelViewSet):
         for config_name in data.get("config_names", "").split(","):
             if config_name == "credential":
                 value = SpaceConfig.get_config(data["space_id"], ApiGatewayCredentialConfig.name)
-                scope = data.get("scope", "default")
+                scope = data.get("scope", self.CREDENTIAL_CONFIG_KEY)
                 value = self.get_credential_config(config=value, space_id=data["space_id"], scope=scope)
             else:
                 value = SpaceConfig.get_config(space_id=data["space_id"], config_name=config_name)
