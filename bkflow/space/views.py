@@ -189,8 +189,9 @@ class SpaceInternalViewSet(AdminModelViewSet):
         event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=data.get("extra_info"))
         return Response("success")
 
-    def get_credential_config(self, config, space_id, scope=CREDENTIAL_CONFIG_KEY):
+    def get_credential_config(self, config, space_id, scope):
         try:
+            credential_name = config
             if isinstance(config, dict):
                 credential_name = config.get(scope, config.get(self.CREDENTIAL_CONFIG_KEY))
             value = Credential.objects.get(
@@ -208,7 +209,7 @@ class SpaceInternalViewSet(AdminModelViewSet):
         for config_name in data.get("config_names", "").split(","):
             if config_name == "credential":
                 value = SpaceConfig.get_config(data["space_id"], ApiGatewayCredentialConfig.name)
-                scope = data.get("scope", self.CREDENTIAL_CONFIG_KEY)
+                scope = data.get("scope", None)
                 value = self.get_credential_config(config=value, space_id=data["space_id"], scope=scope)
             else:
                 value = SpaceConfig.get_config(space_id=data["space_id"], config_name=config_name)
