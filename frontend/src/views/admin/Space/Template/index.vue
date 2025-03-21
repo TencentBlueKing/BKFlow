@@ -114,10 +114,10 @@
           @searchClear="updateSearchSelect" />
       </div>
     </bk-table>
-    <create-task-dialog
-      :is-show="showCreateTaskDialog"
+    <CreateTaskSideslider
+      :is-show="showCreateTaskSlider"
       :row="selectRow"
-      @close="showCreateTaskDialog = false" />
+      @close="showCreateTaskSlider = false" />
     <create-template-dialog
       :is-show="showCreateTplDialog"
       @close="showCreateTplDialog = false"
@@ -133,7 +133,7 @@
   import tableHeader from '@/mixins/tableHeader.js';
   import tableCommon from '../mixins/tableCommon.js';
   import TableOperate from '../common/TableOperate.vue';
-  import CreateTaskDialog from './CreateTaskDialog.vue';
+  import CreateTaskSideslider from './CreateTaskSideslider.vue';
   import CreateTemplateDialog from './CreateTemplateDialog.vue';
   import i18n from '@/config/i18n/index.js';
 
@@ -226,15 +226,15 @@
     components: {
       NoData,
       TableOperate,
-      CreateTaskDialog,
       CreateTemplateDialog,
+      CreateTaskSideslider,
     },
     mixins: [tableHeader, tableCommon],
     data() {
       return {
         templateList: [],
         selectRow: {},
-        showCreateTaskDialog: false,
+        showCreateTaskSlider: false,
         showCreateTplDialog: false,
         selectedTpls: [], // 选中的流程模板
         batchDeleting: false,
@@ -325,7 +325,7 @@
       },
       onCreateTask(row) {
         this.selectRow = row;
-        this.showCreateTaskDialog = true;
+        this.showCreateTaskSlider = true;
       },
       renderHeaderCheckbox(h) {
         const self = this;
