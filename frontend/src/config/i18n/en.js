@@ -928,6 +928,7 @@ const en = {
   凭证管理: 'Credential Management',
   内容: 'Content',
   '凭证删除后不可恢复，确认删除？': 'The voucher cannot be recovered once deleted. Are you sure you want to delete it?',
+  值类型: 'Value Type',
 };
 
 export default en;
