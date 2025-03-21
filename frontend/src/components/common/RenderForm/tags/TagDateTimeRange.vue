@@ -5,6 +5,7 @@
         v-model="dateValue"
         :type="'datetimerange'"
         :disabled="!editable || disabled"
+        :transfer="true"
         :placeholder="placeholder">
       </bk-date-picker>
       <span v-show="!validateInfo.valid" class="common-error-tip error-info">{{validateInfo.message}}</span>
