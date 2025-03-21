@@ -130,9 +130,8 @@ class UniformAPIService(BKFlowBaseService):
         )
         space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
         if scope_type and scope_id:
-            scope_string = f"{scope_type}_{scope_id}"
-            self.logger.info(f"found scope {scope_string}")
-            space_infos_params["scope"] = scope_string
+            space_infos_params["scope"] = f"{scope_type}_{scope_id}"
+        self.logger.info(f"get_space_info params: {space_infos_params}")
         space_infos_result = interface_client.get_space_infos(space_infos_params)
         if not space_infos_result["result"]:
             message = handle_plain_log(
@@ -262,9 +261,8 @@ class UniformAPIService(BKFlowBaseService):
         )
         space_infos_params = {"space_id": space_id, "config_names": "credential"}
         if scope_type and scope_id:
-            scope_string = f"{scope_type}_{scope_id}"
-            self.logger.info(f"found scope {scope_string}")
-            space_infos_params["scope"] = scope_string
+            space_infos_params["scope"] = f"{scope_type}_{scope_id}"
+        self.logger.info(f"get_space_info params: {space_infos_params}")
         space_infos_result = interface_client.get_space_infos(space_infos_params)
         if not space_infos_result["result"]:
             message = handle_plain_log(
