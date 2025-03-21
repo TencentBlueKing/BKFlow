@@ -65,7 +65,8 @@
           :label="$t('值类型')">
           <bk-select
             v-model="localValueType"
-            :clearable="false">
+            :clearable="false"
+            @selected="configFormData.formValue = ''">
             <bk-option
               id="TEXT"
               name="TEXT" />
@@ -101,7 +102,7 @@
           <bk-input
             v-else
             v-model="configFormData.formValue"
-            :placeholder="selectedRow.example" />
+            :placeholder="inputPlaceholder" />
         </bk-form-item>
         <bk-form-item class="mt20">
           <bk-button
@@ -193,6 +194,12 @@
       },
       isJsonValueType() {
         return this.selectedRow.is_mix_type ? this.localValueType === 'JSON' : this.configFormData.formType === 'json';
+      },
+      inputPlaceholder() {
+        const { example = '' } = this.selectedRow;
+        let placeholder = typeof example === 'string' ? example : JSON.stringify(example);
+        placeholder = this.selectedRow.is_mix_type ? this.$t('请输入') : placeholder;
+        return placeholder;
       },
     },
     watch: {
