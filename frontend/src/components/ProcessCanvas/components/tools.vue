@@ -429,6 +429,8 @@
         const { x: originX, y: originY } = this.selectionOriginPos;
         const { x: mouseX, y: mouseY } = this.pasteMousePos;
         const { line: lines, activities } = this.$store.state.template;
+        const ration = this.instance.zoom()
+        const { tx, ty } = this.instance.translate()
         const locationHash = {};
         const selectCells = [];
         // 克隆生成的节点
@@ -439,6 +441,7 @@
           const activity = utilsTools.deepClone(activities[id]);
           const extraData = {
             ...data,
+            id: nodeId,
             oldSouceId: id,
           };
           if (activity) {
@@ -446,8 +449,8 @@
           }
           const nodeInstance = this.instance.addNode({
             id: nodeId,
-            x: x + mouseX - originX,
-            y: y + mouseY - originY,
+            x: (mouseX - tx) / ration + (x - originX),
+            y: (mouseY - ty) / ration + (y - originY),
             ...node.size(),
             shape,
             data: extraData,

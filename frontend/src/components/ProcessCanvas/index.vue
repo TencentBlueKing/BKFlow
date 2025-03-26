@@ -18,6 +18,8 @@
       @onFrameSelectToggle="isSelectionOpen = $event"
       @onFormatPosition="onFormatPosition"
       @onLocationMoveDone="onLocationMoveDone"
+      @onLocationChange="onLocationChange"
+      @onLineChange="onLineChange"
       @onDownloadCanvas="onDownloadCanvas"
       @onTogglePerspective="onTogglePerspective" />
     <Dnd
