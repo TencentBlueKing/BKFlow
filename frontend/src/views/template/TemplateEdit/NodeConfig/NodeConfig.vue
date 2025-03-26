@@ -73,7 +73,7 @@
             :common="common"
             :constants="localConstants"
             @closeEditingPanel="isVariablePanelShow = false"
-            @onSaveEditing="isVariablePanelShow = false" />
+            @onSaveEditing="onVariableSaveEditing" />
         </div>
         <!-- 插件/子流程表单面板 -->
         <div
@@ -980,6 +980,17 @@
         if (this.isSelectorPanelShow && (this.basicInfo.plugin || this.basicInfo.tpl)) {
           this.isSelectorPanelShow = false;
         }
+      },
+      // 变量编辑确认
+      onVariableSaveEditing(variable) {
+        this.isVariablePanelShow = false
+
+        const { key } = this.variableData
+        if (!key || key === variable.key) return
+
+        this.onHookChange('delete', this.variableData)
+        this.onHookChange('create', variable)
+        this.variableData = {}
       },
       // 标准插件（子流程）选择面板切换插件（子流程）
       // isThirdParty 是否为第三方插件

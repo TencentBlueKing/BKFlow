@@ -945,7 +945,7 @@
               this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
             }
           }
-          this.$emit('onSaveEditing');
+          this.$emit('onSaveEditing', this.theEditingData);
           return true;
         });
       },
