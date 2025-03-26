@@ -20,14 +20,20 @@ to the current version of the project delivered to anyone in the future.
 import json
 import logging
 import time
+from datetime import datetime
 
-from celery import task
+from celery import current_task, task
+from celery.schedules import crontab
+from celery.task import periodic_task
 from django.conf import settings
+from django.utils import timezone
+from django_celery_beat.models import PeriodicTask
 from pipeline.eri.models import Process, State
 from pipeline.eri.runtime import BambooDjangoRuntime
 
 from bkflow.constants import WebhookEventType
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
+from bkflow.task.celery.utils import delete_expired_data
 from bkflow.task.models import (
     AutoRetryNodeStrategy,
     TaskInstance,
@@ -145,3 +151,27 @@ def execute_node_timeout_strategy(node_id, version):
     )
 
     return action_result
+
+
+@periodic_task(run_every=crontab(minute="*/5"))
+def clean_task():
+    if not settings.ENABLE_CLEAN_TASK:
+        logger.info("未开启清理任务 退出....")
+        return
+    task_name = current_task.__name__
+    module_name = current_task.__module__
+    logger.info("清理任务开始...")
+    previous_execute_time, current_execute_time = None, None
+    try:
+        task = PeriodicTask.objects.get(name=f"{module_name}.{task_name}")
+
+        last_run_at = task.last_run_at
+        current_time = datetime.now(last_run_at.tzinfo)
+        current_execute_time = current_time
+        logger.info(f"当前时间 {current_time} 上一次清理执行时间: {last_run_at}")
+    except PeriodicTask.DoesNotExist:
+        logger.warning(f"未找到任务 {module_name}.{task_name} 执行记录 第一次执行任务")
+
+    previous_execute_time = current_time - timezone.timedelta(days=settings.CLEAN_TASK_EXPIRED_DAYS)
+    logger.info(f"删除周期 {previous_execute_time} - {current_execute_time}")
+    delete_expired_data(previous_execute_time, current_execute_time)

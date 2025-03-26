@@ -143,3 +143,15 @@ SPACE_PLUGIN_LIST_STR = os.getenv("SPACE_PLUGIN_LIST_STR", "")  # 逗号分隔�
 
 # 是否支持API插件使用 BKFLOW 凭证
 USE_BKFLOW_CREDENTIAL = os.getenv("USE_BKFLOW_CREDENTIAL", False)  # 默认关闭使用
+
+# 清理任务批量数目
+CLEAN_TASK_BATCH_NUM = os.getenv("CLEAN_TASK_BATCH_NUM", 20)
+
+# 清理节点批量数目
+CLEAN_TASK_NODE_BATCH_NUM = os.getenv("CLEAN_TASK_NODE_BATCH_NUM", 5)
+
+# 是否开启清理任务 默认关闭
+ENABLE_CLEAN_TASK = os.getenv("ENABLE_CLEAN_TASK", False)
+
+# 清理任务保存周期 默认 30 天
+CLEAN_TASK_EXPIRED_DAYS = int(os.getenv("CLEAN_TASK_EXPIRED_DAYS", 30))

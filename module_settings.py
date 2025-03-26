@@ -125,11 +125,20 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
             },
         }
 
-    from pipeline.celery.settings import CELERY_QUEUES  # noqa
+    from pipeline.celery.settings import CELERY_QUEUES, CELERY_ROUTES  # noqa
     from pipeline.eri.celery import queues as eri_queues  # noqa
 
     CELERY_QUEUES.extend(eri_queues.QueueResolver(BKFLOW_MODULE.code).queues())
     CELERY_QUEUES.extend(get_task_queues(BKFLOW_MODULE.code))
+
+    BKFLOW_CELERY_ROUTES = {
+        "bkflow.task.celery.tasks.clean_task": {
+            "queue": f"clean_task_{BKFLOW_MODULE.code}",
+            "routing_key": f"clean_task_{BKFLOW_MODULE.code}",
+        }
+    }
+
+    CELERY_ROUTES.update(BKFLOW_CELERY_ROUTES)
 
     PIPELINE_ENGINE_ADMIN_API_PERMISSION = "module_settings.check_engine_admin_permission"
 
@@ -187,6 +196,10 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
     PAASV3_APIGW_API_TOKEN = env.PAASV3_APIGW_API_TOKEN
     LOG_PERSISTENT_DAYS = env.LOG_PERSISTENT_DAYS
     USE_BKFLOW_CREDENTIAL = env.USE_BKFLOW_CREDENTIAL
+    CLEAN_TASK_BATCH_NUM = env.CLEAN_TASK_BATCH_NUM
+    CLEAN_TASK_NODE_BATCH_NUM = env.CLEAN_TASK_NODE_BATCH_NUM
+    CLEAN_TASK_EXPIRED_DAYS = env.CLEAN_TASK_EXPIRED_DAYS
+    ENABLE_CLEAN_TASK = env.ENABLE_CLEAN_TASK
 
 elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
 
