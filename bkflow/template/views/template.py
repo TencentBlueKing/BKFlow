@@ -33,10 +33,11 @@ from bkflow.apigw.serializers.task import (
     CreateTaskSerializer,
 )
 from bkflow.apigw.serializers.template import CreateTemplateSerializer
+from bkflow.bk_plugin.models import BKPluginAuthenticationManager as auth_manager
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.decorators import record_operation
-from bkflow.exceptions import APIResponseError, ValidationError
+from bkflow.exceptions import APIResponseError, SecondAuthError, ValidationError
 from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
 from bkflow.pipeline_web.preview import preview_template_tree
@@ -147,6 +148,11 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data["scope_value"] = template.scope_value
         create_task_data["space_id"] = space_id
         create_task_data["pipeline_tree"] = template.pipeline_tree
+        # 检查新建任务的流程中是否有未二次授权的蓝鲸插件
+        try:
+            auth_manager.batch_check_authorization(create_task_data["pipeline_tree"]["activities"])
+        except SecondAuthError as e:
+            return Response({"result": False, "data": None, "message": e.message})
         DEFAULT_NOTIFY_CONFIG = {
             "notify_type": {"fail": [], "success": []},
             "notify_receivers": {"more_receiver": "", "receiver_group": []},
@@ -187,6 +193,11 @@ class TemplateViewSet(UserModelViewSet):
 
     @record_operation(RecordType.template.name, TemplateOperationType.update.name, TemplateOperationSource.app.name)
     def update(self, request, *args, **kwargs):
+        # 检查保存流程中的蓝鲸插件的二次授权状态
+        try:
+            auth_manager.batch_check_authorization(request.data["pipeline_tree"]["activities"])
+        except SecondAuthError as e:
+            return Response({"result": False, "data": None, "message": e.message})
         return super().update(request, *args, **kwargs)
 
     @action(methods=["POST"], detail=False)

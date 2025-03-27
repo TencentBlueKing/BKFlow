@@ -19,9 +19,11 @@ to the current version of the project delivered to anyone in the future.
 """
 import json
 import os
+from datetime import timedelta
 from enum import Enum
 from urllib.parse import urlparse
 
+from blueapps.core.celery.celery import app
 from django.core.serializers.json import DjangoJSONEncoder
 from pydantic import BaseModel
 
@@ -216,6 +218,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "webhook",
         "version_log",
         "bk_notice_sdk",
+        "bkflow.bk_plugin",
     )
 
     VARIABLE_KEY_BLACKLIST = (
@@ -252,3 +255,12 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
 
     # ban 掉 admin 权限
     BLOCK_ADMIN_PERMISSION = env.BLOCK_ADMIN_PERMISSION
+
+    # 添加定时任务
+    app.conf.beat_schedule = {
+        # 同步蓝鲸插件任务
+        "sync_bk_plugins": {
+            "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",
+            "schedule": timedelta(minutes=10),
+        }
+    }

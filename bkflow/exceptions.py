@@ -53,3 +53,7 @@ class APIRequestError(BKFLOWException):
 
 class APIResponseError(BKFLOWException):
     pass
+
+
+class SecondAuthError(BKFLOWException):
+    pass
