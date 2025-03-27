@@ -63,8 +63,7 @@ def get_expired_data(previous_execute_time, current_execute_time):
     )
     # 查询这段时间内的 task_instance_ids
     task_instance = task_query.values("instance_id", "id")[: settings.CLEAN_TASK_BATCH_NUM]
-    logger.info(task_instance)
-    # task_instance = list(task_instance)
+    task_instance = list(task_instance)
     if not task_instance:
         logger.info("no cleaning task, exit...")
         return None, None
