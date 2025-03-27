@@ -13,11 +13,11 @@ logger = logging.getLogger("celery")
 @shared_task
 def clean_task():
     if not settings.ENABLE_CLEAN_TASK:
-        logger.info("未开启清理任务 退出....")
+        logger.info("clean task not enabled, exit....")
         return
-    logger.info("清理任务开始...")
+    logger.info("clean task starts...")
     previous_execute_time, current_execute_time = None, None
     current_execute_time = datetime.utcnow()
     previous_execute_time = current_execute_time - timezone.timedelta(days=settings.CLEAN_TASK_EXPIRED_DAYS)
-    logger.info(f"删除周期 {previous_execute_time} - {current_execute_time}")
+    logger.info(f"clean interval {previous_execute_time} - {current_execute_time}")
     delete_expired_data(previous_execute_time, current_execute_time)

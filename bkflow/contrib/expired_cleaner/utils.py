@@ -58,9 +58,30 @@ def chunk_data(data, chunk_size, func=None, *args, **kwargs):
 
 def get_expired_data(previous_execute_time, current_execute_time):
 
-    task_query = TaskInstance.objects.all()
+    task_query = TaskInstance.objects.filter(
+        create_time__gte=previous_execute_time, create_time__lt=current_execute_time
+    )
+    # 查询这段时间内的 task_instance_ids
+    task_instance = task_query.values("instance_id", "id")[: settings.CLEAN_TASK_BATCH_NUM]
+    logger.info(task_instance)
+    # task_instance = list(task_instance)
+    if not task_instance:
+        logger.info("no cleaning task, exit...")
+        return None, None
+    logger.info(f"batch cleaning task_instances {task_instance}")
+
+    task_instance_ids = [instance["instance_id"] for instance in task_instance]
+    task_ids = [instance["id"] for instance in task_instance]
+    chunk_size = settings.CLEAN_TASK_NODE_BATCH_NUM
+
+    # task_ids -> 其他任务关联资源 一对一
+    context_value = ContextValue.objects.filter(pipeline_id__in=task_instance_ids)
+    context_outputs = ContextOutputs.objects.filter(pipeline_id__in=task_instance_ids)
+
+    task_operation_record = TaskOperationRecord.objects.filter(instance_id__in=task_ids)
+    task_mock_data = TaskMockData.objects.filter(taskflow_id__in=task_ids)
+
     # task_instance task_execution_snapshot 直接根据时间过滤
-    task_query = task_query.filter(create_time__gte=previous_execute_time, create_time__lt=current_execute_time)
     task_execution_snapshot_query = TaskExecutionSnapshot.objects.filter(
         create_time__gte=previous_execute_time, create_time__lt=current_execute_time
     )
@@ -68,35 +89,14 @@ def get_expired_data(previous_execute_time, current_execute_time):
         create_time__gte=previous_execute_time, create_time__lt=current_execute_time
     )
 
-    # 查询这段时间内的 task_instance_ids
-    task_instance = task_query.values_list("instance_id", "id")[: settings.CLEAN_TASK_BATCH_NUM]
-    task_instance_list = list(task_instance)
-    if not task_instance_list:
-        logger.info("不存在清理 task 退出任务...")
-        return None, None
-    logger.info(f"批量清理如下 task_instances {task_instance}")
-
-    task_instance_ids = [instance[0] for instance in task_instance_list]
-    task_ids = [instance[1] for instance in task_instance_list]
-    chunk_size = settings.CLEAN_TASK_NODE_BATCH_NUM
-
-    # 根据 task_instance_ids ids 过滤出对应的 node_ids task_operation_record task_mock_data
+    # task_ids -> node_ids
     node_query = (
         Process.objects.filter(root_pipeline_id__in=task_instance_ids)
         .values_list("current_node_id", flat=True)
         .distinct()
     )
     node_ids = list(node_query)
-    logger.info(f"清理如下 node_ids {node_ids}")
-
-    callbackdata = CallbackData.objects.filter(node_id__in=node_ids)  # callbackdata 没有索引 走全表扫描
-
-    # 一对一对应的 直接扫描
-    context_value = ContextValue.objects.filter(pipeline_id__in=task_instance_ids)
-    context_outputs = ContextOutputs.objects.filter(pipeline_id__in=task_instance_ids)
-
-    task_operation_record = TaskOperationRecord.objects.filter(instance_id__in=task_ids)
-    task_mock_data = TaskMockData.objects.filter(taskflow_id__in=task_ids)
+    logger.info(f"batch cleaning node_ids {node_ids}")
 
     # 重构 node 和 task query 避免因前序查询导致结构变化无法执行操作
     node_query = Process.objects.filter(root_pipeline_id__in=task_instance_ids)
@@ -104,7 +104,8 @@ def get_expired_data(previous_execute_time, current_execute_time):
         create_time__gte=previous_execute_time, create_time__lt=current_execute_time
     )
 
-    # 可能出现一对多的 返回分块 querySet
+    # node_ids -> 其他节点关联资源 一对多 callbackdata 为一对一 且没有索引
+    callbackdata = CallbackData.objects.filter(node_id__in=node_ids)  # callbackdata 没有索引 走全表扫描
     nodes_list = chunk_data(node_ids, chunk_size, lambda x: Node.objects.filter(node_id__in=x))
     data_list = chunk_data(node_ids, chunk_size, lambda x: Data.objects.filter(node_id__in=x))
     states_list = chunk_data(node_ids, chunk_size, lambda x: State.objects.filter(node_id__in=x))
@@ -146,13 +147,13 @@ def delete_expired_data(previous_execute_time, current_execute_time):
     with transaction.atomic():
         # 清理无分块内容
         for field, qs in expired_data.items():
-            logger.info(f"清理无分块 {field} querySet ids : {qs.values_list('pk', flat=True)[:10]}...")
+            logger.info(f"clean no batch {field} querySet ids : {qs.values_list('pk', flat=True)[:10]}...")
             qs.delete()
         # 清理分块内容
         for field, qs in expired_batch_data.items():
             logger.info(
-                f"清理分块 {field} {len(qs)} batch data, "
+                f"clean {field} {len(qs)} batch data, "
                 f"e.x.: {qs[0].values_list('pk', flat=True)[:10] if len(qs) > 0 else None}..."
             )
             [q.delete() for q in qs]
-        logger.info("清理任务完成...")
+        logger.info("clean task done...")

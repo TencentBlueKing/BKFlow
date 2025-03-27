@@ -154,11 +154,11 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "plugin_service",
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
-        "bkflow.contrib.expired_cleaning",
+        "bkflow.contrib.expired_cleaner",
     )
 
     BKFLOW_CELERY_ROUTES = {
-        "bkflow.contrib.expired_cleaning.tasks.clean_task": {
+        "bkflow.contrib.expired_cleaner.tasks.clean_task": {
             "queue": f"clean_task_{BKFLOW_MODULE.code}",
             "routing_key": f"clean_task_{BKFLOW_MODULE.code}",
         }
@@ -167,8 +167,8 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
 
     app.conf.beat_schedule = {
         "expired_task_cleaning": {
-            "task": "bkflow.contrib.expired_cleaning.tasks.clean_task",
-            "schedule": crontab(minute="*/1"),
+            "task": "bkflow.contrib.expired_cleaner.tasks.clean_task",
+            "schedule": crontab(minute=env.CLEAN_TASK_CRONTAB),
         },
     }
     # app.conf.beat_schedule.update(BKFLOW_CELERY_SCHEDULE)
@@ -210,6 +210,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
     CLEAN_TASK_NODE_BATCH_NUM = env.CLEAN_TASK_NODE_BATCH_NUM
     CLEAN_TASK_EXPIRED_DAYS = env.CLEAN_TASK_EXPIRED_DAYS
     ENABLE_CLEAN_TASK = env.ENABLE_CLEAN_TASK
+    CLEAN_TASK_CRONTAB = env.CLEAN_TASK_CRONTAB
 
 elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
 
