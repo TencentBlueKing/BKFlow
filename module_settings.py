@@ -22,6 +22,8 @@ import os
 from enum import Enum
 from urllib.parse import urlparse
 
+from blueapps.core.celery.celery import app
+from celery.schedules import crontab
 from django.core.serializers.json import DjangoJSONEncoder
 from pydantic import BaseModel
 
@@ -131,15 +133,6 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
     CELERY_QUEUES.extend(eri_queues.QueueResolver(BKFLOW_MODULE.code).queues())
     CELERY_QUEUES.extend(get_task_queues(BKFLOW_MODULE.code))
 
-    BKFLOW_CELERY_ROUTES = {
-        "bkflow.task.celery.tasks.clean_task": {
-            "queue": f"clean_task_{BKFLOW_MODULE.code}",
-            "routing_key": f"clean_task_{BKFLOW_MODULE.code}",
-        }
-    }
-
-    CELERY_ROUTES.update(BKFLOW_CELERY_ROUTES)
-
     PIPELINE_ENGINE_ADMIN_API_PERMISSION = "module_settings.check_engine_admin_permission"
 
     BKAPP_API_PLUGIN_REQUEST_TIMEOUT = env.BKAPP_API_PLUGIN_REQUEST_TIMEOUT
@@ -161,7 +154,24 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "plugin_service",
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
+        "bkflow.contrib.expired_cleaning",
     )
+
+    BKFLOW_CELERY_ROUTES = {
+        "bkflow.contrib.expired_cleaning.tasks.clean_task": {
+            "queue": f"clean_task_{BKFLOW_MODULE.code}",
+            "routing_key": f"clean_task_{BKFLOW_MODULE.code}",
+        }
+    }
+    CELERY_ROUTES.update(BKFLOW_CELERY_ROUTES)
+
+    app.conf.beat_schedule = {
+        "expired_task_cleaning": {
+            "task": "bkflow.contrib.expired_cleaning.tasks.clean_task",
+            "schedule": crontab(minute="*/1"),
+        },
+    }
+    # app.conf.beat_schedule.update(BKFLOW_CELERY_SCHEDULE)
 
     MIDDLEWARE += ("bkflow.permission.middleware.TokenMiddleware",)
 
