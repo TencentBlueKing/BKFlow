@@ -429,8 +429,8 @@
         const { x: originX, y: originY } = this.selectionOriginPos;
         const { x: mouseX, y: mouseY } = this.pasteMousePos;
         const { line: lines, activities } = this.$store.state.template;
-        const ration = this.instance.zoom()
-        const { tx, ty } = this.instance.translate()
+        const ration = this.instance.zoom();
+        const { tx, ty } = this.instance.translate();
         const locationHash = {};
         const selectCells = [];
         // 克隆生成的节点
