@@ -30,7 +30,7 @@ sequenceDiagram
     participant b as BKFlow
     participant a as META APIS
     
-    user1->>+b: open the config panel of uniform api pln
+    user1->>+b: open the config panel of uniform api plugin
     b->>+a: call category api
     a->>-b: return category list
     b->>-user1: show category list
@@ -80,7 +80,7 @@ sequenceDiagram
             {
                 "id": "api1",
                 "name": "API1",
-                "meta_url": "xxxx"
+                "meta_url": "xxxx" // 拉取 api 信息的 url
             }
         ]
     }
@@ -88,7 +88,7 @@ sequenceDiagram
 ```
 
 ### detail meta api
-基于选中的api，BKFlow 会从前序的detail meta api中获取接口的详细信息，接口的输入输出：
+基于选中的api，BKFlow 会从上述的detail meta api中获取接口的详细信息，接口的输入输出：
 1. 输入：GET方法
 2. 输出：接口返回标准三段结构，result为True时展示接口列表，False时展示错误提示
 
@@ -353,13 +353,13 @@ sequenceDiagram
 // 从轮询返回具体的 task 相关信息时 通过 result 字段标明响应是否成功
 // {{api_url}} api response
 {
-   "result": True,
+   "result": true,
    "task_tag": 1234
 }
 
 // {{polling_url}} api response
 {
-    "result": True,
+    "result": true,
     "status": "success",
 }
 ```
