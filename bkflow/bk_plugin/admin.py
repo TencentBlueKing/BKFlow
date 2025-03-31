@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from bkflow.bk_plugin.models import BKPlugin, BKPluginAuthentication
+from bkflow.bk_plugin.models import BKPlugin, BKPluginAuthorization
 
 
 # Register your models here.
@@ -14,7 +14,7 @@ class BKPluginAdmin(admin.ModelAdmin):
         "introduction",
         "created_time",
         "updated_time",
-        "contact",
+        "manager",
         "extra_info",
     )
     search_fields = ("code", "name", "tag")
@@ -22,7 +22,7 @@ class BKPluginAdmin(admin.ModelAdmin):
     ordering = ("code",)
 
 
-@admin.register(BKPluginAuthentication)
+@admin.register(BKPluginAuthorization)
 class BKPluginAuthenticationAdmin(admin.ModelAdmin):
     list_display = ("code", "status", "config", "authorized_time", "operator")
     search_fields = ("code", "operator")

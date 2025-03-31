@@ -143,3 +143,6 @@ SPACE_PLUGIN_LIST_STR = os.getenv("SPACE_PLUGIN_LIST_STR", "")  # 逗号分隔�
 
 # 是否支持API插件使用 BKFLOW 凭证
 USE_BKFLOW_CREDENTIAL = os.getenv("USE_BKFLOW_CREDENTIAL", False)  # 默认关闭使用
+
+# 是否开启蓝鲸插件二次授权检查
+USE_BK_PLUGIN_AUTHORIZATION = os.getenv("USE_BK_PLUGIN_AUTHORIZATION", False)  # 暂时关闭使用

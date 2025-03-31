@@ -36,13 +36,13 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^api/decision_table/", include("bkflow.decision_table.urls")),
         url(r"^api/space/", include("bkflow.space.urls")),
         url(r"^api/plugin/", include("bkflow.plugin.urls")),
+        url(r"^api/bk_plugin/", include("bkflow.bk_plugin.urls")),
         url(r"^api/admin/", include("bkflow.admin.urls")),
         url(r"^api/permission/", include("bkflow.permission.urls")),
         url(r"^api/plugin_query/", include("bkflow.pipeline_plugins.query.urls")),
         url(r"^api/plugin_service/", include("plugin_service.urls")),
         url(r"^notice/", include("bk_notice_sdk.urls")),
         url(r"^version_log/", include("version_log.urls", namespace="version_log")),
-        url(r"^api/bk_plugin/", include("bkflow.bk_plugin.urls")),
     ]
 elif settings.BKFLOW_MODULE.type == BKFLOWModuleType.engine:
     engine_admin_actions = [

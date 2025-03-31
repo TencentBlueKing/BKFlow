@@ -55,5 +55,5 @@ class APIResponseError(BKFLOWException):
     pass
 
 
-class SecondAuthError(BKFLOWException):
+class UnAuthorization(BKFLOWException):
     pass
