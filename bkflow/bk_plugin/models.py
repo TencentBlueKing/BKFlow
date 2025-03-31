@@ -1,3 +1,22 @@
+# -*- coding: utf-8 -*-
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
+"""
 import logging
 from enum import Enum
 
@@ -39,17 +58,19 @@ class BKPluginManager(models.Manager):
         remote_pairs = set((code, plugin["plugin"]["updated"]) for (code, plugin) in remote_plugins_dict.items())
         local_pairs = set((plugin.code, plugin.updated_time) for plugin in local_plugins)
         to_create_pairs = remote_pairs - local_pairs
+        logger.info(f"蓝鲸插件同步过程新增插件{len(to_create_pairs)}个")
         # 准备好批量创建的插件列表
         to_create_plugins = [self.fill_plugin_info(remote_plugins_dict[pair[0]]) for pair in set(to_create_pairs)]
         to_delete_codes = [pair[0] for pair in set(local_pairs - remote_pairs)]
+        logger.info(f"蓝鲸插件同步过程删除插件{len(to_delete_codes)}")
         # 开启事务进行批量操作
         with transaction.atomic():
+            if to_delete_codes:
+                local_plugins.filter(code__in=to_delete_codes).delete()
             if to_create_plugins:
                 # 每次同步检查一次权限记录，是否需要创建新记录
                 local_plugins.bulk_create(to_create_plugins)
-            if to_delete_codes:
-                local_plugins.filter(code__in=to_delete_codes).delete()
-            logger.info(f"蓝鲸插件同步完成，新增{len(to_create_plugins)}个，删除{len(to_delete_codes)}个")
+            logger.info("蓝鲸插件同步完成")
 
     def get_plugin_by_manager(self, username):
         """
@@ -95,12 +116,12 @@ class BKPluginAuthorizationManager(models.Manager):
         """
         根据空间ID获取已被授权的插件code
         """
-        queryset = self.filter(status=AuthStatus.unauthorized).values_list("code", "config")
+        authorized_dict = self.filter(status=AuthStatus.authorized).values("code", "config")
         result_codes = []
-        for obj in queryset:
-            white_list = obj[1].get(WHITE_LIST, [])
+        for obj in authorized_dict:
+            white_list = obj.get("config").get(WHITE_LIST)
             if ALL_SPACE in white_list or space_id in white_list:
-                result_codes.append(obj[0])
+                result_codes.append(obj.get("code"))
         return result_codes
 
     # 批量检查插件授权状态

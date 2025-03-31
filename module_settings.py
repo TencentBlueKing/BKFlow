@@ -19,7 +19,6 @@ to the current version of the project delivered to anyone in the future.
 """
 import json
 import os
-from datetime import timedelta
 from enum import Enum
 from urllib.parse import urlparse
 
@@ -261,6 +260,6 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         # 同步蓝鲸插件任务
         "sync_bk_plugins": {
             "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",
-            "schedule": timedelta(minutes=10),
+            "schedule": env.SYNC_BK_PLUGINS_INTERVAL,
         }
     }
