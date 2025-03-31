@@ -30,7 +30,7 @@ sequenceDiagram
     participant b as BKFlow
     participant a as META APIS
     
-    user1->>+b: open the config panel of uniform api plugin
+    user1->>+b: open the config panel of uniform api pln
     b->>+a: call category api
     a->>-b: return category list
     b->>-user1: show category list
@@ -59,8 +59,8 @@ sequenceDiagram
   "result": true,
   "message": "",
   "data": [
-    {"name": "c1", "key": "c1"},
-    {"name": "c2", "key": "c2"}
+    {"name": "c1", "id": "c1"},
+    {"name": "c2", "id": "c2"}
   ]
 }
 ```
@@ -72,21 +72,23 @@ sequenceDiagram
 2. 输出：接口返回标准三段结构，result为True时展示接口列表，False时展示错误提示
 ``` json
 {
-  "result": true,
-  "message": "",
-  "data": [
-    {
-      "id": "api1",
-      "meta_url": "xxxx/api1",  // 对应的 detail meta api
-      "name": "api1",
-      "category": "xxx"
+    "result": true,
+    "message": "",
+    "data": {
+        "total": 1,
+        "apis": [
+            {
+                "id": "api1",
+                "name": "API1",
+                "meta_url": "xxxx"
+            }
+        ]
     }
-  ]
 }
 ```
 
 ### detail meta api
-基于选中的api，BKFlow 会从detail meta api中获取接口的详细信息，接口的输入输出：
+基于选中的api，BKFlow 会从前序的detail meta api中获取接口的详细信息，接口的输入输出：
 1. 输入：GET方法
 2. 输出：接口返回标准三段结构，result为True时展示接口列表，False时展示错误提示
 
@@ -97,7 +99,7 @@ sequenceDiagram
   "data": {
     "id": "api1",
     "name": "api1",
-    "url": "https://{some apigw host}/xxxx", // 执行时实际调用的 api
+    "url": "https://{some apigw host}/xxxx", // 执行时实际调用的 api 注意必须要符合网关API的格式
     "methods": [
       "GET"
     ],
@@ -348,13 +350,16 @@ sequenceDiagram
     ...
 }
 
+// 从轮询返回具体的 task 相关信息时 通过 result 字段标明响应是否成功
 // {{api_url}} api response
 {
+   "result": True,
    "task_tag": 1234
 }
 
 // {{polling_url}} api response
 {
+    "result": True,
     "status": "success",
 }
 ```
@@ -402,8 +407,8 @@ sequenceDiagram
       "url": "{{api_url}}",  // 触发任务的 url
       "methods": ["POST"],
       "callback": {
-          "success_tag": {"key": "status", "value": "success"},  // polling_url 响应中用于识别状态成功的 key 和 value（value 只支持字符串和数字类型)
-          "fail_tag": {"key": "status", "value": "fail"},  // polling_url 响应中用于识别状态失败的 key 和 value（value 只支持字符串和数字类型)
+          "success_tag": {"key": "status", "value": "success"},  // callback_url 响应中用于识别状态成功的 key 和 value（value 只支持字符串和数字类型)
+          "fail_tag": {"key": "status", "value": "fail"},  // callback_url 响应中用于识别状态失败的 key 和 value（value 只支持字符串和数字类型)
       },
       ...
   },
