@@ -54,18 +54,17 @@ def chunk_data(data, chunk_size, func, *args, **kwargs):
 
 def get_expired_data(expired_time):
 
-    tasks = TaskInstance.objects.filter(create_time__lt=expired_time)[: settings.CLEAN_TASK_BATCH_NUM]
+    tasks = TaskInstance.objects.filter(create_time__lt=expired_time).order_by("-id")[: settings.CLEAN_TASK_BATCH_NUM]
     # 查询这段时间内的 task_instance_ids
     if not tasks:
         logger.info("no cleaning task, exit...")
-        return None, None
+        return {}, {}
     task_instance_ids = [instance.instance_id for instance in tasks]
     logger.info(f"batch cleaning task_instances {task_instance_ids}")
     task_ids = [instance.id for instance in tasks]
     # 快照 id 可能为空
     snapshot_ids = [instance.snapshot_id for instance in tasks if instance.snapshot_id]
     execution_snapshot_ids = [instance.execution_snapshot_id for instance in tasks if instance.execution_snapshot_id]
-    chunk_size = settings.CLEAN_TASK_NODE_BATCH_NUM
 
     # task_ids -> 其他任务关联资源 一对一
     context_value = ContextValue.objects.filter(pipeline_id__in=task_instance_ids)
@@ -87,11 +86,23 @@ def get_expired_data(expired_time):
     logger.info(f"batch cleaning node_ids {node_ids}")
 
     # 重构 node_query task_query 避免因前序查询导致结构变化无法执行操作
-    node_query = Process.objects.filter(root_pipeline_id__in=task_instance_ids)
-    task_query = TaskInstance.objects.filter(instance_id__in=task_instance_ids)
-
-    # node_ids -> 其他节点关联资源 一对多 callbackdata 为一对一 且没有索引
+    nodes = Process.objects.filter(root_pipeline_id__in=task_instance_ids)
+    tasks = TaskInstance.objects.filter(instance_id__in=task_instance_ids)
     callbackdata = CallbackData.objects.filter(node_id__in=node_ids)  # callbackdata 没有索引 走全表扫描
+    expired_data = {
+        "task_execution_snapshot_query": task_execution_snapshot_query,
+        "task_snapshot_query": task_snapshot_query,
+        "callbackdata": callbackdata,
+        "context_value": context_value,
+        "context_outputs": context_outputs,
+        "task_operation_record": task_operation_record,
+        "task_mock_data": task_mock_data,
+        "node_ids": nodes,
+        "task_instance": tasks,
+    }
+
+    chunk_size = settings.CLEAN_TASK_NODE_BATCH_NUM
+    # node_ids -> 其他节点关联资源 一对多
     nodes_list = chunk_data(node_ids, chunk_size, lambda x: Node.objects.filter(node_id__in=x))
     data_list = chunk_data(node_ids, chunk_size, lambda x: Data.objects.filter(node_id__in=x))
     states_list = chunk_data(node_ids, chunk_size, lambda x: State.objects.filter(node_id__in=x))
@@ -102,17 +113,6 @@ def get_expired_data(expired_time):
     retry_node_list = chunk_data(node_ids, chunk_size, lambda x: AutoRetryNodeStrategy.objects.filter(node_id__in=x))
     timeout_node_list = chunk_data(node_ids, chunk_size, lambda x: TimeoutNodeConfig.objects.filter(node_id__in=x))
 
-    expired_data = {
-        "task_execution_snapshot_query": task_execution_snapshot_query,
-        "task_snapshot_query": task_snapshot_query,
-        "callbackdata": callbackdata,
-        "context_value": context_value,
-        "context_outputs": context_outputs,
-        "task_operation_record": task_operation_record,
-        "task_mock_data": task_mock_data,
-        "node_ids": node_query,
-        "task_instance": task_query,
-    }
     # 将一对一 和 一对多的分开返回 便于删除时区分
     expired_batch_data = {
         "nodes_list": nodes_list,
@@ -130,8 +130,6 @@ def get_expired_data(expired_time):
 def delete_expired_data(expired_time):
 
     expired_data, expired_batch_data = get_expired_data(expired_time)
-    if not expired_data:
-        return
     with transaction.atomic():
         # 清理无分块内容
         for field, qs in expired_data.items():

@@ -157,4 +157,4 @@ ENABLE_CLEAN_TASK = os.getenv("ENABLE_CLEAN_TASK", False)
 CLEAN_TASK_EXPIRED_DAYS = int(os.getenv("CLEAN_TASK_EXPIRED_DAYS", 180))
 
 # 清理任务周期 默认 5 分钟一次
-CLEAN_TASK_CRONTAB = os.getenv("CLEAN_TASK_CRONTAB", "*/5")
+CLEAN_TASK_CRONTAB = str(os.getenv("CLEAN_TASK_CRONTAB", "*/5 * * * *"))

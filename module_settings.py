@@ -168,7 +168,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
     app.conf.beat_schedule = {
         "expired_task_cleaning": {
             "task": "bkflow.contrib.expired_cleaner.tasks.clean_task",
-            "schedule": crontab(minute=env.CLEAN_TASK_CRONTAB),
+            "schedule": crontab(env.CLEAN_TASK_CRONTAB),
         },
     }
     # app.conf.beat_schedule.update(BKFLOW_CELERY_SCHEDULE)
