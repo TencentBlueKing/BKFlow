@@ -16,8 +16,7 @@ def clean_task():
         logger.info("clean task not enabled, exit....")
         return
     logger.info("clean task starts...")
-    previous_execute_time, current_execute_time = None, None
     current_execute_time = datetime.utcnow()
-    previous_execute_time = current_execute_time - timezone.timedelta(days=settings.CLEAN_TASK_EXPIRED_DAYS)
-    logger.info(f"clean interval {previous_execute_time} - {current_execute_time}")
-    delete_expired_data(previous_execute_time, current_execute_time)
+    expired_time = current_execute_time - timezone.timedelta(days=settings.CLEAN_TASK_EXPIRED_DAYS)
+    logger.info(f"clean tasks before {expired_time}")
+    delete_expired_data(expired_time)
