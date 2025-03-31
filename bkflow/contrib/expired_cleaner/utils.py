@@ -73,8 +73,8 @@ def get_expired_data(expired_time):
     task_operation_record = TaskOperationRecord.objects.filter(instance_id__in=task_ids)
     task_mock_data = TaskMockData.objects.filter(taskflow_id__in=task_ids)
 
-    task_execution_snapshot_query = TaskExecutionSnapshot.objects.filter(id__in=execution_snapshot_ids)
-    task_snapshot_query = TaskSnapshot.objects.filter(id__in=snapshot_ids)
+    task_execution_snapshot = TaskExecutionSnapshot.objects.filter(id__in=execution_snapshot_ids)
+    task_snapshot = TaskSnapshot.objects.filter(id__in=snapshot_ids)
 
     # task_ids -> node_ids
     node_query = (
@@ -90,8 +90,8 @@ def get_expired_data(expired_time):
     tasks = TaskInstance.objects.filter(instance_id__in=task_instance_ids)
     callbackdata = CallbackData.objects.filter(node_id__in=node_ids)  # callbackdata 没有索引 走全表扫描
     expired_data = {
-        "task_execution_snapshot_query": task_execution_snapshot_query,
-        "task_snapshot_query": task_snapshot_query,
+        "task_execution_snapshot": task_execution_snapshot,
+        "task_snapshot": task_snapshot,
         "callbackdata": callbackdata,
         "context_value": context_value,
         "context_outputs": context_outputs,

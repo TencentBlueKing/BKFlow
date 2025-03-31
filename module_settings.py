@@ -171,7 +171,6 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
             "schedule": crontab(env.CLEAN_TASK_CRONTAB),
         },
     }
-    # app.conf.beat_schedule.update(BKFLOW_CELERY_SCHEDULE)
 
     MIDDLEWARE += ("bkflow.permission.middleware.TokenMiddleware",)
 
