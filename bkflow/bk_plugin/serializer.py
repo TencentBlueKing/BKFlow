@@ -32,17 +32,13 @@ class BKPluginSerializer(serializers.ModelSerializer):
 
 
 class PluginConfigSerializer(serializers.Serializer):
-    white_list = serializers.ListField(
-        required=True,
-    )
+    white_list = serializers.ListField(required=True, child=serializers.CharField())
 
     def validate_white_list(self, value):
         if not value:
             logger.exception(f"{WHITE_LIST}参数校验失败，{WHITE_LIST}不能为空")
             raise serializers.ValidationError(f"{WHITE_LIST}不能为空")
         for space_id in value:
-            if not space_id.isdigit() and space_id is not ALL_SPACE:
-                raise serializers.ValidationError(f"{space_id}不是有效的空间ID")
             if space_id is ALL_SPACE and len(value) > 1:
                 logger.exception(f"{WHITE_LIST}参数校验失败，{ALL_SPACE}不能与其他空间ID同时存在")
                 raise serializers.ValidationError(f"{ALL_SPACE}不能与其他空间ID同时存在")

@@ -115,7 +115,7 @@ def get_default_config():
 
 
 class BKPluginAuthorizationManager(models.Manager):
-    def get_codes_by_space_id(self, space_id: int):
+    def get_codes_by_space_id(self, space_id: str):
         """
         根据空间ID获取已被授权的插件code
         """
