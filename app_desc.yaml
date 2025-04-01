@@ -142,3 +142,7 @@ modules:
         command: celery beat -A blueapps.core.celery -l info
         plan: 4C1G5R
         replicas: 1
+      clean-worker:
+        command: celery worker -A blueapps.core.celery -P threads -Q clean_task_${BKFLOW_MODULE_CODE} -n clean_worker@%h -c 100 -l info
+        plan: 4C4G5R
+        replicas: 1

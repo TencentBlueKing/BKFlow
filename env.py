@@ -147,4 +147,19 @@ USE_BKFLOW_CREDENTIAL = os.getenv("USE_BKFLOW_CREDENTIAL", False)  # 默认关�
 # 是否开启蓝鲸插件二次授权检查
 USE_BK_PLUGIN_AUTHORIZATION = os.getenv("USE_BK_PLUGIN_AUTHORIZATION", False)  # 暂时关闭使用
 # 蓝鲸插件同步频率，默认为每十分钟一次
-SYNC_BK_PLUGINS_INTERVAL = os.getenv("SYNC_BK_PLUGINS_INTERVAL", "crontab:*/10 * * * *")
+SYNC_BK_PLUGINS_INTERVAL = os.getenv("SYNC_BK_PLUGINS_INTERVAL", "*/10 * * * *")
+
+# 清理任务批量数目
+CLEAN_TASK_BATCH_NUM = os.getenv("CLEAN_TASK_BATCH_NUM", 200)
+
+# 清理节点批量数目
+CLEAN_TASK_NODE_BATCH_NUM = os.getenv("CLEAN_TASK_NODE_BATCH_NUM", 5000)
+
+# 是否开启清理任务 默认关闭
+ENABLE_CLEAN_TASK = os.getenv("ENABLE_CLEAN_TASK", False)
+
+# 清理任务保存周期 默认 30 天
+CLEAN_TASK_EXPIRED_DAYS = int(os.getenv("CLEAN_TASK_EXPIRED_DAYS", 180))
+
+# 清理任务周期 默认 5 分钟一次
+CLEAN_TASK_CRONTAB = os.getenv("CLEAN_TASK_CRONTAB", "*/5 * * * *")
