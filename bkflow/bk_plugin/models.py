@@ -56,6 +56,8 @@ class BKPluginManager(models.Manager):
         """
         批量更新插件信息
         """
+        if not remote_plugins_dict:
+            return
         # 比较插件code和更新时间
         remote_pairs = set((code, plugin["plugin"]["updated"]) for (code, plugin) in remote_plugins_dict.items())
         local_pairs = set((plugin.code, plugin.updated_time) for plugin in self.all())
@@ -113,7 +115,7 @@ def get_default_config():
 
 
 class BKPluginAuthorizationManager(models.Manager):
-    def get_codes_by_space_id(self, space_id):
+    def get_codes_by_space_id(self, space_id: int):
         """
         根据空间ID获取已被授权的插件code
         """

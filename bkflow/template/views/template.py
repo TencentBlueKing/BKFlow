@@ -192,12 +192,7 @@ class TemplateViewSet(UserModelViewSet):
 
     @record_operation(RecordType.template.name, TemplateOperationType.update.name, TemplateOperationSource.app.name)
     def update(self, request, *args, **kwargs):
-        # 检查保存流程中的蓝鲸插件的二次授权状态
-        try:
-            return super().update(request, *args, **kwargs)
-        except Exception as e:
-            logger.exception(e)
-            return Response({"result": False, "data": None, "message": str(e)})
+        return super().update(request, *args, **kwargs)
 
     @action(methods=["POST"], detail=False)
     def analysis_constants_ref(self, request, *args, **kwargs):

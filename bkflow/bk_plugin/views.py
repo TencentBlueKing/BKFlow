@@ -105,11 +105,9 @@ class BKPluginViewSet(SimpleGenericViewSet):
     def list(self, request):
         ser = BKPluginQuerySerializer(data=request.query_params)
         ser.is_valid(raise_exception=True)
-        tag = ser.validated_data["tag"]
-        space_id = ser.validated_data["space_id"]
-        plugins_queryset = self.get_queryset().filter(tag=int(tag))
+        plugins_queryset = self.get_queryset().filter(tag=ser.validated_data["tag"])
         if env.ENABLE_BK_PLUGIN_AUTHORIZATION:
-            authorized_codes = BKPluginAuthorization.objects.get_codes_by_space_id(int(space_id))
+            authorized_codes = BKPluginAuthorization.objects.get_codes_by_space_id(ser.validated_data["space_id"])
             plugins_queryset = plugins_queryset.filter(code__in=authorized_codes)
         paged_data = self.pagination_class().paginate_queryset(plugins_queryset, request)
         serializer = self.get_serializer(paged_data, many=True)
