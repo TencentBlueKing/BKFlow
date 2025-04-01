@@ -21,12 +21,7 @@ from datetime import datetime
 
 from rest_framework import serializers
 
-from bkflow.bk_plugin.models import (
-    AuthStatus,
-    BKPlugin,
-    BKPluginAuthorization,
-    get_default_config,
-)
+from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
 from bkflow.constants import ALL_SPACE, WHITE_LIST
 
 
@@ -36,28 +31,26 @@ class BKPluginSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class PluginConfigSerializer(serializers.Serializer):
+    white_list = serializers.ListField(required=True, allow_null=False)
+
+    def validate_white_list(self, value):
+        if not value:
+            raise serializers.ValidationError(f"{WHITE_LIST}不能为空")
+        for space_id in value:
+            if not space_id.isdigit() and space_id is not ALL_SPACE:
+                raise serializers.ValidationError(f"{space_id}不是有效的空间ID")
+            if space_id is ALL_SPACE:
+                # 如果存在 *，直接覆盖
+                return [ALL_SPACE]
+        return value
+
+
 class BKPluginAuthSerializer(serializers.ModelSerializer):
     code = serializers.CharField(read_only=True, max_length=100)
-    status = serializers.IntegerField()
-    config = serializers.JSONField(default=get_default_config())
+    status = serializers.IntegerField(required=False)
+    config = PluginConfigSerializer(required=False)
     operator = serializers.CharField(read_only=True, max_length=255, allow_blank=True)
-
-    class PluginConfigSerializer(serializers.Serializer):
-        white_list = serializers.ListField(required=True, allow_null=False)
-
-        def validate_white_list(self, value):
-            if not value:
-                raise serializers.ValidationError(f"{WHITE_LIST}不能为空")
-            for space_id in value:
-                if space_id == ALL_SPACE:
-                    # 如果存在 *，直接覆盖
-                    return [ALL_SPACE]
-            return value
-
-    def validate_config(self, value):
-        ser = self.PluginConfigSerializer(data=value)
-        ser.is_valid(raise_exception=True)
-        return ser.validated_data
 
     def validate_status(self, value):
         if value not in [AuthStatus.authorized, AuthStatus.unauthorized]:
@@ -65,8 +58,10 @@ class BKPluginAuthSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-        update_fields = ["config"]
-        instance.config = validated_data["config"]
+        update_fields = []
+        if "config" in validated_data:
+            update_fields.append("config")
+            instance.config = validated_data["config"]
         if "status" in validated_data:
             instance.status = validated_data["status"]
             if instance.status == AuthStatus.authorized:
@@ -81,7 +76,7 @@ class BKPluginAuthSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class AuthQuerySerializer(serializers.Serializer):
+class BKPluginQuerySerializer(serializers.Serializer):
     tag = serializers.IntegerField(required=True)
     space_id = serializers.IntegerField(required=True)
 
@@ -89,15 +84,12 @@ class AuthQuerySerializer(serializers.Serializer):
 class AuthListSerializer(serializers.Serializer):
     code = serializers.CharField(read_only=True, max_length=100)
     name = serializers.CharField(max_length=100)
-    manager = serializers.CharField(max_length=255)
-    authorization = serializers.SerializerMethodField()
+    managers = serializers.CharField(max_length=255)
+    status = serializers.IntegerField(required=False)
+    config = PluginConfigSerializer(required=False)
+    operator = serializers.CharField(read_only=True, max_length=255, allow_blank=True)
+    authorized_time = serializers.DateTimeField(required=False)
 
     class Meta:
         model = BKPlugin
-        fields = "code,name,manager"
-
-    def get_authorization(self, obj):
-        authorization = BKPluginAuthorization.objects.filter(code=obj.code).first()
-        if not authorization:
-            return BKPluginAuthorization(code=obj.code).to_json()
-        return authorization.to_json()
+        fields = ["code", "name", "managers"]

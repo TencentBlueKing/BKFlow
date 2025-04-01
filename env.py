@@ -144,11 +144,6 @@ SPACE_PLUGIN_LIST_STR = os.getenv("SPACE_PLUGIN_LIST_STR", "")  # 逗号分隔�
 # 是否支持API插件使用 BKFLOW 凭证
 USE_BKFLOW_CREDENTIAL = os.getenv("USE_BKFLOW_CREDENTIAL", False)  # 默认关闭使用
 
-# 是否开启蓝鲸插件二次授权检查
-USE_BK_PLUGIN_AUTHORIZATION = os.getenv("USE_BK_PLUGIN_AUTHORIZATION", False)  # 暂时关闭使用
-# 蓝鲸插件同步频率，默认为每十分钟一次
-SYNC_BK_PLUGINS_INTERVAL = os.getenv("SYNC_BK_PLUGINS_INTERVAL", "*/10 * * * *")
-
 # 清理任务批量数目
 CLEAN_TASK_BATCH_NUM = os.getenv("CLEAN_TASK_BATCH_NUM", 200)
 
@@ -163,3 +158,8 @@ CLEAN_TASK_EXPIRED_DAYS = int(os.getenv("CLEAN_TASK_EXPIRED_DAYS", 180))
 
 # 清理任务周期 默认 5 分钟一次
 CLEAN_TASK_CRONTAB = os.getenv("CLEAN_TASK_CRONTAB", "*/5 * * * *")
+
+# 是否开启蓝鲸插件二次授权检查
+USE_BK_PLUGIN_AUTHORIZATION = os.getenv("USE_BK_PLUGIN_AUTHORIZATION", False)  # 暂时关闭使用
+# 蓝鲸插件同步频率，默认 10 分钟一次
+SYNC_BK_PLUGINS_INTERVAL = os.getenv("SYNC_BK_PLUGINS_INTERVAL", "*/10 * * * *")

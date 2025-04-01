@@ -33,7 +33,7 @@ class BKPluginAdmin(admin.ModelAdmin):
         "introduction",
         "created_time",
         "updated_time",
-        "manager",
+        "managers",
         "extra_info",
     )
     search_fields = ("code", "name", "tag")

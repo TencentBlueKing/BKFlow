@@ -33,11 +33,10 @@ from bkflow.apigw.serializers.task import (
     CreateTaskSerializer,
 )
 from bkflow.apigw.serializers.template import CreateTemplateSerializer
-from bkflow.bk_plugin.models import BKPluginAuthorizationManager as auth_manager
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.decorators import record_operation
-from bkflow.exceptions import APIResponseError, UnAuthorization, ValidationError
+from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
 from bkflow.pipeline_web.preview import preview_template_tree
@@ -142,21 +141,17 @@ class AdminTemplateViewSet(AdminModelViewSet):
                     space_id=space_id, template_id=ser.data["template_id"]
                 )
             )
+        try:
+            ser.validate_bk_plugin(template.pipeline_tree)
+        except Exception as e:
+            logger.exception(f"创建流程{template.id}时出错,err={e}")
+            return Response({"result": False, "data": None, "message": str(e)})
 
         create_task_data = dict(ser.data)
         create_task_data["scope_type"] = template.scope_type
         create_task_data["scope_value"] = template.scope_value
         create_task_data["space_id"] = space_id
         create_task_data["pipeline_tree"] = template.pipeline_tree
-        # 检查新建任务的流程中是否有未二次授权的蓝鲸插件
-        try:
-            exist_code_list = [
-                node["component"]["data"]["plugin_code"]["value"]
-                for node in create_task_data["pipeline_tree"]["activities"].values()
-            ]
-            auth_manager.batch_check_authorization(exist_code_list)
-        except UnAuthorization as e:
-            return Response({"result": False, "data": None, "message": e.message})
         DEFAULT_NOTIFY_CONFIG = {
             "notify_type": {"fail": [], "success": []},
             "notify_receivers": {"more_receiver": "", "receiver_group": []},
@@ -199,14 +194,10 @@ class TemplateViewSet(UserModelViewSet):
     def update(self, request, *args, **kwargs):
         # 检查保存流程中的蓝鲸插件的二次授权状态
         try:
-            exist_code_list = [
-                node["component"]["data"]["plugin_code"]["value"]
-                for node in request.data["pipeline_tree"]["activities"].values()
-            ]
-            auth_manager.batch_check_authorization(exist_code_list)
-        except UnAuthorization as e:
-            return Response({"result": False, "data": None, "message": e.message})
-        return super().update(request, *args, **kwargs)
+            return super().update(request, *args, **kwargs)
+        except Exception as e:
+            logger.exception(e)
+            return Response({"result": False, "data": None, "message": str(e)})
 
     @action(methods=["POST"], detail=False)
     def analysis_constants_ref(self, request, *args, **kwargs):

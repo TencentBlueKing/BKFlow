@@ -55,5 +55,5 @@ class APIResponseError(BKFLOWException):
     pass
 
 
-class UnAuthorization(BKFLOWException):
+class PluginUnAuthorization(BKFLOWException):
     pass

@@ -26,6 +26,6 @@ from bkflow.bk_plugin.models import BKPlugin
 class BKPluginManagerPermission(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         plugin = BKPlugin.objects.filter(code=obj.code).first()
-        if not plugin.manager or request.user.username not in plugin.manager:
+        if not plugin or not plugin.manager or request.user.username not in plugin.manager:
             return False
         return True

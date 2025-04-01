@@ -19,22 +19,23 @@ to the current version of the project delivered to anyone in the future.
 """
 import logging
 
-from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 import env
-from bkflow.bk_plugin.models import BKPlugin, BKPluginAuthorization
+from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
 from bkflow.bk_plugin.permissions import BKPluginManagerPermission
 from bkflow.bk_plugin.serializer import (
     AuthListSerializer,
     BKPluginAuthSerializer,
+    BKPluginQuerySerializer,
     BKPluginSerializer,
 )
+from bkflow.constants import ALL_SPACE, WHITE_LIST
 from bkflow.exceptions import ValidationError
-from bkflow.utils.mixins import BKFLOWNoMaxLimitPagination
+from bkflow.utils.mixins import BKFLOWDefaultPagination
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import ReadOnlyViewSet, SimpleGenericViewSet
 
@@ -44,61 +45,78 @@ logger = logging.getLogger("root")
 class BKPluginManagerViewSet(ReadOnlyViewSet, mixins.UpdateModelMixin):
     queryset = BKPluginAuthorization.objects.all()
     serializer_class = BKPluginAuthSerializer
-    pagination_class = BKFLOWNoMaxLimitPagination
-    permission_classes = [AdminPermission & BKPluginManagerPermission]
+    pagination_class = BKFLOWDefaultPagination
+    permission_classes = [AdminPermission | BKPluginManagerPermission]
     lookup_field = "code"
 
     def list(self, request, *args, **kwargs):
         plugins = BKPlugin.objects.get_plugin_by_manager(request.user.username)
-        paged_data = self.pagination_class().paginate_queryset(plugins, request)
+        paged_plugins = self.pagination_class().paginate_queryset(plugins, request)
+        authorizations = self.get_queryset().filter(code__in=[p.code for p in paged_plugins])
+        authorization_dict = {auth.code: auth for auth in authorizations}
+        paged_data = [
+            {
+                "code": plugin.code,
+                "name": plugin.name,
+                "managers": plugin.managers,
+                **(
+                    {
+                        "status": authorization.status,
+                        "config": authorization.config,
+                        "operator": authorization.operator,
+                        "authorized_time": authorization.authorized_time,
+                    }
+                    if (authorization := authorization_dict.get(plugin.code))
+                    else {
+                        "status": AuthStatus.unauthorized,
+                        "config": {WHITE_LIST: [ALL_SPACE]},
+                        "operator": "",
+                        "authorized_time": "",
+                    }
+                ),
+            }
+            for plugin in paged_plugins
+        ]
         serializer = AuthListSerializer(data=paged_data, many=True)
         serializer.is_valid()
-        return Response(data={"total_count": len(plugins), "plugins": serializer.data})
+        return Response({"result": True, "message": None, "data": {"count": len(plugins), "plugins": serializer.data}})
 
     def update(self, request, *args, **kwargs):
-        authorization = self.get_queryset().filter(code=kwargs.get("code")).first()
-        if not authorization:
-            BKPluginAuthorization.objects.create(code=kwargs.get("code"))
-        serializer = self.get_serializer(self.get_object(), data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        if "status" in serializer.validated_data:
-            serializer.context.update({"username": request.user.username})
+        code = kwargs["code"]
+        authorization, _ = self.get_queryset().get_or_create(code=code)
+        ser = self.get_serializer(authorization, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        if "status" in ser.validated_data:
+            ser.context.update({"username": request.user.username})
         try:
-            serializer.save()
+            ser.save()
         except ValidationError as e:
-            return Response({"result": False, "message": e.message})
-        return Response({"message": "更新成功", "data": serializer.data})
+            return Response({"result": False, "data": None, "message": e.message})
+        return Response({"result": True, "message": None, "data": ser.data})
 
 
 class BKPluginViewSet(SimpleGenericViewSet):
     queryset = BKPlugin.objects.all()
     serializer_class = BKPluginSerializer
-    pagination_class = BKFLOWNoMaxLimitPagination
+    pagination_class = BKFLOWDefaultPagination
     permission_classes = []
 
-    @swagger_auto_schema(
-        manual_parameters=[
-            openapi.Parameter("tag", openapi.IN_QUERY, description="插件分类", type=openapi.TYPE_STRING, required=True),
-            openapi.Parameter(
-                "space_id", openapi.IN_QUERY, description="当前空间ID", type=openapi.TYPE_STRING, required=True
-            ),
-            openapi.Parameter("limit", openapi.IN_QUERY, description="每页数量", type=openapi.TYPE_INTEGER),
-            openapi.Parameter("offset", openapi.IN_QUERY, description="起始位置", type=openapi.TYPE_INTEGER),
-        ]
-    )
+    @swagger_auto_schema(query_serializer=BKPluginQuerySerializer)
     def list(self, request):
-        tag = request.query_params.get("tag")
-        space_id = request.query_params.get("space_id")
-        if not tag or not space_id:
-            return Response({"result": False, "message": "参数错误:请传入tag和space_id"})
+        ser = BKPluginQuerySerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        tag = ser.validated_data["tag"]
+        space_id = ser.validated_data["space_id"]
         plugins_queryset = self.get_queryset().filter(tag=int(tag))
         if env.USE_BK_PLUGIN_AUTHORIZATION:
             authorized_codes = BKPluginAuthorization.objects.get_codes_by_space_id(int(space_id))
             plugins_queryset = plugins_queryset.filter(code__in=authorized_codes)
         paged_data = self.pagination_class().paginate_queryset(plugins_queryset, request)
         serializer = self.get_serializer(paged_data, many=True)
-        return Response({"total_count": len(plugins_queryset), "plugins": serializer.data})
+        return Response(
+            {"result": True, "message": None, "data": {"count": len(plugins_queryset), "plugins": serializer.data}}
+        )
 
     @action(detail=False, methods=["GET"], url_path="is_manager", pagination_class=None)
     def is_manager(self, request):
-        return Response(self.get_queryset().filter(manager__contains=request.user.username).exists())
+        return Response(self.get_queryset().filter(managers__contains=request.user.username).exists())

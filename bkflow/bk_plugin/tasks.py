@@ -23,7 +23,7 @@ from celery.app import shared_task
 from rest_framework.exceptions import APIException
 
 from bkflow.bk_plugin.models import BKPlugin
-from bkflow.constants import MAX_LIMIT_OF_SYNC
+from bkflow.constants import BK_PLUGIN_SYNC
 from plugin_service import env
 from plugin_service.conf import PLUGIN_DISTRIBUTOR_NAME
 from plugin_service.plugin_client import PluginServiceApiClient
@@ -34,7 +34,11 @@ logger = logging.getLogger("celery")
 # 每十分钟执行一次增量同步
 @shared_task()
 def sync_bk_plugins():
-    plugins_dict = fetch_newest_plugins_dict()
+    plugins_dict = {}
+    try:
+        plugins_dict = fetch_newest_plugins_dict()
+    except APIException as e:
+        logger.error(f"同步蓝鲸插件列表时失败: {e}")
     BKPlugin.objects.sync_bk_plugins(plugins_dict)
 
 
@@ -42,7 +46,7 @@ def fetch_newest_plugins_dict():
     """通过部署环境和授权app_code过滤蓝鲸插件，获取授权给bkflow的插件列表"""
     plugins_dict = {}
     offset = 0
-    limit = MAX_LIMIT_OF_SYNC
+    limit = BK_PLUGIN_SYNC
     while True:
         result = PluginServiceApiClient.get_plugin_detail_list(
             exclude_not_deployed=True,
