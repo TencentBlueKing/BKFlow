@@ -52,7 +52,7 @@ class UniformAPIMetaSerializer(serializers.Serializer):
     meta_url = serializers.CharField(required=True)
 
 
-def _get_space_uniform_api_list_info(space_id, request_data, config_key, username=None):
+def _get_space_uniform_api_list_info(space_id, request_data, config_key, username):
     uniform_api_config = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
     if not uniform_api_config:
         raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
