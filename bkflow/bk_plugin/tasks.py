@@ -49,7 +49,7 @@ def fetch_newest_plugins_dict():
             include_addresses=0,
             distributor_code_name=PLUGIN_DISTRIBUTOR_NAME,
         )
-        if not result["data"]:
+        if not result["result"]:
             logger.error(result.get("message", "拉取蓝鲸插件列表失败"))
             raise APIException(result.get("message", "拉取蓝鲸插件列表失败"))
         plugins_dict.update(
