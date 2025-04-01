@@ -21,7 +21,7 @@ from datetime import datetime
 
 from rest_framework import serializers
 
-from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
+from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization, logger
 from bkflow.constants import ALL_SPACE, WHITE_LIST
 
 
@@ -32,17 +32,20 @@ class BKPluginSerializer(serializers.ModelSerializer):
 
 
 class PluginConfigSerializer(serializers.Serializer):
-    white_list = serializers.ListField(required=True, allow_null=False)
+    white_list = serializers.ListField(
+        required=True,
+    )
 
     def validate_white_list(self, value):
         if not value:
+            logger.exception(f"{WHITE_LIST}参数校验失败，{WHITE_LIST}不能为空")
             raise serializers.ValidationError(f"{WHITE_LIST}不能为空")
         for space_id in value:
             if not space_id.isdigit() and space_id is not ALL_SPACE:
                 raise serializers.ValidationError(f"{space_id}不是有效的空间ID")
-            if space_id is ALL_SPACE:
-                # 如果存在 *，直接覆盖
-                return [ALL_SPACE]
+            if space_id is ALL_SPACE and len(value) > 1:
+                logger.exception(f"{WHITE_LIST}参数校验失败，{ALL_SPACE}不能与其他空间ID同时存在")
+                raise serializers.ValidationError(f"{ALL_SPACE}不能与其他空间ID同时存在")
         return value
 
 

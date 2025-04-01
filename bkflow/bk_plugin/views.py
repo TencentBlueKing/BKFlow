@@ -108,7 +108,7 @@ class BKPluginViewSet(SimpleGenericViewSet):
         tag = ser.validated_data["tag"]
         space_id = ser.validated_data["space_id"]
         plugins_queryset = self.get_queryset().filter(tag=int(tag))
-        if env.USE_BK_PLUGIN_AUTHORIZATION:
+        if env.ENABLE_BK_PLUGIN_AUTHORIZATION:
             authorized_codes = BKPluginAuthorization.objects.get_codes_by_space_id(int(space_id))
             plugins_queryset = plugins_queryset.filter(code__in=authorized_codes)
         paged_data = self.pagination_class().paginate_queryset(plugins_queryset, request)
@@ -119,4 +119,5 @@ class BKPluginViewSet(SimpleGenericViewSet):
 
     @action(detail=False, methods=["GET"], url_path="is_manager", pagination_class=None)
     def is_manager(self, request):
-        return Response(self.get_queryset().filter(managers__contains=request.user.username).exists())
+        is_manager = self.get_queryset().filter(managers__contains=request.user.username).exists()
+        return Response({"result": True, "message": None, "data": {"is_manager": is_manager}})

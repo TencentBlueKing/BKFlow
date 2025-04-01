@@ -21,6 +21,7 @@ import logging
 from enum import Enum
 
 from django.db import models, transaction
+from django.utils.timezone import localtime
 from django.utils.translation import ugettext_lazy as _
 
 import env
@@ -57,7 +58,7 @@ class BKPluginManager(models.Manager):
         """
         # 比较插件code和更新时间
         remote_pairs = set((code, plugin["plugin"]["updated"]) for (code, plugin) in remote_plugins_dict.items())
-        local_pairs = set((plugin.code, plugin.updated_time.strftime("%Y-%m-%d %H:%M:%S")) for plugin in self.all())
+        local_pairs = set((plugin.code, plugin.updated_time) for plugin in self.all())
         to_create_pairs = remote_pairs - local_pairs
         logger.info(f"蓝鲸插件同步过程新增插件{len(to_create_pairs)}个")
         # 准备好批量创建的插件列表
@@ -89,8 +90,8 @@ class BKPlugin(models.Model):
     name = models.CharField(_("插件名称"), max_length=255)
     tag = models.IntegerField(_("插件隶属分类"), db_index=True, null=False)
     logo_url = models.CharField(_("插件图片url"), max_length=255)
-    created_time = models.DateTimeField(_("创建时间"), null=True, blank=True)
-    updated_time = models.DateTimeField(_("更新时间"), null=True, blank=True)
+    created_time = models.CharField(_("插件创建时间"), null=True, blank=True, max_length=255)
+    updated_time = models.CharField(_("插件更新时间"), null=True, blank=True, max_length=255)
     introduction = models.CharField(_("插件简介"), max_length=255)
     managers = models.JSONField(_("插件管理员列表"), default=list)
     extra_info = models.JSONField(_("额外信息"), default=dict)
@@ -126,7 +127,7 @@ class BKPluginAuthorizationManager(models.Manager):
 
     # 批量检查插件授权状态
     def batch_check_authorization(self, exist_code_list):
-        if not env.USE_BK_PLUGIN_AUTHORIZATION:
+        if not env.ENABLE_BK_PLUGIN_AUTHORIZATION:
             return []
         authorized_codes = set(
             self.filter(code__in=exist_code_list, status=AuthStatus.authorized).values_list("code", flat=True)
@@ -149,9 +150,9 @@ class BKPluginAuthorization(models.Model):
 
     code = models.CharField(_("插件code"), db_index=True, max_length=100)
     status = models.IntegerField(_("授权状态"), choices=AUTH_STATUS_CHOICES, default=AuthStatus.unauthorized)
-    authorized_time = models.DateTimeField(_("授权时间"), null=True, blank=True)
+    authorized_time = models.DateTimeField(_("最近一次授权时间"), null=True, blank=True)
     config = models.JSONField(_("授权配置，如使用范围等"), default=get_default_config)
-    operator = models.CharField(_("授权人名称"), max_length=100, blank=True, default="")
+    operator = models.CharField(_("最近一次授权的授权人名称"), max_length=100, blank=True, default="")
 
     objects = BKPluginAuthorizationManager()
 
@@ -163,7 +164,9 @@ class BKPluginAuthorization(models.Model):
         return {
             "code": self.code,
             "status": self.status,
-            "authorized_time": self.authorized_time.strftime("%Y-%m-%d %H:%M:%S") if self.authorized_time else "",
+            "authorized_time": localtime(self.authorized_time).strftime("%Y-%m-%d %H:%M:%S")
+            if self.authorized_time
+            else "",
             "config": self.config,
             "operator": self.operator,
         }

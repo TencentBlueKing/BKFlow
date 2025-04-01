@@ -43,7 +43,9 @@ class CreateTaskSerializer(serializers.Serializer):
             raise serializers.ValidationError(_("本地参数校验失败，pipeline_tree为空"))
         try:
             exist_code_list = [
-                node["component"]["data"]["plugin_code"]["value"] for node in pipeline_tree["activities"].values()
+                node["component"]["data"]["plugin_code"]["value"]
+                for node in pipeline_tree["activities"].values()
+                if node["component"]["data"]["plugin_code"]
             ]
             BKPluginAuthorization.objects.batch_check_authorization(exist_code_list)
             return

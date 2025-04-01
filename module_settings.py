@@ -282,6 +282,6 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         # 同步蓝鲸插件任务
         "sync_bk_plugins": {
             "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",
-            "schedule": crontab(env.SYNC_BK_PLUGINS_INTERVAL),
+            "schedule": crontab(env.SYNC_BK_PLUGINS_CRONTAB),
         }
     }

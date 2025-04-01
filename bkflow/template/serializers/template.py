@@ -121,11 +121,13 @@ class TemplateSerializer(serializers.ModelSerializer):
         # 检查新建任务的流程中是否有未二次授权的蓝鲸插件
         try:
             exist_code_list = [
-                node["component"]["data"]["plugin_code"]["value"] for node in pipeline_tree["activities"].values()
+                node["component"]["data"]["plugin_code"]["value"]
+                for node in pipeline_tree["activities"].values()
+                if node["component"]["data"]["plugin_code"]
             ]
             BKPluginAuthorization.objects.batch_check_authorization(exist_code_list)
         except Exception as e:
-            logger.error("TemplateSerializer update error, err = {}".format(e))
+            logger.exception("TemplateSerializer update error, err = {}".format(e))
             raise serializers.ValidationError(_("更新失败，存在未授权的蓝鲸插件,err={}".format(e)))
         instance.update_snapshot(pipeline_tree)
         instance = super(TemplateSerializer, self).update(instance, validated_data)
