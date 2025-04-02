@@ -158,3 +158,8 @@ CLEAN_TASK_EXPIRED_DAYS = int(os.getenv("CLEAN_TASK_EXPIRED_DAYS", 180))
 
 # 清理任务周期 默认 5 分钟一次
 CLEAN_TASK_CRONTAB = os.getenv("CLEAN_TASK_CRONTAB", "*/5 * * * *")
+
+# 是否开启蓝鲸插件二次授权检查
+ENABLE_BK_PLUGIN_AUTHORIZATION = os.getenv("ENABLE_BK_PLUGIN_AUTHORIZATION", False)  # 暂时关闭使用
+# 蓝鲸插件同步频率，默认 10 分钟一次
+SYNC_BK_PLUGINS_CRONTAB = os.getenv("SYNC_BK_PLUGINS_INTERVAL", "*/10 * * * *")

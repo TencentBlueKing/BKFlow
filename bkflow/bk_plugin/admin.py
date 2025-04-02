@@ -17,43 +17,33 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from django.contrib import admin
+
+from bkflow.bk_plugin.models import BKPlugin, BKPluginAuthorization
 
 
-class BKFLOWException(Exception):
-    CODE = None
-    MESSAGE = None
-    STATUS_CODE = 500
-
-    def __init__(self, message=""):
-        self.message = f"{self.MESSAGE}: {message}" if self.MESSAGE else f"{message}"
-
-    def __str__(self):
-        return self.message
-
-
-class ValidationError(BKFLOWException):
-    pass
-
-
-class NotFoundError(BKFLOWException):
-    pass
-
-
-class UnknownError(BKFLOWException):
-    pass
+# Register your models here.
+@admin.register(BKPlugin)
+class BKPluginAdmin(admin.ModelAdmin):
+    list_display = (
+        "code",
+        "name",
+        "tag",
+        "logo_url",
+        "introduction",
+        "created_time",
+        "updated_time",
+        "managers",
+        "extra_info",
+    )
+    search_fields = ("code", "name", "tag")
+    list_filter = ("code",)
+    ordering = ("code",)
 
 
-class UserNotFound(BKFLOWException):
-    pass
-
-
-class APIRequestError(BKFLOWException):
-    STATUS_CODE = 400
-
-
-class APIResponseError(BKFLOWException):
-    pass
-
-
-class PluginUnAuthorization(BKFLOWException):
-    pass
+@admin.register(BKPluginAuthorization)
+class BKPluginAuthenticationAdmin(admin.ModelAdmin):
+    list_display = ("code", "status", "config", "status_update_time", "status_updator")
+    search_fields = ("code", "status_updator")
+    list_filter = ("code", "status_updator", "status")
+    ordering = ("code",)

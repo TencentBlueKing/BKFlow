@@ -17,43 +17,15 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from rest_framework import permissions
+
+from bkflow.bk_plugin.models import BKPlugin
 
 
-class BKFLOWException(Exception):
-    CODE = None
-    MESSAGE = None
-    STATUS_CODE = 500
-
-    def __init__(self, message=""):
-        self.message = f"{self.MESSAGE}: {message}" if self.MESSAGE else f"{message}"
-
-    def __str__(self):
-        return self.message
-
-
-class ValidationError(BKFLOWException):
-    pass
-
-
-class NotFoundError(BKFLOWException):
-    pass
-
-
-class UnknownError(BKFLOWException):
-    pass
-
-
-class UserNotFound(BKFLOWException):
-    pass
-
-
-class APIRequestError(BKFLOWException):
-    STATUS_CODE = 400
-
-
-class APIResponseError(BKFLOWException):
-    pass
-
-
-class PluginUnAuthorization(BKFLOWException):
-    pass
+# 是否有插件的管理员权限
+class BKPluginManagerPermission(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        plugin = BKPlugin.objects.filter(code=obj.code).first()
+        if not plugin or request.user.username not in plugin.managers:
+            return False
+        return True

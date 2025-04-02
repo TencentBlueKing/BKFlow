@@ -141,7 +141,6 @@ class AdminTemplateViewSet(AdminModelViewSet):
                     space_id=space_id, template_id=ser.data["template_id"]
                 )
             )
-
         create_task_data = dict(ser.data)
         create_task_data["scope_type"] = template.scope_type
         create_task_data["scope_value"] = template.scope_value

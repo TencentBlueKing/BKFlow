@@ -239,6 +239,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "webhook",
         "version_log",
         "bk_notice_sdk",
+        "bkflow.bk_plugin",
     )
 
     VARIABLE_KEY_BLACKLIST = (
@@ -275,3 +276,12 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
 
     # ban 掉 admin 权限
     BLOCK_ADMIN_PERMISSION = env.BLOCK_ADMIN_PERMISSION
+
+    # 添加定时任务
+    app.conf.beat_schedule = {
+        # 同步蓝鲸插件任务
+        "sync_bk_plugins": {
+            "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",
+            "schedule": crontab(env.SYNC_BK_PLUGINS_CRONTAB),
+        }
+    }
