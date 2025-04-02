@@ -130,7 +130,7 @@ class BKPluginAuthorizationManager(models.Manager):
     # 批量检查插件授权状态
     def batch_check_authorization(self, exist_code_list):
         if not env.ENABLE_BK_PLUGIN_AUTHORIZATION:
-            return []
+            return
         authorized_codes = set(
             self.filter(code__in=exist_code_list, status=AuthStatus.authorized).values_list("code", flat=True)
         )

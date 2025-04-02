@@ -25,7 +25,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 import env
-from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
+from bkflow.bk_plugin.models import (
+    AuthStatus,
+    BKPlugin,
+    BKPluginAuthorization,
+    get_default_config,
+)
 from bkflow.bk_plugin.permissions import BKPluginManagerPermission
 from bkflow.bk_plugin.serializer import (
     AuthListSerializer,
@@ -33,7 +38,6 @@ from bkflow.bk_plugin.serializer import (
     BKPluginQuerySerializer,
     BKPluginSerializer,
 )
-from bkflow.constants import ALL_SPACE, WHITE_LIST
 from bkflow.exceptions import ValidationError
 from bkflow.utils.mixins import BKFLOWDefaultPagination
 from bkflow.utils.permissions import AdminPermission
@@ -69,7 +73,7 @@ class BKPluginManagerViewSet(ReadOnlyViewSet, mixins.UpdateModelMixin):
                     if (authorization := authorization_dict.get(plugin.code))
                     else {
                         "status": AuthStatus.unauthorized,
-                        "config": {WHITE_LIST: [ALL_SPACE]},
+                        "config": get_default_config(),
                         "status_updator": "",
                         "status_update_time": "",
                     }
