@@ -122,7 +122,7 @@ class BKPluginAuthorizationManager(models.Manager):
         authorized_dict = self.filter(status=AuthStatus.authorized)
         result_codes = []
         for obj in authorized_dict:
-            white_list = obj.config.get(WHITE_LIST)
+            white_list = obj.white_list
             if ALL_SPACE in white_list or space_id in white_list:
                 result_codes.append(obj.code)
         return result_codes
@@ -152,9 +152,9 @@ class BKPluginAuthorization(models.Model):
 
     code = models.CharField(_("插件code"), db_index=True, max_length=100)
     status = models.IntegerField(_("授权状态"), choices=AUTH_STATUS_CHOICES, default=AuthStatus.unauthorized)
-    authorized_time = models.DateTimeField(_("最近一次授权时间"), null=True, blank=True)
+    status_update_time = models.DateTimeField(_("最近一次授权操作时间"), null=True, blank=True)
     config = models.JSONField(_("授权配置，如使用范围等"), default=get_default_config)
-    operator = models.CharField(_("最近一次授权的授权人名称"), max_length=100, blank=True, default="")
+    status_updator = models.CharField(_("最近一次授权操作的人员名称"), max_length=100, blank=True, default="")
 
     objects = BKPluginAuthorizationManager()
 
@@ -162,13 +162,17 @@ class BKPluginAuthorization(models.Model):
         verbose_name = "蓝鲸插件授权记录"
         verbose_name_plural = "蓝鲸插件授权记录"
 
+    @property
+    def white_list(self):
+        return self.config[WHITE_LIST]
+
     def to_json(self):
         return {
             "code": self.code,
             "status": self.status,
-            "authorized_time": localtime(self.authorized_time).strftime("%Y-%m-%d %H:%M:%S")
-            if self.authorized_time
+            "status_update_time": localtime(self.status_update_time).strftime("%Y-%m-%d %H:%M:%S")
+            if self.status_update_time
             else "",
             "config": self.config,
-            "operator": self.operator,
+            "status_updator": self.status_updator,
         }

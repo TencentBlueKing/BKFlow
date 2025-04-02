@@ -21,11 +21,9 @@ from django.utils.translation import ugettext_lazy as _
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
-from bkflow.bk_plugin.models import BKPluginAuthorization
 from bkflow.constants import MAX_LEN_OF_TASK_NAME, USER_NAME_MAX_LENGTH
-from bkflow.exceptions import PluginUnAuthorization
 from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
-from bkflow.template.models import TemplateMockData, logger
+from bkflow.template.models import TemplateMockData
 from bkflow.utils.strings import standardize_pipeline_node_name
 
 
@@ -35,23 +33,6 @@ class CreateTaskSerializer(serializers.Serializer):
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     description = serializers.CharField(help_text=_("任务描述"), required=False)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
-
-    def validate_bk_plugin(self, pipeline_tree):
-        # 检查新建任务的流程中是否有未二次授权的蓝鲸插件
-        if not pipeline_tree:
-            logger.info("CreateTaskSerializer pipeline validate error, pipeline_tree is empty")
-            raise serializers.ValidationError(_("本地参数校验失败，pipeline_tree为空"))
-        try:
-            exist_code_list = [
-                node["component"]["data"]["plugin_code"]["value"]
-                for node in pipeline_tree["activities"].values()
-                if node["component"]["data"]["plugin_code"]
-            ]
-            BKPluginAuthorization.objects.batch_check_authorization(exist_code_list)
-            return
-        except PluginUnAuthorization as e:
-            logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
-            raise serializers.ValidationError(_("参数校验失败, err={}".format(e)))
 
 
 class TaskMockDataSerializer(serializers.Serializer):

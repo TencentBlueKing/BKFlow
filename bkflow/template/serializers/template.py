@@ -123,7 +123,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             exist_code_list = [
                 node["component"]["data"]["plugin_code"]["value"]
                 for node in pipeline_tree["activities"].values()
-                if node["component"]["data"]["plugin_code"]
+                if node["component"]["data"].get("plugin_code")
             ]
             BKPluginAuthorization.objects.batch_check_authorization(exist_code_list)
         except Exception as e:

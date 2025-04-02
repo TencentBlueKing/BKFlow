@@ -43,7 +43,7 @@ class BKPluginAdmin(admin.ModelAdmin):
 
 @admin.register(BKPluginAuthorization)
 class BKPluginAuthenticationAdmin(admin.ModelAdmin):
-    list_display = ("code", "status", "config", "authorized_time", "operator")
-    search_fields = ("code", "operator")
-    list_filter = ("code", "operator", "status")
+    list_display = ("code", "status", "config", "status_update_time", "status_updator")
+    search_fields = ("code", "status_updator")
+    list_filter = ("code", "status_updator", "status")
     ordering = ("code",)

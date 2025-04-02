@@ -141,12 +141,6 @@ class AdminTemplateViewSet(AdminModelViewSet):
                     space_id=space_id, template_id=ser.data["template_id"]
                 )
             )
-        try:
-            ser.validate_bk_plugin(template.pipeline_tree)
-        except Exception as e:
-            logger.exception(f"创建流程{template.id}时出错,err={e}")
-            return Response({"result": False, "data": None, "message": str(e)})
-
         create_task_data = dict(ser.data)
         create_task_data["scope_type"] = template.scope_type
         create_task_data["scope_value"] = template.scope_value

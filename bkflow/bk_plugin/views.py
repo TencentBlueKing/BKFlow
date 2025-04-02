@@ -63,15 +63,15 @@ class BKPluginManagerViewSet(ReadOnlyViewSet, mixins.UpdateModelMixin):
                     {
                         "status": authorization.status,
                         "config": authorization.config,
-                        "operator": authorization.operator,
-                        "authorized_time": authorization.authorized_time,
+                        "status_updator": authorization.status_updator,
+                        "status_update_time": authorization.status_update_time,
                     }
                     if (authorization := authorization_dict.get(plugin.code))
                     else {
                         "status": AuthStatus.unauthorized,
                         "config": {WHITE_LIST: [ALL_SPACE]},
-                        "operator": "",
-                        "authorized_time": "",
+                        "status_updator": "",
+                        "status_update_time": "",
                     }
                 ),
             }

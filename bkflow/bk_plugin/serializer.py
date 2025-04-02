@@ -49,7 +49,7 @@ class BKPluginAuthSerializer(serializers.ModelSerializer):
     code = serializers.CharField(read_only=True, max_length=100)
     status = serializers.IntegerField(required=False)
     config = PluginConfigSerializer(required=False)
-    operator = serializers.CharField(read_only=True, max_length=255, allow_blank=True)
+    status_updator = serializers.CharField(read_only=True, max_length=255, allow_blank=True)
 
     def validate_status(self, value):
         if value not in [AuthStatus.authorized, AuthStatus.unauthorized]:
@@ -63,10 +63,9 @@ class BKPluginAuthSerializer(serializers.ModelSerializer):
             instance.config = validated_data["config"]
         if "status" in validated_data:
             instance.status = validated_data["status"]
-            if instance.status == AuthStatus.authorized:
-                instance.authorized_time = datetime.now()
-                instance.operator = self.context.get("username", "")
-            update_fields.extend(["status", "operator", "authorized_time"])
+            instance.status_update_time = datetime.now()
+            instance.status_updator = self.context.get("username", "")
+            update_fields.extend(["status", "status_updator", "status_update_time"])
         instance.save(update_fields=update_fields)
         return instance
 
@@ -86,8 +85,8 @@ class AuthListSerializer(serializers.Serializer):
     managers = serializers.CharField(max_length=255)
     status = serializers.IntegerField(required=False)
     config = PluginConfigSerializer(required=False)
-    operator = serializers.CharField(read_only=True, max_length=255, allow_blank=True)
-    authorized_time = serializers.DateTimeField(required=False)
+    status_updator = serializers.CharField(read_only=True, max_length=255, allow_blank=True)
+    status_update_time = serializers.DateTimeField(required=False)
 
     class Meta:
         model = BKPlugin
