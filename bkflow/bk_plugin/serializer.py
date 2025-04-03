@@ -80,14 +80,22 @@ class BKPluginQuerySerializer(serializers.Serializer):
 
 
 class AuthListSerializer(serializers.Serializer):
-    code = serializers.CharField(read_only=True, max_length=100)
+    code = serializers.CharField(max_length=100)
     name = serializers.CharField(max_length=100)
-    managers = serializers.CharField(max_length=255)
+    managers = serializers.JSONField(default=list)
     status = serializers.IntegerField(required=False)
     config = PluginConfigSerializer(required=False)
-    status_updator = serializers.CharField(read_only=True, max_length=255, allow_blank=True)
-    status_update_time = serializers.DateTimeField(required=False)
+    status_updator = serializers.CharField(max_length=255, allow_blank=True)
+    status_update_time = serializers.DateTimeField(required=False, allow_null=True)
 
     class Meta:
         model = BKPlugin
         fields = ["code", "name", "managers"]
+
+
+class AuthListQuerySerializer(serializers.Serializer):
+    code = serializers.CharField(required=False, max_length=100)
+    name = serializers.CharField(required=False, max_length=100)
+    manager = serializers.CharField(required=False, max_length=100)
+    status = serializers.IntegerField(required=False)
+    status_updator = serializers.CharField(required=False, max_length=255, allow_blank=True)
