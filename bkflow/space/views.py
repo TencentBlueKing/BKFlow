@@ -121,8 +121,6 @@ class SpaceViewSet(AdminModelViewSet):
     filter_class = SpaceFilterSet
     pagination_class = BKFLOWDefaultPagination
     permission_classes = [AdminPermission | SpaceSuperuserPermission | SpaceExemptionPermission]
-    filter_backends = [DjangoFilterBackend]
-    filter_class = SpaceFilterSet
 
     def create(self, request, *args, **kwargs):
         serializer = CreateSpaceSerializer(data=request.data)
