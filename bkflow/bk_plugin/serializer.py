@@ -21,7 +21,13 @@ from datetime import datetime
 
 from rest_framework import serializers
 
-from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization, logger
+from bkflow.bk_plugin.models import (
+    AuthStatus,
+    BKPlugin,
+    BKPluginAuthorization,
+    get_default_config,
+    logger,
+)
 from bkflow.constants import ALL_SPACE, WHITE_LIST
 from bkflow.utils.dates import format_datetime
 
@@ -84,17 +90,15 @@ class AuthListSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=100)
     name = serializers.CharField(max_length=100)
     managers = serializers.ListField(child=serializers.CharField())
-    status = serializers.IntegerField(required=False)
-    config = PluginConfigSerializer(required=False)
-    status_updator = serializers.CharField(max_length=255, allow_blank=True)
-    status_update_time = serializers.DateTimeField(required=False, allow_null=True)
-
-    class Meta:
-        model = BKPlugin
-        fields = ["code", "name", "managers"]
+    status = serializers.IntegerField(required=False, default=AuthStatus.unauthorized)
+    config = PluginConfigSerializer(required=False, default=get_default_config)
+    status_updator = serializers.CharField(max_length=255, default="")
+    status_update_time = serializers.DateTimeField(required=False, default=None)
 
     def validate_status_update_time(self, value):
-        return format_datetime(value)
+        if value:
+            value = format_datetime(value)
+        return value
 
 
 class AuthListQuerySerializer(serializers.Serializer):
