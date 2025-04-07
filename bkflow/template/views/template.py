@@ -68,6 +68,7 @@ from bkflow.template.serializers.template import (
     DrawPipelineSerializer,
     PreviewTaskTreeSerializer,
     TemplateBatchDeleteSerializer,
+    TemplateCopySerializer,
     TemplateMockDataBatchCreateSerializer,
     TemplateMockDataListSerializer,
     TemplateMockDataQuerySerializer,
@@ -175,6 +176,34 @@ class AdminTemplateViewSet(AdminModelViewSet):
                 is_deleted=True
             )
         return Response({"delete_num": update_num})
+
+    @action(methods=["POST"], detail=False, url_path="template_copy")
+    def copy_template(self, request, *args, **kwargs):
+        ser = TemplateCopySerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
+        try:
+            template = Template.objects.get(id=template_id, space_id=space_id)
+            print(template)
+        except Template.DoesNotExist:
+            raise ValidationError(
+                _("模版不存在，space_id={space_id}, template_id={template_id}").format(
+                    space_id=space_id, template_id=ser.data["template_id"]
+                )
+            )
+
+        # 复制逻辑
+        template.pk = None
+        template.name = f"{template.name} Copy"
+        template.save()
+        return Response(
+            {
+                "status": True,
+                "message": "Template copied successfully",
+                "template_id": template.id,
+                "template_name": template.name,
+            }
+        )
 
 
 class TemplateViewSet(UserModelViewSet):
