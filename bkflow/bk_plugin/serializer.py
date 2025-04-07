@@ -102,8 +102,5 @@ class AuthListSerializer(serializers.Serializer):
 
 
 class AuthListQuerySerializer(serializers.Serializer):
-    code = serializers.CharField(required=False, max_length=100)
-    name = serializers.CharField(required=False, max_length=100)
-    manager = serializers.CharField(required=False, max_length=100)
     status = serializers.IntegerField(required=False)
     status_updator = serializers.CharField(required=False, max_length=255, allow_blank=True)

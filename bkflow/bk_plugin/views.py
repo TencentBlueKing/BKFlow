@@ -37,7 +37,7 @@ from bkflow.bk_plugin.serializer import (
     BKPluginSerializer,
 )
 from bkflow.exceptions import ValidationError
-from bkflow.utils.mixins import BKFLOWDefaultPagination
+from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWDefaultPagination
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import SimpleGenericViewSet
 
@@ -45,7 +45,7 @@ logger = logging.getLogger("root")
 
 
 class BKPluginFilterSet(FilterSet):
-    manager = django_filters.CharFilter(method="filter_by_manager")
+    manager = django_filters.CharFilter(field_name="managers", method="filter_by_manager")
 
     class Meta:
         model = BKPlugin
@@ -60,20 +60,18 @@ class BKPluginFilterSet(FilterSet):
 
 
 class BKPluginAuthFilterSet(FilterSet):
-    @staticmethod
-    def filter_authorization(queryset, query_params):
-        if "status" in query_params:
-            queryset = [item for item in queryset if item["status"] == query_params["status"]]
-        if "status_updator" in query_params:
-            queryset = [item for item in queryset if item["status_updator"] == query_params["status_updator"]]
-        return queryset
+    class Meta:
+        model = BKPluginAuthorization
+        fields = {
+            "status": ["exact"],
+            "status_updator": ["exact"],
+        }
 
 
-class BKPluginManagerViewSet(SimpleGenericViewSet, mixins.UpdateModelMixin):
-    queryset = BKPluginAuthorization.objects.all()
-    serializer_class = BKPluginAuthSerializer
-    pagination_class = BKFLOWDefaultPagination
-    filterset_class = BKPluginAuthFilterSet
+class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.UpdateModelMixin):
+    queryset = BKPlugin.objects.all()
+    serializer_class = BKPluginSerializer
+    filterset_class = BKPluginFilterSet
     permission_classes = [AdminPermission | BKPluginManagerPermission]
     lookup_field = "code"
 
@@ -81,35 +79,43 @@ class BKPluginManagerViewSet(SimpleGenericViewSet, mixins.UpdateModelMixin):
     def list(self, request, *args, **kwargs):
         query_serializer = AuthListQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
-        plugins = BKPlugin.objects.get_plugin_by_manager("kiozhang")
-        filtered_plugins = BKPluginFilterSet(request.query_params, queryset=plugins).qs
-        authorization_dict = {auth.code: auth for auth in self.get_queryset()}
-        result_data = [
-            {
+        plugins = self.filter_queryset(self.get_queryset())
+        filtered_plugins = plugins.filter(managers__contains=request.user.username)
+        filtered_authorization = BKPluginAuthFilterSet(
+            query_serializer.validated_data, queryset=BKPluginAuthorization.objects.all()
+        ).qs
+        authorization_dict = {auth.code: auth for auth in filtered_authorization}
+        result_data = []
+        for plugin in filtered_plugins:
+            data = {
                 "code": plugin.code,
                 "name": plugin.name,
                 "managers": plugin.managers,
-                **(
-                    {
-                        "status": authorization.status,
-                        "config": authorization.config,
-                        "status_updator": authorization.status_updator,
-                        "status_update_time": authorization.status_update_time,
-                    }
-                    if (authorization := authorization_dict.get(plugin.code))
-                    else {}
-                ),
             }
-            for plugin in filtered_plugins
-        ]
+            status_param = query_serializer.validated_data.get("status")
+            updator_param = query_serializer.validated_data.get("status_updator")
+            authorization = (
+                authorization_dict.get(plugin.code) if authorization_dict.get(plugin.code) else BKPluginAuthorization()
+            )
+            if (status_param is not None and status_param != authorization.status) or (
+                updator_param and updator_param != authorization.status_updator
+            ):
+                continue
+            data.update(
+                {
+                    "status": authorization.status,
+                    "config": authorization.config,
+                    "status_updator": authorization.status_updator,
+                    "status_update_time": authorization.status_update_time,
+                }
+            ) if (authorization := authorization_dict.get(plugin.code)) else {}
+            result_data.append(data)
+
         serializer = AuthListSerializer(data=result_data, many=True)
         serializer.is_valid(raise_exception=True)
-        filtered_data = self.filterset_class.filter_authorization(
-            serializer.validated_data, query_serializer.validated_data
-        )
-        paged_plugins = self.pagination_class().paginate_queryset(filtered_data, request)
+        paged_data = self.pagination_class().paginate_queryset(serializer.validated_data, request)
         return Response(
-            {"result": True, "message": None, "data": {"count": len(filtered_data), "plugins": paged_plugins}}
+            {"result": True, "message": None, "data": {"count": len(serializer.validated_data), "plugins": paged_data}}
         )
 
     def update(self, request, *args, **kwargs):
