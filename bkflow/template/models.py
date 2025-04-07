@@ -33,6 +33,9 @@ logger = logging.getLogger("root")
 
 class TemplateManager(models.Manager):
     def copy_template(self, template_id, space_id):
+        """
+        复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 可能存在其他引用出现不一致的情况? (暂未发现)
+        """
         try:
             template = self.get(id=template_id, space_id=space_id)
             # 复制逻辑 snapshot 需要深拷贝

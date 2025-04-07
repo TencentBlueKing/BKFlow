@@ -177,6 +177,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             )
         return Response({"delete_num": update_num})
 
+    @swagger_auto_schema(method="POST", operation_description="流程模版复制", request_body=TemplateCopySerializer)
     @action(methods=["POST"], detail=False, url_path="template_copy")
     def copy_template(self, request, *args, **kwargs):
         ser = TemplateCopySerializer(data=request.data)
