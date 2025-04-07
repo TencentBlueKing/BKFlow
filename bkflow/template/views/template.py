@@ -182,27 +182,24 @@ class AdminTemplateViewSet(AdminModelViewSet):
         ser = TemplateCopySerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
+
         try:
-            template = Template.objects.get(id=template_id, space_id=space_id)
+            # Use the manager method to handle the copy logic
+            new_template = Template.objects.copy_template(template_id, space_id)
+            return Response(
+                {
+                    "status": "success",
+                    "message": "Template copied successfully",
+                    "new_template_id": new_template.id,
+                    "new_template_name": new_template.name,
+                }
+            )
         except Template.DoesNotExist:
             raise ValidationError(
-                _("模版不存在，space_id={space_id}, template_id={template_id}").format(
-                    space_id=space_id, template_id=ser.data["template_id"]
+                _("Template does not exist, space_id={space_id}, template_id={template_id}").format(
+                    space_id=space_id, template_id=template_id
                 )
             )
-
-        # 复制逻辑
-        template.pk = None
-        template.name = f"{template.name} Copy"
-        template.save()
-        return Response(
-            {
-                "status": True,
-                "message": "Template copied successfully",
-                "template_id": template.id,
-                "template_name": template.name,
-            }
-        )
 
 
 class TemplateViewSet(UserModelViewSet):
