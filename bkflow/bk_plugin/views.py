@@ -87,28 +87,29 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
         authorization_dict = {auth.code: auth for auth in filtered_authorization}
         result_data = []
         for plugin in filtered_plugins:
-            data = {
-                "code": plugin.code,
-                "name": plugin.name,
-                "managers": plugin.managers,
-            }
             status_param = query_serializer.validated_data.get("status")
             updator_param = query_serializer.validated_data.get("status_updator")
             authorization = (
                 authorization_dict.get(plugin.code) if authorization_dict.get(plugin.code) else BKPluginAuthorization()
             )
+            # 二次过滤，处理没有授权记录的情况
             if (status_param is not None and status_param != authorization.status) or (
                 updator_param and updator_param != authorization.status_updator
             ):
                 continue
-            data.update(
-                {
-                    "status": authorization.status,
-                    "config": authorization.config,
-                    "status_updator": authorization.status_updator,
-                    "status_update_time": authorization.status_update_time,
-                }
-            ) if (authorization := authorization_dict.get(plugin.code)) else {}
+            data = {
+                "code": plugin.code,
+                "name": plugin.name,
+                "managers": plugin.managers,
+                **(
+                    {
+                        "status": authorization.status,
+                        "config": authorization.config,
+                        "status_updator": authorization.status_updator,
+                        "status_update_time": authorization.status_update_time,
+                    }
+                ),
+            }
             result_data.append(data)
 
         serializer = AuthListSerializer(data=result_data, many=True)

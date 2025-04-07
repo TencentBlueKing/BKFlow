@@ -29,7 +29,6 @@ from bkflow.bk_plugin.models import (
     logger,
 )
 from bkflow.constants import ALL_SPACE, WHITE_LIST
-from bkflow.utils.dates import format_datetime
 
 
 class BKPluginSerializer(serializers.ModelSerializer):
@@ -93,14 +92,14 @@ class AuthListSerializer(serializers.Serializer):
     status = serializers.IntegerField(required=False, default=AuthStatus.unauthorized)
     config = PluginConfigSerializer(required=False, default=get_default_config)
     status_updator = serializers.CharField(max_length=255, default="")
-    status_update_time = serializers.DateTimeField(required=False, default=None)
-
-    def validate_status_update_time(self, value):
-        if value:
-            value = format_datetime(value)
-        return value
+    status_update_time = serializers.DateTimeField(required=False, format="%Y-%m-%d %H:%M:%S%z", default=None)
 
 
 class AuthListQuerySerializer(serializers.Serializer):
     status = serializers.IntegerField(required=False)
     status_updator = serializers.CharField(required=False, max_length=255, allow_blank=True)
+
+    def validate_status(self, value):
+        if value not in [AuthStatus.authorized, AuthStatus.unauthorized]:
+            raise serializers.ValidationError(f"status必须为 {AuthStatus.authorized} or {AuthStatus.unauthorized}")
+        return value
