@@ -184,7 +184,6 @@ class AdminTemplateViewSet(AdminModelViewSet):
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
         try:
             template = Template.objects.get(id=template_id, space_id=space_id)
-            print(template)
         except Template.DoesNotExist:
             raise ValidationError(
                 _("模版不存在，space_id={space_id}, template_id={template_id}").format(
