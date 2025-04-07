@@ -75,13 +75,6 @@ class BKPluginManager(models.Manager):
                 # 每次同步检查一次权限记录，是否需要创建新记录
                 self.bulk_create(to_create_plugins)
 
-    def get_plugin_by_manager(self, username):
-        """
-        根据用户管理员权限获取插件列表
-        """
-        # 仅获取该用户有管理员权限的蓝鲸插件
-        return self.filter(managers__contains=username)
-
 
 class BKPlugin(models.Model):
     """

@@ -21,7 +21,13 @@ from datetime import datetime
 
 from rest_framework import serializers
 
-from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization, logger
+from bkflow.bk_plugin.models import (
+    AuthStatus,
+    BKPlugin,
+    BKPluginAuthorization,
+    get_default_config,
+    logger,
+)
 from bkflow.constants import ALL_SPACE, WHITE_LIST
 
 
@@ -80,14 +86,20 @@ class BKPluginQuerySerializer(serializers.Serializer):
 
 
 class AuthListSerializer(serializers.Serializer):
-    code = serializers.CharField(read_only=True, max_length=100)
+    code = serializers.CharField(max_length=100)
     name = serializers.CharField(max_length=100)
-    managers = serializers.CharField(max_length=255)
-    status = serializers.IntegerField(required=False)
-    config = PluginConfigSerializer(required=False)
-    status_updator = serializers.CharField(read_only=True, max_length=255, allow_blank=True)
-    status_update_time = serializers.DateTimeField(required=False)
+    managers = serializers.ListField(child=serializers.CharField())
+    status = serializers.IntegerField(required=False, default=AuthStatus.unauthorized)
+    config = PluginConfigSerializer(required=False, default=get_default_config)
+    status_updator = serializers.CharField(max_length=255, default="")
+    status_update_time = serializers.DateTimeField(required=False, format="%Y-%m-%d %H:%M:%S%z", default=None)
 
-    class Meta:
-        model = BKPlugin
-        fields = ["code", "name", "managers"]
+
+class AuthListQuerySerializer(serializers.Serializer):
+    status = serializers.IntegerField(required=False)
+    status_updator = serializers.CharField(required=False, max_length=255, allow_blank=True)
+
+    def validate_status(self, value):
+        if value not in [AuthStatus.authorized, AuthStatus.unauthorized]:
+            raise serializers.ValidationError(f"status必须为 {AuthStatus.authorized} or {AuthStatus.unauthorized}")
+        return value
