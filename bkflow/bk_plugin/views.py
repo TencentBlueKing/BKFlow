@@ -21,6 +21,7 @@ import logging
 
 import django_filters
 from django_filters.filterset import FilterSet
+from django_filters.rest_framework.backends import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
 from rest_framework.decorators import action
@@ -137,13 +138,15 @@ class BKPluginViewSet(SimpleGenericViewSet):
     queryset = BKPlugin.objects.all()
     serializer_class = BKPluginSerializer
     pagination_class = BKFLOWDefaultPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = BKPluginFilterSet
     permission_classes = []
 
     @swagger_auto_schema(query_serializer=BKPluginQuerySerializer)
     def list(self, request):
         ser = BKPluginQuerySerializer(data=request.query_params)
         ser.is_valid(raise_exception=True)
-        plugins_queryset = self.get_queryset().filter(tag=ser.validated_data["tag"])
+        plugins_queryset = self.filter_queryset(self.get_queryset()).filter(tag=ser.validated_data["tag"])
         if env.ENABLE_BK_PLUGIN_AUTHORIZATION:
             authorized_codes = BKPluginAuthorization.objects.get_codes_by_space_id(str(ser.validated_data["space_id"]))
             plugins_queryset = plugins_queryset.filter(code__in=authorized_codes)
