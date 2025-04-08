@@ -19,6 +19,7 @@ import spaceConfig from './modules/spaceConfig';
 import system from './modules/system';
 import decisionTable from './modules/decisionTable';
 import credentialConfig from './modules/credentialConfig';
+import plugin from './modules/plugin';
 
 Vue.use(Vuex);
 
@@ -41,6 +42,7 @@ const store = new Vuex.Store({
     system,
     decisionTable,
     credentialConfig,
+    plugin,
   },
   // 公共 store
   state: {
@@ -77,6 +79,7 @@ const store = new Vuex.Store({
     isAdmin: false,
     isSpaceSuperuser: false, // 是否为某个空间下的管理员
     isCurSpaceSuperuser: false, // 是否为当前空间管理员
+    isBkPluginManager: false, // 是否为【我的插件】管理员
     hasAlertNotice: false,
     platformInfo: { // 项目全局配置
       bkAppCode: window.APP_CODE,
@@ -134,6 +137,9 @@ const store = new Vuex.Store({
     },
     setCurSpaceSuperuser(state, val) {
       state.isCurSpaceSuperuser = val;
+    },
+    setBkPluginManager(state, val) {
+      state.isBkPluginManager = val;
     },
     setAlertNotice(state, val) {
       state.hasAlertNotice = val;
@@ -333,6 +339,10 @@ const store = new Vuex.Store({
     // 退出登录
     logout() {
       return axios.get('logout').then(response => response.data);
+    },
+    // 是否为【我的插件】管理员
+    getBkPluginPermission() {
+      return axios.get('api/bk_plugin/is_manager/').then(response => response.data.data);
     },
   },
 });
