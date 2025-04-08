@@ -18,7 +18,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
-import os
 
 import django_filters
 from django.db.models import Q
@@ -86,7 +85,8 @@ class BKPluginAuthFilterSet(FilterSet):
 
 class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.UpdateModelMixin):
     queryset = BKPlugin.objects.all()
-    serializer_class = BKPluginAuthSerializer
+    serializer_class = BKPluginSerializer
+    list_serializer_class = BKPluginAuthSerializer
     partial_update_serializer_class = BKPluginAuthSerializer
     filterset_class = BKPluginFilterSet
     permission_classes = [AdminPermission | BKPluginManagerPermission]
@@ -97,7 +97,7 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
         query_serializer = AuthListQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
         plugins = self.filter_queryset(self.get_queryset())
-        filtered_plugins = plugins.filter(managers__contains=os.getenv("TEST_USERNAME"))
+        filtered_plugins = plugins.filter(managers__contains=request.user.username)
         filtered_authorization = BKPluginAuthFilterSet(
             query_serializer.validated_data, queryset=BKPluginAuthorization.objects.all()
         ).qs
