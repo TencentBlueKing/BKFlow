@@ -80,11 +80,6 @@ class BKPluginAuthSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class BKPluginQuerySerializer(serializers.Serializer):
-    tag = serializers.IntegerField(required=True)
-    space_id = serializers.IntegerField(required=True)
-
-
 class AuthListSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=100)
     name = serializers.CharField(max_length=100)

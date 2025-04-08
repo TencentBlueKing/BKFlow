@@ -20,7 +20,9 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 import django_filters
+from django.db.models import Q
 from django_filters.filterset import FilterSet
+from django_filters.rest_framework.backends import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
 from rest_framework.decorators import action
@@ -33,7 +35,6 @@ from bkflow.bk_plugin.serializer import (
     AuthListQuerySerializer,
     AuthListSerializer,
     BKPluginAuthSerializer,
-    BKPluginQuerySerializer,
     BKPluginSerializer,
 )
 from bkflow.exceptions import ValidationError
@@ -46,17 +47,31 @@ logger = logging.getLogger("root")
 
 class BKPluginFilterSet(FilterSet):
     manager = django_filters.CharFilter(field_name="managers", method="filter_by_manager")
+    space_id = django_filters.CharFilter(field_name="space_id", method="filter_by_space_id")
+    search_term = django_filters.CharFilter(field_name="search_term", method="filter_by_search_term")
 
     class Meta:
         model = BKPlugin
         fields = {
             "code": ["exact"],
             "name": ["exact", "icontains"],
+            "tag": ["exact"],
         }
 
     @staticmethod
     def filter_by_manager(queryset, name, value):
         return queryset.filter(managers__contains=value)
+
+    @staticmethod
+    def filter_by_space_id(queryset, name, value):
+        if env.ENABLE_BK_PLUGIN_AUTHORIZATION:
+            authorized_codes = BKPluginAuthorization.objects.get_codes_by_space_id(value)
+            queryset = queryset.filter(code__in=authorized_codes)
+        return queryset
+
+    @staticmethod
+    def filter_by_search_term(queryset, name, value):
+        return queryset.filter((Q(name__icontains=value) | Q(code__icontains=value)))
 
 
 class BKPluginAuthFilterSet(FilterSet):
@@ -137,16 +152,12 @@ class BKPluginViewSet(SimpleGenericViewSet):
     queryset = BKPlugin.objects.all()
     serializer_class = BKPluginSerializer
     pagination_class = BKFLOWDefaultPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = BKPluginFilterSet
     permission_classes = []
 
-    @swagger_auto_schema(query_serializer=BKPluginQuerySerializer)
     def list(self, request):
-        ser = BKPluginQuerySerializer(data=request.query_params)
-        ser.is_valid(raise_exception=True)
-        plugins_queryset = self.get_queryset().filter(tag=ser.validated_data["tag"])
-        if env.ENABLE_BK_PLUGIN_AUTHORIZATION:
-            authorized_codes = BKPluginAuthorization.objects.get_codes_by_space_id(str(ser.validated_data["space_id"]))
-            plugins_queryset = plugins_queryset.filter(code__in=authorized_codes)
+        plugins_queryset = self.filter_queryset(self.get_queryset())
         paged_data = self.pagination_class().paginate_queryset(plugins_queryset, request)
         serializer = self.get_serializer(paged_data, many=True)
         return Response(
