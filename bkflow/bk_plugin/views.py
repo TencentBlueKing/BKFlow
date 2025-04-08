@@ -18,6 +18,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
+import os
 
 import django_filters
 from django.db.models import Q
@@ -86,7 +87,7 @@ class BKPluginAuthFilterSet(FilterSet):
 class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.UpdateModelMixin):
     queryset = BKPlugin.objects.all()
     serializer_class = BKPluginAuthSerializer
-    list_serializer_class = BKPluginSerializer
+    partial_update_serializer_class = BKPluginAuthSerializer
     filterset_class = BKPluginFilterSet
     permission_classes = [AdminPermission | BKPluginManagerPermission]
     lookup_field = "code"
@@ -96,7 +97,7 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
         query_serializer = AuthListQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
         plugins = self.filter_queryset(self.get_queryset())
-        filtered_plugins = plugins.filter(managers__contains=request.user.username)
+        filtered_plugins = plugins.filter(managers__contains=os.getenv("TEST_USERNAME"))
         filtered_authorization = BKPluginAuthFilterSet(
             query_serializer.validated_data, queryset=BKPluginAuthorization.objects.all()
         ).qs
@@ -106,7 +107,9 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
             status_param = query_serializer.validated_data.get("status")
             updator_param = query_serializer.validated_data.get("status_updator")
             authorization = (
-                authorization_dict.get(plugin.code) if authorization_dict.get(plugin.code) else BKPluginAuthorization()
+                authorization_dict.get(plugin.code)
+                if authorization_dict.get(plugin.code)
+                else BKPluginAuthorization(code=plugin.code)
             )
             # 二次过滤，处理没有授权记录的情况
             if (status_param is not None and status_param != authorization.status) or (
@@ -138,7 +141,7 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
     def update(self, request, *args, **kwargs):
         code = kwargs["code"]
         authorization, _ = BKPluginAuthorization.objects.get_or_create(code=code)
-        ser = BKPluginAuthSerializer(authorization, data=request.data, partial=True)
+        ser = self.get_serializer(authorization, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         if "status" in ser.validated_data:
             ser.context.update({"username": request.user.username})

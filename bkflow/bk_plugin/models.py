@@ -144,7 +144,7 @@ class BKPluginAuthorization(models.Model):
     )
 
     code = models.CharField(_("插件code"), db_index=True, max_length=100)
-    status = models.IntegerField(_("授权状态"), choices=AUTH_STATUS_CHOICES, default=AuthStatus.unauthorized)
+    status = models.IntegerField(_("授权状态"), choices=AUTH_STATUS_CHOICES, default=AuthStatus.unauthorized.value)
     status_update_time = models.DateTimeField(_("最近一次授权操作时间"), null=True, blank=True)
     config = models.JSONField(_("授权配置，如使用范围等"), default=get_default_config)
     status_updator = models.CharField(_("最近一次授权操作的人员名称"), max_length=100, blank=True, default="")
