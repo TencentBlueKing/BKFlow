@@ -36,22 +36,20 @@ class TemplateManager(models.Manager):
         """
         复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
         """
-        try:
-            template = self.get(id=template_id, space_id=space_id)
-            # 复制逻辑 snapshot 需要深拷贝
-            template.pk = None
-            template.name = f"{template.name} Copy"
-            snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
-            with transaction.atomic():
-                # 开启事物 确保都创建成功
-                copyed_snapshot = TemplateSnapshot.create_snapshot(snapshot.data)
-                template.snapshot_id = copyed_snapshot.id
-                template.save()
-                copyed_snapshot.template_id = template.id
-                copyed_snapshot.save(update_fields=["template_id"])
-            return template, None
-        except self.model.DoesNotExist:
-            return None, {"detail": f"Template with id {template_id} in space {space_id} not found"}
+
+        template = self.get(id=template_id, space_id=space_id)
+        # 复制逻辑 snapshot 需要深拷贝
+        template.pk = None
+        template.name = f"{template.name} Copy"
+        snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
+        with transaction.atomic():
+            # 开启事物 确保都创建成功
+            copyed_snapshot = TemplateSnapshot.create_snapshot(snapshot.data)
+            template.snapshot_id = copyed_snapshot.id
+            template.save()
+            copyed_snapshot.template_id = template.id
+            copyed_snapshot.save(update_fields=["template_id"])
+        return template
 
 
 class Template(CommonModel):

@@ -23,7 +23,7 @@ from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import mixins, status
+from rest_framework import mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -183,10 +183,10 @@ class AdminTemplateViewSet(AdminModelViewSet):
         ser = TemplateCopySerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
-
-        template, err = Template.objects.copy_template(template_id, space_id)
-        if err:
-            return Response(exception=True, status=status.HTTP_404_NOT_FOUND, data=err)
+        try:
+            template = Template.objects.copy_template(template_id, space_id)
+        except Template.DoesNotExist:
+            return Response(exception=True, data={"detail": f"模版不存在, space_id={space_id}, template_id={template_id}"})
         return Response(data={"template_id": template.id, "template_name": template.name})
 
 
