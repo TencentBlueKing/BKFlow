@@ -85,7 +85,8 @@ class BKPluginAuthFilterSet(FilterSet):
 
 class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.UpdateModelMixin):
     queryset = BKPlugin.objects.all()
-    serializer_class = BKPluginSerializer
+    serializer_class = BKPluginAuthSerializer
+    list_serializer_class = BKPluginSerializer
     filterset_class = BKPluginFilterSet
     permission_classes = [AdminPermission | BKPluginManagerPermission]
     lookup_field = "code"
@@ -136,7 +137,7 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
 
     def update(self, request, *args, **kwargs):
         code = kwargs["code"]
-        authorization, _ = self.get_queryset().get_or_create(code=code)
+        authorization, _ = BKPluginAuthorization.objects.get_or_create(code=code)
         ser = BKPluginAuthSerializer(authorization, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         if "status" in ser.validated_data:
