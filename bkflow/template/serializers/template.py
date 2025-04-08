@@ -240,3 +240,8 @@ class PreviewTaskTreeSerializer(serializers.Serializer):
     appoint_node_ids = serializers.ListSerializer(
         child=serializers.CharField(help_text=_("节点ID")), help_text=_("包含的节点ID列表"), default=[]
     )
+
+
+class TemplateCopySerializer(serializers.Serializer):
+    template_id = serializers.IntegerField(help_text=_("模板ID"), required=True)
+    space_id = serializers.IntegerField(help_text=_("空间ID"), required=True)

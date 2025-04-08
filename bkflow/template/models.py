@@ -31,6 +31,27 @@ from bkflow.utils.models import CommonModel, CommonSnapshot
 logger = logging.getLogger("root")
 
 
+class TemplateManager(models.Manager):
+    def copy_template(self, template_id, space_id):
+        """
+        复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
+        """
+
+        template = self.get(id=template_id, space_id=space_id)
+        # 复制逻辑 snapshot 需要深拷贝
+        template.pk = None
+        template.name = f"{template.name} Copy"
+        snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
+        with transaction.atomic():
+            # 开启事物 确保都创建成功
+            copyed_snapshot = TemplateSnapshot.create_snapshot(snapshot.data)
+            template.snapshot_id = copyed_snapshot.id
+            template.save()
+            copyed_snapshot.template_id = template.id
+            copyed_snapshot.save(update_fields=["template_id"])
+        return template
+
+
 class Template(CommonModel):
     """
     字段说明:
@@ -51,6 +72,8 @@ class Template(CommonModel):
     version = models.CharField(_("版本号"), max_length=32, null=False, blank=False)
     is_enabled = models.BooleanField(_("是否启用"), default=True)
     extra_info = models.JSONField(_("额外的扩展信息"), default=dict)
+
+    objects = TemplateManager()
 
     class Meta:
         verbose_name = _("流程模板")
