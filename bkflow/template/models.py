@@ -34,24 +34,24 @@ logger = logging.getLogger("root")
 class TemplateManager(models.Manager):
     def copy_template(self, template_id, space_id):
         """
-        复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 可能存在其他引用出现不一致的情况? (暂未发现)
+        复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
         """
         try:
             template = self.get(id=template_id, space_id=space_id)
             # 复制逻辑 snapshot 需要深拷贝
             template.pk = None
             template.name = f"{template.name} Copy"
+            snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
             with transaction.atomic():
                 # 开启事物 确保都创建成功
-                snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
                 copyed_snapshot = TemplateSnapshot.create_snapshot(snapshot.data)
                 template.snapshot_id = copyed_snapshot.id
                 template.save()
                 copyed_snapshot.template_id = template.id
                 copyed_snapshot.save(update_fields=["template_id"])
-            return template
+            return template, None
         except self.model.DoesNotExist:
-            raise Template.DoesNotExist(f"Template with id {template_id} in space {space_id} not found")
+            return None, {"detail": f"Template with id {template_id} in space {space_id} not found"}
 
 
 class Template(CommonModel):

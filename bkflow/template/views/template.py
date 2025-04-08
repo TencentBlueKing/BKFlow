@@ -23,7 +23,7 @@ from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import mixins
+from rest_framework import mixins, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -184,23 +184,10 @@ class AdminTemplateViewSet(AdminModelViewSet):
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
 
-        try:
-            # Use the manager method to handle the copy logic
-            new_template = Template.objects.copy_template(template_id, space_id)
-            return Response(
-                {
-                    "status": "success",
-                    "message": "Template copied successfully",
-                    "new_template_id": new_template.id,
-                    "new_template_name": new_template.name,
-                }
-            )
-        except Template.DoesNotExist:
-            raise ValidationError(
-                _("Template does not exist, space_id={space_id}, template_id={template_id}").format(
-                    space_id=space_id, template_id=template_id
-                )
-            )
+        template, err = Template.objects.copy_template(template_id, space_id)
+        if err:
+            return Response(exception=True, status=status.HTTP_404_NOT_FOUND, data=err)
+        return Response(data={"template_id": template.id, "template_name": template.name})
 
 
 class TemplateViewSet(UserModelViewSet):
