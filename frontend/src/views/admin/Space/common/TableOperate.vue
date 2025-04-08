@@ -10,7 +10,6 @@
       v-model="searchSelectValue"
       :placeholder="placeholder"
       :search-list="searchList"
-      :disabled="!spaceId"
       @change="handleSearchValueChange" />
   </div>
 </template>
@@ -38,21 +37,15 @@
       },
     },
     data() {
+      const { query } = this.$route;
       const {
-        id,
-        name,
-        creator,
-        executor,
-        updated_by,
+        activeTab,
         create_at,
         update_at,
         create_time,
         start_time,
         finish_time,
-        template_id,
-        is_enabled,
-        activeTab = 'template',
-      } = this.$route.query;
+      } = query;
       const dateInfo = { create_at, update_at, start_time, create_time, finish_time };
       const searchList = [
         ...this.searchList,
@@ -77,18 +70,12 @@
         activeTab,
         searchSelectValue,
         requestData: {
-          id,
-          name,
-          creator,
-          executor,
-          updated_by,
+          ...query,
           create_at: dateInfo.create_at ? dateInfo.create_at.split(',') : ['', ''],
           update_at: dateInfo.update_at ? dateInfo.update_at.split(',') : ['', ''],
           create_time: dateInfo.create_time ? dateInfo.create_time.split(',') : ['', ''],
           start_time: dateInfo.start_time ? dateInfo.start_time.split(',') : ['', ''],
           finish_time: dateInfo.finish_time ? dateInfo.finish_time.split(',') : ['', ''],
-          template_id,
-          is_enabled,
         },
       };
     },
@@ -145,7 +132,9 @@
             query[key] = val;
           }
         });
-        query.spaceId = this.spaceId;
+        if (this.spaceId) {
+          query.spaceId = this.spaceId;
+        }
         query.activeTab = this.activeTab;
         const { name } = this.$route;
         this.$router.replace({ name, query });

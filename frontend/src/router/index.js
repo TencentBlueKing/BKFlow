@@ -18,6 +18,7 @@ const TaskExecute = () => import('@/views/task/TaskExecute/index.vue');
 const EngineAdmin = () => import('@/views/admin/index.vue');
 const SpaceAdmin = () => import('@/views/admin/Space/index.vue');
 const SyStemAdmin = () => import('@/views/admin/System/index.vue');
+const PluginAdmin = () => import('@/views/admin/Plugin/index.vue');
 const DecisionEdit = () => import('@/views/admin/Space/DecisionTable/components/DecisionEdit.vue');
 
 Vue.use(VueRouter);
@@ -107,6 +108,13 @@ const routes = [
         path: 'system/',
         name: 'systemAdmin',
         component: SyStemAdmin,
+        pathToRegexpOptions: { strict: true },
+        meta: { admin: true },
+      },
+      {
+        path: 'plugin/',
+        name: 'pluginAdmin',
+        component: PluginAdmin,
         pathToRegexpOptions: { strict: true },
         meta: { admin: true },
       },
