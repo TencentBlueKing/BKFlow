@@ -128,7 +128,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             BKPluginAuthorization.objects.batch_check_authorization(exist_code_list)
         except Exception as e:
             logger.exception("TemplateSerializer update error, err = {}".format(e))
-            raise serializers.ValidationError(_("更新失败，存在未授权的蓝鲸插件,err={}".format(e)))
+            raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         instance.update_snapshot(pipeline_tree)
         instance = super(TemplateSerializer, self).update(instance, validated_data)
 
