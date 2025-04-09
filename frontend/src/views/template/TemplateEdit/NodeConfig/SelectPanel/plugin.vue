@@ -301,7 +301,7 @@
             offset: (current - 1) * limit,
             tag: this.thirdActiveGroup || undefined,
             space_id: this.spaceId,
-            name__icontains: this.searchStr || undefined,
+            search_term: this.searchStr || undefined,
           };
           const resp = await this.$store.dispatch('plugin/loadBkPluginList', params);
           const { plugins, count } = resp.data;

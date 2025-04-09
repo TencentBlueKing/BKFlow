@@ -85,6 +85,7 @@
   import tableCommon from '../Space/mixins/tableCommon.js';
   import { mapActions } from 'vuex';
   import i18n from '@/config/i18n/index.js';
+  import tools from '@/utils/tools.js';
 
   const TABLE_FIELDS = [
     {
@@ -176,7 +177,7 @@
       };
     },
     mounted() {
-      window.addEventListener('resize', this.handleResize);
+      window.addEventListener('resize', tools.debounce(this.handleResize, 300));
       this.$nextTick(() => {
         this.handleResize();
       });
@@ -194,7 +195,6 @@
           this.listLoading = true;
 
           const data = this.getQueryData();
-          console.log(data);
           const resp = await this.loadPluginManagerList(data);
           this.pluginList = resp.data.plugins;
           this.pagination.count = resp.data.count;
