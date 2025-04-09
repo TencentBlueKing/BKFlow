@@ -29,6 +29,9 @@ const templateList = {
     deleteTemplate({}, data) {
       return axios.post('/api/template/admin/batch_delete/', data).then(response => response.data);
     },
+    copyTemplate({}, data) {
+      return axios.post('/api/template/admin/template_copy/', data).then(response => response.data);
+    },
   },
 };
 
