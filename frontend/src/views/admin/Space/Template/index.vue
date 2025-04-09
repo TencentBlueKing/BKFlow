@@ -82,6 +82,13 @@
             theme="primary"
             class="ml10"
             text
+            @click="onCopyTemplate(props.row)">
+            {{ $t('复制') }}
+          </bk-button>
+          <bk-button
+            theme="primary"
+            class="ml10"
+            text
             @click="onDeleteTemplate(props.row)">
             {{ $t('删除') }}
           </bk-button>
@@ -261,6 +268,7 @@
       ...mapActions('templateList/', [
         'loadTemplateList',
         'deleteTemplate',
+        'copyTemplate',
       ]),
       ...mapActions('task/', [
         'createTask',
@@ -455,6 +463,41 @@
           });
         }
         return Promise.resolve();
+      },
+      onCopyTemplate(template) {
+        const h = this.$createElement;
+        this.$bkInfo({
+          title: this.$t('是否复制该流程？'),
+          subHeader: h('div', { class: 'custom-header' }, [
+            h('div', {
+              class: 'custom-header-title',
+              directives: [{
+                name: 'bk-overflow-tips',
+              }],
+            }, this.$t('注意：关联的mock 数据不会同步复制，暂不支持复制带有决策表节点的流程')),
+          ]),
+          type: 'warning',
+          extCls: 'dialog-custom-header-title',
+          maskClose: false,
+          width: 450,
+          confirmLoading: true,
+          cancelText: this.$t('取消'),
+          confirmFn: async () => {
+            try {
+              await this.copyTemplate({
+                space_id: this.spaceId,
+                template_id: template.id,
+              });
+              this.getTemplateList();
+              this.$bkMessage({
+                message: this.$t('流程复制成功！'),
+                theme: 'success',
+              });
+            } catch (error) {
+              console.warn(error);
+            }
+          },
+        });
       },
       onDeleteTemplate(template) {
         const h = this.$createElement;
