@@ -60,7 +60,7 @@ export const MODULES_LIST = [
 export const PLUGIN_LIST = [
   {
     name: i18n.t('蓝鲸插件'),
-    icon: 'common-icon-space',
+    icon: 'common-icon-module',
     id: 'plugin',
     disabled: false,
   },
