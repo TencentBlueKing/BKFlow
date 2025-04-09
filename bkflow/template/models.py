@@ -32,11 +32,11 @@ logger = logging.getLogger("root")
 
 
 class TemplateManager(models.Manager):
-    def copy_template(self, template_id, space_id):
+    def copy_template(self, template_id, space_id, operator):
         """
         复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
+        如某流程关联决策表 暂不支持拷贝
         """
-
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
         template.pk = None
@@ -46,6 +46,7 @@ class TemplateManager(models.Manager):
             # 开启事物 确保都创建成功
             copyed_snapshot = TemplateSnapshot.create_snapshot(snapshot.data)
             template.snapshot_id = copyed_snapshot.id
+            template.updated_by = operator
             template.save()
             copyed_snapshot.template_id = template.id
             copyed_snapshot.save(update_fields=["template_id"])
