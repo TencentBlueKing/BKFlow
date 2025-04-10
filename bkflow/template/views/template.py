@@ -184,9 +184,14 @@ class AdminTemplateViewSet(AdminModelViewSet):
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
         try:
-            template = Template.objects.copy_template(template_id, space_id)
+            template = Template.objects.copy_template(template_id, space_id, request.user.username)
         except Template.DoesNotExist:
-            return Response(exception=True, data={"detail": f"模版不存在, space_id={space_id}, template_id={template_id}"})
+            err_msg = f"模版不存在, space_id={space_id}, template_id={template_id}"
+            logger.error(str(err_msg))
+            return Response(exception=True, data={"detail": err_msg})
+        except ValidationError as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": str(e)})
         return Response(data={"template_id": template.id, "template_name": template.name})
 
 
