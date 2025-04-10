@@ -1,5 +1,5 @@
 <template>
-  <div class="manager-tags">
+  <div class="more-tags">
     <bk-tag
       v-for="tag in visibleTags"
       :key="tag">
@@ -9,10 +9,8 @@
       v-if="hiddenTags.length > 0"
       theme="light"
       :max-width="500">
-      <bk-tag
-        ref="moreTagRef"
-        class="more-tag">
-        +{{ hiddenTags.length }}
+      <bk-tag class="more-tag">
+        {{ `+${hiddenTags.length}` }}
       </bk-tag>
       <template #content>
         <div class="more-tags-content">
@@ -29,7 +27,7 @@
 <script>
   export default {
     props: {
-      columnWidth: {
+      width: {
         type: Number,
         default: 0,
       },
@@ -45,7 +43,7 @@
       };
     },
     watch: {
-      columnWidth: {
+      width: {
         handler(val) {
           if (!val) return;
           this.getVisibleTags();
@@ -63,7 +61,7 @@
           const tagWidths = tags.map(tag => this.createTagDom(tag));
 
           let foldIndex = tags.length; // 未触发折叠时返回 tags.length
-          let remainingWidth = this.columnWidth;
+          let remainingWidth = this.width;
           const spacing = 6;
 
           // 计算折叠后的剩余数量
@@ -101,3 +99,12 @@
     },
   };
 </script>
+<style lang="scss" scoped>
+  .more-tags {
+    display: flex;
+    .bk-tag,
+    .bk-tooltip {
+      flex-shrink: 0;
+    }
+  }
+</style>

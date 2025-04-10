@@ -26,20 +26,21 @@
           :clearable="false"
           enable-scroll-load
           multiple
+          :allow-enter="false"
           :scroll-loading="bottomLoadingOptions"
           :popover-options="{ appendTo: 'parent' }"
           :remote-method="onRemoteSearch"
           @selected="handleSpaceSelected"
           @scroll-end="handleScrollToBottom">
           <bk-option
+            v-if="!searchValue"
             id="*"
             :name="$t('全选')" />
           <bk-option
             v-for="option in spaceList"
             :id="option.id"
             :key="option.id"
-            :name="option.name"
-            :disabled="isSelectAll" />
+            :name="option.name" />
         </bk-select>
       </bk-form-item>
     </bk-form>
@@ -78,11 +79,6 @@
         searchValue: '',
         spaceList: [],
       };
-    },
-    computed: {
-      isSelectAll() {
-        return this.formData.ids.includes('*');
-      },
     },
     watch: {
       isShow(val) {
@@ -138,7 +134,7 @@
         }
       },
       handleSpaceSelected(val) {
-        this.formData.ids = val.includes('*') ? ['*'] : val;
+        this.formData.ids = val[val.length - 1] === '*' ? ['*'] : val.filter(v => v !== '*');
       },
       async handleScrollToBottom() {
         try {
