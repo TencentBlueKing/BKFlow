@@ -21,7 +21,6 @@ import logging
 from enum import Enum
 
 from django.db import models, transaction
-from django.db.models import Q
 from django.utils.timezone import localtime
 from django.utils.translation import ugettext_lazy as _
 
@@ -122,15 +121,13 @@ class BKPluginAuthorizationManager(models.Manager):
         return result_codes
 
     # 批量检查插件授权状态
-    def batch_check_authorization(self, exist_code_list, space_id: int):
+    def batch_check_authorization(self, exist_code_list, space_id: str):
         if not env.ENABLE_BK_PLUGIN_AUTHORIZATION:
             return
-        space_authorization_condition = Q(config__white_list__contains=space_id) | Q(config__white_list__contains="*")
-        authorized_codes = set(
-            self.filter(code__in=exist_code_list, status=AuthStatus.authorized)
-            .filter(space_authorization_condition)
-            .values_list("code", flat=True)
+        authorized_codes = set(self.filter(code__in=exist_code_list).values_list("code", flat=True)) & set(
+            self.get_codes_by_space_id(space_id)
         )
+
         unauthorized_plugins = list(set(exist_code_list) - authorized_codes)
         if unauthorized_plugins:
             logger.exception(f"流程中存在未授权插件：{unauthorized_plugins}")
