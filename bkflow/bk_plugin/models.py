@@ -121,12 +121,13 @@ class BKPluginAuthorizationManager(models.Manager):
         return result_codes
 
     # 批量检查插件授权状态
-    def batch_check_authorization(self, exist_code_list):
+    def batch_check_authorization(self, exist_code_list, space_id: str):
         if not env.ENABLE_BK_PLUGIN_AUTHORIZATION:
             return
-        authorized_codes = set(
-            self.filter(code__in=exist_code_list, status=AuthStatus.authorized).values_list("code", flat=True)
+        authorized_codes = set(self.filter(code__in=exist_code_list).values_list("code", flat=True)) & set(
+            self.get_codes_by_space_id(space_id)
         )
+
         unauthorized_plugins = list(set(exist_code_list) - authorized_codes)
         if unauthorized_plugins:
             logger.exception(f"流程中存在未授权插件：{unauthorized_plugins}")

@@ -125,7 +125,7 @@ class TemplateSerializer(serializers.ModelSerializer):
                 for node in pipeline_tree["activities"].values()
                 if node["component"]["data"].get("plugin_code")
             ]
-            BKPluginAuthorization.objects.batch_check_authorization(exist_code_list)
+            BKPluginAuthorization.objects.batch_check_authorization(exist_code_list, str(instance.space_id))
         except Exception as e:
             logger.exception("TemplateSerializer update error, err = {}".format(e))
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
