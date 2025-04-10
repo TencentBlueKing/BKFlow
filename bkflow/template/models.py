@@ -19,9 +19,11 @@ to the current version of the project delivered to anyone in the future.
 """
 import datetime
 import logging
+from copy import deepcopy
 
 from django.db import models, transaction
 from django.utils.translation import ugettext_lazy as _
+from pipeline.parser.utils import replace_all_id
 
 from bkflow.constants import TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.models import BaseOperateRecord
@@ -40,16 +42,18 @@ class TemplateManager(models.Manager):
         """
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
-        decision_table = template.pipeline_tree
-        for node in decision_table["activities"].values():
+        template_pipeline_tree = template.pipeline_tree
+        for node in template_pipeline_tree["activities"].values():
             if node["component"]["code"] == "dmn_plugin":
                 raise ValidationError("流程中存在决策节点 暂不支持拷贝")
         template.pk = None
         template.name = f"{template.name} Copy"
-        snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
+        copyed_pipeline_tree = deepcopy(template_pipeline_tree)
+        replace_all_id(copyed_pipeline_tree)
+        # 拷贝流程并替换节点 避免 id 重叠
         with transaction.atomic():
             # 开启事务 确保都创建成功
-            copyed_snapshot = TemplateSnapshot.create_snapshot(snapshot.data)
+            copyed_snapshot = TemplateSnapshot.create_snapshot(copyed_pipeline_tree)
             template.snapshot_id = copyed_snapshot.id
             template.updated_by = operator
             template.creator = operator
