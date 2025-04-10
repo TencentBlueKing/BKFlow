@@ -955,7 +955,7 @@ const en = {
   '注意：对于已经配置在流程中的插件节点，BKFlow 仍然会触发调用。如果希望完全不提供给 BKFlow 调用，请直接在 PaaS 开发者中心取消对 BKFlow 的应用授权。': 'Note: BKFlow will still trigger calls for plugin nodes already configured in the process. To completely prevent BKFlow from calling, please directly revoke the application authorization to BKFlow in the PaaS Developer Center.',
   取消授权成功: 'Authorization Revoked Successfully',
   '是否复制该流程？': 'Do you want to copy this process?',
-  '注意：关联的mock 数据不会同步复制，暂不支持复制带有决策表节点的流程': 'Note: Associated mock data will not be copied, and copying processes with decision table nodes is not supported.',
+  '注意：关联的 mock 数据不会同步复制，暂不支持复制带有决策表节点的流程': 'Note: Associated mock data will not be copied, and copying processes with decision table nodes is not supported.',
   '流程复制成功！': 'Process copied successfully!',
 };
 
