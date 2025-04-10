@@ -32,8 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 class DecisionTableManager(models.Manager):
-    def check_template(self, template_id) -> bool:
-        return self.filter(template_id=template_id).exists()
+    pass
 
 
 class DecisionTable(CommonModel):
