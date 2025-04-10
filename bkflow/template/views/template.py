@@ -36,7 +36,6 @@ from bkflow.apigw.serializers.template import CreateTemplateSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.decorators import record_operation
-from bkflow.decision_table.models import DecisionTable
 from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
@@ -184,16 +183,15 @@ class AdminTemplateViewSet(AdminModelViewSet):
         ser = TemplateCopySerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
-        if DecisionTable.objects.check_template(template_id):
-            err_msg = f"该流程 {template_id} 关联决策表 暂不支持复制"
-            logger.error(err_msg)
-            return Response(exception=True, data={"detail": err_msg})
         try:
             template = Template.objects.copy_template(template_id, space_id, request.user.username)
         except Template.DoesNotExist:
             err_msg = f"模版不存在, space_id={space_id}, template_id={template_id}"
             logger.error(str(err_msg))
             return Response(exception=True, data={"detail": err_msg})
+        except Exception as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": str(e)})
         return Response(data={"template_id": template.id, "template_name": template.name})
 
 
