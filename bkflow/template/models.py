@@ -25,6 +25,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from bkflow.constants import TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.models import BaseOperateRecord
+from bkflow.exceptions import ValidationError
 from bkflow.utils.md5 import compute_pipeline_md5
 from bkflow.utils.models import CommonModel, CommonSnapshot
 
@@ -35,19 +36,19 @@ class TemplateManager(models.Manager):
     def copy_template(self, template_id, space_id, operator):
         """
         复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
-        如某流程关联决策表 暂不支持拷贝
+        暂不支持拷贝带决策表插件的流程
         """
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
         decision_table = template.pipeline_tree
         for node in decision_table["activities"].values():
             if node["component"]["code"] == "dmn_plugin":
-                raise Exception("流程中存在决策节点 暂不支持拷贝")
+                raise ValidationError("流程中存在决策节点 暂不支持拷贝")
         template.pk = None
         template.name = f"{template.name} Copy"
         snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
         with transaction.atomic():
-            # 开启事物 确保都创建成功
+            # 开启事务 确保都创建成功
             copyed_snapshot = TemplateSnapshot.create_snapshot(snapshot.data)
             template.snapshot_id = copyed_snapshot.id
             template.updated_by = operator

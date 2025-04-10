@@ -189,7 +189,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             err_msg = f"模版不存在, space_id={space_id}, template_id={template_id}"
             logger.error(str(err_msg))
             return Response(exception=True, data={"detail": err_msg})
-        except Exception as e:
+        except ValidationError as e:
             logger.error(str(e))
             return Response(exception=True, data={"detail": str(e)})
         return Response(data={"template_id": template.id, "template_name": template.name})
