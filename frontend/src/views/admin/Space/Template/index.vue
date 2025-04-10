@@ -465,17 +465,9 @@
         return Promise.resolve();
       },
       onCopyTemplate(template) {
-        const h = this.$createElement;
         this.$bkInfo({
           title: this.$t('是否复制该流程？'),
-          subHeader: h('div', { class: 'custom-header' }, [
-            h('div', {
-              class: 'custom-header-title',
-              directives: [{
-                name: 'bk-overflow-tips',
-              }],
-            }, this.$t('注意：关联的mock 数据不会同步复制，暂不支持复制带有决策表节点的流程')),
-          ]),
+          subTitle: this.$t('注意：关联的 mock 数据不会同步复制，暂不支持复制带有决策表节点的流程'),
           type: 'warning',
           extCls: 'dialog-custom-header-title',
           maskClose: false,

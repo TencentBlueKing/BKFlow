@@ -24,12 +24,10 @@
         :class-name="`${item.id}-column`"
         :min-width="item.min_width">
         <template slot-scope="{ row }">
-          <span
-            v-if="item.id === 'managers'"
-            v-bk-overflow-tips>
-            <ManagerTags
+          <span v-if="item.id === 'managers'">
+            <MoreTags
               :tags="row.managers"
-              :column-width="managersColumnWidth - 30" />
+              :width="columnWidth.managers - 30" />
           </span>
           <span
             v-else-if="item.id === 'status'"
@@ -37,7 +35,9 @@
             {{ row.status ? $t('已授权') : $t('未授权') }}
           </span>
           <span v-else-if="item.id === 'config'">
-            {{ row.config.white_list && row.config.white_list.join(',') }}
+            <MoreTags
+              :tags="getWhiteListTags(row.config)"
+              :width="columnWidth.config - 30" />
           </span>
           <span
             v-else
@@ -49,15 +49,16 @@
         fixed="right"
         width="250">
         <template slot-scope="{ row }">
-          <AuthorizeBtn
-            :row="row"
-            @update="getPluginList" />
           <bk-button
             text
             title="primary"
+            class="mr16"
             @click="showRangeEditDialog(row)">
             {{ $t('编辑使用范围') }}
           </bk-button>
+          <AuthorizeBtn
+            :row="row"
+            @update="getPluginList" />
         </template>
       </bk-table-column>
       <div
@@ -79,7 +80,7 @@
 <script>
   import NoData from '@/components/common/base/NoData.vue';
   import TableOperate from '../Space/common/TableOperate.vue';
-  import ManagerTags from './ManagerTags.vue';
+  import MoreTags from '@/components/common/MoreTags.vue';
   import AuthorizeBtn from './AuthorizeBtn.vue';
   import RangEditDialog from './RangEditDialog.vue';
   import tableCommon from '../Space/mixins/tableCommon.js';
@@ -158,7 +159,7 @@
     components: {
       NoData,
       TableOperate,
-      ManagerTags,
+      MoreTags,
       AuthorizeBtn,
       RangEditDialog,
     },
@@ -173,7 +174,10 @@
         pageType: 'pluginList', // 页面类型，在mixins中分页表格头显示使用
         editDialogShow: false,
         selectedRow: {},
-        managersColumnWidth: 0,
+        columnWidth: {
+          managers: 0,
+          config: 0,
+        },
       };
     },
     mounted() {
@@ -233,6 +237,9 @@
 
         return params;
       },
+      getWhiteListTags(config) {
+        return config.white_list.map(item => item.name);
+      },
       showRangeEditDialog(row) {
         this.selectedRow = row;
         this.editDialogShow = true;
@@ -245,15 +252,20 @@
         }
       },
       handleColumnHeaderDragend(newWidth, _oldWidth, column) {
-        if (column.property === 'managers') {
-          this.managersColumnWidth = newWidth;
+        if (['managers', 'config'].includes(column.property)) {
+          this.columnWidth[column.property] = newWidth;
         }
       },
       handleResize() {
         const managerColumnDom = document.querySelector('.managers-column');
+        const configColumnDom = document.querySelector('.config-column');
         if (managerColumnDom) {
           const { width } = managerColumnDom.getBoundingClientRect();
-          this.managersColumnWidth = width;
+          this.columnWidth.managers = width;
+        }
+        if (configColumnDom) {
+          const { width } = configColumnDom.getBoundingClientRect();
+          this.columnWidth.config = width;
         }
       },
     },
@@ -281,12 +293,5 @@
   }
   .mr16 {
     margin-right: 16px;
-  }
-  /deep/.manager-tags {
-    display: flex;
-    .bk-tag,
-    .bk-tooltip {
-      flex-shrink: 0;
-    }
   }
 </style>;

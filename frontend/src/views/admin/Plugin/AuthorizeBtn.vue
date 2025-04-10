@@ -1,7 +1,6 @@
 <template>
   <bk-button
     text
-    class="mr16"
     @click="setAuthorization">
     {{ row.status ? $t('取消授权') : $t('授权') }}
   </bk-button>
