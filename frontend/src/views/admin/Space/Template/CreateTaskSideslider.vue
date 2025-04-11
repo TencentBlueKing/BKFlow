@@ -211,7 +211,8 @@
         if (mode === 'json') {
           return JSON.parse(constants);
         };
-        return this.$refs.taskParamEdit.getVariableData();
+        const variableData = this.$refs.taskParamEdit.getVariableData();
+        return Object.values(variableData).reduce((acc, cur) => Object.assign(acc, { [cur.key]: cur.value }), {});
       },
       handleCancel() {
         this.$emit('close');
