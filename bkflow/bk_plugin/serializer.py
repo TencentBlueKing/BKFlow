@@ -17,15 +17,14 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from datetime import datetime
-
+from django.utils import timezone
 from rest_framework import serializers
 
 from bkflow.bk_plugin.models import (
     AuthStatus,
     BKPlugin,
     BKPluginAuthorization,
-    get_default_config,
+    get_default_list_config,
     logger,
 )
 from bkflow.constants import ALL_SPACE, WHITE_LIST
@@ -35,6 +34,23 @@ class BKPluginSerializer(serializers.ModelSerializer):
     class Meta:
         model = BKPlugin
         fields = "__all__"
+
+
+class PluginListConfigSerializer(serializers.Serializer):
+    white_list = serializers.ListField(required=True, child=serializers.DictField())
+
+    def validate_white_list(self, value):
+        for item in value:
+            if not item.get("id") or item.get("name") is None:
+                raise serializers.ValidationError("white_list中的id和name不能为空")
+        return value
+
+    def to_internal_value(self, data):
+        # 如果传入的是包含white_list的字典，提取white_list
+        if isinstance(data, dict) and "white_list" in data:
+            return super().to_internal_value(data)
+        # 否则假设整个数据就是white_list
+        return super().to_internal_value({"white_list": data})
 
 
 class PluginConfigSerializer(serializers.Serializer):
@@ -69,7 +85,7 @@ class BKPluginAuthSerializer(serializers.ModelSerializer):
             instance.config = validated_data["config"]
         if "status" in validated_data:
             instance.status = validated_data["status"]
-            instance.status_update_time = datetime.now()
+            instance.status_update_time = timezone.now()
             instance.status_updator = self.context.get("username", "")
             update_fields.extend(["status", "status_updator", "status_update_time"])
         instance.save(update_fields=update_fields)
@@ -85,7 +101,7 @@ class AuthListSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=100)
     managers = serializers.ListField(child=serializers.CharField())
     status = serializers.IntegerField(required=False, default=AuthStatus.unauthorized.value)
-    config = PluginConfigSerializer(required=False, default=get_default_config)
+    config = PluginListConfigSerializer(required=False, default=get_default_list_config)
     status_updator = serializers.CharField(max_length=255, allow_blank=True, default="")
     status_update_time = serializers.DateTimeField(required=False, format="%Y-%m-%d %H:%M:%S%z", allow_null=True)
 
