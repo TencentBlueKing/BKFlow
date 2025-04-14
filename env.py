@@ -144,6 +144,9 @@ SPACE_PLUGIN_LIST_STR = os.getenv("SPACE_PLUGIN_LIST_STR", "")  # 逗号分隔�
 # 是否支持API插件使用 BKFLOW 凭证
 USE_BKFLOW_CREDENTIAL = os.getenv("USE_BKFLOW_CREDENTIAL", False)  # 默认关闭使用
 
+# 是否开启使用pyinstrument
+USE_PYINSTRUMENT = os.getenv("USE_PYINSTRUMENT", False)
+
 # 清理任务批量数目
 CLEAN_TASK_BATCH_NUM = os.getenv("CLEAN_TASK_BATCH_NUM", 200)
 
