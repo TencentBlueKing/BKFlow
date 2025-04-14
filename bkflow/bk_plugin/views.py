@@ -21,6 +21,7 @@ import logging
 
 import django_filters
 from django.db.models import Q
+from django.utils.timezone import localtime
 from django_filters.filterset import FilterSet
 from django_filters.rest_framework.backends import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
@@ -131,7 +132,11 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
                     {
                         "status": authorization.status,
                         "status_updator": authorization.status_updator,
-                        "status_update_time": authorization.status_update_time,
+                        "status_update_time": localtime(authorization.status_update_time).strftime(
+                            "%Y-%m-%d %H:%M:%S%z"
+                        )
+                        if authorization.status_update_time
+                        else authorization.status_update_time,
                     }
                 ),
             }

@@ -37,17 +37,6 @@ class BKPluginSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class PluginListConfigSerializer(serializers.Serializer):
-    white_list = serializers.ListField(required=True, child=serializers.DictField())
-
-    def validate_white_list(self, value):
-        for item in value:
-            if not item.get("id") or item.get("name") is None:
-                raise serializers.ValidationError("white_list中的id和name不能为空")
-            item["id"] = str(item["id"])
-        return value
-
-
 class PluginConfigSerializer(serializers.Serializer):
     white_list = serializers.ListField(required=True, child=serializers.CharField())
 
@@ -91,20 +80,25 @@ class BKPluginAuthSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class AuthConfigSerializer(serializers.Serializer):
+    white_list = serializers.ListField(required=True, child=serializers.DictField())
+
+    def validate_white_list(self, value):
+        for item in value:
+            if not item.get("id") or item.get("name") is None:
+                raise serializers.ValidationError("white_list中的id和name不能为空")
+            item["id"] = str(item["id"])
+        return value
+
+
 class AuthListSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=100)
     name = serializers.CharField(max_length=100)
     managers = serializers.ListField(child=serializers.CharField())
     status = serializers.IntegerField(required=False, default=AuthStatus.unauthorized.value)
-    config = PluginListConfigSerializer(required=False, default=get_default_list_config)
+    config = AuthConfigSerializer(required=False, default=get_default_list_config)
     status_updator = serializers.CharField(max_length=255, allow_blank=True, default="")
-    status_update_time = serializers.DateTimeField(required=False, allow_null=True)
-
-    def to_internal_value(self, data):
-        validated_data = super().to_internal_value(data)
-        if "status_update_time" in validated_data and validated_data.get("status_update_time"):
-            validated_data["status_update_time"] = validated_data["status_update_time"].strftime("%Y-%m-%d %H:%M:%S%z")
-        return validated_data
+    status_update_time = serializers.CharField(required=False, allow_null=True)
 
 
 class AuthListQuerySerializer(serializers.Serializer):
