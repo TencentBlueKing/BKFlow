@@ -47,13 +47,6 @@ class PluginListConfigSerializer(serializers.Serializer):
             item["id"] = str(item["id"])
         return value
 
-    def to_internal_value(self, data):
-        # 如果传入的是包含white_list的字典，提取white_list
-        if isinstance(data, dict) and "white_list" in data:
-            return super().to_internal_value(data)
-        # 否则假设整个数据就是white_list
-        return super().to_internal_value({"white_list": data})
-
 
 class PluginConfigSerializer(serializers.Serializer):
     white_list = serializers.ListField(required=True, child=serializers.CharField())
@@ -109,7 +102,7 @@ class AuthListSerializer(serializers.Serializer):
 
     def to_internal_value(self, data):
         validated_data = super().to_internal_value(data)
-        if "status_update_time" in validated_data and validated_data["status_update_time"]:
+        if "status_update_time" in validated_data and validated_data.get("status_update_time"):
             validated_data["status_update_time"] = validated_data["status_update_time"].strftime("%Y-%m-%d %H:%M:%S%z")
         return validated_data
 

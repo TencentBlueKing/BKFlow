@@ -52,6 +52,12 @@ class BKPluginManager(models.Manager):
             managers=list(managers),
         )
 
+    def is_same_plugin(self, plugin_a, plugin_b, fields_to_compare):
+        for field in fields_to_compare:
+            if getattr(plugin_a, field) != getattr(plugin_b, field):
+                return False
+            return True
+
     def sync_bk_plugins(self, remote_plugins_dict):
         """
         批量更新插件信息
@@ -69,21 +75,18 @@ class BKPluginManager(models.Manager):
         for code in codes_to_compare:
             remote_plugin = self.fill_plugin_info(remote_plugins_dict[code])
             local_plugin = local_plugins[code]
-            for field in fields_to_compare:
-                if field == "code":
-                    continue
-                if getattr(remote_plugin, field) != getattr(local_plugin, field):
-                    codes_to_delete.add(code)
-                    codes_to_add.add(code)
-                    continue
+            if not self.is_same_plugin(remote_plugin, local_plugin, fields_to_compare):
+                codes_to_delete.update(code)
+                codes_to_add.update(code)
+                continue
         plugins_to_add = [self.fill_plugin_info(remote_plugins_dict[code]) for code in codes_to_add]
         # 开启事务进行批量操作
         with transaction.atomic():
             if codes_to_delete:
-                BKPlugin.objects.filter(code__in=codes_to_delete).delete()
+                self.filter(code__in=codes_to_delete).delete()
                 logger.info("本次蓝鲸插件同步，删除{}个".format(len(codes_to_delete)))
             if codes_to_add:
-                BKPlugin.objects.bulk_create(plugins_to_add)
+                self.bulk_create(plugins_to_add)
                 logger.info("本次蓝鲸插件同步，新增{}个".format(len(codes_to_add)))
 
 
