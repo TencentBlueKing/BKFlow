@@ -143,6 +143,11 @@ class TestSpaceConfigHandler:
         assert config_cls.default_value is None
         assert config_cls.value_type == SpaceConfigValueType.TEXT.value
 
+        credential_in_string = "Test credential name"
+        credential_in_dict = {"default": "test credential name"}
+        assert config_cls.validate(credential_in_string)
+        assert config_cls.validate(credential_in_dict)
+
     def test_space_plugin_config(self):
         config_cls = SpaceConfigHandler.get_config("space_plugin_config")
         assert config_cls == SpacePluginConfig
