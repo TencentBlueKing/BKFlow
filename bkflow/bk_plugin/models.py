@@ -28,7 +28,7 @@ import env
 from bkflow.constants import ALL_SPACE, WHITE_LIST
 from bkflow.exceptions import PluginUnAuthorization
 
-logger = logging.getLogger("root")
+logger = logging.getLogger("django")
 
 
 class BKPluginManager(models.Manager):
@@ -56,7 +56,7 @@ class BKPluginManager(models.Manager):
         for field in fields_to_compare:
             if getattr(plugin_a, field) != getattr(plugin_b, field):
                 return False
-            return True
+        return True
 
     def sync_bk_plugins(self, remote_plugins_dict):
         """
