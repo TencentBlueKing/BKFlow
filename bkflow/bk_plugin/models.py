@@ -56,7 +56,7 @@ class BKPluginManager(models.Manager):
         for field in fields_to_compare:
             if getattr(plugin_a, field) != getattr(plugin_b, field):
                 return False
-            return True
+        return True
 
     def sync_bk_plugins(self, remote_plugins_dict):
         """
@@ -84,13 +84,13 @@ class BKPluginManager(models.Manager):
         with transaction.atomic():
             if codes_to_delete:
                 self.filter(code__in=codes_to_delete).delete()
-                logger.info("本次蓝鲸插件同步，删除{}个".format(len(codes_to_delete)))
             if codes_to_add:
                 self.bulk_create(plugins_to_add)
-                logger.info("本次蓝鲸插件同步，新增{}个".format(len(codes_to_add)))
             if plugins_to_update:
                 self.bulk_update(plugins_to_update, fields=fields_to_compare)
-                logger.info("本次蓝鲸插件同步，更新{}个".format(len(plugins_to_update)))
+        logger.info("本次蓝鲸插件同步，删除{}个".format(len(codes_to_delete)))
+        logger.info("本次蓝鲸插件同步，新增{}个".format(len(codes_to_add)))
+        logger.info("本次蓝鲸插件同步，更新{}个".format(len(plugins_to_update)))
 
 
 class BKPlugin(models.Model):
