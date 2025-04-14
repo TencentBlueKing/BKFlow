@@ -21,6 +21,7 @@ import logging
 
 import django_filters
 from django.db.models import Q
+from django.utils.timezone import localtime
 from django_filters.filterset import FilterSet
 from django_filters.rest_framework.backends import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
@@ -29,7 +30,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 import env
-from bkflow.bk_plugin.models import BKPlugin, BKPluginAuthorization
+from bkflow.bk_plugin.models import (
+    BKPlugin,
+    BKPluginAuthorization,
+    get_default_list_config,
+)
 from bkflow.bk_plugin.permissions import BKPluginManagerPermission
 from bkflow.bk_plugin.serializer import (
     AuthListQuerySerializer,
@@ -37,7 +42,9 @@ from bkflow.bk_plugin.serializer import (
     BKPluginAuthSerializer,
     BKPluginSerializer,
 )
+from bkflow.constants import ALL_SPACE, WHITE_LIST
 from bkflow.exceptions import ValidationError
+from bkflow.space.models import Space
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWDefaultPagination
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import SimpleGenericViewSet
@@ -103,6 +110,7 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
         ).qs
         authorization_dict = {auth.code: auth for auth in filtered_authorization}
         result_data = []
+        space_queryset = Space.objects.all()
         for plugin in filtered_plugins:
             status_param = query_serializer.validated_data.get("status")
             updator_param = query_serializer.validated_data.get("status_updator")
@@ -123,12 +131,22 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
                 **(
                     {
                         "status": authorization.status,
-                        "config": authorization.config,
                         "status_updator": authorization.status_updator,
-                        "status_update_time": authorization.status_update_time,
+                        "status_update_time": localtime(authorization.status_update_time).strftime(
+                            "%Y-%m-%d %H:%M:%S%z"
+                        )
+                        if authorization.status_update_time
+                        else authorization.status_update_time,
                     }
                 ),
             }
+            space_ids = [space_id for space_id in authorization.config[WHITE_LIST]]
+            if space_ids == [ALL_SPACE]:
+                authorization.config = get_default_list_config()
+            else:
+                space_infos = space_queryset.filter(id__in=space_ids).values("id", "name")
+                authorization.config[WHITE_LIST] = list(space_infos)
+            data["config"] = authorization.config
             result_data.append(data)
 
         serializer = AuthListSerializer(data=result_data, many=True)

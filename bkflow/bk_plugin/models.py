@@ -52,6 +52,12 @@ class BKPluginManager(models.Manager):
             managers=list(managers),
         )
 
+    def is_same_plugin(self, plugin_a, plugin_b, fields_to_compare):
+        for field in fields_to_compare:
+            if getattr(plugin_a, field) != getattr(plugin_b, field):
+                return False
+            return True
+
     def sync_bk_plugins(self, remote_plugins_dict):
         """
         批量更新插件信息
@@ -59,21 +65,32 @@ class BKPluginManager(models.Manager):
         if not remote_plugins_dict:
             return
         # 比较插件code和更新时间
-        remote_pairs = set((code, plugin["plugin"]["updated"]) for (code, plugin) in remote_plugins_dict.items())
-        local_pairs = set((plugin.code, plugin.updated_time) for plugin in self.all())
-        to_create_pairs = remote_pairs - local_pairs
-        logger.info(f"蓝鲸插件同步过程新增插件{len(to_create_pairs)}个")
-        # 准备好批量创建的插件列表
-        to_create_plugins = [self.fill_plugin_info(remote_plugins_dict[pair[0]]) for pair in set(to_create_pairs)]
-        to_delete_codes = [pair[0] for pair in set(local_pairs - remote_pairs)]
-        logger.info(f"蓝鲸插件同步过程删除插件{len(to_delete_codes)}")
+        local_plugins = {plugin.code: plugin for plugin in self.all()}
+        local_plugin_codes = set(local_plugins.keys())
+        remote_plugin_codes = set(remote_plugins_dict.keys())
+        codes_to_add = set(remote_plugin_codes - local_plugin_codes)
+        codes_to_delete = set(local_plugin_codes - remote_plugin_codes)
+        codes_to_compare = set(local_plugin_codes & remote_plugin_codes)
+        plugins_to_update = set()
+        fields_to_compare = [f.name for f in BKPlugin._meta.fields if not f.primary_key]
+        for code in codes_to_compare:
+            remote_plugin = self.fill_plugin_info(remote_plugins_dict[code])
+            local_plugin = local_plugins[code]
+            if not self.is_same_plugin(remote_plugin, local_plugin, fields_to_compare):
+                plugins_to_update.add(remote_plugin)
+                continue
+        plugins_to_add = [self.fill_plugin_info(remote_plugins_dict[code]) for code in codes_to_add]
         # 开启事务进行批量操作
         with transaction.atomic():
-            if to_delete_codes:
-                self.filter(code__in=to_delete_codes).delete()
-            if to_create_plugins:
-                # 每次同步检查一次权限记录，是否需要创建新记录
-                self.bulk_create(to_create_plugins)
+            if codes_to_delete:
+                self.filter(code__in=codes_to_delete).delete()
+                logger.info("本次蓝鲸插件同步，删除{}个".format(len(codes_to_delete)))
+            if codes_to_add:
+                self.bulk_create(plugins_to_add)
+                logger.info("本次蓝鲸插件同步，新增{}个".format(len(codes_to_add)))
+            if plugins_to_update:
+                self.bulk_update(plugins_to_update, fields=fields_to_compare)
+                logger.info("本次蓝鲸插件同步，更新{}个".format(len(plugins_to_update)))
 
 
 class BKPlugin(models.Model):
@@ -105,6 +122,10 @@ class AuthStatus(int, Enum):
 
 def get_default_config():
     return {WHITE_LIST: [ALL_SPACE]}
+
+
+def get_default_list_config():
+    return {WHITE_LIST: [{"id": ALL_SPACE, "name": "all_space"}]}
 
 
 class BKPluginAuthorizationManager(models.Manager):

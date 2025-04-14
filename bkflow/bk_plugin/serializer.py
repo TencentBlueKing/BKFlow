@@ -25,7 +25,7 @@ from bkflow.bk_plugin.models import (
     AuthStatus,
     BKPlugin,
     BKPluginAuthorization,
-    get_default_config,
+    get_default_list_config,
     logger,
 )
 from bkflow.constants import ALL_SPACE, WHITE_LIST
@@ -80,14 +80,25 @@ class BKPluginAuthSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+class AuthConfigSerializer(serializers.Serializer):
+    white_list = serializers.ListField(required=True, child=serializers.DictField())
+
+    def validate_white_list(self, value):
+        for item in value:
+            if not item.get("id") or item.get("name") is None:
+                raise serializers.ValidationError("white_list中的id和name不能为空")
+            item["id"] = str(item["id"])
+        return value
+
+
 class AuthListSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=100)
     name = serializers.CharField(max_length=100)
     managers = serializers.ListField(child=serializers.CharField())
     status = serializers.IntegerField(required=False, default=AuthStatus.unauthorized.value)
-    config = PluginConfigSerializer(required=False, default=get_default_config)
+    config = AuthConfigSerializer(required=False, default=get_default_list_config)
     status_updator = serializers.CharField(max_length=255, allow_blank=True, default="")
-    status_update_time = serializers.DateTimeField(required=False, format="%Y-%m-%d %H:%M:%S%z", allow_null=True)
+    status_update_time = serializers.CharField(required=False, allow_null=True)
 
 
 class AuthListQuerySerializer(serializers.Serializer):
