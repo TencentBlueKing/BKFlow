@@ -87,7 +87,8 @@
         this.pagination.current = 1;
         if (val) {
           const { white_list: whiteList } = this.row.config;
-          this.formData.ids = whiteList.includes('*') ? whiteList : whiteList.map(Number);
+          const ids = whiteList.map(item => item.id);
+          this.formData.ids = ids.includes('*') ? ids : ids.map(Number);
           this.getSpaceList();
         }
       },

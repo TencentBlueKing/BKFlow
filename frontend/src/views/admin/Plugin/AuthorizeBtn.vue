@@ -65,9 +65,10 @@
           confirmLoading: true,
           confirmFn: async () => {
             try {
+              const ids = config.white_list.map(item => item.id);
               const resp = await this.updatePluginManager({
                 code,
-                config,
+                config: { white_list: ids },
                 status: isAuthorize ? 0 : 1,
               });
               if (resp.result) {

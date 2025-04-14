@@ -50,6 +50,9 @@
         },
         immediate: true,
       },
+      tags() {
+        this.getVisibleTags();
+      },
     },
     methods: {
       getVisibleTags() {
