@@ -17,7 +17,8 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from django.utils import timezone
+from datetime import datetime
+
 from rest_framework import serializers
 
 from bkflow.bk_plugin.models import (
@@ -86,7 +87,7 @@ class BKPluginAuthSerializer(serializers.ModelSerializer):
             instance.config = validated_data["config"]
         if "status" in validated_data:
             instance.status = validated_data["status"]
-            instance.status_update_time = timezone.now()
+            instance.status_update_time = datetime.now()
             instance.status_updator = self.context.get("username", "")
             update_fields.extend(["status", "status_updator", "status_update_time"])
         instance.save(update_fields=update_fields)

@@ -131,8 +131,7 @@ class BKPluginAuthorizationManager(models.Manager):
         result_codes = []
         for obj in authorized_dict:
             white_list = obj.white_list
-            space_ids = [space_dict["id"] for space_dict in white_list]
-            if ALL_SPACE in space_ids or space_id in space_ids:
+            if ALL_SPACE in white_list or space_id in white_list:
                 result_codes.append(obj.code)
         return result_codes
 
