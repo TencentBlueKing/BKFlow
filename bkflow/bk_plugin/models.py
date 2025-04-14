@@ -71,13 +71,13 @@ class BKPluginManager(models.Manager):
         codes_to_add = set(remote_plugin_codes - local_plugin_codes)
         codes_to_delete = set(local_plugin_codes - remote_plugin_codes)
         codes_to_compare = set(local_plugin_codes & remote_plugin_codes)
+        plugins_to_update = set()
         fields_to_compare = [f.name for f in BKPlugin._meta.fields if not f.primary_key]
         for code in codes_to_compare:
             remote_plugin = self.fill_plugin_info(remote_plugins_dict[code])
             local_plugin = local_plugins[code]
             if not self.is_same_plugin(remote_plugin, local_plugin, fields_to_compare):
-                codes_to_delete.update(code)
-                codes_to_add.update(code)
+                plugins_to_update.add(remote_plugin)
                 continue
         plugins_to_add = [self.fill_plugin_info(remote_plugins_dict[code]) for code in codes_to_add]
         # 开启事务进行批量操作
@@ -88,6 +88,9 @@ class BKPluginManager(models.Manager):
             if codes_to_add:
                 self.bulk_create(plugins_to_add)
                 logger.info("本次蓝鲸插件同步，新增{}个".format(len(codes_to_add)))
+            if plugins_to_update:
+                self.bulk_update(plugins_to_update, fields=fields_to_compare)
+                logger.info("本次蓝鲸插件同步，更新{}个".format(len(plugins_to_update)))
 
 
 class BKPlugin(models.Model):
