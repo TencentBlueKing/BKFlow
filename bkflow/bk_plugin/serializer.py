@@ -43,6 +43,7 @@ class PluginListConfigSerializer(serializers.Serializer):
         for item in value:
             if not item.get("id") or item.get("name") is None:
                 raise serializers.ValidationError("white_list中的id和name不能为空")
+            item["id"] = str(item["id"])
         return value
 
     def to_internal_value(self, data):
@@ -103,7 +104,13 @@ class AuthListSerializer(serializers.Serializer):
     status = serializers.IntegerField(required=False, default=AuthStatus.unauthorized.value)
     config = PluginListConfigSerializer(required=False, default=get_default_list_config)
     status_updator = serializers.CharField(max_length=255, allow_blank=True, default="")
-    status_update_time = serializers.DateTimeField(required=False, format="%Y-%m-%d %H:%M:%S%z", allow_null=True)
+    status_update_time = serializers.DateTimeField(required=False, allow_null=True)
+
+    def to_internal_value(self, data):
+        validated_data = super().to_internal_value(data)
+        if "status_update_time" in validated_data and validated_data["status_update_time"]:
+            validated_data["status_update_time"] = validated_data["status_update_time"].strftime("%Y-%m-%d %H:%M:%S%z")
+        return validated_data
 
 
 class AuthListQuerySerializer(serializers.Serializer):
