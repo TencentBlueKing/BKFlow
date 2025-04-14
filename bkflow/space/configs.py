@@ -324,6 +324,7 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
         if isinstance(value, dict):
             try:
                 jsonschema.validate(value, cls.SCHEMA)
+                return True
             except jsonschema.ValidationError as e:
                 raise ValidationError(f"[validate api_gateway_credential error]: {str(e)}")
         else:
