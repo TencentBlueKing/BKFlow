@@ -87,7 +87,6 @@ class BKPluginManager(models.Manager):
             local_plugin = local_plugins[code]
             if not self.is_same_plugin(remote_plugin, local_plugin, fields_to_compare):
                 plugins_to_update.add(remote_plugin)
-                logger.info(f"插件{code}需要更新。")
                 continue
         plugins_to_add = [self.fill_plugin_info(remote_plugins_dict[code]) for code in codes_to_add]
         # 开启事务进行批量操作
