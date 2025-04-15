@@ -21,7 +21,6 @@
         property="range">
         <bk-select
           :value="formData.ids"
-          :placeholder="$t('请选择空间')"
           searchable
           :clearable="false"
           enable-scroll-load
@@ -30,12 +29,24 @@
           :scroll-loading="bottomLoadingOptions"
           :popover-options="{ appendTo: 'parent' }"
           :remote-method="onRemoteSearch"
+          @toggle="isExpand = $event"
           @selected="handleSpaceSelected"
           @scroll-end="handleScrollToBottom">
+          <div
+            slot="trigger"
+            class="select-trigger"
+            :data-placeholder="selectedSpaceName ? '' : $t('请选择空间')">
+            <span
+              v-bk-overflow-tips
+              class="space-name">
+              {{ selectedSpaceName }}
+            </span>
+            <i :class="['common-icon-angle-right', { 'icon-flip': isExpand }]" />
+          </div>
           <bk-option
             v-if="!searchValue"
             id="*"
-            :name="$t('全选')" />
+            :name="$t('* (对所有空间公开)')" />
           <bk-option
             v-for="option in spaceList"
             :id="option.id"
@@ -78,7 +89,14 @@
         totalPage: 1,
         searchValue: '',
         spaceList: [],
+        isExpand: false,
+        selectedOptions: [],
       };
+    },
+    computed: {
+      selectedSpaceName() {
+        return this.selectedOptions.reduce((acc, cur) => acc + (acc ? ',' : '') + (cur.id === '*' ? '*' : cur.name), '');
+      },
     },
     watch: {
       isShow(val) {
@@ -87,6 +105,8 @@
         this.pagination.current = 1;
         if (val) {
           const { white_list: whiteList } = this.row.config;
+          this.selectedOptions = whiteList;
+
           const ids = whiteList.map(item => item.id);
           this.formData.ids = ids.includes('*') ? ids : ids.map(Number);
           this.getSpaceList();
@@ -134,8 +154,11 @@
           console.warn(error);
         }
       },
-      handleSpaceSelected(val) {
-        this.formData.ids = val[val.length - 1] === '*' ? ['*'] : val.filter(v => v !== '*');
+      handleSpaceSelected(val, options) {
+        // 最后一次选中的是否为全选
+        const lastOption = options[options.length - 1];
+        this.selectedOptions = lastOption?.id === '*' ? [lastOption] : options.filter(item => item.id !== '*');
+        this.formData.ids = lastOption?.id === '*' ? ['*'] : val.filter(v => v !== '*');
       },
       async handleScrollToBottom() {
         try {
@@ -181,3 +204,31 @@
     },
   };
 </script>
+<style lang="scss" scoped>
+  /deep/.select-trigger {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 8px;
+    .space-name {
+      flex: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    i {
+      font-size: 22px;
+      color: #979ba5;
+      transform: rotate(90deg);
+      transition: all 0.3s;
+      &.icon-flip {
+        transform: rotate(-90deg);
+      }
+    }
+    &::before {
+      position: absolute;
+      content: attr(data-placeholder);
+      color: #c4c6cc;
+    }
+  }
+</style>
