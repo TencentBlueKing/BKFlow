@@ -36,11 +36,12 @@ class BKPluginManager(models.Manager):
         """
         将最新插件信息封装为本地蓝鲸插件
         """
-        managers = []
-        if remote_plugin["profile"]["contact"]:
-            managers.extend(remote_plugin["profile"]["contact"].split(","))
-        elif remote_plugin["plugin"]["creator"]:
-            managers.append(remote_plugin["plugin"]["creator"])
+        managers = (
+            remote_plugin["profile"]["contact"].split(",")
+            if remote_plugin["profile"]["contact"]
+            else remote_plugin["plugin"]["creator"]
+        )
+
         return BKPlugin(
             code=remote_plugin["plugin"]["code"],
             name=remote_plugin["plugin"]["name"],
