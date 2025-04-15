@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-import json
 import logging
 from enum import Enum
 
@@ -37,11 +36,11 @@ class BKPluginManager(models.Manager):
         """
         将最新插件信息封装为本地蓝鲸插件
         """
-        managers = set()
+        managers = []
         if remote_plugin["profile"]["contact"]:
-            managers.update(remote_plugin["profile"]["contact"].split(","))
+            managers.extend(remote_plugin["profile"]["contact"].split(","))
         elif remote_plugin["plugin"]["creator"]:
-            managers.add(remote_plugin["plugin"]["creator"])
+            managers.append(remote_plugin["plugin"]["creator"])
         return BKPlugin(
             code=remote_plugin["plugin"]["code"],
             name=remote_plugin["plugin"]["name"],
@@ -50,20 +49,12 @@ class BKPluginManager(models.Manager):
             created_time=remote_plugin["plugin"]["created"],
             updated_time=remote_plugin["plugin"]["updated"],
             introduction=remote_plugin["profile"]["introduction"],
-            managers=list(managers),
+            managers=managers,
         )
 
     def is_same_plugin(self, plugin_a, plugin_b, fields_to_compare):
         for field in fields_to_compare:
-            value_a = getattr(plugin_a, field)
-            value_b = getattr(plugin_b, field)
-            if field == "managers":
-                if sorted(value_a) != sorted(value_b):
-                    return False
-            elif field == "extra_info":
-                if json.dumps(value_a, sort_keys=True) != json.dumps(value_b, sort_keys=True):
-                    return False
-            elif getattr(plugin_a, field) != getattr(plugin_b, field):
+            if getattr(plugin_a, field) != getattr(plugin_b, field):
                 return False
         return True
 
