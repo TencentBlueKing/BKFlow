@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import json
 import logging
 from enum import Enum
 
@@ -39,7 +40,7 @@ class BKPluginManager(models.Manager):
         managers = set()
         if remote_plugin["profile"]["contact"]:
             managers.update(remote_plugin["profile"]["contact"].split(","))
-        if remote_plugin["plugin"]["creator"]:
+        elif remote_plugin["plugin"]["creator"]:
             managers.add(remote_plugin["plugin"]["creator"])
         return BKPlugin(
             code=remote_plugin["plugin"]["code"],
@@ -54,7 +55,15 @@ class BKPluginManager(models.Manager):
 
     def is_same_plugin(self, plugin_a, plugin_b, fields_to_compare):
         for field in fields_to_compare:
-            if getattr(plugin_a, field) != getattr(plugin_b, field):
+            value_a = getattr(plugin_a, field)
+            value_b = getattr(plugin_b, field)
+            if field == "managers":
+                if sorted(value_a) != sorted(value_b):
+                    return False
+            elif field == "extra_info":
+                if json.dumps(value_a, sort_keys=True) != json.dumps(value_b, sort_keys=True):
+                    return False
+            elif getattr(plugin_a, field) != getattr(plugin_b, field):
                 return False
         return True
 
@@ -78,6 +87,7 @@ class BKPluginManager(models.Manager):
             local_plugin = local_plugins[code]
             if not self.is_same_plugin(remote_plugin, local_plugin, fields_to_compare):
                 plugins_to_update.add(remote_plugin)
+                logger.info(f"插件{code}需要更新。")
                 continue
         plugins_to_add = [self.fill_plugin_info(remote_plugins_dict[code]) for code in codes_to_add]
         # 开启事务进行批量操作
@@ -125,7 +135,7 @@ def get_default_config():
 
 
 def get_default_list_config():
-    return {WHITE_LIST: [{"id": ALL_SPACE, "name": "all_space"}]}
+    return {WHITE_LIST: [{"id": ALL_SPACE, "name": ALL_SPACE}]}
 
 
 class BKPluginAuthorizationManager(models.Manager):
