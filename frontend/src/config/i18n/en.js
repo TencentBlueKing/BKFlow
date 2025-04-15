@@ -958,6 +958,7 @@ const en = {
   '注意：关联的 mock 数据不会同步复制，暂不支持复制带有决策表节点的流程': 'Note: Associated mock data will not be copied, and copying processes with decision table nodes is not supported.',
   '流程复制成功！': 'Process copied successfully!',
   使用范围编辑成功: 'Scope of Use Edited Successfully',
+  '* (对所有空间公开)': '* (All Spaces)',
 };
 
 export default en;
