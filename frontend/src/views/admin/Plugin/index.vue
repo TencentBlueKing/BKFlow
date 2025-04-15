@@ -84,7 +84,7 @@
   import AuthorizeBtn from './AuthorizeBtn.vue';
   import RangEditDialog from './RangEditDialog.vue';
   import tableCommon from '../Space/mixins/tableCommon.js';
-  import { mapActions } from 'vuex';
+  import { mapState, mapActions } from 'vuex';
   import i18n from '@/config/i18n/index.js';
   import tools from '@/utils/tools.js';
 
@@ -179,6 +179,18 @@
           config: 0,
         },
       };
+    },
+    computed: {
+      ...mapState({
+        isBkPluginManager: state => state.isBkPluginManager,
+      }),
+    },
+    beforeRouteEnter(to, from, next) {
+      next((vm) => {
+        if (vm.isBkPluginManager) return;
+
+        next({ name: 'home' });
+      });
     },
     mounted() {
       window.addEventListener('resize', tools.debounce(this.handleResize, 300));
