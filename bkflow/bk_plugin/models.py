@@ -39,7 +39,7 @@ class BKPluginManager(models.Manager):
         managers = (
             remote_plugin["profile"]["contact"].split(",")
             if remote_plugin["profile"]["contact"]
-            else remote_plugin["plugin"]["creator"]
+            else [remote_plugin["plugin"]["creator"]]
         )
 
         return BKPlugin(
