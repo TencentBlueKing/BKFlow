@@ -36,11 +36,12 @@ class BKPluginManager(models.Manager):
         """
         将最新插件信息封装为本地蓝鲸插件
         """
-        managers = set()
-        if remote_plugin["profile"]["contact"]:
-            managers.update(remote_plugin["profile"]["contact"].split(","))
-        if remote_plugin["plugin"]["creator"]:
-            managers.add(remote_plugin["plugin"]["creator"])
+        managers = (
+            remote_plugin["profile"]["contact"].split(",")
+            if remote_plugin["profile"]["contact"]
+            else [remote_plugin["plugin"]["creator"]]
+        )
+
         return BKPlugin(
             code=remote_plugin["plugin"]["code"],
             name=remote_plugin["plugin"]["name"],
@@ -49,7 +50,7 @@ class BKPluginManager(models.Manager):
             created_time=remote_plugin["plugin"]["created"],
             updated_time=remote_plugin["plugin"]["updated"],
             introduction=remote_plugin["profile"]["introduction"],
-            managers=list(managers),
+            managers=managers,
         )
 
     def is_same_plugin(self, plugin_a, plugin_b, fields_to_compare):
@@ -125,7 +126,7 @@ def get_default_config():
 
 
 def get_default_list_config():
-    return {WHITE_LIST: [{"id": ALL_SPACE, "name": "all_space"}]}
+    return {WHITE_LIST: [{"id": ALL_SPACE, "name": ALL_SPACE}]}
 
 
 class BKPluginAuthorizationManager(models.Manager):
