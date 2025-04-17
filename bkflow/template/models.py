@@ -47,7 +47,7 @@ class TemplateManager(models.Manager):
             if node["component"]["code"] == "dmn_plugin":
                 raise ValidationError("流程中存在决策节点 暂不支持拷贝")
         template.pk = None
-        template.name = f"{template.name} Copy"
+        template.name = f"Copy {template.name}"
         copyed_pipeline_tree = deepcopy(template_pipeline_tree)
         replace_all_id(copyed_pipeline_tree)
         # 拷贝流程并替换节点 避免 id 重叠
