@@ -240,6 +240,7 @@ class PreviewTaskTreeSerializer(serializers.Serializer):
     appoint_node_ids = serializers.ListSerializer(
         child=serializers.CharField(help_text=_("节点ID")), help_text=_("包含的节点ID列表"), default=[]
     )
+    is_all_nodes = serializers.BooleanField(required=False, default=False, help_text=_("preview是否需要过滤节点"))
 
 
 class TemplateCopySerializer(serializers.Serializer):
