@@ -293,7 +293,7 @@ class TemplateViewSet(UserModelViewSet):
         try:
             appoint_node_ids = serializer.validated_data["appoint_node_ids"]
             pipeline_tree = template.pipeline_tree
-            if serializer.validated_data["is_exclude_node_ids"]:
+            if not serializer.validated_data["is_all_nodes"]:
                 exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
                     pipeline_tree, appoint_node_ids
                 )
