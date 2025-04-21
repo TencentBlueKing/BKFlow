@@ -293,9 +293,12 @@ class TemplateViewSet(UserModelViewSet):
         try:
             appoint_node_ids = serializer.validated_data["appoint_node_ids"]
             pipeline_tree = template.pipeline_tree
-            exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
-                pipeline_tree, appoint_node_ids
-            )
+            if serializer.validated_data["is_exclude_node_ids"]:
+                exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
+                    pipeline_tree, appoint_node_ids
+                )
+            else:
+                exclude_task_nodes_id = None
             data = preview_template_tree(pipeline_tree, exclude_task_nodes_id)
         except Exception as e:
             message = f"[preview task tree] error: {e}"
