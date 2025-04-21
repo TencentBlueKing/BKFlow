@@ -29,6 +29,11 @@ class CreateCredentialSerializer(serializers.Serializer):
     type = serializers.CharField(help_text=_("凭证类型"), max_length=32, required=True)
     content = serializers.JSONField(help_text=_("凭证内容"), required=True)
 
+    def validate_content(self, value):
+        content_ser = BkAppCredential.BkAppSerializer(data=value)
+        content_ser.is_valid(raise_exception=True)
+        return value
+
 
 class UpdateCredentialSerializer(serializers.Serializer):
     name = serializers.CharField(help_text=_("凭证名称"), max_length=32, required=False)
