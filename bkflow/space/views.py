@@ -319,7 +319,7 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         except DatabaseError as e:
             errMsg = f"创建凭证失败 {str(e)}"
             logger.error(errMsg)
-            return Response(errMsg, status=500)
+            return Response(exception=True, data={"detail": errMsg})
         response_serializer = CredentialSerializer(credential)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 

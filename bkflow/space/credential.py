@@ -47,7 +47,7 @@ class BkAppCredential(BaseCredential):
         def validate_bk_app_secret(self, value):
             # 验证字段 bk_app_secret 的值，确保它不是全为 '*'
             if all(char == "*" for char in value):
-                raise serializers.ValidationError("bk_app_secret 格式有误 (不可以为 * 与脱敏冲突).")
+                raise serializers.ValidationError("bk_app_secret 格式有误 不应全为 * 字符")
             return value
 
     def value(self):
