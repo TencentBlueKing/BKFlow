@@ -476,10 +476,11 @@
           cancelText: this.$t('取消'),
           confirmFn: async () => {
             try {
-              await this.copyTemplate({
+              const resp = await this.copyTemplate({
                 space_id: this.spaceId,
                 template_id: template.id,
               });
+              if (!resp.result) return;
               this.getTemplateList();
               this.$bkMessage({
                 message: this.$t('流程复制成功！'),

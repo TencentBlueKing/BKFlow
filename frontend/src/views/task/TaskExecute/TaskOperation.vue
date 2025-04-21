@@ -79,27 +79,6 @@
       <div slot="header">
         <div class="header">
           <span>{{ sideSliderTitle }}</span>
-          <div
-            v-if="['executeInfo', 'viewNodeDetails'].includes(nodeInfoType)"
-            class="bread-crumbs-wrapper">
-            <span
-              v-for="(path, index) in nodeNav"
-              :key="path.id"
-              :class="['path-item', { 'name-ellipsis': nodeNav.length > 1 }]"
-              :title="showNodeList.includes(index) ? path.name : ''">
-              <span v-if="!!index && showNodeList.includes(index) || index === 1">/</span>
-              <span
-                v-if="showNodeList.includes(index)"
-                class="node-name"
-                :title="path.name"
-                @click="onSelectSubflow(path.id)">
-                {{ path.name }}
-              </span>
-              <span
-                v-else-if="index === 1"
-                class="node-ellipsis">...</span>
-            </span>
-          </div>
         </div>
       </div>
       <div
