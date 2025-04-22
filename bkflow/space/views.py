@@ -344,7 +344,7 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         except DatabaseError as e:
             err_msg = f"更新凭证失败 {str(e)}"
             logger.error(err_msg)
-            return Response(err_msg, status=500)
+            return Response(exception=True, data={"detail": err_msg})
         # 序列化更新后的对象
         response_serializer = CredentialSerializer(instance)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
