@@ -67,7 +67,6 @@
         spaceId: state => state.template.spaceId,
         scopeInfo: state => state.template.scopeInfo,
         activities: state => state.template.activities,
-        infoBasicConfig: state => state.infoBasicConfig,
       }),
     },
     watch: {

@@ -115,7 +115,8 @@
     computed: {
       variableRenderList() {
         if (this.isViewMode) {
-          return this.variableList;
+          const notExistVariables = this.formData.value.filter(item => !this.variableList.find(v => v.id === item.id));
+          return [...this.variableList, ...notExistVariables];
         }
         return this.variableList.reduce((acc, cur) => {
           if (['system', 'project'].includes(cur.source_type)) {

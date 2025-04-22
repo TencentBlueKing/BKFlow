@@ -44,6 +44,18 @@
               ref="taskParamEdit"
               :editable="true"
               :constants="pipelineTree.constants" />
+            <bk-collapse
+              v-if="isUnreferencedShow"
+              accordion>
+              <bk-collapse-item name="1">
+                {{ $t('查看未引用变量') }}
+                <div slot="content">
+                  <TaskParamEdit
+                    :editable="false"
+                    :constants="unReferencedConstants" />
+                </div>
+              </bk-collapse-item>
+            </bk-collapse>
           </div>
           <div
             v-else
@@ -77,7 +89,7 @@
 </template>
 <script>
   import { STRING_LENGTH } from '@/constants/index.js';
-  import { mapState, mapActions } from 'vuex';
+  import { mapState, mapActions, mapMutations } from 'vuex';
   import moment from 'moment-timezone';
   import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
   import TaskParamEdit from '../../../template/TemplateMock/MockExecute/components/TaskParamEdit.vue';
@@ -114,6 +126,7 @@
         },
         stringLength: STRING_LENGTH,
         createLoading: false,
+        unReferencedConstants: {},
       };
     },
     computed: {
@@ -125,6 +138,11 @@
         const { constants, mode } = this.taskFormData;
         return mode === 'json' ? tools.checkIsJSON(constants) : true;
       },
+      isUnreferencedShow() {
+        const variableKeys = Object.keys(this.unReferencedConstants);
+        const unreferenced = variableKeys.filter(key => this.unReferencedConstants[key].show_type === 'show');
+        return !!unreferenced.length;
+      },
     },
     watch: {
       isShow: {
@@ -133,6 +151,8 @@
             this.loadInitialData();
           } else {
             this.taskFormData = {};
+            this.pipelineTree = {};
+            this.unReferencedConstants = {};
           }
         },
         immediate: true,
@@ -140,10 +160,13 @@
     },
     methods: {
       ...mapActions('template/', [
-        'loadTemplateData',
+        'getPreviewTaskTree',
       ]),
       ...mapActions('task/', [
         'createTask',
+      ]),
+      ...mapMutations('template/', [
+        'setPipelineTree',
       ]),
       async loadInitialData() {
         try {
@@ -154,10 +177,14 @@
             creator: this.username,
             constants: '',
           };
-          const resp = await this.loadTemplateData({
+          const resp = await this.getPreviewTaskTree({
             templateId: this.row.id,
+            is_all_nodes: true,
           });
-          this.pipelineTree = resp.pipeline_tree;
+          const { pipeline_tree: pipelineTree, constants_not_referred: notReferredConstants } = resp.data;
+          this.setPipelineTree(pipelineTree);
+          this.pipelineTree = pipelineTree;
+          this.unReferencedConstants = notReferredConstants;
         } catch (error) {
           console.warn(error);
         }
@@ -264,6 +291,16 @@
     .render-form {
       .rf-group-name .name {
         font-weight: normal;
+      }
+    }
+    .bk-collapse-item-header {
+      margin-top: 20px;
+      font-weight: 600;
+      color: #313238;
+      background: #e4e6ed;
+      &:hover {
+        color: #313238;
+        background: #e4e6ed;
       }
     }
   }

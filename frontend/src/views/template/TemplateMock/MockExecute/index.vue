@@ -12,6 +12,18 @@
             ref="taskParamEdit"
             :editable="tplActions.includes('MOCK')"
             :constants="pipelineTree.constants" />
+          <bk-collapse
+            v-if="isUnreferencedShow"
+            accordion>
+            <bk-collapse-item name="1">
+              {{ $t('查看未引用变量') }}
+              <div slot="content">
+                <TaskParamEdit
+                  :editable="false"
+                  :constants="unReferencedConstants" />
+              </div>
+            </bk-collapse-item>
+          </bk-collapse>
         </div>
         <div class="mock-wrap">
           <p class="wrap-title">
@@ -127,6 +139,7 @@
         createLoading: false,
         nodeMockMap: {},
         pipelineTree: {},
+        unReferencedConstants: {},
         mockFormData: {},
         initMockData: {},
         mockDataList: [],
@@ -139,6 +152,12 @@
       ...mapState({
         creator: state => state.username,
       }),
+      isUnreferencedShow() {
+        if (this.isLoading) return false;
+        const variableKeys = Object.keys(this.unReferencedConstants);
+        const unreferenced = variableKeys.filter(key => this.unReferencedConstants[key].show_type === 'show');
+        return !!unreferenced.length;
+      },
     },
     created() {
       this.loadData();
@@ -156,8 +175,13 @@
             templateId: this.templateId,
             selectedNodes: this.selectedNodes,
           });
-          const { mock_data: mockData, pipeline_tree: pipelineTree } = resp.data;
+          const {
+            constants_not_referred: unReferencedConstants,
+            mock_data: mockData,
+            pipeline_tree: pipelineTree,
+          } = resp.data;
           this.pipelineTree = pipelineTree;
+          this.unReferencedConstants = unReferencedConstants;
           this.nodeMockMap = mockData.reduce((acc, cur) => {
             // 过滤掉无mock的节点
             if (!(cur.node_id in pipelineTree.activities)) return acc;
@@ -318,6 +342,8 @@
     }
     .variable-wrap {
       flex: 1;
+      display: flex;
+      flex-direction: column;
       padding: 16px 24px;
       margin-bottom: 16px;
       background: #fff;
@@ -380,6 +406,17 @@
     background: #f5f7fa;
     .bk-button {
       width: 88px;
+    }
+  }
+  /deep/.bk-collapse {
+    margin-top: auto;
+    .bk-collapse-item-header {
+      font-weight: 600;
+      color: #313238;
+      background: #e4e6ed;
+      &:hover {
+        background: #e4e6ed;
+      }
     }
   }
 }

@@ -133,7 +133,7 @@
 </template>
 
 <script>
-  import { mapActions } from 'vuex';
+  import { mapActions, mapMutations } from 'vuex';
   import CancelRequest from '@/api/cancelRequest.js';
   import NoData from '@/components/common/base/NoData.vue';
   import moment from 'moment-timezone';
@@ -273,6 +273,9 @@
       ...mapActions('task/', [
         'createTask',
       ]),
+      ...mapMutations('template/', [
+        'setSpaceId',
+      ]),
       async getTemplateList() {
         try {
           if (!this.spaceId) return;
@@ -334,6 +337,7 @@
       onCreateTask(row) {
         this.selectRow = row;
         this.showCreateTaskSlider = true;
+        this.setSpaceId(this.spaceId);
       },
       renderHeaderCheckbox(h) {
         const self = this;
