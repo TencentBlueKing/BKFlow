@@ -3,12 +3,23 @@ from typing import List, Any, Dict
 
 from pydantic import BaseModel
 
+from bkflow.pipeline_converter.constants import NodeTypes
+
 
 class Node(BaseModel):
     id: str
     name: str = ""
     type: str
     next: str | List[str] | None
+
+
+class EmptyStartNode(Node):
+    type: str = NodeTypes.START_EVENT.value
+
+
+class EmptyEndNode(Node):
+    type: str = NodeTypes.END_EVENT.value
+    next = None
 
 
 class ComponentField(BaseModel):
@@ -19,21 +30,22 @@ class ComponentField(BaseModel):
 
 
 class Component(BaseModel):
+    type: str = NodeTypes.COMPONENT.value
     code: str
     version: str
     data: List[ComponentField]
 
 
 class AutoRetryConfig(BaseModel):
-    enable: bool
-    interval: int
-    times: int
+    enable: bool = False
+    interval: int = 0
+    times: int = 1
 
 
 class TimeoutConfig(BaseModel):
-    enable: bool
-    seconds: int
-    action: str
+    enable: bool = False
+    seconds: int = 10
+    action: str = "forced_fail"
 
 
 class ComponentNode(Node):
@@ -41,8 +53,15 @@ class ComponentNode(Node):
     skippable: bool = True
     retryable: bool = True
     error_ignorable: bool = False
-    auto_retry: AutoRetryConfig = None
-    timeout_config: TimeoutConfig = None
+    auto_retry: AutoRetryConfig = AutoRetryConfig()
+    timeout_config: TimeoutConfig = TimeoutConfig()
+
+
+class Flow(BaseModel):
+    id: str
+    source: str
+    target: str
+    is_default: bool = False
 
 
 class Gateway(Node):

@@ -1,14 +1,83 @@
 # -*- coding: utf-8 -*-
-from bkflow.pipeline_converter.constants import DataTypes
-from bkflow.pipeline_converter.converters.base import BaseConverter
+from typing import List
+
+from pipeline.core.constants import PE
+from pipeline.utils.uniqid import line_uniqid
+
+from bkflow.pipeline_converter.constants import NodeTypes
+from bkflow.pipeline_converter.converters.base import DataModelToPipelineTreeConverter
+from bkflow.pipeline_converter.converters.node import EndNodeConverter, StartNodeConverter, ComponentNodeConverter
+from bkflow.pipeline_converter.data_models import Pipeline, Node, EmptyEndNode, EmptyStartNode, Flow
 
 
-class PipelineConverter(BaseConverter):
-    source = DataTypes.DATA_MODEL.value
-    target = DataTypes.PIPELINE_TREE.value
+class PipelineConverter(DataModelToPipelineTreeConverter):
+
+    @staticmethod
+    def _generate_flows_by_nodes(nodes: List[Node]) -> List[Flow]:
+        """生成流程中的连线信息"""
+        flows = []
+        for node in nodes:
+            if not node.next:
+                continue
+            if isinstance(node.next, str):
+                flows.append(Flow(id=line_uniqid(), source=node.id, target=node.next))
+            if isinstance(node.next, list):
+                flows.extend(
+                    [Flow(id=line_uniqid(), source=node.id, target=next_node_id) for next_node_id in node.next]
+                )
+
+        return flows
+
+    @staticmethod
+    def _get_converted_node(pipeline_tree, node_id: str):
+        node = pipeline_tree[PE.activities].get(node_id) or pipeline_tree[PE.gateways].get(node_id)
+        if node:
+            return node
+        if node_id == pipeline_tree[PE.start_event]["id"]:
+            return pipeline_tree[PE.start_event]
+        if node_id == pipeline_tree[PE.end_event]["id"]:
+            return pipeline_tree[PE.end_event]
+        raise ValueError(f"未找到节点：{node_id}")
+
+    @staticmethod
+    def add_node_incoming_or_outgoing(node, field, flow_id):
+        if isinstance(node[field], list):
+            node[field].append(flow_id)
+        elif isinstance(node[field], str):
+            node[field] = flow_id
+        raise ValueError(f"{field}字段类型错误，期望list或str，实际为{type(node[field])}")
 
     def convert(self) -> dict:
         """
         将数据模型转换为流程树
         """
-        self.target_data = {}
+        pipeline: Pipeline = self.source_data
+        nodes: List[Node] = pipeline.nodes
+        self.target_data = {
+            PE.id: pipeline.id,
+            PE.name: pipeline.name,
+            PE.end_event: EndNodeConverter(EmptyEndNode()).convert(),
+            PE.start_event: StartNodeConverter(EmptyStartNode()).convert(),
+            PE.activities: {},
+            PE.gateways: {},
+            PE.flows: {},
+            PE.data: {PE.inputs: {}, PE.outputs: {}},
+        }
+
+        # 单节点相关转换
+        for node in nodes:
+            if node.type == NodeTypes.COMPONENT.value:
+                self.target_data[PE.activities][node.id] = ComponentNodeConverter(node).convert()
+
+        # 连线数据转换
+        flows = self._generate_flows_by_nodes(nodes)
+        self.target_data[PE.flows] = {flow.id: flow.dict() for flow in flows}
+
+        # 补充节点数据的 incoming 和 outgoing
+        for flow in flows:
+            source_node = self._get_converted_node(self.target_data, flow.source)
+            self.add_node_incoming_or_outgoing(source_node, "outgoing", flow.id)
+            target_node = self._get_converted_node(self.target_data, flow.target)
+            self.add_node_incoming_or_outgoing(target_node, "incoming", flow.id)
+
+        return self.target_data
