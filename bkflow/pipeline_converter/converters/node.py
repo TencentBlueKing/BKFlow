@@ -43,11 +43,13 @@ class ComponentNodeConverter(DataModelToPipelineTreeConverter):
         node: ComponentNode = self.source_data
         self.target_data = {
             "id": node.id,
+            "name": node.name,
             "type": PE.ServiceActivity,
             "optional": True,
             "incoming": [],
             "outgoing": "",
             "component": ComponentConverter(node.component).convert(),
+            "error_ignorable": node.error_ignorable,
             "skippable": node.skippable,
             "retryable": node.retryable,
             "auto_retry": node.auto_retry.dict(),
