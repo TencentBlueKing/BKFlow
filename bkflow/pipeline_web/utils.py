@@ -18,6 +18,10 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+from bkflow.pipeline_plugins.components.collections.value_assign.v1_0_0 import (
+    ValueAssignComponent,
+)
+
 
 def topology_sort(relations):
     """
@@ -42,3 +46,31 @@ def topology_sort(relations):
         dfs(rid)
 
     return orders
+
+
+def pre_handle_value_assign_pipeline_tree(pipeline_tree):
+    """
+    变量赋值节点 pipeline 特殊处理 将变量名添加引用符号避免计算被去除
+    :params pipeline_tree 流程树
+    """
+    for pipeline_node in pipeline_tree["activities"].values():
+        if pipeline_node["component"]["code"] == ValueAssignComponent.code:
+            data = pipeline_node["component"]["data"]
+            for assignment in data["bk_assignment_list"]["value"]:
+                original_key = assignment["key"]
+                assignment["key"] = f"${{{{{original_key}}}}}"
+
+
+def post_handle_value_assign_pipeline_tree(pipeline_tree):
+    """
+    变量赋值节点 pipeline 特殊处理 将变量名去除引用符号还原
+    :params pipeline_tree 流程树
+    """
+    for pipeline_node in pipeline_tree["activities"].values():
+        if pipeline_node["component"]["code"] == ValueAssignComponent.code:
+            data = pipeline_node["component"]["data"]
+            for assignment in data["bk_assignment_list"]["value"]:
+                key = assignment["key"]
+                if key.startswith("${{") and key.endswith("}}"):
+                    original_key = key[3:-2]  # 会有多层包括 e.x ${{key}}
+                    assignment["key"] = original_key
