@@ -57,15 +57,12 @@ def pre_handle_pipeline_tree(pipeline_tree):
     变量赋值节点 pipeline 特殊处理 将变量名添加引用符号避免计算被去除
     :params pipeline_tree 流程树
     """
-    try:
-        for pipeline_node in pipeline_tree["activities"].values():
-            if pipeline_node["component"]["code"] == ValueAssignComponent.code:
-                data = pipeline_node["component"]["data"]
-                for assignment in data["bk_assignment_list"]["value"]:
-                    original_key = assignment["key"]
-                    assignment["key"] = f"${{{original_key}}}"
-    except KeyError as e:
-        logger.error(f"pipeline_tree 格式不统一 {str(e)} 跳过赋值节点预处理")
+    for pipeline_node in pipeline_tree["activities"].values():
+        if pipeline_node["component"]["code"] == ValueAssignComponent.code:
+            data = pipeline_node["component"]["data"]
+            for assignment in data["bk_assignment_list"]["value"]:
+                original_key = assignment["key"]
+                assignment["key"] = f"${{{original_key}}}"
 
 
 def post_handle_pipeline_tree(pipeline_tree):
@@ -74,14 +71,11 @@ def post_handle_pipeline_tree(pipeline_tree):
     变量赋值节点 pipeline 特殊处理 将变量名去除引用符号还原
     :params pipeline_tree 流程树
     """
-    try:
-        for pipeline_node in pipeline_tree["activities"].values():
-            if pipeline_node["component"]["code"] == ValueAssignComponent.code:
-                data = pipeline_node["component"]["data"]
-                for assignment in data["bk_assignment_list"]["value"]:
-                    key = assignment["key"]
-                    if key.startswith("${") and key.endswith("}"):
-                        original_key = key[2:-1]  # 去掉包裹的 ${}
-                        assignment["key"] = original_key
-    except KeyError as e:
-        logger.error(f"pipeline_tree 格式不统一 {str(e)} 跳过赋值节点后处理")
+    for pipeline_node in pipeline_tree["activities"].values():
+        if pipeline_node["component"]["code"] == ValueAssignComponent.code:
+            data = pipeline_node["component"]["data"]
+            for assignment in data["bk_assignment_list"]["value"]:
+                key = assignment["key"]
+                if key.startswith("${") and key.endswith("}"):
+                    original_key = key[2:-1]  # 去掉包裹的 ${}
+                    assignment["key"] = original_key
