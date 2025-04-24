@@ -27,10 +27,30 @@ from bkflow.pipeline_web.preview import preview_template_tree
 
 MOCK_PIPELINE_TREE = {
     "activities": {
-        "node1": {"id": "node1", "type": "ServiceActivity", "optional": True},
-        "node2": {"id": "node2", "type": "ServiceActivity", "optional": True},
-        "node3": {"id": "node3", "type": "ServiceActivity", "optional": True},
-        "node4": {"id": "node4", "type": "ServiceActivity", "optional": True},
+        "node1": {
+            "id": "node1",
+            "type": "ServiceActivity",
+            "optional": True,
+            "component": {"code": "test_component", "data": {}, "version": "v1.0.0"},
+        },
+        "node2": {
+            "id": "node2",
+            "type": "ServiceActivity",
+            "optional": True,
+            "component": {"code": "test_component", "data": {}, "version": "v1.0.0"},
+        },
+        "node3": {
+            "id": "node3",
+            "type": "ServiceActivity",
+            "optional": True,
+            "component": {"code": "test_component", "data": {}, "version": "v1.0.0"},
+        },
+        "node4": {
+            "id": "node4",
+            "type": "ServiceActivity",
+            "optional": True,
+            "component": {"code": "test_component", "data": {}, "version": "v1.0.0"},
+        },
     },
     "constants": {
         "${param1}": {"value": "${parent_param2}", "show_type": "show", "source_type": "else"},
@@ -119,8 +139,18 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             {
                 "pipeline_tree": {
                     "activities": {
-                        "node2": {"id": "node2", "type": "ServiceActivity", "optional": True},
-                        "node3": {"id": "node3", "type": "ServiceActivity", "optional": True},
+                        "node2": {
+                            "id": "node2",
+                            "type": "ServiceActivity",
+                            "optional": True,
+                            "component": {"code": "test_component", "data": {}, "version": "v1.0.0"},
+                        },
+                        "node3": {
+                            "id": "node3",
+                            "type": "ServiceActivity",
+                            "optional": True,
+                            "component": {"code": "test_component", "data": {}, "version": "v1.0.0"},
+                        },
                     },
                     "constants": {
                         "${param1}": {"value": "${parent_param2}", "show_type": "show", "source_type": "else"}
