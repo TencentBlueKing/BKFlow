@@ -5,8 +5,7 @@ from enum import Enum
 class NodeTypes(str, Enum):
     START_EVENT = "start_event"
     END_EVENT = "end_event"
-    ACTIVITY = "activity"
-    GATEWAY = "gateway"
+    COMPONENT = "component"
 
 
 class DataTypes(str, Enum):

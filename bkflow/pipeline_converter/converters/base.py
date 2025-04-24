@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, List
 
+from bkflow.pipeline_converter.constants import DataTypes
 from bkflow.pipeline_converter.hub import ConverterHub
 from bkflow.pipeline_converter.validators.base import BaseValidator
 
@@ -25,10 +26,7 @@ class BaseConverter(ABC):
         if not hasattr(cls, "validators"):
             cls.validators: List[BaseValidator] = []
 
-        exempt_cls_names = [
-            "BaseConverter",
-            "BaseBiConverter",
-        ]
+        exempt_cls_names = ["BaseConverter", "BaseBiConverter", "DataModelToPipelineTreeConverter"]
         if cls.__name__ in exempt_cls_names:
             return
 
@@ -61,3 +59,10 @@ class BaseBiConverter(BaseConverter):
     @abstractmethod
     def reconvert(self, *args, **kwargs):
         pass
+
+
+class DataModelToPipelineTreeConverter(BaseConverter, ABC):
+    """数据到流程转换器"""
+
+    source = DataTypes.DATA_MODEL.value
+    target = DataTypes.PIPELINE_TREE.value
