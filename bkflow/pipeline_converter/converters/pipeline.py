@@ -7,7 +7,7 @@ from pipeline.utils.uniqid import line_uniqid
 from bkflow.pipeline_converter.constants import NodeTypes
 from bkflow.pipeline_converter.converters.base import DataModelToPipelineTreeConverter
 from bkflow.pipeline_converter.converters.node import EndNodeConverter, StartNodeConverter, ComponentNodeConverter
-from bkflow.pipeline_converter.data_models import Pipeline, Node, EmptyEndNode, EmptyStartNode, Flow
+from bkflow.pipeline_converter.data_models import Pipeline, Node, Flow
 
 
 class PipelineConverter(DataModelToPipelineTreeConverter):
@@ -43,8 +43,10 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
     def add_node_incoming_or_outgoing(node, field, flow_id):
         if isinstance(node[field], list):
             node[field].append(flow_id)
+            return
         elif isinstance(node[field], str):
             node[field] = flow_id
+            return
         raise ValueError(f"{field}字段类型错误，期望list或str，实际为{type(node[field])}")
 
     def convert(self) -> dict:
@@ -56,8 +58,8 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
         self.target_data = {
             PE.id: pipeline.id,
             PE.name: pipeline.name,
-            PE.end_event: EndNodeConverter(EmptyEndNode()).convert(),
-            PE.start_event: StartNodeConverter(EmptyStartNode()).convert(),
+            PE.end_event: {},
+            PE.start_event: {},
             PE.activities: {},
             PE.gateways: {},
             PE.flows: {},
@@ -68,6 +70,10 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
         for node in nodes:
             if node.type == NodeTypes.COMPONENT.value:
                 self.target_data[PE.activities][node.id] = ComponentNodeConverter(node).convert()
+            elif node.type == NodeTypes.END_EVENT.value:
+                self.target_data[PE.end_event] = EndNodeConverter(node).convert()
+            elif node.type == NodeTypes.START_EVENT.value:
+                self.target_data[PE.start_event] = StartNodeConverter(node).convert()
 
         # 连线数据转换
         flows = self._generate_flows_by_nodes(nodes)

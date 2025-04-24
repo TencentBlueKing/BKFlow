@@ -19,7 +19,7 @@ class EmptyStartNode(Node):
 
 class EmptyEndNode(Node):
     type: str = NodeTypes.END_EVENT.value
-    next = None
+    next: None = None
 
 
 class ComponentField(BaseModel):
@@ -30,7 +30,6 @@ class ComponentField(BaseModel):
 
 
 class Component(BaseModel):
-    type: str = NodeTypes.COMPONENT.value
     code: str
     version: str
     data: List[ComponentField]
@@ -49,6 +48,7 @@ class TimeoutConfig(BaseModel):
 
 
 class ComponentNode(Node):
+    type: str = NodeTypes.COMPONENT.value
     component: Component
     skippable: bool = True
     retryable: bool = True
@@ -107,4 +107,4 @@ class Pipeline(BaseModel):
     name: str
     nodes: List[Node]
     constants: List[Constant]
-    extensions: Extensions
+    extensions: Extensions = None

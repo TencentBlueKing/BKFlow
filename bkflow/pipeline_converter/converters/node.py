@@ -13,13 +13,11 @@ class StartNodeConverter(DataModelToPipelineTreeConverter):
 
     def convert(self, *args, **kwargs):
         self.target_data = {
-            "start_event": {
-                "id": self.source_data.id,
-                "name": "",
-                "type": "EmptyStartEvent",
-                "incoming": "",
-                "outgoing": "",
-            }
+            "id": self.source_data.id,
+            "name": "",
+            "type": "EmptyStartEvent",
+            "incoming": "",
+            "outgoing": "",
         }
         return self.target_data
 
@@ -29,13 +27,11 @@ class EndNodeConverter(DataModelToPipelineTreeConverter):
 
     def convert(self, *args, **kwargs):
         self.target_data = {
-            "end_event": {
-                "id": self.source_data.id,
-                "name": "",
-                "type": "EmptyEndEvent",
-                "incoming": [],
-                "outgoing": "",
-            }
+            "id": self.source_data.id,
+            "name": "",
+            "type": "EmptyEndEvent",
+            "incoming": [],
+            "outgoing": "",
         }
         return self.target_data
 
@@ -54,8 +50,8 @@ class ComponentNodeConverter(DataModelToPipelineTreeConverter):
             "component": ComponentConverter(node.component).convert(),
             "skippable": node.skippable,
             "retryable": node.retryable,
-            "auto_retry": node.auto_retry.model_dump(),
-            "timeout_config": node.timeout_config.model_dump(),
+            "auto_retry": node.auto_retry.dict(),
+            "timeout_config": node.timeout_config.dict(),
         }
 
         return self.target_data
