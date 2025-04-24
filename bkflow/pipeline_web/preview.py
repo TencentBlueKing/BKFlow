@@ -23,10 +23,7 @@ from copy import deepcopy
 
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 
-from .utils import (
-    post_handle_value_assign_pipeline_tree,
-    pre_handle_value_assign_pipeline_tree,
-)
+from .utils import post_handle_pipeline_tree, pre_handle_pipeline_tree
 
 logger = logging.getLogger("root")
 
@@ -34,8 +31,8 @@ logger = logging.getLogger("root")
 def preview_template_tree(
     pipeline_tree,
     exclude_task_nodes_id,
-    pre_handle_pipeline_tree=pre_handle_value_assign_pipeline_tree,
-    post_handle_pipeline_tree=post_handle_value_assign_pipeline_tree,
+    pre_handle_pipeline_tree=pre_handle_pipeline_tree,
+    post_handle_pipeline_tree=post_handle_pipeline_tree,
 ):
     template_constants = deepcopy(pipeline_tree["constants"])
     pre_handle_pipeline_tree(pipeline_tree)
