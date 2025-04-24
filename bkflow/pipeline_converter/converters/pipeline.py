@@ -2,6 +2,7 @@
 from typing import List
 
 from pipeline.core.constants import PE
+from pipeline.parser.utils import replace_all_id
 from pipeline.utils.uniqid import line_uniqid
 
 from bkflow.pipeline_converter.constants import NodeTypes
@@ -51,7 +52,7 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
 
     def convert(self) -> dict:
         """
-        将数据模型转换为流程树
+        将数据模型转换为 web 流程树
         """
         pipeline: Pipeline = self.source_data
         nodes: List[Node] = pipeline.nodes
@@ -63,7 +64,8 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
             PE.activities: {},
             PE.gateways: {},
             PE.flows: {},
-            PE.data: {PE.inputs: {}, PE.outputs: {}},
+            PE.constants: {},
+            PE.outputs: [],
         }
 
         # 单节点相关转换
@@ -86,4 +88,6 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
             target_node = self._get_converted_node(self.target_data, flow.target)
             self.add_node_incoming_or_outgoing(target_node, "incoming", flow.id)
 
+        # 这里确保每次转换后 id 都是唯一的，避免重复
+        replace_all_id(self.target_data)
         return self.target_data
