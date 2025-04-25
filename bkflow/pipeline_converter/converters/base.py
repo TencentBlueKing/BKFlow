@@ -26,7 +26,12 @@ class BaseConverter(ABC):
         if not hasattr(cls, "validators"):
             cls.validators: List[BaseValidator] = []
 
-        exempt_cls_names = ["BaseConverter", "BaseBiConverter", "DataModelToPipelineTreeConverter"]
+        exempt_cls_names = [
+            "BaseConverter",
+            "BaseBiConverter",
+            "DataModelToPipelineTreeConverter",
+            "JsonToDataModelConverter",
+        ]
         if cls.__name__ in exempt_cls_names:
             return
 
@@ -65,4 +70,11 @@ class DataModelToPipelineTreeConverter(BaseConverter, ABC):
     """数据到流程转换器"""
 
     source = DataTypes.DATA_MODEL.value
-    target = DataTypes.PIPELINE_TREE.value
+    target = DataTypes.WEB_PIPELINE.value
+
+
+class JsonToDataModelConverter(BaseConverter, ABC):
+    """json到数据模型转换器"""
+
+    source = DataTypes.JSON.value
+    target = DataTypes.DATA_MODEL.value
