@@ -33,7 +33,6 @@ class TestGateway(object):
         }
         source_data = ParallelGateway(**json_data)
         child_converter = ParallelGatewayConverter(source_data)
-        child_converter.validate()
         result = child_converter.convert()
 
         assert child_converter.source == self.source_type
@@ -55,8 +54,7 @@ class TestGateway(object):
                 "converge_gateway_id": "",
             }
             source_data = ParallelGateway(**json_data)
-            child_converter = ParallelGatewayConverter(source_data)
-            child_converter.validate()
+            ParallelGatewayConverter(source_data)
 
     def test_exclusive_gateway_converter(self):
         conditions = Condition(id="condition_1", name="", lang="boolrule", expr="")
@@ -67,7 +65,6 @@ class TestGateway(object):
         }
         source_data = ExclusiveGateway(**json_data)
         child_converter = ExclusiveGatewayConverter(source_data)
-        child_converter.validate()
         result = child_converter.convert()
 
         assert child_converter.source == self.source_type
@@ -78,7 +75,8 @@ class TestGateway(object):
             "type": "ExclusiveGateway",
             "incoming": [],
             "outgoing": [],
-            "conditions": {"condition_1": {"name": "", "lang": "boolrule", "expr": ""}},
+            "conditions": [{"name": "", "tag": "", "evaluate": "", "lang": "boolrule"}],
+            "extra_info": {},
         }
 
     def test_conditional_parallel_gateway_converter(self):
@@ -91,7 +89,6 @@ class TestGateway(object):
         }
         source_data = ConditionalParallelGateway(**json_data)
         child_converter = ConditionalParallelGatewayConverter(source_data)
-        child_converter.validate()
         result = child_converter.convert()
 
         assert child_converter.source == self.source_type
@@ -103,7 +100,8 @@ class TestGateway(object):
             "incoming": [],
             "outgoing": [],
             "converge_gateway_id": self.converge_gateway_id,
-            "conditions": {"condition_1": {"name": "", "lang": "boolrule", "expr": ""}},
+            "conditions": [{"name": "", "tag": "", "evaluate": "", "lang": "boolrule"}],
+            "extra_info": {},
         }
 
     def test_converge_gateway_converter(self):
@@ -114,7 +112,6 @@ class TestGateway(object):
         }
         source_data = ConvergeGateway(**json_data)
         child_converter = ConvergeGatewayConverter(source_data)
-        child_converter.validate()
         result = child_converter.convert()
         assert child_converter.source == self.source_type
         assert child_converter.target == self.target_type

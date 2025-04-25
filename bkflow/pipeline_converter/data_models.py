@@ -78,7 +78,6 @@ class ConvergeGateway(Gateway):
 
 
 class Condition(BaseModel):
-    id: str
     name: str
     lang: str = "boolrule"
     expr: str

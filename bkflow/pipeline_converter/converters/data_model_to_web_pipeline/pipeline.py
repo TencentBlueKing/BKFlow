@@ -62,16 +62,32 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
     @staticmethod
     def remap_condition_keys_to_outgoing(gateways_data):
         for _, gateway in gateways_data.items():
-            if gateway.get("type") in [PE.ExclusiveGateway, PE.ConditionalParallelGateway]:
-                outgoing_ids = gateway["outgoing"]
-                conditions = gateway["conditions"]
-                if len(outgoing_ids) != len(conditions):
-                    raise ValueError("outgoing数量与conditions数量不匹配")
-                # 创建新的conditions字典，使用outgoing_id作为key
-                new_conditions = {}
-                for outgoing_id, (_, condition_value) in zip(outgoing_ids, conditions.items()):
-                    new_conditions[outgoing_id] = condition_value
-                gateway["conditions"] = new_conditions
+            if not gateway.get("type") in [PE.ExclusiveGateway, PE.ConditionalParallelGateway]:
+                continue
+            outgoing_ids = gateway["outgoing"]
+            conditions = gateway["conditions"]
+            if len(outgoing_ids) != len(conditions):
+                raise ValueError("outgoing数量与conditions数量不匹配")
+            # 创建新的conditions字典，使用outgoing_id作为key
+            new_conditions = {}
+            for outgoing_id, condition_value in zip(outgoing_ids, conditions):
+                new_conditions[outgoing_id] = condition_value
+            gateway["conditions"] = new_conditions
+
+    @staticmethod
+    def remap_condition_tag_and_lang(gateways_data, flows: List[Flow]):
+        for _, gateway in gateways_data.items():
+            if not gateway.get("type") in [PE.ExclusiveGateway, PE.ConditionalParallelGateway]:
+                continue
+            conditions = gateway["conditions"]
+            parse_lang = set()
+            for condition_id, condition_value in conditions.items():
+                parse_lang.add(condition_value.pop("lang"))
+                flow = flows[condition_id]
+                condition_value["tag"] = "branch_%s_%s" % (flow["source"], flow["target"])
+            if len(parse_lang) > 1:
+                raise ValueError("条件网关的条件表达式语言不一致")
+            gateway["extra_info"] = {"parse_lang": parse_lang.pop() if parse_lang else ""}
 
     def convert(self) -> dict:
         """
@@ -122,4 +138,5 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
         self.remap_condition_keys_to_outgoing(self.target_data[PE.gateways])
         # 这里确保每次转换后 id 都是唯一的，避免重复
         replace_all_id(self.target_data)
+        self.remap_condition_tag_and_lang(self.target_data[PE.gateways], self.target_data["flows"])
         return self.target_data
