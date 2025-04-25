@@ -11,4 +11,5 @@ class NodeTypes(str, Enum):
 class DataTypes(str, Enum):
     DATA_MODEL = "data_model"
     JSON = "json"
-    PIPELINE_TREE = "pipeline_tree"
+    WEB_PIPELINE = "web_pipeline"
+    ENGINE_PIPELINE = "engine_pipeline"
