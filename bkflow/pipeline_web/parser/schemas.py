@@ -114,8 +114,8 @@ WEB_PIPELINE_SCHEMA = {
                                     "patternProperties": {
                                         "^\\w+$": {
                                             "type": "object",
-                                            "properties": {"evaluate": {"type": "string"}},
-                                            "required": ["evaluate"],
+                                            "properties": {"expr": {"type": "string"}},
+                                            "required": ["expr"],
                                         }
                                     },
                                 },
@@ -135,8 +135,8 @@ WEB_PIPELINE_SCHEMA = {
                                     "patternProperties": {
                                         "^\\w+$": {
                                             "type": "object",
-                                            "properties": {"evaluate": {"type": "string"}},
-                                            "required": ["evaluate"],
+                                            "properties": {"expr": {"type": "string"}},
+                                            "required": ["expr"],
                                         }
                                     },
                                 },

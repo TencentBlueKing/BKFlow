@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import List, Any, Dict
+from typing import Any, Dict, List, Union
 
 from pydantic import BaseModel
 
@@ -10,7 +10,7 @@ class Node(BaseModel):
     id: str
     name: str = ""
     type: str
-    next: str | List[str] | None
+    next: Union[str, List[str], None]
 
 
 class EmptyStartNode(Node):
@@ -70,10 +70,11 @@ class Gateway(Node):
 
 class ParallelGateway(Gateway):
     converge_gateway_id: str
+    type: str = NodeTypes.PARALLEL_GATEWAY.value
 
 
 class ConvergeGateway(Gateway):
-    pass
+    type: str = NodeTypes.CONVERGE_GATEWAY.value
 
 
 class Condition(BaseModel):
@@ -85,7 +86,13 @@ class Condition(BaseModel):
 
 class ExclusiveGateway(Gateway):
     conditions: List[Condition]
-    converge_gateway_id: str = ""
+    type: str = NodeTypes.EXCLUSIVE_GATEWAY.value
+
+
+class ConditionalParallelGateway(Gateway):
+    conditions: List[Condition]
+    converge_gateway_id: str
+    type: str = NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value
 
 
 class Constant(BaseModel):
