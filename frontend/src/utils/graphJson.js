@@ -1,4 +1,7 @@
 import { random4 } from '@/utils/uuid.js';
+import tools from '@/utils/tools.js';
+import store from '@/store';
+import { formatLayout } from './formatLayout';
 
 function getNodeTargetMaps(lines) {
   return lines.reduce((acc, cur) => {
@@ -165,4 +168,37 @@ export const graphToJson = (canvasData) => {
     return acc;
   }, []) || [];
   return [...groupCell, ...nodeCell, ...edgeCell];
+};
+
+export const generateGraphData = (pipelineTree) => {
+  const {
+    activities = {},
+    flows = [],
+    gateways = {},
+    start_event: start,
+    end_event: end,
+  } = tools.deepClone(pipelineTree);
+
+  const nodes = {
+    ...activities,
+    ...gateways,
+    [start.id]: start,
+    [end.id]: end,
+  };
+
+  try {
+    const graphData = formatLayout(nodes, flows);
+
+    // 更新节点树
+    store.commit('template/setPipelineTree', {
+      ...pipelineTree,
+      location: graphData.locations,
+      line: graphData.lines,
+    });
+
+    return graphToJson(graphData);
+  } catch (error) {
+    console.warn(error);
+    return [];
+  }
 };
