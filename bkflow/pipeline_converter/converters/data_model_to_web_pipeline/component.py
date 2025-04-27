@@ -12,9 +12,9 @@ class ComponentFieldsConverter(DataModelToPipelineTreeConverter):
         for field in fields:
             self.target_data[field.key] = {
                 "need_render": field.need_render,
-                "type": field.type,
                 "key": field.key,
                 "value": field.value,
+                "hook": False,  # TODO: 可配置
             }
         return self.target_data
 
