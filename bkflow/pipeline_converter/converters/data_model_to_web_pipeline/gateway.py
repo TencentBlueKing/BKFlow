@@ -20,7 +20,7 @@ class ConditionConverter(DataModelToPipelineTreeConverter):
         node_data: List[Condition] = self.source_data
         self.target_data = []
         for node in node_data:
-            self.target_data.append({"name": node.name, "tag": "", "evaluate": node.expr, "lang": node.lang})
+            self.target_data.append({"name": node.name, "evaluate": node.expr})
         return self.target_data
 
 
@@ -52,7 +52,7 @@ class ExclusiveGatewayConverter(DataModelToPipelineTreeConverter):
             "incoming": [],
             "outgoing": [],
             "conditions": ConditionConverter(node.conditions).convert(),
-            "extra_info": {},
+            "extra_info": {"parse_lang": node.lang},
         }
         return self.target_data
 
@@ -69,7 +69,7 @@ class ConditionalParallelGatewayConverter(DataModelToPipelineTreeConverter):
             "incoming": [],
             "outgoing": [],
             "conditions": ConditionConverter(node.conditions).convert(),
-            "extra_info": {},
+            "extra_info": {"parse_lang": node.lang},
             "converge_gateway_id": node.converge_gateway_id,
         }
         return self.target_data

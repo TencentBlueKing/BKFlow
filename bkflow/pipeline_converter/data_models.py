@@ -79,18 +79,16 @@ class ConvergeGateway(Gateway):
 
 class Condition(BaseModel):
     name: str
-    lang: str = "boolrule"
     expr: str
 
 
 class ExclusiveGateway(Gateway):
+    lang: str = "boolrule"
     conditions: List[Condition]
     type: str = NodeTypes.EXCLUSIVE_GATEWAY.value
 
 
-class ConditionalParallelGateway(Gateway):
-    conditions: List[Condition]
-    converge_gateway_id: str
+class ConditionalParallelGateway(ExclusiveGateway, ParallelGateway):
     type: str = NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value
 
 
