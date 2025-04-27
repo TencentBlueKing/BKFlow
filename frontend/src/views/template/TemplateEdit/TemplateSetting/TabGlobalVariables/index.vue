@@ -625,6 +625,8 @@
       },
       onCloneVariable(data) {
         const variableData = tools.deepClone(data);
+        // 移除变量冗余字段
+        delete variableData.cited;
         variableData.source_info = {};
         variableData.key = '';
         variableData.index = Object.keys(this.constants).length + 1;
