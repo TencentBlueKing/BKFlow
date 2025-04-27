@@ -3,7 +3,9 @@ from pipeline.core.constants import PE
 
 from bkflow.pipeline_converter.constants import NodeTypes
 from bkflow.pipeline_converter.converters.base import DataModelToPipelineTreeConverter
-from bkflow.pipeline_converter.converters.component import ComponentConverter
+from bkflow.pipeline_converter.converters.data_model_to_web_pipeline.component import (
+    ComponentConverter,
+)
 from bkflow.pipeline_converter.data_models import ComponentNode
 from bkflow.pipeline_converter.validators.node import NodeTypeValidator
 
