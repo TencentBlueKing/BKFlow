@@ -19,6 +19,7 @@ class BaseConverter(ABC):
     def __init__(self, source_data: Any, *args, **kwargs):
         self.source_data = source_data
         self.target_data = None
+        self.validate()
 
     def __init_subclass__(cls, *args, **kwargs):
         super().__init_subclass__(*args, **kwargs)

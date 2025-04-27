@@ -7,12 +7,21 @@ from pipeline.utils.uniqid import line_uniqid
 
 from bkflow.pipeline_converter.constants import NodeTypes
 from bkflow.pipeline_converter.converters.base import DataModelToPipelineTreeConverter
-from bkflow.pipeline_converter.converters.node import EndNodeConverter, StartNodeConverter, ComponentNodeConverter
-from bkflow.pipeline_converter.data_models import Pipeline, Node, Flow
+from bkflow.pipeline_converter.converters.data_model_to_web_pipeline.gateway import (
+    ConditionalParallelGatewayConverter,
+    ConvergeGatewayConverter,
+    ExclusiveGatewayConverter,
+    ParallelGatewayConverter,
+)
+from bkflow.pipeline_converter.converters.data_model_to_web_pipeline.node import (
+    ComponentNodeConverter,
+    EndNodeConverter,
+    StartNodeConverter,
+)
+from bkflow.pipeline_converter.data_models import Flow, Node, Pipeline
 
 
 class PipelineConverter(DataModelToPipelineTreeConverter):
-
     @staticmethod
     def _generate_flows_by_nodes(nodes: List[Node]) -> List[Flow]:
         """生成流程中的连线信息"""
@@ -50,6 +59,21 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
             return
         raise ValueError(f"{field}字段类型错误，期望list或str，实际为{type(node[field])}")
 
+    @staticmethod
+    def remap_condition_keys_to_outgoing(gateways_data):
+        for _, gateway in gateways_data.items():
+            if not gateway.get("type") in [PE.ExclusiveGateway, PE.ConditionalParallelGateway]:
+                continue
+            outgoing_ids = gateway["outgoing"]
+            conditions = gateway["conditions"]
+            if len(outgoing_ids) != len(conditions):
+                raise ValueError("outgoing数量与conditions数量不匹配")
+            # 创建新的conditions字典，使用outgoing_id作为key
+            new_conditions = {}
+            for outgoing_id, condition_value in zip(outgoing_ids, conditions):
+                new_conditions[outgoing_id] = condition_value
+            gateway["conditions"] = new_conditions
+
     def convert(self) -> dict:
         """
         将数据模型转换为 web 流程树
@@ -67,6 +91,12 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
             PE.constants: {},
             PE.outputs: [],
         }
+        gateway_mapping = {
+            "parallel_gateway": ParallelGatewayConverter,
+            "exclusive_gateway": ExclusiveGatewayConverter,
+            "conditional_parallel_gateway": ConditionalParallelGatewayConverter,
+            "converge_gateway": ConvergeGatewayConverter,
+        }
 
         # 单节点相关转换
         for node in nodes:
@@ -76,7 +106,9 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
                 self.target_data[PE.end_event] = EndNodeConverter(node).convert()
             elif node.type == NodeTypes.START_EVENT.value:
                 self.target_data[PE.start_event] = StartNodeConverter(node).convert()
-
+            elif node.type in NodeTypes.GATEWAYS:
+                gateway_data = gateway_mapping[node.type](node).convert()
+                self.target_data[PE.gateways][node.id] = gateway_data
         # 连线数据转换
         flows = self._generate_flows_by_nodes(nodes)
         self.target_data[PE.flows] = {flow.id: flow.dict() for flow in flows}
@@ -88,6 +120,7 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
             target_node = self._get_converted_node(self.target_data, flow.target)
             self.add_node_incoming_or_outgoing(target_node, "incoming", flow.id)
 
+        self.remap_condition_keys_to_outgoing(self.target_data[PE.gateways])
         # 这里确保每次转换后 id 都是唯一的，避免重复
         replace_all_id(self.target_data)
         return self.target_data
