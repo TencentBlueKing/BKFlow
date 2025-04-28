@@ -113,7 +113,7 @@ class ValueAssignService(BKFlowBaseService):
                 return False
 
             if target_var_type != "Object" and not isinstance(
-                self.type_mapping.get(target_var_type, None), type(context.value)
+                context.value, self.type_mapping.get(target_var_type, None)
             ):
                 err_msg = "expected type {} not match target variable type {}".format(
                     target_var_type, type(context.value)
