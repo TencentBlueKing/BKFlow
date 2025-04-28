@@ -22,6 +22,57 @@ from bkflow.pipeline_converter.data_models import Flow, Node, Pipeline
 
 
 class PipelineConverter(DataModelToPipelineTreeConverter):
+    def convert(self) -> dict:
+        """
+        将数据模型转换为 web 流程树
+        """
+        pipeline: Pipeline = self.source_data
+        nodes: List[Node] = pipeline.nodes
+        self.target_data = {
+            PE.id: pipeline.id,
+            PE.name: pipeline.name,
+            PE.end_event: {},
+            PE.start_event: {},
+            PE.activities: {},
+            PE.gateways: {},
+            PE.flows: {},
+            PE.constants: {},
+            PE.outputs: [],
+        }
+        gateway_mapping = {
+            "parallel_gateway": ParallelGatewayConverter,
+            "exclusive_gateway": ExclusiveGatewayConverter,
+            "conditional_parallel_gateway": ConditionalParallelGatewayConverter,
+            "converge_gateway": ConvergeGatewayConverter,
+        }
+
+        # 单节点相关转换
+        for node in nodes:
+            if node.type == NodeTypes.COMPONENT.value:
+                self.target_data[PE.activities][node.id] = ComponentNodeConverter(node).convert()
+            elif node.type == NodeTypes.END_EVENT.value:
+                self.target_data[PE.end_event] = EndNodeConverter(node).convert()
+            elif node.type == NodeTypes.START_EVENT.value:
+                self.target_data[PE.start_event] = StartNodeConverter(node).convert()
+            elif node.type in NodeTypes.GATEWAYS:
+                gateway_data = gateway_mapping[node.type](node).convert()
+                self.target_data[PE.gateways][node.id] = gateway_data
+        # 连线数据转换
+        flows = self._generate_flows_by_nodes(nodes)
+        self.target_data[PE.flows] = {flow.id: flow.dict() for flow in flows}
+
+        # 补充节点数据的 incoming 和 outgoing
+        for flow in flows:
+            source_node = self._get_converted_node(self.target_data, flow.source)
+            self.add_node_incoming_or_outgoing(source_node, "outgoing", flow.id)
+            target_node = self._get_converted_node(self.target_data, flow.target)
+            self.add_node_incoming_or_outgoing(target_node, "incoming", flow.id)
+
+        self.remap_condition_keys_to_outgoing(self.target_data[PE.gateways])
+        # 这里确保每次转换后 id 都是唯一的，避免重复
+        replace_all_id(self.target_data)
+        return self.target_data
+
     @staticmethod
     def _generate_flows_by_nodes(nodes: List[Node]) -> List[Flow]:
         """生成流程中的连线信息"""
@@ -73,54 +124,3 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
             for outgoing_id, condition_value in zip(outgoing_ids, conditions):
                 new_conditions[outgoing_id] = condition_value
             gateway["conditions"] = new_conditions
-
-    def convert(self) -> dict:
-        """
-        将数据模型转换为 web 流程树
-        """
-        pipeline: Pipeline = self.source_data
-        nodes: List[Node] = pipeline.nodes
-        self.target_data = {
-            PE.id: pipeline.id,
-            PE.name: pipeline.name,
-            PE.end_event: {},
-            PE.start_event: {},
-            PE.activities: {},
-            PE.gateways: {},
-            PE.flows: {},
-            PE.constants: {},
-            PE.outputs: [],
-        }
-        gateway_mapping = {
-            "parallel_gateway": ParallelGatewayConverter,
-            "exclusive_gateway": ExclusiveGatewayConverter,
-            "conditional_parallel_gateway": ConditionalParallelGatewayConverter,
-            "converge_gateway": ConvergeGatewayConverter,
-        }
-
-        # 单节点相关转换
-        for node in nodes:
-            if node.type == NodeTypes.COMPONENT.value:
-                self.target_data[PE.activities][node.id] = ComponentNodeConverter(node).convert()
-            elif node.type == NodeTypes.END_EVENT.value:
-                self.target_data[PE.end_event] = EndNodeConverter(node).convert()
-            elif node.type == NodeTypes.START_EVENT.value:
-                self.target_data[PE.start_event] = StartNodeConverter(node).convert()
-            elif node.type in NodeTypes.GATEWAYS:
-                gateway_data = gateway_mapping[node.type](node).convert()
-                self.target_data[PE.gateways][node.id] = gateway_data
-        # 连线数据转换
-        flows = self._generate_flows_by_nodes(nodes)
-        self.target_data[PE.flows] = {flow.id: flow.dict() for flow in flows}
-
-        # 补充节点数据的 incoming 和 outgoing
-        for flow in flows:
-            source_node = self._get_converted_node(self.target_data, flow.source)
-            self.add_node_incoming_or_outgoing(source_node, "outgoing", flow.id)
-            target_node = self._get_converted_node(self.target_data, flow.target)
-            self.add_node_incoming_or_outgoing(target_node, "incoming", flow.id)
-
-        self.remap_condition_keys_to_outgoing(self.target_data[PE.gateways])
-        # 这里确保每次转换后 id 都是唯一的，避免重复
-        replace_all_id(self.target_data)
-        return self.target_data

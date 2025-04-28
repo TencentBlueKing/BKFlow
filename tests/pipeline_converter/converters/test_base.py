@@ -3,7 +3,7 @@ import pytest
 
 from bkflow.pipeline_converter.constants import DataTypes
 from bkflow.pipeline_converter.converters.base import BaseConverter
-from bkflow.pipeline_converter.hub import ConverterHub
+from bkflow.pipeline_converter.hub import CONVERTER_HUB
 
 
 class TestBaseConverter:
@@ -25,7 +25,10 @@ class TestBaseConverter:
         assert child_converter.target == self.target_type
         assert child_converter.target_data == "test"
 
-        assert len(ConverterHub.get_converters(self.source_type, self.target_type)) == 1
+        assert (
+            CONVERTER_HUB.get_converter_cls(self.source_type, self.target_type, ChildConverter.__name__)
+            == ChildConverter
+        )
 
     def test_subclass_initialization_fail(self):
         with pytest.raises(TypeError):
