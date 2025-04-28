@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
-from pipeline.core.constants import PE
 from bamboo_engine import validator as engine_validator
+from pipeline.core.constants import PE
 
-from bkflow.pipeline_converter.constants import DataTypes
+from bkflow.pipeline_converter.converters.data_model_to_web_pipeline.pipeline import (
+    PipelineConverter as DataModelToWebPipelineConverter,
+)
+from bkflow.pipeline_converter.converters.json_to_data_model.pipeline import (
+    PipelineConverter as JsonToDataModelPipelineConverter,
+)
 from bkflow.pipeline_converter.data_models import Pipeline
-from bkflow.pipeline_converter.hub import CONVERTER_HUB
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
 from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
 
@@ -37,17 +41,11 @@ class TestPipelineConverter:
                 },
             ],
         }
-        json_pipeline_cvt = CONVERTER_HUB.get_converter_cls(
-            DataTypes.JSON.value, DataTypes.DATA_MODEL.value, "PipelineConverter"
-        )
-        dm_pipeline = json_pipeline_cvt(json_data).convert()
+
+        dm_pipeline = JsonToDataModelPipelineConverter(json_data).convert()
         assert isinstance(dm_pipeline, Pipeline)
 
-        data_model_pipeline_cvt = CONVERTER_HUB.get_converter_cls(
-            DataTypes.DATA_MODEL.value, DataTypes.WEB_PIPELINE.value, "PipelineConverter"
-        )
-        web_pipeline_tree = data_model_pipeline_cvt(dm_pipeline).convert()
-
+        web_pipeline_tree = DataModelToWebPipelineConverter(dm_pipeline).convert()
         assert len(web_pipeline_tree[PE.activities]) == 1
         assert len(web_pipeline_tree[PE.flows]) == 2
 
