@@ -18,6 +18,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+from bamboo_engine.eri import ContextValueType
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
@@ -31,6 +32,14 @@ __group_name__ = _("蓝鲸服务(BK)")
 
 
 class ValueAssignService(BKFlowBaseService):
+
+    type_mapping = {
+        "String": str,
+        "Int": int,
+        "Bool": bool,
+        "Object": (dict, list),
+    }
+
     def inputs_format(self):
         return [
             self.InputItem(
@@ -46,6 +55,22 @@ class ValueAssignService(BKFlowBaseService):
     def outputs_format(self):
         # 插件返回内容
         return []
+
+    def convert_variable(self, data, data_type):
+        if data_type == "String":
+            return str(data)
+        elif data_type == "Int":
+            return int(data)
+        elif data_type == "Bool":
+            if isinstance(data, str):
+                if data.lower() in ("true", "yes", "1"):
+                    return True
+                elif data.lower() in ("false", "no", "0"):
+                    return False
+            raise TypeError
+        else:
+            if not isinstance(data, dict) and not isinstance(data, list):
+                raise TypeError
 
     def plugin_execute(self, data, parent_data):
         runtime = BambooDjangoRuntime()
@@ -71,6 +96,7 @@ class ValueAssignService(BKFlowBaseService):
             # 循环处理表格中的内容 检查是否存在/类型问题后再统一事务批量执行
             input_val = assign["value"]
             target_var = assign["key"]
+            target_var_type = assign["value_type"]
             target_var_str = "${{{}}}".format(target_var)
             context = context_dict.get(target_var_str)
             if not context:
@@ -79,20 +105,37 @@ class ValueAssignService(BKFlowBaseService):
                 data.outputs.ex_data = err_msg
                 return False
 
-            # 处理输入变量与目标变量的类型转换(输入常量时) 如果是相同类型则必然成功
-            try:
-                # 尝试将输入转换为目标变量类型
-                if not formatted_key_pattern.fullmatch(input_val):
-                    input_val = type(context.value)(input_val)
-            except (ValueError, TypeError):
-                err_msg = "input variable '{}' cannot be converted to the type of target variable '{}': {}".format(
-                    input_val, target_var, type(context.value).__name__
+            # 被赋值变量仅能是 PLAIN 类型
+            if context.type != ContextValueType.PLAIN:
+                err_msg = "splice or compute variable {} not supported".format(context)
+                self.logger.exception(err_msg)
+                data.outputs.ex_data = err_msg
+                return False
+
+            if target_var_type != "Object" and not isinstance(
+                self.type_mapping.get(target_var_type, None), type(context.value)
+            ):
+                err_msg = "expected type {} not match target variable type {}".format(
+                    target_var_type, type(context.value)
                 )
                 self.logger.exception(err_msg)
                 data.outputs.ex_data = err_msg
                 return False
 
-            # 更新上下文并放入字典
+            # 处理输入变量与目标变量的类型转换(输入常量时 即形式不为变量)
+            if not formatted_key_pattern.fullmatch(input_val):
+                try:
+                    # 尝试将输入转换为期望类型
+                    input_val = self.convert_variable(input_val, target_var_type)
+                except (ValueError, TypeError):
+                    err_msg = "input variable '{}' cannot be converted to the type of expected {}".format(
+                        input_val, target_var_type
+                    )
+                    self.logger.exception(err_msg)
+                    data.outputs.ex_data = err_msg
+                    return False
+
+            # 更新上下文并放入字典 (包括形式为变量的情况 ex. ${var})
             context.value = input_val
             contexts.append(context)
         runtime.update_context_values(pipeline_id=pipeline_id, context_values=contexts)
@@ -106,4 +149,5 @@ class ValueAssignComponent(Component):
     bound_service = ValueAssignService
     form = settings.STATIC_URL + "components/value_assign/v1_0_0.js"
     version = "v1.0.0"
-    desc = "该插件用于对变量进行赋值操作，并在赋值前进行基础的类型校验"
+    desc = """该插件用于对变量进行赋值操作, 并在赋值前进行基础的类型校验, object 类型仅支持键值对和列表
+    bool 类型\"True\",\"true\",\"1\",被赋值为True \"False\",\"false\",\"0\",赋值为 False"""
