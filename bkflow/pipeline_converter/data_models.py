@@ -24,7 +24,6 @@ class EmptyEndNode(Node):
 
 class ComponentField(BaseModel):
     value: Any
-    type: str
     key: str
     need_render: bool = True
 
