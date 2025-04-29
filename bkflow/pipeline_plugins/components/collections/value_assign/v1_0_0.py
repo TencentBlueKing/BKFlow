@@ -72,23 +72,16 @@ class ValueAssignService(BKFlowBaseService):
         return []
 
     def convert_variable(self, data, data_type):
-        # Bool 类型需要特殊处理
-        if data_type == ValueConvertType.BOOL.value:
-            if not isinstance(data, str):
-                raise TypeError("Bool conversion requires a string input.")
-            if data.lower() in ("true", "yes", "1"):
-                return True
-            elif data.lower() in ("false", "no", "0"):
-                return False
-            raise TypeError(f"Cannot convert {data} to Bool.")
-
         # 获取映射中的目标类型
         target_type = self.type_mapping.get(data_type, None)
+        if target_type is None:
+            raise TypeError(f"Unknown data_type {data_type} provided.")
 
         # Object 类型 仅为 dict list 用 json 包可以直接转换
         if data_type == ValueConvertType.OBJECT.value:
-            if not isinstance(data, str):
-                raise TypeError("Object conversion requires a JSON string input.")
+            if isinstance(data, self.type_mapping[ValueConvertType.OBJECT.value]):
+                # 如果已经是则直接返回
+                return data
             try:
                 parsed_data = json.loads(data)
                 if not isinstance(parsed_data, target_type):
@@ -97,8 +90,14 @@ class ValueAssignService(BKFlowBaseService):
             except json.JSONDecodeError:
                 raise TypeError(f"Cannot convert {data} to {data_type} due to JSON parsing error.")
 
-        if target_type is None:
-            raise TypeError(f"Unknown data_type {data_type} provided.")
+        # Bool 类型需要特判字符串处理
+        if data_type == ValueConvertType.BOOL.value:
+            if isinstance(data, str):
+                if data.lower() in ("true", "yes", "1"):
+                    return True
+                elif data.lower() in ("false", "no", "0"):
+                    return False
+
         return target_type(data)
 
     def plugin_execute(self, data, parent_data):
@@ -125,7 +124,8 @@ class ValueAssignService(BKFlowBaseService):
             # 循环处理表格中的内容 检查是否存在/类型问题后再统一事务批量执行
             input_val = assign["value"]
             target_var = assign["key"]
-            target_var_type = assign["value_type"]
+            target_var_type = assign.get("value_type", None)
+
             target_var_str = "${{{}}}".format(target_var)
             context = context_dict.get(target_var_str)
             if not context:
@@ -134,34 +134,47 @@ class ValueAssignService(BKFlowBaseService):
                 data.outputs.ex_data = err_msg
                 return False
 
-            # 被赋值变量仅能是 PLAIN 类型
-            if context.type != ContextValueType.PLAIN:
-                err_msg = "splice or compute variable {} not supported".format(context)
+            if not target_var_type:
+                # 兼容已有插件内容
+                try:
+                    input_val = type(context.value)(input_val)
+                except (ValueError, TypeError):
+                    err_msg = "input variable '{}' cannot be converted to the type of target variable '{}': {}".format(
+                        input_val, target_var, type(context.value).__name__
+                    )
                 self.logger.exception(err_msg)
                 data.outputs.ex_data = err_msg
                 return False
+            else:
+                # 新的逻辑
+                # 被赋值变量仅能是 PLAIN 类型
+                if context.type != ContextValueType.PLAIN:
+                    err_msg = "splice or compute variable {} not supported".format(context)
+                    self.logger.exception(err_msg)
+                    data.outputs.ex_data = err_msg
+                    return False
 
-            if target_var_type != ValueConvertType.OBJECT.value and not isinstance(
-                context.value, self.type_mapping.get(target_var_type, None)
-            ):
-                # 由于 bool 是 int 的子类 所以会判断为相同
-                err_msg = "expected type {} not match target variable type {}".format(
-                    target_var_type, type(context.value)
-                )
-                self.logger.exception(err_msg)
-                data.outputs.ex_data = err_msg
-                return False
+                if target_var_type != ValueConvertType.OBJECT.value and not isinstance(
+                    context.value, self.type_mapping.get(target_var_type, None)
+                ):
+                    # 由于 bool 是 int 的子类 所以会判断为相同
+                    err_msg = "expected type {} not match target variable type {}".format(
+                        target_var_type, type(context.value)
+                    )
+                    self.logger.exception(err_msg)
+                    data.outputs.ex_data = err_msg
+                    return False
 
-            try:
-                # 尝试将输入转换为期望类型
-                input_val = self.convert_variable(input_val, target_var_type)
-            except (ValueError, TypeError):
-                err_msg = "input variable '{}' cannot be converted to the type of expected {}".format(
-                    input_val, target_var_type
-                )
-                self.logger.exception(err_msg)
-                data.outputs.ex_data = err_msg
-                return False
+                try:
+                    # 尝试将输入转换为期望类型
+                    input_val = self.convert_variable(input_val, target_var_type)
+                except (ValueError, TypeError):
+                    err_msg = "input variable '{}' cannot be converted to the type of expected {}".format(
+                        input_val, target_var_type
+                    )
+                    self.logger.exception(err_msg)
+                    data.outputs.ex_data = err_msg
+                    return False
 
             # 更新上下文并放入字典 (包括形式为变量的情况 ex. ${var})
             context.value = input_val
