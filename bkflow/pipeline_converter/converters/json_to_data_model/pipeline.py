@@ -13,7 +13,7 @@ from bkflow.pipeline_converter.converters.json_to_data_model.node import (
     StartNodeConverter,
 )
 from bkflow.pipeline_converter.data_models import Pipeline
-from bkflow.pipeline_converter.hub import CONVERTER_HUB
+from bkflow.pipeline_converter.hub import ConverterHub
 
 
 class PipelineConverter(JsonToDataModelConverter):
@@ -35,7 +35,7 @@ class PipelineConverter(JsonToDataModelConverter):
             NodeTypes.CONVERGE_GATEWAY.value: ConvergeGatewayConverter.__name__,
         }
         for node in self.source_data.get("nodes", []):
-            converter_cls = CONVERTER_HUB.get_converter_cls(
+            converter_cls = ConverterHub.get_converter_cls(
                 source=self.source, target=self.target, converter_name=node_type_converter_cls_name_map[node["type"]]
             )
             target_nodes.append(converter_cls(node).convert())
