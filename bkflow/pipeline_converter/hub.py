@@ -7,9 +7,14 @@ from bkflow.utils.singleton import Singleton
 
 class ConverterHub(metaclass=Singleton):
     __hub = defaultdict(dict)
+    _initialized = False
 
-    def __init__(self):
-        importlib.import_module(".converters", package="bkflow.pipeline_converter")
+    @classmethod
+    def _ensure_initialized(cls):
+        """确保转换器模块已加载（惰性初始化）"""
+        if not cls._initialized:
+            importlib.import_module(".converters", package="bkflow.pipeline_converter")
+            cls._initialized = True
 
     @classmethod
     def register(cls, converter_cls):
@@ -17,6 +22,7 @@ class ConverterHub(metaclass=Singleton):
 
     @classmethod
     def get_converters(cls, source, target):
+        cls._ensure_initialized()
         return cls.__hub.get((source, target), {})
 
     @classmethod
