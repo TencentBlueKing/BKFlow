@@ -11,7 +11,6 @@ class ConverterHub(metaclass=Singleton):
 
     @classmethod
     def _ensure_initialized(cls):
-        """确保转换器模块已加载（惰性初始化）"""
         if not cls._initialized:
             importlib.import_module(".converters", package="bkflow.pipeline_converter")
             cls._initialized = True
@@ -22,7 +21,6 @@ class ConverterHub(metaclass=Singleton):
 
     @classmethod
     def get_converters(cls, source, target):
-        cls._ensure_initialized()
         return cls.__hub.get((source, target), {})
 
     @classmethod
@@ -31,3 +29,4 @@ class ConverterHub(metaclass=Singleton):
 
 
 CONVERTER_HUB = ConverterHub()
+CONVERTER_HUB._ensure_initialized()

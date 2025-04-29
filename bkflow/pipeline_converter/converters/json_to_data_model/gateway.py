@@ -14,8 +14,8 @@ from bkflow.pipeline_converter.validators.node import JsonNodeTypeValidator
 class ConditionConverter(JsonToDataModelConverter):
     def convert(self):
         self.target_data = []
-        for node in self.source_data:
-            self.target_data.append({"name": node.name, "evaluate": node.expr})
+        for condition in self.source_data:
+            self.target_data.append({"name": condition["name"], "expr": condition["expr"]})
         return self.target_data
 
 
