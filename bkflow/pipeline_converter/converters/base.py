@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List
 
 from bkflow.pipeline_converter.constants import DataTypes
-from bkflow.pipeline_converter.hub import CONVERTER_HUB
+from bkflow.pipeline_converter.hub import ConverterHub
 from bkflow.pipeline_converter.validators.base import BaseValidator
 
 
@@ -39,7 +39,7 @@ class BaseConverter(ABC):
         needed_attrs = ["source", "target"]
         if not all([hasattr(cls, field) for field in needed_attrs]):
             raise TypeError(f"sub class {cls.__name__} needs attrs {needed_attrs}")
-        CONVERTER_HUB.register(cls)
+        ConverterHub.register(cls)
 
     def validate(self, *args, **kwargs):
         for validator in self.validators:
