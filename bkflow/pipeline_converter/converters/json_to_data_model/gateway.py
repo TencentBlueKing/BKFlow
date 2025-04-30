@@ -3,11 +3,13 @@
 from bkflow.pipeline_converter.constants import NodeTypes
 from bkflow.pipeline_converter.converters.base import JsonToDataModelConverter
 from bkflow.pipeline_converter.data_models import (
+    Condition,
     ConditionalParallelGateway,
     ConvergeGateway,
     ExclusiveGateway,
     ParallelGateway,
 )
+from bkflow.pipeline_converter.validators.gateway import JsonGatewayValidator
 from bkflow.pipeline_converter.validators.node import JsonNodeTypeValidator
 
 
@@ -15,7 +17,12 @@ class ConditionConverter(JsonToDataModelConverter):
     def convert(self):
         self.target_data = []
         for condition in self.source_data:
-            self.target_data.append({"name": condition["name"], "expr": condition["expr"]})
+            condition_data = Condition(name=condition["name"], next_node=condition["next_node"])
+            if condition.get("is_default") is True:
+                setattr(condition_data, "is_default", condition["is_default"])
+            else:
+                setattr(condition_data, "expr", condition["expr"])
+            self.target_data.append(condition_data)
         return self.target_data
 
 
@@ -33,7 +40,7 @@ class ParallelGatewayConverter(JsonToDataModelConverter):
 
 
 class ExclusiveGatewayConverter(JsonToDataModelConverter):
-    validators = [JsonNodeTypeValidator(node_type=NodeTypes.EXCLUSIVE_GATEWAY.value)]
+    validators = [JsonNodeTypeValidator(node_type=NodeTypes.EXCLUSIVE_GATEWAY.value), JsonGatewayValidator()]
 
     def convert(self):
         self.target_data = ExclusiveGateway(
@@ -48,7 +55,7 @@ class ExclusiveGatewayConverter(JsonToDataModelConverter):
 
 
 class ConditionalParallelGatewayConverter(JsonToDataModelConverter):
-    validators = [JsonNodeTypeValidator(node_type=NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value)]
+    validators = [JsonNodeTypeValidator(node_type=NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value), JsonGatewayValidator()]
 
     def convert(self):
         self.target_data = ConditionalParallelGateway(

@@ -78,7 +78,9 @@ class ConvergeGateway(Gateway):
 
 class Condition(BaseModel):
     name: str
-    expr: str
+    expr: str = None
+    next_node: str
+    is_default: bool = False
 
 
 class ExclusiveGateway(Gateway):

@@ -12,15 +12,23 @@ from bkflow.pipeline_converter.data_models import (
     ExclusiveGateway,
     ParallelGateway,
 )
+from bkflow.pipeline_converter.validators.gateway import GatewayConditionValidator
 from bkflow.pipeline_converter.validators.node import NodeTypeValidator
 
 
 class ConditionConverter(DataModelToPipelineTreeConverter):
     def convert(self, *args, **kwargs):
-        node_data: List[Condition] = self.source_data
+        condition_data: List[Condition] = self.source_data
         self.target_data = []
-        for node in node_data:
-            self.target_data.append({"name": node.name, "evaluate": node.expr})
+        for condition in condition_data:
+            self.target_data.append(
+                {
+                    "name": condition.name,
+                    "evaluate": condition.expr,
+                    "next_node": condition.next_node,
+                    "is_default": condition.is_default,
+                }
+            )
         return self.target_data
 
 
@@ -41,7 +49,7 @@ class ParallelGatewayConverter(DataModelToPipelineTreeConverter):
 
 
 class ExclusiveGatewayConverter(DataModelToPipelineTreeConverter):
-    validators = [NodeTypeValidator(node_type=NodeTypes.EXCLUSIVE_GATEWAY.value)]
+    validators = [NodeTypeValidator(node_type=NodeTypes.EXCLUSIVE_GATEWAY.value), GatewayConditionValidator()]
 
     def convert(self, *args, **kwargs):
         node: ExclusiveGateway = self.source_data
@@ -58,7 +66,10 @@ class ExclusiveGatewayConverter(DataModelToPipelineTreeConverter):
 
 
 class ConditionalParallelGatewayConverter(DataModelToPipelineTreeConverter):
-    validators = [NodeTypeValidator(node_type=NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value)]
+    validators = [
+        NodeTypeValidator(node_type=NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value),
+        GatewayConditionValidator(),
+    ]
 
     def convert(self, *args, **kwargs):
         node: ConditionalParallelGateway = self.source_data
