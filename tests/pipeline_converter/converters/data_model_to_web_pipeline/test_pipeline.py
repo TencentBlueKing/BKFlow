@@ -58,8 +58,8 @@ class TestPipelineConverter:
                 type="exclusive_gateway",
                 next=["condition_node_1", "condition_node_2"],
                 conditions=[
-                    Condition(name="condition", expr="True"),
-                    Condition(name="condition", expr="False"),
+                    Condition(name="condition", expr="True", next_node="condition_node_1"),
+                    Condition(name="condition", expr="False", next_node="condition_node_2"),
                 ],
             ),
             ComponentNode(
@@ -142,8 +142,8 @@ class TestPipelineConverter:
                 type="conditional_parallel_gateway",
                 next=["condition_node_1", "condition_node_2"],
                 conditions=[
-                    Condition(name="condition", expr="True"),
-                    Condition(name="condition", expr="False"),
+                    Condition(name="condition", expr="True", next_node="condition_node_1"),
+                    Condition(name="condition", expr="False", next_node="condition_node_2"),
                 ],
                 converge_gateway_id="converge_gateway",
             ),
@@ -189,7 +189,7 @@ class TestPipelineConverter:
                 type="exclusive_gateway",
                 next=["condition_node_1", "condition_node_2"],
                 conditions=[
-                    Condition(name="condition", expr="True"),
+                    Condition(name="condition", expr="True", next_node="condition_node_1"),
                 ],
             ),
             ComponentNode(

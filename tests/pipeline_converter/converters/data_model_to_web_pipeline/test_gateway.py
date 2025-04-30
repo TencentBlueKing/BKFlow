@@ -57,12 +57,13 @@ class TestGateway(object):
             ParallelGatewayConverter(source_data)
 
     def test_exclusive_gateway_converter(self):
-        conditions = Condition(name="", expr="")
+        conditions = Condition(name="", expr="1 == 1", next_node="node_3")
         json_data = {
             "id": self.gateway_node,
             "type": "exclusive_gateway",
             "conditions": [conditions],
             "lang": "boolrule",
+            "next": self.next,
         }
         source_data = ExclusiveGateway(**json_data)
         child_converter = ExclusiveGatewayConverter(source_data)
@@ -76,18 +77,19 @@ class TestGateway(object):
             "type": "ExclusiveGateway",
             "incoming": [],
             "outgoing": [],
-            "conditions": [{"name": "", "evaluate": ""}],
+            "conditions": [{"name": "", "evaluate": "1 == 1", "next_node": "node_3", "is_default": False}],
             "extra_info": {"parse_lang": "boolrule"},
         }
 
     def test_conditional_parallel_gateway_converter(self):
-        conditions = Condition(name="", expr="")
+        conditions = Condition(name="", expr="1 == 1", next_node="node_3")
         json_data = {
             "id": self.gateway_node,
             "type": "conditional_parallel_gateway",
             "converge_gateway_id": self.converge_gateway_id,
             "conditions": [conditions],
             "lang": "boolrule",
+            "next": self.next,
         }
         source_data = ConditionalParallelGateway(**json_data)
         child_converter = ConditionalParallelGatewayConverter(source_data)
@@ -102,7 +104,7 @@ class TestGateway(object):
             "incoming": [],
             "outgoing": [],
             "converge_gateway_id": self.converge_gateway_id,
-            "conditions": [{"name": "", "evaluate": ""}],
+            "conditions": [{"name": "", "evaluate": "1 == 1", "next_node": "node_3", "is_default": False}],
             "extra_info": {"parse_lang": "boolrule"},
         }
 
