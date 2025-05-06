@@ -5,9 +5,12 @@ from bkflow.pipeline_converter.converters.base import JsonToDataModelConverter
 from bkflow.pipeline_converter.data_models import (
     ConditionalParallelGateway,
     ConvergeGateway,
+    DefaultCondition,
     ExclusiveGateway,
+    ExprCondition,
     ParallelGateway,
 )
+from bkflow.pipeline_converter.validators.gateway import JsonGatewayValidator
 from bkflow.pipeline_converter.validators.node import JsonNodeTypeValidator
 
 
@@ -15,7 +18,8 @@ class ConditionConverter(JsonToDataModelConverter):
     def convert(self):
         self.target_data = []
         for condition in self.source_data:
-            self.target_data.append({"name": condition["name"], "expr": condition["expr"]})
+            condition_data = ExprCondition(name=condition["name"], expr=condition["expr"], next=condition["next"])
+            self.target_data.append(condition_data)
         return self.target_data
 
 
@@ -33,7 +37,7 @@ class ParallelGatewayConverter(JsonToDataModelConverter):
 
 
 class ExclusiveGatewayConverter(JsonToDataModelConverter):
-    validators = [JsonNodeTypeValidator(node_type=NodeTypes.EXCLUSIVE_GATEWAY.value)]
+    validators = [JsonNodeTypeValidator(node_type=NodeTypes.EXCLUSIVE_GATEWAY.value), JsonGatewayValidator()]
 
     def convert(self):
         self.target_data = ExclusiveGateway(
@@ -42,13 +46,20 @@ class ExclusiveGatewayConverter(JsonToDataModelConverter):
             next=self.source_data["next"],
             conditions=ConditionConverter(self.source_data["conditions"]).convert(),
         )
-        if self.source_data.get("lang"):
-            setattr(self.target_data, "lang", self.source_data["lang"])
+        optional_field_data_model_map = {"lang": None, "default_condition": DefaultCondition}
+        for field, data_model in optional_field_data_model_map.items():
+            if field not in self.source_data:
+                continue
+            setattr(
+                self.target_data,
+                field,
+                data_model(**self.source_data[field]) if data_model else self.source_data[field],
+            )
         return self.target_data
 
 
 class ConditionalParallelGatewayConverter(JsonToDataModelConverter):
-    validators = [JsonNodeTypeValidator(node_type=NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value)]
+    validators = [JsonNodeTypeValidator(node_type=NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value), JsonGatewayValidator()]
 
     def convert(self):
         self.target_data = ConditionalParallelGateway(
@@ -58,8 +69,15 @@ class ConditionalParallelGatewayConverter(JsonToDataModelConverter):
             conditions=ConditionConverter(self.source_data["conditions"]).convert(),
             converge_gateway_id=self.source_data["converge_gateway_id"],
         )
-        if self.source_data.get("lang"):
-            setattr(self.target_data, "lang", self.source_data["lang"])
+        optional_field_data_model_map = {"lang": None, "default_condition": DefaultCondition}
+        for field, data_model in optional_field_data_model_map.items():
+            if field not in self.source_data:
+                continue
+            setattr(
+                self.target_data,
+                field,
+                data_model(**self.source_data[field]) if data_model else self.source_data[field],
+            )
         return self.target_data
 
 

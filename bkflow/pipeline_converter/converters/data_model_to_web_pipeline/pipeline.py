@@ -68,7 +68,7 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
             target_node = self._get_converted_node(self.target_data, flow.target)
             self.add_node_incoming_or_outgoing(target_node, "incoming", flow.id)
 
-        self.remap_condition_keys_to_outgoing(self.target_data[PE.gateways])
+        self.remap_condition_keys_to_outgoing(self.target_data[PE.gateways], flows)
         # 这里确保每次转换后 id 都是唯一的，避免重复
         replace_all_id(self.target_data)
         return self.target_data
@@ -111,16 +111,22 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
         raise ValueError(f"{field}字段类型错误，期望list或str，实际为{type(node[field])}")
 
     @staticmethod
-    def remap_condition_keys_to_outgoing(gateways_data):
-        for _, gateway in gateways_data.items():
-            if not gateway.get("type") in [PE.ExclusiveGateway, PE.ConditionalParallelGateway]:
+    def remap_condition_keys_to_outgoing(gateways_data, flows):
+        flow_id_map = {(flow.source, flow.target): flow.id for flow in flows}
+
+        for gateway_id, gateway in gateways_data.items():
+            if gateway.get("type") not in [PE.ExclusiveGateway, PE.ConditionalParallelGateway]:
                 continue
-            outgoing_ids = gateway["outgoing"]
-            conditions = gateway["conditions"]
-            if len(outgoing_ids) != len(conditions):
-                raise ValueError("outgoing数量与conditions数量不匹配")
-            # 创建新的conditions字典，使用outgoing_id作为key
+
+            default_condition = gateway.get("default_condition")
+            if default_condition:
+                default_condition_node = default_condition["next"]
+                flow_id = flow_id_map.get((gateway_id, default_condition_node))
+                gateway["default_condition"] = {"name": default_condition["name"], "flow_id": flow_id}
+
             new_conditions = {}
-            for outgoing_id, condition_value in zip(outgoing_ids, conditions):
-                new_conditions[outgoing_id] = condition_value
+            for condition in gateway["conditions"]:
+                condition_node = condition["next"]
+                flow_id = flow_id_map.get((gateway_id, condition_node))
+                new_conditions[flow_id] = {"name": condition["name"], "evaluate": condition["evaluate"]}
             gateway["conditions"] = new_conditions

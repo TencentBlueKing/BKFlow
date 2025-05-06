@@ -78,12 +78,21 @@ class ConvergeGateway(Gateway):
 
 class Condition(BaseModel):
     name: str
+    next: str
+
+
+class DefaultCondition(Condition):
+    pass
+
+
+class ExprCondition(Condition):
     expr: str
 
 
 class ExclusiveGateway(Gateway):
     lang: str = "boolrule"
-    conditions: List[Condition]
+    conditions: List[ExprCondition]
+    default_condition: DefaultCondition = None
     type: str = NodeTypes.EXCLUSIVE_GATEWAY.value
 
 
