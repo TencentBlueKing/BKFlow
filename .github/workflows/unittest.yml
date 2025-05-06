@@ -9,7 +9,7 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       max-parallel: 4
       matrix:
@@ -21,22 +21,42 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+
     - name: Install Dependencies
       run: |
         python -m pip install pip==24.0
         pip install -r tests/requirements_test.txt
+
+    - name: Setup MySQL
+      uses: shogo82148/actions-setup-mysql@v1
+      id: setup-mysql # Add an ID to reference outputs
+      with:
+        mysql-version: '8.0'
+        user: 'test_user'
+        password: ${{ secrets.DB_PASSWORD }}
+
     - name: Run Tests
+      env:
+        USER_PASSWORD: ${{ secrets.DB_PASSWORD }}
       run: |
         set -e
-        echo '# -*- coding: utf-8 -*-
+        echo "Creating database..."
+        mysql -h"127.0.0.1" -P"3306" -u"test_user" -p"$USER_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+        cat << EOF > local_settings.py
+        # -*- coding: utf-8 -*-  
+        
         DATABASES = {
             "default": {
-                "ENGINE": "django.db.backends.sqlite3",
-                "NAME": "db.sqlite3",
+                "ENGINE": "django.db.backends.mysql", 
+                "NAME": "test",
+                "USER": "test_user",
+                "PASSWORD": "$USER_PASSWORD",
+                "HOST": "127.0.0.1", 
+                "PORT": "3306",
             }
         }
         REDIS = {"host": "localhost", "port": 6379, "db": 0}
-        ' > local_settings.py
+        EOF
         echo "run interface unit test"
         sh scripts/run_interface_unit_test.sh
         echo "run engine unit test"

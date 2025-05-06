@@ -32,6 +32,8 @@ import cron from '@/assets/js/node-cron-valid/node-cron-vaild.js';
 import $ from 'jquery';
 import * as monaco from 'monaco-editor';
 
+import tools from './utils/tools';
+
 const config = {
   errorBagName: 'veeErrors',
   fieldsBagName: 'veeFields',
@@ -78,11 +80,12 @@ $.atoms = {};
 $.context = {};
 window.$ = $;
 window.monaco = monaco;
-Vue.prototype.filterXSS = input => filterXSS(input, {
+
+Vue.prototype.filterXSS = (input, config = {}) => filterXSS(input, tools.deepMerge({}, {
   whiteList: {
-    a: ['href'],
+    a: ['href', 'target'],
   },
-});
+}, config));
 
 const InvalidNameChar = '\'‘"”$&<>';
 Validator.extend('cronRlue', {

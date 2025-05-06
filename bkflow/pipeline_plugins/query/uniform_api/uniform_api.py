@@ -52,7 +52,7 @@ class UniformAPIMetaSerializer(serializers.Serializer):
     meta_url = serializers.CharField(required=True)
 
 
-def _get_space_uniform_api_list_info(space_id, request_data, config_key):
+def _get_space_uniform_api_list_info(space_id, request_data, config_key, username):
     uniform_api_config = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
     if not uniform_api_config:
         raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
@@ -63,7 +63,7 @@ def _get_space_uniform_api_list_info(space_id, request_data, config_key):
     url = uniform_api_config.api.get(api_name, {}).get(config_key)
     if not url:
         raise ValidationError("对应API未配置, 请联系对应接入平台管理员")
-    request_result: HttpRequestResult = client.request(url=url, method="GET", data=request_data)
+    request_result: HttpRequestResult = client.request(url=url, method="GET", data=request_data, username=username)
     if not request_result.result:
         raise APIResponseError(f"请求统一API列表失败: {request_result.message}")
     response_schema = (
@@ -86,7 +86,8 @@ def get_space_uniform_api_category_list(request, space_id):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
     api_category_key = UniformApiConfig.Keys.API_CATEGORIES.value
-    return _get_space_uniform_api_list_info(space_id, data, api_category_key)
+    username = request.user.username
+    return _get_space_uniform_api_list_info(space_id, data, api_category_key, username)
 
 
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPIListSerializer)
@@ -100,7 +101,8 @@ def get_space_uniform_api_list(request, space_id):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
     meta_apis_key = UniformApiConfig.Keys.META_APIS.value
-    return _get_space_uniform_api_list_info(space_id, data, meta_apis_key)
+    username = request.user.username
+    return _get_space_uniform_api_list_info(space_id, data, meta_apis_key, username)
 
 
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPIMetaSerializer)
@@ -114,8 +116,9 @@ def get_space_uniform_api_meta(requests, space_id):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
     meta_url = data.pop("meta_url")
+    username = requests.user.username
     client = UniformAPIClient()
-    request_result: HttpRequestResult = client.request(url=meta_url, method="GET", data=data)
+    request_result: HttpRequestResult = client.request(url=meta_url, method="GET", data=data, username=username)
     if request_result.result is False:
         raise APIResponseError(f"请求统一API元数据失败: {request_result.message}")
     client.validate_response_data(

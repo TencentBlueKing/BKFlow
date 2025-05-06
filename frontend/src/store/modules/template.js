@@ -901,6 +901,9 @@ const template = {
     setInternalVariable(state, payload) {
       state.internalVariable = payload;
     },
+    setSpaceId(state, id) {
+      state.spaceId = id;
+    },
   },
   actions: {
     loadProjectBaseInfo() {
@@ -1153,6 +1156,9 @@ const template = {
     // 获取模板mock任务列表
     getTemplateMockTaskList({}, data) {
       return axios.get('/api/template/template_mock_task/', { params: data }).then(response => response.data);
+    },
+    getPreviewTaskTree({}, data) {
+      return axios.post(`/api/template/${data.templateId}/preview_task_tree/`, data).then(response => response.data);
     },
   },
   getters: {

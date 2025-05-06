@@ -77,6 +77,10 @@ MIDDLEWARE = (
     "bkflow.utils.middlewares.ExceptionMiddleware",
     "bkflow.utils.middlewares.AppInfoInjectMiddleware",
 ) + MIDDLEWARE
+
+if env.USE_PYINSTRUMENT:
+    MIDDLEWARE += ("pyinstrument.middleware.ProfilerMiddleware",)
+
 # 模块间调用相关配置
 APP_INTERNAL_VALIDATION_SKIP = env.APP_INTERNAL_VALIDATION_SKIP
 APP_INTERNAL_TOKEN = env.APP_INTERNAL_TOKEN

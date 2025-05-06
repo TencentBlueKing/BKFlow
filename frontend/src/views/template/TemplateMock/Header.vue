@@ -7,7 +7,7 @@
       <span class="title">{{ mockStep === 'setting' ? $t('流程调试') : $t('调试执行') }}</span>
       <span
         v-if="mockStep === 'setting'"
-        class="template-name">{{ name }}</span>
+        class="template-name">{{ tplName }}</span>
       <template v-else>
         <bk-input
           v-model="taskName"

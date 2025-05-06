@@ -13,6 +13,7 @@
   import TaskList from './Task/index.vue';
   import SpaceConfigList from './SpaceConfig/index.vue';
   import DecisionTable from './DecisionTable/index.vue';
+  import CredentialList from './Credential/index.vue';
   import { mapState } from 'vuex';
 
   export default {
@@ -22,6 +23,7 @@
       TaskList,
       SpaceConfigList,
       DecisionTable,
+      CredentialList,
     },
     data() {
       const { activeTab = 'template' } = this.$route.query;
@@ -38,6 +40,7 @@
         let component = tab === 'config' ? 'SpaceConfigList' : 'TaskList';
         component = tab === 'decisionTable' ? 'DecisionTable' : component;
         component = tab === 'template' ? 'TemplateList' : component;
+        component = tab === 'credential' ? 'CredentialList' : component;
 
         return component;
       },

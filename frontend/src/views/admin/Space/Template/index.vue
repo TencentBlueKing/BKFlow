@@ -82,6 +82,13 @@
             theme="primary"
             class="ml10"
             text
+            @click="onCopyTemplate(props.row)">
+            {{ $t('复制') }}
+          </bk-button>
+          <bk-button
+            theme="primary"
+            class="ml10"
+            text
             @click="onDeleteTemplate(props.row)">
             {{ $t('删除') }}
           </bk-button>
@@ -114,10 +121,10 @@
           @searchClear="updateSearchSelect" />
       </div>
     </bk-table>
-    <create-task-dialog
-      :is-show="showCreateTaskDialog"
+    <CreateTaskSideslider
+      :is-show="showCreateTaskSlider"
       :row="selectRow"
-      @close="showCreateTaskDialog = false" />
+      @close="showCreateTaskSlider = false" />
     <create-template-dialog
       :is-show="showCreateTplDialog"
       @close="showCreateTplDialog = false"
@@ -126,14 +133,14 @@
 </template>
 
 <script>
-  import { mapActions } from 'vuex';
+  import { mapActions, mapMutations } from 'vuex';
   import CancelRequest from '@/api/cancelRequest.js';
   import NoData from '@/components/common/base/NoData.vue';
   import moment from 'moment-timezone';
   import tableHeader from '@/mixins/tableHeader.js';
   import tableCommon from '../mixins/tableCommon.js';
   import TableOperate from '../common/TableOperate.vue';
-  import CreateTaskDialog from './CreateTaskDialog.vue';
+  import CreateTaskSideslider from './CreateTaskSideslider.vue';
   import CreateTemplateDialog from './CreateTemplateDialog.vue';
   import i18n from '@/config/i18n/index.js';
 
@@ -226,15 +233,15 @@
     components: {
       NoData,
       TableOperate,
-      CreateTaskDialog,
       CreateTemplateDialog,
+      CreateTaskSideslider,
     },
     mixins: [tableHeader, tableCommon],
     data() {
       return {
         templateList: [],
         selectRow: {},
-        showCreateTaskDialog: false,
+        showCreateTaskSlider: false,
         showCreateTplDialog: false,
         selectedTpls: [], // 选中的流程模板
         batchDeleting: false,
@@ -261,9 +268,13 @@
       ...mapActions('templateList/', [
         'loadTemplateList',
         'deleteTemplate',
+        'copyTemplate',
       ]),
       ...mapActions('task/', [
         'createTask',
+      ]),
+      ...mapMutations('template/', [
+        'setSpaceId',
       ]),
       async getTemplateList() {
         try {
@@ -325,7 +336,8 @@
       },
       onCreateTask(row) {
         this.selectRow = row;
-        this.showCreateTaskDialog = true;
+        this.showCreateTaskSlider = true;
+        this.setSpaceId(this.spaceId);
       },
       renderHeaderCheckbox(h) {
         const self = this;
@@ -455,6 +467,34 @@
           });
         }
         return Promise.resolve();
+      },
+      onCopyTemplate(template) {
+        this.$bkInfo({
+          title: this.$t('是否复制该流程？'),
+          subTitle: this.$t('注意：关联的 mock 数据不会同步复制，暂不支持复制带有决策表节点的流程'),
+          type: 'warning',
+          extCls: 'dialog-custom-header-title',
+          maskClose: false,
+          width: 450,
+          confirmLoading: true,
+          cancelText: this.$t('取消'),
+          confirmFn: async () => {
+            try {
+              const resp = await this.copyTemplate({
+                space_id: this.spaceId,
+                template_id: template.id,
+              });
+              if (!resp.result) return;
+              this.getTemplateList();
+              this.$bkMessage({
+                message: this.$t('流程复制成功！'),
+                theme: 'success',
+              });
+            } catch (error) {
+              console.warn(error);
+            }
+          },
+        });
       },
       onDeleteTemplate(template) {
         const h = this.$createElement;
