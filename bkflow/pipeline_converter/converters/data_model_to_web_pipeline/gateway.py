@@ -56,7 +56,10 @@ class ExclusiveGatewayConverter(DataModelToPipelineTreeConverter):
             "extra_info": {"parse_lang": node.lang},
         }
         if node.default_condition:
-            self.target_data["default_condition"] = node.default_condition
+            self.target_data["default_condition"] = {
+                "name": node.default_condition.name,
+                "next": node.default_condition.next,
+            }
         return self.target_data
 
 
@@ -79,7 +82,10 @@ class ConditionalParallelGatewayConverter(DataModelToPipelineTreeConverter):
             "converge_gateway_id": node.converge_gateway_id,
         }
         if node.default_condition:
-            self.target_data["default_condition"] = node.default_condition
+            self.target_data["default_condition"] = {
+                "name": node.default_condition.name,
+                "next": node.default_condition.next,
+            }
         return self.target_data
 
 

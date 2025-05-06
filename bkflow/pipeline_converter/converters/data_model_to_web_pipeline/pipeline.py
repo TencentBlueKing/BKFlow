@@ -120,9 +120,9 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
 
             default_condition = gateway.get("default_condition")
             if default_condition:
-                default_condition_node = default_condition.next
+                default_condition_node = default_condition["next"]
                 flow_id = flow_id_map.get((gateway_id, default_condition_node))
-                gateway["default_condition"] = {"name": default_condition.name, "flow_id": flow_id}
+                gateway["default_condition"] = {"name": default_condition["name"], "flow_id": flow_id}
 
             new_conditions = {}
             for condition in gateway["conditions"]:
