@@ -3,10 +3,11 @@
 from bkflow.pipeline_converter.constants import NodeTypes
 from bkflow.pipeline_converter.converters.base import JsonToDataModelConverter
 from bkflow.pipeline_converter.data_models import (
-    Condition,
     ConditionalParallelGateway,
     ConvergeGateway,
+    DefaultCondition,
     ExclusiveGateway,
+    ExprCondition,
     ParallelGateway,
 )
 from bkflow.pipeline_converter.validators.gateway import JsonGatewayValidator
@@ -17,11 +18,7 @@ class ConditionConverter(JsonToDataModelConverter):
     def convert(self):
         self.target_data = []
         for condition in self.source_data:
-            condition_data = Condition(name=condition["name"], next_node=condition["next_node"])
-            if condition.get("is_default") is True:
-                setattr(condition_data, "is_default", condition["is_default"])
-            else:
-                setattr(condition_data, "expr", condition["expr"])
+            condition_data = ExprCondition(name=condition["name"], expr=condition["expr"], next=condition["next"])
             self.target_data.append(condition_data)
         return self.target_data
 
@@ -49,8 +46,15 @@ class ExclusiveGatewayConverter(JsonToDataModelConverter):
             next=self.source_data["next"],
             conditions=ConditionConverter(self.source_data["conditions"]).convert(),
         )
-        if self.source_data.get("lang"):
-            setattr(self.target_data, "lang", self.source_data["lang"])
+        optional_field_data_model_map = {"lang": None, "default_condition": DefaultCondition}
+        for field, data_model in optional_field_data_model_map.items():
+            if field not in self.source_data:
+                continue
+            setattr(
+                self.target_data,
+                field,
+                data_model(**self.source_data[field]) if data_model else self.source_data[field],
+            )
         return self.target_data
 
 
@@ -65,8 +69,15 @@ class ConditionalParallelGatewayConverter(JsonToDataModelConverter):
             conditions=ConditionConverter(self.source_data["conditions"]).convert(),
             converge_gateway_id=self.source_data["converge_gateway_id"],
         )
-        if self.source_data.get("lang"):
-            setattr(self.target_data, "lang", self.source_data["lang"])
+        optional_field_data_model_map = {"lang": None, "default_condition": DefaultCondition}
+        for field, data_model in optional_field_data_model_map.items():
+            if field not in self.source_data:
+                continue
+            setattr(
+                self.target_data,
+                field,
+                data_model(**self.source_data[field]) if data_model else self.source_data[field],
+            )
         return self.target_data
 
 

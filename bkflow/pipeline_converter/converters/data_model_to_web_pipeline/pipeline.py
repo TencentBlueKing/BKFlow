@@ -115,18 +115,18 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
         flow_id_map = {(flow.source, flow.target): flow.id for flow in flows}
 
         for gateway_id, gateway in gateways_data.items():
-            if not gateway.get("type") in [PE.ExclusiveGateway, PE.ConditionalParallelGateway]:
+            if gateway.get("type") not in [PE.ExclusiveGateway, PE.ConditionalParallelGateway]:
                 continue
-            outgoing_ids = gateway["outgoing"]
-            conditions = gateway["conditions"]
-            if len(outgoing_ids) != len(conditions):
-                raise ValueError("outgoing数量与conditions数量不匹配")
+
+            default_condition = gateway.get("default_condition")
+            if default_condition:
+                default_condition_node = default_condition.next
+                flow_id = flow_id_map.get((gateway_id, default_condition_node))
+                gateway["default_condition"] = {"name": default_condition.name, "flow_id": flow_id}
+
             new_conditions = {}
-            for condition in conditions:
-                next_node = condition.pop("next_node")
-                flow_id = flow_id_map.get((gateway_id, next_node))
-                if condition.pop("is_default") is True:
-                    gateway["default_condition"] = {"flow_id": flow_id, "name": condition["name"]}
-                else:
-                    new_conditions[flow_id] = condition
+            for condition in gateway["conditions"]:
+                condition_node = condition["next"]
+                flow_id = flow_id_map.get((gateway_id, condition_node))
+                new_conditions[flow_id] = {"name": condition["name"], "evaluate": condition["evaluate"]}
             gateway["conditions"] = new_conditions

@@ -82,8 +82,8 @@ class TestPipelineConverter:
                     "name": "exclusive_gateway",
                     "type": "exclusive_gateway",
                     "conditions": [
-                        {"name": "condition_1", "expr": "1 == 1", "next_node": "condition_node_1"},
-                        {"name": "condition_2", "expr": "1 == 2", "next_node": "condition_node_2"},
+                        {"name": "condition_1", "expr": "1 == 1", "next": "condition_node_1"},
+                        {"name": "condition_2", "expr": "1 == 2", "next": "condition_node_2"},
                     ],
                     "next": ["condition_node_1", "condition_node_2"],
                 },
@@ -161,10 +161,10 @@ class TestPipelineConverter:
                     "name": "exclusive_gateway",
                     "type": "exclusive_gateway",
                     "conditions": [
-                        {"name": "condition_1", "next_node": "condition_node_1", "is_default": True},
-                        {"name": "condition_2", "next_node": "condition_node_2", "expr": "1 == 2"},
+                        {"name": "condition_2", "next": "condition_node_2", "expr": "1 == 2"},
                     ],
                     "next": ["condition_node_1", "condition_node_2"],
+                    "default_condition": {"name": "default_condition", "next": "condition_node_1"},
                 },
                 {
                     "id": "condition_node_1",
