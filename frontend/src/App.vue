@@ -102,8 +102,7 @@
     created() {
       // 被iframe嵌套则不需要展示导航
       if (window.top === window.self) {
-        // 判断用户是否为管理员
-        this.loadSpacePermission();
+        this.loadInit();
       } else {
         this.permissionLoading = false;
         this.setIframe(true);
@@ -147,22 +146,30 @@
       ...mapActions([
         'getSpacePermission',
         'getGlobalConfig',
+        'getBkPluginPermission',
       ]),
       ...mapMutations([
         'setToken',
         'setAdmin',
         'setSpaceSuperuser',
+        'setBkPluginManager',
         'setAlertNotice',
         'setSpaceId',
         'setIframe',
       ]),
-      async loadSpacePermission() {
+      async loadInit() {
         try {
           this.permissionLoading = true;
-          const resp = await this.getSpacePermission();
-          const { is_admin: isAdmin, is_space_superuser: isSpaceSuperuser } = resp.data || {};
+          const [resp1, resp2] = await Promise.all([
+            this.getSpacePermission(),
+            this.getBkPluginPermission(),
+          ]);
+          // 判断用户是否为管理员
+          const { is_admin: isAdmin, is_space_superuser: isSpaceSuperuser } = resp1.data || {};
           this.setAdmin(isAdmin);
           this.setSpaceSuperuser(isSpaceSuperuser);
+          // 判断用户是否为【我的插件】管理员
+          this.setBkPluginManager(resp2.data.is_manager);
         } catch (error) {
           console.warn(error);
         } finally {

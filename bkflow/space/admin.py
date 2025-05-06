@@ -36,3 +36,11 @@ class SpaceConfigAdmin(admin.ModelAdmin):
     search_fields = ("space_id", "name", "value_type")
     list_filter = ("space_id", "name", "value_type")
     ordering = ["-space_id"]
+
+
+@admin.register(models.Credential)
+class CredentialAdmin(admin.ModelAdmin):
+    list_display = ("id", "space_id", "name", "desc", "type", "content")
+    search_fields = ("space_id", "name", "type")
+    list_filter = ("space_id",)
+    ordering = ["-id"]

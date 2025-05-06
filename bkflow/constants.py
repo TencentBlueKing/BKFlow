@@ -27,6 +27,9 @@ MAX_LEN_OF_TASK_NAME = 128
 MAX_LEN_OF_TEMPLATE_NAME = 128
 TEMPLATE_NODE_NAME_MAX_LENGTH = 50
 USER_NAME_MAX_LENGTH = 32
+ALL_SPACE = "*"
+WHITE_LIST = "white_list"
+BK_PLUGIN_SYNC_NUM = 100
 
 formatted_key_pattern = re.compile(r"^\${(.*?)}$")
 

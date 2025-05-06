@@ -61,12 +61,27 @@
           {{ selectedRow.desc }}
         </bk-form-item>
         <bk-form-item
+          v-if="selectedRow.is_mix_type"
+          :label="$t('值类型')">
+          <bk-select
+            v-model="localValueType"
+            :clearable="false"
+            @selected="configFormData.formValue = ''">
+            <bk-option
+              id="TEXT"
+              name="TEXT" />
+            <bk-option
+              id="JSON"
+              name="JSON" />
+          </bk-select>
+        </bk-form-item>
+        <bk-form-item
           :label="$t('值')"
           :property="'formValue'"
           :required="true"
-          :class="{ 'code-form-item': configFormData.formType === 'json' }">
+          :class="{ 'code-form-item': isJsonValueType }">
           <div
-            v-if="configFormData.formType === 'json'"
+            v-if="isJsonValueType"
             class="code-wrapper">
             <FullCodeEditor
               ref="fullCodeEditor"
@@ -87,7 +102,7 @@
           <bk-input
             v-else
             v-model="configFormData.formValue"
-            :placeholder="selectedRow.example" />
+            :placeholder="inputPlaceholder" />
         </bk-form-item>
         <bk-form-item class="mt20">
           <bk-button
@@ -166,6 +181,7 @@
             trigger: 'change',
           }],
         },
+        localValueType: 'TEXT',
       };
     },
     computed: {
@@ -175,6 +191,15 @@
           maxHeight -= 40;
         }
         return maxHeight;
+      },
+      isJsonValueType() {
+        return this.selectedRow.is_mix_type ? this.localValueType === 'JSON' : this.configFormData.formType === 'json';
+      },
+      inputPlaceholder() {
+        const { example = '' } = this.selectedRow;
+        let placeholder = typeof example === 'string' ? example : JSON.stringify(example);
+        placeholder = this.selectedRow.is_mix_type ? this.$t('请输入') : placeholder;
+        return placeholder;
       },
     },
     watch: {
@@ -250,6 +275,7 @@
           json_value: jsonValue = {},
           isDefault,
         } = row;
+        this.localValueType = valueType;
         // 表单类型
         let formType = valueType === 'JSON' ? 'json' : 'input';
         formType = choices ? 'select' : formType;
@@ -279,8 +305,8 @@
         this.$refs.editConfigForm.validate().then(async (validator) => {
           if (!validator) return;
           // 检查值数据类型
-          const { formType, formValue } = this.configFormData;
-          if (formType === 'json' && !tools.checkIsJSON(formValue)) {
+          const { formValue } = this.configFormData;
+          if (this.isJsonValueType && !tools.checkIsJSON(formValue)) {
             this.$bkMessage({
               message: this.$t('数据格式不正确，应为JSON格式'),
               theme: 'error',
@@ -290,14 +316,14 @@
 
           try {
             this.editLoading = true;
-            const { id, name, value_type: valueType  } = this.selectedRow;
+            const { id, name, value_type: valueType, is_mix_type: isMixType  } = this.selectedRow;
             const data = {
               id,
               name,
               space_id: this.spaceId,
-              value_type: valueType,
+              value_type: isMixType ? this.localValueType : valueType,
             };
-            if (formType === 'json') {
+            if (this.isJsonValueType) {
               data.json_value = JSON.parse(formValue);
             } else {
               data.text_value = formValue;

@@ -1,7 +1,7 @@
 <template>
   <div class="task-list">
     <table-operate
-      ref="taskOperate"
+      ref="tableOperate"
       :space-id="spaceId"
       :placeholder="$t('ID/任务名称/创建人/执行人/所属模板 ID/所属作用域类型/所属作用域值')"
       :search-list="searchList"

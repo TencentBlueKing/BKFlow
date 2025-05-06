@@ -27,7 +27,8 @@
                 v-for="option in variableRenderList"
                 :id="option.key"
                 :key="option.index"
-                :name="option.key">
+                :name="option.key"
+                :disabled="option.disabled">
                 <span
                   v-bk-overflow-tips
                   class="key ellipsis">{{ option.key }}</span>
@@ -45,7 +46,19 @@
             <bk-input
               v-model="item.value"
               :disabled="isViewMode"
-              :placeholder="$t('值')" />
+              :placeholder="$t('值')">
+              <bk-select
+                slot="prepend"
+                v-model="item.value_type"
+                :clearable="false"
+                ext-cls="value-type-selector">
+                <bk-option
+                  v-for="option in valueTypeMenuList"
+                  :id="option.id"
+                  :key="option.id"
+                  :name="option.name" />
+              </bk-select>
+            </bk-input>
           </bk-form-item>
           <template v-if="!isViewMode">
             <bk-button
@@ -79,10 +92,14 @@
       },
     },
     data() {
-      let { bk_assignment_list: data = [{ key: '', value: '' }] } = this.value;
+      let { bk_assignment_list: data = [{ key: '', value: '', value_type: 'String' }] } = this.value;
       data = data.map((item) => {
         if (item.key) {
-          return { key: `\${${item.key}}`, value: item.value };
+          return {
+            key: `\${${item.key}}`,
+            value: item.value,
+            value_type: item.value_type || 'String',
+          };
         }
         return item;
       });
@@ -110,27 +127,45 @@
             },
           ],
         },
+        valueTypeMenuList: [
+          { id: 'String', name: '字符串' },
+          { id: 'Int', name: '整数' },
+          { id: 'Bool', name: '布尔值' },
+          { id: 'Object', name: 'Object' },
+        ],
       };
     },
     computed: {
       variableRenderList() {
+        const notExistVariables = this.formData.value.filter(item => !this.variableList.some(v => v.key === item.key));
+        const list = [...this.variableList, ...notExistVariables];
+
         if (this.isViewMode) {
-          return this.variableList;
+          return list;
         }
-        return this.variableList.reduce((acc, cur) => {
-          if (['system', 'project'].includes(cur.source_type)) {
-            return acc;
+
+        const [enabled, disabled] = list.reduce(([enabled, disabled], item) => {
+          if (['system', 'project'].includes(item.source_type)) {
+            return [enabled, disabled];
           }
-          acc.push(cur);
-          return acc;
-        }, []);
+
+          const isEnabled = ['component_inputs', 'component_outputs'].includes(item.source_type)
+            || ['input', 'int', 'textarea'].includes(item.custom_type);
+
+          const variable = { ...item, disabled: !isEnabled };
+          isEnabled ? enabled.push(variable) : disabled.push(variable);
+
+          return [enabled, disabled];
+        }, [[], []]);
+
+        return [...enabled, ...disabled];
       },
     },
     watch: {
       formData: {
         handler(val) {
           // 存的时候需要将【被赋值变量】解除变量格式
-          const value = val.value.map(item => ({ key: item.key.slice(2, -1), value: item.value }));
+          const value = val.value.map(item => ({ ...item, key: item.key.slice(2, -1) }));
           this.$emit('update', { bk_assignment_list: value });
         },
         deep: true,
@@ -144,6 +179,7 @@
           this.formData.value.splice(index + 1, 0, {
             key: '',
             value: '',
+            value_type: 'String',
           });
         }
       },
@@ -172,6 +208,9 @@
           font-size: 12px;
         }
       }
+      .tooltips-icon {
+        right: 20px !important;
+      }
       .value-selector {
         flex: 1;
         &.is-disabled {
@@ -180,6 +219,10 @@
             background: #fafbfd;
           }
         }
+      }
+      .value-type-selector {
+        border: none;
+        min-width: 82px;
       }
       &:not(:last-child) {
         margin-bottom: 5px;

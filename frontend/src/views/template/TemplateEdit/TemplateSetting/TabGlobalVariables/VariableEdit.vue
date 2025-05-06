@@ -928,6 +928,9 @@
             return;
           }
 
+          // 移除变量冗余字段
+          delete variable.cited;
+
           if (!this.variableData.key) { // 新增变量
             if (!this.isHookedVar) { // 自定义变量
               variable.version = 'legacy';
@@ -945,7 +948,7 @@
               this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
             }
           }
-          this.$emit('onSaveEditing');
+          this.$emit('onSaveEditing', this.theEditingData);
           return true;
         });
       },

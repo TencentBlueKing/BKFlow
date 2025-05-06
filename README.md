@@ -38,6 +38,8 @@ BKFlow 提供三大核心功能服务：
 - [服务接入方式](./docs/guide/system_access.md)
 - [体验 & 快速接入](./docs/guide/quick_start.md)
 - [接入系统业务拓展](./docs/guide/system_extensions.md)
+- [空间配置说明](./docs/guide/space_config.md)
+
 
 # Support
 - [源码](https://github.com/TencentBlueKing/bkflow/tree/master)

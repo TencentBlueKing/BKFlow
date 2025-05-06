@@ -48,4 +48,10 @@ def get_task_queues(module_code: str) -> List[Queue]:
             routing_key=f"task_common_{module_code}",
             queue_arguments={"x-max-priority": 255},
         ),
+        Queue(
+            f"clean_task_{module_code}",
+            Exchange("default", type="direct"),
+            routing_key=f"clean_task_{module_code}",
+            queue_arguments={"x-max-priority": 255},
+        ),
     ]

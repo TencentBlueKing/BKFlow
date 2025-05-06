@@ -22,6 +22,8 @@ import os
 from enum import Enum
 from urllib.parse import urlparse
 
+from blueapps.core.celery.celery import app
+from celery.schedules import crontab
 from django.core.serializers.json import DjangoJSONEncoder
 from pydantic import BaseModel
 
@@ -125,7 +127,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
             },
         }
 
-    from pipeline.celery.settings import CELERY_QUEUES  # noqa
+    from pipeline.celery.settings import CELERY_QUEUES, CELERY_ROUTES  # noqa
     from pipeline.eri.celery import queues as eri_queues  # noqa
 
     CELERY_QUEUES.extend(eri_queues.QueueResolver(BKFLOW_MODULE.code).queues())
@@ -152,7 +154,23 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "plugin_service",
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
+        "bkflow.contrib.expired_cleaner",
     )
+
+    BKFLOW_CELERY_ROUTES = {
+        "bkflow.contrib.expired_cleaner.tasks.clean_task": {
+            "queue": f"clean_task_{BKFLOW_MODULE.code}",
+            "routing_key": f"clean_task_{BKFLOW_MODULE.code}",
+        }
+    }
+    CELERY_ROUTES.update(BKFLOW_CELERY_ROUTES)
+
+    app.conf.beat_schedule = {
+        "expired_task_cleaning": {
+            "task": "bkflow.contrib.expired_cleaner.tasks.clean_task",
+            "schedule": crontab(env.CLEAN_TASK_CRONTAB),
+        },
+    }
 
     MIDDLEWARE += ("bkflow.permission.middleware.TokenMiddleware",)
 
@@ -186,6 +204,12 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
     NODE_LOG_DATA_SOURCE_CONFIG = env.NODE_LOG_DATA_SOURCE_CONFIG
     PAASV3_APIGW_API_TOKEN = env.PAASV3_APIGW_API_TOKEN
     LOG_PERSISTENT_DAYS = env.LOG_PERSISTENT_DAYS
+    USE_BKFLOW_CREDENTIAL = env.USE_BKFLOW_CREDENTIAL
+    CLEAN_TASK_BATCH_NUM = env.CLEAN_TASK_BATCH_NUM
+    CLEAN_TASK_NODE_BATCH_NUM = env.CLEAN_TASK_NODE_BATCH_NUM
+    CLEAN_TASK_EXPIRED_DAYS = env.CLEAN_TASK_EXPIRED_DAYS
+    ENABLE_CLEAN_TASK = env.ENABLE_CLEAN_TASK
+    CLEAN_TASK_CRONTAB = env.CLEAN_TASK_CRONTAB
 
 elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
 
@@ -215,6 +239,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "webhook",
         "version_log",
         "bk_notice_sdk",
+        "bkflow.bk_plugin",
     )
 
     VARIABLE_KEY_BLACKLIST = (
@@ -251,3 +276,12 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
 
     # ban 掉 admin 权限
     BLOCK_ADMIN_PERMISSION = env.BLOCK_ADMIN_PERMISSION
+
+    # 添加定时任务
+    app.conf.beat_schedule = {
+        # 同步蓝鲸插件任务
+        "sync_bk_plugins": {
+            "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",
+            "schedule": crontab(env.SYNC_BK_PLUGINS_CRONTAB),
+        }
+    }

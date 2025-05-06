@@ -23,15 +23,23 @@ from copy import deepcopy
 
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 
+from .utils import post_handle_pipeline_tree, pre_handle_pipeline_tree
+
 logger = logging.getLogger("root")
 
 
-def preview_template_tree(pipeline_tree, exclude_task_nodes_id):
+def preview_template_tree(
+    pipeline_tree,
+    exclude_task_nodes_id,
+    pre_handle_pipeline_tree=pre_handle_pipeline_tree,
+    post_handle_pipeline_tree=post_handle_pipeline_tree,
+):
     template_constants = deepcopy(pipeline_tree["constants"])
+    pre_handle_pipeline_tree(pipeline_tree)
     PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes(pipeline_tree, exclude_task_nodes_id)
 
     constants_not_referred = {
         key: value for key, value in list(template_constants.items()) if key not in pipeline_tree["constants"]
     }
-
+    post_handle_pipeline_tree(pipeline_tree)
     return {"pipeline_tree": pipeline_tree, "constants_not_referred": constants_not_referred}

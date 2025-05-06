@@ -36,7 +36,7 @@
         <p
           v-if="formData.desc"
           class="plugin-info-desc"
-          v-html="filterXSS(formData.desc)" />
+          v-html="transformPluginDesc(formData.desc)" />
         <!-- API插件轮询提示 -->
         <p
           v-if="isApiPlugin && formData.polling"
@@ -977,6 +977,14 @@
         } catch (error) {
           console.warn(error);
         }
+      },
+      transformPluginDesc(data) {
+        const info = data.replace(/\n/g, '<br>');
+        return this.filterXSS(info, {
+          whiteList: {
+            br: [],
+          },
+        });
       },
     },
   };
