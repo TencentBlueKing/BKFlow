@@ -32,58 +32,10 @@
 <script>
   import { mapState } from 'vuex';
   import MenuSelect from './MenuSelect.vue';
-  import i18n from '@/config/i18n/index.js';
   import bus from '@/utils/bus.js';
+  import { SPACE_LIST, ROUTE_LIST_MAP } from '@/constants/route.js';
 
-  const SPACE_LIST = [
-    {
-      name: i18n.t('流程'),
-      icon: 'common-icon-flow-menu',
-      id: 'template',
-      disabled: false,
-      subRoutes: ['templatePanel', 'templateMock'],
-    },
-    {
-      name: i18n.t('任务'),
-      icon: 'common-icon-task-menu',
-      id: 'task',
-      disabled: false,
-      subRoutes: ['taskExecute'],
-    },
-    {
-      name: i18n.t('调试任务'),
-      icon: 'common-icon-mock-menu',
-      id: 'mockTask',
-      disabled: false,
-    },
-    {
-      name: i18n.t('决策表'),
-      icon: 'common-icon-decision-menu',
-      id: 'decisionTable',
-      disabled: false,
-      subRoutes: ['decisionEdit'],
-    },
-    {
-      name: i18n.t('空间配置'),
-      icon: 'common-icon-bkflow-setting',
-      id: 'config',
-      disabled: false,
-    },
-  ];
-  const MODULES_LIST = [
-    {
-      name: i18n.t('空间配置'),
-      icon: 'common-icon-space',
-      id: 'space',
-      disabled: false,
-    },
-    {
-      name: i18n.t('模块配置'),
-      icon: 'common-icon-module',
-      id: 'module',
-      disabled: false,
-    },
-  ];
+
   export default {
     name: 'NavigationMenu',
     components: {
@@ -100,6 +52,7 @@
         currentNav: '',
         routerList: [],
         randomKey: null,
+        menuRouteName: '',
       };
     },
     computed: {
@@ -107,18 +60,17 @@
         spaceId: state => state.spaceId,
       }),
       isSpaceManager() {
-        return this.$route.name !== 'systemAdmin';
+        return !['systemAdmin', 'pluginAdmin'].includes(this.$route.name);
       },
     },
     watch: {
       $route: {
         handler(val) {
-          if (val.meta.admin) {
-            const list = val.name === 'spaceAdmin' ? SPACE_LIST : MODULES_LIST;
-            this.routerList = list.slice(0);
-          } else {
-            this.routerList = SPACE_LIST.slice(0);
-          }
+          const { meta, name } = val;
+          const isAdminRouter = meta.admin && ROUTE_LIST_MAP[name];
+          this.menuRouteName = isAdminRouter ? name : 'spaceAdmin';
+          const list = isAdminRouter ? ROUTE_LIST_MAP[name] : SPACE_LIST;
+          this.routerList = [...list];
           this.setNavigationTitle(val);
         },
         immediate: true,
@@ -136,12 +88,7 @@
     methods: {
       setNavigationTitle(route) {
         if (route.meta.admin) {
-          const defaultNab = route.name === 'spaceAdmin' ? 'template' : 'space';
-          this.currentNav = route.query.activeTab || defaultNab;
-          return;
-        }
-        if (route.name === 'EnginePanel') {
-          this.currentNav = route.query.type || 'task';
+          this.currentNav = route.query.activeTab || this.routerList[0].id;
           return;
         }
         this.routerList.some((item) => {
@@ -154,7 +101,7 @@
       },
       handleNavClick(id = this.currentNav) {
         this.$router.push({
-          name: this.isSpaceManager ? 'spaceAdmin' : 'systemAdmin',
+          name: this.menuRouteName,
           query: {
             space_id: this.isSpaceManager ? this.spaceId : undefined,
             activeTab: id,

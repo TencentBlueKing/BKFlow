@@ -68,6 +68,7 @@ class BaseSpaceConfig(metaclass=SpaceConfigMeta):
     default_value = None  # 默认值
     choices = None  # 配置值可选项列表，适用于 TEXT 类型
     example = None  # 配置值示例
+    is_mix_type = False
 
     @classmethod
     def to_dict(cls):
@@ -79,6 +80,7 @@ class BaseSpaceConfig(metaclass=SpaceConfigMeta):
             "default_value": cls.default_value,
             "choices": cls.choices,
             "example": cls.example,
+            "is_mix_type": cls.is_mix_type,
         }
 
     @classmethod
@@ -300,7 +302,39 @@ class GatewayExpressionConfig(BaseSpaceConfig):
 
 class ApiGatewayCredentialConfig(BaseSpaceConfig):
     name = "api_gateway_credential_name"
-    desc = _("API_GATEWAY使用的凭证名称")
+    desc = _("API_GATEWAY使用的凭证配置")
+    example = {"default": "{default_credential_name}", "{scope_type}_{scope_id}": "{credential_name}"}
+    value_type = SpaceConfigValueType.TEXT.value
+    is_mix_type = True
+
+    SCHEMA = {
+        "type": "object",
+        "patternProperties": {
+            "^[^{]+_[^{]+$": {"type": "string"},
+        },
+        "additionalProperties": False,
+        "required": ["default"],  # 必须存在 default 配置
+        "properties": {"default": {"type": "string"}},
+    }
+
+    @classmethod
+    def validate(cls, value):
+        if isinstance(value, str):
+            return True
+        if isinstance(value, dict):
+            try:
+                jsonschema.validate(value, cls.SCHEMA)
+                return True
+            except jsonschema.ValidationError as e:
+                raise ValidationError(f"[validate api_gateway_credential error]: {str(e)}")
+        else:
+            raise ValidationError(
+                (
+                    "[validate api_gateway_credential error]: "
+                    "api_gateway_credential only support string or list of json: "
+                    f"{cls.example}"
+                )
+            )
 
 
 class SpacePluginConfig(BaseSpaceConfig):

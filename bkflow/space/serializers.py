@@ -60,6 +60,10 @@ class SpaceConfigBaseQuerySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
 
 
+class CredentialBaseQuerySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+
+
 class SpaceConfigBatchApplySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
     configs = serializers.DictField(help_text=_("空间配置"))
@@ -73,10 +77,14 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
 
 
 class CredentialSerializer(serializers.ModelSerializer):
+    create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+    update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+
     def to_representation(self, instance):
         data = super(CredentialSerializer, self).to_representation(instance)
         credential = CredentialDispatcher(credential_type=instance.type, data=instance.content)
         if credential:
+            data["content"] = credential.display_value()
             data["data"] = credential.display_value()
         else:
             data["data"] = {}

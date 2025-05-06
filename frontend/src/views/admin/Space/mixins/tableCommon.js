@@ -94,6 +94,7 @@ const tableCommon = {
     },
     handleSearchSelectChange(val) {
       this.requestData = val;
+      this.pagination.current = 1;
       this.getList();
     },
     getList() {

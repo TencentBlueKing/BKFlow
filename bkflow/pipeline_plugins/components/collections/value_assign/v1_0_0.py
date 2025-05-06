@@ -18,19 +18,43 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+import json
+from enum import Enum
+
+from bamboo_engine.eri import ContextValueType
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.core.flow.io import ObjectItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 
-from bkflow.constants import formatted_key_pattern
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 
 __group_name__ = _("蓝鲸服务(BK)")
 
 
+class ValueConvertType(Enum):
+    """
+
+    :param Enum: [description]
+    :type Enum: [type]
+    """
+
+    STRING = "String"
+    INT = "Int"
+    OBJECT = "Object"
+    BOOL = "Bool"
+
+
 class ValueAssignService(BKFlowBaseService):
+
+    type_mapping = {
+        ValueConvertType.STRING.value: str,
+        ValueConvertType.INT.value: int,
+        ValueConvertType.BOOL.value: bool,
+        ValueConvertType.OBJECT.value: (dict, list),
+    }
+
     def inputs_format(self):
         return [
             self.InputItem(
@@ -46,6 +70,35 @@ class ValueAssignService(BKFlowBaseService):
     def outputs_format(self):
         # 插件返回内容
         return []
+
+    def convert_variable(self, data, data_type):
+        # 获取映射中的目标类型
+        target_type = self.type_mapping.get(data_type, None)
+        if target_type is None:
+            raise TypeError(f"Unknown data_type {data_type} provided.")
+
+        # Object 类型 仅为 dict list 用 json 包可以直接转换
+        if data_type == ValueConvertType.OBJECT.value:
+            if isinstance(data, self.type_mapping[ValueConvertType.OBJECT.value]):
+                # 如果已经是则直接返回
+                return data
+            try:
+                parsed_data = json.loads(data)
+                if not isinstance(parsed_data, target_type):
+                    raise TypeError(f"Parsed data is not of type {data_type}.")
+                return parsed_data
+            except json.JSONDecodeError:
+                raise TypeError(f"Cannot convert {data} to {data_type} due to JSON parsing error.")
+
+        # Bool 类型需要特判字符串处理
+        if data_type == ValueConvertType.BOOL.value:
+            if isinstance(data, str):
+                if data.lower() in ("true", "yes", "1"):
+                    return True
+                elif data.lower() in ("false", "no", "0"):
+                    return False
+
+        return target_type(data)
 
     def plugin_execute(self, data, parent_data):
         runtime = BambooDjangoRuntime()
@@ -71,6 +124,8 @@ class ValueAssignService(BKFlowBaseService):
             # 循环处理表格中的内容 检查是否存在/类型问题后再统一事务批量执行
             input_val = assign["value"]
             target_var = assign["key"]
+            target_var_type = assign.get("value_type", None)
+
             target_var_str = "${{{}}}".format(target_var)
             context = context_dict.get(target_var_str)
             if not context:
@@ -79,20 +134,49 @@ class ValueAssignService(BKFlowBaseService):
                 data.outputs.ex_data = err_msg
                 return False
 
-            # 处理输入变量与目标变量的类型转换(输入常量时) 如果是相同类型则必然成功
-            try:
-                # 尝试将输入转换为目标变量类型
-                if not formatted_key_pattern.fullmatch(input_val):
+            if not target_var_type:
+                # 兼容已有插件内容
+                try:
                     input_val = type(context.value)(input_val)
-            except (ValueError, TypeError):
-                err_msg = "input variable '{}' cannot be converted to the type of target variable '{}': {}".format(
-                    input_val, target_var, type(context.value).__name__
-                )
+                except (ValueError, TypeError):
+                    err_msg = "input variable '{}' cannot be converted to the type of target variable '{}': {}".format(
+                        input_val, target_var, type(context.value).__name__
+                    )
                 self.logger.exception(err_msg)
                 data.outputs.ex_data = err_msg
                 return False
+            else:
+                # 新的逻辑
+                # 被赋值变量仅能是 PLAIN 类型
+                if context.type != ContextValueType.PLAIN:
+                    err_msg = "splice or compute variable {} not supported".format(context)
+                    self.logger.exception(err_msg)
+                    data.outputs.ex_data = err_msg
+                    return False
 
-            # 更新上下文并放入字典
+                if target_var_type != ValueConvertType.OBJECT.value and not isinstance(
+                    context.value, self.type_mapping.get(target_var_type, None)
+                ):
+                    # 由于 bool 是 int 的子类 所以会判断为相同
+                    err_msg = "expected type {} not match target variable type {}".format(
+                        target_var_type, type(context.value)
+                    )
+                    self.logger.exception(err_msg)
+                    data.outputs.ex_data = err_msg
+                    return False
+
+                try:
+                    # 尝试将输入转换为期望类型
+                    input_val = self.convert_variable(input_val, target_var_type)
+                except (ValueError, TypeError):
+                    err_msg = "input variable '{}' cannot be converted to the type of expected {}".format(
+                        input_val, target_var_type
+                    )
+                    self.logger.exception(err_msg)
+                    data.outputs.ex_data = err_msg
+                    return False
+
+            # 更新上下文并放入字典 (包括形式为变量的情况 ex. ${var})
             context.value = input_val
             contexts.append(context)
         runtime.update_context_values(pipeline_id=pipeline_id, context_values=contexts)
@@ -106,4 +190,11 @@ class ValueAssignComponent(Component):
     bound_service = ValueAssignService
     form = settings.STATIC_URL + "components/value_assign/v1_0_0.js"
     version = "v1.0.0"
-    desc = "该插件用于对变量进行赋值操作，并在赋值前进行基础的类型校验"
+    desc = _(
+        "插件功能：用于对部分变量进行赋值操作 \n"
+        "支持变量：输入输出勾选变量、部分自定义变量（输入框、文本框、整数 \n"
+        "赋值过程：插件先根据赋值框选定的类型对值进行类型转换，后赋值给对应变量 \n"
+        "类型转换特殊逻辑: \n"
+        "1. Object 类型：仅支持键值对和列表类型数据 \n"
+        '2. bool 类型"True","true","1",被赋值为True "False","false","0",赋值为 False 且 bool 可以被 int 赋值 \n'
+    )

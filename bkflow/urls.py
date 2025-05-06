@@ -36,6 +36,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^api/decision_table/", include("bkflow.decision_table.urls")),
         url(r"^api/space/", include("bkflow.space.urls")),
         url(r"^api/plugin/", include("bkflow.plugin.urls")),
+        url(r"^api/bk_plugin/", include("bkflow.bk_plugin.urls")),
         url(r"^api/admin/", include("bkflow.admin.urls")),
         url(r"^api/permission/", include("bkflow.permission.urls")),
         url(r"^api/plugin_query/", include("bkflow.pipeline_plugins.query.urls")),

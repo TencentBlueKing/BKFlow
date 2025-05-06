@@ -17,6 +17,8 @@
 
 <script>
   import { mapState } from 'vuex';
+  import { routeNameMap } from '@/constants/route.js';
+
   export default {
     name: 'NavigationHeadLeft',
     data() {
@@ -28,6 +30,7 @@
       ...mapState({
         isAdmin: state => state.isAdmin,
         isSpaceSuperuser: state => state.isSpaceSuperuser,
+        isBkPluginManager: state => state.isBkPluginManager,
       }),
       headerList() {
         return [
@@ -41,6 +44,11 @@
             id: 'system-manager',
             show: this.isAdmin,
           },
+          {
+            name: this.$t('我的插件'),
+            id: 'plugin-manager',
+            show: this.isBkPluginManager,
+          },
         ];
       },
     },
@@ -51,7 +59,7 @@
             this.navActive = '';
             return;
           }
-          this.navActive = val === 'systemAdmin' ? 'system-manager' : 'space-manager';
+          this.navActive = routeNameMap[val] || 'space-manager';
         },
         deep: true,
         immediate: true,
@@ -62,11 +70,8 @@
         const { meta } = this.$route;
         if (this.navActive === nav.id && meta.admin) return;
 
-        if (nav.id === 'space-manager') {
-          this.$router.push({ name: 'spaceAdmin' });
-        } else {
-          this.$router.push({ name: 'systemAdmin' });
-        }
+        const routeInfo = Object.entries(routeNameMap).find(routeInfo => routeInfo[1] === nav.id);
+        this.$router.push({ name: routeInfo[0] });
       },
     },
   };

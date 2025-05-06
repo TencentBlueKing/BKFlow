@@ -68,6 +68,7 @@ from bkflow.template.serializers.template import (
     DrawPipelineSerializer,
     PreviewTaskTreeSerializer,
     TemplateBatchDeleteSerializer,
+    TemplateCopySerializer,
     TemplateMockDataBatchCreateSerializer,
     TemplateMockDataListSerializer,
     TemplateMockDataQuerySerializer,
@@ -141,7 +142,6 @@ class AdminTemplateViewSet(AdminModelViewSet):
                     space_id=space_id, template_id=ser.data["template_id"]
                 )
             )
-
         create_task_data = dict(ser.data)
         create_task_data["scope_type"] = template.scope_type
         create_task_data["scope_value"] = template.scope_value
@@ -176,6 +176,23 @@ class AdminTemplateViewSet(AdminModelViewSet):
                 is_deleted=True
             )
         return Response({"delete_num": update_num})
+
+    @swagger_auto_schema(method="POST", operation_description="流程模版复制", request_body=TemplateCopySerializer)
+    @action(methods=["POST"], detail=False, url_path="template_copy")
+    def copy_template(self, request, *args, **kwargs):
+        ser = TemplateCopySerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
+        try:
+            template = Template.objects.copy_template(template_id, space_id, request.user.username)
+        except Template.DoesNotExist:
+            err_msg = f"模版不存在, space_id={space_id}, template_id={template_id}"
+            logger.error(str(err_msg))
+            return Response(exception=True, data={"detail": err_msg})
+        except ValidationError as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": str(e)})
+        return Response(data={"template_id": template.id, "template_name": template.name})
 
 
 class TemplateViewSet(UserModelViewSet):
@@ -276,9 +293,12 @@ class TemplateViewSet(UserModelViewSet):
         try:
             appoint_node_ids = serializer.validated_data["appoint_node_ids"]
             pipeline_tree = template.pipeline_tree
-            exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
-                pipeline_tree, appoint_node_ids
-            )
+            if not serializer.validated_data["is_all_nodes"]:
+                exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
+                    pipeline_tree, appoint_node_ids
+                )
+            else:
+                exclude_task_nodes_id = None
             data = preview_template_tree(pipeline_tree, exclude_task_nodes_id)
         except Exception as e:
             message = f"[preview task tree] error: {e}"

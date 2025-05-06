@@ -54,3 +54,4 @@ Werkzeug==1.0.1
 requests==2.28.2
 django-dbconn-retry==0.1.5
 jmespath==1.0.1
+pyinstrument==3.1.3

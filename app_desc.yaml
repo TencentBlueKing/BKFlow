@@ -1,5 +1,5 @@
 spec_version: 2
-app_version: "1.9.3"
+app_version: "1.10.0"
 app:
   region: default
   bk_app_code: &APP_CODE bk_flow_engine
@@ -141,4 +141,8 @@ modules:
       beat:
         command: celery beat -A blueapps.core.celery -l info
         plan: 4C1G5R
+        replicas: 1
+      clean-worker:
+        command: celery worker -A blueapps.core.celery -P threads -Q clean_task_${BKFLOW_MODULE_CODE} -n clean_worker@%h -c 100 -l info
+        plan: 4C4G5R
         replicas: 1

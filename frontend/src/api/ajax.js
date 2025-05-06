@@ -8,6 +8,7 @@ import i18n from '@/config/i18n/index.js';
 import bus from '@/utils/bus.js';
 import store from '@/store/index.js';
 import { showLoginModal } from '@blueking/login-modal';
+import { generateTraceId } from '@/utils/uuid.js';
 
 axios.defaults.baseURL = window.SITE_URL;
 axios.defaults.xsrfCookieName = `${window.APP_CODE}_csrftoken`;
@@ -18,6 +19,7 @@ axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 axios.interceptors.request.use(
   (config) => {
     config.headers['Bkflow-TOKEN'] = store.state.token || '';
+    config.headers.TRACEPARENT = generateTraceId();
     return config;
   },
   error => Promise.reject(error)

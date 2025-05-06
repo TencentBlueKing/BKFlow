@@ -127,7 +127,7 @@
                 {{ plugin.introduction || '--' }}
               </p>
               <p class="plugin-contact">
-                {{ $t('由') + ' ' + plugin.contact + ' ' + $t('提供') }}
+                {{ $t('由') + ' ' + plugin.managers && plugin.managers.join(',') + ' ' + $t('提供') }}
               </p>
             </div>
           </div>
@@ -204,9 +204,12 @@
         thirdPluginGroup: [],
         thirdPluginTagsLoading: false,
         thirdPluginLoading: false,
-        thirdPluginPagelimit: 15,
-        isThirdPluginCompleteLoading: false,
-        thirdPluginOffset: 0,
+        isCompleted: false, // 第三方插件是否加载完毕
+        pagination: {
+          current: 1,
+          count: 0,
+          limit: 15,
+        },
         searchStr: '',
         bkPluginDevelopUrl: window.BK_PLUGIN_DEVELOP_URL,
         apiTabList: [],
@@ -292,26 +295,25 @@
         try {
           this.thirdPluginLoading = true;
           // 搜索时拉取全量插件列表
+          const { limit, current } = this.pagination;
           const params = {
-            fetch_all: this.searchStr ? true : undefined,
-            limit: this.thirdPluginPagelimit,
-            offset: this.thirdPluginOffset,
+            limit,
+            offset: (current - 1) * limit,
+            tag: this.thirdActiveGroup || undefined,
+            space_id: this.spaceId,
             search_term: this.searchStr || undefined,
-            exclude_not_deployed: true,
-            tag_id: this.thirdActiveGroup || undefined,
           };
-          const resp = await this.$store.dispatch('atomForm/loadPluginServiceList', params);
-          const { next_offset: nextOffset, plugins, return_plugin_count: pluginCount } = resp.data;
+          const resp = await this.$store.dispatch('plugin/loadBkPluginList', params);
+          const { plugins, count } = resp.data;
           const searchStr = this.escapeRegExp(this.searchStr);
           const reg = new RegExp(searchStr, 'i');
           const pluginTagIds = [];
-          let pluginList = plugins.map((item) => {
-            const pluginItem = Object.assign({}, item.plugin, item.profile);
+          let pluginList = plugins.map((plugin) => {
             if (this.searchStr !== '') {
-              pluginItem.highlightName = this.filterXSS(item.plugin.name).replace(reg, `<span style="color: #ff9c01;">${this.searchStr}</span>`);
-              pluginTagIds.push(item.profile.tag || -1);
+              plugin.highlightName = this.filterXSS(plugin.name).replace(reg, `<span style="color: #ff9c01;">${this.searchStr}</span>`);
+              pluginTagIds.push(plugin.tag || -1);
             }
-            return pluginItem;
+            return plugin;
           });
           if (this.searchStr) {
             // 当第三方插件搜索时，反向映射插件分类
@@ -325,11 +327,9 @@
             });
             pluginList = pluginList.filter(item => this.thirdActiveGroup === (item.tag || -1));
           }
-          this.thirdPluginOffset = pluginCount ? nextOffset : 0;
+          this.pagination.count = count;
           this.thirdPartyPlugin.push(...pluginList);
-          if (nextOffset === -1 || pluginCount < this.thirdPluginPagelimit) {
-            this.isThirdPluginCompleteLoading = true;
-          }
+          this.isCompleted = count <= current * limit;
         } catch (error) {
           console.warn(error);
         } finally {
@@ -347,17 +347,18 @@
         // 规则为容器高度除以每条的高度，考虑到后续可能需要触发容器滚动事件，在实际可容纳的条数上再增加1条
         // @notice: 每个流程条目的高度需要固定，目前取的css定义的高度80px
         if (height > 0) {
-          this.thirdPluginPagelimit = Math.ceil(height / 80) + 1;
+          this.pagination.limit = Math.ceil(height / 80) + 1;
         }
         this.getThirdPartyPlugin();
       },
       // 滚动加载逻辑
       handleThirdParPluginScroll(e) {
-        if (this.thirdPluginLoading || this.isThirdPluginCompleteLoading) {
+        if (this.thirdPluginLoading || this.isCompleted) {
           return;
         }
         const { scrollTop, clientHeight, scrollHeight } = e.target;
         if (scrollHeight - scrollTop - clientHeight < 10) {
+          this.pagination.current += 1;
           this.getThirdPartyPlugin();
         }
       },
@@ -390,7 +391,7 @@
           const { id = '' } = this.thirdPluginGroup[0];
           this.thirdActiveGroup = val ? '' : id;
           this.thirdPartyPlugin = [];
-          this.thirdPluginOffset = 0;
+          this.pagination.current = 1;
           this.setThirdParScrollLoading();
         }
       },
@@ -478,8 +479,8 @@
       onSelectThirdGroup(val) {
         this.thirdActiveGroup = val;
         this.thirdPartyPlugin = [];
-        this.isThirdPluginCompleteLoading = false;
-        this.thirdPluginOffset = 0;
+        this.isCompleted = false;
+        this.pagination.current = 1;
         this.getThirdPartyPlugin();
       },
       async onSelectThirdPartyPlugin(plugin) {
