@@ -190,5 +190,11 @@ class ValueAssignComponent(Component):
     bound_service = ValueAssignService
     form = settings.STATIC_URL + "components/value_assign/v1_0_0.js"
     version = "v1.0.0"
-    desc = """该插件用于对变量进行赋值操作, 并在赋值前进行基础的类型校验, object 类型仅支持键值对和列表
-    bool 类型\"True\",\"true\",\"1\",被赋值为True \"False\",\"false\",\"0\",赋值为 False 且 bool 可以被 int 赋值"""
+    desc = _(
+        "插件功能：用于对部分变量进行赋值操作 \n"
+        "支持变量：输入输出勾选变量、部分自定义变量（输入框、文本框、整数 \n"
+        "赋值过程：插件先根据赋值框选定的类型对值进行类型转换，后赋值给对应变量 \n"
+        "类型转换特殊逻辑: \n"
+        "1. Object 类型：仅支持键值对和列表类型数据 \n"
+        '2. bool 类型"True","true","1",被赋值为True "False","false","0",赋值为 False 且 bool 可以被 int 赋值 \n'
+    )
