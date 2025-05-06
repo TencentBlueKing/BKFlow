@@ -208,6 +208,9 @@
           font-size: 12px;
         }
       }
+      .tooltips-icon {
+        right: 20px !important;
+      }
       .value-selector {
         flex: 1;
         &.is-disabled {
