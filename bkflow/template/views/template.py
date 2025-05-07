@@ -25,7 +25,9 @@ from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
 from bkflow.apigw.serializers.task import (
@@ -37,6 +39,9 @@ from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperat
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import APIResponseError, ValidationError
+from bkflow.pipeline_converter.constants import DataTypes
+from bkflow.pipeline_converter.file_handlers import FileHandlerDispatcher
+from bkflow.pipeline_converter.hub import CONVERTER_HUB
 from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
 from bkflow.pipeline_web.preview import preview_template_tree
@@ -77,6 +82,7 @@ from bkflow.template.serializers.template import (
     TemplateOperationRecordSerializer,
     TemplateRelatedResourceSerializer,
     TemplateSerializer,
+    SimplifiedTemplateFileSerializer,
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
@@ -161,7 +167,9 @@ class AdminTemplateViewSet(AdminModelViewSet):
             raise APIResponseError(result["message"])
         return Response(result["data"])
 
-    @swagger_auto_schema(method="POST", operation_description="流程批量删除", request_body=TemplateBatchDeleteSerializer)
+    @swagger_auto_schema(
+        method="POST", operation_description="流程批量删除", request_body=TemplateBatchDeleteSerializer
+    )
     @action(methods=["POST"], detail=False, url_path="batch_delete")
     def batch_delete(self, request, *args, **kwargs):
         ser = TemplateBatchDeleteSerializer(data=request.data)
@@ -459,3 +467,31 @@ class TemplateMockTaskViewSet(mixins.ListModelMixin, GenericViewSet):
         client = TaskComponentClient(space_id=space_id)
         result = client.task_list(data={"template_id": template_id, "space_id": space_id, "create_method": "MOCK"})
         return Response(result)
+
+
+class UploadTemplateFileApiView(APIView):
+    permission_classes = [AdminPermission]
+    parser_classes = [MultiPartParser]
+
+    @swagger_auto_schema(request_body=SimplifiedTemplateFileSerializer())
+    def post(self, request, *args, **kwargs):
+        ser = SimplifiedTemplateFileSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        f = ser.validated_data["file"]
+        try:
+            handler = FileHandlerDispatcher(f).dispatch()
+            simplified_pipeline_tree = handler.handle()
+        except Exception as e:
+            logger.exception("upload template file failed")
+            return Response({"result": False, "message": str(e), "data": None})
+        json_pipeline_cvt = CONVERTER_HUB.get_converter_cls(
+            DataTypes.JSON.value, DataTypes.DATA_MODEL.value, "PipelineConverter"
+        )
+        dm_pipeline = json_pipeline_cvt(simplified_pipeline_tree).convert()
+
+        data_model_pipeline_cvt = CONVERTER_HUB.get_converter_cls(
+            DataTypes.DATA_MODEL.value, DataTypes.WEB_PIPELINE.value, "PipelineConverter"
+        )
+        web_pipeline_tree = data_model_pipeline_cvt(dm_pipeline).convert()
+        return Response({"result": True, "data": {"pipeline_tree": web_pipeline_tree}, "message": ""})

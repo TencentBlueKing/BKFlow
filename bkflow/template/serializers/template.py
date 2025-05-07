@@ -245,3 +245,7 @@ class PreviewTaskTreeSerializer(serializers.Serializer):
 class TemplateCopySerializer(serializers.Serializer):
     template_id = serializers.IntegerField(help_text=_("模板ID"), required=True)
     space_id = serializers.IntegerField(help_text=_("空间ID"), required=True)
+
+
+class SimplifiedTemplateFileSerializer(serializers.Serializer):
+    file = serializers.FileField(help_text="uploaded file")
