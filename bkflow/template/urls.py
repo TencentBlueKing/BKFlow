@@ -27,6 +27,7 @@ from bkflow.template.views.template import (
     TemplateMockSchemeViewSet,
     TemplateViewSet,
     TemplateMockTaskViewSet,
+    UploadTemplateFileApiView,
 )
 from bkflow.template.views.variable import VariableViewSet
 
@@ -40,4 +41,5 @@ router.register(r"", TemplateViewSet, basename="template")
 
 urlpatterns = [
     url(r"^", include(router.urls)),
+    url(r"^admin_only/upload_template_file/$", UploadTemplateFileApiView.as_view(), name="upload_template_file"),
 ]
