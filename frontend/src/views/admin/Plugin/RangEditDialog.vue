@@ -45,8 +45,7 @@
           </div>
           <bk-option
             v-if="!searchValue"
-            id="*"
-            :name="$t('* (对所有空间公开)')" />
+            v-bind="allSpaceOption" />
           <bk-option
             v-for="option in spaceList"
             :id="option.id"
@@ -88,6 +87,10 @@
         },
         totalPage: 1,
         searchValue: '',
+        allSpaceOption: {
+          id: '*',
+          name: this.$t('* (对所有空间公开)'),
+        },
         spaceList: [],
         isExpand: false,
         selectedOptions: [],
@@ -156,9 +159,18 @@
       },
       handleSpaceSelected(val, options) {
         // 最后一次选中的是否为全选
-        const lastOption = options[options.length - 1];
-        this.selectedOptions = lastOption?.id === '*' ? [lastOption] : options.filter(item => item.id !== '*');
-        this.formData.ids = lastOption?.id === '*' ? ['*'] : val.filter(v => v !== '*');
+        const isLastOptionSelectAll = val[val.length - 1] === '*';
+
+        // 存在一开始选中的空间在最后几页，列表里面不存在的清空。更新选项时，options会没有后面页选中的选项
+        const { white_list: whiteList } = this.row.config;
+        const selectedOptions = [...whiteList, ...options];
+        this.selectedOptions = isLastOptionSelectAll ? [this.allSpaceOption] : val.reduce((acc, id) => {
+          if (id === '*') return acc;
+          const option = selectedOptions.find(option => Number(option.id) === id);
+          option && acc.push(option);
+          return acc;
+        }, []);
+        this.formData.ids = isLastOptionSelectAll ? ['*'] : val.filter(v => v !== '*');
       },
       async handleScrollToBottom() {
         try {

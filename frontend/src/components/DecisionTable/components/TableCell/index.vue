@@ -24,9 +24,9 @@
     <!--查看态-->
     <div
       v-else
-      :class="['cell-text', { 'is-placeholder': !cellText }]"
+      :class="['cell-text', { 'is-placeholder': !hasCellText }]"
       @click="toggleEditing">
-      {{ cellText || cell.column.tips || $t('请输入') }}
+      {{ viewText }}
     </div>
     <!--异常态-->
     <div
@@ -96,6 +96,12 @@
       },
       errorTipContent() {
         return this.cellText ? i18n.t('暂不支持带有英文双引号(") 的输入值') : i18n.t('内容填写不完整');
+      },
+      hasCellText() {
+        return this.cellText || this.cellText === 0;
+      },
+      viewText() {
+        return this.hasCellText ? this.cellText : (this.cell.column.tips || this.$t('请输入'));
       },
     },
     watch: {

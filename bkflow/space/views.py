@@ -317,9 +317,9 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
                 desc=credential_data.get("desc"),
             )
         except DatabaseError as e:
-            errMsg = f"创建凭证失败 {str(e)}"
-            logger.error(errMsg)
-            return Response(errMsg, status=500)
+            err_msg = f"创建凭证失败 {str(e)}"
+            logger.error(err_msg)
+            return Response(exception=True, data={"detail": err_msg})
         response_serializer = CredentialSerializer(credential)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -327,9 +327,9 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         try:
             instance = self.get_object()
         except Credential.DoesNotExist as e:
-            errMsg = f"更新凭证不存在 {str(e)}"
-            logger.error(errMsg)
-            return Response(errMsg, status=404)
+            err_msg = f"更新凭证不存在 {str(e)}"
+            logger.error(err_msg)
+            return Response(err_msg, status=404)
 
         serializer = UpdateCredentialSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -342,9 +342,9 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         try:
             instance.save(update_fields=updated_keys)
         except DatabaseError as e:
-            errMsg = f"更新凭证失败 {str(e)}"
-            logger.error(errMsg)
-            return Response(errMsg, status=500)
+            err_msg = f"更新凭证失败 {str(e)}"
+            logger.error(err_msg)
+            return Response(exception=True, data={"detail": err_msg})
         # 序列化更新后的对象
         response_serializer = CredentialSerializer(instance)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
@@ -354,7 +354,7 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
             instance = self.get_object()
             instance.hard_delete()
         except Credential.DoesNotExist as e:
-            errMsg = f"删除凭证不存在 {str(e)}"
-            logger.error(errMsg)
-            return Response(errMsg, status=404)
+            err_msg = f"删除凭证不存在 {str(e)}"
+            logger.error(err_msg)
+            return Response(err_msg, status=404)
         return Response()
