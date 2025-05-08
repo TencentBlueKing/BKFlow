@@ -15,6 +15,11 @@
         {{ $t('创建流程') }}
       </bk-button>
       <bk-button
+        v-if="isAdmin"
+        @click="isImportTplDialogShow = true">
+        {{ $t('导入流程') }}
+      </bk-button>
+      <bk-button
         v-if="selectedTpls.length"
         @click="onBatchDelete">
         {{ $t('删除') }}
@@ -235,11 +240,14 @@
         </div>
       </div>
     </bk-dialog>
+    <importTemplateDialog
+      :is-show.sync="isImportTplDialogShow"
+      :space-id="spaceId" />
   </div>
 </template>
 
 <script>
-  import { mapActions, mapMutations } from 'vuex';
+  import { mapActions, mapMutations, mapState } from 'vuex';
   import CancelRequest from '@/api/cancelRequest.js';
   import NoData from '@/components/common/base/NoData.vue';
   import ReferenceList from './ReferenceList.vue';
@@ -249,6 +257,7 @@
   import TableOperate from '../common/TableOperate.vue';
   import CreateTaskSideslider from './CreateTaskSideslider.vue';
   import CreateTemplateDialog from './CreateTemplateDialog.vue';
+  import importTemplateDialog from './importTemplateDialog.vue';
   import i18n from '@/config/i18n/index.js';
 
   const TABLE_FIELDS = [
@@ -348,6 +357,7 @@
       TableOperate,
       CreateTemplateDialog,
       CreateTaskSideslider,
+      importTemplateDialog,
     },
     mixins: [tableHeader, tableCommon],
     data() {
@@ -375,9 +385,13 @@
         copyTemplateId: null,
         referencedProcessList: [], // 引用的流程列表
         decisionReferencedList: [], // 流程被决策表引用的决策表列表
+        isImportTplDialogShow: false,
       };
     },
     computed: {
+      ...mapState({
+        isAdmin: state => state.isAdmin,
+      }),
       crtPageSelectedAll() {
         return this.templateList.length > 0
           && this.templateList.every(item => this.selectedTpls.find(tpl => tpl.id === item.id));
