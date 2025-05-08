@@ -19,6 +19,12 @@ class NodeTypes(str, Enum):
     ]
 
 
+class ConstantTypes(str, Enum):
+    CUSTOM_CONSTANT = "custom"
+    COMPONENT_INPUTS_CONSTANT = "component_inputs"
+    COMPONENT_OUTPUTS_CONSTANT = "component_outputs"
+
+
 class DataTypes(str, Enum):
     DATA_MODEL = "data_model"
     JSON = "json"
