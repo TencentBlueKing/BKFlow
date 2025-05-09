@@ -333,7 +333,7 @@ class TestPipelineConverter:
                 {
                     "name": "test_name",
                     "type": ConstantTypes.CUSTOM_CONSTANT.value,
-                    "key": "${test_name}",
+                    "key": "test_name",
                     "value": "test_value",
                     "custom_type": "textarea",
                     "source_tag": "textarea.textarea",
@@ -342,7 +342,7 @@ class TestPipelineConverter:
                 {
                     "name": "执行结果",
                     "type": ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value,
-                    "key": "${_result_1}",
+                    "key": "_result_1",
                     "custom_type": "",
                     "source_tag": "",
                     "source_info": [{"key": "custom_node", "value": "_result"}],
@@ -400,7 +400,7 @@ class TestPipelineConverter:
                 {
                     "name": "bk_display_message",
                     "type": ConstantTypes.COMPONENT_INPUTS_CONSTANT.value,
-                    "key": "${bk_display_message}",
+                    "key": "bk_display_message",
                     "value": "test_value",
                     "custom_type": "",
                     "source_tag": "bk_display.bk_display_message",

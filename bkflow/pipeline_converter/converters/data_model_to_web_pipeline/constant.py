@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 from bkflow.pipeline_converter.constants import ConstantTypes
 from bkflow.pipeline_converter.converters.base import DataModelToPipelineTreeConverter
+from bkflow.pipeline_converter.validators.constant import (
+    ComponentInputValidator,
+    ConstantValidator,
+)
 from bkflow.pipeline_converter.validators.node import NodeTypeValidator
 
 
@@ -13,13 +17,13 @@ class SourceInfoConverter(DataModelToPipelineTreeConverter):
 
 
 class CustomConstantConverter(DataModelToPipelineTreeConverter):
-    validators = [NodeTypeValidator(ConstantTypes.CUSTOM_CONSTANT.value)]
+    validators = [NodeTypeValidator(ConstantTypes.CUSTOM_CONSTANT.value), ConstantValidator()]
 
     def convert(self):
         converter_data = self.source_data
         self.target_data = {
             "name": converter_data.name,
-            "key": converter_data.key,
+            "key": f"${{{converter_data.key}}}",
             "desc": converter_data.desc,
             "value": converter_data.value,
             "custom_type": converter_data.custom_type,
@@ -37,13 +41,13 @@ class CustomConstantConverter(DataModelToPipelineTreeConverter):
 
 
 class ComponentInputConverter(DataModelToPipelineTreeConverter):
-    validators = [NodeTypeValidator(ConstantTypes.COMPONENT_INPUTS_CONSTANT.value)]
+    validators = [NodeTypeValidator(ConstantTypes.COMPONENT_INPUTS_CONSTANT.value), ComponentInputValidator()]
 
     def convert(self):
         converter_data = self.source_data
         self.target_data = {
             "name": converter_data.name,
-            "key": converter_data.key,
+            "key": f"${{{converter_data.key}}}",
             "desc": converter_data.desc,
             "value": [converter_data.value],
             "custom_type": converter_data.custom_type,
@@ -66,7 +70,7 @@ class ComponentOutputConverter(DataModelToPipelineTreeConverter):
         converter_data = self.source_data
         self.target_data = {
             "name": converter_data.name,
-            "key": converter_data.key,
+            "key": f"${{{converter_data.key}}}",
             "desc": converter_data.desc,
             "value": converter_data.value,
             "custom_type": converter_data.custom_type,

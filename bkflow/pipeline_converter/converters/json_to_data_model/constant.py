@@ -7,6 +7,10 @@ from bkflow.pipeline_converter.data_models import (
     CustomConstant,
     SourceInfo,
 )
+from bkflow.pipeline_converter.validators.constant import (
+    JsonComponentInputValidator,
+    JsonConstantValidator,
+)
 from bkflow.pipeline_converter.validators.node import JsonNodeTypeValidator
 
 
@@ -20,7 +24,7 @@ class SourceInfoConverter(JsonToDataModelConverter):
 
 
 class CustomConstantConverter(JsonToDataModelConverter):
-    validators = [JsonNodeTypeValidator(ConstantTypes.CUSTOM_CONSTANT.value)]
+    validators = [JsonNodeTypeValidator(ConstantTypes.CUSTOM_CONSTANT.value), JsonConstantValidator()]
 
     def convert(self):
         self.target_data = CustomConstant(
@@ -43,7 +47,7 @@ class CustomConstantConverter(JsonToDataModelConverter):
 
 
 class ComponentInputConverter(JsonToDataModelConverter):
-    validators = [JsonNodeTypeValidator(ConstantTypes.COMPONENT_INPUTS_CONSTANT.value)]
+    validators = [JsonNodeTypeValidator(ConstantTypes.COMPONENT_INPUTS_CONSTANT.value), JsonComponentInputValidator()]
 
     def convert(self):
         self.target_data = ComponentInputConstant(

@@ -66,6 +66,7 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
                 self.target_data[PE.gateways][node.id] = gateway_data
 
         # 常量数据转换
+        self.validate_constant(self.target_data[PE.activities], constants)
         self.target_data[PE.constants] = self.constant_converter(constants)
         # 连线数据转换
         flows = self._generate_flows_by_nodes(nodes)
@@ -98,7 +99,7 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
             )
             constant_data = converter_cls(constant).convert()
             constant_data["index"] = index
-            result[constant.key] = constant_data
+            result[constant_data.get("key")] = constant_data
         return result
 
     @staticmethod
@@ -158,3 +159,34 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
                 flow_id = flow_id_map.get((gateway_id, condition_node))
                 new_conditions[flow_id] = {"name": condition["name"], "evaluate": condition["evaluate"]}
             gateway["conditions"] = new_conditions
+
+    @staticmethod
+    def validate_constant(nodes, constants):
+        validate_types = [ConstantTypes.COMPONENT_INPUTS_CONSTANT.value, ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value]
+
+        for constant in constants:
+            # 只检查组件输入/输出类型的常量
+            if constant.type not in validate_types:
+                continue
+
+            constant_name = constant.name
+
+            for info in constant.source_info:
+                node_id = info.key
+                # 检查源节点是否存在
+                if node_id not in nodes:
+                    raise ValueError(f"常量{constant_name}的源节点{node_id}不存在")
+
+                if constant.type == ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value:
+                    continue
+
+                constant_node = nodes[node_id]["component"]
+                code, component_file = constant.source_tag.split(".")
+
+                # 检查组件code是否匹配
+                if code != constant_node["code"]:
+                    raise ValueError(f"常量{constant_name}的source_tag字段信息与源节点{node_id}的组件信息不匹配")
+
+                # 检查目标字段是否存在
+                if component_file not in constant_node["data"]:
+                    raise ValueError(f"常量{constant_name}的源节点{node_id}的字段{component_file}不存在")
