@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Union
 
 from pydantic import BaseModel
 
-from bkflow.pipeline_converter.constants import NodeTypes
+from bkflow.pipeline_converter.constants import ConstantTypes, NodeTypes
 
 
 class Node(BaseModel):
@@ -100,14 +100,42 @@ class ConditionalParallelGateway(ExclusiveGateway, ParallelGateway):
     type: str = NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value
 
 
+class SourceInfo(BaseModel):
+    key: str
+    value: str
+
+
 class Constant(BaseModel):
     name: str
-    type: str
+    type: str  # source_type
     key: str
     value: Any
     version: str = "legacy"
-    source_type: str
-    pre_render_mako: bool = False
+    desc: str = ""
+    show_type: str = "show"
+    validation: str = ""
+    custom_type: str
+    source_info: List[SourceInfo]
+    source_tag: str
+
+
+class CustomConstant(Constant):
+    type: str = ConstantTypes.CUSTOM_CONSTANT.value
+    pre_render_make: bool = False
+    is_meta: bool = False
+
+
+class ComponentInputConstant(Constant):
+    type: str = ConstantTypes.COMPONENT_INPUTS_CONSTANT.value
+    plugin_code: str = ""
+    extra_info: Dict[str, Any]
+
+
+class ComponentOutConstant(Constant):
+    type: str = ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value
+    show_type: str = "hide"
+    plugin_code: str = ""
+    extra_info: Dict[str, Any]
 
 
 class Extensions(BaseModel):
