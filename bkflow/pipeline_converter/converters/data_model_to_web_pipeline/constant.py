@@ -58,7 +58,6 @@ class ComponentInputConverter(DataModelToPipelineTreeConverter):
             "validation": converter_data.validation,
             "version": converter_data.version,
             "plugin_code": converter_data.plugin_code,
-            "extra_info": converter_data.extra_info,
         }
         return self.target_data
 
@@ -80,6 +79,5 @@ class ComponentOutputConverter(DataModelToPipelineTreeConverter):
             "source_info": SourceInfoConverter(converter_data.source_info).convert(),
             "validation": converter_data.validation,
             "plugin_code": converter_data.plugin_code,
-            "extra_info": converter_data.extra_info,
         }
         return self.target_data

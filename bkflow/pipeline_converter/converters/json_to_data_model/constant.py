@@ -59,7 +59,6 @@ class ComponentInputConverter(JsonToDataModelConverter):
             type=ConstantTypes.COMPONENT_INPUTS_CONSTANT.value,
             source_info=SourceInfoConverter(self.source_data["source_info"]).convert(),
             version=self.source_data["version"],
-            extra_info=self.source_data["extra_info"],
         )
         default_optional_field = ["desc", "validation", "version", "show_type", "plugin_code"]
         for field in default_optional_field:
@@ -82,7 +81,6 @@ class ComponentOutputConverter(JsonToDataModelConverter):
             source_tag=self.source_data["source_tag"],
             type=ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value,
             source_info=SourceInfoConverter(self.source_data["source_info"]).convert(),
-            extra_info=self.source_data["extra_info"],
         )
         default_optional_field = ["desc", "validation", "show_type", "plugin_code"]
         for field in default_optional_field:

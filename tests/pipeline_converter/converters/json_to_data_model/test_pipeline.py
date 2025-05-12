@@ -244,7 +244,7 @@ class TestPipelineConverter:
                 {
                     "name": "test_name",
                     "type": ConstantTypes.CUSTOM_CONSTANT.value,
-                    "key": "${test_name}",
+                    "key": "test_name",
                     "value": "test_value",
                     "custom_type": "textarea",
                     "source_tag": "textarea.textarea",
@@ -347,7 +347,6 @@ class TestPipelineConverter:
                     "source_tag": "",
                     "source_info": [{"key": "custom_node", "value": "_result"}],
                     "value": "",
-                    "extra_info": {},
                 },
             ],
         }
@@ -406,7 +405,6 @@ class TestPipelineConverter:
                     "source_tag": "bk_display.bk_display_message",
                     "version": "v1.0",
                     "source_info": [{"key": "custom_node", "value": "bk_display_message"}],
-                    "extra_info": {},
                 }
             ],
         }

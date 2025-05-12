@@ -128,14 +128,12 @@ class CustomConstant(Constant):
 class ComponentInputConstant(Constant):
     type: str = ConstantTypes.COMPONENT_INPUTS_CONSTANT.value
     plugin_code: str = ""
-    extra_info: Dict[str, Any]
 
 
 class ComponentOutConstant(Constant):
     type: str = ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value
     show_type: str = "hide"
     plugin_code: str = ""
-    extra_info: Dict[str, Any]
 
 
 class Extensions(BaseModel):
