@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+import os
 
 from .json_handler import JsonFileHandler
+from .yaml_handler import YamlFileHandler
 
 
 class FileHandlerDispatcher:
@@ -8,8 +10,14 @@ class FileHandlerDispatcher:
         self.file = file
 
     def dispatch(self):
-        if self.file.name.endswith(".json"):
-            handler = JsonFileHandler(self.file)
-        else:
+        handler_map = {
+            ".json": JsonFileHandler,
+            ".yaml": YamlFileHandler,
+        }
+
+        try:
+            file_ext = os.path.splitext(self.file.name)[1]
+            handler_class = handler_map[file_ext]
+            return handler_class(self.file)
+        except KeyError:
             raise ValueError("Unsupported file type")
-        return handler
