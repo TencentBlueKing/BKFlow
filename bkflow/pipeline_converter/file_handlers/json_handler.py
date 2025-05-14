@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 import json
+import logging
 
 from bkflow.pipeline_converter.file_handlers.base import BaseFileHandler
+
+logger = logging.getLogger(__name__)
 
 
 class JsonFileHandler(BaseFileHandler):
@@ -13,4 +16,5 @@ class JsonFileHandler(BaseFileHandler):
             return data
         except json.JSONDecodeError as e:
             # 处理JSON解析错误
+            logger.exception(f"JSON解析失败: {str(e)}")
             raise ValueError(f"JSON解析失败: {str(e)}")
