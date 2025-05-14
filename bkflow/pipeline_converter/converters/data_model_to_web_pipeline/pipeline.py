@@ -5,8 +5,13 @@ from pipeline.core.constants import PE
 from pipeline.parser.utils import replace_all_id
 from pipeline.utils.uniqid import line_uniqid
 
-from bkflow.pipeline_converter.constants import NodeTypes
+from bkflow.pipeline_converter.constants import ConstantTypes, NodeTypes
 from bkflow.pipeline_converter.converters.base import DataModelToPipelineTreeConverter
+from bkflow.pipeline_converter.converters.data_model_to_web_pipeline.constant import (
+    ComponentInputConverter,
+    ComponentOutputConverter,
+    CustomConstantConverter,
+)
 from bkflow.pipeline_converter.converters.data_model_to_web_pipeline.gateway import (
     ConditionalParallelGatewayConverter,
     ConvergeGatewayConverter,
@@ -19,6 +24,7 @@ from bkflow.pipeline_converter.converters.data_model_to_web_pipeline.node import
     StartNodeConverter,
 )
 from bkflow.pipeline_converter.data_models import Flow, Node, Pipeline
+from bkflow.pipeline_converter.hub import ConverterHub
 
 
 class PipelineConverter(DataModelToPipelineTreeConverter):
@@ -28,6 +34,7 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
         """
         pipeline: Pipeline = self.source_data
         nodes: List[Node] = pipeline.nodes
+        constants = pipeline.constants
         self.target_data = {
             PE.id: pipeline.id,
             PE.name: pipeline.name,
@@ -57,6 +64,10 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
             elif node.type in NodeTypes.GATEWAYS:
                 gateway_data = gateway_mapping[node.type](node).convert()
                 self.target_data[PE.gateways][node.id] = gateway_data
+
+        # 常量数据转换
+        self.validate_constant(self.target_data[PE.activities], constants)
+        self.target_data[PE.constants] = self.constant_converter(constants)
         # 连线数据转换
         flows = self._generate_flows_by_nodes(nodes)
         self.target_data[PE.flows] = {flow.id: flow.dict() for flow in flows}
@@ -72,6 +83,24 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
         # 这里确保每次转换后 id 都是唯一的，避免重复
         replace_all_id(self.target_data)
         return self.target_data
+
+    def constant_converter(self, constants):
+        constant_type_converter_cls_name_map = {
+            ConstantTypes.CUSTOM_CONSTANT.value: CustomConstantConverter.__name__,
+            ConstantTypes.COMPONENT_INPUTS_CONSTANT.value: ComponentInputConverter.__name__,
+            ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value: ComponentOutputConverter.__name__,
+        }
+        result = {}
+        for index, constant in enumerate(constants):
+            converter_cls = ConverterHub.get_converter_cls(
+                source=self.source,
+                target=self.target,
+                converter_name=constant_type_converter_cls_name_map[constant.type],
+            )
+            constant_data = converter_cls(constant).convert()
+            constant_data["index"] = index
+            result[constant_data.get("key")] = constant_data
+        return result
 
     @staticmethod
     def _generate_flows_by_nodes(nodes: List[Node]) -> List[Flow]:
@@ -130,3 +159,34 @@ class PipelineConverter(DataModelToPipelineTreeConverter):
                 flow_id = flow_id_map.get((gateway_id, condition_node))
                 new_conditions[flow_id] = {"name": condition["name"], "evaluate": condition["evaluate"]}
             gateway["conditions"] = new_conditions
+
+    @staticmethod
+    def validate_constant(nodes, constants):
+        validate_types = [ConstantTypes.COMPONENT_INPUTS_CONSTANT.value, ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value]
+
+        for constant in constants:
+            # 只检查组件输入/输出类型的常量
+            if constant.type not in validate_types:
+                continue
+
+            constant_name = constant.name
+
+            for info in constant.source_info:
+                node_id = info.key
+                # 检查源节点是否存在
+                if node_id not in nodes:
+                    raise ValueError(f"常量{constant_name}的源节点{node_id}不存在")
+
+                if constant.type == ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value:
+                    continue
+
+                constant_node = nodes[node_id]["component"]
+                code, component_file = constant.source_tag.split(".")
+
+                # 检查组件code是否匹配
+                if code != constant_node["code"]:
+                    raise ValueError(f"常量{constant_name}的source_tag字段信息与源节点{node_id}的组件信息不匹配")
+
+                # 检查目标字段是否存在
+                if component_file not in constant_node["data"]:
+                    raise ValueError(f"常量{constant_name}的源节点{node_id}的字段{component_file}不存在")
