@@ -18,12 +18,15 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import itertools
+import logging
 
 from django.conf import settings
 from rest_framework import permissions
 
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import Space, SpaceConfig
+
+logger = logging.getLogger("root")
 
 
 class SpaceExemptionPermission(permissions.BasePermission):
@@ -47,7 +50,7 @@ class SpaceSuperuserPermission(permissions.BasePermission):
             # 在 has_object_permission 中校验
             return True
         candidate_space_ids = set(
-            space_id
+            int(space_id)
             for space_id in [
                 request.query_params.get("space_id"),
                 request.data.get("space_id"),
@@ -56,6 +59,7 @@ class SpaceSuperuserPermission(permissions.BasePermission):
             if space_id
         )
         if len(candidate_space_ids) != 1:
+            logger.info(f"校验空间id不唯一: {candidate_space_ids}")
             return False
         space_id = candidate_space_ids.pop()
         space_superusers = SpaceConfig.get_config(space_id, SuperusersConfig.name)
