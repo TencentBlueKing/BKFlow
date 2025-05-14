@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
+import logging
 import os
 
 from .json_handler import JsonFileHandler
 from .yaml_handler import YamlFileHandler
+
+logger = logging.getLogger(__name__)
 
 
 class FileHandlerDispatcher:
@@ -16,8 +19,10 @@ class FileHandlerDispatcher:
         }
 
         try:
-            file_ext = os.path.splitext(self.file.name)[1]
+            _, file_ext = os.path.splitext(self.file.name)
             handler_class = handler_map[file_ext]
-            return handler_class(self.file)
         except KeyError:
+            logger.exception("Unsupported file type")
             raise ValueError("Unsupported file type")
+
+        return handler_class(self.file)
