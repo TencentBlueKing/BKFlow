@@ -78,7 +78,7 @@
     .separator-select {
         margin: 20px 0;
     }
-    /deep/ .bk-form-item {
+    ::v-deep .bk-form-item {
         .bk-label {
             padding-right: 10px;
             font-size: 12px;

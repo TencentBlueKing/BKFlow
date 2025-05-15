@@ -497,7 +497,7 @@
         border-bottom: none;
       }
     }
-    /deep/.field-dropdown-menu {
+    ::v-deep .field-dropdown-menu {
       display: none;
       width: 16px;
       height: 16px;
@@ -522,7 +522,7 @@
       background: #fff;
       border-right: 1px solid #dcdee5;
       border-left: 1px solid #dcdee5;
-      /deep/.bk-exception-text {
+      ::v-deep .bk-exception-text {
         line-height: 20px;
       }
     }

@@ -164,7 +164,7 @@
     }
     .tips-content {
         float: left;
-        /deep/ .content-area {
+        ::v-deep .content-area {
             padding-right: 70px;
         }
         .bk-button-text {

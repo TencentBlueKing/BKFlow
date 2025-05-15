@@ -1,3 +1,4 @@
+const path = require('path');
 const webpack = require('webpack');
 const { merge } = require('webpack-merge');
 const webpackBase = require('./webpack.base.conf');
@@ -7,9 +8,9 @@ const SITE_URL = '/';
 const proxyPath = [
   'api',
   'api/v1',
+  'api/space',
   'static',
   'jsi18n',
-  'api',
   'core/api',
   'config/api',
   'apigw',
@@ -43,7 +44,7 @@ const proxyPath = [
   'task_system_superuser',
   'task/get_task_mock_data',
   'notice',
-  'api/space',
+  'is_current_space_admin'
 ];
 const context = proxyPath.map(item => SITE_URL + item);
 
@@ -54,9 +55,38 @@ module.exports = merge(webpackBase, {
   module: {
     rules: [
       {
-        test: /\.s?[ac]ss$/,
-        use: ['style-loader', 'css-loader', 'postcss-loader', 'sass-loader'],
-      },
+            test: /\.s?[ac]ss$/,
+            exclude: /node_modules/,
+            use: [
+                'style-loader',
+                'css-loader',
+                'postcss-loader',
+                {
+                    loader: 'sass-loader',
+                    options: {
+                        implementation: require('sass'), // 强制使用 Dart Sass
+                        sassOptions: {
+                            includePaths: [path.resolve(__dirname, '../src/')],
+                            indentedSyntax: false, // 如果使用 SCSS 语法需设为 false
+                            silenceDeprecations: ['import', 'legacy-js-api']
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            test: /\.css$/,
+            include: /node_modules/,
+            use: [
+                'style-loader',
+                {
+                    loader: 'css-loader',
+                    options: {
+                        importLoaders: 1 // 避免重复处理 @import
+                    }
+                }
+            ]
+        },
     ],
   },
   // 插件

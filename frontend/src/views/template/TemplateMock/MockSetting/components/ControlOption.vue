@@ -287,7 +287,7 @@
   &:not(:first-of-type) {
     margin-top: 8px;
   }
-  /deep/.bk-checkbox-text {
+  ::v-deep .bk-checkbox-text {
     display: flex;
     align-items: center;
   }
@@ -323,7 +323,7 @@
     color: #63656e;
   }
 
-  /deep/ .bk-form-checkbox {
+  ::v-deep .bk-form-checkbox {
     display: flex;
     align-items: center;
     &:not(:last-of-type) {
@@ -364,13 +364,13 @@
 }
 .retry-times-input,
 .interval-input {
-  /deep/.bk-input-number {
+  ::v-deep .bk-input-number {
     width: 50px;
     .bk-form-input {
       padding-right: 5px !important;
     }
   }
-  /deep/.group-append {
+  ::v-deep .group-append {
     display: flex;
     align-items: center;
     margin-left: -1px;
@@ -385,25 +385,25 @@
       }
   }
   .control-active {
-    /deep/.group-append {
+    ::v-deep .group-append {
       border-color: #3a84ff !important;
     }
   }
   .control-disable {
-    /deep/.group-append {
+    ::v-deep .group-append {
       background-color: #fafbfd !important;
       border-color: #dcdee5 !important;
     }
   }
 }
 .retry-times-input {
-  /deep/.bk-input-number {
+  ::v-deep .bk-input-number {
     width: 45px;
   }
 }
 .auto-retry-times,
 .timeout-setting-wrap {
-  /deep/ .bk-input-number .input-number-option {
+  ::v-deep .bk-input-number .input-number-option {
     display: none;
   }
 }

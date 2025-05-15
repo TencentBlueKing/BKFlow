@@ -163,7 +163,7 @@
 
 <style lang="scss" scoped>
   .bk-sideslider {
-    /deep/.bk-sideslider-footer {
+    ::v-deep .bk-sideslider-footer {
       position: absolute;
       left: 0;
       bottom: 0;

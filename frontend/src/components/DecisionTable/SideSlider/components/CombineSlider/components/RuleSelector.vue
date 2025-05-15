@@ -417,7 +417,7 @@
         flex: 1;
         margin-right: 12px;
         background: #fff;
-        /deep/.int-range {
+        ::v-deep .int-range {
           background: #f6f8f9;
         }
         &.value-null {
@@ -441,8 +441,8 @@
       }
       .vee-error {
         border-color: #ea3636;
-        /deep/.bk-select,
-        /deep/.bk-form-input {
+        ::v-deep .bk-select,
+        ::v-deep .bk-form-input {
           border-color: #ea3636;
         }
       }

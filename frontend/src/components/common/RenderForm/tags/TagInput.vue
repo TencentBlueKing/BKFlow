@@ -161,7 +161,7 @@
 @import '../../../../scss/mixins/scrollbar.scss';
 
 .tag-input {
-    /deep/ .el-input__inner {
+    ::v-deep .el-input__inner {
         padding: 0 10px;
     }
     .rf-form-wrapper {

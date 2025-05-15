@@ -400,7 +400,7 @@
       .bk-select {
         background: #fff;
       }
-      /deep/.bk-textarea-wrapper {
+      ::v-deep .bk-textarea-wrapper {
         border: none;
         textarea {
           min-height: 450px;
@@ -415,8 +415,8 @@
           }
         }
       }
-      /deep/.header-form-item,
-      /deep/.query-form-item {
+      ::v-deep .header-form-item,
+      ::v-deep .query-form-item {
         .bk-button {
           padding: 0;
           min-width: 32px;
@@ -440,7 +440,7 @@
         font-size: 14px;
         margin-left: 12px;
       }
-      /deep/.bk-form-item {
+      ::v-deep .bk-form-item {
         font-size: 12px;
         margin-top: 0;
         .bk-form-content {

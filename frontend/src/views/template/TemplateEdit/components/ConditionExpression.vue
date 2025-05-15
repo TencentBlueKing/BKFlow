@@ -65,7 +65,7 @@ export default {
     font-size: 12px;
     color: #b8b8b8;
     margin-bottom: 10px;
-    /deep/.bk-link {
+    ::v-deep .bk-link {
       vertical-align: initial;
       .bk-link-text {
         font-size: 12px;

@@ -256,7 +256,7 @@
         }
       }
     }
-    /deep/ .bk-select.is-disabled {
+    ::v-deep .bk-select.is-disabled {
       background: none;
     }
   }

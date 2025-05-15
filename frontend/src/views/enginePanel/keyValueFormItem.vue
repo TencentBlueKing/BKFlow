@@ -82,13 +82,13 @@
   .key-value-item {
     display: flex;
     align-items: center;
-    /deep/.key-form {
+    ::v-deep .key-form {
       width: 190px;
     }
-    /deep/.value-form {
+    ::v-deep .value-form {
       flex: 1;
     }
-    /deep/.bk-form-content {
+    ::v-deep .bk-form-content {
       margin-left: 0 !important;
     }
     .operator {

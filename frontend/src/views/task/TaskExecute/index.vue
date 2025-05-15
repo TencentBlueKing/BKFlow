@@ -144,7 +144,7 @@
         height: 100%;
         background: #f4f7fa;
     }
-    /deep/ .canvas-comp-wrapper {
+    ::v-deep .canvas-comp-wrapper {
         .canvas-material-container {
           background: #f5f7fa;
         }

@@ -327,7 +327,7 @@
     &:hover {
       background: #fafbfd;
     }
-    /deep/ .name-wrapper {
+    ::v-deep .name-wrapper {
       padding: 0 14px;
       height: 40px;
       line-height: 40px;

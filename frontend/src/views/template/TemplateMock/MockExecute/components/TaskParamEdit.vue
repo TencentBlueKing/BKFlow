@@ -285,7 +285,7 @@
 </script>
 
 <style lang="scss" scoped>
-  /deep/.render-form {
+  ::v-deep .render-form {
     .rf-form-item {
       margin-bottom: 24px;
     }

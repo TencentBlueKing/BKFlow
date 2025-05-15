@@ -98,18 +98,18 @@
     .logo-area {
       cursor: pointer;
     }
-    /deep/.header-right {
+    ::v-deep .header-right {
       justify-content: space-between;
     }
-    /deep/.navigation-container {
+    ::v-deep .navigation-container {
       max-width: 100% !important;
     }
-    /deep/.container-content {
+    ::v-deep .container-content {
       position: relative;
       padding: 0 !important;
     }
 
-    /deep/.nav-slider {
+    ::v-deep .nav-slider {
       background: #1f2738 !important;
       .nav-slider-list {
         height: 100% !important;

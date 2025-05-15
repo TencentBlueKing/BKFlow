@@ -507,7 +507,7 @@
 @import '../../../../../scss/config.scss';
 @import '../../../../../scss/mixins/scrollbar.scss';
 .bk-tab {
-  /deep/.bk-tab-section {
+  ::v-deep .bk-tab-section {
         padding: 0;
         .bk-tab-content {
             height: calc(100vh - 110px);
@@ -530,7 +530,7 @@
     color: #3a84ff;
     cursor: pointer;
 }
-/deep/.group-area {
+::v-deep .group-area {
     float: left;
     width: 270px;
     height: 100%;
