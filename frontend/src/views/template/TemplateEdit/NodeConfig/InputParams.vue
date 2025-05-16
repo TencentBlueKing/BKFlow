@@ -563,7 +563,7 @@
 .not-referred-forms {
     margin-top: 20px;
     background: #f0f1f5;
-    & /deep/ .bk-collapse-item {
+    & ::v-deep .bk-collapse-item {
         .bk-collapse-item-header {
             color: #333333;
             &:hover {

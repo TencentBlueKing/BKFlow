@@ -708,10 +708,10 @@
     height: 50px;
     padding: 8px 24px 0;
     background: #f0f1f5;
-    /deep/.is-last::after {
+    ::v-deep .is-last::after {
       display: none !important;
     }
-    /deep/.bk-tab-section {
+    ::v-deep .bk-tab-section {
       padding: 8px 0;
     }
   }

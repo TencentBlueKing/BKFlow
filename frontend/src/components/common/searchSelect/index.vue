@@ -770,7 +770,7 @@
                     padding-left: 2px;
                 }
             }
-            /deep/ .bk-tooltip {
+            ::v-deep .bk-tooltip {
                 width: 100%;
                 .bk-tooltip-ref {
                     width: 100%;

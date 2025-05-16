@@ -556,7 +556,7 @@
 </script>
 
 <style lang="scss" scoped>
-  /deep/.code-form-item {
+  ::v-deep .code-form-item {
     .bk-form-content {
       height: 300px;
       .code-wrapper {
@@ -573,13 +573,13 @@
     font-size: 12px;
     background: #f0f1f5;
     border-bottom: 1px solid #dfe0e5;
-    /deep/.bk-link-text {
+    ::v-deep .bk-link-text {
       margin-left: 6px;
       font-size: 12px;
       line-height: 1;
     }
   }
-  /deep/.select-all-cell {
+  ::v-deep .select-all-cell {
     display: flex;
     align-items: center;
     &.full-selected {
@@ -598,7 +598,7 @@
       color: #979ba5;
     }
   }
-  /deep/.bk-table-empty-text {
+  ::v-deep .bk-table-empty-text {
     width: 100%;
   }
 </style>

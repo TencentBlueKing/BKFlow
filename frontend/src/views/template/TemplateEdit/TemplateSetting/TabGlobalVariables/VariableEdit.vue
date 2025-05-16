@@ -1008,7 +1008,7 @@
     .form-content {
         margin-left: 140px;
         min-height: 36px;
-        /deep/ {
+        ::v-deep {
             .bk-select {
                 background: #ffffff;
                 &.is-disabled {
@@ -1124,7 +1124,7 @@
             padding: 0 25px;
         }
     }
-    /deep/ .variable-confirm-dialog-content {
+    ::v-deep .variable-confirm-dialog-content {
         padding: 40px 0;
         text-align: center;
         .leave-tips {
@@ -1135,7 +1135,7 @@
             margin-right: 6px;
         }
     }
-    /deep/.tag-textarea[jsonAttr] {
+    ::v-deep .tag-textarea[jsonAttr] {
       textarea {
         min-height: 300px !important;
         background: #313238 !important;

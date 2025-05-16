@@ -315,7 +315,7 @@
         margin-right: 8px;
         cursor: move;
       }
-      /deep/.option-popover {
+      ::v-deep .option-popover {
         flex: 1;
         min-width: 0;
         .bk-tooltip-ref {

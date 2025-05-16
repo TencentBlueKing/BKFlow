@@ -562,7 +562,7 @@
   overflow: hidden;
   .canvas-wrapper {
     flex: 1;
-    /deep/.x6-graph{
+    ::v-deep .x6-graph{
       background: #f5f7fa;
     }
   }

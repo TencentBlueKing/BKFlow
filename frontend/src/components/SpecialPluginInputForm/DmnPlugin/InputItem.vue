@@ -140,7 +140,7 @@
     .value-selector {
       flex: 1;
       &.is-disabled {
-        /deep/.bk-select-name {
+        ::v-deep .bk-select-name {
           pointer-events: none;
           background: #fafbfd;
         }

@@ -217,7 +217,7 @@
   };
 </script>
 <style lang="scss" scoped>
-  /deep/.select-trigger {
+  ::v-deep .select-trigger {
     display: flex;
     align-items: center;
     height: 32px;

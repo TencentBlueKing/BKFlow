@@ -100,7 +100,7 @@
 </script>
 <style lang="scss" scoped>
 .tag-time {
-    /deep/ .el-date-editor {
+    ::v-deep .el-date-editor {
         width: 100%;
         .el-range-input {
             font-size: 12px;

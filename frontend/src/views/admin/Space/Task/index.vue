@@ -429,7 +429,7 @@
       vertical-align: middle;
     }
   }
-  /deep/.bk-table-empty-text {
+  ::v-deep .bk-table-empty-text {
     width: 100%;
   }
 </style>

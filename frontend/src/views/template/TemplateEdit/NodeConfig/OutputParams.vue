@@ -247,7 +247,7 @@
 </script>
 <style lang="scss" scoped>
     .bk-table {
-        /deep/ .bk-table-row {
+        ::v-deep .bk-table-row {
             &.deleted {
                 background: #fff5f4;
             }
@@ -300,7 +300,7 @@
         padding: 0;
         border: none;
         &.valid-error {
-          /deep/.bk-form-control {
+          ::v-deep .bk-form-control {
             .bk-form-input {
               border-color: #ea3636;
             }

@@ -317,7 +317,7 @@
   .bk-collapse-item {
     margin-bottom: 16px;
   }
-  /deep/.bk-collapse-item-header {
+  ::v-deep .bk-collapse-item-header {
     height: 40px;
     padding: 0;
     .fr {
@@ -407,7 +407,7 @@
       }
     }
   }
-  /deep/.bk-collapse-item-content{
+  ::v-deep .bk-collapse-item-content{
     padding: 12px 16px 8px;
   }
   .unhooked-title {
@@ -439,7 +439,7 @@
       transform: rotate(90deg);
     }
   }
-  /deep/.render-form {
+  ::v-deep .render-form {
     .rf-form-item:not(:last-child) {
       margin-bottom: 24px;
     }

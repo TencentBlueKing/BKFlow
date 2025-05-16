@@ -228,14 +228,14 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    /deep/ .bk-link-text {
+    ::v-deep .bk-link-text {
         font-size: 12px;
     }
 }
 .alert-disabled {
     color: #ccc;
     cursor: not-allowed;
-    /deep/ .bk-link-text {
+    ::v-deep .bk-link-text {
         color: #ccc;
         cursor: not-allowed;
     }

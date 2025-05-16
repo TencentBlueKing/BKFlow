@@ -397,7 +397,7 @@
   };
 </script>
 <style lang="scss" scoped>
-/deep/.code-form-item {
+::v-deep .code-form-item {
     .bk-form-content {
       height: 300px;
       .code-wrapper {
@@ -407,10 +407,10 @@
     }
   }
   .space-config-list {
-    /deep/.bk-table-empty-text {
+    ::v-deep .bk-table-empty-text {
       width: 100%;
     }
-    /deep/.table-cell {
+    ::v-deep .table-cell {
       display: inline-block;
       overflow : hidden;
       text-overflow: ellipsis;

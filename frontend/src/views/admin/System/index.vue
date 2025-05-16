@@ -38,10 +38,10 @@
   .system-admin {
     height: 100%;
   }
-  /deep/.bk-table-pagination-wrapper {
+  ::v-deep .bk-table-pagination-wrapper {
     background: #fff;
   }
-  /deep/.bk-tab-section {
+  ::v-deep .bk-tab-section {
     padding: 20px 0 20px;
   }
 </style>
