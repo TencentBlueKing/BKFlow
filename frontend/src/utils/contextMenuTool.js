@@ -1,6 +1,6 @@
 import { Graph, ToolsView } from '@antv/x6';
 import Vue from 'vue';
-import shortcutPanel from '../components/ProcessCanvas/components/shortcutPanel.vue';
+import shortcutPanel from '../components/canvas/ProcessCanvas/components/shortcutPanel.vue';
 import dom from '@/utils/dom.js';
 
 let app;
