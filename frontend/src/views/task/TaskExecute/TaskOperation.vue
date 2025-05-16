@@ -1961,17 +1961,17 @@
     background: #f4f7fa;
 }
 
-/deep/ .atom-failed {
+::v-deep .atom-failed {
     font-size: 12px;
 }
 
 .subprocess-failed-tips {
     margin-top: -1px;
     color: #63656e;
-    /deep/.bk-alert-title {
+    ::v-deep .bk-alert-title {
         display: flex;
     }
-    /deep/.bk-link {
+    ::v-deep .bk-link {
         vertical-align: initial;
         line-height: 16px;
         .bk-link-text {
@@ -1989,7 +1989,7 @@
         width: 100%;
         height: 100%;
         transition: width 0.5s ease-in-out;
-        /deep/ .pipeline-canvas{
+        ::v-deep .pipeline-canvas{
             width: 100%;
             .node-canvas {
                 width: 100%;
@@ -2002,7 +2002,7 @@
             }
         }
         .task-management-page {
-            /deep/ .canvas-wrapper.jsflow {
+            ::v-deep .canvas-wrapper.jsflow {
                 background: #f5f7fa;
                 .jtk-endpoint {
                     z-index: 2 !important;
@@ -2011,7 +2011,7 @@
         }
     }
 }
-/deep/.bk-sideslider-content {
+::v-deep .bk-sideslider-content {
     height: calc(100% - 60px);
 }
 .header {
@@ -2061,7 +2061,7 @@
     }
 }
 .approval-dialog-content {
-    /deep/ .bk-form-radio {
+    ::v-deep .bk-form-radio {
         margin-right: 10px;
     }
 }

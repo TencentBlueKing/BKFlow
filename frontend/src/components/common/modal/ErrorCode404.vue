@@ -26,7 +26,7 @@
 <style lang="scss" scoped>
   .exception-wrap {
     padding-top: 150px;
-    /deep/.bk-exception-img {
+    ::v-deep .bk-exception-img {
       width: 440px;
       height: 200px;
     }

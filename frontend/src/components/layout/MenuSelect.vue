@@ -276,7 +276,7 @@
       border: none;
       color: #dcdee5;
       background: #464d60;
-      /deep/.select-trigger {
+      ::v-deep .select-trigger {
         display: flex;
         align-items: center;
         height: 32px;

@@ -149,7 +149,7 @@ limitations under the License. */
 <style lang="scss" scoped>
 .code-editor {
     height: 100%;
-    /deep/.editor-placeholder {
+    ::v-deep .editor-placeholder {
       position: absolute;
       top: -2px;
       left: 65px;

@@ -63,7 +63,7 @@
   .manager-page {
     padding: 24px;
   }
-  /deep/.scope-column-label {
+  ::v-deep .scope-column-label {
     display: flex;
     align-items: center;
     .table-header-tips {

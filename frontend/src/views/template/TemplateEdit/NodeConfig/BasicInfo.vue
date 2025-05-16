@@ -1006,7 +1006,7 @@
     .disabled-search {
         position: relative;
         cursor: not-allowed;
-        /deep/ .bk-search-select {
+        ::v-deep .bk-search-select {
             border-color: #dcdee5 !important;
             background-color: #fafbfd !important;
         }
@@ -1024,7 +1024,7 @@
         align-items: center;
         justify-content: flex-start;
         height: 32px;
-        /deep/ .bk-form-checkbox {
+        ::v-deep .bk-form-checkbox {
             &:not(:last-of-type) {
                 margin-right: 8px;
             }
@@ -1083,11 +1083,11 @@
     }
     .auto-retry-times,
     .timeout-setting-wrap {
-        /deep/ .bk-input-number .input-number-option {
+        ::v-deep .bk-input-number .input-number-option {
             display: none;
         }
     }
-    /deep/ .bk-form {
+    ::v-deep .bk-form {
         .bk-label {
             font-size: 12px;
         }

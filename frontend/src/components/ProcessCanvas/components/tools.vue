@@ -621,7 +621,7 @@
   .canvas-minimap {
     position: absolute;
     top: 60px;
-    /deep/.x6-widget-minimap {
+    ::v-deep .x6-widget-minimap {
       .x6-graph {
         box-shadow: none;
       }
@@ -630,7 +630,7 @@
       }
     }
     // 小画布tooltip取消固定定位
-    /deep/ .x6-cell.x6-node {
+    ::v-deep .x6-cell.x6-node {
       .bk-tooltip {
         position: relative;
       }

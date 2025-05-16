@@ -603,7 +603,7 @@
             padding: 0 25px;
         }
     }
-    /deep/ .bk-label {
+    ::v-deep .bk-label {
         font-size: 12px;
     }
     .user-selector {

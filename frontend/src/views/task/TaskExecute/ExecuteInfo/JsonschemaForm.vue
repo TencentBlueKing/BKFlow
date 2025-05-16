@@ -44,7 +44,7 @@
 </script>
 <style lang="scss" scoped>
     .jsonschema-input-params {
-        /deep/ .bk-form-item {
+        ::v-deep .bk-form-item {
             .bk-label {
                 width: 100px !important;
                 font-size: 12px;
@@ -65,7 +65,7 @@
                 margin-top: 0;
             }
         }
-      /deep/.bk-schema-form-group {
+      ::v-deep .bk-schema-form-group {
         .bk-schema-form-item-auto-height,
         .bk-schema-form-group-delete {
           display: none;
