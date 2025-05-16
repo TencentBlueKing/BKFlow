@@ -242,8 +242,8 @@
   import injectVariableDialog from './InjectVariableDialog.vue';
   import tplPerspective from '@/mixins/tplPerspective.js';
   import { graphToJson } from '@/utils/graphJson.js';
-  import VerticalCanvas from '@/components/VerticalCanvas/index.vue';
-  import ProcessCanvas from '@/components/ProcessCanvas/index.vue';
+  import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
+  import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
 
   const { CancelToken } = axios;
   let source = CancelToken.source();

@@ -59,8 +59,8 @@
 </template>
 
 <script>
-  import ProcessCanvas from '@/components/ProcessCanvas/index.vue';
-  import VerticalCanvas from '@/components/VerticalCanvas/index.vue';
+  import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
+  import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import { graphToJson } from '@/utils/graphJson.js';
   import { mapState, mapActions, mapMutations } from 'vuex';
   import Header from './Header.vue';

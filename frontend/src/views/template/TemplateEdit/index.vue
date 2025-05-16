@@ -42,17 +42,6 @@
         @onChangePanel="onChangeSettingPanel"
         @onSaveTemplate="onSaveTemplate" />
       <template v-if="isEditProcessPage">
-        <!-- 一期不做 -->
-        <!-- <SubflowUpdateTips
-          v-if="subflowShouldUpdated.length > 0"
-          class="update-tips"
-          :list="subflowShouldUpdated"
-          :locations="locations"
-          :is-view-mode="isViewMode"
-          @viewClick="viewUpdatedNode"
-          @batchUpdate="isBatchUpdateDialogShow = true"
-          @foldClick="clearDotAnimation">
-        </SubflowUpdateTips> -->
         <component
           :is="canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas'"
           ref="processCanvas"
@@ -72,20 +61,6 @@
           @onShowNodeConfig="onShowNodeConfig"
           @updateCondition="setBranchCondition($event)" />
       </template>
-      <!-- <TaskSelectNode
-        v-else
-        ref="taskSelectNode"
-        :common="common"
-        :entrance="entrance"
-        :template_id="templateId"
-        :exclude-node="excludeNode"
-        :is-edit-process-page="isEditProcessPage"
-        :execute-scheme-saving="executeSchemeSaving"
-        @onSaveExecuteSchemeClick="onSaveExecuteSchemeClick"
-        @updateTaskSchemeList="updateTaskSchemeList"
-        @togglePreviewMode="togglePreviewMode"
-        @setExcludeNode="setExcludeNode">
-      </TaskSelectNode> -->
       <div class="side-content">
         <node-config
           v-if="isNodeConfigPanelShow"
@@ -133,23 +108,6 @@
           @updateTemplateLabelList="getTemplateLabelList"
           @updateSnapshoot="onUpdateSnapshoot" />
       </div>
-      <!-- 一期不做 -->
-      <!-- <bk-dialog
-        class="batch-update-dialog"
-        v-model="isBatchUpdateDialogShow"
-        :close-icon="false"
-        :fullscreen="true"
-        data-test-id="templateEdit_form_batchUpdateDialog"
-        :show-footer="false">
-        <batch-update-dialog
-          v-if="isBatchUpdateDialogShow"
-          :project-id="projectId"
-          :common="common"
-          :list="subflowShouldUpdated"
-          @globalVariableUpdate="globalVariableUpdate"
-          @close="closeBatchUpdateDialog">
-        </batch-update-dialog>
-      </bk-dialog> -->
       <bk-dialog
         width="400"
         ext-cls="common-dialog"
@@ -225,19 +183,16 @@
   import TemplateSetting from './TemplateSetting/index.vue';
   import NodeConfig from './NodeConfig/NodeConfig.vue';
   import ConditionEdit from './ConditionEdit.vue';
-  // import SubflowUpdateTips from './SubflowUpdateTips.vue'
   import tplSnapshoot from '@/utils/tplSnapshoot.js';
   import tplTabCount from '@/utils/tplTabCount.js';
   import Guide from '@/utils/guide.js';
   import permission from '@/mixins/permission.js';
   import { STRING_LENGTH } from '@/constants/index.js';
   import { NODES_SIZE_POSITION } from '@/constants/nodes.js';
-  // import TaskSelectNode from '../../task/TaskCreate/TaskSelectNode.vue'
-  // import BatchUpdateDialog from './BatchUpdateDialog.vue'
   import DealVarDirtyData from '@/utils/dealVarDirtyData.js';
   import { graphToJson } from '@/utils/graphJson.js';
-  import VerticalCanvas from '@/components/VerticalCanvas/index.vue';
-  import ProcessCanvas from '@/components/ProcessCanvas/index.vue';
+  import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
+  import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
   import bus from '@/utils/bus.js';
 
   export default {
