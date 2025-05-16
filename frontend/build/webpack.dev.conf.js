@@ -1,38 +1,32 @@
+const fs = require('fs');
 const path = require('path');
 const webpack = require('webpack');
 const { merge } = require('webpack-merge');
 const webpackBase = require('./webpack.base.conf');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const dotenv = require('dotenv');
+
+// 读取 .env 文件内容
+const envPath = path.resolve(__dirname, '../.env.local');
+const env = fs.existsSync(envPath)
+  ? dotenv.parse(fs.readFileSync(envPath))
+  : {};
+
 const SITE_URL = '/';
 // 代理接口列表
 const proxyPath = [
   'api',
-  'api/v1',
-  'api/space',
   'static',
   'jsi18n',
   'core/api',
   'config/api',
   'apigw',
   'common_template/api',
-  'task/get_task_detail',
-  'task/get_task_states',
-  'task/operate_task',
-  'task/get_task_node_detail',
-  'task/operate_node',
-  'task/render_current_constants',
-  'task/get_task_node_log',
-  'task/get_task_operation_record',
-  'task_admin',
-  'task/get_node_snapshot_config',
-  'task_admin/get_tasks_states',
+  'task',
   'taskflow/api',
   'pipeline',
   'analysis',
-  'admin/search',
-  'admin/api',
-  'admin/taskflow',
-  'admin/template',
+  'admin',
   'develop/api',
   'version_log',
   'iam',
@@ -42,7 +36,6 @@ const proxyPath = [
   'get_msg_types',
   'is_admin_user',
   'task_system_superuser',
-  'task/get_task_mock_data',
   'notice',
   'is_current_space_admin'
 ];
@@ -55,38 +48,38 @@ module.exports = merge(webpackBase, {
   module: {
     rules: [
       {
-            test: /\.s?[ac]ss$/,
-            exclude: /node_modules/,
-            use: [
-                'style-loader',
-                'css-loader',
-                'postcss-loader',
-                {
-                    loader: 'sass-loader',
-                    options: {
-                        implementation: require('sass'), // 强制使用 Dart Sass
-                        sassOptions: {
-                            includePaths: [path.resolve(__dirname, '../src/')],
-                            indentedSyntax: false, // 如果使用 SCSS 语法需设为 false
-                            silenceDeprecations: ['import', 'legacy-js-api']
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            test: /\.css$/,
-            include: /node_modules/,
-            use: [
-                'style-loader',
-                {
-                    loader: 'css-loader',
-                    options: {
-                        importLoaders: 1 // 避免重复处理 @import
-                    }
-                }
-            ]
-        },
+        test: /\.s?[ac]ss$/,
+        exclude: /node_modules/,
+        use: [
+          'style-loader',
+          'css-loader',
+          'postcss-loader',
+          {
+            loader: 'sass-loader',
+            options: {
+              implementation: require('sass'), // 强制使用 Dart Sass
+              sassOptions: {
+                includePaths: [path.resolve(__dirname, '../src/')],
+                indentedSyntax: false, // 如果使用 SCSS 语法需设为 false
+                silenceDeprecations: ['import', 'legacy-js-api']
+              }
+            }
+          }
+        ]
+      },
+      {
+        test: /\.css$/,
+        include: /node_modules/,
+        use: [
+          'style-loader',
+          {
+            loader: 'css-loader',
+            options: {
+              importLoaders: 1 // 避免重复处理 @import
+            }
+          }
+        ]
+      },
     ],
   },
   // 插件
@@ -102,7 +95,7 @@ module.exports = merge(webpackBase, {
   devtool: 'inline-cheap-module-source-map',
   // 代理服务配置
   devServer: {
-    host: 'dev.{BK_PAAS_HOST}',
+    host: env.DEV_HOST,
     port: 9007,
     server: 'https',
     historyApiFallback: {
@@ -113,11 +106,11 @@ module.exports = merge(webpackBase, {
     proxy: [
       {
         context,
-        target: 'https://{BK_PAAS_HOST}:8000',
+        target: env.API_URL,
         secure: false,
         changeOrigin: true,
         headers: {
-          referer: 'https://{BK_PAAS_HOST}:8000',
+          referer: env.API_URL,
         },
       },
     ],

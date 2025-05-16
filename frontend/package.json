@@ -1,10 +1,11 @@
 {
-  "name": "bamboo_engine_admin_frontend",
+  "name": "bkflow_frontend",
   "version": "1.2.2",
-  "description": "bamboo_engine_admin_frontend",
+  "description": "bkflow frontend project",
   "author": "bk",
+  "license": "MIT",
   "scripts": {
-    "dev": "cross-env webpack-dev-server --progress --config ./build/webpack.dev.conf.js",
+    "dev": "cross-env NODE_ENV=development webpack-dev-server --progress --config ./build/webpack.dev.conf.js",
     "build": "cross-env npm run build:production",
     "build:development": "cross-env DEV_VAR=development webpack --config ./build/webpack.prod.conf.js",
     "build:production": "cross-env DEV_VAR=production webpack --config ./build/webpack.prod.conf.js",
@@ -68,7 +69,6 @@
     "@babel/plugin-transform-runtime": "^7.14.3",
     "@babel/preset-env": "^7.0.0",
     "@babel/runtime": "^7.7.6",
-    "eslint-config-tencent": "^1.0.4",
     "@vue/babel-preset-jsx": "^1.4.0",
     "autoprefixer": "^7.1.4",
     "babel-cli": "^6.26.0",
@@ -88,8 +88,11 @@
     "cross-env": "^5.0.5",
     "css-loader": "^6.10.0",
     "cssnano": "^3.10.0",
+    "dotenv": "^16.5.0",
+    "dotenv-webpack": "^8.1.0",
     "eslint": "^5.16.0",
     "eslint-config-standard": "12.0.0",
+    "eslint-config-tencent": "^1.0.4",
     "eslint-friendly-formatter": "^4.0.1",
     "eslint-loader": "^2.1.2",
     "eslint-plugin-import": "2.16.0",
@@ -126,8 +129,8 @@
     "webpack-merge": "^5.10.0"
   },
   "engines": {
-    "node": ">= 4.0.0",
-    "npm": ">= 3.0.0"
+    "node": ">= 18.20.4",
+    "npm": ">= 10.7.0"
   },
   "browserslist": [
     "> 1%",
