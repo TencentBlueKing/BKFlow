@@ -143,3 +143,5 @@ staticfiles
 bkflow/interface/templates
 static/bkflow
 frontend/static
+
+pre-*-bkcodeai
