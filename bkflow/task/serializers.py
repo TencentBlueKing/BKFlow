@@ -26,7 +26,11 @@ from rest_framework import serializers
 
 from bkflow.constants import TaskOperationSource, TaskOperationType
 from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
-from bkflow.task.models import TaskInstance, TaskOperationRecord
+from bkflow.task.models import (
+    EngineSpaceConfigValueType,
+    TaskInstance,
+    TaskOperationRecord,
+)
 from bkflow.task.operations import TaskNodeOperation
 from bkflow.utils.strings import standardize_pipeline_node_name
 
@@ -171,3 +175,22 @@ class NodeSnapshotQuerySerializer(serializers.Serializer):
 
 class NodeSnapshotResponseSerializer(serializers.Serializer):
     component = serializers.DictField(help_text="组件快照信息")
+
+
+class EngineSpaceConfigSerializer(serializers.Serializer):
+    interface_config_id = serializers.IntegerField(required=True)
+    name = serializers.CharField(required=True, max_length=255)
+    desc = serializers.CharField(allow_blank=True, required=False)
+    is_public = serializers.BooleanField(default=True)
+    value_type = serializers.ChoiceField(
+        choices=[(choice.value, choice.label) for choice in EngineSpaceConfigValueType], required=True
+    )
+    is_mix_type = serializers.BooleanField(default=False)
+    text_value = serializers.CharField(max_length=128, default="")
+    json_value = serializers.JSONField(default=dict)
+    space_id = serializers.IntegerField(required=True)
+
+
+class GetEngineSpaceConfigSerializer(serializers.Serializer):
+    interface_config_ids = serializers.ListField(required=True, child=serializers.IntegerField())
+    simplified = serializers.BooleanField(required=False, default=False)

@@ -388,3 +388,44 @@ class TaskMockData(models.Model):
             "mock_data_ids": self.mock_data_ids,
             "create_time": self.create_time,
         }
+
+
+class EngineSpaceConfigValueType(models.TextChoices):
+    TEXT = "TEXT", _("文本")
+    JSON = "JSON", _("JSON")
+
+
+class EngineSpaceConfig(models.Model):
+    interface_config_id = models.BigIntegerField(unique=True, verbose_name="交互模块配置id")
+    name = models.CharField(max_length=255, verbose_name="配置名称")
+    desc = models.TextField(null=True, blank=True, verbose_name="描述")
+    is_public = models.BooleanField(default=True, verbose_name="是否公开")
+    value_type = models.CharField(
+        max_length=10,
+        choices=EngineSpaceConfigValueType.choices,
+        default=EngineSpaceConfigValueType.TEXT,
+    )
+    is_mix_type = models.BooleanField(default=False, verbose_name="是否混合类型")
+
+    text_value = models.CharField(_("配置值"), max_length=128, default="")
+    json_value = models.JSONField(_("配置值(JSON)"), default=dict, blank=True)
+
+    space_id = models.BigIntegerField(null=False, verbose_name="空间id")
+
+    def to_json(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "value_type": self.value_type,
+            "value": self.text_value,
+            "json_value": self.json_value,
+            "interface_config_id": self.interface_config_id,
+        }
+
+    @classmethod
+    def get_space_var(cls, space_id):
+        qs = cls.objects.filter(space_id=space_id, name="engine_space_config")
+        if not qs.exists():
+            return {}
+        instance = qs.first()
+        return instance.json_value

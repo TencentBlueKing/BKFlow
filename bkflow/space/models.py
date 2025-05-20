@@ -23,6 +23,7 @@ from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
 import env
+from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import (
     BaseSpaceConfig,
@@ -61,9 +62,7 @@ class Space(CommonModel):
     app_code = models.CharField(_("应用ID"), max_length=32, null=False, blank=False)
     desc = models.CharField(_("空间描述"), max_length=128, null=True, blank=True)
     platform_url = models.CharField(_("平台提供服务的地址"), max_length=256, null=False, blank=False)
-    create_type = models.CharField(
-        _("空间创建的方式"), max_length=32, choices=CREATE_TYPE, default=SpaceCreateType.API.value
-    )
+    create_type = models.CharField(_("空间创建的方式"), max_length=32, choices=CREATE_TYPE, default=SpaceCreateType.API.value)
 
     objects = SpaceManager()
 
@@ -100,9 +99,23 @@ class SpaceConfigManager(models.Manager):
         非简化结果会返回所有过滤数据
         简化结果：[{"key": "name1", "value": "value1"}]
         """
-        space_configs = self.filter(space_id=space_id)
+        space_configs = self.filter(models.Q(space_id=space_id) & ~models.Q(value_type=SpaceConfigValueType.REF.value))
+        ref_config = self.filter(models.Q(space_id=space_id) & models.Q(value_type=SpaceConfigValueType.REF.value))
+        res = []
+        if ref_config:
+            client = TaskComponentClient(space_id=space_id)
+            instance_ids = [config.id for config in ref_config]
+            resp = client.get_engine_config(data={"interface_config_ids": instance_ids, "simplified": simplified})
+            if not resp["result"]:
+                raise Exception(resp["message"])
+            remote_data = resp["data"]
+            for data in remote_data:
+                data["id"] = data["interface_config_id"]
+                # 要将 id 替换
+            res += remote_data
+
         if simplified:
-            return [
+            res += [
                 {
                     "key": config.name,
                     "value": (
@@ -111,8 +124,9 @@ class SpaceConfigManager(models.Manager):
                 }
                 for config in space_configs
             ]
-
-        return [config.to_json() for config in space_configs]
+        else:
+            res += [config.to_json() for config in space_configs]
+        return res
 
     def batch_update(self, space_id: int, configs: dict):
         existing_space_configs = list(self.filter(space_id=space_id, name__in=list(configs.keys())))
@@ -146,6 +160,7 @@ class SpaceConfig(models.Model):
     CONFIG_VALUE_TYPE_CHOICES = [
         (SpaceConfigValueType.JSON.value, "JSON"),
         (SpaceConfigValueType.TEXT.value, _("文本")),
+        (SpaceConfigValueType.REF.value, _("引用")),
     ]
 
     space_id = models.IntegerField(_("空间ID"))

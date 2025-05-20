@@ -37,6 +37,8 @@ class SpaceConfigValueType(Enum):
     JSON = "JSON"
     # 文本类型
     TEXT = "TEXT"
+    # 引用类型 存储在 engine
+    REF = "REF"
 
 
 class SpaceConfigMeta(type):
@@ -169,6 +171,38 @@ class TokenAutoRenewalConfig(BaseSpaceConfig):
         return True
 
 
+class SpaceEngineConfig(BaseSpaceConfig):
+    """
+    引擎模块配置
+    """
+
+    name = "engine_space_config"
+    desc = _("引擎模块配置")
+    value_type = SpaceConfigValueType.REF.value
+    example = {"space": {"{key1}", "{value1}"}, "scope": {"{scope_type}_{scope_value}": {"{key1}": "{value1}"}}}
+    SCHEMA = {
+        "type": "object",
+        "properties": {
+            "space": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}},
+            "scope": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {"type": ["string", "number", "boolean"]},
+                },
+            },
+        },
+        "additionalProperties": False,
+    }
+
+    @classmethod
+    def validate(cls, value: dict):
+        try:
+            jsonschema.validate(instance=value, schema=cls.SCHEMA)
+        except jsonschema.ValidationError as e:
+            raise ValidationError(f"Configuration validation error: {str(e)} excepted: {cls.example}")
+
+
 class CallbackHooksConfig(BaseSpaceConfig):
     name = "callback_hooks"
     desc = _("回调配置")
@@ -266,6 +300,21 @@ class SuperusersConfig(BaseSpaceConfig):
     def validate(cls, value: list):
         if not isinstance(value, list):
             raise ValidationError("[validate superusers error]: superusers must be a list, value: {}".format(value))
+        return True
+
+
+class EngineConfig(BaseSpaceConfig):
+    name = "engine_config"
+    desc = _("引擎空间配置")
+    value_type = SpaceConfigValueType.JSON.value
+    default_value = {}
+
+    @classmethod
+    def validate(cls, value: dict):
+        if not isinstance(value, dict):
+            raise ValidationError(
+                "[validate engine_config error]: engine_config must be a dict, value: {}".format(value)
+            )
         return True
 
 
