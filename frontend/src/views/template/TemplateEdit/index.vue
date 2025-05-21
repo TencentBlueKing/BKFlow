@@ -1915,7 +1915,6 @@
       // 查看需要更新的子流程
       viewUpdatedNode(id) {
         this.moveNodeToView(id);
-        this.showDotAnimation(id);
       },
       // 全局变量引用详情点击回调
       onCitedNodeClick(data) {
@@ -1943,13 +1942,10 @@
        * 移动画布，将节点放到画布左上角
        */
       moveNodeToView(id) {
-        const { x, y } = this.locations.find(item => item.id === id);
-        const offsetX = 200 - x;
-        const offsetY = 200 - y;
-        this.$refs.processCanvas.setCanvasPosition(offsetX, offsetY, true);
+        this.$refs.processCanvas.setCanvasPosition(id);
 
         // 移动画布到选中节点位置的摇晃效果
-        const nodeEl = document.querySelector(`#${id} .canvas-node-item`);
+        const nodeEl = document.querySelector(`g[data-cell-id="${id}"] .custom-node`);
         if (nodeEl) {
           nodeEl.classList.add('node-shake');
           setTimeout(() => {
