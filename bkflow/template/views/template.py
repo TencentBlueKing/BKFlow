@@ -321,6 +321,17 @@ class TemplateViewSet(UserModelViewSet):
         ser = CreateMockTaskWithPipelineTreeSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
 
+        include_node_ids = ser.validated_data["include_node_ids"]
+        pipeline_tree = ser.validated_data["pipeline_tree"]
+
+        if include_node_ids:
+            exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
+                pipeline_tree, include_node_ids
+            )
+            PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes(
+                pipeline_tree=pipeline_tree, exclude_task_nodes_id=exclude_task_nodes_id
+            )
+
         create_task_data = dict(ser.data)
         create_task_data.update(
             {
@@ -328,7 +339,7 @@ class TemplateViewSet(UserModelViewSet):
                 "space_id": template.space_id,
                 "scope_type": template.scope_type,
                 "scope_value": template.scope_value,
-                "pipeline_tree": ser.validated_data["pipeline_tree"],
+                "pipeline_tree": pipeline_tree,
                 "mock_data": ser.validated_data["mock_data"],
                 "create_method": "MOCK",
             }
