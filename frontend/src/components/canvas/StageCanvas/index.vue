@@ -65,4 +65,3 @@ import { getCopyNode } from './utils';
     align-items: start;
 }
 </style>
-

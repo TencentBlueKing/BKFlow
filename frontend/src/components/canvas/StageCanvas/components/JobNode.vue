@@ -50,10 +50,10 @@
         </template>
       </div>
     </div>
-
     <div class="add-job-btn">
       <div
-        class="cicrle-btn">
+        class="cicrle-btn"
+        @click="addJob">
         <span>+</span>
       </div>
     </div>
