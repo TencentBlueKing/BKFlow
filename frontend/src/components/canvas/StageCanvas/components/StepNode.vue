@@ -14,12 +14,7 @@
         class="editing-text">编辑中...</span>
       <span
         v-else
-        <<<<<<<
-        HEAD
         class="word-elliptic step-name">{{ node.name || '新节点' }}</span>
-      =======
-      class="wordElliptic stepName">{{ node.name || '新节点' }}</span>
-      >>>>>>> 049caf4 (feat: 新增stageCanvas静态展示)
       <div class="tools">
         <div
           v-for="item in toolIconArr.filter(item=>!item.disabled||!item.disabled())"
