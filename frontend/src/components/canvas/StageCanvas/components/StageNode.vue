@@ -50,11 +50,16 @@
         @refreshPPLT="refreshPPLT"
         @copyNode="handleCopyJobNode(job,jobIndex)" />
     </div>
+    <<<<<<< HEAD
     <div class="add-stage-btn">
-      <div
-        class="cicrleBtn"
-        @click="addNewStage">
-        <span>+</span>
+      =======
+      <div class="addStageBtn">
+        >>>>>>> 049caf4 (feat: 新增stageCanvas静态展示)
+        <div
+          class="cicrleBtn"
+          @click="addNewStage">
+          <span>+</span>
+        </div>
       </div>
     </div>
   </div>
