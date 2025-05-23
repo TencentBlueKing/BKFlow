@@ -8,13 +8,13 @@
         class="job-title"
         :class="{ active: activeNode && activeNode.type === 'job' && activeNode.id === job.id }"
         @click="setActiveItem(job)">
-        <div class="headerRight">
+        <div class="header-right">
           <span
             v-if="activeNode && activeNode.type === 'job' && activeNode.id === job.id"
             class="editing-text">编辑中...</span>
           <span
             v-else
-            class="nodeName wordElliptic">{{ job.name || '新Job' }}</span>
+            class="nodeName word-elliptic">{{ job.name || '新Job' }}</span>
           <div class="tools">
             <div
               v-for="item in toolIconArr.filter(item=>!item.disabled||!item.disabled())"
@@ -50,9 +50,9 @@
         </template>
       </div>
     </div>
-    <div class="addJobBtn">
+    <div class="add-job-btn">
       <div
-        class="cicrleBtn"
+        class="cicrle-btn"
         @click="addJob">
         <span>+</span>
       </div>
@@ -83,7 +83,6 @@ export default {
           type: Array,
           default: () => ([]),
         },
-
     },
     data() {
         return {
@@ -150,7 +149,7 @@ export default {
       .tools{
         display: flex;
       }
-      .cicrleBtn{
+      .cicrle-btn{
         display: flex;
       }
     }
@@ -220,7 +219,7 @@ export default {
     gap: 10px; /* Space between nodes */
     margin-top: 5px;
 }
-.headerRight{
+.header-right{
   display: flex;
   flex: 1;
   justify-content: space-between;
@@ -243,8 +242,8 @@ export default {
     cursor: pointer;
   }
 }
-.addJobBtn{
-  .cicrleBtn{
+.add-job-btn{
+  .cicrle-btn{
     display: none;
     $circleRadius:7px;
     width: $circleRadius *2;

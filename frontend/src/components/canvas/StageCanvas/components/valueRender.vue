@@ -68,7 +68,6 @@
             progressColor: '',
             Range: [0, 100],
           },
-
         }),
         },
     },
@@ -96,7 +95,6 @@ a{
     &:-webkit-any-link {
       color: unset;
     }
-
 }
 .progress-wrapper {
     display: flex;

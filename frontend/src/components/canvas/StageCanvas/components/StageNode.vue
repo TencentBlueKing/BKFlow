@@ -7,13 +7,13 @@
       @click="setActiveItem(stage)">
       <h3>
         <span class="stage-number">{{ index }}</span>
-        <div class="headerRight">
+        <div class="header-right">
           <span
             v-if="activeNode && activeNode.type === 'stage' && activeNode.id === stage.id"
             class="editing-text">编辑中...</span>
           <span
             v-else
-            class="wordElliptic nodeName">{{ stage.name || '新Stage' }}</span>
+            class="word-elliptic node-name">{{ stage.name || '新Stage' }}</span>
           <div class="tools">
             <div
               v-for="item in toolIconArr.filter(item=>!item.disabled||!item.disabled())"
@@ -21,7 +21,7 @@
               v-bk-tooltips="{
                 content: item.name,
               }"
-              :class="`iconBtn ${item.icon}`"
+              :class="`icon-btn ${item.icon}`"
               @click.stop="item.handleClick" />
           </div>
         </div>
@@ -48,7 +48,7 @@
         @addNewJob="addNewJob(jobIndex)"
         @copyNode="handleCopyJobNode(job,jobIndex)" />
     </div>
-    <div class="addStageBtn">
+    <div class="add-stage-btn">
       <div
         class="cicrleBtn"
         @click="addNewStage">
@@ -81,7 +81,6 @@ import { getDefaultNewJob } from '../data';
           type: Array,
           default: () => [],
         },
-
     },
     data() {
       return {
@@ -230,12 +229,12 @@ import { getDefaultNewJob } from '../data';
     display: flex;
     align-items: center;
 }
-.headerRight{
+.header-right{
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex: 1;
-  .nodeName{
+  .node-name{
     max-width: 180px;
   }
 }
@@ -272,7 +271,7 @@ import { getDefaultNewJob } from '../data';
   font-size: 12px;
   justify-content: center;
   align-items: center;
-  .iconBtn{
+  .icon-btn{
     width: 20px;
     height: 20px;
     display: flex;

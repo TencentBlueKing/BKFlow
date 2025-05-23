@@ -14,7 +14,7 @@
         class="editing-text">编辑中...</span>
       <span
         v-else
-        class="wordElliptic stepName">{{ node.name || '新节点' }}</span>
+        class="word-elliptic step-name">{{ node.name || '新节点' }}</span>
       <div class="tools">
         <div
           v-for="item in toolIconArr.filter(item=>!item.disabled||!item.disabled())"
@@ -25,9 +25,9 @@
           :class="`iconBtn ${item.icon}`"
           @click.stop="item.handleClick" />
       </div>
-      <div class="addStepBtn">
+      <div class="add-step-btn">
         <div
-          class="cicrleBtn"
+          class="cicrle-btn"
           @click.stop="addStep">
           <span>+</span>
         </div>
@@ -107,7 +107,7 @@ export default {
         .tools{
             display: flex;
         }
-        .addStepBtn .cicrleBtn{
+        .add-step-btn .cicrle-btn{
             display: flex;
         }
     }
@@ -144,7 +144,7 @@ export default {
     align-items: center;
     justify-content: space-between;
     flex: 1;
-    .stepName{
+    .step-name{
         max-width: 120px;
         flex: 1;
 
@@ -194,8 +194,8 @@ export default {
     cursor: pointer;
   }
 }
-.addStepBtn{
-  .cicrleBtn{
+.add-step-btn{
+  .cicrle-btn{
     display: none;
     $circleRadius:6px;
     width: $circleRadius *2;

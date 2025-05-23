@@ -22,7 +22,6 @@ import { getCopyNode } from './utils';
  export default {
   name: 'StageCanvas',
   components: {
-
     StageNode,
   },
   props: {
@@ -35,7 +34,6 @@ import { getCopyNode } from './utils';
     return {
         stageData: [...stage],
         activeItem: null,
-
       };
     },
   methods: {
@@ -56,8 +54,6 @@ import { getCopyNode } from './utils';
 </script>
 <style lang="scss" scoped>
 .flowchart-container {
-
-
     display: flex;
     overflow-x: auto; /* Allow horizontal scrolling if needed */
     padding: 20px;
@@ -67,18 +63,15 @@ import { getCopyNode } from './utils';
     min-width: 1000px; /* Ensure container has enough width */
     height: 100%;
     align-items: start;
-
 }
-
 </style>
-<style>
-*{
-  --primary-color:#3A83FF
+<style lang="scss">
+.flowchart-container{
+  --primary-color:#3A83FF;
+    .wordElliptic{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
-.wordElliptic{
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 </style>
