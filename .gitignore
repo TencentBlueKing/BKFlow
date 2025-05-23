@@ -145,3 +145,4 @@ static/bkflow
 frontend/static
 
 pre-*-bkcodeai
+.vscode/settings.json
