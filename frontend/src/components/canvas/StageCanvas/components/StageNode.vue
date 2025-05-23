@@ -280,5 +280,9 @@ import { getDefaultNewJob } from '../data';
     cursor: pointer;
   }
 }
-
+.word-elliptic{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 </style>

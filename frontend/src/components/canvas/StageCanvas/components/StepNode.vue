@@ -201,10 +201,10 @@ export default {
     width: $circleRadius *2;
     height:  $circleRadius *2;
     border-radius: 50%;
-    color: var(--primary-color);
+    color: #3A83FF;
     background-color: #fff;
     font-weight: bold;
-    border: 1px solid var(--primary-color);
+    border: 1px solid #3A83FF;
     align-items: center;
     justify-content: center;
     position: absolute;
@@ -221,4 +221,9 @@ export default {
     }
   }
 }
+.word-elliptic{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 </style>

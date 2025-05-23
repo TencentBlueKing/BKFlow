@@ -130,4 +130,9 @@ a{
 .progress-text .progress-total {
     color: #999;
 }
+.word-elliptic{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 </style>

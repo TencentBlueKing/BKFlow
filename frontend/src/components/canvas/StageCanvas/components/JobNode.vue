@@ -250,7 +250,7 @@ export default {
     height:  $circleRadius *2;
     border-radius: 50%;
     color: #fff;
-    background-color: var(--primary-color);
+    background-color: #3A83FF;
     align-items: center;
     justify-content: center;
     position: absolute;
@@ -267,4 +267,9 @@ export default {
     }
   }
 }
+.word-elliptic{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 </style>

@@ -1,6 +1,6 @@
 
 <template>
-  <div class="flowchart-container">
+  <div class="flowchart-container ">
     <StageNode
       v-for="(stage,index) in stageData"
       :key="stage.id"
@@ -65,13 +65,4 @@ import { getCopyNode } from './utils';
     align-items: start;
 }
 </style>
-<style lang="scss">
-.flowchart-container{
-  --primary-color:#3A83FF;
-    .wordElliptic{
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-</style>
+
