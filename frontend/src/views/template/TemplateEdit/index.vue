@@ -43,7 +43,7 @@
         @onSaveTemplate="onSaveTemplate" />
       <template v-if="isEditProcessPage">
         <component
-          :is="canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas'"
+          :is="templateComponentName"
           ref="processCanvas"
           :key="isViewMode"
           class="canvas-comp-wrapper"
@@ -193,6 +193,7 @@
   import { graphToJson } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
+  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
   import bus from '@/utils/bus.js';
 
   export default {
@@ -207,6 +208,7 @@
       // BatchUpdateDialog,
       VerticalCanvas,
       ProcessCanvas,
+      StageCanvas,
     },
     mixins: [permission],
     props: {
@@ -398,6 +400,15 @@
       },
       isViewMode() {
         return this.type === 'view' || !this.tplActions.some(action => ['EDIT', 'MOCK'].includes(action));
+      },
+      templateType() {
+          return this.$route.query.templateType || 'template';
+      },
+      templateComponentName() {
+          if (this.templateType === 'StageCanvas') {
+                return  'StageCanvas';
+          }
+            return this.canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas';
       },
     },
     watch: {
