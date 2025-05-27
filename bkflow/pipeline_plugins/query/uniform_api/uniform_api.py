@@ -24,9 +24,16 @@ from rest_framework.decorators import api_view
 from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_plugins.query.utils import query_response_handler
-from bkflow.space.configs import UniformApiConfig, UniformAPIConfigHandler
-from bkflow.space.models import SpaceConfig
+from bkflow.space.configs import (
+    ApiGatewayCredentialConfig,
+    UniformApiConfig,
+    UniformAPIConfigHandler,
+)
+from bkflow.space.models import Credential, SpaceConfig
+from bkflow.template.models import Template
 from bkflow.utils.api_client import HttpRequestResult
+
+from .utils import check_template_by_token
 
 
 class UniformAPICategorySerializer(serializers.Serializer):
@@ -52,7 +59,41 @@ class UniformAPIMetaSerializer(serializers.Serializer):
     meta_url = serializers.CharField(required=True)
 
 
-def _get_space_uniform_api_list_info(space_id, request_data, config_key, username):
+def _get_api_credential(space_id, template_id):
+    # 校验 space_id template_id 的正确性
+    template = Template.objects.filter(id=template_id, space_id=space_id)
+    if not template.exists():
+        raise ValidationError(f"对应 space_id: {space_id} template_id: {template_id} 不存在")
+
+    template = template.first()
+    scope_type, scope_value = template.scope_type, template.scope_value
+
+    api_credential_config = SpaceConfig.get_config(space_id=space_id, config_name=ApiGatewayCredentialConfig.name)
+
+    if not api_credential_config:
+        raise ValidationError("不存在凭证配置")
+
+    if isinstance(api_credential_config, dict):
+        # 凭证配置的两种情况
+        try:
+            if scope_type and scope_value:
+                credential_key = f"{scope_type}_{scope_value}"
+            else:
+                credential_key = "default"
+            credential_name = api_credential_config[credential_key]
+        except KeyError:
+            raise ValidationError("对应凭证未在管理页配置")
+    else:
+        credential_name = api_credential_config
+
+    credential = Credential.objects.filter(space_id=space_id, name=credential_name)
+    if not credential.exists():
+        raise ValidationError(f"对应凭证 {credential_name} 不存在")
+
+    return credential.first().content
+
+
+def _get_space_uniform_api_list_info(space_id, request_data, config_key, username, template_id):
     uniform_api_config = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
     if not uniform_api_config:
         raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
@@ -63,7 +104,14 @@ def _get_space_uniform_api_list_info(space_id, request_data, config_key, usernam
     url = uniform_api_config.api.get(api_name, {}).get(config_key)
     if not url:
         raise ValidationError("对应API未配置, 请联系对应接入平台管理员")
-    request_result: HttpRequestResult = client.request(url=url, method="GET", data=request_data, username=username)
+    # 根据凭证注入请求头
+    credential_content = _get_api_credential(space_id=space_id, template_id=template_id)
+    headers = client.gen_default_apigw_header(
+        app_code=credential_content["bk_app_code"], app_secret=credential_content["bk_app_secret"], username=username
+    )
+    request_result: HttpRequestResult = client.request(
+        url=url, method="GET", data=request_data, headers=headers, username=username
+    )
     if not request_result.result:
         raise APIResponseError(f"请求统一API列表失败: {request_result.message}")
     response_schema = (
@@ -78,7 +126,8 @@ def _get_space_uniform_api_list_info(space_id, request_data, config_key, usernam
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPICategorySerializer)
 @api_view(["GET"])
 @query_response_handler
-def get_space_uniform_api_category_list(request, space_id):
+@check_template_by_token
+def get_space_uniform_api_category_list(request, space_id, template_id):
     """
     获取统一API列表
     """
@@ -87,13 +136,14 @@ def get_space_uniform_api_category_list(request, space_id):
     data = serializer.validated_data
     api_category_key = UniformApiConfig.Keys.API_CATEGORIES.value
     username = request.user.username
-    return _get_space_uniform_api_list_info(space_id, data, api_category_key, username)
+    return _get_space_uniform_api_list_info(space_id, data, api_category_key, username, template_id)
 
 
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPIListSerializer)
 @api_view(["GET"])
 @query_response_handler
-def get_space_uniform_api_list(request, space_id):
+@check_template_by_token
+def get_space_uniform_api_list(request, space_id, template_id):
     """
     获取统一API列表
     """
@@ -102,13 +152,14 @@ def get_space_uniform_api_list(request, space_id):
     data = serializer.validated_data
     meta_apis_key = UniformApiConfig.Keys.META_APIS.value
     username = request.user.username
-    return _get_space_uniform_api_list_info(space_id, data, meta_apis_key, username)
+    return _get_space_uniform_api_list_info(space_id, data, meta_apis_key, username, template_id)
 
 
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPIMetaSerializer)
 @api_view(["GET"])
 @query_response_handler
-def get_space_uniform_api_meta(requests, space_id):
+@check_template_by_token
+def get_space_uniform_api_meta(requests, space_id, template_id):
     """
     获取统一API元数据
     """
@@ -117,8 +168,15 @@ def get_space_uniform_api_meta(requests, space_id):
     data = serializer.validated_data
     meta_url = data.pop("meta_url")
     username = requests.user.username
+
     client = UniformAPIClient()
-    request_result: HttpRequestResult = client.request(url=meta_url, method="GET", data=data, username=username)
+    credential_content = _get_api_credential(space_id=space_id, template_id=template_id)
+    headers = client.gen_default_apigw_header(
+        app_code=credential_content["bk_app_code"], app_secret=credential_content["bk_app_secret"], username=username
+    )
+    request_result: HttpRequestResult = client.request(
+        url=meta_url, method="GET", data=data, headers=headers, username=username
+    )
     if request_result.result is False:
         raise APIResponseError(f"请求统一API元数据失败: {request_result.message}")
     client.validate_response_data(
