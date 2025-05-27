@@ -67,28 +67,18 @@ def _get_api_credential(space_id, template_id):
 
     template = template.first()
     scope_type, scope_value = template.scope_type, template.scope_value
+    scope = f"{scope_type}_{scope_value}" if scope_type and scope_value else None
 
-    api_credential_config = SpaceConfig.get_config(space_id=space_id, config_name=ApiGatewayCredentialConfig.name)
+    api_credential_config = SpaceConfig.get_config(
+        space_id=space_id, config_name=ApiGatewayCredentialConfig.name, scope=scope
+    )
 
     if not api_credential_config:
         raise ValidationError("不存在凭证配置")
 
-    if isinstance(api_credential_config, dict):
-        # 凭证配置的两种情况
-        try:
-            if scope_type and scope_value:
-                credential_key = f"{scope_type}_{scope_value}"
-            else:
-                credential_key = "default"
-            credential_name = api_credential_config[credential_key]
-        except KeyError:
-            raise ValidationError("对应凭证未在管理页配置")
-    else:
-        credential_name = api_credential_config
-
-    credential = Credential.objects.filter(space_id=space_id, name=credential_name)
+    credential = Credential.objects.filter(space_id=space_id, name=api_credential_config)
     if not credential.exists():
-        raise ValidationError(f"对应凭证 {credential_name} 不存在")
+        raise ValidationError(f"对应凭证 {api_credential_config} 不存在")
 
     return credential.first().content
 
