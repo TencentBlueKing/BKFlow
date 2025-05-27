@@ -39,11 +39,19 @@ from bkflow.contrib.openapi.serializers import (
 )
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
-from bkflow.task.models import TaskInstance, TaskMockData, TaskOperationRecord
+from bkflow.task.models import (
+    EngineSpaceConfig,
+    EngineSpaceConfigValueType,
+    TaskInstance,
+    TaskMockData,
+    TaskOperationRecord,
+)
 from bkflow.task.node_log import NodeLogDataSourceFactory
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
 from bkflow.task.serializers import (
     CreateTaskInstanceSerializer,
+    EngineSpaceConfigSerializer,
+    GetEngineSpaceConfigSerializer,
     GetTaskOperationRecordSerializer,
     NodeSnapshotQuerySerializer,
     NodeSnapshotResponseSerializer,
@@ -196,9 +204,7 @@ class TaskInstanceViewSet(
         states = task_operation.get_task_states()
         return Response(dict(states))
 
-    @swagger_auto_schema(
-        methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer
-    )
+    @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
     @action(detail=False, methods=["post"], url_path="get_tasks_states")
     def get_tasks_states(self, request, *args, **kwargs):
         """批量获取任务状态，仅支持管理员调用"""
@@ -275,9 +281,7 @@ class TaskInstanceViewSet(
 
         return Response(dict(node_detail_result))
 
-    @swagger_auto_schema(
-        methods=["get"], operation_description="任务节点执行日志", query_serializer=GetNodeLogDetailSerializer
-    )
+    @swagger_auto_schema(methods=["get"], operation_description="任务节点执行日志", query_serializer=GetNodeLogDetailSerializer)
     @action(detail=True, methods=["get"], url_path="get_task_node_log/(?P<node_id>\\w+)/(?P<version>\\w+)")
     @validate_task_info
     def get_node_log(self, request, node_id, version, *args, **kwargs):
@@ -355,3 +359,71 @@ class TaskInstanceViewSet(
                 "data": node_snapshot_config,
             }
         )
+
+    @action(detail=False, methods=["get"], url_path="get_engine_config")
+    def get_engine_config(self, request, *args, **kwargs):
+        serializer = GetEngineSpaceConfigSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+
+        instance_ids = serializer.validated_data["interface_config_ids"]
+        simplified = serializer.validated_data["simplified"]
+        try:
+            instances = EngineSpaceConfig.objects.filter(interface_config_id__in=instance_ids)
+        except EngineSpaceConfig.DoesNotExist as e:
+            return Response(exception=True, data={"result": False, "message": str(e)})
+        if simplified:
+            res = [
+                {
+                    "key": instance.name,
+                    "value": (
+                        instance.json_value
+                        if instance.value_type == EngineSpaceConfigValueType.JSON.value
+                        else instance.text_value
+                    ),
+                }
+                for instance in instances
+            ]
+        else:
+            res = [instance.to_json() for instance in instances]
+        return Response({"result": True, "message": "success", "data": res})
+
+    @action(detail=False, methods=["post"], url_path="create_engine_config")
+    def create_engine_config(self, request, *args, **kwargs):
+        serializer = EngineSpaceConfigSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        EngineSpaceConfig.objects.create(**serializer.validated_data)
+        return Response({"result": True, "message": "success", "data": serializer.data})
+
+    @action(detail=False, methods=["post"], url_path="set_engine_config")
+    def set_engine_config(self, request, *args, **kwargs):
+        serializer = EngineSpaceConfigSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        instance_id = serializer.validated_data["interface_config_id"]
+
+        try:
+            config_instance = EngineSpaceConfig.objects.get(interface_config_id=instance_id)
+            for attr, value in serializer.validated_data.items():
+                setattr(config_instance, attr, value)
+            config_instance.save()
+        except EngineSpaceConfig.DoesNotExist:
+            return Response(
+                exception=True, data={"result": False, "message": f"config with id {instance_id} not exist"}
+            )
+        return Response({"result": True, "message": "success", "data": serializer.data})
+
+    @action(detail=False, methods=["delete"], url_path="delete_engine_config")
+    def delete_engine_config(self, request, *args, **kwargs):
+        serializer = GetEngineSpaceConfigSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        instance_id = serializer.validated_data["interface_config_ids"]
+
+        try:
+            instances = EngineSpaceConfig.objects.filter(interface_config_id__in=instance_id)
+            instances.delete()
+        except EngineSpaceConfig.DoesNotExist:
+            return Response(
+                exception=True, data={"result": False, "message": f"config with id {instance_id} not exist"}
+            )
+        return Response({"result": True, "message": "success", "data": serializer.data})
