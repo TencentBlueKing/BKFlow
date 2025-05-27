@@ -18,10 +18,12 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
+from functools import wraps
 
 from django.conf import settings
 
-from bkflow.exceptions import APIRequestError
+from bkflow.exceptions import APIRequestError, ValidationError
+from bkflow.permission.models import Token
 from bkflow.utils.api_client import (
     ApigwClientMixin,
     HttpRequestMixin,
@@ -29,6 +31,20 @@ from bkflow.utils.api_client import (
 )
 
 logger = logging.getLogger("root")
+
+
+def check_template_by_token(func):
+    @wraps(func)
+    def wrapper(request, *args, **kwargs):
+        # 获取并解析 token 适用于通过 token 操作模版的情况(非系统 or 空间管理员)
+        if request.token:
+            template_id = kwargs.get("template_id")
+            token = Token.objects.filter(resource_type="TEMPLATE", token=request.token, resource_id=template_id)
+            if not token.exists():
+                raise ValidationError("token 不存在或有误")
+        return func(request, *args, **kwargs)
+
+    return wrapper
 
 
 class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):

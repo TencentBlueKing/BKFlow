@@ -87,6 +87,11 @@ class BaseSpaceConfig(metaclass=SpaceConfigMeta):
     def validate(cls, value):
         return True
 
+    @classmethod
+    def get_value(cls, config, *args, **kwrags):
+        # 默认的父类方法
+        return config.text_value if config.value_type == SpaceConfigValueType.TEXT.value else config.json_value
+
 
 class SpaceConfigHandler:
     __hub = {}
@@ -335,6 +340,26 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
                     f"{cls.example}"
                 )
             )
+
+    @classmethod
+    def get_value(cls, config, *args, **kwrags):
+        scope = kwrags.get("scope", None)
+        config = config.json_value if cls.value_type == SpaceConfigValueType.JSON.value else config.text_value
+        # 处理分 scope 的情况
+        if scope:
+            if isinstance(config, str):
+                raise ValidationError("config has no scope configuration")
+            credential_config_name = config.get(scope, None)
+            if not credential_config_name:
+                raise ValidationError(f"No such config {scope}")
+            return credential_config_name
+        else:
+            if isinstance(config, str):
+                # 没有 scope 若是 str 直接返回
+                return config
+            else:
+                # 否则取 default
+                return config.get("default")
 
 
 class SpacePluginConfig(BaseSpaceConfig):
