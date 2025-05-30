@@ -19,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 """
 import os
 import sys
-
+# asdsad
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
 
