@@ -21,7 +21,7 @@
     </template>
 
     <!-- 渲染高亮 -->
-    <template v-else-if="renderItem.hasHighlight">
+    <template v-else-if="!renderItem.hasProgress">
       <span
         class="highlighted-value"
         :style="{
@@ -40,11 +40,6 @@
           {{ renderItem.key }} {{ renderItem.value }}
         </template>
       </span>
-    </template>
-
-    <!-- 默认渲染 -->
-    <template v-else>
-      {{ renderItem.key }} {{ renderItem.value }}
     </template>
   </div>
 </template>
@@ -124,7 +119,7 @@ a{
     align-items: center;
 }
 .progress-text .progress-done {
-    color: #3A83FF; /* u5df2u5b8cu6210u6570u91cfu663eu793au4e3au84ddu8272 */
+    color: #4D4F56;
     font-weight: 500;
 }
 .progress-text .progress-total {
@@ -135,4 +130,17 @@ a{
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+.value-link {
+    color: #3A83FF;
+    text-decoration: none;
+    cursor: pointer;
+    &:hover {
+      text-decoration: underline;
+    }
+}
+.highlighted-value{
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
 </style>

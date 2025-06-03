@@ -42,6 +42,7 @@
     "monaco-editor": "^0.50.0",
     "monaco-editor-webpack-plugin": "^7.1.0",
     "parse-svg-path": "^0.1.2",
+    "sortablejs": "^1.15.6",
     "vee-validate": "^2.2.15",
     "vue": "2.7.14",
     "vue-i18n": "^7.6.0",

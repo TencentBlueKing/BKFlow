@@ -10851,6 +10851,11 @@ sort-keys@^1.0.0:
   dependencies:
     is-plain-obj "^1.0.0"
 
+sortablejs@^1.15.6:
+  version "1.15.6"
+  resolved "https://mirrors.tencent.com/npm/sortablejs/-/sortablejs-1.15.6.tgz"
+  integrity sha512-aNfiuwMEpfBM/CN6LY0ibyhxPfPbyFeBTYJKCvzkJ2GkUpazIt3H+QIPAMHwqQ7tMKaHz1Qj+rJJCqljnf4p3A==
+
 sortablejs@1.10.2:
   version "1.10.2"
   resolved "https://mirrors.tencent.com/npm/sortablejs/-/sortablejs-1.10.2.tgz"

@@ -1,20 +1,22 @@
 <template>
-  <div class="job">
+  <div
+    class="job"
+    :class="{ active: activeNode?.type === 'Job' && activeNode?.id === job.id }">
     <div class="job-header">
       <div class="job-id">
         {{ index }}
       </div>
       <div
         class="job-title"
-        :class="{ active: activeNode && activeNode.type === 'job' && activeNode.id === job.id }"
+        :class="{ active: activeNode && activeNode.type === 'Job' && activeNode.id === job.id }"
         @click="setActiveItem(job)">
         <div class="header-right">
           <span
-            v-if="activeNode && activeNode.type === 'job' && activeNode.id === job.id"
+            v-if="activeNode && activeNode.type === 'Job' && activeNode.id === job.id"
             class="editing-text">编辑中...</span>
           <span
             v-else
-            class="nodeName word-elliptic">{{ job.name || '新Job' }}</span>
+            class="node-name word-elliptic">{{ job.name || '新Job' }}</span>
           <div class="tools">
             <div
               v-for="item in toolIconArr.filter(item=>!item.disabled||!item.disabled())"
@@ -22,7 +24,7 @@
               v-bk-tooltips="{
                 content: item.name,
               }"
-              :class="`iconBtn ${item.icon}`"
+              :class="`icon-btn ${item.icon}`"
               @click.stop="item.handleClick" />
           </div>
         </div>
@@ -45,6 +47,7 @@
             :node="node"
             :nodes="job.nodes"
             @deleteNode="deletStepNode(nodeIndex)"
+            @editNode="editNode"
             @addNewStep="addNewStep(nodeIndex)"
             @copyNode="handleCopyStepNode(node,nodeIndex)" />
         </template>
@@ -123,13 +126,22 @@ export default {
           const newStage = getDefaultNewStep();
 
           this.job.nodes.splice(index + 1, 0,  newStage);
+          this.refreshPPLT();
         },
         deletStepNode(index) {
           this.job.nodes.splice(index, 1);
+          this.refreshPPLT();
         },
         handleCopyStepNode(step, index) {
           const copyStage =  getCopyNode(step);
           this.job.nodes.splice(index + 1, 0,  copyStage);
+          this.refreshPPLT();
+        },
+        editNode(node) {
+          this.$emit('editNode', node);
+        },
+        refreshPPLT() {
+          this.$emit('refreshPPLT');
         },
     },
 };
@@ -137,7 +149,7 @@ export default {
 <style lang="scss" scoped>
 .job {
     background-color: transparent; /* 移除整体背景色 */
-    border-bottom: 1px solid #D4E8FF;
+    border: 1px solid transparent;
     border-radius: 0;
     padding: 0;
     display: flex;
@@ -153,12 +165,14 @@ export default {
         display: flex;
       }
     }
+    &.active {
+      border: 1px solid #4A90E2; /* 添加左侧边框标记 */
+    }
+    &:last-child {
+      margin-bottom: 0;
+    }
+}
 
-}
-.job:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-}
 .job-header {
     display: flex;
     width: 100%;
@@ -191,10 +205,7 @@ export default {
 .job-header .job-title:hover {
     background-color: #22222f; /* 悬停效果 */
 }
-.job-header .job-title.active {
-    background-color: #323248; /* 激活状态 */
-    border-left: 2px solid #4A90E2; /* 添加左侧边框标记 */
-}
+
 .job-content {
     padding: 16px 12px;
     position: relative;
@@ -223,7 +234,7 @@ export default {
   display: flex;
   flex: 1;
   justify-content: space-between;
-  .nodeName{
+  .node-name{
     max-width: 110px;
   }
 }
@@ -233,7 +244,7 @@ export default {
   font-size: 12px;
   justify-content: center;
   align-items: center;
-  .iconBtn{
+  .icon-btn{
     width: 20px;
     height: 20px;
     display: flex;

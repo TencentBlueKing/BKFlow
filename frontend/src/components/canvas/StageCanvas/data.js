@@ -1,6 +1,7 @@
+import { uuid } from '@/utils/uuid.js';
 export const stage = [
   {
-    id: 1,
+    id: `node${uuid()}`,
     name: '灰度版本确认',
     config: [
       {
@@ -27,6 +28,7 @@ export const stage = [
                 fontStyle: 'italic',
               },
             ],
+            tooltips: '',
           },
           {
             type: 'progress',
@@ -38,7 +40,7 @@ export const stage = [
     ],
     jobs: [
       {
-        id: '1.1',
+        id: `node${uuid()}`,
         name: '合入进度',
         config: [
           {
@@ -55,7 +57,7 @@ export const stage = [
         ],
         nodes: [
           {
-            id: '1.1.1',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -85,7 +87,7 @@ export const stage = [
             ],
           },
           {
-            id: '1.1.2',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -146,7 +148,7 @@ export const stage = [
     ],
     jobs: [
       {
-        id: '2.1',
+        id: `node${uuid()}`,
         name: '合入进度',
         config: [
           {
@@ -163,7 +165,7 @@ export const stage = [
         ],
         nodes: [
           {
-            id: '2.1.1',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -187,7 +189,7 @@ export const stage = [
             ],
           },
           {
-            id: '2.1.2',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -213,7 +215,7 @@ export const stage = [
         ],
       },
       {
-        id: '2.2',
+        id: `node${uuid()}`,
         name: '合入进度',
         config: [
           {
@@ -230,7 +232,7 @@ export const stage = [
         ],
         nodes: [
           {
-            id: '2.2.1',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -258,7 +260,7 @@ export const stage = [
     ],
   },
   {
-    id: 3,
+    id: `node${uuid()}`,
     name: '测试',
     config: [
       {
@@ -275,7 +277,7 @@ export const stage = [
     ],
     jobs: [
       {
-        id: '3.1',
+        id: `node${uuid()}`,
         name: '合入进度',
         config: [
           {
@@ -292,7 +294,7 @@ export const stage = [
         ],
         nodes: [
           {
-            id: '3.1.1',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -316,7 +318,7 @@ export const stage = [
             ],
           },
           {
-            id: '3.1.2',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -344,7 +346,7 @@ export const stage = [
     ],
   },
   {
-    id: 4,
+    id: `node${uuid()}`,
     name: '发布',
     config: [
       {
@@ -371,7 +373,7 @@ export const stage = [
     ],
     jobs: [
       {
-        id: '4.1',
+        id: `node${uuid()}`,
         name: '合入进度',
         config: [
           {
@@ -388,7 +390,7 @@ export const stage = [
         ],
         nodes: [
           {
-            id: '4.1.1',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -412,7 +414,7 @@ export const stage = [
             ],
           },
           {
-            id: '4.1.2',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -438,7 +440,7 @@ export const stage = [
         ],
       },
       {
-        id: '4.2',
+        id: `node${uuid()}`,
         name: '合入进度',
         config: [
           {
@@ -455,7 +457,7 @@ export const stage = [
         ],
         nodes: [
           {
-            id: '4.2.1',
+            id: `node${uuid()}`,
             name: '合入检查-Review人是否存在',
             type: 'check',
             config: [
@@ -484,38 +486,37 @@ export const stage = [
   },
 ];
 stage.forEach((stage) => {
-  stage.type = 'stage';
+  stage.type = 'Stage';
   stage.jobs.forEach((job) => {
-    job.type = 'job';
+    job.type = 'Job';
     job.nodes.forEach((node) => {
-      node.type = 'node';
+      node.type = 'Node';
     });
   });
 });
-export const getDefaultNewStage = (id = new Date().getTime()) => ({
-  id: id
-    .toString(),
+export const getDefaultNewStage = (id = `node${uuid()}`) => ({
+  id,
   name: '',
   config: [],
   jobs: [
     getDefaultNewJob(id + 1),
   ],
 });
-export const getDefaultNewJob = (id = new Date().getTime()) => ({
-  id: id
-    .toString(),
+export const getDefaultNewJob = (id = `node${uuid()}`) => ({
+  id,
   name: '',
   config: [],
   nodes: [
     getDefaultNewStep(id + 1),
   ],
 });
-export const getDefaultNewStep = (id = new Date().getTime()) => ({
-  id: id
-    .toString(),
+export const getDefaultNewStep = (id = `node${uuid()}`) => ({
+  id,
   name: '',
   type: 'check',
-  config: [],
+  config: {
+    id,
+  },
 }
 );
 
