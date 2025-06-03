@@ -1,15 +1,15 @@
 <template>
   <div
-    class="stage">
+    class="stage"
+    :class="{ active: activeNode?.type === 'Stage' && activeNode?.id === stage.id }">
     <div
       class="stage-header"
-      :class="{ active: activeNode && activeNode.type === 'stage' && activeNode.id === stage.id }"
       @click="setActiveItem(stage)">
       <h3>
         <span class="stage-number">{{ index }}</span>
         <div class="header-right">
           <span
-            v-if="activeNode && activeNode.type === 'stage' && activeNode.id === stage.id"
+            v-if="activeNode && activeNode.type === 'Stage' && activeNode.id === stage.id"
             class="editing-text">编辑中...</span>
           <span
             v-else
@@ -45,7 +45,9 @@
         :jobs="stage.jobs"
         :index="`${index}.${jobIndex + 1}`"
         @deleteNode="deletJobNode(jobIndex)"
+        @editNode="editNode"
         @addNewJob="addNewJob(jobIndex)"
+        @refreshPPLT="refreshPPLT"
         @copyNode="handleCopyJobNode(job,jobIndex)" />
     </div>
     <div class="add-stage-btn">
@@ -124,16 +126,25 @@ import { getDefaultNewJob } from '../data';
         const newStage = getDefaultNewJob();
         console.log('StageNode.vue_Line:127', this.jobs);
         this.stage.jobs.splice(index + 1, 0,  newStage);
+        this.refreshPPLT();
       },
       deletJobNode(index) {
         console.log('index.vue_Line:45', index);
         console.log('StageNode.vue_Line:127', this.stage);
         this.stage.jobs.splice(index, 1);
+        this.refreshPPLT();
       },
       handleCopyJobNode(stage, index) {
         const copyStage =  getCopyNode(stage);
         this.stage.jobs.splice(index + 1, 0,  copyStage);
+        this.refreshPPLT();
       },
+      editNode(node) {
+          this.$emit('editNode', node);
+        },
+        refreshPPLT() {
+          this.$emit('refreshPPLT');
+        },
     },
 
  };
@@ -146,11 +157,15 @@ import { getDefaultNewJob } from '../data';
       width: 280px; /* 根据设计稿指定宽度 */
       min-width: 280px; /* 确保最小宽度 */
       background-color: #fff;
-      border: 1px solid #3A83FF; /* 根据设计稿更新边框颜色 */
+
       border-radius: 2px; /* 根据设计稿更新圆角 */
       display: flex;
       flex-direction: column;
       position: relative;
+      border: 1px solid #D4E8FF;
+      &.active{
+        border: 1px solid #3A83FF; /* 根据设计稿更新边框颜色 */
+      }
       /* Arrow connector between stages */
       &:not(:last-child)::after {
           content: '';

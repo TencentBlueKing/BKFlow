@@ -59,6 +59,7 @@
           @templateDataChanged="templateDataChanged"
           @onConditionClick="onOpenConditionEdit"
           @onShowNodeConfig="onShowNodeConfig"
+          @onShowStageNodeConfig="onShowStageNodeConfig"
           @updateCondition="setBranchCondition($event)" />
       </template>
       <div class="side-content">
@@ -405,7 +406,7 @@
           return this.$route.query.templateType || 'template';
       },
       templateComponentName() {
-          if (this.templateType === 'StageCanvas') {
+          if (this.templateType.toLowerCase() === 'StageCanvas'.toLowerCase()) {
                 return  'StageCanvas';
           }
             return this.canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas';
@@ -501,6 +502,7 @@
         'setPipelineTree',
         'setInternalVariable',
         'setConstants',
+        'updatePipelineTree',
       ]),
       ...mapMutations('atomForm/', [
         'clearAtomForm',
@@ -1197,6 +1199,7 @@
       async onShowNodeConfig(id) {
         // 判断节点配置的插件是否存在
         const nodeConfig = this.$store.state.template.activities[id];
+        console.log('index.vue_Line:1200', nodeConfig);
         const isDefaultPlugin = !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code);
         if (nodeConfig && nodeConfig.type === 'ServiceActivity' && nodeConfig.name && isDefaultPlugin) {
           let atom = true;
@@ -1261,6 +1264,9 @@
           }
           this.showConfigPanel(id);
         }
+      },
+      async onShowStageNodeConfig(id) {
+
       },
       // 流程透视
       onTogglePerspective(val) {

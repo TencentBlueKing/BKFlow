@@ -16,7 +16,7 @@ import tools from '@/utils/tools.js';
 import validatePipeline from '@/utils/validatePipeline.js';
 import axios from 'axios';
 import i18n from '@/config/i18n/index.js';
-
+import { stage } from '@/components/canvas/StageCanvas/data.js';
 const ATOM_TYPE_DICT = {
   startpoint: 'EmptyStartEvent',
   endpoint: 'EmptyEndEvent',
@@ -291,6 +291,16 @@ const template = {
         state[key] = val;
       });
     },
+    updatePipelineTree(state, data) {
+      const { activities, flows, gateways, line, location, start_event: startEvent, end_event: endEvent } = data;
+      state.activities = activities;
+      state.flows = flows;
+      state.gateways = gateways;
+      state.line = line;
+      state.location = location;
+      state.start_event = startEvent;
+      state.end_event = endEvent;
+    },
     // 更新模板各相关字段数据
     setTemplateData(state, data) {
       const {
@@ -308,6 +318,7 @@ const template = {
         space_id: spaceId,
         scope_type,
         scope_value,
+        stage_canvas_data: stageCanvasData = [...stage],
       } = data;
 
       const {
@@ -331,6 +342,7 @@ const template = {
         scope_type,
         scope_value,
       };
+      state.stage_canvas_data = stageCanvasData;
       state.canvas_mode = pipelineData.canvas_mode;
       this.commit('template/setPipelineTree', pipelineData);
     },
@@ -1169,7 +1181,7 @@ const template = {
     getPipelineTree(state) {
       const {
         activities, constants, end_event, flows, gateways,
-        line, location, outputs, start_event,
+        line, location, outputs, start_event, stage_canvas_data,
       } = state;
       // 剔除 location 的冗余字段
       const pureLocation = location.map(item => ({
@@ -1191,6 +1203,7 @@ const template = {
         location: pureLocation,
         outputs,
         start_event,
+        stage_canvas_data,
       };
     },
   },
