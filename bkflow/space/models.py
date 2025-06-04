@@ -61,9 +61,7 @@ class Space(CommonModel):
     app_code = models.CharField(_("应用ID"), max_length=32, null=False, blank=False)
     desc = models.CharField(_("空间描述"), max_length=128, null=True, blank=True)
     platform_url = models.CharField(_("平台提供服务的地址"), max_length=256, null=False, blank=False)
-    create_type = models.CharField(
-        _("空间创建的方式"), max_length=32, choices=CREATE_TYPE, default=SpaceCreateType.API.value
-    )
+    create_type = models.CharField(_("空间创建的方式"), max_length=32, choices=CREATE_TYPE, default=SpaceCreateType.API.value)
 
     objects = SpaceManager()
 
@@ -178,10 +176,10 @@ class SpaceConfig(models.Model):
         return cls.objects.filter(space_id=space_id, name=config_name).exists()
 
     @classmethod
-    def get_config(cls, space_id, config_name):
+    def get_config(cls, space_id, config_name, *args, **kwargs):
         try:
             config: SpaceConfig = cls.objects.get(space_id=space_id, name=config_name)
-            return config.text_value if config.value_type == SpaceConfigValueType.TEXT.value else config.json_value
+            return SpaceConfigHandler.get_config(config_name).get_value(config, *args, **kwargs)
         except cls.DoesNotExist:
             config: BaseSpaceConfig = SpaceConfigHandler.get_config(config_name)
             if not config:
