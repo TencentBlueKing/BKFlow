@@ -51,7 +51,6 @@ import { mapGetters, mapMutations, mapState } from 'vuex';
     ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
         stageCanvasData: state => state.template.stage_canvas_data,
-
       }),
       ...mapGetters('template/', [
         'getPipelineTree',
@@ -78,14 +77,17 @@ import { mapGetters, mapMutations, mapState } from 'vuex';
     addNewStage(index) {
       const newStage = getDefaultNewStage();
       this.stageCanvasData.splice(index + 1, 0,  newStage);
+      this.refresh();
     },
     deletNode(index) {
       console.log('index.vue_Line:45', index);
       this.stageCanvasData.splice(index, 1);
+      this.refresh();
     },
     handleCopyNode(stage, index) {
       const copyStage =  getCopyNode(stage);
       this.stageCanvasData.splice(index + 1, 0,  copyStage);
+      this.refresh();
     },
     setActiveItem(node) {
       this.$store.commit('stageCanvas/setActiveNode', node);
@@ -102,7 +104,8 @@ import { mapGetters, mapMutations, mapState } from 'vuex';
     refresh() {
       const res = generatePplTreeByCurrentStageCanvasData(this.getPipelineTree);
       this.updatePipelineTree(res);
-      console.log('index.vue_Line:71', res);
+      this.$forceUpdate();
+      console.log('index.vue_Line:71', res, this.stageCanvasData);
     },
   },
  };

@@ -124,8 +124,10 @@ import { getDefaultNewJob } from '../data';
       },
       addNewJob(index) {
         const newStage = getDefaultNewJob();
-        console.log('StageNode.vue_Line:127', this.jobs);
         this.stage.jobs.splice(index + 1, 0,  newStage);
+        this.$set(this.stage, 'jobs', this.stage.jobs);
+        console.log('StageNode.vue_Line:127', this.stage.jobs);
+
         this.refreshPPLT();
       },
       deletJobNode(index) {
@@ -144,6 +146,7 @@ import { getDefaultNewJob } from '../data';
         },
         refreshPPLT() {
           this.$emit('refreshPPLT');
+          this.$forceUpdate();
         },
     },
 
@@ -251,6 +254,7 @@ import { getDefaultNewJob } from '../data';
   flex: 1;
   .node-name{
     max-width: 180px;
+    line-height: 1.5;
   }
 }
 .stage-header h3 span.stage-number {

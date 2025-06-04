@@ -64,7 +64,7 @@
 </template>
 <script>
 import { mapState } from 'vuex';
-import { getCopyNode, transformNodeConfigToRenderItems } from '../utils';
+import { copyStepNode, transformNodeConfigToRenderItems } from '../utils';
 import ValueRender from './valueRender.vue';
 import StepNode from './StepNode.vue';
 import { getDefaultNewStep } from '../data';
@@ -133,8 +133,9 @@ export default {
           this.refreshPPLT();
         },
         handleCopyStepNode(step, index) {
-          const copyStage =  getCopyNode(step);
+          const copyStage =  copyStepNode(step);
           this.job.nodes.splice(index + 1, 0,  copyStage);
+
           this.refreshPPLT();
         },
         editNode(node) {

@@ -3,6 +3,7 @@ import RenderHightlightConfig from './components/JobAndStageEditSld/components/r
 import RenderLinkConfig from './components/JobAndStageEditSld/components/renderItem/components/renderLinkConfig.vue';
 import RenderProgressConfig from './components/JobAndStageEditSld/components/renderItem/components/renderProgressConfig.vue';
 import { uuid } from '@/utils/uuid.js';
+import templateStore from '@/store/modules/template.js';
 export const fontStyleMap = {
   normal: {
     label: '正常',
@@ -113,8 +114,26 @@ export const transformNodeConfigToRenderItems = node => node.config.map(config =
 export const getCopyNode = (node) => {
   const tempNode = cloneDeepWith(node);
   tempNode.name = `${tempNode.name}(副本)`;
-  tempNode.id = new Date().getTime()
-    .toString();
+  tempNode.id = `node${uuid()}`;
+  tempNode.jobs?.forEach((job) => {
+    job.id = `node${uuid()}`;
+    job.nodes = job.nodes.map(copyStepNode);
+  });
+  if (tempNode.nodes) {
+    tempNode.nodes = tempNode.nodes?.map(copyStepNode);
+  }
+
+  return tempNode;
+};
+export const copyStepNode = (node) => {
+  const tempNode = cloneDeepWith(node);
+  let tempActivites;
+  if (templateStore.state.activities[tempNode.id]) {
+    tempActivites = cloneDeepWith(templateStore.state.activities[tempNode.id]);
+  }
+  tempNode.id = `node${uuid()}`;
+  templateStore.state.activities[tempNode.id] = tempActivites;
+  if (tempActivites)tempActivites.id = tempNode.id;
   return tempNode;
 };
 export const renderTypeMap = {
@@ -166,37 +185,12 @@ const flowToLine = flow => ({
   },
 });
 const getDefaultActivitie = (id = `node${uuid()}`) => ({
-  component: {
-    code: 'debug_plugin',
-    data: {
-      string_input: {
-        hook: false,
-        need_render: true,
-        value: '',
-      },
-      int_input: {
-        hook: false,
-        need_render: true,
-        value: 0,
-      },
-      boolean_input: {
-        hook: false,
-        need_render: true,
-        value: true,
-      },
-      object_input: {
-        hook: false,
-        need_render: true,
-        value: '{}',
-      },
-    },
-    version: 'v1.0.0',
-  },
+  component: {},
   error_ignorable: false,
   id,
   incoming: [],
   loop: null,
-  name: 'DEBUG',
+  name: '',
   optional: true,
   outgoing: '',
   stage_name: '',
