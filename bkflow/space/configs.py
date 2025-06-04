@@ -345,21 +345,20 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
     def get_value(cls, config, *args, **kwrags):
         scope = kwrags.get("scope", None)
         config = config.json_value if cls.value_type == SpaceConfigValueType.JSON.value else config.text_value
-        # 处理分 scope 的情况
         if scope:
             if isinstance(config, str):
                 raise ValidationError("config has no scope configuration")
+
+            # 获取特定 scope 的配置
             credential_config_name = config.get(scope, None)
             if not credential_config_name:
                 raise ValidationError(f"No such config {scope}")
+
             return credential_config_name
-        else:
-            if isinstance(config, str):
-                # 没有 scope 若是 str 直接返回
-                return config
-            else:
-                # 否则取 default
-                return config.get("default")
+        # 没有 scope 时的配置获取
+        if isinstance(config, str):
+            return config
+        return config.get("default")
 
 
 class SpacePluginConfig(BaseSpaceConfig):

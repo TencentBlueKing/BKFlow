@@ -61,11 +61,10 @@ class UniformAPIMetaSerializer(serializers.Serializer):
 
 def _get_api_credential(space_id, template_id):
     # 校验 space_id template_id 的正确性
-    template = Template.objects.filter(id=template_id, space_id=space_id)
-    if not template.exists():
+    template = Template.objects.filter(id=template_id, space_id=space_id).first()
+    if not template:
         raise ValidationError(f"对应 space_id: {space_id} template_id: {template_id} 不存在")
 
-    template = template.first()
     scope_type, scope_value = template.scope_type, template.scope_value
     scope = f"{scope_type}_{scope_value}" if scope_type and scope_value else None
 
