@@ -13,6 +13,7 @@ test/unit/coverage
 .vscode/
 .env.local
 package-lock.json
+index-dev.html
 
 # Editor directories and files
 .idea
