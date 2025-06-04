@@ -59,7 +59,6 @@
           @templateDataChanged="templateDataChanged"
           @onConditionClick="onOpenConditionEdit"
           @onShowNodeConfig="onShowNodeConfig"
-          @onShowStageNodeConfig="onShowStageNodeConfig"
           @updateCondition="setBranchCondition($event)" />
       </template>
       <div class="side-content">
@@ -502,7 +501,6 @@
         'setPipelineTree',
         'setInternalVariable',
         'setConstants',
-        'updatePipelineTree',
       ]),
       ...mapMutations('atomForm/', [
         'clearAtomForm',
@@ -1269,9 +1267,6 @@
           }
           this.showConfigPanel(id);
         }
-      },
-      async onShowStageNodeConfig(id) {
-
       },
       // 流程透视
       onTogglePerspective(val) {
