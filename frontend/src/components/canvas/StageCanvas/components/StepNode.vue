@@ -1,8 +1,8 @@
 <template>
   <div
     class="node"
-    :class="{ active: activeNode && activeNode.type === 'node' && activeNode.id === node.id }"
-    @click="setActiveItem(node)">
+    :class="{ active: activeNode && activeNode.type === 'Node' && activeNode.id === node.id }"
+    @click="editNode(node)">
     <div class="node-icon">
       <img
         src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjIiIGhlaWdodD0iMjIiIHZpZXdCb3g9IjAgMCAyMiAyMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHJ4PSIyIiBzdHJva2U9IiNENEU4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjxwYXRoIGQ9Ik02IDYgTDE2IDE2IE02IDE2IEwxNiA2IiBzdHJva2U9IiNENEU4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg=="
@@ -10,7 +10,7 @@
     </div>
     <div class="node-title">
       <span
-        v-if="activeNode && activeNode.type === 'node' && activeNode.id === node.id"
+        v-if="activeNode && activeNode.type === 'Node' && activeNode.id === node.id"
         class="editing-text">编辑中...</span>
       <span
         v-else
@@ -76,8 +76,8 @@ export default {
       }),
     },
     methods: {
-        setActiveItem(node) {
-          this.$store.commit('stageCanvas/setActiveNode', node);
+        editNode(node) {
+          this.$emit('editNode', node);
         },
         addStep() {
           this.$emit('addNewStep');
@@ -85,7 +85,7 @@ export default {
     },
 };
 </script>
-<style lang="scss">
+<style lang="scss" scoped>
 .node {
     background-color: #F8FBFF; /* 更浅的背景色 */
     border: 1px solid #D4E8FF;
@@ -104,6 +104,8 @@ export default {
     transition: all 0.2s;
     position: relative;
     &:hover{
+      border-color: #3A83FF;
+      background-color: #EDF2F7;
         .tools{
             display: flex;
         }
@@ -111,15 +113,12 @@ export default {
             display: flex;
         }
     }
+    &.active {
+        border: 1px solid #3A83FF;
+        background-color: rgba(58, 131, 255, 0.05);
+    }
 }
-.node:hover {
-    border-color: #3A83FF;
-    background-color: #EDF2F7;
-}
-.node.active, .stage-header.active {
-    border: 1px dashed #3A83FF;
-    background-color: rgba(58, 131, 255, 0.05);
-}
+
 .node-icon {
     width: 22px;
     height: 22px;
@@ -171,7 +170,6 @@ export default {
 }
 .highlighted-value {
     display: inline-block;
-    padding: 2px 6px;
     border-radius: 3px;
 }
 .node-status {
