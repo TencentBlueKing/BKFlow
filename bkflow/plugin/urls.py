@@ -21,10 +21,11 @@ to the current version of the project delivered to anyone in the future.
 from django.conf.urls import include, url
 from rest_framework.routers import DefaultRouter
 
-from bkflow.plugin.views.plugin import ComponentModelSetViewSet
+from bkflow.plugin.views.plugin import ComponentModelSetViewSet, UniformPluginViewSet
 
 router = DefaultRouter()
 router.register(r"", ComponentModelSetViewSet, basename="component")
+router.register(r"uniform_plugin_query", UniformPluginViewSet, basename="uniform_plugin_query")
 
 urlpatterns = [
     url(r"^", include(router.urls)),

@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 # -*- coding: utf-8 -*-
 
 import re
+from enum import Enum
 
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
@@ -32,6 +33,12 @@ from rest_framework.exceptions import NotFound
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 
 group_en_pattern = re.compile(r"(?:\()(.*)(?:\))")
+
+
+class PluginType(Enum):
+    UNIFORM_API = "uniform_api"
+    COMPONENT = "component"
+    BLUEKING = "blueking"
 
 
 class ComponentModelSerializer(serializers.ModelSerializer):
@@ -116,3 +123,23 @@ class ComponentDetailQuerySerializer(serializers.Serializer):
 class ComponentModelDetailSerializer(ComponentModelSerializer):
     phase = None
     sort_key_group_en = None
+
+
+class UniformPluginSerializer(serializers.Serializer):
+    space_id = serializers.CharField(help_text="空间ID", required=True)
+    # 定义 plugin_type 选项
+    PLUGIN_TYPE_CHOICES = [(choice.value, choice.name) for choice in PluginType]
+
+    plugin_type = serializers.ChoiceField(choices=PLUGIN_TYPE_CHOICES, help_text="Plugin类型", required=True)
+    plugin_code = serializers.CharField(help_text="Plugin code", required=True)
+    meta_url = serializers.CharField(help_text="Meta URL", required=False)
+    template_id = serializers.CharField(help_text="Template ID", required=False)
+
+    def validate(self, data):
+        if data["plugin_type"] == PluginType.UNIFORM_API.value:
+            # 确保 meta_url template_id 不为空
+            if not data.get("meta_url") or not data.get("template_id"):
+                raise serializers.ValidationError(
+                    "meta_url or template_id cannot be empty for plugin_type 'uniform_api'."
+                )
+        return data
