@@ -23,16 +23,28 @@ from django.conf import settings
 from django_filters import FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from pipeline.component_framework.models import ComponentModel
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.viewsets import ViewSet
 
-from bkflow.plugin.permissions import PluginSpaceSuperuserPermission, PluginTokenPermissions
+from bkflow.bk_plugin.models import BKPlugin
+from bkflow.exceptions import APIResponseError
+from bkflow.pipeline_plugins.query.uniform_api.uniform_api import _get_api_credential
+from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
+from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
+from bkflow.plugin.permissions import (
+    PluginSpaceSuperuserPermission,
+    PluginTokenPermissions,
+)
 from bkflow.plugin.serializers.comonent import (
+    ComponentDetailQuerySerializer,
     ComponentListQuerySerializer,
     ComponentModelDetailSerializer,
     ComponentModelListSerializer,
-    ComponentDetailQuerySerializer,
+    PluginType,
+    UniformPluginSerializer,
 )
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
-from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 from bkflow.space.configs import SpacePluginConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.utils.mixins import BKFLOWCommonMixin
@@ -91,3 +103,51 @@ class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
         )
         query_ser.is_valid(raise_exception=True)
         return super().retrieve(request, *args, **kwargs)
+
+
+class UniformPluginViewSet(ViewSet):
+    @action(detail=False, methods=["get"])
+    def get_plugin_detail(self, request, *args, **kwargs):
+        serializer = UniformPluginSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        logo_url = ""
+        plugin_type = serializer.validated_data.get("plugin_type")
+        space_id = serializer.validated_data.get("space_id")
+        plugin_code = serializer.validated_data.get("plugin_code")
+        if plugin_type == PluginType.COMPONENT.value:
+            # 内置插件 需要校验可见性 目前前端直接根据插件code来获取logo
+            component_detail_query_serializer = ComponentDetailQuerySerializer(
+                data=request.query_params, context={"plugin_code": plugin_code}
+            )
+            component_detail_query_serializer.is_valid(raise_exception=True)
+            plugin = ComponentModel.objects.filter(code=plugin_code)
+            if not plugin.exists():
+                err_msg = f"Plugin {plugin_code} does not exist"
+                return Response(exception=True, data={"detail": err_msg})
+        elif plugin_type == PluginType.BLUEKING.value:
+            # 蓝鲸插件
+            plugin = BKPlugin.objects.filter(code=plugin_code)
+            if not plugin.exists():
+                err_msg = f"Plugin {plugin_code} does not exist"
+                return Response(exception=True, data={"detail": err_msg})
+            logo_url = plugin.first().logo_url
+        elif plugin_type == PluginType.UNIFORM_API.value:
+            # API 插件 需要获取对应的凭证 请求 meta_url
+            meta_url = serializer.validated_data.get("meta_url")
+            template_id = serializer.validated_data.get("template_id")
+            credential = _get_api_credential(space_id=space_id, template_id=template_id)
+            client = UniformAPIClient()
+            header = client.gen_default_apigw_header(
+                app_code=credential["bk_app_code"], app_secret=credential["bk_app_secret"]
+            )
+            resp = client.request(
+                url=meta_url,
+                method="GET",
+                headers=header,
+            )
+            if resp.result is False:
+                raise APIResponseError(f"请求统一API元数据失败: {resp.message}")
+            client.validate_response_data(resp.json_resp.get("data", {}), client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+            api_data = resp.json_resp["data"]
+            logo_url = api_data.get("logo_url", "")
+        return Response({"logo_url": logo_url})
