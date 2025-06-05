@@ -3,12 +3,15 @@
     <div class="data-info">
       <div class="data-name">
         <span class="name"><span
-          v-if="isFold"
+          v-if="isFold&&editable"
           class="moveIcon commonicon-icon common-icon-drawable" />{{ config.key || '数据名称' }}</span>
         <span
           class="tool-btn"
           @click="deleteConfig">
-          <i class="icon-btn commonicon-icon common-icon-ashcan-delete" />
+          <template v-if="editable">
+            <i class="icon-btn commonicon-icon common-icon-ashcan-delete" />
+          </template>
+
         </span>
       </div>
 
@@ -21,12 +24,16 @@
           <bk-form-item
             label="名称"
             property="key">
-            <bk-input v-model="configSync.key" />
+            <bk-input
+              v-model="configSync.key"
+              :disabled="!editable" />
           </bk-form-item>
           <bk-form-item
             label="取值"
             property="value">
-            <bk-input v-model="configSync.value" />
+            <bk-input
+              v-model="configSync.value"
+              :disabled="!editable" />
           </bk-form-item>
         </div>
         <div class="render-list">
@@ -38,6 +45,7 @@
               :index="index"
               :render-data.sync="item"
               :render-list="config.renders"
+              :editable="editable"
               @delete="deleteRender(index)" />
           </bk-form-item>
         </div>
@@ -49,7 +57,7 @@
       class="add-render">
       <bk-button
         size="small"
-        :disabled="config.renders.length>=2"
+        :disabled="config.renders.length>=2 || !editable"
         @click="addRender">
         <i
           style="font-size: 16px;"
@@ -77,6 +85,10 @@ export default {
       isFold: {
         type: Boolean,
         default: false,
+      },
+      editable: {
+          type: Boolean,
+          default: false,
       },
     },
     data() {

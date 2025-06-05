@@ -6,7 +6,9 @@
       </span>
       <span class="tool-btn">
         <i
+          v-if="editable"
           class="icon-btn commonicon-icon common-icon-ashcan-delete"
+
           @click="deleteRender" />
       </span>
     </div>
@@ -17,6 +19,7 @@
       <bk-select
         v-model="renderData.type"
         :clearable="false"
+        :disabled="!editable"
         @change="changeRangeType">
         <bk-option
           v-for="item in Object.values(typeSelectOption)"
@@ -31,6 +34,7 @@
       <component
         :is="currentRenderTypeItem.render"
         ref="renderConfigRef"
+        :editable="editable"
         :render-data.sync="renderDataSync" />
     </template>
   </div>
@@ -55,6 +59,10 @@ export default {
             type: Array,
             default: () => [],
         },
+        editable: {
+          type: Boolean,
+          default: false,
+      },
     },
     data() {
         return {
@@ -119,6 +127,9 @@ export default {
             .icon-btn{
                 font-size: 12px;
                 cursor: pointer;
+                &.disabled{
+                    cursor: not-allowed;
+                }
             }
         }
 
