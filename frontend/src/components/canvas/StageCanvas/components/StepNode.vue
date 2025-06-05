@@ -14,7 +14,7 @@
         class="editing-text">编辑中...</span>
       <span
         v-else
-        class="word-elliptic step-name">{{ node.name || '新节点' }}</span>
+        class="word-elliptic step-name">{{ currentNode?.name || '新节点' }}</span>
       <div class="tools">
         <div
           v-for="item in toolIconArr.filter(item=>!item.disabled||!item.disabled())"
@@ -73,7 +73,11 @@ export default {
     computed: {
       ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
+        activities: state => state.template.activities,
       }),
+      currentNode() {
+        return this.activities[this.node.id];
+      },
     },
     methods: {
         editNode(node) {
@@ -145,8 +149,8 @@ export default {
     flex: 1;
     .step-name{
         max-width: 120px;
-        flex: 1;
 
+        flex: 1;
     }
 }
 .vertical-connector {

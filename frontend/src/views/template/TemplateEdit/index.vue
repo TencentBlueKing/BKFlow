@@ -59,7 +59,6 @@
           @templateDataChanged="templateDataChanged"
           @onConditionClick="onOpenConditionEdit"
           @onShowNodeConfig="onShowNodeConfig"
-          @onShowStageNodeConfig="onShowStageNodeConfig"
           @updateCondition="setBranchCondition($event)" />
       </template>
       <div class="side-content">
@@ -502,7 +501,6 @@
         'setPipelineTree',
         'setInternalVariable',
         'setConstants',
-        'updatePipelineTree',
       ]),
       ...mapMutations('atomForm/', [
         'clearAtomForm',
@@ -774,7 +772,7 @@
         } else {
           this.templateSaving = true;
         }
-
+        console.log('index.vue_Line:777', 3);
         try {
           const resp = await this.saveTemplateData({
             templateId,
@@ -801,6 +799,7 @@
             message: i18n.t('保存成功'),
             theme: 'success',
           });
+          console.log('index.vue_Line:777', 4);
           this.isTemplateDataChanged = false;
           // 如果为克隆模式保存模板时需要保存执行方案
           if (this.type === 'clone' && !this.common) {
@@ -833,25 +832,29 @@
             };
             tplTabCount.setTab(tabQuerydata, 'add');
           }
-
+          console.log('index.vue_Line:777', 5);
           if (this.templateMocking) {
+            console.log('index.vue_Line:838', 1);
             this.$router.push({
               name: 'templateMock',
               params: {
                 templateId: this.templateId,
               },
+              query: Object.assign({}, this.$router.query),
             });
           } else if (this.createTaskSaving) {
+            console.log('index.vue_Line:777', 6);
             this.goToTaskUrl(data.id);
           } else { // 保存后需要切到查看模式(查看执行方案时不需要)
             if (this.initType === 'view') {
               this.$router.back();
               this.initData();
             } else {
+              console.log('index.vue_Line:838', 2);
               this.$router.replace({
                 name: 'templatePanel',
                 params: { type: 'view' },
-                query: { templateId: data.id },
+                query: Object.assign({ templateId: data.id }, this.$route.query),
               });
               this.initType = 'view';
             }
@@ -1264,9 +1267,6 @@
           }
           this.showConfigPanel(id);
         }
-      },
-      async onShowStageNodeConfig(id) {
-
       },
       // 流程透视
       onTogglePerspective(val) {
