@@ -2,11 +2,12 @@
   <div class="job-and-stage-edit-sld">
     <bk-sideslider
       :is-show.sync="isShowSync"
-      :show-mask="false"
       :title="sldTitle"
+
+      :show-mask="true"
       :quick-close="true"
       width="640"
-      @hidden="cancel">
+      :before-close="cancel">
       <div
         slot="content"
         class="job-and-stage-edit-content">
@@ -23,7 +24,8 @@
             :label="`${tempData.type}名称`"
             property="name">
             <bk-input
-              v-model="tempData.name" />
+              v-model="tempData.name"
+              :disabled="!editable" />
           </bk-form-item>
           <bk-form-item
             label="数据呈现"
@@ -32,6 +34,7 @@
               <bk-button
                 theme="primary"
                 size="small"
+                :disabled="!editable"
                 @click="addConfig">
                 <i
                   class="commonicon-icon common-icon-add"
@@ -57,6 +60,7 @@
                 :key="item.id"
                 :config.sync="item"
                 :is-fold="item.isFold"
+                :editable="editable"
                 @deleteConfig="deleteConfig(index)" />
             </div>
           </bk-form-item>
@@ -97,6 +101,10 @@ export default {
         initData: {
             type: Object,
             default: null,
+        },
+        editable: {
+          type: Boolean,
+          default: false,
         },
     },
     data() {
@@ -175,9 +183,30 @@ export default {
             console.log('index.vue_Line:164', error);
           }
         },
-        cancel() {
+        async cancel() {
+          try {
+            console.log('index.vue_Line:187', 1);
+            this.editable && await new Promise((resolve, reject) => {
+              this.$bkInfo({
+                title: '确认离开当前页?',
+                subTitle: '离开将会导致未保存信息丢失',
+                okText: '离开',
+                cancelText: '取消',
+                maskClose: false,
+                confirmFn: () => {
+                  resolve(true);
+                  return true;
+                },
+                closeFn: () => {
+                  reject(false);
+                },
+              });
+            });
             this.$emit('cancel');
             this.isShowSync = false;
+          } catch (e) {
+            console.log('index.vue_Line:208', e);
+          }
         },
         addConfig() {
           this.tempData.config.unshift({

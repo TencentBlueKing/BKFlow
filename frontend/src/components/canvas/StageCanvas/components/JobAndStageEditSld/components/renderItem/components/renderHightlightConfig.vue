@@ -13,7 +13,9 @@
           style="max-width: 80px;"
           :label="`条件${index + 1}`"
           :property="`condition${index}`">
-          <bk-select v-model="item.condition">
+          <bk-select
+            v-model="item.condition"
+            :disabled="!editable">
             <bk-option
               v-for="condition in
                 conditionConfig"
@@ -27,7 +29,9 @@
           :label="`匹配值`"
           :property="`value${index}`"
           style="flex: 1;">
-          <bk-input v-model="item.value" />
+          <bk-input
+            v-model="item.value"
+            :disabled="!editable" />
         </bk-form-item>
         <bk-form-item
           class="font-style-input"
@@ -37,14 +41,16 @@
             <bk-color-picker
               v-model="item.color"
               class="color-picker"
-              :show-value="false" />
+              :show-value="false"
+              :disabled="!editable" />
             <bk-radio-group
               v-model="item.fontStyle"
               class="font-style-tab">
               <bk-radio-button
                 v-for="fontStyle in Object.values(fontStyleMap)"
                 :key="fontStyle.value"
-                :value="fontStyle.value">
+                :value="fontStyle.value"
+                :disabled="!editable">
                 {{ fontStyle.label }}
               </bk-radio-button>
             </bk-radio-group>
@@ -58,7 +64,8 @@
           style="flex: 1;">
           <bk-input
             v-model="renderDataSync.tooltips"
-            type="textarea" />
+            type="textarea"
+            :disabled="!editable" />
         </bk-form-item>
       </div>
     </bk-form>
@@ -73,6 +80,10 @@ export default {
         renderData: {
             type: Object,
             required: true,
+        },
+        editable: {
+          type: Boolean,
+          default: false,
         },
     },
     data() {
@@ -196,5 +207,11 @@ export default {
             }
         }
     }
+    :deep(.bk-form-radio-button:first-child .bk-radio-button-text) {
+      border-left: 1px solid currentColor;
+    }
 }
+</style>
+<style lang="scss">
+
 </style>

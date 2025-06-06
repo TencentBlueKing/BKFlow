@@ -1,9 +1,14 @@
 
 <template>
-  <div class="flowchart-container ">
+  <div
+    class="flowchart-container "
+    :class="{
+      isPreview:!editable
+    }">
     <JobAndStageEidtSld
       :is-show.sync="isShowJobAndStageEdit"
       :init-data="activeNode"
+      :editable="editable"
       @cancel="cancelJobAndStageEidtSld" />
     <StageNode
       v-for="(stage,index) in stageCanvasData"
@@ -11,6 +16,7 @@
       :stage="stage"
       :stages="stageCanvasData"
       :index="(index+1).toString()"
+      :editable="editable"
       @deleteNode="deletNode(index)"
       @addNewStage="addNewStage(index)"
       @refreshPPLT="refresh"

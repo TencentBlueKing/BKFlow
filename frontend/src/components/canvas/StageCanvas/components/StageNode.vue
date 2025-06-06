@@ -1,7 +1,8 @@
 <template>
   <div
     class="stage"
-    :class="{ active: activeNode?.type === 'Stage' && activeNode?.id === stage.id }">
+    :class="{ active: activeNode?.id === stage.id ,
+              isPreview:!editable} ">
     <div
       class="stage-header"
       @click="setActiveItem(stage)">
@@ -9,7 +10,7 @@
         <span class="stage-number">{{ index }}</span>
         <div class="header-right">
           <span
-            v-if="activeNode && activeNode.type === 'Stage' && activeNode.id === stage.id"
+            v-if="activeNode?.id === stage.id&&editable"
             class="editing-text">编辑中...</span>
           <span
             v-else
@@ -44,6 +45,7 @@
         :job="job"
         :jobs="stage.jobs"
         :index="`${index}.${jobIndex + 1}`"
+        :editable="editable"
         @deleteNode="deletJobNode(jobIndex)"
         @editNode="editNode"
         @addNewJob="addNewJob(jobIndex)"
@@ -83,6 +85,10 @@ import { getDefaultNewJob } from '../data';
           type: Array,
           default: () => [],
         },
+        editable: {
+          type: Boolean,
+          default: false,
+        },
     },
     data() {
       return {
@@ -115,9 +121,6 @@ import { getDefaultNewJob } from '../data';
       transformNodeConfigToRenderItems,
       setActiveItem(node) {
         this.$store.commit('stageCanvas/setActiveNode', node);
-        setTimeout(() => {
-          console.log('index.vue_Line:177', this.activeNode);
-        }, 100);
       },
       addNewStage() {
         this.$emit('addNewStage');
@@ -252,6 +255,7 @@ import { getDefaultNewJob } from '../data';
   align-items: center;
   justify-content: space-between;
   flex: 1;
+  font-size: 16px;
   .node-name{
     max-width: 180px;
     line-height: 1.5;
@@ -299,9 +303,21 @@ import { getDefaultNewJob } from '../data';
     cursor: pointer;
   }
 }
+
 .word-elliptic{
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+.isPreview{
+  .add-stage-btn{
+    display: none;
+  }
+  .stage-header{
+    .tools{
+      display: none;
+    }
+  }
+}
 </style>

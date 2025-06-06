@@ -1,18 +1,18 @@
 <template>
   <div
     class="job"
-    :class="{ active: activeNode?.type === 'Job' && activeNode?.id === job.id }">
+    :class="{ active: activeNode?.id === job.id, isPreview:!editable }">
     <div class="job-header">
       <div class="job-id">
         {{ index }}
       </div>
       <div
         class="job-title"
-        :class="{ active: activeNode && activeNode.type === 'Job' && activeNode.id === job.id }"
+        :class="{ active: activeNode?.id === job.id }"
         @click="setActiveItem(job)">
         <div class="header-right">
           <span
-            v-if="activeNode && activeNode.type === 'Job' && activeNode.id === job.id"
+            v-if=" activeNode?.id === job.id && editable"
             class="editing-text">编辑中...</span>
           <span
             v-else
@@ -46,6 +46,7 @@
             :key="node.id"
             :node="node"
             :nodes="job.nodes"
+            :editable="editable"
             @deleteNode="deletStepNode(nodeIndex)"
             @editNode="editNode"
             @addNewStep="addNewStep(nodeIndex)"
@@ -85,6 +86,10 @@ export default {
         jobs: {
           type: Array,
           default: () => ([]),
+        },
+        editable: {
+          type: Boolean,
+          default: false,
         },
     },
     data() {
@@ -235,6 +240,7 @@ export default {
   display: flex;
   flex: 1;
   justify-content: space-between;
+  font-size: 16px;
   .node-name{
     max-width: 110px;
   }
@@ -284,4 +290,14 @@ export default {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+.isPreview{
+  .add-job-btn{
+    display: none;
+  }
+  .job-header{
+    .tools{
+      display: none;
+    }
+  }
+}
 </style>

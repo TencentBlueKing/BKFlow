@@ -10,15 +10,18 @@
         <div class="data-range-container">
           <bk-input
             v-model="startValue"
-            style="width: 120px;" />
+            style="width: 120px;"
+            :disabled="!editable" />
           <span class="from-to">至</span>
           <bk-input
             v-model="endValue"
-            style="width: 120px;margin-right: 8px;" />
+            style="width: 120px;margin-right: 8px;"
+            :disabled="!editable" />
           <bk-color-picker
             v-model="renderDataSync.color"
             class="color-picker"
-            :show-value="false" />
+            :show-value="false"
+            :disabled="!editable" />
         </div>
       </bk-form-item>
     </bk-form>
@@ -32,6 +35,10 @@ export default {
         renderData: {
             type: Object,
             required: true,
+        },
+        editable: {
+          type: Boolean,
+          default: false,
         },
     },
     data() {

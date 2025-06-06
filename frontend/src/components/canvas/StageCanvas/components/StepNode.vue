@@ -1,7 +1,7 @@
 <template>
   <div
     class="node"
-    :class="{ active: activeNode && activeNode.type === 'Node' && activeNode.id === node.id }"
+    :class="{ active:activeNode?.id === node.id,isPreview:!editable }"
     @click="editNode(node)">
     <div class="node-icon">
       <img
@@ -10,7 +10,7 @@
     </div>
     <div class="node-title">
       <span
-        v-if="activeNode && activeNode.type === 'Node' && activeNode.id === node.id"
+        v-if="activeNode?.id === node.id"
         class="editing-text">编辑中...</span>
       <span
         v-else
@@ -46,6 +46,10 @@ export default {
         nodes: {
             type: Array,
             default: () => [],
+        },
+        editable: {
+          type: Boolean,
+          default: false,
         },
     },
     data() {
@@ -228,4 +232,15 @@ export default {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+.isPreview{
+  .add-step-btn{
+    display: none;
+  }
+  .node-title{
+    .tools{
+      display: none;
+    }
+  }
+}
 </style>

@@ -12,17 +12,20 @@
           v-model="currentUrlSuffix"
           style="margin-top: 8px;"
           :clearable="false"
-          :font-size="'medium'">
+          :font-size="'medium'"
+          :disabled="!editable">
           <bk-dropdown-menu
             ref="dropdown"
             slot="prepend"
             class="group-text"
             :font-size="'medium'"
+
             @show="dropdownShowToggle(true)"
             @hide="dropdownShowToggle(false)">
             <bk-button
               slot="dropdown-trigger"
-              type="primary">
+              type="primary"
+              :disabled="!editable">
               <span style="width: 50px;display: block;text-align: right;">{{ currentUrlPrefix }}</span>
               <i :class="['bk-icon icon-angle-down',{'icon-flip': isDropdownShow}]" />
             </bk-button>
@@ -33,7 +36,10 @@
                 v-for="item in linkUrlPrefixConfig"
                 :key="item.value"
                 class="prefix-config-item"
-                @click="toggleUrlPrefix(item.value)">
+                :class="{
+                  disabled:!editable
+                }"
+                @click="editable&&toggleUrlPrefix(item.value)">
                 <span>
                   {{ item.value }}
                 </span>
@@ -54,6 +60,10 @@ export default {
             type: Object,
             required: true,
         },
+        editable: {
+          type: Boolean,
+          default: false,
+      },
     },
     data() {
         return {
@@ -163,6 +173,9 @@ export default {
             line-height: 36px;
             padding: 0px 16px;
             cursor: pointer;
+            &.disabled{
+              cursor: not-allowed;
+            }
             &:hover{
                 background-color: #f0f1f5;
                 color: #3A83FF;
