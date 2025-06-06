@@ -22,7 +22,7 @@ import logging
 import django_filters
 from blueapps.account.decorators import login_exempt
 from django.conf import settings
-from django.db import DatabaseError
+from django.db import DatabaseError, transaction
 from django.db.models import Q
 from django.utils.decorators import method_decorator
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
@@ -41,8 +41,13 @@ from bkflow.apigw.serializers.credential import (
 )
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
+from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import APIRequestError
-from bkflow.space.configs import ApiGatewayCredentialConfig, SpaceConfigHandler
+from bkflow.space.configs import (
+    ApiGatewayCredentialConfig,
+    SpaceConfigHandler,
+    SpaceConfigValueType,
+)
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import (
     Credential,
@@ -270,6 +275,73 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         return Response(
             SpaceConfig.objects.get_space_config_info(space_id=ser.validated_data["space_id"], simplified=False)
         )
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        value_type = SpaceConfigHandler.get_config(serializer.validated_data["name"]).value_type
+
+        # 只写入 engine 模块
+        if value_type == SpaceConfigValueType.REF.value:
+            space_id = request.data.get("space_id")
+            # space_id 必须存在 前端目前有传递 没有则无法创建 client
+            client = TaskComponentClient(space_id=space_id)
+            with transaction.atomic():
+                instance = SpaceConfig.objects.create(
+                    space_id=space_id, name=serializer.validated_data["name"], value_type=value_type
+                )
+                request.data["interface_config_id"] = instance.id
+                resp = client.create_engine_config(data=request.data)
+                if not resp["result"]:
+                    transaction.set_rollback(True)
+                    return Response(exception=True, data=resp)
+        else:
+            super().create(request, *args, **kwargs)
+
+        return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        value_type = SpaceConfigHandler.get_config(instance.name).value_type
+
+        # engine 只写入 engine 模块
+        if value_type == SpaceConfigValueType.REF.value:
+            space_id = request.data.get("space_id")
+            # space_id 必须存在 前端目前有传递 没有则无法创建 client
+            client = TaskComponentClient(space_id=space_id)
+            request.data["interface_config_id"] = instance.id
+            resp = client.set_engine_config(data=request.data)
+            if not resp["result"]:
+                return Response(exception=True, data=resp)
+        else:
+            self.perform_update(serializer)
+
+        return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        pk = kwargs.get("pk")
+        try:
+            instance = SpaceConfig.objects.get(pk=pk)
+        except SpaceConfig.DoesNotExist:
+            return Response(exception=True, data={"message": f"space config instance {pk} not exists"})
+
+        value_type = SpaceConfigHandler.get_config(instance.name).value_type
+        with transaction.atomic():
+            if value_type == SpaceConfigValueType.REF.value:
+                space_id = instance.space_id
+                try:
+                    client = TaskComponentClient(space_id=space_id)
+                    resp = client.delete_engine_config(data={"interface_config_ids": [instance.id]})
+                    if not resp["result"]:
+                        return Response(exception=True, data={"message": resp["message"]})
+                except Exception as e:
+                    return Response(exception=True, data={"message": str(e)})
+            return super().destroy(request, *args, **kwargs)
 
 
 class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
