@@ -27,6 +27,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
+from bkflow.plugin.handlers import PluginQueryDispatcher
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 from bkflow.plugin.permissions import (
     PluginSpaceSuperuserPermission,
@@ -37,7 +38,6 @@ from bkflow.plugin.serializers.comonent import (
     ComponentListQuerySerializer,
     ComponentModelDetailSerializer,
     ComponentModelListSerializer,
-    PluginQueryDispatcher,
     PluginType,
     UniformPluginSerializer,
 )
