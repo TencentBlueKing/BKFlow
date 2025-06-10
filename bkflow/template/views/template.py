@@ -321,7 +321,7 @@ class TemplateViewSet(UserModelViewSet):
         ser = CreateMockTaskWithPipelineTreeSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
 
-        include_node_ids = ser.validated_data["include_node_ids"]
+        include_node_ids = ser.validated_data.get("include_node_ids", [])
         pipeline_tree = ser.validated_data["pipeline_tree"]
 
         if include_node_ids:
