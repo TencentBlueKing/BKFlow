@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 # -*- coding: utf-8 -*-
 
 import re
+from enum import Enum
 
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
@@ -32,6 +33,12 @@ from rest_framework.exceptions import NotFound
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 
 group_en_pattern = re.compile(r"(?:\()(.*)(?:\))")
+
+
+class PluginType(Enum):
+    UNIFORM_API = "uniform_api"
+    COMPONENT = "component"
+    BLUEKING = "blueking"
 
 
 class ComponentModelSerializer(serializers.ModelSerializer):
@@ -116,3 +123,43 @@ class ComponentDetailQuerySerializer(serializers.Serializer):
 class ComponentModelDetailSerializer(ComponentModelSerializer):
     phase = None
     sort_key_group_en = None
+
+
+# 抽象基类，用于定义公有字段
+class BasePluginSerializer(serializers.Serializer):
+    plugin_code = serializers.CharField(help_text="Plugin code", required=True)
+
+
+class UniformAPISerializer(BasePluginSerializer):
+    # API 插件类型字段
+    meta_url = serializers.CharField(help_text="Meta URL", required=True)
+
+
+class ComponentSerializer(BasePluginSerializer):
+    pass  # 特定于内置插件类型的字段
+
+
+class BlueKingSerializer(BasePluginSerializer):
+    pass  # 特定于蓝鲸插件类型的字段
+
+
+# 主序列化器
+class UniformPluginSerializer(serializers.Serializer):
+    space_id = serializers.CharField(help_text="空间ID", required=True)
+    template_id = serializers.CharField(help_text="Template ID", required=True)
+
+    uniform_api = serializers.ListField(child=UniformAPISerializer(), required=False)
+    component = serializers.ListField(child=ComponentSerializer(), required=False)
+    blueking = serializers.ListField(child=BlueKingSerializer(), required=False)
+
+    target_fields = serializers.ListField(child=serializers.CharField(), help_text="目标字段列表", required=False)
+
+    def validate(self, data):
+        # 确保至少一个插件类型有处理的数据
+        if not any([data.get("uniform_api"), data.get("component"), data.get("blueking")]):
+            raise serializers.ValidationError(
+                "At least one plugin_type list (uniform_api, component, blueking) must be provided."
+            )
+
+        # 可以添加其他的验证逻辑
+        return data
