@@ -37,6 +37,7 @@ from bkflow.interface.task.permissions import (
     TaskMockTokenPermission,
     TaskTokenPermission,
 )
+from bkflow.interface.task.utils import calculate_job_state, calculate_stage_state
 from bkflow.permission.models import TASK_PERMISSION_TYPE, Token
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
@@ -229,3 +230,66 @@ class TaskInterfaceViewSet(GenericViewSet):
         data = {"node_id": node_id}
         result = client.get_node_snapshot_config(task_id, data)
         return Response(result)
+
+    @action(methods=["get"], detail=False, url_path="get_stage_job_states/(?P<task_id>\\d+)")
+    def get_stage_and_job_states(self, request, task_id, *args, **kwargs):
+        # 1. 获取基础数据
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        current_constants = client.render_current_constants(task_id)["data"]
+        task_detail = client.get_task_detail(task_id)
+        pipeline_tree = task_detail["data"]["pipeline_tree"]
+        stage_struct = pipeline_tree["stage_canvas_data"]
+        activities = pipeline_tree["activities"]
+        pipeline_tree["current_constants"] = current_constants
+
+        # 2. 获取所有节点状态
+        data = {"space_id": space_id}
+        children_result = client.get_task_states(task_id, data=data)
+        node_states = children_result["data"]["children"]
+
+        # 构建模板节点ID到任务节点ID的映射
+        template_to_task_id = {}
+        for task_node_id, activity in activities.items():
+            template_node_id = activity.get("template_node_id")
+            if template_node_id:
+                template_to_task_id[template_node_id] = task_node_id
+
+        # 3. 遍历完成映射建立和状态更新
+        # 预处理节点状态
+        node_info_map = {}
+        for template_id, task_id in template_to_task_id.items():
+            if task_id in node_states:
+                node_info = node_states[task_id]
+                node_info_map[template_id] = {
+                    "state": node_info.get("state", "READY"),  # 默认状态改为READY
+                    "start_time": node_info.get("start_time", ""),
+                    "finish_time": node_info.get("finish_time", ""),
+                }
+
+        # 更新状态
+        for stage in stage_struct:
+            job_states = []
+
+            for job in stage["jobs"]:
+                node_states = []
+
+                # 更新节点状态
+                for node in job["nodes"]:
+                    template_node_id = node["id"]
+                    info = node_info_map.get(
+                        template_node_id, {"state": "READY", "start_time": "", "finish_time": ""}  # 默认状态改为READY
+                    )
+
+                    node.update(info)
+                    node_states.append(info["state"])
+
+                # 计算并更新job状态
+                job_state = calculate_job_state(node_states)
+                job["state"] = job_state
+                job_states.append(job_state)
+
+            # 计算并更新stage状态
+            stage["state"] = calculate_stage_state(job_states)
+
+        return Response(task_detail["data"])
