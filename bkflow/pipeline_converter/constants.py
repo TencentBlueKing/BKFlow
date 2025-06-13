@@ -19,6 +19,24 @@ class NodeTypes(str, Enum):
     ]
 
 
+class ConstantTypes(str, Enum):
+    CUSTOM_CONSTANT = "custom"
+    COMPONENT_INPUTS_CONSTANT = "component_inputs"
+    COMPONENT_OUTPUTS_CONSTANT = "component_outputs"
+
+    CUSTOM_CONSTANT_TAGS = [
+        "bk_manage_user_selector.bk_user_selector",
+        "datetime.datetime",
+        "input.input",
+        "int.int",
+        "select.select",
+        "textarea.textarea",
+        "datetime_range.datetime_range",
+        "datatable.datatable",
+        "json_variable.json_variable",
+    ]
+
+
 class DataTypes(str, Enum):
     DATA_MODEL = "data_model"
     JSON = "json"
