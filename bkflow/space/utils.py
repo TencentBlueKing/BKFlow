@@ -23,5 +23,5 @@ from bkflow.utils.pipeline import build_default_pipeline_tree
 
 
 def build_default_pipeline_tree_with_space_id(space_id: int):
-    horizontal_mode = SpaceConfig.get_config(space_id, CanvasModeConfig.name) == "horizontal"
-    return build_default_pipeline_tree(horizontal_mode)
+    canvas_mode = SpaceConfig.get_config(space_id, CanvasModeConfig.name)
+    return build_default_pipeline_tree(canvas_mode)
