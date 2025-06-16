@@ -62,6 +62,11 @@ class StageJobStateHandler:
                 "state": node_states[task_id].get("state", "READY"),
                 "start_time": node_states[task_id].get("start_time", ""),
                 "finish_time": node_states[task_id].get("finish_time", ""),
+                "loop": node_states[task_id].get("loop", 1),
+                "retry": node_states[task_id].get("retry", 0),
+                "skip": node_states[task_id].get("skip", False),
+                "error_ignorable": node_states[task_id].get("error_ignorable", False),
+                "error_ignored": node_states[task_id].get("error_ignored", False),
             }
             for template_id, task_id in template_to_task_id.items()
             if task_id in node_states
@@ -128,7 +133,19 @@ class StageJobStateHandler:
             node_states = []
             for node in nodes:
                 template_node_id = node["id"]
-                info = node_info_map.get(template_node_id, {"state": "READY", "start_time": "", "finish_time": ""})
+                info = node_info_map.get(
+                    template_node_id,
+                    {
+                        "state": "READY",
+                        "start_time": "",
+                        "finish_time": "",
+                        "loop": 1,
+                        "retry": 0,
+                        "skip": False,
+                        "error_ignorable": False,
+                        "error_ignored": False,
+                    },
+                )
                 node.update(info)
                 node_states.append(info["state"])
 
