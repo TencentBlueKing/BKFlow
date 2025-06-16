@@ -24,7 +24,7 @@ from bkflow_feel.api import parse_expression
 from pipeline.parser.utils import recursive_replace_id
 
 from bkflow.utils.mako import parse_mako_expression
-from bkflow.utils.stage_id_sync import StageCanvasHandler
+from bkflow.utils.stage_canvas import StageCanvasHandler
 
 DEFAULT_HORIZONTAL_PIPELINE_TREE = {
     "activities": {
@@ -366,11 +366,8 @@ def build_default_pipeline_tree(canvas_type: str = "horizontal"):
     if canvas_type != "stage":
         recursive_replace_id(pipeline_tree)
     else:
-        StageCanvasHandler.prepare_for_id_replacement(pipeline_tree)
-
-        recursive_replace_id(pipeline_tree)
-
-        StageCanvasHandler.sync_stage_canvas_data_node_ids(pipeline_tree)
+        node_map = recursive_replace_id(pipeline_tree)
+        StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
 
     return pipeline_tree
 
