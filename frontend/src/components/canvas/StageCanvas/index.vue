@@ -17,10 +17,13 @@
       :stages="stageCanvasData"
       :index="(index+1).toString()"
       :editable="editable"
+      :constants="constants"
+      :is-execute="isExecute"
       @deleteNode="deletNode(index)"
+      @handleOperateNode="handleOperateNode"
       @addNewStage="addNewStage(index)"
       @refreshPPLT="refresh"
-      @editNode="editNode"
+      @handleNode="handleNode"
       @copyNode="handleCopyNode(stage,index)" />
   </div>
 </template>
@@ -32,6 +35,8 @@ import {  getDefaultNewStage, stage } from './data';
 import { generatePplTreeByCurrentStageCanvasData, getCopyNode } from './utils';
 import JobAndStageEidtSld from './components/JobAndStageEditSld/index.vue';
 import { mapGetters, mapMutations, mapState } from 'vuex';
+import axios from 'axios';
+import { cloneDeepWith } from 'lodash';
 
  export default {
   name: 'StageCanvas',
@@ -44,6 +49,18 @@ import { mapGetters, mapMutations, mapState } from 'vuex';
       type: Boolean,
       default: false,
     },
+    isExecute: {
+      type: Boolean,
+      default: false,
+    },
+    templateId: {
+        type: [Number, String],
+        default: '',
+      },
+    instanceId: {
+        type: [Number, String],
+        default: '',
+      },
   },
 
   data() {
@@ -51,34 +68,81 @@ import { mapGetters, mapMutations, mapState } from 'vuex';
         stageData: [...stage],
         activeItem: null,
         isShowJobAndStageEdit: false,
+        constants: [
+          {
+            key: '${value}',
+            value: 10,
+          },
+        ],
+        timer: null,
+        isPolling: false,
+        debounceTimer: null,
       };
     },
   computed: {
     ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
         stageCanvasData: state => state.template.stage_canvas_data,
+        spaceId: state => state.template.spaceId,
+        activities: state => state.template.activities,
       }),
       ...mapGetters('template/', [
         'getPipelineTree',
       ]),
+      plugins() {
+        return Object.values(this.activities).reduce((res, item) => {
+          if (item.component && item.component.code) {
+            if (item.component.code === 'uniform_api') {
+              res.uniform_api.push({
+                plugin_code: item.component.data.plugin_code.value,
+              });
+            } else if (item.component.code === 'remote_plugin') {
+              res.blueking.push({
+                plugin_code: item.component.data.plugin_code.value,
+              });
+            } else {
+              res.component.push({
+                plugin_code: item.component.code,
+              });
+            }
+          }
+          return res;
+        }, { component: [], uniform_api: [], blueking: [] });
+      },
+
   },
   watch: {
     activeNode: {
       handler(value) {
         if (value) {
-          console.log('index.vue_Line:54', value);
           this.isShowJobAndStageEdit = true;
         }
       },
     },
+    plugins: {
+      handler() {
+        this.debounceTimer && clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(() => {
+          this.refreshPluginIcon();
+          this.debounceTimer = null;
+        }, 1000);
+      },
+    },
   },
   mounted() {
-    console.log('index.vue_Line:87', this.getPipelineTree);
-    this.refresh();
+    if (!this.isExecute) {
+      this.refresh();
+    } else {
+      this.getTaskStageCanvasData();
+    }
+    this.refreshPluginIcon();
 },
   methods: {
     ...mapMutations('template/', [
         'updatePipelineTree',
+      ]),
+      ...mapMutations('stageCanvas/', [
+        'setPluginsDetail',
       ]),
     addNewStage(index) {
       const newStage = getDefaultNewStage();
@@ -86,7 +150,6 @@ import { mapGetters, mapMutations, mapState } from 'vuex';
       this.refresh();
     },
     deletNode(index) {
-      console.log('index.vue_Line:45', index);
       this.stageCanvasData.splice(index, 1);
       this.refresh();
     },
@@ -101,7 +164,7 @@ import { mapGetters, mapMutations, mapState } from 'vuex';
     cancelJobAndStageEidtSld() {
       this.setActiveItem(null);
     },
-    editNode(node) {
+    handleNode(node) {
       this.$emit('onShowNodeConfig', node.id);
     },
     onUpdateNodeInfo() {
@@ -112,6 +175,45 @@ import { mapGetters, mapMutations, mapState } from 'vuex';
       this.updatePipelineTree(res);
       this.$forceUpdate();
       console.log('index.vue_Line:71', res, this.stageCanvasData);
+    },
+    handleOperateNode(type, node) {
+      console.log('index.vue_Line:130', type, node);
+    },
+    setRefreshTaskStageCanvasData(time = 2000) {
+      this.isPolling = true;
+      this.timer = setTimeout(async () => {
+        await this.getTaskStageCanvasData();
+      }, time);
+    },
+    cancelPoll() {
+      this.isPolling = false;
+      this.timer && clearTimeout(this.timer);
+      this.timer = null;
+    },
+    getTaskStageCanvasData() {
+    console.log('index.vue_Line:142', 'getData');
+    },
+    async refreshPluginIcon() {
+      const plugins = cloneDeepWith(this.plugins);
+      if (!plugins.uniform_api.length) delete plugins.uniform_api;
+      if (!plugins.component.length) delete plugins.component;
+      if (!plugins.blueking.length) delete plugins.blueking;
+      if (plugins.uniform_api || plugins.component || plugins.blueking) {
+        const params = {
+          space_id: this.spaceId,
+          template_id: this.templateId,
+          ...plugins,
+          target_fields: ['code', 'name', 'logo_url'],
+        };
+        const res = await this.getPluginDetail(params).then(res => res.data.data);
+        this.setPluginsDetail(res);
+      }
+    },
+    async getPluginDetail(params) {
+      return await axios.post('/api/plugin/uniform_plugin_query/get_plugin_detail/', params);
+    },
+    async getStageCanvasDataDetail() {
+      return await axios.get(`/task/get_stage_job_states/${this.instanceId}/`);
     },
   },
  };

@@ -2,11 +2,17 @@ const stageCanvas = {
   namespaced: true,
   state: {
     activeNode: null,
+    pluginsDetail: {
+      component: {}, uniform_api: {}, blueking: {},
+    },
   },
   mutations: {
     setActiveNode(state, node) {
       state.activeNode = node;
       console.log('stageCanvas.js_Line:9', state);
+    },
+    setPluginsDetail(state, details) {
+      Object.assign(state.pluginsDetail, details);
     },
   },
 };

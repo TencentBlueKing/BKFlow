@@ -9,7 +9,7 @@
             <div
               class="progress-bar"
               :style="{
-                width: (renderItem.value / (renderItem.progess.Range[1] - renderItem.progess.Range[0])) * 100 + '%',
+                width: progressCurrentPercent + '%',
                 backgroundColor: renderItem.progess.progressColor || '#3A83FF'
               }" />
           </div>
@@ -66,9 +66,19 @@
         }),
         },
     },
+    computed: {
+      progressCurrentPercent() {
+        if (this.renderItem.value === '--' || this.renderItem.progess.Range.includes('--')) {
+          return 0;
+        }
+           return ((this.renderItem.value - this.renderItem.progess.Range[0]) / (this.renderItem.progess.Range[1] - this.renderItem.progess.Range[0])) * 100;
+      },
+    },
     methods: {
       openLink(link) {
-        window.open(link);
+        if (link) {
+          window.open(link);
+        }
       },
     },
  };

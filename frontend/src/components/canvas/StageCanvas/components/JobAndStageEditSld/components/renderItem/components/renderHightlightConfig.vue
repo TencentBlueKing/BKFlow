@@ -42,7 +42,8 @@
               v-model="item.color"
               class="color-picker"
               :show-value="false"
-              :disabled="!editable" />
+              :disabled="!editable"
+              @change="(value)=>changeColor(value,item)" />
             <bk-radio-group
               v-model="item.fontStyle"
               class="font-style-tab">
@@ -163,6 +164,7 @@ export default {
                 fontStyle: 'normal',
           }]);
         }
+        this.$set(this.renderDataSync.conditions[0], 'color', this.renderDataSync.conditions[0].color);
         if (this.renderDataSync.tooltips) {
           this.$set(this.renderDataSync, 'tooltips', '');
         }
@@ -170,6 +172,9 @@ export default {
     methods: {
       async validate() {
             return await this.$refs.configForm.validate();
+        },
+        changeColor() {
+          this.$forceUpdate();
         },
     },
 };

@@ -2,12 +2,20 @@
   <div
     class="stage"
     :class="{ active: activeNode?.id === stage.id ,
-              isPreview:!editable} ">
+              isPreview:!editable,
+              isExecute,[ETaskStatusTypeMap[status].class]:true} ">
     <div
       class="stage-header"
       @click="setActiveItem(stage)">
       <h3>
-        <span class="stage-number">{{ index }}</span>
+        <span
+          v-if="!isExecute||(status===ETaskStatusType.PENDING)"
+          class="stage-number">
+          <span>{{ index }}.</span>
+        </span>
+        <span v-else>
+          <i :class="`${ETaskStatusIconMap[status]}`" />
+        </span>
         <div class="header-right">
           <span
             v-if="activeNode?.id === stage.id&&editable"
@@ -31,7 +39,7 @@
 
         class="stage-status">
         <div
-          v-for="item in transformNodeConfigToRenderItems(stage)"
+          v-for="item in transformNodeConfigToRenderItems(stage,constants)"
           :key="item.key"
           class="stage-status-item">
           <ValueRender :render-item="item" />
@@ -44,11 +52,14 @@
         :key="job.id"
         :job="job"
         :jobs="stage.jobs"
+        :is-execute="isExecute"
+        :constants="constants"
         :index="`${index}.${jobIndex + 1}`"
         :editable="editable"
         @deleteNode="deletJobNode(jobIndex)"
-        @editNode="editNode"
+        @handleNode="handleNode"
         @addNewJob="addNewJob(jobIndex)"
+        @handleOperateNode="handleOperateNode"
         @refreshPPLT="refreshPPLT"
         @copyNode="handleCopyJobNode(job,jobIndex)" />
     </div>
@@ -66,7 +77,8 @@ import JobNode from './JobNode.vue';
 import { mapState } from 'vuex';
 import ValueRender from './valueRender.vue';
 import { getCopyNode, transformNodeConfigToRenderItems } from '../utils';
-import { getDefaultNewJob } from '../data';
+import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
+
  export default {
     components: {
       JobNode,
@@ -89,6 +101,14 @@ import { getDefaultNewJob } from '../data';
           type: Boolean,
           default: false,
         },
+        isExecute: {
+          type: Boolean,
+          default: false,
+        },
+        constants: {
+          type: Array,
+          default: () => ([]),
+        },
     },
     data() {
       return {
@@ -104,12 +124,20 @@ import { getDefaultNewJob } from '../data';
                 icon: 'commonicon-icon common-icon-bkflow-delete',
                 name: '删除',
                 handleClick: () => {
-                  console.log('StageNode.vue_Line:85', 1);
                   this.$emit('deleteNode',  this.stage);
                 },
                 disabled: () => this.stages.length <= 1,
               },
             ],
+            ETaskStatusType,
+            status: ETaskStatusType.RUNNING,
+            ETaskStatusTypeMap,
+            ETaskStatusIconMap: {
+              [ETaskStatusType.ERROR]: 'iconCirle commonicon-icon common-icon-close',
+              [ETaskStatusType.SUCCESS]: 'iconCirle commonicon-icon common-icon-done-thin',
+              [ETaskStatusType.RUNNING]: 'rotateAnimate commonicon-icon common-icon-loading-ring',
+              [ETaskStatusType.PENDING]: '',
+            },
           };
       },
     computed: {
@@ -129,13 +157,9 @@ import { getDefaultNewJob } from '../data';
         const newStage = getDefaultNewJob();
         this.stage.jobs.splice(index + 1, 0,  newStage);
         this.$set(this.stage, 'jobs', this.stage.jobs);
-        console.log('StageNode.vue_Line:127', this.stage.jobs);
-
         this.refreshPPLT();
       },
       deletJobNode(index) {
-        console.log('index.vue_Line:45', index);
-        console.log('StageNode.vue_Line:127', this.stage);
         this.stage.jobs.splice(index, 1);
         this.refreshPPLT();
       },
@@ -144,13 +168,16 @@ import { getDefaultNewJob } from '../data';
         this.stage.jobs.splice(index + 1, 0,  copyStage);
         this.refreshPPLT();
       },
-      editNode(node) {
-          this.$emit('editNode', node);
+      handleNode(node) {
+          this.$emit('handleNode', node);
         },
         refreshPPLT() {
           this.$emit('refreshPPLT');
           this.$forceUpdate();
         },
+      handleOperateNode(type, node) {
+        this.$emit('handleOperateNode', type, node);
+      },
     },
 
  };
@@ -203,7 +230,47 @@ import { getDefaultNewJob } from '../data';
           display: flex;
         }
       }
-
+      .stage-header {
+          margin-bottom: 0;
+          padding: 12px 18px;
+          background-color: #E1ECFF; /* 根据设计稿更新背景色 */
+          border-bottom: 1px solid #D4E8FF; /* 更新边框颜色 */
+          border-radius: 2px 2px 0 0; /* 根据设计稿设置圆角 */
+          box-sizing: border-box;
+          cursor: pointer; /* 添加鼠标指针样式 */
+          transition: background-color 0.2s;
+          border: 1px solid #3A83FF00;
+          font-weight: 700;
+          color: #313238;
+          &:hover {
+              background-color: #D4E8FF; /* 悬停时略微变深 */
+          }
+          h3 {
+              margin: 0 0 10px 0;
+              font-size: 16px;
+              line-height: 1;
+              display: flex;
+              align-items: center;
+              span.stage-number {
+                  display: inline-block;
+                  color: #313238;
+              }
+          }
+          .header-right{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex: 1;
+            font-size: 16px;
+            .node-name{
+              max-width: 180px;
+              line-height: 1.5;
+            }
+            .editing-text{
+              line-height: 1.5;
+            }
+          }
+      }
 }
 .cicrleBtn{
   display: none;
@@ -227,52 +294,8 @@ import { getDefaultNewJob } from '../data';
     cursor: pointer;
   }
 }
-.stage-header {
-    margin-bottom: 0;
-    padding: 12px;
-    background-color: #E1ECFF; /* 根据设计稿更新背景色 */
-    border-bottom: 1px solid #D4E8FF; /* 更新边框颜色 */
-    border-radius: 2px 2px 0 0; /* 根据设计稿设置圆角 */
-    box-sizing: border-box;
-    cursor: pointer; /* 添加鼠标指针样式 */
-    transition: background-color 0.2s;
-    border: 1px solid #3A83FF00;
-}
-.stage-header:hover {
-    background-color: #D4E8FF; /* 悬停时略微变深 */
-}
-.stage-header h3 {
-    margin: 0 0 10px 0;
-    font-size: 18px;
-    line-height: 1;
-    color: #333;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-}
-.header-right{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex: 1;
-  font-size: 16px;
-  .node-name{
-    max-width: 180px;
-    line-height: 1.5;
-  }
-}
-.stage-header h3 span.stage-number {
-    display: inline-block;
-    width: 24px;
-    height: 24px;
-    background-color: #3A83FF;
-    color: white;
-    border-radius: 50%;
-    text-align: center;
-    line-height: 24px;
-    margin-right: 8px;
-    font-size: 14px;
-}
+
+
 .stage-status {
     font-size: 12px;
     color: #666;
@@ -318,6 +341,77 @@ import { getDefaultNewJob } from '../data';
     .tools{
       display: none;
     }
+  }
+}
+.isExecute{
+  &.stage{
+    &.error{
+      border: 1px solid #FFD4D4;
+      .stage-header{
+        background-color: #fff9f9;
+      }
+    }
+    &.success{
+      border: 1px solid #D4E8FF;
+      .stage-header{
+        background-color: #f2fff6;
+      }
+    }
+    &.running{
+      border: 1px solid #D4E8FF;
+      .stage-header{
+        background-color: #e1ecff;
+      }
+    }
+    &.pending{
+      border: 1px solid #E4E7EB;
+      .stage-header{
+        background-color: #eef3f8;
+      }
+    }
+  }
+}
+.iconCirle{
+  font-size: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  margin-right: 8px;
+}
+.success{
+  .iconCirle{
+    background-color: #5BC882;
+  }
+}
+.error{
+  .iconCirle{
+    background-color: #ff5656;
+  }
+}
+.rotateAnimate{
+  font-size: 14px;
+  margin-right: 8px;
+  transform-origin: center;
+  color: #3c96ff;
+  animation: roate 1s linear infinite;
+  transform: scale(2);
+  display: flex;
+  align-content: center;
+  justify-content: center;
+}
+@keyframes roate {
+  0%{
+    transform: rotate(0) scale(2);
+  }
+  50%{
+    transform: rotate(180deg) scale(2);
+  }
+  100%{
+    transform: rotate(360deg) scale(2);
   }
 }
 </style>

@@ -1,20 +1,65 @@
 <template>
   <div
     class="node"
-    :class="{ active:activeNode?.id === node.id,isPreview:!editable }"
-    @click="editNode(node)">
+    :class="{ active:activeNode?.id === node.id,isPreview:!editable,isExecute,[ETaskStatusTypeMap[status].class]:true }"
+    @click="handleNode(node)">
     <div class="node-icon">
-      <img
-        src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjIiIGhlaWdodD0iMjIiIHZpZXdCb3g9IjAgMCAyMiAyMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHJ4PSIyIiBzdHJva2U9IiNENEU4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjxwYXRoIGQ9Ik02IDYgTDE2IDE2IE02IDE2IEwxNiA2IiBzdHJva2U9IiNENEU4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg=="
-        alt="网格图标">
+      <template v-if="!isExecute||(status===ETaskStatusType.PENDING)">
+        <i
+          v-if="pluginType==='component'"
+          :class="`logo-icon ${getIconCls(currentNode.component?.code)}`" />
+        <img
+          v-else-if="pluginType==='blueking'||pluginType==='uniform_api'"
+          :src="getLogoByPluginsDetail()"
+          alt="">
+        <img
+          v-else
+          :src="defaultLogo"
+          alt="网格图标">
+      </template>
+
+      <span
+        v-else
+        style="display: inline-block;">
+        <i :class="`${ETaskStatusIconMap[status]}`" />
+      </span>
     </div>
     <div class="node-title">
       <span
         v-if="activeNode?.id === node.id"
         class="editing-text">编辑中...</span>
-      <span
+
+      <div
         v-else
-        class="word-elliptic step-name">{{ currentNode?.name || '新节点' }}</span>
+        class="step-name">
+        <span
+          class="word-elliptic name">{{ currentNode?.name || '新节点' }}</span>
+        <span
+          v-if="isExecute"
+          class="toolAndTime">
+          <div class="tool">
+            <bk-button
+              v-if="status===ETaskStatusType.RUNNING"
+              theme="danger"
+              size="small"
+              text
+              @click="handleOperateNode('stop')">强制终止</bk-button>
+            <bk-button
+              v-if="status===ETaskStatusType.ERROR"
+              theme="primary"
+              size="small"
+              text
+              @click="handleOperateNode('reTry')">重试</bk-button>
+            <bk-button
+              v-if="status===ETaskStatusType.ERROR"
+              theme="primary"
+              size="small"
+              text
+              @click="handleOperateNode('skip')">跳过</bk-button>
+          </div>
+          <div class="time">3h1m</div>
+        </span>
+      </div>
       <div class="tools">
         <div
           v-for="item in toolIconArr.filter(item=>!item.disabled||!item.disabled())"
@@ -37,6 +82,8 @@
 </template>
 <script>
 import { mapState } from 'vuex';
+import { ETaskStatusType, ETaskStatusTypeMap } from '../data';
+import { SYSTEM_GROUP_ICON } from '@/constants/index.js';
 export default {
     props: {
         node: {
@@ -48,6 +95,10 @@ export default {
             default: () => [],
         },
         editable: {
+          type: Boolean,
+          default: false,
+        },
+        isExecute: {
           type: Boolean,
           default: false,
         },
@@ -72,37 +123,73 @@ export default {
                 disabled: () => this.nodes.length <= 1,
               },
             ],
+            ETaskStatusType,
+            status: ETaskStatusType.SUCCESS,
+            ETaskStatusTypeMap,
+            ETaskStatusIconMap: {
+              [ETaskStatusType.ERROR]: 'iconCirle commonicon-icon common-icon-close',
+              [ETaskStatusType.SUCCESS]: 'iconCirle commonicon-icon common-icon-done-thin',
+              [ETaskStatusType.RUNNING]: 'rotateAnimate commonicon-icon common-icon-loading-ring',
+              [ETaskStatusType.PENDING]: '',
+            },
+            codeMapToType: {
+              remote_plugin: 'blueking',
+              uniform_api: 'uniform_api',
+            },
+            defaultLogo: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjIiIGhlaWdodD0iMjIiIHZpZXdCb3g9IjAgMCAyMiAyMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHJ4PSIyIiBzdHJva2U9IiNENEU4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjxwYXRoIGQ9Ik02IDYgTDE2IDE2IE02IDE2IEwxNiA2IiBzdHJva2U9IiNENEU4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==',
         };
     },
     computed: {
       ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
         activities: state => state.template.activities,
+        pluginsDetail: state => state.stageCanvas.pluginsDetail,
       }),
       currentNode() {
         return this.activities[this.node.id];
       },
+      pluginType() {
+        if (this.currentNode?.component && this.currentNode.component.code) {
+          const type = (this.currentNode.component.code === 'uniform_api' || this.currentNode.component.code === 'remote_plugin') ? this.codeMapToType[this.currentNode.component.code]  : 'component';
+          return type;
+        }
+      return null;
+    },
     },
     methods: {
-        editNode(node) {
-          this.$emit('editNode', node);
+        handleNode(node) {
+          this.$emit('handleNode', node);
         },
         addStep() {
           this.$emit('addNewStep');
+        },
+        handleOperateNode(type) {
+          this.$emit('handleOperateNode', type, this.currentNode);
+        },
+        getIconCls(type) {
+          const systemType = SYSTEM_GROUP_ICON.find(item => new RegExp(item).test(type.toUpperCase()));
+          console.log('StepNode.vue_Line:172', systemType);
+          if (systemType) {
+            return `common-icon-sys-${systemType.toLowerCase()}`;
+          }
+          return 'common-icon-sys-default';
+        },
+        getLogoByPluginsDetail() {
+          // eslint-disable-next-line camelcase
+          return this.pluginsDetail[this.pluginType]?.[this.currentNode.component.data.plugin_code.value]?.logo_url || this.defaultLogo;
         },
     },
 };
 </script>
 <style lang="scss" scoped>
 .node {
-    background-color: #F8FBFF; /* 更浅的背景色 */
-    border: 1px solid #D4E8FF;
+    background-color: #ffffff; /* 更浅的背景色 */
+    border: 1px solid #C3CDD7;
     border-radius: 2px;
     padding: 10px 12px;
     display: flex;
     align-items: center;
     font-size: 12px;
-    color: #555;
     width: 100%;
     max-width: 240px;
     height: 42px;
@@ -111,6 +198,10 @@ export default {
     cursor: pointer; /* 添加鼠标指针样式 */
     transition: all 0.2s;
     position: relative;
+    .logo-icon{
+      font-size: 16px;
+      color: #3A83FF;
+    }
     &:hover{
       border-color: #3A83FF;
       background-color: #EDF2F7;
@@ -135,51 +226,46 @@ export default {
     justify-content: center;
     align-items: center;
     margin-right: 10px;
-    color: #666;
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
 }
-.node-icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
+
 .node-title {
     flex: 1;
     font-size: 12px;
-    color: #333;
     display: flex;
     height: 16px;
     align-items: center;
     justify-content: space-between;
-    flex: 1;
+    width: 0;
     .step-name{
-        max-width: 120px;
-
+        flex: 1;
+        display: flex;
+        align-items: center;
+        .toolAndTime{
+          display: flex;
+          align-items: center;
+          .bk-button-text.bk-button-small{
+            padding: 0;
+            margin-right: 4px;
+          }
+        }
+        .name{
+          flex: 1;
+        }
+    }
+    .editing-text {
+        color: #3A83FF;
+        font-style: italic;
         flex: 1;
     }
+
 }
-.vertical-connector {
-    width: 1px;
-    height: 12px; /* u589eu52a0u9ad8u5ea6 */
-    background-color: #D4E8FF; /* u66f4u65b0u8fdeu63a5u7ebfu989cu8272 */
-    margin: 5px auto; /* u589eu52a0u4e0au4e0bu95f4u8ddd */
-}
-.editing-text {
-    color: #3A83FF;
-    font-style: italic;
-    flex: 1;
-}
-.value-link {
-    color: #3A83FF;
-    text-decoration: none;
-    cursor: pointer;
-}
-.value-link:hover {
-    text-decoration: underline;
-}
-.highlighted-value {
-    display: inline-block;
-    border-radius: 3px;
-}
+
+
 .node-status {
     display: flex;
     flex-direction: column;
@@ -241,6 +327,76 @@ export default {
     .tools{
       display: none;
     }
+  }
+}
+.isExecute{
+  &.node{
+    &.error{
+      border: 1px solid #FF5656;
+      .toolAndTime{
+        .time{
+          color: #FF5656;
+        }
+      }
+    }
+    &.success{
+      border: 1px solid #5BC882;
+      .time{
+        color: #5BC882;
+      }
+    }
+    &.running{
+      border: 1px solid #3C96FF;
+      .time{
+        color: #3C96FF;
+      }
+    }
+    &.pending{
+      border: 1px solid #C3CDD7;
+    }
+  }
+}
+.iconCirle{
+  font-size: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  margin-right: 8px;
+}
+.success{
+  .iconCirle{
+    background-color: #5BC882;
+  }
+}
+.error{
+  .iconCirle{
+    background-color: #ff5656;
+  }
+}
+.rotateAnimate{
+  font-size: 14px;
+  margin-right: 8px;
+  transform-origin: center;
+  color: #3c96ff;
+  animation: roate 1s linear infinite;
+  transform: scale(2);
+  display: flex;
+  align-content: center;
+  justify-content: center;
+}
+@keyframes roate {
+  0%{
+    transform: rotate(0) scale(2);
+  }
+  50%{
+    transform: rotate(180deg) scale(2);
+  }
+  100%{
+    transform: rotate(360deg) scale(2);
   }
 }
 </style>

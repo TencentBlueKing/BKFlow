@@ -1,10 +1,15 @@
 <template>
   <div
     class="job"
-    :class="{ active: activeNode?.id === job.id, isPreview:!editable }">
+    :class="{ active: activeNode?.id === job.id, isPreview:!editable , isExecute,[ETaskStatusTypeMap[status].class]:true}">
     <div class="job-header">
       <div class="job-id">
-        {{ index }}
+        <span v-if="!isExecute||(status===ETaskStatusType.PENDING)">{{ index }}</span>
+        <span
+          v-else
+          style="display: inline-block;">
+          <i :class="`${ETaskStatusIconMap[status]}`" />
+        </span>
       </div>
       <div
         class="job-title"
@@ -33,7 +38,7 @@
     <div class="job-content">
       <div class="job-status">
         <div
-          v-for="item in transformNodeConfigToRenderItems(job)"
+          v-for="item in transformNodeConfigToRenderItems(job,constants)"
           :key="item.key"
           class="job-status-item">
           <ValueRender :render-item="item" />
@@ -47,9 +52,11 @@
             :node="node"
             :nodes="job.nodes"
             :editable="editable"
+            :is-execute="isExecute"
             @deleteNode="deletStepNode(nodeIndex)"
-            @editNode="editNode"
+            @handleNode="handleNode"
             @addNewStep="addNewStep(nodeIndex)"
+            @handleOperateNode="handleOperateNode"
             @copyNode="handleCopyStepNode(node,nodeIndex)" />
         </template>
       </div>
@@ -68,7 +75,7 @@ import { mapState } from 'vuex';
 import { copyStepNode, transformNodeConfigToRenderItems } from '../utils';
 import ValueRender from './valueRender.vue';
 import StepNode from './StepNode.vue';
-import { getDefaultNewStep } from '../data';
+import { getDefaultNewStep, ETaskStatusType, ETaskStatusTypeMap } from '../data';
 export default {
     components: {
         ValueRender,
@@ -91,6 +98,14 @@ export default {
           type: Boolean,
           default: false,
         },
+        isExecute: {
+          type: Boolean,
+          default: false,
+        },
+        constants: {
+          type: Array,
+          default: () => ([]),
+        },
     },
     data() {
         return {
@@ -112,6 +127,15 @@ export default {
                 disabled: () => this.jobs.length <= 1,
               },
             ],
+          ETaskStatusType,
+          status: ETaskStatusType.RUNNING,
+          ETaskStatusTypeMap,
+          ETaskStatusIconMap: {
+              [ETaskStatusType.ERROR]: 'iconCirle commonicon-icon common-icon-close',
+              [ETaskStatusType.SUCCESS]: 'iconCirle commonicon-icon common-icon-done-thin',
+              [ETaskStatusType.RUNNING]: 'rotateAnimate commonicon-icon common-icon-loading-ring',
+              [ETaskStatusType.PENDING]: '',
+            },
         };
       },
     computed: {
@@ -143,11 +167,14 @@ export default {
 
           this.refreshPPLT();
         },
-        editNode(node) {
-          this.$emit('editNode', node);
+        handleNode(node) {
+          this.$emit('handleNode', node);
         },
         refreshPPLT() {
           this.$emit('refreshPPLT');
+        },
+        handleOperateNode(type, node) {
+          this.$emit('handleOperateNode', type, node);
         },
     },
 };
@@ -163,6 +190,7 @@ export default {
     box-shadow: none;
     margin-bottom: 12px;
     position: relative;
+    border-radius: 2px;
     &:hover{
       .tools{
         display: flex;
@@ -182,69 +210,65 @@ export default {
 .job-header {
     display: flex;
     width: 100%;
-
-}
-.job-header .job-id {
-    width: 60px;
-    background-color: #4A90E2; /* u84ddu8272u80ccu666f */
-    color: white;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1em;
-    height: 42px; /* u6dfbu52a0u56fau5b9au9ad8u5ea6 */
-}
-.job-header .job-title {
-    flex: 1;
-    background-color: #191929; /* u6df1u8272u80ccu666f */
-    color: white;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    padding: 0 12px;
-    font-size: 1em;
-    height: 42px; /* u6dfbu52a0u56fau5b9au9ad8u5ea6 */
-    cursor: pointer; /* 添加鼠标指针样式 */
-    transition: background-color 0.2s;
-}
-.job-header .job-title:hover {
-    background-color: #22222f; /* 悬停效果 */
+    font-size: 14px;
+    .job-id {
+      width: 42px;
+      background-color: #4A90E2;
+      color: white;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 42px;
+     }
+    .job-title {
+      flex: 1;
+      background-color: #191929;
+      color: white;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      height: 42px;
+      cursor: pointer; /* 添加鼠标指针样式 */
+      transition: background-color 0.2s;
+      .header-right{
+        display: flex;
+        flex: 1;
+        justify-content: space-between;
+        font-size: 16px;
+        .node-name{
+          max-width: 110px;
+        }
+      }
+      &:hover {
+          background-color: #22222f; /* 悬停效果 */
+      }
+    }
 }
 
 .job-content {
-    padding: 16px 12px;
+
     position: relative;
-    background-color: #F5F7FA; /* 内容区域使用浅灰色背景 */
+    background-color: #ecf0f7; /* 内容区域使用浅灰色背景 */
+    .job-status {
+        font-size: 12px;
+        padding: 16px 12px;
+        background-color: #eff5ff; /* 稍深的背景色 */
+        .job-status-item {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+    }
+    .job-nodes {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px; /* Space between nodes */
+    }
 }
-.job-status {
-    font-size: 0.9em;
-    color: #666;
-    margin-bottom: 12px;
-    padding: 12px;
-    background-color: #EDF2F7; /* 稍深的背景色 */
-    margin: -12px -12px 12px -12px; /* 抵消父元素的内边距 */
-    border-bottom: 1px solid #E4EBF5; /* 添加分隔线 */
-}
-.job-status-item {
-    margin-bottom: 8px;
-    line-height: 1.5;
-}
-.job-nodes {
-    display: flex;
-    flex-direction: column;
-    gap: 10px; /* Space between nodes */
-    margin-top: 5px;
-}
-.header-right{
-  display: flex;
-  flex: 1;
-  justify-content: space-between;
-  font-size: 16px;
-  .node-name{
-    max-width: 110px;
-  }
-}
+
+
 .tools{
   display: none;
   align-items: center;
@@ -298,6 +322,111 @@ export default {
     .tools{
       display: none;
     }
+  }
+}
+.isExecute{
+    &.job{
+      &.error{
+        .job-header{
+        .job-id{
+          background-color: #ff5656;
+        }
+        .job-title{
+          background-color: #ff5656;
+        }
+        }
+        .job-content{
+        .job-status{
+          background-color: #fff9f9;
+        }
+        }
+    }
+    &.success{
+      .job-header{
+        .job-id{
+          background-color: #5bc882;
+        }
+        .job-title{
+          background-color: #5bc882;
+        }
+      }
+      .job-content{
+        .job-status{
+          background-color: #f2fff6;
+        }
+      }
+    }
+    &.running{
+      .job-header{
+        .job-id{
+          background-color: #3c96ff;
+        }
+        .job-title{
+          background-color: #3c96ff;
+        }
+        }
+        .job-content{
+        .job-status{
+          background-color: #eff5ff;
+        }
+      }
+    }
+    &.pending{
+      .job-header{
+          .job-id{
+            background-color: #63656e;
+          }
+          .job-title{
+            background-color: #63656e;
+          }
+        }
+        .job-content{
+          .job-status{
+            background-color: #ecf0f7;
+          }
+      }
+    }
+  }
+}
+.iconCirle{
+  font-size: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #fff;
+}
+.success{
+  .iconCirle{
+    color: #5BC882;
+  }
+}
+.error{
+  .iconCirle{
+    color: #ff5656;
+  }
+}
+.rotateAnimate{
+  font-size: 14px;
+  transform-origin: center;
+  color: #fff;
+  animation: roate 1s linear infinite;
+  transform: scale(2);
+  display: flex;
+  align-content: center;
+  justify-content: center;
+}
+@keyframes roate {
+  0%{
+    transform: rotate(0) scale(2);
+  }
+  50%{
+    transform: rotate(180deg) scale(2);
+  }
+  100%{
+    transform: rotate(360deg) scale(2);
   }
 }
 </style>
