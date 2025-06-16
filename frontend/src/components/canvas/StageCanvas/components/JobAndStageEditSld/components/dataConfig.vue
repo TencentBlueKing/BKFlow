@@ -33,7 +33,22 @@
             property="value">
             <bk-input
               v-model="configSync.value"
-              :disabled="!editable" />
+              :disabled="!editable"
+              @focus="toggleShowSuggest(true)"
+              @blur="toggleShowSuggest(false)" />
+            <div
+              v-show="ifShowSuggest&&configSync.value&&valueInputSuggestList.length"
+              class="input-suggest">
+              <div class="input-suggest-container">
+                <div
+                  v-for="item in valueInputSuggestList"
+                  :key="item.key"
+                  class="suggest-item"
+                  @mousedown="handleSuggest(item.key)">
+                  {{ item.key }}
+                </div>
+              </div>
+            </div>
           </bk-form-item>
         </div>
         <div class="render-list">
@@ -71,7 +86,8 @@
 import { cloneDeepWith } from 'lodash';
 import { getIsDisabledSelecitonByRenderList, renderTypeMap } from '../../../utils';
 import RenderItem from './renderItem/renderItem.vue';
-
+import { mapState } from 'vuex';
+import { ref } from 'vue';
 export default {
     name: 'DataConfig',
     components: {
@@ -105,10 +121,13 @@ export default {
                   validator: () => !!this.configSync.value?.toString(),
             }],
           },
-
+          ifShowSuggest: false,
         };
     },
     computed: {
+      ...mapState({
+        constants: state => state.template.constants,
+      }),
       configSync: {
         get() {
           return this.config;
@@ -116,6 +135,9 @@ export default {
         set(value) {
           this.$emit('update:conifg', value);
         },
+      },
+      valueInputSuggestList() {
+        return Object.values(this.constants).filter(item => item.key.includes(this.configSync.value));
       },
     },
     methods: {
@@ -126,7 +148,7 @@ export default {
           type: ableSelectRenderTypeItem.value,
         };
         Object.assign(currentRender, cloneDeepWith(ableSelectRenderTypeItem.initData));
-        this.configSync.renders.push(currentRender);
+        this.configSync.renders.push(ref(currentRender).value);
       },
       deleteConfig() {
         this.$emit('deleteConfig');
@@ -137,6 +159,14 @@ export default {
       async validate() {
         this.$refs.renderItemRefs && await  Promise.all(this.$refs.renderItemRefs.map(item => item.validate()));
         await this.$refs.configForm.validate();
+      },
+      toggleShowSuggest(value) {
+        this.$nextTick(() => {
+          this.ifShowSuggest = value;
+        });
+      },
+      handleSuggest(value) {
+        this.configSync.value = value;
       },
     },
 };
@@ -177,6 +207,29 @@ export default {
       :deep(.bk-form-item ){
         margin-top: 0px;
         flex: 1;
+      }
+      .input-suggest{
+        position: absolute;
+        width: 100%;
+        bottom: 0px;
+        transform: translateY(100%);
+        z-index: 100;
+        background-color: #fff;
+        .input-suggest-container{
+          border: 1px solid #c4c6cc;
+          border-top: none;
+          border-radius: 0 0 2px 2px;
+          color: #63656e;
+          .suggest-item{
+            line-height: 1;
+            padding: 8px 16px;
+            font-size: 12px;
+            cursor: pointer;
+            &:hover{
+              background-color: #eaf3ff;
+            }
+          }
+        }
       }
     }
 

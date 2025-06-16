@@ -48,7 +48,7 @@ export default {
                   {
                     trigger: 'blur',
                     message: '请输入有效的数值范围',
-                    validator: () => this.renderData.range.findIndex(item => item === '' || isNaN(item)) === -1,
+                    validator: () => this.renderData.range.findIndex(item => item !== 0 && !item) === -1,
                   },
                 ],
             },

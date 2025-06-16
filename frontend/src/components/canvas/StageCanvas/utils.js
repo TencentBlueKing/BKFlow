@@ -31,13 +31,24 @@ export const fontStyleMap = {
     },
   },
 };
-export const processConfigItem = (configItem) => {
+export const getValueByConstants = (value, constants) => {
+  const findValue = constants.find(constant => constant.key === value);
+  if (!isNaN(value)) {
+    return value;
+  } if (findValue) {
+    return findValue.value;
+  }
+  return '--';
+};
+export const processConfigItem = (configItem, constants = []) => {
   if (!configItem) return null;
 
   const { key, value, renders } = configItem;
+  const realValue = getValueByConstants(value, constants);
+  configItem.realValue = realValue;
   const processed = {
     key,
-    value,
+    value: realValue,
     hasProgress: false,
     hasLink: false,
     linkUrl: '',
@@ -70,46 +81,48 @@ export const processConfigItem = (configItem) => {
 
   if (progressRender) {
     processed.hasProgress = true;
-    processed.progess.Range = progressRender.range || [0, 100];
+    processed.progess.Range = progressRender.range ? progressRender.range.map(value => getValueByConstants(value, constants)) : ['--', '--'];
     processed.progess.progressColor = progressRender.color || '#3A83FF';
   } else if (highlightRender && highlightRender.conditions && highlightRender.conditions.length) {
     // 根据条件确定是否高亮
-    const numValue = !isNaN(Number(value)) ? Number(value) : value;
+    const numValue = !isNaN(Number(processed.value)) ? Number(processed.value) : processed.value;
 
     for (const condition of highlightRender.conditions) {
       let isMatch = false;
+      const realConditionValue = getValueByConstants(condition.value, constants);
+      if (realConditionValue !== '--') {
+        switch (condition.condition) {
+          case '>':
+            isMatch = numValue > realConditionValue;
+            break;
+          case '<':
+            isMatch = numValue < realConditionValue;
+            break;
+          case '>=':
+            isMatch = numValue >= realConditionValue;
+            break;
+          case '<=':
+            isMatch = numValue <= realConditionValue;
+            break;
+          case '=':
+            isMatch = value === realConditionValue;
+            break;
+        }
 
-      switch (condition.condition) {
-        case '>':
-          isMatch = numValue > condition.value;
+        if (isMatch) {
+          processed.hasHighlight = true;
+          processed.text.color = condition.color || '#4D4F56';
+          Object.assign(processed.text.highlightStyle, fontStyleMap[condition.fontStyle || 'normal'].getStyle());
+          processed.text.highlightBg = condition.bgColor || '';
           break;
-        case '<':
-          isMatch = numValue < condition.value;
-          break;
-        case '>=':
-          isMatch = numValue >= condition.value;
-          break;
-        case '<=':
-          isMatch = numValue <= condition.value;
-          break;
-        case '=':
-          isMatch = value === condition.value;
-          break;
-      }
-
-      if (isMatch) {
-        processed.hasHighlight = true;
-        processed.text.color = condition.color || '#4D4F56';
-        Object.assign(processed.text.highlightStyle, fontStyleMap[condition.fontStyle || 'normal'].getStyle());
-        processed.text.highlightBg = condition.bgColor || '';
-        break;
+        }
       }
     }
   }
 
   return processed;
 };
-export const transformNodeConfigToRenderItems = node => node.config.map(config => processConfigItem(config));
+export const transformNodeConfigToRenderItems = (node, constants = []) => node.config.map(config => processConfigItem(config, constants));
 
 export const getCopyNode = (node) => {
   const tempNode = cloneDeepWith(node);
@@ -128,12 +141,18 @@ export const getCopyNode = (node) => {
 export const copyStepNode = (node) => {
   const tempNode = cloneDeepWith(node);
   let tempActivites;
+  let tempLocation;
   if (templateStore.state.activities[tempNode.id]) {
     tempActivites = cloneDeepWith(templateStore.state.activities[tempNode.id]);
+    tempLocation = cloneDeepWith(templateStore.state.location.find(node => node.id === tempNode.id));
   }
   tempNode.id = `node${uuid()}`;
   templateStore.state.activities[tempNode.id] = tempActivites;
   if (tempActivites)tempActivites.id = tempNode.id;
+  if (tempLocation) {
+    tempLocation.id = tempNode.id;
+    templateStore.state.location.push(tempLocation);
+  }
   return tempNode;
 };
 export const renderTypeMap = {
@@ -307,7 +326,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   ],
   stage_canvas_data: [],
 }) => {
-  const { activities, stage_canvas_data: stageCanvasData } = cloneDeepWith(pipelineTree);
+  const { activities, stage_canvas_data: stageCanvasData, location } = cloneDeepWith(pipelineTree);
   const startPointLocation = {
     id: `node${uuid()}`,
     type: 'startpoint',
@@ -327,6 +346,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     gateways: {},
     location: [],
     start_event: {},
+    canvas_mode: 'stage',
   };
 
   newPipelineTree.location.push(startPointLocation, endPointLocation);
@@ -443,12 +463,18 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
         newPipelineTree.activities[node.id].incoming = []; // 清空旧连线数据
         newPipelineTree.activities[node.id].outgoing = '';
         newPipelineTree.activities[node.id].incoming.push(newNodeLine.id);
-        newPipelineTree.location.push({
-          id: node.id,
-          type: 'tasknode',
-          x: startXPositon + currentJobNodeGap * (index + 1),
-          y: currentYPosition - 10,
-        });
+        const findLocation = location.find(item => node.id === item.id);
+        if (findLocation) {
+          newPipelineTree.location.push(findLocation);
+        } else {
+          newPipelineTree.location.push({
+            id: node.id,
+            type: 'tasknode',
+            x: startXPositon + currentJobNodeGap * (index + 1),
+            y: currentYPosition - 10,
+          });
+        }
+
         newPipelineTree.flows[newNodeLine.id] = newNodeLine;
 
         // 连向上一个节点

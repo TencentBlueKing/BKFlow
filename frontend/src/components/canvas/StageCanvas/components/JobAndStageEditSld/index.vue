@@ -175,10 +175,12 @@ export default {
           try {
             await this.validate();
             // 验证数据项填入是否合法
-            await Promise.all(this.$refs.configItemRefs.map(item => item.validate()));
-
+            if (this.$refs.configItemRefs) {
+              await Promise.all(this.$refs.configItemRefs.map(item => item.validate()));
+            }
             Object.assign(this.initData, this.tempData);
-            this.cancel();
+            this.isShowSync = false;
+            this.$emit('cancel');
           } catch (error) {
             console.log('index.vue_Line:164', error);
           }

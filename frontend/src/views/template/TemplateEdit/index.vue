@@ -51,6 +51,7 @@
           :show-palette="!isViewMode"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
+          :template-id="templateId"
           @onLineChange="onLineChange"
           @onLocationChange="onLocationChange"
           @onLocationMoveDone="onLocationMoveDone"

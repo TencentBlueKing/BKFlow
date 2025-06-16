@@ -49,7 +49,7 @@
     <div class="task-container">
       <div class="pipeline-nodes">
         <component
-          :is="canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas'"
+          :is="templateComponentName"
           v-if="!nodeSwitching"
           ref="processCanvas"
           class="canvas-comp-wrapper"
@@ -57,6 +57,9 @@
           :show-palette="false"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
+          :is-execute="true"
+          :template-id="templateId"
+          :instance-id="instanceId"
           @onNodeClick="onNodeClick"
           @onConditionClick="onOpenConditionEdit"
           @onRetryClick="onRetryClick"
@@ -244,6 +247,7 @@
   import { graphToJson } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
+  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
 
   const { CancelToken } = axios;
   let source = CancelToken.source();
@@ -293,6 +297,7 @@
       injectVariableDialog,
       ProcessCanvas,
       VerticalCanvas,
+      StageCanvas,
     },
     mixins: [permission, tplPerspective],
     props: {
@@ -522,6 +527,15 @@
       },
       hasOperatePerm() {
         return this.instanceActions.includes('OPERATE');
+      },
+      templateType() {
+          return this.$route.query.templateType || 'template';
+      },
+      templateComponentName() {
+          if (this.templateType.toLowerCase() === 'StageCanvas'.toLowerCase()) {
+                return  'StageCanvas';
+          }
+            return this.canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas';
       },
     },
     mounted() {
@@ -985,6 +999,7 @@
         this.timer = setTimeout(() => {
           this.loadTaskStatus();
         }, time);
+        this.templateType.toLowerCase() === 'stagecanvas' && this.$ref.processCanvas.setRefreshTaskStageCanvasData();
       },
       cancelTaskStatusTimer() {
         if (this.timer) {

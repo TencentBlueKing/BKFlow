@@ -299,7 +299,7 @@ const template = {
       });
     },
     updatePipelineTree(state, data) {
-      const { activities, flows, gateways, line, location, start_event: startEvent, end_event: endEvent } = data;
+      const { activities, flows, gateways, line, location, start_event: startEvent, end_event: endEvent, canvas_mode: canvasMode } = data;
       state.activities = activities;
       state.flows = flows;
       state.gateways = gateways;
@@ -307,6 +307,7 @@ const template = {
       state.location = location;
       state.start_event = startEvent;
       state.end_event = endEvent;
+      state.canvas_mode = canvasMode;
     },
     // 更新模板各相关字段数据
     setTemplateData(state, data) {
