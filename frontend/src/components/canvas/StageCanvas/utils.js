@@ -506,3 +506,62 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
 
   return newPipelineTree;
 };
+
+function formatDuration(startTimestamp, endTimestamp) {
+  // 计算时间差（毫秒）
+  const durationInMs = endTimestamp - startTimestamp;
+
+  // 处理负值情况
+  if (durationInMs < 0) {
+    return 'Invalid timestamps';
+  }
+  if (durationInMs === 0) {
+    return '1s内';
+  }
+  // 定义时间单位
+  const units = {
+    hours: 3600000, // 1小时 = 3600000毫秒
+    minutes: 60000, // 1分钟 = 60000毫秒
+    seconds: 1000, // 1秒 = 1000毫秒
+    milliseconds: 1, // 1毫秒 = 1毫秒
+  };
+
+  let remainingTime = durationInMs;
+  const result = [];
+
+  // 计算小时
+  const hours = Math.floor(remainingTime / units.hours);
+  if (hours > 0) {
+    result.push(`${hours}h`);
+    remainingTime -= hours * units.hours;
+  }
+
+  // 计算分钟
+  const minutes = Math.floor(remainingTime / units.minutes);
+  if (minutes > 0) {
+    result.push(`${minutes}min`);
+    remainingTime -= minutes * units.minutes;
+  }
+
+  // 计算秒
+  const seconds = Math.floor(remainingTime / units.seconds);
+  if (seconds > 0) {
+    result.push(`${remainingTime / units.seconds}s`);
+    remainingTime = 0;
+  }
+
+  // 计算毫秒
+  const milliseconds = remainingTime; // 剩余的就是毫秒
+  if (milliseconds > 0) {
+    result.push(`${milliseconds}ms`);
+  }
+
+  // 返回格式化的结果
+  return result.slice(0, 2).join('');
+}
+export const getDurationTime = (startTime, endTime) => {
+  if (startTime && endTime) {
+    return formatDuration(new Date(startTime).getTime(), new Date(endTime).getTime());
+  }
+  return '--';
+};

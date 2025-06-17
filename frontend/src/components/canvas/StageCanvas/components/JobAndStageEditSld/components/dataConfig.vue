@@ -51,7 +51,9 @@
             </div>
           </bk-form-item>
         </div>
-        <div class="render-list">
+        <div
+          v-if="config.renders?.length"
+          class="render-list">
           <bk-form-item property="renders">
             <RenderItem
               v-for="(item,index) in config.renders"
@@ -203,7 +205,7 @@ export default {
     .form-content{
       display: flex;
       gap: 8px;
-      padding: 0px 18px 18px;
+      padding: 0px 18px 16px;
       :deep(.bk-form-item ){
         margin-top: 0px;
         flex: 1;

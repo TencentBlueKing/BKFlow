@@ -2,7 +2,7 @@
   <div
     class="node"
     :class="{ active:activeNode?.id === node.id,isPreview:!editable,isExecute,[ETaskStatusTypeMap[status].class]:true }"
-    @click="handleNode(node)">
+    @click="handleNode(currentNode)">
     <div class="node-icon">
       <template v-if="!isExecute||(status===ETaskStatusType.PENDING)">
         <i
@@ -43,21 +43,23 @@
               theme="danger"
               size="small"
               text
-              @click="handleOperateNode('stop')">强制终止</bk-button>
+              @click.stop="handleOperateNode('onForceFail')">强制终止</bk-button>
             <bk-button
               v-if="status===ETaskStatusType.ERROR"
               theme="primary"
               size="small"
               text
-              @click="handleOperateNode('reTry')">重试</bk-button>
+              @click.stop="handleOperateNode('onRetryClick')">重试</bk-button>
             <bk-button
               v-if="status===ETaskStatusType.ERROR"
               theme="primary"
               size="small"
               text
-              @click="handleOperateNode('skip')">跳过</bk-button>
+              @click.stop="handleOperateNode('onSkipClick')">跳过</bk-button>
           </div>
-          <div class="time">3h1m</div>
+          <div
+            v-if="node.state!==ETaskStatusType.PENDING"
+            class="time">{{ durationTime }}</div>
         </span>
       </div>
       <div class="tools">
@@ -78,12 +80,23 @@
         </div>
       </div>
     </div>
+    <div class="info-icon">
+      <span
+        v-if="isSkip"
+        class="info-icon-item commonicon-icon common-icon-arrow-left iconCirle skip-icon" />
+      <span
+        v-else-if="isRty"
+        class="info-icon-item iconCirle rty-num">
+        {{ node.retry }}
+      </span>
+    </div>
   </div>
 </template>
 <script>
 import { mapState } from 'vuex';
 import { ETaskStatusType, ETaskStatusTypeMap } from '../data';
 import { SYSTEM_GROUP_ICON } from '@/constants/index.js';
+import { getDurationTime } from '../utils';
 export default {
     props: {
         node: {
@@ -124,7 +137,6 @@ export default {
               },
             ],
             ETaskStatusType,
-            status: ETaskStatusType.SUCCESS,
             ETaskStatusTypeMap,
             ETaskStatusIconMap: {
               [ETaskStatusType.ERROR]: 'iconCirle commonicon-icon common-icon-close',
@@ -145,8 +157,20 @@ export default {
         activities: state => state.template.activities,
         pluginsDetail: state => state.stageCanvas.pluginsDetail,
       }),
+      status() {
+        return this.node.state || ETaskStatusType.PENDING;
+      },
+      isSkip() {
+        return this.node.skip;
+      },
+      isRty() {
+        return this.node.retry ;
+      },
       currentNode() {
-        return this.activities[this.node.id];
+        if (!this.isExecute) {
+          return this.activities[this.node.id];
+        }
+          return Object.values(this.activities).find(item => item.template_node_id === this.node.id);
       },
       pluginType() {
         if (this.currentNode?.component && this.currentNode.component.code) {
@@ -154,6 +178,12 @@ export default {
           return type;
         }
       return null;
+    },
+    durationTime() {
+      return getDurationTime(
+          this.node.start_time,
+          this.node.state === ETaskStatusType.RUNNING ? new Date().toString() : this.node.finish_time,
+        );
     },
     },
     methods: {
@@ -215,6 +245,22 @@ export default {
     &.active {
         border: 1px solid #3A83FF;
         background-color: rgba(58, 131, 255, 0.05);
+    }
+    .info-icon-item{
+      position: absolute;
+      top: 0;
+      right: 0;
+      margin-right: 0;
+      transform: translate(50%,-50%);
+      &.skip-icon{
+        transform: translate(50%,-50%) rotate(180deg);
+        background-color: #ff9d4d;
+      }
+      &.rty-num{
+        color: #fff;
+        font-size: 10px;
+        background-color: #ff9d4d;
+      }
     }
 }
 

@@ -136,6 +136,9 @@ export default {
     }
     .render-type{
         margin-bottom: 16px;
+        :deep(.bk-select .bk-select-angle){
+            z-index:1000;
+        }
     }
     :deep(.bk-select .bk-select-name){
         background-color: #fff;

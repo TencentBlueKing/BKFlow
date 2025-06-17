@@ -15,7 +15,7 @@
           </div>
           <span
             class="progress-total"
-            @click="openLink(renderItem.linkUrl)">{{ renderItem.value }}/{{ renderItem.progess.Range[1] }}</span>
+            @click.stop="openLink(renderItem.linkUrl)">{{ renderItem.value }}/{{ renderItem.progess.Range[1] }}</span>
         </div>
       </div>
     </template>
@@ -34,7 +34,8 @@
           <a
             :href="renderItem.linkUrl"
             target="_blank"
-            class="value-link">{{ renderItem.key }} {{ renderItem.value }}</a>
+            class="value-link"
+            @click.stop.prevent="openLink(renderItem.linkUrl)">{{ renderItem.key }} {{ renderItem.value }}</a>
         </template>
         <template v-else>
           {{ renderItem.key }} {{ renderItem.value }}

@@ -3,7 +3,6 @@
     <bk-sideslider
       :is-show.sync="isShowSync"
       :title="sldTitle"
-
       :show-mask="true"
       :quick-close="true"
       width="640"
@@ -66,9 +65,11 @@
           </bk-form-item>
         </bk-form>
       </div>
-      <div slot="footer">
+      <div
+        slot="footer"
+        style="padding: 0 24px;">
         <bk-button
-          style="margin-left: 24px;"
+          v-if="editable"
           theme="primary"
           @click="confirm(true)">
           确定
@@ -77,7 +78,7 @@
           style="margin-left: 4px;"
           theme="default"
           @click="cancel(false)">
-          取消
+          {{ editable?'取消':'关闭' }}
         </bk-button>
       </div>
     </bk-sideslider>
@@ -138,7 +139,7 @@ export default {
     },
     computed: {
         sldTitle() {
-            return '编辑';
+            return `${this.editable ? '编辑' : '查看'} - ${this.tempData.name || `新${this.tempData.type}`}`;
         },
         isShowSync: {
             get() {
