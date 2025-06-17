@@ -19,11 +19,12 @@ to the current version of the project delivered to anyone in the future.
 """
 from enum import Enum
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import ugettext_lazy as _
 
 import env
-from bkflow.exceptions import ValidationError
+from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.space.configs import (
     BaseSpaceConfig,
     SpaceConfigHandler,
@@ -98,9 +99,23 @@ class SpaceConfigManager(models.Manager):
         非简化结果会返回所有过滤数据
         简化结果：[{"key": "name1", "value": "value1"}]
         """
-        space_configs = self.filter(space_id=space_id)
+        space_configs = self.filter(space_id=space_id).exclude(value_type=SpaceConfigValueType.REF.value)
+        ref_config = self.filter(space_id=space_id, value_type=SpaceConfigValueType.REF.value)
+        res = []
+        if ref_config:
+            client = TaskComponentClient(space_id=space_id)
+            instance_ids = [config.id for config in ref_config]
+            resp = client.get_engine_config(data={"interface_config_ids": instance_ids, "simplified": simplified})
+            if not resp["result"]:
+                raise APIResponseError(resp["message"])
+            remote_data = resp["data"]
+            for data in remote_data:
+                data["id"] = data["interface_config_id"]
+                # 要将 id 替换
+            res += remote_data
+
         if simplified:
-            return [
+            res += [
                 {
                     "key": config.name,
                     "value": (
@@ -109,8 +124,55 @@ class SpaceConfigManager(models.Manager):
                 }
                 for config in space_configs
             ]
+        else:
+            res += [config.to_json() for config in space_configs]
+        return res
 
-        return [config.to_json() for config in space_configs]
+    def create_space_config(self, space_id: int, data: dict):
+        value_type = SpaceConfigHandler.get_config(data["name"]).value_type
+
+        # 两种情况处理 不是引用类型 直接创建
+        if value_type != SpaceConfigValueType.REF.value:
+            return self.create(**data)
+
+        client = TaskComponentClient(space_id=space_id)
+        with transaction.atomic():
+            # 这里事务先执行本地 DB 创建 可以保证如果 api 调用失败能够回滚不产生脏数据
+            instance = SpaceConfig.objects.create(space_id=space_id, name=data["name"], value_type=value_type)
+            data["interface_config_id"] = instance.id
+            resp = client.upsert_engine_config(data=data)
+            if not resp["result"]:
+                transaction.set_rollback(True)
+                raise APIResponseError(resp["message"])
+
+    def update_space_config(self, space_id: int, data: dict, instance):
+        value_type = SpaceConfigHandler.get_config(data["name"]).value_type
+        with transaction.atomic():
+            # 这里事务先执行本地 DB 修改 可以保证如果 api 调用失败能够回滚不产生脏数据
+            for attr, value in data.items():
+                setattr(instance, attr, value)
+            instance.save(update_fields=list(data.keys()))
+            if value_type == SpaceConfigValueType.REF.value:
+                client = TaskComponentClient(space_id=space_id)
+                data["interface_config_id"] = instance.id
+                resp = client.upsert_engine_config(data=data)
+                if not resp["result"]:
+                    transaction.set_rollback(True)
+                    raise APIResponseError(resp["message"])
+
+    def delete_space_config(self, pk: int):
+        instance = self.get(id=pk)
+        space_id = instance.space_id
+        value_type = SpaceConfigHandler.get_config(instance.name).value_type
+
+        with transaction.atomic():
+            instance.delete()
+            if value_type == SpaceConfigValueType.REF.value:
+                client = TaskComponentClient(space_id=space_id)
+                resp = client.delete_engine_config(data={"interface_config_ids": [pk]})
+                if not resp["result"]:
+                    transaction.set_rollback(True)
+                    raise APIResponseError(resp["message"])
 
     def batch_update(self, space_id: int, configs: dict):
         existing_space_configs = list(self.filter(space_id=space_id, name__in=list(configs.keys())))
@@ -144,6 +206,7 @@ class SpaceConfig(models.Model):
     CONFIG_VALUE_TYPE_CHOICES = [
         (SpaceConfigValueType.JSON.value, "JSON"),
         (SpaceConfigValueType.TEXT.value, _("文本")),
+        (SpaceConfigValueType.REF.value, _("引用")),
     ]
 
     space_id = models.IntegerField(_("空间ID"))
