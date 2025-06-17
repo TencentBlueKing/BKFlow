@@ -169,7 +169,7 @@ import { cloneDeepWith } from 'lodash';
       this.setActiveItem(null);
     },
     handleNode(node) {
-      this.$emit('onNodeClick', node.id);
+      this.$emit('onShowNodeConfig', node.id);
     },
     onUpdateNodeInfo() {
 
@@ -201,6 +201,7 @@ import { cloneDeepWith } from 'lodash';
       console.log('index.vue_Line:200', res);
       if (res.pipeline_tree) {
         this.updateStageCanvasData(res.pipeline_tree.stage_canvas_data);
+        this.constants = res.pipeline_tree.current_constants;
       }
     },
     async refreshPluginIcon() {
