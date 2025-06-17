@@ -61,6 +61,10 @@ import { cloneDeepWith } from 'lodash';
         type: [Number, String],
         default: '',
       },
+    spaceId: {
+      type: [Number, String],
+      default: '',
+    },
   },
 
   data() {
@@ -83,7 +87,6 @@ import { cloneDeepWith } from 'lodash';
     ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
         stageCanvasData: state => state.template.stage_canvas_data,
-        spaceId: state => state.template.spaceId,
         activities: state => state.template.activities,
       }),
       ...mapGetters('template/', [
@@ -140,6 +143,7 @@ import { cloneDeepWith } from 'lodash';
   methods: {
     ...mapMutations('template/', [
         'updatePipelineTree',
+        'updateStageCanvasData',
       ]),
       ...mapMutations('stageCanvas/', [
         'setPluginsDetail',
@@ -165,7 +169,7 @@ import { cloneDeepWith } from 'lodash';
       this.setActiveItem(null);
     },
     handleNode(node) {
-      this.$emit('onShowNodeConfig', node.id);
+      this.$emit('onNodeClick', node.id);
     },
     onUpdateNodeInfo() {
 
@@ -178,6 +182,7 @@ import { cloneDeepWith } from 'lodash';
     },
     handleOperateNode(type, node) {
       console.log('index.vue_Line:130', type, node);
+      this.$emit(type, node.id);
     },
     setRefreshTaskStageCanvasData(time = 2000) {
       this.isPolling = true;
@@ -190,8 +195,13 @@ import { cloneDeepWith } from 'lodash';
       this.timer && clearTimeout(this.timer);
       this.timer = null;
     },
-    getTaskStageCanvasData() {
+    async getTaskStageCanvasData() {
     console.log('index.vue_Line:142', 'getData');
+      const res = await this.getStageCanvasDataDetail().then(res => res.data);
+      console.log('index.vue_Line:200', res);
+      if (res.pipeline_tree) {
+        this.updateStageCanvasData(res.pipeline_tree.stage_canvas_data);
+      }
     },
     async refreshPluginIcon() {
       const plugins = cloneDeepWith(this.plugins);
@@ -213,7 +223,7 @@ import { cloneDeepWith } from 'lodash';
       return await axios.post('/api/plugin/uniform_plugin_query/get_plugin_detail/', params);
     },
     async getStageCanvasDataDetail() {
-      return await axios.get(`/task/get_stage_job_states/${this.instanceId}/`);
+      return await axios.get(`/task/get_stage_job_states/${this.instanceId}/?space_id=${this.spaceId}`);
     },
   },
  };

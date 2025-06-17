@@ -60,6 +60,7 @@
           :is-execute="true"
           :template-id="templateId"
           :instance-id="instanceId"
+          :space-id="spaceId"
           @onNodeClick="onNodeClick"
           @onConditionClick="onOpenConditionEdit"
           @onRetryClick="onRetryClick"
@@ -999,7 +1000,7 @@
         this.timer = setTimeout(() => {
           this.loadTaskStatus();
         }, time);
-        this.templateType.toLowerCase() === 'stagecanvas' && this.$ref.processCanvas.setRefreshTaskStageCanvasData();
+        this.templateType.toLowerCase() === 'stagecanvas' && this.$refs.processCanvas.setRefreshTaskStageCanvasData();
       },
       cancelTaskStatusTimer() {
         if (this.timer) {

@@ -9,7 +9,7 @@
 * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 * specific language governing permissions and limitations under the License.
 */
-import Vue, { reactive, ref } from 'vue';
+import Vue, {  ref } from 'vue';
 import nodeFilter from '@/utils/nodeFilter.js';
 import { uuid, random4 } from '@/utils/uuid.js';
 import tools from '@/utils/tools.js';
@@ -170,6 +170,7 @@ const template = {
     flows: {},
     gateways: {},
     line: [],
+    stage_canvas_data: [],
     location: [],
     outputs: [],
     start_event: {},
@@ -300,14 +301,18 @@ const template = {
     },
     updatePipelineTree(state, data) {
       const { activities, flows, gateways, line, location, start_event: startEvent, end_event: endEvent, canvas_mode: canvasMode } = data;
-      state.activities = activities;
-      state.flows = flows;
-      state.gateways = gateways;
-      state.line = line;
-      state.location = location;
-      state.start_event = startEvent;
-      state.end_event = endEvent;
-      state.canvas_mode = canvasMode;
+      activities && (state.activities = activities);
+      flows && (state.flows = flows);
+      gateways && (state.gateways = gateways);
+      line && (state.line = line);
+      location && (state.location = location);
+      startEvent && (state.start_event = startEvent);
+      endEvent && (state.end_event = endEvent);
+      canvasMode && (state.canvas_mode = canvasMode);
+    },
+    updateStageCanvasData(state, stageCanvasData) {
+      state.stage_canvas_data = stageCanvasData;
+      console.log('template.js_Line:315', state.stage_canvas_data);
     },
     // 更新模板各相关字段数据
     setTemplateData(state, data) {

@@ -128,7 +128,6 @@ export default {
               },
             ],
           ETaskStatusType,
-          status: ETaskStatusType.RUNNING,
           ETaskStatusTypeMap,
           ETaskStatusIconMap: {
               [ETaskStatusType.ERROR]: 'iconCirle commonicon-icon common-icon-close',
@@ -142,6 +141,9 @@ export default {
       ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
       }),
+      status() {
+        return this.job.state || ETaskStatusType.PENDING;
+      },
     },
     methods: {
         transformNodeConfigToRenderItems,
@@ -265,9 +267,16 @@ export default {
         display: flex;
         flex-direction: column;
         gap: 10px; /* Space between nodes */
+        padding-bottom: 24px;
     }
 }
-
+.isExecute{
+  .job-content{
+    .job-nodes{
+      padding-bottom: 16px;
+    }
+  }
+}
 
 .tools{
   display: none;

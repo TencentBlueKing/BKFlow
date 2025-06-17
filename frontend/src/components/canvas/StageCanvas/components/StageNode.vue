@@ -130,7 +130,6 @@ import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
               },
             ],
             ETaskStatusType,
-            status: ETaskStatusType.RUNNING,
             ETaskStatusTypeMap,
             ETaskStatusIconMap: {
               [ETaskStatusType.ERROR]: 'iconCirle commonicon-icon common-icon-close',
@@ -144,6 +143,9 @@ import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
       ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
       }),
+      status() {
+        return this.stage.state || ETaskStatusType.PENDING;
+      },
     },
     methods: {
       transformNodeConfigToRenderItems,

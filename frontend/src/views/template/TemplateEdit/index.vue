@@ -52,6 +52,7 @@
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
           :template-id="templateId"
+          :space-id="spaceId"
           @onLineChange="onLineChange"
           @onLocationChange="onLocationChange"
           @onLocationMoveDone="onLocationMoveDone"
