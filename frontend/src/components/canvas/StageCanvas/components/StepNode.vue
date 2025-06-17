@@ -188,7 +188,11 @@ export default {
     },
     methods: {
         handleNode(node) {
-          this.$emit('handleNode', node);
+          if (this.isExecute) {
+            this.$emit('handleOperateNode', 'onNodeClick', this.currentNode);
+          } else {
+            this.$emit('handleNode', node);
+          }
         },
         addStep() {
           this.$emit('addNewStep');
