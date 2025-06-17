@@ -151,7 +151,7 @@ class SpaceConfigManager(models.Manager):
             # 这里事务先执行本地 DB 修改 可以保证如果 api 调用失败能够回滚不产生脏数据
             for attr, value in data.items():
                 setattr(instance, attr, value)
-                instance.save()
+            instance.save(update_fields=list(data.keys()))
             if value_type == SpaceConfigValueType.REF.value:
                 client = TaskComponentClient(space_id=space_id)
                 data["interface_config_id"] = instance.id
