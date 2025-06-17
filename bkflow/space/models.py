@@ -107,7 +107,7 @@ class SpaceConfigManager(models.Manager):
             instance_ids = [config.id for config in ref_config]
             resp = client.get_engine_config(data={"interface_config_ids": instance_ids, "simplified": simplified})
             if not resp["result"]:
-                raise Exception(resp["message"])
+                raise APIResponseError(resp["message"])
             remote_data = resp["data"]
             for data in remote_data:
                 data["id"] = data["interface_config_id"]
