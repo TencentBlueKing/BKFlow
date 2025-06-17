@@ -178,10 +178,8 @@ import { cloneDeepWith } from 'lodash';
       const res = generatePplTreeByCurrentStageCanvasData(this.getPipelineTree);
       this.updatePipelineTree(res);
       this.$forceUpdate();
-      console.log('index.vue_Line:71', res, this.stageCanvasData);
     },
     handleOperateNode(type, node) {
-      console.log('index.vue_Line:130', type, node);
       this.$emit(type, node.id);
     },
     setRefreshTaskStageCanvasData(time = 2000) {
@@ -196,12 +194,10 @@ import { cloneDeepWith } from 'lodash';
       this.timer = null;
     },
     async getTaskStageCanvasData() {
-    console.log('index.vue_Line:142', 'getData');
       const res = await this.getStageCanvasDataDetail().then(res => res.data);
-      console.log('index.vue_Line:200', res);
       if (res.pipeline_tree) {
         this.updateStageCanvasData(res.pipeline_tree.stage_canvas_data);
-        this.constants = res.pipeline_tree.current_constants;
+        this.constants = res.pipeline_tree.current_constants || [];
       }
     },
     async refreshPluginIcon() {
