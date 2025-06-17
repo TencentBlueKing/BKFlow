@@ -145,7 +145,7 @@ class TaskOperation:
             if scope_type is not None and scope_id is not None:
                 # 域变量 存在则加入
                 scope_var = scope_var.get(f"{scope_type}_{scope_id}", None)
-                if scope_var:
+                if scope_var is not None:
                     scope_obj = SystemObject(scope_var)
                     root_pipeline_context.update({"${_scope}": scope_obj})
             if space_var is not None:
