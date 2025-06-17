@@ -387,29 +387,21 @@ class TaskInstanceViewSet(
             res = [instance.to_json() for instance in instances]
         return Response({"result": True, "message": "success", "data": res})
 
-    @action(detail=False, methods=["post"], url_path="create_engine_config")
-    def create_engine_config(self, request, *args, **kwargs):
-        serializer = EngineSpaceConfigSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        EngineSpaceConfig.objects.create(**serializer.validated_data)
-        return Response({"result": True, "message": "success", "data": serializer.data})
-
-    @action(detail=False, methods=["post"], url_path="set_engine_config")
-    def set_engine_config(self, request, *args, **kwargs):
+    @action(detail=False, methods=["post"], url_path="upsert_engine_config")
+    def upsert_engine_config(self, request, *args, **kwargs):
         serializer = EngineSpaceConfigSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        instance_id = serializer.validated_data["interface_config_id"]
+        instance_id = serializer.validated_data.get("interface_config_id", -1)
 
         try:
+            # 如果有 interface_config_id，则更新，否则创建新的配置
             config_instance = EngineSpaceConfig.objects.get(interface_config_id=instance_id)
             for attr, value in serializer.validated_data.items():
                 setattr(config_instance, attr, value)
             config_instance.save()
         except EngineSpaceConfig.DoesNotExist:
-            return Response(
-                exception=True, data={"result": False, "message": f"config with id {instance_id} not exist"}
-            )
+            EngineSpaceConfig.objects.create(**serializer.validated_data)
         return Response({"result": True, "message": "success", "data": serializer.data})
 
     @action(detail=False, methods=["delete"], url_path="delete_engine_config")

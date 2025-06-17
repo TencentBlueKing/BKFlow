@@ -134,11 +134,8 @@ class TaskComponentClient(BaseComponentClient):
     def get_engine_config(self, data):
         return self._request(method="get", url=self._get_task_url("task/get_engine_config/"), data=data)
 
-    def create_engine_config(self, data):
-        return self._request(method="post", url=self._get_task_url("task/create_engine_config/"), data=data)
-
-    def set_engine_config(self, data):
-        return self._request(method="post", url=self._get_task_url("task/set_engine_config/"), data=data)
+    def upsert_engine_config(self, data):
+        return self._request(method="post", url=self._get_task_url("task/upsert_engine_config/"), data=data)
 
     def delete_engine_config(self, data):
         return self._request(method="delete", url=self._get_task_url("task/delete_engine_config/"), data=data)

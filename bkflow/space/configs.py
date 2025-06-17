@@ -303,21 +303,6 @@ class SuperusersConfig(BaseSpaceConfig):
         return True
 
 
-class EngineConfig(BaseSpaceConfig):
-    name = "engine_config"
-    desc = _("引擎空间配置")
-    value_type = SpaceConfigValueType.JSON.value
-    default_value = {}
-
-    @classmethod
-    def validate(cls, value: dict):
-        if not isinstance(value, dict):
-            raise ValidationError(
-                "[validate engine_config error]: engine_config must be a dict, value: {}".format(value)
-            )
-        return True
-
-
 class CanvasModeConfig(BaseSpaceConfig):
     name = "canvas_mode"
     desc = _("画布模式")

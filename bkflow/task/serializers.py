@@ -178,7 +178,7 @@ class NodeSnapshotResponseSerializer(serializers.Serializer):
 
 
 class EngineSpaceConfigSerializer(serializers.Serializer):
-    interface_config_id = serializers.IntegerField(required=True)
+    interface_config_id = serializers.IntegerField(required=False)
     name = serializers.CharField(required=True, max_length=255)
     desc = serializers.CharField(allow_blank=True, required=False)
     is_public = serializers.BooleanField(default=True)
