@@ -17,7 +17,12 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import logging
+from typing import Dict
+
 from bkflow.contrib.api.collections.task import TaskComponentClient
+
+logger = logging.getLogger(__name__)
 
 
 class StageJobStateHandler:
@@ -29,23 +34,52 @@ class StageJobStateHandler:
         self.client = TaskComponentClient(space_id=space_id, from_superuser=is_superuser)
 
     def get_task_data(self, task_id: str) -> dict:
-        """获取任务相关的基础数据"""
-        current_constants = self.client.render_current_constants(task_id)["data"]
-        task_detail = self.client.get_task_detail(task_id)
-        pipeline_tree = task_detail["data"]["pipeline_tree"]
-        pipeline_tree["current_constants"] = current_constants
+        """获取任务相关的基础数据
 
-        return {
-            "task_detail": task_detail,
-            "pipeline_tree": pipeline_tree,
-            "stage_struct": pipeline_tree["stage_canvas_data"],
-            "activities": pipeline_tree["activities"],
-        }
+        Args: task_id: 任务ID
+        Returns: dict: 包含任务相关数据的字典，如果获取失败则包含默认值
+        """
+        try:
+            # TODO：优化为不渲染所有变量的实现，直接获取对应变量值
+            constants_resp = self.client.render_current_constants(task_id)
+            task_detail = self.client.get_task_detail(task_id)
 
-    def get_node_states(self, task_id: str) -> dict:
-        """获取节点状态信息"""
+            if "data" not in constants_resp or "data" not in task_detail:
+                logger.warning(
+                    f"Task {task_id} response data missing: constants={constants_resp}, detail={task_detail}"
+                )
+
+            current_constants = constants_resp.get("data", [])
+            pipeline_tree = task_detail.get("data", {}).get("pipeline_tree", {})
+            pipeline_tree["current_constants"] = current_constants
+
+            return {
+                "task_detail": task_detail,
+                "pipeline_tree": pipeline_tree,
+                "stage_struct": pipeline_tree.get("stage_canvas_data", []),
+                "activities": pipeline_tree.get("activities", {}),
+            }
+        except Exception as e:
+            logger.exception(f"Failed to get task data for task {task_id}: {str(e)}")
+            raise
+
+    def get_node_states(self, task_id: str) -> Dict:
+        """获取节点状态信息
+
+        Args: task_id: 任务ID
+        Returns: 节点状态信息字典
+        """
         data = {"space_id": self.space_id}
-        return self.client.get_task_states(task_id, data=data)["data"]["children"]
+
+        try:
+            response = self.client.get_task_states(task_id, data=data)
+            if "data" not in response:
+                logger.warning(f"Task {task_id} states response data missing: {response}")
+
+            return response.get("data", {}).get("children", {})
+        except Exception as e:
+            logger.exception(f"Failed to get node states for task {task_id}: {str(e)}")
+            return {}
 
     def build_template_task_mapping(self, activities: dict) -> dict:
         """构建模板节点ID到任务节点ID的映射"""
