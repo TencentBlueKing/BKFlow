@@ -21,10 +21,9 @@ import copy
 
 from bamboo_engine.utils.boolrule import BoolRule
 from bkflow_feel.api import parse_expression
-from pipeline.parser.utils import recursive_replace_id
 
 from bkflow.utils.mako import parse_mako_expression
-from bkflow.utils.stage_canvas import StageCanvasHandler
+from bkflow.utils.stage_canvas import replace_pipeline_tree_node_ids
 
 DEFAULT_HORIZONTAL_PIPELINE_TREE = {
     "activities": {
@@ -363,13 +362,7 @@ def build_default_pipeline_tree(canvas_type: str = "horizontal"):
     except KeyError:
         raise ValueError(f"Invalid canvas_type: {canvas_type}，Must be one of: {', '.join(CANVAS_TEMPLATE_MAP.keys())}")
 
-    if canvas_type != "stage":
-        recursive_replace_id(pipeline_tree)
-    else:
-        node_map = recursive_replace_id(pipeline_tree)
-        StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
-
-    return pipeline_tree
+    return replace_pipeline_tree_node_ids(pipeline_tree, canvas_type)
 
 
 def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args, **kwargs) -> bool:

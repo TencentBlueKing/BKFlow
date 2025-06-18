@@ -19,9 +19,19 @@ to the current version of the project delivered to anyone in the future.
 """
 from bkflow.space.configs import CanvasModeConfig
 from bkflow.space.models import SpaceConfig
+from bkflow.template.models import Template
 from bkflow.utils.pipeline import build_default_pipeline_tree
 
 
 def build_default_pipeline_tree_with_space_id(space_id: int):
     canvas_mode = SpaceConfig.get_config(space_id, CanvasModeConfig.name)
     return build_default_pipeline_tree(canvas_mode)
+
+
+def get_canvas_mode(space_id: int = None, template: Template = None) -> str:
+    canvas_mode = "horizontal"
+    if space_id:
+        canvas_mode = SpaceConfig.get_config(space_id, CanvasModeConfig.name)
+    if template:
+        canvas_mode = SpaceConfig.get_config(template.space_id, CanvasModeConfig.name)
+    return canvas_mode

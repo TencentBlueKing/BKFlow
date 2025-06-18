@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from pipeline.parser.utils import recursive_replace_id
 
 
 class StageCanvasHandler:
@@ -51,3 +52,22 @@ class StageCanvasHandler:
                 node["id"] = activities_node_map[node_id]
 
         return pipeline_tree
+
+
+def replace_pipeline_tree_node_ids(pipeline_tree: dict, canvas_mode: str = "horizontal") -> dict:
+    """替换 pipeline tree 中的节点 ID
+
+    Args:
+        pipeline_tree: 需要处理的 pipeline tree
+        canvas_mode: 画布类型，默认为 horizontal
+
+    Returns:
+        处理后的 pipeline tree
+    """
+    if canvas_mode == "stage":
+        node_map = recursive_replace_id(pipeline_tree)
+        StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
+    else:
+        recursive_replace_id(pipeline_tree)
+
+    return pipeline_tree
