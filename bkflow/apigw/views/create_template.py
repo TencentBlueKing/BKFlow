@@ -35,6 +35,7 @@ from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.space.utils import build_default_pipeline_tree_with_space_id
 from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.utils import err_code
+from bkflow.utils.pipeline import get_canvas_mode, replace_pipeline_tree_node_ids
 
 logger = logging.getLogger("root")
 
@@ -69,8 +70,9 @@ def create_template(request, space_id):
     if source_template_id:
         # 在序列化器中已经判断了存在，所以不需要处理异常
         source_template = Template.objects.get(id=source_template_id)
+        canvas_mode = get_canvas_mode(source_template.space_id)
         pipeline_tree = copy.deepcopy(source_template.pipeline_tree)
-        recursive_replace_id(pipeline_tree)
+        replace_pipeline_tree_node_ids(pipeline_tree, canvas_mode)
     elif pipeline_tree:
         recursive_replace_id(pipeline_tree)
     else:

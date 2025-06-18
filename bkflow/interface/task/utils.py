@@ -17,7 +17,13 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import logging
+import time
+from typing import Dict
+
 from bkflow.contrib.api.collections.task import TaskComponentClient
+
+logger = logging.getLogger(__name__)
 
 
 class StageJobStateHandler:
@@ -42,10 +48,52 @@ class StageJobStateHandler:
             "activities": pipeline_tree["activities"],
         }
 
-    def get_node_states(self, task_id: str) -> dict:
-        """获取节点状态信息"""
+    def get_node_states(self, task_id: str, max_retries: int = 3, retry_interval: float = 0.5) -> Dict:
+        """获取节点状态信息
+
+        Args:
+            task_id: 任务ID
+            max_retries: 最大重试次数，默认3次
+            retry_interval: 重试间隔（秒），默认0.5秒
+
+        Returns:
+            节点状态信息字典
+
+        Raises:
+            ValueError: 响应数据格式错误
+        """
         data = {"space_id": self.space_id}
-        return self.client.get_task_states(task_id, data=data)["data"]["children"]
+
+        for attempt in range(max_retries):
+            try:
+                response = self.client.get_task_states(task_id, data=data)
+
+                if not isinstance(response, dict):
+                    raise ValueError(f"Invalid response type: {type(response)}")
+
+                if "data" not in response:
+                    raise KeyError("Missing 'data' field in response")
+
+                if "children" not in response["data"]:
+                    raise KeyError("Missing 'children' field in response data")
+
+                return response["data"]["children"]
+
+            except (KeyError, ValueError) as e:
+                logger.warning(
+                    f"Failed to get node states for task {task_id} (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                )
+
+                if attempt < max_retries - 1:
+                    time.sleep(retry_interval)
+                else:
+                    logger.error(f"Failed to get node states for task {task_id} after {max_retries} attempts")
+
+            except Exception as e:
+                logger.error(f"Unexpected error while getting node states: {str(e)}")
+                raise
+
+        return {}
 
     def build_template_task_mapping(self, activities: dict) -> dict:
         """构建模板节点ID到任务节点ID的映射"""
@@ -172,6 +220,8 @@ class StageJobStateHandler:
 
         # 2. 获取节点状态
         node_states = self.get_node_states(task_id)
+        if not node_states:
+            return {}
 
         # 3. 构建映射关系
         template_to_task_id = self.build_template_task_mapping(task_data["activities"])

@@ -23,6 +23,9 @@ from bamboo_engine.utils.boolrule import BoolRule
 from bkflow_feel.api import parse_expression
 from pipeline.parser.utils import recursive_replace_id
 
+from bkflow.space.configs import CanvasModeConfig
+from bkflow.space.models import SpaceConfig
+from bkflow.template.models import Template
 from bkflow.utils.mako import parse_mako_expression
 from bkflow.utils.stage_canvas import StageCanvasHandler
 
@@ -363,13 +366,7 @@ def build_default_pipeline_tree(canvas_type: str = "horizontal"):
     except KeyError:
         raise ValueError(f"Invalid canvas_type: {canvas_type}，Must be one of: {', '.join(CANVAS_TEMPLATE_MAP.keys())}")
 
-    if canvas_type != "stage":
-        recursive_replace_id(pipeline_tree)
-    else:
-        node_map = recursive_replace_id(pipeline_tree)
-        StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
-
-    return pipeline_tree
+    return replace_pipeline_tree_node_ids(pipeline_tree, canvas_type)
 
 
 def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args, **kwargs) -> bool:
@@ -378,3 +375,29 @@ def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args
     if extra_info.get("parse_lang") == "MAKO":
         return parse_mako_expression(expression=expr, context=context)
     return BoolRule(expr).test()
+
+
+def get_canvas_mode(space_id: int = None, template: Template = None) -> str:
+    canvas_mode = "horizontal"
+    if space_id:
+        canvas_mode = SpaceConfig.get_config(space_id, CanvasModeConfig.name)
+    if template:
+        canvas_mode = SpaceConfig.get_config(template.space_id, CanvasModeConfig.name)
+    return canvas_mode
+
+
+def replace_pipeline_tree_node_ids(pipeline_tree: dict, canvas_mode: str = "horizontal") -> dict:
+    """替换 pipeline tree 中的节点 ID
+
+    Args:
+        pipeline_tree: 需要处理的 pipeline tree
+        canvas_mode: 画布类型，默认为 horizontal
+
+    Returns:
+        处理后的 pipeline tree
+    """
+    if canvas_mode == "stage":
+        node_map = recursive_replace_id(pipeline_tree)
+        StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
+    else:
+        recursive_replace_id(pipeline_tree)
