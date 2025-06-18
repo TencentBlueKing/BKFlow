@@ -10,21 +10,25 @@
       :init-data="activeNode"
       :editable="editable"
       @cancel="cancelJobAndStageEidtSld" />
-    <StageNode
-      v-for="(stage,index) in stageCanvasData"
-      :key="stage.id"
-      :stage="stage"
-      :stages="stageCanvasData"
-      :index="(index+1).toString()"
-      :editable="editable"
-      :constants="constants"
-      :is-execute="isExecute"
-      @deleteNode="deletNode(index)"
-      @handleOperateNode="handleOperateNode"
-      @addNewStage="addNewStage(index)"
-      @refreshPPLT="refresh"
-      @handleNode="handleNode"
-      @copyNode="handleCopyNode(stage,index)" />
+    <div
+      ref="stageContainer"
+      class="stage-container">
+      <StageNode
+        v-for="(stage,index) in stageCanvasData"
+        :key="stage.id"
+        :stage="stage"
+        :stages="stageCanvasData"
+        :index="(index+1).toString()"
+        :editable="editable"
+        :constants="constants"
+        :is-execute="isExecute"
+        @deleteNode="deletNode(index)"
+        @handleOperateNode="handleOperateNode"
+        @addNewStage="addNewStage(index)"
+        @refreshPPLT="refresh"
+        @handleNode="handleNode"
+        @copyNode="handleCopyNode(stage,index)" />
+    </div>
   </div>
 </template>
 <script lang="js">
@@ -37,6 +41,7 @@ import JobAndStageEidtSld from './components/JobAndStageEditSld/index.vue';
 import { mapGetters, mapMutations, mapState } from 'vuex';
 import axios from 'axios';
 import { cloneDeepWith } from 'lodash';
+import Sortable from 'sortablejs';
 
  export default {
   name: 'StageCanvas',
@@ -72,15 +77,11 @@ import { cloneDeepWith } from 'lodash';
         stageData: [...stage],
         activeItem: null,
         isShowJobAndStageEdit: false,
-        constants: [
-          {
-            key: '${value}',
-            value: 10,
-          },
-        ],
+        constants: [],
         timer: null,
         isPolling: false,
         debounceTimer: null,
+        sortableInstance: null,
       };
     },
   computed: {
@@ -131,14 +132,21 @@ import { cloneDeepWith } from 'lodash';
         }, 1000);
       },
     },
+    editable: {
+      handler(value) {
+        this.sortableInstance.option('disabled', !value);
+      },
+    },
   },
   mounted() {
     if (!this.isExecute) {
       this.refresh();
+      this.initSortable();
     } else {
       this.getTaskStageCanvasData();
     }
     this.refreshPluginIcon();
+    this.sortableInstance.option('disabled', !this.editable);
 },
   methods: {
     ...mapMutations('template/', [
@@ -152,6 +160,9 @@ import { cloneDeepWith } from 'lodash';
       const newStage = getDefaultNewStage();
       this.stageCanvasData.splice(index + 1, 0,  newStage);
       this.refresh();
+    },
+    onUpdateNodeInfo() {
+      // 外部依赖不能删
     },
     deletNode(index) {
       this.stageCanvasData.splice(index, 1);
@@ -170,9 +181,6 @@ import { cloneDeepWith } from 'lodash';
     },
     handleNode(node) {
       this.$emit('onShowNodeConfig', node.id);
-    },
-    onUpdateNodeInfo() {
-
     },
     refresh() {
       const res = generatePplTreeByCurrentStageCanvasData(this.getPipelineTree);
@@ -222,19 +230,35 @@ import { cloneDeepWith } from 'lodash';
     async getStageCanvasDataDetail() {
       return await axios.get(`/task/get_stage_job_states/${this.instanceId}/?space_id=${this.spaceId}`);
     },
+    initSortable() {
+          this.sortableInstance = new Sortable(this.$refs.stageContainer, {
+              animation: 150,
+              disabled: true,
+              handle: '.stage-move-icon',
+              onEnd: (evt) => {
+                const { oldIndex, newIndex } = evt;
+                this.stageCanvasData.splice(newIndex, 0, ...this.stageCanvasData.splice(oldIndex, 1));
+                this.refresh();
+              },
+            });
+    },
   },
  };
 </script>
 <style lang="scss" scoped>
 .flowchart-container {
-    display: flex;
-    overflow-x: auto; /* Allow horizontal scrolling if needed */
-    padding: 20px;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    min-width: 1000px; /* Ensure container has enough width */
     height: calc(100% - 48px);
-    align-items: start;
+    min-width: 1000px; /* Ensure container has enough width */
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    background-color: #fff;
+    .stage-container{
+      display: flex;
+      overflow-x: auto; /* Allow horizontal scrolling if needed */
+      align-items: start;
+      width: 100%;
+      height: 100%;
+    }
 }
 </style>

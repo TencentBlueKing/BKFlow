@@ -4,6 +4,9 @@
     :class="{ active:activeNode?.id === node.id,isPreview:!editable,isExecute,[ETaskStatusTypeMap[status].class]:true }"
     @click="handleNode(currentNode)">
     <div class="node-icon">
+      <span
+        v-if="editable"
+        class="node-move-icon commonicon-icon common-icon-drawable" />
       <template v-if="!isExecute||(status===ETaskStatusType.PENDING)">
         <i
           v-if="pluginType==='component'"
@@ -90,6 +93,11 @@
         {{ node.retry }}
       </span>
     </div>
+    <div
+      v-if="showNotAllowMove"
+      class="no-allow-move">
+      <span>仅有一个节点时，不可移动</span>
+    </div>
   </div>
 </template>
 <script>
@@ -112,6 +120,10 @@ export default {
           default: false,
         },
         isExecute: {
+          type: Boolean,
+          default: false,
+        },
+        showNotAllowMove: {
           type: Boolean,
           default: false,
         },
@@ -230,7 +242,6 @@ export default {
     box-sizing: border-box;
     margin: 0 auto;
     cursor: pointer; /* 添加鼠标指针样式 */
-    transition: all 0.2s;
     position: relative;
     .logo-icon{
       font-size: 16px;
@@ -244,6 +255,14 @@ export default {
         }
         .add-step-btn .cicrle-btn{
             display: flex;
+        }
+        .node-icon{
+          .node-move-icon{
+            font-size: 18px;
+            cursor: move;
+            margin-left: -4px;
+            display: inline-block;
+          }
         }
     }
     &.active {
@@ -266,10 +285,23 @@ export default {
         background-color: #ff9d4d;
       }
     }
+    .no-allow-move{
+      position: absolute;
+      top: -1px;
+      left: -1px;
+      width: calc(100% + 2px);
+      height: calc(100% + 2px);
+      border: 2px dashed #F8B4B4;
+      border-spacing: 5px;
+      background: #FDF0F0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #EA3636;
+    }
 }
 
 .node-icon {
-    width: 22px;
     height: 22px;
     background-color: transparent; /* 移除背景色 */
     display: flex;
@@ -280,6 +312,12 @@ export default {
         width: 100%;
         height: 100%;
         object-fit: contain;
+    }
+    .node-move-icon{
+      font-size: 18px;
+      cursor: move;
+      margin-left: -4px;
+      display: none;
     }
 }
 
@@ -295,6 +333,7 @@ export default {
         flex: 1;
         display: flex;
         align-items: center;
+        width: 0;
         .toolAndTime{
           display: flex;
           align-items: center;
@@ -388,11 +427,17 @@ export default {
           color: #FF5656;
         }
       }
+      .iconCirle{
+        background-color: #ff5656;
+      }
     }
     &.success{
       border: 1px solid #5BC882;
       .time{
         color: #5BC882;
+      }
+      .iconCirle{
+        background-color: #5BC882;
       }
     }
     &.running{
@@ -416,16 +461,6 @@ export default {
   align-items: center;
   color: #fff;
   margin-right: 8px;
-}
-.success{
-  .iconCirle{
-    background-color: #5BC882;
-  }
-}
-.error{
-  .iconCirle{
-    background-color: #ff5656;
-  }
 }
 .rotateAnimate{
   font-size: 14px;
