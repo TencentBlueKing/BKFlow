@@ -383,7 +383,7 @@ def replace_pipeline_tree_node_ids(pipeline_tree: dict) -> dict:
     Returns:
         处理后的 pipeline tree
     """
-    if "stage_canvas_data" in pipeline_tree:
+    if pipeline_tree.get("canvas_mode") == "stage":
         node_map = recursive_replace_id(pipeline_tree)
         StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
     else:

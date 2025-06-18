@@ -40,6 +40,7 @@ class StageJobStateHandler:
         Returns: dict: 包含任务相关数据的字典，如果获取失败则包含默认值
         """
         try:
+            # TODO：优化为不渲染所有变量的实现，直接获取对应变量值
             constants_resp = self.client.render_current_constants(task_id)
             task_detail = self.client.get_task_detail(task_id)
 
@@ -59,7 +60,7 @@ class StageJobStateHandler:
                 "activities": pipeline_tree.get("activities", {}),
             }
         except Exception as e:
-            logger.error(f"Failed to get task data for task {task_id}: {str(e)}")
+            logger.exception(f"Failed to get task data for task {task_id}: {str(e)}")
             raise
 
     def get_node_states(self, task_id: str) -> Dict:
@@ -77,7 +78,7 @@ class StageJobStateHandler:
 
             return response.get("data", {}).get("children", {})
         except Exception as e:
-            logger.error(f"Failed to get node states for task {task_id}: {str(e)}")
+            logger.exception(f"Failed to get node states for task {task_id}: {str(e)}")
             return {}
 
     def build_template_task_mapping(self, activities: dict) -> dict:
