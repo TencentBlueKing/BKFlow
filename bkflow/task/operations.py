@@ -326,6 +326,15 @@ class TaskOperation:
         data = [{"key": key, "value": value} for key, value in hydrated_context.items()]
         return OperationResult(result=True, data=data)
 
+    @uniform_task_operation_result
+    def get_filtered_constants(self, variables: List[str]):
+        runtime = BambooDjangoRuntime()
+        context_values = runtime.get_context(self.task_instance.instance_id)
+        # 从context_values里获取variables
+        context_values = [item for item in context_values if item.key in variables]
+        data = {f"{item.key}": item.value for item in context_values}
+        return OperationResult(result=True, data=data)
+
 
 class TaskNodeOperation:
     def __init__(self, task_instance: TaskInstance, node_id: str, *args, **kwargs):

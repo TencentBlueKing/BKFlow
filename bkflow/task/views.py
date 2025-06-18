@@ -245,6 +245,16 @@ class TaskInstanceViewSet(
         states = task_operation.render_current_constants()
         return Response(dict(states))
 
+    @swagger_auto_schema(methods=["get"], operation_description="任务上下文变量查询")
+    @action(detail=True, methods=["get"], url_path="render_filtered_constants")
+    @validate_task_info
+    def render_filtered_constants(self, request, *args, **kwargs):
+        task_instance = self.get_object()
+        task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
+        # 把参数里的variables传给task_operation
+        constants = task_operation.get_filtered_constants(request.query_params.getlist("variables", []))
+        return Response(dict(constants))
+
     @swagger_auto_schema(
         methods=["get"], operation_description="任务节点详情查询", query_serializer=GetNodeDetailQuerySerializer
     )
@@ -280,6 +290,21 @@ class TaskInstanceViewSet(
         node_detail_result.data.update(node_data)
 
         return Response(dict(node_detail_result))
+
+    @swagger_auto_schema(methods=["get"], operation_description="任务节点输出查询")
+    @action(detail=True, methods=["get"], url_path="get_task_node_output/(?P<node_id>\\w+)")
+    @validate_task_info
+    def get_node_output(self, request, node_id, *args, **kwargs):
+        task_instance = self.get_object()
+        if not task_instance.has_node(node_id):
+            raise ValidationError(f"node {node_id} not found")
+        node_operation = TaskNodeOperation(task_instance=task_instance, node_id=node_id)
+
+        node_output_result = node_operation.get_outputs()
+        if not node_output_result.result:
+            return Response(dict(node_output_result))
+        node_data = node_output_result.data
+        return Response(dict(node_data))
 
     @swagger_auto_schema(methods=["get"], operation_description="任务节点执行日志", query_serializer=GetNodeLogDetailSerializer)
     @action(detail=True, methods=["get"], url_path="get_task_node_log/(?P<node_id>\\w+)/(?P<version>\\w+)")
