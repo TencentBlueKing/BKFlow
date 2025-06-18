@@ -12,7 +12,7 @@
           v-if="editable"
           class="stage-move-icon commonicon-icon common-icon-drawable" />
         <span
-          v-if="!isExecute||(status===ETaskStatusType.PENDING)"
+          v-if="!isExecute||(status === ETaskStatusType.PENDING)"
           class="stage-number">
           <span>{{ index }}.</span>
         </span>
@@ -61,7 +61,7 @@
         :constants="constants"
         :index="`${index}.${jobIndex + 1}`"
         :editable="editable"
-        :show-not-allow-move="notAllowMoveIndex===jobIndex"
+        :show-not-allow-move="notAllowMoveIndex === jobIndex"
         @deleteNode="deletJobNode(jobIndex)"
         @handleNode="handleNode"
         @addNewJob="addNewJob(jobIndex)"
@@ -156,8 +156,17 @@ import Sortable from 'sortablejs';
         return this.stage.state || ETaskStatusType.PENDING;
       },
     },
+    watch: {
+      editable: {
+        handler(value) {
+          this.sortableInstance.option('disabled', !value);
+        },
+      },
+    },
     mounted() {
-      this.initSortable();
+      if (!this.isExecute) {
+        this.initSortable();
+      }
       this.$refs.jobContainer.jobs = this.stage.jobs;
     },
     methods: {
@@ -196,7 +205,7 @@ import Sortable from 'sortablejs';
       initSortable() {
         this.sortableInstance = new Sortable(this.$refs.jobContainer, {
             animation: 150,
-            disabled: false,
+            disabled: !this.editable,
             group: 'jobs',
             handle: '.job-move-icon',
             onStart: (evt) => {
@@ -221,7 +230,7 @@ import Sortable from 'sortablejs';
               }
             },
           });
-    },
+      },
     },
 
  };

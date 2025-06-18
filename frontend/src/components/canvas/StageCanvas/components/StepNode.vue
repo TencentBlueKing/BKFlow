@@ -7,9 +7,9 @@
       <span
         v-if="editable"
         class="node-move-icon commonicon-icon common-icon-drawable" />
-      <template v-if="!isExecute||(status===ETaskStatusType.PENDING)">
+      <template v-if="!isExecute||(status === ETaskStatusType.PENDING)">
         <i
-          v-if="pluginType==='component'"
+          v-if="pluginType === 'component'"
           :class="`logo-icon ${getIconCls(currentNode.component?.code)}`" />
         <img
           v-else-if="pluginType==='blueking'||pluginType==='uniform_api'"
@@ -42,19 +42,19 @@
           class="toolAndTime">
           <div class="tool">
             <bk-button
-              v-if="status===ETaskStatusType.RUNNING"
+              v-if="status === ETaskStatusType.RUNNING"
               theme="danger"
               size="small"
               text
               @click.stop="handleOperateNode('onForceFail')">强制终止</bk-button>
             <bk-button
-              v-if="status===ETaskStatusType.ERROR"
+              v-if="status === ETaskStatusType.ERROR"
               theme="primary"
               size="small"
               text
               @click.stop="handleOperateNode('onRetryClick')">重试</bk-button>
             <bk-button
-              v-if="status===ETaskStatusType.ERROR"
+              v-if="status === ETaskStatusType.ERROR"
               theme="primary"
               size="small"
               text
@@ -142,7 +142,6 @@ export default {
                 icon: 'commonicon-icon common-icon-bkflow-delete',
                 name: '删除',
                 handleClick: () => {
-                  console.log('StageNode.vue_Line:85', 1);
                   this.$emit('deleteNode',  this.node);
                 },
                 disabled: () => this.nodes.length <= 1,
@@ -214,7 +213,6 @@ export default {
         },
         getIconCls(type) {
           const systemType = SYSTEM_GROUP_ICON.find(item => new RegExp(item).test(type.toUpperCase()));
-          console.log('StepNode.vue_Line:172', systemType);
           if (systemType) {
             return `common-icon-sys-${systemType.toLowerCase()}`;
           }

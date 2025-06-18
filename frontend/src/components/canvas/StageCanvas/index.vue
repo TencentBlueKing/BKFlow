@@ -146,7 +146,6 @@ import Sortable from 'sortablejs';
       this.getTaskStageCanvasData();
     }
     this.refreshPluginIcon();
-    this.sortableInstance.option('disabled', !this.editable);
 },
   methods: {
     ...mapMutations('template/', [
@@ -231,16 +230,16 @@ import Sortable from 'sortablejs';
       return await axios.get(`/task/get_stage_job_states/${this.instanceId}/?space_id=${this.spaceId}`);
     },
     initSortable() {
-          this.sortableInstance = new Sortable(this.$refs.stageContainer, {
-              animation: 150,
-              disabled: true,
-              handle: '.stage-move-icon',
-              onEnd: (evt) => {
-                const { oldIndex, newIndex } = evt;
-                this.stageCanvasData.splice(newIndex, 0, ...this.stageCanvasData.splice(oldIndex, 1));
-                this.refresh();
-              },
-            });
+      this.sortableInstance = new Sortable(this.$refs.stageContainer, {
+          animation: 150,
+          disabled: !this.editable,
+          handle: '.stage-move-icon',
+          onEnd: (evt) => {
+            const { oldIndex, newIndex } = evt;
+            this.stageCanvasData.splice(newIndex, 0, ...this.stageCanvasData.splice(oldIndex, 1));
+            this.refresh();
+          },
+        });
     },
   },
  };

@@ -138,7 +138,6 @@ export default {
         },
         replaceUrlPrefix(url, newPrefix) {
           const regex = this.getUrlPrefixRegex();
-          console.log('renderLinkConfig.vue_Line:117', regex.test(url), newPrefix, url.replace(regex, newPrefix));
           // 检查URL是否匹配任一前缀
           if (!regex.test(url)) {
             return url.replace('', newPrefix); // 如果不匹配任何前缀，则前插前缀

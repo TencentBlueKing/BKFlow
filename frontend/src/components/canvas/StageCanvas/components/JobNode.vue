@@ -52,21 +52,19 @@
       <div
         ref="nodeContainer"
         class="job-nodes">
-        <template>
-          <StepNode
-            v-for="(node,nodeIndex) in job.nodes"
-            :key="node.id"
-            :node="node"
-            :nodes="job.nodes"
-            :editable="editable"
-            :show-not-allow-move="notAllowMoveIndex===nodeIndex"
-            :is-execute="isExecute"
-            @deleteNode="deletStepNode(nodeIndex)"
-            @handleNode="handleNode"
-            @addNewStep="addNewStep(nodeIndex)"
-            @handleOperateNode="handleOperateNode"
-            @copyNode="handleCopyStepNode(node,nodeIndex)" />
-        </template>
+        <StepNode
+          v-for="(node,nodeIndex) in job.nodes"
+          :key="node.id"
+          :node="node"
+          :nodes="job.nodes"
+          :editable="editable"
+          :show-not-allow-move="notAllowMoveIndex === nodeIndex"
+          :is-execute="isExecute"
+          @deleteNode="deletStepNode(nodeIndex)"
+          @handleNode="handleNode"
+          @addNewStep="addNewStep(nodeIndex)"
+          @handleOperateNode="handleOperateNode"
+          @copyNode="handleCopyStepNode(node,nodeIndex)" />
       </div>
     </div>
     <div class="add-job-btn">
@@ -83,7 +81,7 @@
         class="exception-wrap-item exception-part"
         type="500"
         scene="part">
-        <span style="color: #EA3636;">仅有一个Job时，不可移动</span>
+        <span class="info-text">仅有一个Job时，不可移动</span>
       </bk-exception>
     </div>
   </div>
@@ -144,7 +142,6 @@ export default {
                 icon: 'commonicon-icon common-icon-bkflow-delete',
                 name: '删除',
                 handleClick: () => {
-                  console.log('StageNode.vue_Line:85', 1);
                   this.$emit('deleteNode', this.job);
                 },
                 disabled: () => this.jobs.length <= 1,
@@ -167,6 +164,13 @@ export default {
       }),
       status() {
         return this.job.state || ETaskStatusType.PENDING;
+      },
+    },
+    watch: {
+      editable: {
+        handler(value) {
+          this.sortableInstance.option('disabled', !value);
+        },
       },
     },
     mounted() {
@@ -196,7 +200,6 @@ export default {
         handleCopyStepNode(step, index) {
           const copyStage =  copyStepNode(step);
           this.job.nodes.splice(index + 1, 0,  copyStage);
-
           this.refreshPPLT();
         },
         handleNode(node) {
@@ -209,9 +212,9 @@ export default {
           this.$emit('handleOperateNode', type, node);
         },
         initSortable() {
-        this.sortableInstance = new Sortable(this.$refs.nodeContainer, {
+          this.sortableInstance = new Sortable(this.$refs.nodeContainer, {
             animation: 150,
-            disabled: false,
+            disabled: !this.editable,
             group: 'nodes',
             handle: '.node-move-icon',
             onStart: (evt) => {
@@ -236,7 +239,7 @@ export default {
               }
             },
           });
-    },
+        },
     },
 };
 </script>
@@ -287,6 +290,9 @@ export default {
       background: #FDF0F0;
       display: flex;
       align-items: center;
+      .info-text{
+        color: #EA3636;
+      }
     }
     &:deep(.bk-exception){
       height: 100%;
