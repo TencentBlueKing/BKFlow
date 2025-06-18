@@ -143,7 +143,6 @@ export default {
         },
         isShowSync: {
             get() {
-                console.log('index.vue_Line:49', this);
                 return this.isShow;
             },
             set(value) {
@@ -168,9 +167,6 @@ export default {
             },
         },
     },
-    mounted() {
-        console.log('index.vue_Line:156', Sortable);
-    },
     methods: {
         async confirm() {
           try {
@@ -188,7 +184,6 @@ export default {
         },
         async cancel() {
           try {
-            console.log('index.vue_Line:187', 1);
             this.editable && await new Promise((resolve, reject) => {
               this.$bkInfo({
                 title: '确认离开当前页?',

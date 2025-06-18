@@ -466,6 +466,8 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
         const findLocation = location.find(item => node.id === item.id);
         if (findLocation) {
           newPipelineTree.location.push(findLocation);
+          findLocation.x = startXPositon + currentJobNodeGap * (index + 1);
+          findLocation.y = currentYPosition - 10;
         } else {
           newPipelineTree.location.push({
             id: node.id,

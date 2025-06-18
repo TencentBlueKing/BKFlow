@@ -4,6 +4,9 @@
     :class="{ active: activeNode?.id === job.id, isPreview:!editable , isExecute,[ETaskStatusTypeMap[status].class]:true}">
     <div class="job-header">
       <div class="job-id">
+        <span
+          v-if="editable"
+          class="job-move-icon commonicon-icon common-icon-drawable" />
         <span v-if="!isExecute||(status===ETaskStatusType.PENDING)">{{ index }}</span>
         <span
           v-else
@@ -36,7 +39,9 @@
       </div>
     </div>
     <div class="job-content">
-      <div class="job-status">
+      <div
+        v-if="job.config.length"
+        class="job-status">
         <div
           v-for="item in transformNodeConfigToRenderItems(job,constants)"
           :key="item.key"
@@ -44,21 +49,22 @@
           <ValueRender :render-item="item" />
         </div>
       </div>
-      <div class="job-nodes">
-        <template>
-          <StepNode
-            v-for="(node,nodeIndex) in job.nodes"
-            :key="node.id"
-            :node="node"
-            :nodes="job.nodes"
-            :editable="editable"
-            :is-execute="isExecute"
-            @deleteNode="deletStepNode(nodeIndex)"
-            @handleNode="handleNode"
-            @addNewStep="addNewStep(nodeIndex)"
-            @handleOperateNode="handleOperateNode"
-            @copyNode="handleCopyStepNode(node,nodeIndex)" />
-        </template>
+      <div
+        ref="nodeContainer"
+        class="job-nodes">
+        <StepNode
+          v-for="(node,nodeIndex) in job.nodes"
+          :key="node.id"
+          :node="node"
+          :nodes="job.nodes"
+          :editable="editable"
+          :show-not-allow-move="notAllowMoveIndex === nodeIndex"
+          :is-execute="isExecute"
+          @deleteNode="deletStepNode(nodeIndex)"
+          @handleNode="handleNode"
+          @addNewStep="addNewStep(nodeIndex)"
+          @handleOperateNode="handleOperateNode"
+          @copyNode="handleCopyStepNode(node,nodeIndex)" />
       </div>
     </div>
     <div class="add-job-btn">
@@ -68,6 +74,16 @@
         <span>+</span>
       </div>
     </div>
+    <div
+      v-if="showNotAllowMove"
+      class="no-allow-move">
+      <bk-exception
+        class="exception-wrap-item exception-part"
+        type="500"
+        scene="part">
+        <span class="info-text">仅有一个Job时，不可移动</span>
+      </bk-exception>
+    </div>
   </div>
 </template>
 <script>
@@ -76,6 +92,7 @@ import { copyStepNode, transformNodeConfigToRenderItems } from '../utils';
 import ValueRender from './valueRender.vue';
 import StepNode from './StepNode.vue';
 import { getDefaultNewStep, ETaskStatusType, ETaskStatusTypeMap } from '../data';
+import Sortable from 'sortablejs';
 export default {
     components: {
         ValueRender,
@@ -106,6 +123,10 @@ export default {
           type: Array,
           default: () => ([]),
         },
+        showNotAllowMove: {
+          type: Boolean,
+          default: false,
+        },
     },
     data() {
         return {
@@ -121,7 +142,6 @@ export default {
                 icon: 'commonicon-icon common-icon-bkflow-delete',
                 name: '删除',
                 handleClick: () => {
-                  console.log('StageNode.vue_Line:85', 1);
                   this.$emit('deleteNode', this.job);
                 },
                 disabled: () => this.jobs.length <= 1,
@@ -135,6 +155,7 @@ export default {
               [ETaskStatusType.RUNNING]: 'rotateAnimate commonicon-icon common-icon-loading-ring',
               [ETaskStatusType.PENDING]: '',
             },
+          notAllowMoveIndex: null,
         };
       },
     computed: {
@@ -144,6 +165,19 @@ export default {
       status() {
         return this.job.state || ETaskStatusType.PENDING;
       },
+    },
+    watch: {
+      editable: {
+        handler(value) {
+          this.sortableInstance.option('disabled', !value);
+        },
+      },
+    },
+    mounted() {
+      if (!this.isExecute) {
+        this.initSortable();
+      }
+      this.$refs.nodeContainer.nodes = this.job.nodes;
     },
     methods: {
         transformNodeConfigToRenderItems,
@@ -166,7 +200,6 @@ export default {
         handleCopyStepNode(step, index) {
           const copyStage =  copyStepNode(step);
           this.job.nodes.splice(index + 1, 0,  copyStage);
-
           this.refreshPPLT();
         },
         handleNode(node) {
@@ -177,6 +210,35 @@ export default {
         },
         handleOperateNode(type, node) {
           this.$emit('handleOperateNode', type, node);
+        },
+        initSortable() {
+          this.sortableInstance = new Sortable(this.$refs.nodeContainer, {
+            animation: 150,
+            disabled: !this.editable,
+            group: 'nodes',
+            handle: '.node-move-icon',
+            onStart: (evt) => {
+              if (this.job.nodes.length <= 1) {
+                this.notAllowMoveIndex = evt.oldIndex;
+              }
+            },
+            onEnd: (evt) => {
+              this.notAllowMoveIndex = null;
+              const { oldIndex, newIndex, to, from } = evt;
+              if (from.nodes.length > 1) {
+                to.nodes.splice(newIndex, 0, ...from.nodes.splice(oldIndex, 1));
+                this.refreshPPLT();
+              }
+              this.$nextTick(() => {
+                this.$forceUpdate();
+              });
+            },
+            onMove: () => {
+              if (this.job.nodes.length <= 1) {
+                return false;
+              }
+            },
+          });
         },
     },
 };
@@ -200,12 +262,43 @@ export default {
       .cicrle-btn{
         display: flex;
       }
+      .job-move-icon{
+        display: inline-block;
+      }
     }
     &.active {
       border: 1px solid #4A90E2; /* 添加左侧边框标记 */
     }
     &:last-child {
       margin-bottom: 0;
+    }
+    .job-move-icon{
+      margin-left: -4px;
+      font-size: 18px;
+      margin-right: 4px;
+      cursor: move;
+      display: none;
+    }
+    .no-allow-move{
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 2px dashed #F8B4B4;
+      border-spacing: 5px;
+      background: #FDF0F0;
+      display: flex;
+      align-items: center;
+      .info-text{
+        color: #EA3636;
+      }
+    }
+    &:deep(.bk-exception){
+      height: 100%;
+    }
+    &:deep(.bk-exception-img.part-img .exception-image){
+      height: 64px;
     }
 }
 
@@ -214,14 +307,13 @@ export default {
     width: 100%;
     font-size: 14px;
     .job-id {
-      width: 42px;
       background-color: #4A90E2;
       color: white;
       font-weight: 500;
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 42px;
+      padding: 0 12px;
      }
     .job-title {
       flex: 1;
@@ -337,12 +429,15 @@ export default {
     &.job{
       &.error{
         .job-header{
-        .job-id{
-          background-color: #ff5656;
-        }
-        .job-title{
-          background-color: #ff5656;
-        }
+          .job-id{
+            background-color: #ff5656;
+          }
+          .job-title{
+            background-color: #ff5656;
+          }
+          .iconCirle{
+            color: #ff5656;
+          }
         }
         .job-content{
         .job-status{
@@ -357,6 +452,9 @@ export default {
         }
         .job-title{
           background-color: #5bc882;
+        }
+        .iconCirle{
+          color: #5BC882;
         }
       }
       .job-content{
@@ -406,16 +504,6 @@ export default {
   justify-content: center;
   align-items: center;
   background-color: #fff;
-}
-.success{
-  .iconCirle{
-    color: #5BC882;
-  }
-}
-.error{
-  .iconCirle{
-    color: #ff5656;
-  }
 }
 .rotateAnimate{
   font-size: 14px;

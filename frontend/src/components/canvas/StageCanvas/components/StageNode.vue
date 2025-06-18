@@ -9,7 +9,10 @@
       @click="setActiveItem(stage)">
       <h3>
         <span
-          v-if="!isExecute||(status===ETaskStatusType.PENDING)"
+          v-if="editable"
+          class="stage-move-icon commonicon-icon common-icon-drawable" />
+        <span
+          v-if="!isExecute||(status === ETaskStatusType.PENDING)"
           class="stage-number">
           <span>{{ index }}.</span>
         </span>
@@ -46,7 +49,9 @@
         </div>
       </div>
     </div>
-    <div class="stage-jobs">
+    <div
+      ref="jobContainer"
+      class="stage-jobs">
       <JobNode
         v-for="(job,jobIndex) in stage.jobs"
         :key="job.id"
@@ -56,6 +61,7 @@
         :constants="constants"
         :index="`${index}.${jobIndex + 1}`"
         :editable="editable"
+        :show-not-allow-move="notAllowMoveIndex === jobIndex"
         @deleteNode="deletJobNode(jobIndex)"
         @handleNode="handleNode"
         @addNewJob="addNewJob(jobIndex)"
@@ -78,6 +84,7 @@ import { mapState } from 'vuex';
 import ValueRender from './valueRender.vue';
 import { getCopyNode, transformNodeConfigToRenderItems } from '../utils';
 import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
+import Sortable from 'sortablejs';
 
  export default {
     components: {
@@ -137,6 +144,8 @@ import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
               [ETaskStatusType.RUNNING]: 'rotateAnimate commonicon-icon common-icon-loading-ring',
               [ETaskStatusType.PENDING]: '',
             },
+            sortableInstance: null,
+            notAllowMoveIndex: null,
           };
       },
     computed: {
@@ -146,6 +155,19 @@ import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
       status() {
         return this.stage.state || ETaskStatusType.PENDING;
       },
+    },
+    watch: {
+      editable: {
+        handler(value) {
+          this.sortableInstance.option('disabled', !value);
+        },
+      },
+    },
+    mounted() {
+      if (!this.isExecute) {
+        this.initSortable();
+      }
+      this.$refs.jobContainer.jobs = this.stage.jobs;
     },
     methods: {
       transformNodeConfigToRenderItems,
@@ -179,6 +201,35 @@ import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
         },
       handleOperateNode(type, node) {
         this.$emit('handleOperateNode', type, node);
+      },
+      initSortable() {
+        this.sortableInstance = new Sortable(this.$refs.jobContainer, {
+            animation: 150,
+            disabled: !this.editable,
+            group: 'jobs',
+            handle: '.job-move-icon',
+            onStart: (evt) => {
+              if (this.stage.jobs.length <= 1) {
+                this.notAllowMoveIndex = evt.oldIndex;
+              }
+            },
+            onEnd: (evt) => {
+              this.notAllowMoveIndex = null;
+              const { oldIndex, newIndex, to, from } = evt;
+              if (from.jobs.length > 1) {
+                to.jobs.splice(newIndex, 0, ...from.jobs.splice(oldIndex, 1));
+                this.refreshPPLT();
+              }
+              this.$nextTick(() => {
+                this.$forceUpdate();
+              });
+            },
+            onMove: () => {
+              if (this.stage.jobs.length <= 1) {
+                return false;
+              }
+            },
+          });
       },
     },
 
@@ -231,6 +282,9 @@ import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
         .tools{
           display: flex;
         }
+        .stage-move-icon{
+          display: inline-block;
+        }
       }
       .stage-header {
           margin-bottom: 0;
@@ -272,6 +326,13 @@ import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
               line-height: 1.5;
             }
           }
+      }
+      .stage-move-icon{
+        display: none;
+        margin-left: -8px;
+        font-size: 18px;
+        color: #4D4F56;
+        cursor: move;
       }
 }
 .cicrleBtn{

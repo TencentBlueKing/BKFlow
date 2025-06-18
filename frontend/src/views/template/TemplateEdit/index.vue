@@ -1202,7 +1202,6 @@ import { cloneDeepWith } from 'lodash';
       async onShowNodeConfig(id) {
         // 判断节点配置的插件是否存在
         const nodeConfig = this.$store.state.template.activities[id];
-        console.log('index.vue_Line:1200', nodeConfig);
         const isDefaultPlugin = !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code);
         if (nodeConfig && nodeConfig.type === 'ServiceActivity' && nodeConfig.name && isDefaultPlugin) {
           let atom = true;

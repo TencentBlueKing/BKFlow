@@ -9,7 +9,6 @@ const stageCanvas = {
   mutations: {
     setActiveNode(state, node) {
       state.activeNode = node;
-      console.log('stageCanvas.js_Line:9', state);
     },
     setPluginsDetail(state, details) {
       Object.assign(state.pluginsDetail, details);

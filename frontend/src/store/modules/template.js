@@ -312,7 +312,6 @@ const template = {
     },
     updateStageCanvasData(state, stageCanvasData) {
       state.stage_canvas_data = stageCanvasData;
-      console.log('template.js_Line:315', state.stage_canvas_data);
     },
     // 更新模板各相关字段数据
     setTemplateData(state, data) {
