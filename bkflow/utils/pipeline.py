@@ -21,9 +21,10 @@ import copy
 
 from bamboo_engine.utils.boolrule import BoolRule
 from bkflow_feel.api import parse_expression
+from pipeline.parser.utils import recursive_replace_id
 
 from bkflow.utils.mako import parse_mako_expression
-from bkflow.utils.stage_canvas import replace_pipeline_tree_node_ids
+from bkflow.utils.stage_canvas import StageCanvasHandler
 
 DEFAULT_HORIZONTAL_PIPELINE_TREE = {
     "activities": {
@@ -362,7 +363,7 @@ def build_default_pipeline_tree(canvas_type: str = "horizontal"):
     except KeyError:
         raise ValueError(f"Invalid canvas_type: {canvas_type}，Must be one of: {', '.join(CANVAS_TEMPLATE_MAP.keys())}")
 
-    return replace_pipeline_tree_node_ids(pipeline_tree, canvas_type)
+    return replace_pipeline_tree_node_ids(pipeline_tree)
 
 
 def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args, **kwargs) -> bool:
@@ -371,3 +372,21 @@ def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args
     if extra_info.get("parse_lang") == "MAKO":
         return parse_mako_expression(expression=expr, context=context)
     return BoolRule(expr).test()
+
+
+def replace_pipeline_tree_node_ids(pipeline_tree: dict) -> dict:
+    """替换 pipeline tree 中的节点 ID
+
+    Args:
+        pipeline_tree: 需要处理的 pipeline tree
+
+    Returns:
+        处理后的 pipeline tree
+    """
+    if "stage_canvas_data" in pipeline_tree:
+        node_map = recursive_replace_id(pipeline_tree)
+        StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
+    else:
+        recursive_replace_id(pipeline_tree)
+
+    return pipeline_tree
