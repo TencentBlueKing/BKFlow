@@ -87,6 +87,11 @@ class BaseSpaceConfig(metaclass=SpaceConfigMeta):
     def validate(cls, value):
         return True
 
+    @classmethod
+    def get_value(cls, config, *args, **kwrags):
+        # 默认的父类方法
+        return config.text_value if config.value_type == SpaceConfigValueType.TEXT.value else config.json_value
+
 
 class SpaceConfigHandler:
     __hub = {}
@@ -335,6 +340,17 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
                     f"{cls.example}"
                 )
             )
+
+    @classmethod
+    def get_value(cls, config, *args, **kwrags):
+        scope = kwrags.get("scope", None)
+        config = config.json_value if config.value_type == SpaceConfigValueType.JSON.value else config.text_value
+        if isinstance(config, str):
+            # 如果是字符串 则只有一个默认配置
+            return config
+        if scope:
+            # 获取特定 scope 的配置
+            return config.get(scope) or config.get("default")
 
 
 class SpacePluginConfig(BaseSpaceConfig):
