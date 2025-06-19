@@ -293,7 +293,7 @@
 </script>
 <style lang="scss" scoped>
   .system-module-list {
-    /deep/.bk-table-empty-text {
+    ::v-deep .bk-table-empty-text {
       width: 100%;
     }
   }

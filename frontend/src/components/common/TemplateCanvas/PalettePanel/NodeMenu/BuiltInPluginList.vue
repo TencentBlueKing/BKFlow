@@ -236,7 +236,7 @@
         &:hover {
             background: #fafbfd;
         }
-        /deep/ .name-wrapper {
+        ::v-deep .name-wrapper {
             padding: 0 14px;
             height: 40px;
             line-height: 40px;
@@ -246,13 +246,13 @@
     }
     .bk-collapse-item {
         border-bottom: 1px solid #e2e4ed;
-        /deep/ .bk-collapse-item-header {
+        ::v-deep .bk-collapse-item-header {
             background: #ffffff;
             &:hover {
                 background: #fafbfd;
             }
         }
-        /deep/ .bk-collapse-item-content {
+        ::v-deep .bk-collapse-item-content {
             padding: 0;
             border-top: 1px solid #e2e4ed;
         }

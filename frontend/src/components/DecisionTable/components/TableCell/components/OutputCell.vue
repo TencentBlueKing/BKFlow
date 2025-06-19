@@ -25,8 +25,8 @@
   .output-cell {
     width: 100%;
     height: 100%;
-    /deep/.bk-select,
-    /deep/.bk-form-input {
+    ::v-deep .bk-select,
+    ::v-deep .bk-form-input {
       padding-right: 10px;
       height: 43px;
       width: 100%;
@@ -35,7 +35,7 @@
       border: 1px solid #1272FF;
       box-shadow: 0 0 4px 1px #1272ff33;
     }
-    /deep/.bk-select {
+    ::v-deep .bk-select {
       background: #fff;
       .bk-select-name {
         height: 42px;

@@ -879,7 +879,7 @@
         .col-more {
             width: 40px;
         }
-        /deep/.icon-funnel {
+        ::v-deep .icon-funnel {
             font-size: 13px;
             color: #c4c6cc;
             cursor: pointer;
@@ -922,7 +922,7 @@
     }
     .empty-variable-tips {
         height: 280px;
-        /deep/ .no-data-wording {
+        ::v-deep .no-data-wording {
             font-size: 12px;
         }
     }

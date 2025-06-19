@@ -373,7 +373,7 @@
           }
         }
       }
-      /deep/.bk-label {
+      ::v-deep .bk-label {
         font-size: 12px;
       }
       .un-mock-list {
@@ -408,7 +408,7 @@
       width: 88px;
     }
   }
-  /deep/.bk-collapse {
+  ::v-deep .bk-collapse {
     margin-top: auto;
     .bk-collapse-item-header {
       font-weight: 600;

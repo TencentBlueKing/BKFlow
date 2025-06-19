@@ -178,7 +178,7 @@
 
 <style lang="scss" scoped>
   .space-config {
-    /deep/.bk-table-empty-text {
+    ::v-deep .bk-table-empty-text {
       width: 100%;
     }
   }

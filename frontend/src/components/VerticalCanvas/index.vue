@@ -837,22 +837,22 @@
       }
     }
     // 节点样式用到了相对定位、绝对定位，解决在safari上会存在兼容性问题
-    /deep/ .x6-cell.x6-node {
+    ::v-deep .x6-cell.x6-node {
         .bk-tooltip {
             position: fixed;
         }
     }
-    /deep/.x6-widget-selection-box {
+    ::v-deep .x6-widget-selection-box {
       border: 1px dashed #3a84ff;
       margin-top: -3px;
       margin-left: -3px;
     }
 
-    /deep/.x6-widget-selection-inner {
+    ::v-deep .x6-widget-selection-inner {
       border: none;
       box-shadow: none;
     }
-    /deep/.branch-condition {
+    ::v-deep .branch-condition {
       padding: 4px 6px;
       min-width: 60px;
       max-width: 112px;
@@ -880,7 +880,7 @@
         border: 1px solid #c4c6cc;
       }
     }
-    /deep/.custom-snap-line {
+    ::v-deep .custom-snap-line {
       .x6-widget-snapline-vertical,
       .x6-widget-snapline-horizontal {
         stroke: #3a84ff;

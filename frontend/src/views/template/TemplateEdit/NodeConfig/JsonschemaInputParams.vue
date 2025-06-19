@@ -103,7 +103,7 @@
 </script>
 <style lang="scss" scoped>
   .jsonschema-input-params {
-    /deep/ .bk-form-item {
+    ::v-deep .bk-form-item {
       .bk-label {
         width: 130px !important;
         font-size: 12px;
@@ -126,7 +126,7 @@
         }
       }
     }
-    /deep/.bk-schema-form-group {
+    ::v-deep .bk-schema-form-group {
       .bk-schema-form-group-delete {
         display: none;
       }
@@ -136,7 +136,7 @@
     }
   }
   .edit-mode {
-    /deep/.bk-schema-form-group {
+    ::v-deep .bk-schema-form-group {
       .bk-schema-form-group {
         width: calc(100% - 10px);
       }
@@ -153,7 +153,7 @@
     }
   }
   .api-ui-form {
-    /deep/.bk-form-content {
+    ::v-deep .bk-form-content {
       width: calc(100% - 180px);
       .rf-tag-hook {
         position: absolute;
@@ -178,7 +178,7 @@
         }
       }
     }
-    /deep/.json-textarea {
+    ::v-deep .json-textarea {
       textarea {
         min-height: 300px !important;
         background: #313238 !important;
@@ -192,10 +192,10 @@
         }
       }
     }
-    /deep/.bk-date-picker {
+    ::v-deep .bk-date-picker {
       width: 100%;
     }
-    /deep/.bk-table {
+    ::v-deep .bk-table {
       .bk-form-content {
         margin-left: 0 !important;
         width: auto;

@@ -448,7 +448,7 @@
 </style>
 <style lang="scss" scoped>
 .render-form {
-    /deep/ .rf-group-name {
+    ::v-deep .rf-group-name {
         margin-bottom: 12px;
         .name {
             display: inline-block;
@@ -485,7 +485,7 @@
             }
         }
     }
-    /deep/ .scheme-desc-wrap {
+    ::v-deep .scheme-desc-wrap {
       position: relative;
       color: #979ba5;
       .hide-html-text {

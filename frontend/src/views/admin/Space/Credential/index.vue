@@ -207,7 +207,7 @@
   };
 </script>
 <style lang="scss" scoped>
-  /deep/.content-form-item {
+  ::v-deep .content-form-item {
     .bk-form-content {
       height: 300px;
       .content-wrapper {
@@ -216,7 +216,7 @@
       }
     }
   }
-  /deep/.bk-table-empty-text {
+  ::v-deep .bk-table-empty-text {
     width: 100%;
   }
 </style>

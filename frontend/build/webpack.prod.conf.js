@@ -1,4 +1,4 @@
-const webpack = require('webpack');
+const path = require('path');
 const { merge } = require('webpack-merge');
 const webpackBase = require('./webpack.base.conf');
 const TerserJSPlugin = require('terser-webpack-plugin');
@@ -6,7 +6,6 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
-const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 // const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin
 
@@ -25,17 +24,41 @@ module.exports = merge(webpackBase, {
     rules: [
       {
         test: /\.s?[ac]ss$/,
+        exclude: /node_modules/,
         use: [
           {
             loader: MiniCssExtractPlugin.loader,
             options: {
-              publicPath: '../',
-            },
+              publicPath: '../'
+            }
           },
           'css-loader',
           'postcss-loader',
-          'sass-loader',
-        ],
+          {
+            loader: 'sass-loader',
+            options: {
+              implementation: require('sass'), // 强制使用 Dart Sass
+              sassOptions: {
+                includePaths: [path.resolve(__dirname, '../src/')],
+                indentedSyntax: false, // 如果使用 SCSS 语法需设为 false
+                silenceDeprecations: ['import', 'legacy-js-api']
+              }
+            }
+          }
+        ]
+      },
+      {
+        test: /\.css$/,
+        include: /node_modules/,
+        use: [
+          {
+            loader: MiniCssExtractPlugin.loader,
+            options: {
+              publicPath: '../'
+            }
+          },
+          'css-loader'
+        ]
       },
     ],
   },

@@ -232,7 +232,7 @@
             display: flex;
             flex-direction: column;
             position: relative;
-            /deep/.bk-tab {
+            ::v-deep .bk-tab {
                 position: absolute;
                 z-index: 2;
                 height: 40px;
@@ -256,7 +256,7 @@
             }
             .full-code-editor {
                 margin: 0 !important;
-                /deep/.tool-area {
+                ::v-deep .tool-area {
                     height: 40px;
                     line-height: 40px;
                     background: #2e2e2e;

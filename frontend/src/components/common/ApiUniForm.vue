@@ -368,7 +368,7 @@
 
 <style lang="scss" scoped>
   .api-uniform {
-    /deep/.params-wrapper {
+    ::v-deep .params-wrapper {
       border: 1px solid #c4c6cc;
       padding: 20px;
       .bk-form-item::before {

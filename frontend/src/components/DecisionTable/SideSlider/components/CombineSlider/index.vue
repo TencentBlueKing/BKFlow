@@ -151,7 +151,7 @@
       margin-right: 16px;
       line-height: 22px;
     }
-    /deep/.bk-form-radio {
+    ::v-deep .bk-form-radio {
       margin-right: 24px;
     }
   }
@@ -159,14 +159,14 @@
     margin-bottom: 10px;
     font-size: 12px;
     color: #b8b8b8;
-    /deep/.bk-link {
+    ::v-deep .bk-link {
       vertical-align: initial;
       .bk-link-text {
         font-size: 12px;
       }
     }
   }
-  /deep/.full-code-editor {
+  ::v-deep .full-code-editor {
     height: 460px;
   }
 }
