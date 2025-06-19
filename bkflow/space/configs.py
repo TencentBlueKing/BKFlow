@@ -384,13 +384,7 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
             return config
         if scope:
             # 获取特定 scope 的配置
-            credential_config_name = config.get(scope, None)
-            if not credential_config_name:
-                raise ValidationError(f"No such config {scope}")
-
-            return credential_config_name
-
-        return config.get("default")
+            return config.get(scope) or config.get("default")
 
 
 class SpacePluginConfig(BaseSpaceConfig):
