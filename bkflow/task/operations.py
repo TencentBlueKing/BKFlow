@@ -142,7 +142,7 @@ class TaskOperation:
 
             scope_type, scope_id = root_pipeline_data.get("task_scope_type"), root_pipeline_data.get("task_scope_value")
 
-            if scope_type is not None and scope_id is not None:
+            if scope_type is not None and scope_id is not None and space_var is not None:
                 # 域变量 存在则加入
                 scope_var = scope_var.get(f"{scope_type}_{scope_id}", None)
                 if scope_var is not None:
