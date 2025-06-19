@@ -24,6 +24,7 @@ from bkflow_feel.api import parse_expression
 from pipeline.parser.utils import recursive_replace_id
 
 from bkflow.utils.mako import parse_mako_expression
+from bkflow.utils.stage_canvas import StageCanvasHandler
 
 DEFAULT_HORIZONTAL_PIPELINE_TREE = {
     "activities": {
@@ -199,12 +200,170 @@ DEFAULT_VERTICAL_PIPELINE_TREE = {
 }
 
 
-def build_default_pipeline_tree(horizontal_canvas=True):
-    pipeline_tree = copy.deepcopy(
-        DEFAULT_HORIZONTAL_PIPELINE_TREE if horizontal_canvas else DEFAULT_VERTICAL_PIPELINE_TREE
-    )
-    recursive_replace_id(pipeline_tree)
-    return pipeline_tree
+DEFAULT_STAGE_PIPELINE_TREE = {
+    "activities": {
+        "nodec4b13c772ce97fc184a2612247cc": {
+            "component": {
+                "code": "bk_display",
+                "data": {"bk_display_message": {"hook": False, "need_render": True, "value": ""}},
+                "version": "v1.0",
+            },
+            "error_ignorable": False,
+            "id": "nodec4b13c772ce97fc184a2612247cc",
+            "incoming": ["line065319f93761c67d5fa7312be4df"],
+            "loop": None,
+            "name": "消息展示",
+            "optional": True,
+            "outgoing": "line1c0c2149e22a3e9f27e2b1e09a72",
+            "stage_name": "",
+            "type": "ServiceActivity",
+            "retryable": True,
+            "skippable": True,
+            "auto_retry": {"enable": False, "interval": 0, "times": 1},
+            "timeout_config": {"enable": False, "seconds": 10, "action": "forced_fail"},
+            "labels": [],
+        }
+    },
+    "constants": {},
+    "end_event": {
+        "id": "node90f8323a6030119b7b941c3ca5d9",
+        "incoming": ["linebb49db5a0e8a15c9374cf05447d3"],
+        "name": "",
+        "outgoing": "",
+        "type": "EmptyEndEvent",
+        "labels": [],
+    },
+    "flows": {
+        "line421d9cb81340871c1482ccfdc32f": {
+            "id": "line421d9cb81340871c1482ccfdc32f",
+            "source": "noded63f789cab4fa1bcf7bd7e28be33",
+            "target": "noded8066692dbdda189bd033e0442ad",
+            "is_default": False,
+        },
+        "linebb49db5a0e8a15c9374cf05447d3": {
+            "id": "linebb49db5a0e8a15c9374cf05447d3",
+            "source": "node609a8e0d75f184cd4f70f28991b4",
+            "target": "node90f8323a6030119b7b941c3ca5d9",
+            "is_default": False,
+        },
+        "line065319f93761c67d5fa7312be4df": {
+            "id": "line065319f93761c67d5fa7312be4df",
+            "source": "noded8066692dbdda189bd033e0442ad",
+            "target": "nodec4b13c772ce97fc184a2612247cc",
+            "is_default": False,
+        },
+        "line1c0c2149e22a3e9f27e2b1e09a72": {
+            "id": "line1c0c2149e22a3e9f27e2b1e09a72",
+            "is_default": False,
+            "source": "nodec4b13c772ce97fc184a2612247cc",
+            "target": "node609a8e0d75f184cd4f70f28991b4",
+        },
+    },
+    "gateways": {
+        "noded8066692dbdda189bd033e0442ad": {
+            "id": "noded8066692dbdda189bd033e0442ad",
+            "incoming": ["line421d9cb81340871c1482ccfdc32f"],
+            "name": "",
+            "outgoing": ["line065319f93761c67d5fa7312be4df"],
+            "type": "ParallelGateway",
+            "converge_gateway_id": "",
+        },
+        "node609a8e0d75f184cd4f70f28991b4": {
+            "id": "node609a8e0d75f184cd4f70f28991b4",
+            "incoming": ["line1c0c2149e22a3e9f27e2b1e09a72"],
+            "name": "",
+            "outgoing": "linebb49db5a0e8a15c9374cf05447d3",
+            "type": "ConvergeGateway",
+        },
+    },
+    "line": [
+        {
+            "id": "line421d9cb81340871c1482ccfdc32f",
+            "source": {"arrow": "Right", "id": "noded63f789cab4fa1bcf7bd7e28be33"},
+            "target": {"arrow": "Left", "id": "noded8066692dbdda189bd033e0442ad"},
+        },
+        {
+            "id": "linebb49db5a0e8a15c9374cf05447d3",
+            "source": {"arrow": "Right", "id": "node609a8e0d75f184cd4f70f28991b4"},
+            "target": {"arrow": "Left", "id": "node90f8323a6030119b7b941c3ca5d9"},
+        },
+        {
+            "id": "line065319f93761c67d5fa7312be4df",
+            "source": {"arrow": "Right", "id": "noded8066692dbdda189bd033e0442ad"},
+            "target": {"arrow": "Left", "id": "nodec4b13c772ce97fc184a2612247cc"},
+        },
+        {
+            "id": "line1c0c2149e22a3e9f27e2b1e09a72",
+            "source": {"arrow": "Right", "id": "nodec4b13c772ce97fc184a2612247cc"},
+            "target": {"arrow": "Left", "id": "node609a8e0d75f184cd4f70f28991b4"},
+        },
+    ],
+    "location": [
+        {"id": "noded63f789cab4fa1bcf7bd7e28be33", "type": "startpoint", "x": 40, "y": 150},
+        {"id": "node90f8323a6030119b7b941c3ca5d9", "type": "endpoint", "x": 840, "y": 150},
+        {"id": "noded8066692dbdda189bd033e0442ad", "type": "parallelgateway", "x": 240, "y": 150},
+        {"id": "node609a8e0d75f184cd4f70f28991b4", "type": "convergegateway", "x": 640, "y": 150},
+        {
+            "id": "nodec4b13c772ce97fc184a2612247cc",
+            "type": "tasknode",
+            "x": 440,
+            "y": 140,
+            "name": "消息展示",
+            "stage_name": "",
+            "status": "",
+            "skippable": True,
+            "retryable": True,
+            "optional": True,
+            "auto_retry": {"enable": False, "interval": 0, "times": 1},
+            "timeout_config": {"enable": False, "seconds": 10, "action": "forced_fail"},
+            "isActived": False,
+        },
+    ],
+    "outputs": [],
+    "start_event": {
+        "id": "noded63f789cab4fa1bcf7bd7e28be33",
+        "incoming": "",
+        "name": "",
+        "outgoing": "line421d9cb81340871c1482ccfdc32f",
+        "type": "EmptyStartEvent",
+        "labels": [],
+    },
+    "canvas_mode": "stage",
+    "stage_canvas_data": [
+        {
+            "id": "node9a2bba5dc8b81156537c479f9db0",
+            "name": "Stage-1",
+            "config": [],
+            "jobs": [
+                {
+                    "id": "nodea995a2776eb4fc455df9ca64777f",
+                    "name": "Job-1",
+                    "config": [],
+                    "nodes": [{"id": "nodec4b13c772ce97fc184a2612247cc", "type": "Node"}],
+                    "type": "Job",
+                }
+            ],
+            "type": "Stage",
+        }
+    ],
+}
+
+
+CANVAS_TEMPLATE_MAP = {
+    "horizontal": DEFAULT_HORIZONTAL_PIPELINE_TREE,
+    "vertical": DEFAULT_VERTICAL_PIPELINE_TREE,
+    "stage": DEFAULT_STAGE_PIPELINE_TREE,
+}
+
+
+def build_default_pipeline_tree(canvas_type: str = "horizontal"):
+    # 根据 canvas_type 创建不同的 pipeline tree
+    try:
+        pipeline_tree = copy.deepcopy(CANVAS_TEMPLATE_MAP[canvas_type])
+    except KeyError:
+        raise ValueError(f"Invalid canvas_type: {canvas_type}，Must be one of: {', '.join(CANVAS_TEMPLATE_MAP.keys())}")
+
+    return replace_pipeline_tree_node_ids(pipeline_tree)
 
 
 def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args, **kwargs) -> bool:
@@ -213,3 +372,21 @@ def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args
     if extra_info.get("parse_lang") == "MAKO":
         return parse_mako_expression(expression=expr, context=context)
     return BoolRule(expr).test()
+
+
+def replace_pipeline_tree_node_ids(pipeline_tree: dict) -> dict:
+    """替换 pipeline tree 中的节点 ID
+
+    Args:
+        pipeline_tree: 需要处理的 pipeline tree
+
+    Returns:
+        处理后的 pipeline tree
+    """
+    if pipeline_tree.get("canvas_mode") == "stage":
+        node_map = recursive_replace_id(pipeline_tree)
+        StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
+    else:
+        recursive_replace_id(pipeline_tree)
+
+    return pipeline_tree

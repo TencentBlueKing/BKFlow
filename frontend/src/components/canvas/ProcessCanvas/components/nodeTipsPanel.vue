@@ -54,7 +54,7 @@
 </script>
 
 <style lang="scss" scoped>
-@import '../../../scss/mixins/scrollbar.scss';
+@import '../../../../scss/mixins/scrollbar.scss';
 .node-tips-content {
   position: absolute;
   z-index: 5;

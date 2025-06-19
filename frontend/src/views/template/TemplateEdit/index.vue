@@ -42,19 +42,8 @@
         @onChangePanel="onChangeSettingPanel"
         @onSaveTemplate="onSaveTemplate" />
       <template v-if="isEditProcessPage">
-        <!-- 一期不做 -->
-        <!-- <SubflowUpdateTips
-          v-if="subflowShouldUpdated.length > 0"
-          class="update-tips"
-          :list="subflowShouldUpdated"
-          :locations="locations"
-          :is-view-mode="isViewMode"
-          @viewClick="viewUpdatedNode"
-          @batchUpdate="isBatchUpdateDialogShow = true"
-          @foldClick="clearDotAnimation">
-        </SubflowUpdateTips> -->
         <component
-          :is="canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas'"
+          :is="templateComponentName"
           ref="processCanvas"
           :key="isViewMode"
           class="canvas-comp-wrapper"
@@ -62,6 +51,8 @@
           :show-palette="!isViewMode"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
+          :template-id="templateId"
+          :space-id="spaceId"
           @onLineChange="onLineChange"
           @onLocationChange="onLocationChange"
           @onLocationMoveDone="onLocationMoveDone"
@@ -72,20 +63,6 @@
           @onShowNodeConfig="onShowNodeConfig"
           @updateCondition="setBranchCondition($event)" />
       </template>
-      <!-- <TaskSelectNode
-        v-else
-        ref="taskSelectNode"
-        :common="common"
-        :entrance="entrance"
-        :template_id="templateId"
-        :exclude-node="excludeNode"
-        :is-edit-process-page="isEditProcessPage"
-        :execute-scheme-saving="executeSchemeSaving"
-        @onSaveExecuteSchemeClick="onSaveExecuteSchemeClick"
-        @updateTaskSchemeList="updateTaskSchemeList"
-        @togglePreviewMode="togglePreviewMode"
-        @setExcludeNode="setExcludeNode">
-      </TaskSelectNode> -->
       <div class="side-content">
         <node-config
           v-if="isNodeConfigPanelShow"
@@ -133,23 +110,6 @@
           @updateTemplateLabelList="getTemplateLabelList"
           @updateSnapshoot="onUpdateSnapshoot" />
       </div>
-      <!-- 一期不做 -->
-      <!-- <bk-dialog
-        class="batch-update-dialog"
-        v-model="isBatchUpdateDialogShow"
-        :close-icon="false"
-        :fullscreen="true"
-        data-test-id="templateEdit_form_batchUpdateDialog"
-        :show-footer="false">
-        <batch-update-dialog
-          v-if="isBatchUpdateDialogShow"
-          :project-id="projectId"
-          :common="common"
-          :list="subflowShouldUpdated"
-          @globalVariableUpdate="globalVariableUpdate"
-          @close="closeBatchUpdateDialog">
-        </batch-update-dialog>
-      </bk-dialog> -->
       <bk-dialog
         width="400"
         ext-cls="common-dialog"
@@ -225,20 +185,19 @@
   import TemplateSetting from './TemplateSetting/index.vue';
   import NodeConfig from './NodeConfig/NodeConfig.vue';
   import ConditionEdit from './ConditionEdit.vue';
-  // import SubflowUpdateTips from './SubflowUpdateTips.vue'
   import tplSnapshoot from '@/utils/tplSnapshoot.js';
   import tplTabCount from '@/utils/tplTabCount.js';
   import Guide from '@/utils/guide.js';
   import permission from '@/mixins/permission.js';
   import { STRING_LENGTH } from '@/constants/index.js';
   import { NODES_SIZE_POSITION } from '@/constants/nodes.js';
-  // import TaskSelectNode from '../../task/TaskCreate/TaskSelectNode.vue'
-  // import BatchUpdateDialog from './BatchUpdateDialog.vue'
   import DealVarDirtyData from '@/utils/dealVarDirtyData.js';
   import { graphToJson } from '@/utils/graphJson.js';
-  import VerticalCanvas from '@/components/VerticalCanvas/index.vue';
-  import ProcessCanvas from '@/components/ProcessCanvas/index.vue';
+  import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
+  import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
+  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
   import bus from '@/utils/bus.js';
+import { cloneDeepWith } from 'lodash';
 
   export default {
     name: 'TemplateEdit',
@@ -252,6 +211,7 @@
       // BatchUpdateDialog,
       VerticalCanvas,
       ProcessCanvas,
+      StageCanvas,
     },
     mixins: [permission],
     props: {
@@ -443,6 +403,15 @@
       },
       isViewMode() {
         return this.type === 'view' || !this.tplActions.some(action => ['EDIT', 'MOCK'].includes(action));
+      },
+      templateType() {
+          return this.$route.query.templateType || 'template';
+      },
+      templateComponentName() {
+          if (this.templateType.toLowerCase() === 'StageCanvas'.toLowerCase()) {
+                return  'StageCanvas';
+          }
+            return this.canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas';
       },
     },
     watch: {
@@ -806,7 +775,6 @@
         } else {
           this.templateSaving = true;
         }
-
         try {
           const resp = await this.saveTemplateData({
             templateId,
@@ -826,6 +794,9 @@
               this.validateConnectFailList.push(resp.errorId);
             }
             return;
+          }
+          if (window.parent) {
+            window.parent.postMessage({ eventName: 'bk-flow-save-template', data: cloneDeepWith(resp.data) }, '*');
           }
           const { data } = resp;
           this.tplActions = data.auth;
@@ -865,13 +836,13 @@
             };
             tplTabCount.setTab(tabQuerydata, 'add');
           }
-
           if (this.templateMocking) {
             this.$router.push({
               name: 'templateMock',
               params: {
                 templateId: this.templateId,
               },
+              query: Object.assign({}, this.$router.query),
             });
           } else if (this.createTaskSaving) {
             this.goToTaskUrl(data.id);
@@ -883,7 +854,7 @@
               this.$router.replace({
                 name: 'templatePanel',
                 params: { type: 'view' },
-                query: { templateId: data.id },
+                query: Object.assign({ templateId: data.id }, this.$route.query),
               });
               this.initType = 'view';
             }
