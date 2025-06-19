@@ -3,7 +3,8 @@
   <div
     class="flowchart-container "
     :class="{
-      isPreview:!editable
+      isPreview:!editable,
+      isExecute
     }">
     <JobAndStageEidtSld
       :is-show.sync="isShowJobAndStageEdit"
@@ -259,5 +260,10 @@ import Sortable from 'sortablejs';
       width: 100%;
       height: 100%;
     }
+}
+.isExecute{
+  &.flowchart-container{
+    height: 100%;
+  }
 }
 </style>
