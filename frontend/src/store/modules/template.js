@@ -317,7 +317,7 @@ const template = {
     setTemplateData(state, data) {
       const {
         name,
-        template_id: templateId,
+        id: templateId,
         pipeline_tree: pipelineData,
         template_labels: templateLabels,
         notify_config: notifyConfig,
@@ -1111,9 +1111,10 @@ const template = {
       return axios.get(`/api/common_template/${templateId}/common_info/`).then(response => response.data);
     },
     // api插件分类列表
-    loadUniformCategoryList({}, data) {
+    loadUniformCategoryList({ state }, data) {
       const { spaceId, scope_type, scope_value, api_name } = data;
-      return axios.get(`api/plugin_query/uniform_api/category_list/${spaceId}/`, {
+      const { template_id: templateId } = state;
+      return axios.get(`api/plugin_query/uniform_api/category_list/${spaceId}/${templateId}/`, {
         params: {
           scope_type,
           scope_value,
@@ -1122,9 +1123,10 @@ const template = {
       }).then(response => response.data);
     },
     // api插件请求列表
-    loadUniformApiList({}, data) {
+    loadUniformApiList({ state }, data) {
       const { spaceId, scope_type, scope_value, offset, limit, category, key, api_name } = data;
-      return axios.get(`/api/plugin_query/uniform_api/list/${spaceId}/`, {
+      const { template_id: templateId } = state;
+      return axios.get(`/api/plugin_query/uniform_api/list/${spaceId}/${templateId}/`, {
         params: {
           limit,
           offset,
@@ -1137,9 +1139,10 @@ const template = {
       }).then(response => response.data);
     },
     // api插件请求详情
-    loadUniformApiMeta({}, data) {
+    loadUniformApiMeta({ state }, data) {
       const { spaceId, meta_url, scope_type, scope_value } = data;
-      return axios.get(`/api/plugin_query/uniform_api/meta/${spaceId}/`, {
+      const { template_id: templateId } = state;
+      return axios.get(`/api/plugin_query/uniform_api/meta/${spaceId}/${templateId}/`, {
         params: {
           meta_url,
           scope_type,

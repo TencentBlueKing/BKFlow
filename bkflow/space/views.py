@@ -271,6 +271,43 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
             SpaceConfig.objects.get_space_config_info(space_id=ser.validated_data["space_id"], simplified=False)
         )
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            SpaceConfig.objects.create_space_config(space_id=request.data["space_id"], data=serializer.validated_data)
+        except Exception as e:
+            err_msg = f"创建空间配置失败: {str(e)}"
+            logger.error(err_msg)
+            return Response(exception=True, data={"detail": err_msg})
+        return Response(serializer.validated_data)
+
+    def partial_update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            SpaceConfig.objects.update_space_config(
+                space_id=request.data["space_id"], data=serializer.validated_data, instance=instance
+            )
+            return Response(serializer.validated_data)
+        except Exception as e:
+            err_msg = f"更新空间配置失败: {str(e)}"
+            logger.error(err_msg)
+            return Response(exception=True, data={"detail": err_msg})
+
+    def destroy(self, request, *args, **kwargs):
+        pk = kwargs.get("pk")
+        try:
+            SpaceConfig.objects.delete_space_config(pk=pk)
+            return Response(pk)
+        except Exception as e:
+            err_msg = f"删除空间配置失败: {str(e)}"
+            logger.error(err_msg)
+            return Response(exception=True, data={"detail": err_msg})
+
 
 class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     """

@@ -48,7 +48,7 @@ from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
 from bkflow.task.context import SystemObject
-from bkflow.task.models import TaskInstance
+from bkflow.task.models import EngineSpaceConfig, TaskInstance
 from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.dates import format_datetime
@@ -134,6 +134,24 @@ class TaskOperation:
             )
             system_obj = SystemObject(root_pipeline_data)
             root_pipeline_context = {"${_system}": system_obj}
+
+            # 读取 引擎模块配置 注入空间和域变量
+            engine_var = EngineSpaceConfig.get_space_var(space_id=self.task_instance.space_id)
+            space_var = engine_var.get("space", None)
+            scope_var = engine_var.get("scope", None)
+
+            scope_type, scope_id = root_pipeline_data.get("task_scope_type"), root_pipeline_data.get("task_scope_value")
+
+            if scope_type is not None and scope_id is not None:
+                # 域变量 存在则加入
+                scope_var = scope_var.get(f"{scope_type}_{scope_id}", None)
+                if scope_var is not None:
+                    scope_obj = SystemObject(scope_var)
+                    root_pipeline_context.update({"${_scope}": scope_obj})
+            if space_var is not None:
+                # 空间变量 存在则加入
+                space_obj = SystemObject(space_var)
+                root_pipeline_context.update({"${_space}": space_obj})
 
             # run pipeline
             result = bamboo_engine_api.run_pipeline(

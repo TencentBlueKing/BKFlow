@@ -410,7 +410,7 @@
         if (!Object.keys(this.edgesPosition).length) {
           const edges = this.graph.getEdges();
           edges.forEach((item) => {
-            const edgeDom = this.getNodeElement(`g[data-cell-id="${item.id}"`);
+            const edgeDom = this.getNodeElement(`g[data-cell-id="${item.id}"]`);
             const pathDom = edgeDom && edgeDom.childNodes[0];
             const pathPos = parseSvgPath(pathDom?.attributes.d.value);
             this.edgesPosition[item.id] = pathPos;
@@ -465,7 +465,7 @@
             offsetTop = Number(offset[1]);
           }
           // 节点坐标
-          const nodeCellDom = this.getNodeElement(`g[data-cell-id="${node.id}"`);
+          const nodeCellDom = this.getNodeElement(`g[data-cell-id="${node.id}"]`);
           const { top, left } = nodeCellDom.querySelector('.custom-node').getBoundingClientRect();
           const canvasDom = this.getNodeElement();
           const { left: canvasLeft, top: canvasTop } = canvasDom.getBoundingClientRect();

@@ -55,6 +55,10 @@
         :class="['col-item col-cited', { 'active': showCitedList }]"
         @click.stop="onViewCitedList">
         {{ citedNum }}
+        <i
+          v-if="isExistSourceNode"
+          class="common-icon-box-top-right-corner source-icon"
+          @click.stop="viewClick" />
       </span>
       <span
         v-bk-overflow-tips="{ distance: 0 }"
@@ -207,6 +211,10 @@
       },
       isProjectVar() {
         return this.variableData.source_type === 'project';
+      },
+      isExistSourceNode() {
+        const { source_info: sourceInfo } = this.variableData;
+        return !!Object.keys(sourceInfo).length;
       },
       citedList() {
         const defaultCiteData = {
@@ -433,6 +441,10 @@ $localBorderColor: #d8e2e7;
         width: 80px;
         color: #333333;
         cursor: pointer;
+        .source-icon {
+            color: #3a84ff;
+            margin-left: 2px;
+        }
         &.active {
             color: #3a84ff;
         }

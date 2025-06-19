@@ -393,7 +393,7 @@
             offsetTop = Number(offset[1]);
           }
           // 节点坐标
-          const nodeCellDom = this.getNodeElement(`g[data-cell-id="${node.id}"`);
+          const nodeCellDom = this.getNodeElement(`g[data-cell-id="${node.id}"]`);
           const { top, left } = nodeCellDom.querySelector('.custom-node').getBoundingClientRect();
           const ratio = this.graph.zoom();
           location.x = (left - 60 - offsetLeft) / ratio;
