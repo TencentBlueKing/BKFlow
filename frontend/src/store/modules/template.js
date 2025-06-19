@@ -9,14 +9,14 @@
 * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 * specific language governing permissions and limitations under the License.
 */
-import Vue from 'vue';
+import Vue, {  ref } from 'vue';
 import nodeFilter from '@/utils/nodeFilter.js';
 import { uuid, random4 } from '@/utils/uuid.js';
 import tools from '@/utils/tools.js';
 import validatePipeline from '@/utils/validatePipeline.js';
 import axios from 'axios';
 import i18n from '@/config/i18n/index.js';
-
+import { stage } from '@/components/canvas/StageCanvas/data.js';
 const ATOM_TYPE_DICT = {
   startpoint: 'EmptyStartEvent',
   endpoint: 'EmptyEndEvent',
@@ -170,6 +170,7 @@ const template = {
     flows: {},
     gateways: {},
     line: [],
+    stage_canvas_data: [],
     location: [],
     outputs: [],
     start_event: {},
@@ -235,7 +236,7 @@ const template = {
     setPipelineTree(state, data) {
       const pipelineTreeOrder = [
         'activities', 'constants', 'end_event', 'flows', 'gateways',
-        'line', 'location', 'outputs', 'start_event',
+        'line', 'location', 'outputs', 'start_event', 'stage_canvas_data',
       ];
       pipelineTreeOrder.forEach((key) => {
         let val = data[key];
@@ -286,10 +287,31 @@ const template = {
               return item;
             });
           }
+          if (key === 'stage_canvas_data') {
+            if (!val) {
+              val = ref([...stage]).value;
+            } else {
+              val = ref(val).value;
+            }
+          }
         }
 
         state[key] = val;
       });
+    },
+    updatePipelineTree(state, data) {
+      const { activities, flows, gateways, line, location, start_event: startEvent, end_event: endEvent, canvas_mode: canvasMode } = data;
+      activities && (state.activities = activities);
+      flows && (state.flows = flows);
+      gateways && (state.gateways = gateways);
+      line && (state.line = line);
+      location && (state.location = location);
+      startEvent && (state.start_event = startEvent);
+      endEvent && (state.end_event = endEvent);
+      canvasMode && (state.canvas_mode = canvasMode);
+    },
+    updateStageCanvasData(state, stageCanvasData) {
+      state.stage_canvas_data = stageCanvasData;
     },
     // 更新模板各相关字段数据
     setTemplateData(state, data) {
@@ -308,6 +330,7 @@ const template = {
         space_id: spaceId,
         scope_type,
         scope_value,
+
       } = data;
 
       const {
@@ -331,6 +354,7 @@ const template = {
         scope_type,
         scope_value,
       };
+
       state.canvas_mode = pipelineData.canvas_mode;
       this.commit('template/setPipelineTree', pipelineData);
     },
@@ -942,6 +966,7 @@ const template = {
         location, outputs, start_event, notify_receivers, notify_type,
         time_out: timeout, category, description, executor_proxy, template_labels, default_flow_type,
         canvas_mode,
+        stage_canvas_data,
       } = state;
       // 剔除 location 的冗余字段
       const pureLocation = location.map(item => ({
@@ -977,6 +1002,7 @@ const template = {
         location: pureLocation,
         outputs,
         start_event,
+        stage_canvas_data,
       };
       const validateResult = validatePipeline.isPipelineDataValid(pipelineTree);
 
@@ -1172,7 +1198,7 @@ const template = {
     getPipelineTree(state) {
       const {
         activities, constants, end_event, flows, gateways,
-        line, location, outputs, start_event,
+        line, location, outputs, start_event, stage_canvas_data,
       } = state;
       // 剔除 location 的冗余字段
       const pureLocation = location.map(item => ({
@@ -1194,6 +1220,7 @@ const template = {
         location: pureLocation,
         outputs,
         start_event,
+        stage_canvas_data,
       };
     },
   },

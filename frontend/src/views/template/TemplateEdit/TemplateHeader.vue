@@ -100,13 +100,20 @@
           {{createTaskBtnText}}
         </bk-button> -->
         <bk-button
-          v-if="tplActions.includes('MOCK')"
+          v-if="tplActions.includes('MOCK')&&!ifHidenMockBtn"
           :class="['task-btn']"
           data-test-id="templateEdit_form_mock"
           :loading="templateMocking"
           :disabled="templateSaving && !templateMocking"
           @click.stop="$emit('jumpToTemplateMock')">
           {{ $t('调试') }}
+        </bk-button>
+        <bk-button
+          v-if="isViewMode && ifShowCreateTaskBtn"
+          :class="['task-btn']"
+
+          @click.stop="exportCreateTaskHandle">
+          {{ $t('创建任务') }}
         </bk-button>
       </div>
       <div
@@ -264,6 +271,12 @@
       hasEditPermission() {
         return this.tplActions.some(action => ['EDIT', 'MOCK'].includes(action));
       },
+       ifHidenMockBtn() {
+        return this.$route.query.ifHidenMockBtn;
+       },
+       ifShowCreateTaskBtn() {
+        return this.$route.query.ifShowCreateTaskBtn;
+       },
     },
     watch: {
       type(val, oldVal) {
@@ -567,6 +580,11 @@
       onOpenExecuteScheme() {
         this.saveTemplate();
         this.$emit('onOpenExecuteScheme', true);
+      },
+      exportCreateTaskHandle() {
+        if (window.parent) {
+            window.parent.postMessage({ eventName: 'bk-flow-create-task-handle' }, '*');
+          }
       },
     },
   };

@@ -358,6 +358,7 @@ const en = {
   开始时间: 'Start Time',
   结束时间: 'End Time',
   调试: 'Debug',
+  创建任务: 'Create Task',
   字段输入: 'Field Input',
   输出结果: 'Output Results',
   关闭: 'Close',
