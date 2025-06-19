@@ -25,9 +25,10 @@ from bkflow.template.views.template import (
     AdminTemplateViewSet,
     TemplateMockDataViewSet,
     TemplateMockSchemeViewSet,
-    TemplateViewSet,
     TemplateMockTaskViewSet,
+    TemplateViewSet,
 )
+from bkflow.template.views.trigger import TriggerViewSet
 from bkflow.template.views.variable import VariableViewSet
 
 router = DefaultRouter()
@@ -36,6 +37,7 @@ router.register(r"^admin", AdminTemplateViewSet, basename="admin_template")
 router.register(r"^template_mock_data", TemplateMockDataViewSet, basename="template_mock_data")
 router.register(r"^template_mock_scheme", TemplateMockSchemeViewSet, basename="template_mock_scheme")
 router.register(r"^template_mock_task", TemplateMockTaskViewSet, basename="template_mock_task")
+router.register(r"trigger", TriggerViewSet, basename="trigger")
 router.register(r"", TemplateViewSet, basename="template")
 
 urlpatterns = [

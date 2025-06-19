@@ -279,3 +279,30 @@ class TemplateMockScheme(models.Model):
         verbose_name_plural = "Template Mock Scheme"
         ordering = ["-id"]
         index_together = ["space_id", "template_id"]
+
+
+class Trigger(CommonModel):
+    # 定义触发器类型选项
+    TYPE_INTERVAL = "interval"
+    TYPE_MANUAL = "manual"
+    TYPE_REMOTE = "remote"
+
+    TYPE_CHOICES = [
+        (TYPE_INTERVAL, "定时"),  # 定时
+        (TYPE_REMOTE, "远程"),  # 远程
+    ]
+    space_id = models.IntegerField(help_text="Space ID")
+    template_id = models.IntegerField(help_text="Related template ID", db_index=True)
+    is_enabled = models.BooleanField(default=True, help_text="Indicates whether the trigger is enabled")
+    name = models.CharField(max_length=100)
+    condition = models.TextField(help_text="Condition for the trigger")
+    config = models.JSONField(help_text="Configuration for the trigger")
+    token = models.CharField(max_length=255, help_text="Token for remote authentication")
+    type = models.CharField(
+        max_length=20, choices=TYPE_CHOICES, default=TYPE_MANUAL, help_text="Type of the trigger"  # 设置默认触发类型
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["space_id", "template_id"]),
+        ]
