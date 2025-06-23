@@ -607,3 +607,27 @@ paths:
           userVerifiedRequired: false
         disabledStages: []
         descriptionEn: grant apigw permissions of bkflow to other app
+  /create_template_from_json:
+    post:
+      operationId: create_template_from_json
+      description: 使用json数据创建模板
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: false
+        allowApplyPermission: false
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}apigw/create_template_from_json/
+          matchSubpath: false
+          timeout: 0
+          upstreams: {}
+          transformHeaders: {}
+        authConfig:
+          userVerifiedRequired: false
+        disabledStages: []
+        descriptionEn: use json data creation template

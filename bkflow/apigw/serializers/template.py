@@ -30,13 +30,8 @@ from bkflow.template.models import Template
 logger = logging.getLogger("root")
 
 
-class CreateTemplateSerializer(serializers.Serializer):
-    """
-    创建模板的序列化器
-    """
-
+class TemplateBaseSerializer(serializers.Serializer):
     creator = serializers.CharField(help_text=_("创建人"), max_length=USER_NAME_MAX_LENGTH, required=False)
-    source_template_id = serializers.IntegerField(help_text=_("来源的模板id"), required=False)
     name = serializers.CharField(help_text=_("模版名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=True)
     notify_config = serializers.JSONField(help_text=_("通知配置"), required=False)
     desc = serializers.CharField(help_text=_("描述"), max_length=256, required=False)
@@ -45,6 +40,19 @@ class CreateTemplateSerializer(serializers.Serializer):
     source = serializers.CharField(help_text=_("来源"), max_length=32, required=False)
     version = serializers.CharField(help_text=_("版本号"), max_length=32, required=False)
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
+
+    def validate_creator(self, value):
+        if not value and not self.context.get("request").user.username:
+            raise serializers.ValidationError(_("网关用户和creator都为空，请检查"))
+        return value
+
+
+class CreateTemplateSerializer(TemplateBaseSerializer):
+    """
+    创建模板的序列化器
+    """
+
+    source_template_id = serializers.IntegerField(help_text=_("来源的模板id"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
 
     def validate(self, attrs):
@@ -70,11 +78,11 @@ class CreateTemplateSerializer(serializers.Serializer):
                 logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
                 raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
 
-        creator = attrs.get("creator")
-        if not creator and not self.context.get("request").user.username:
-            raise serializers.ValidationError(_("网关用户和creator都为空，请检查"))
-
         return attrs
+
+
+class CreateTemplateFromJsonSerializer(TemplateBaseSerializer):
+    pipeline_data = serializers.JSONField(help_text=_("流程信息"), required=True)
 
 
 class DeleteTemplateSerializer(serializers.Serializer):

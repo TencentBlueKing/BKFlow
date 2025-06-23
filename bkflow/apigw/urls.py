@@ -35,6 +35,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         create_task_without_template,
     )
     from bkflow.apigw.views.create_template import create_template
+    from bkflow.apigw.views.create_template_from_json import create_template_from_json
     from bkflow.apigw.views.delete_template import delete_template
     from bkflow.apigw.views.get_space_configs import get_space_configs
     from bkflow.apigw.views.get_task_detail import get_task_detail
@@ -87,4 +88,5 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         ),
         url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/operate_task/(?P<operation>\w+)/$", operate_task),
         url(r"^space/(?P<space_id>\d+)/apply_webhook_configs/$", apply_webhook_configs),
+        url(r"^space/(?P<space_id>\d+)/create_template_from_json/$", create_template_from_json),
     ]
