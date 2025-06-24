@@ -15,6 +15,7 @@ class Node(BaseModel):
 
 class EmptyStartNode(Node):
     type: str = NodeTypes.START_EVENT.value
+    next: str
 
 
 class EmptyEndNode(Node):
@@ -54,6 +55,7 @@ class ComponentNode(Node):
     error_ignorable: bool = False
     auto_retry: AutoRetryConfig = AutoRetryConfig()
     timeout_config: TimeoutConfig = TimeoutConfig()
+    next: Union[str, List[str]]
 
 
 class Flow(BaseModel):
@@ -64,7 +66,7 @@ class Flow(BaseModel):
 
 
 class Gateway(Node):
-    pass
+    next: Union[str, List[str]]
 
 
 class ParallelGateway(Gateway):

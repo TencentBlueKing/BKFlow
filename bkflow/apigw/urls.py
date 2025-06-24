@@ -48,6 +48,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.grant_apigw_permissions_to_app import (
         grant_apigw_permissions_to_app,
     )
+    from bkflow.apigw.views.import_template import import_template
     from bkflow.apigw.views.operate_task import operate_task
     from bkflow.apigw.views.operate_task_node import operate_task_node
     from bkflow.apigw.views.renew_space_config import renew_space_config
@@ -87,4 +88,5 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         ),
         url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/operate_task/(?P<operation>\w+)/$", operate_task),
         url(r"^space/(?P<space_id>\d+)/apply_webhook_configs/$", apply_webhook_configs),
+        url(r"^space/(?P<space_id>\d+)/import_template/$", import_template),
     ]
