@@ -10,6 +10,7 @@
       :is-show.sync="isShowJobAndStageEdit"
       :init-data="activeNode"
       :editable="editable"
+      @confirm="hadEditedJobAndStage"
       @cancel="cancelJobAndStageEidtSld" />
     <div
       ref="stageContainer"
@@ -21,7 +22,7 @@
         :stages="stageCanvasData"
         :index="(index+1).toString()"
         :editable="editable"
-        :constants="constants"
+        :constants="stageCanvasConstants"
         :is-execute="isExecute"
         @deleteNode="deletNode(index)"
         @handleOperateNode="handleOperateNode"
@@ -71,6 +72,10 @@ import Sortable from 'sortablejs';
       type: [Number, String],
       default: '',
     },
+    overallState: {
+      type: String,
+      default: '',
+    },
   },
 
   data() {
@@ -89,6 +94,7 @@ import Sortable from 'sortablejs';
     ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
         stageCanvasData: state => state.template.stage_canvas_data,
+        stageCanvasConstants: state => state.template.stage_canvas_constants || [],
         activities: state => state.template.activities,
       }),
       ...mapGetters('template/', [
@@ -138,6 +144,14 @@ import Sortable from 'sortablejs';
         this.sortableInstance.option('disabled', !value);
       },
     },
+    overallState: {
+      handler(value) {
+        console.log('index.vue_Line:149', 'overallState', value);
+        if (window.parent) {
+          window.parent.postMessage({ eventName: 'bk-flow-task-state-change', state: value }, '*');
+        }
+      },
+    },
   },
   mounted() {
     if (!this.isExecute) {
@@ -179,6 +193,9 @@ import Sortable from 'sortablejs';
     cancelJobAndStageEidtSld() {
       this.setActiveItem(null);
     },
+    hadEditedJobAndStage() {
+      this.refresh();
+    },
     handleNode(node) {
       this.$emit('onShowNodeConfig', node.id);
     },
@@ -204,7 +221,8 @@ import Sortable from 'sortablejs';
     async getTaskStageCanvasData() {
       const res = await this.getStageCanvasDataDetail().then(res => res.data);
       if (res.pipeline_tree) {
-        this.updateStageCanvasData(res.pipeline_tree.stage_canvas_data);
+        console.log('index.vue_Line:224', res.pipeline_tree.stage_canvas_data);
+        this.updatePipelineTree({ stage_canvas_data: res.pipeline_tree.stage_canvas_data, stage_canvas_constants: res.pipeline_tree.stage_canvas_constants || [] });
         this.constants = res.pipeline_tree.current_constants || [];
       }
     },

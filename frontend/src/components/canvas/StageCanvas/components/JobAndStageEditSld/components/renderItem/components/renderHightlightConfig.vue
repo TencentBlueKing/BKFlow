@@ -132,7 +132,7 @@ export default {
             tempRule[`value${index}`] = [{
               trigger: 'blur',
               message: '请输入有效的匹配值',
-              validator: () => this.renderDataSync.conditions[index].value !== '' && !isNaN(this.renderDataSync.conditions[index].value),
+              validator: () => this.renderDataSync.conditions[index].value !== '',
             }];
           });
           return {

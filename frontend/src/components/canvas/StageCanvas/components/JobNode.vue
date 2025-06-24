@@ -24,6 +24,10 @@
             class="editing-text">编辑中...</span>
           <span
             v-else
+            v-bk-tooltips="{
+              disabled:!job.name,
+              content: job.name,
+            }"
             class="node-name word-elliptic">{{ job.name || '新Job' }}</span>
           <div class="tools">
             <div
@@ -267,7 +271,7 @@ export default {
       }
     }
     &.active {
-      border: 1px solid #4A90E2; /* 添加左侧边框标记 */
+      border: 1px solid #2050d2; /* 添加左侧边框标记 */
     }
     &:last-child {
       margin-bottom: 0;
@@ -307,7 +311,7 @@ export default {
     width: 100%;
     font-size: 14px;
     .job-id {
-      background-color: #4A90E2;
+      background-color: #2050d2;
       color: white;
       font-weight: 500;
       display: flex;
@@ -344,10 +348,10 @@ export default {
 .job-content {
 
     position: relative;
-    background-color: #ecf0f7; /* 内容区域使用浅灰色背景 */
+    background-color: #e8eefa; /* 内容区域使用浅灰色背景 */
     .job-status {
         font-size: 12px;
-        padding: 16px 12px;
+        padding: 16px 12px 8px;
         background-color: #eff5ff; /* 稍深的背景色 */
         .job-status-item {
             margin-bottom: 8px;
@@ -430,13 +434,13 @@ export default {
       &.error{
         .job-header{
           .job-id{
-            background-color: #ff5656;
+            background-color: #eb517b;
           }
           .job-title{
-            background-color: #ff5656;
+            background-color: #eb517b;
           }
           .iconCirle{
-            color: #ff5656;
+            color: #eb517b;
           }
         }
         .job-content{
@@ -448,28 +452,28 @@ export default {
     &.success{
       .job-header{
         .job-id{
-          background-color: #5bc882;
+          background-color: #2050d2;
         }
         .job-title{
-          background-color: #5bc882;
+          background-color: #2050d2;
         }
         .iconCirle{
-          color: #5BC882;
+          color: #2050d2;
         }
       }
       .job-content{
         .job-status{
-          background-color: #f2fff6;
+          background-color: #e8eefa;
         }
       }
     }
     &.running{
       .job-header{
         .job-id{
-          background-color: #3c96ff;
+          background-color: #459bd0;
         }
         .job-title{
-          background-color: #3c96ff;
+          background-color: #459bd0;
         }
         }
         .job-content{
@@ -481,15 +485,15 @@ export default {
     &.pending{
       .job-header{
           .job-id{
-            background-color: #63656e;
+            background-color: #828992;
           }
           .job-title{
-            background-color: #63656e;
+            background-color: #828992;
           }
         }
         .job-content{
           .job-status{
-            background-color: #ecf0f7;
+            background-color: #e8eefa;
           }
       }
     }

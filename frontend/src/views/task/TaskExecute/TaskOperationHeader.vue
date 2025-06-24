@@ -47,6 +47,10 @@
       <span
         v-if="stateStr"
         :class="['task-state', state]">{{ stateStr }}</span>
+      <span
+        v-if="ifShowJumpToFlowBtn"
+        class="commonicon-icon common-icon-box-top-right-corner link-icon"
+        @click="linkToFlow" />
     </div>
     <div
       slot="expand"
@@ -197,6 +201,9 @@
         isIframe: state => state.isIframe,
         view_mode: state => state.view_mode,
       }),
+      ifShowJumpToFlowBtn() {
+        return this.$route.query.ifShowJumpToFlowBtn === 'true';
+      },
     },
     watch: {
       nodeNav(val) {
@@ -244,6 +251,11 @@
           name: 'taskList',
           params: { project_id: this.project_id },
         });
+      },
+      linkToFlow() {
+        if (window.parent) {
+          window.parent.postMessage({ eventName: 'jump-to-flow' }, '*');
+        }
       },
     },
   };
@@ -455,6 +467,12 @@
     ::v-deep .bk-button .bk-icon {
         font-size: 14px;
     }
+}
+.link-icon{
+  color: #3a84ff;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 8px;
 }
 </style>
 <style lang="scss">
