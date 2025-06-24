@@ -227,6 +227,44 @@ const getDefaultActivitie = (id = `node${uuid()}`) => ({
     action: 'forced_fail',
   },
 });
+function isKeyFormat(str) {
+  return /^\$\{[^}]*\}$/.test(str);
+}
+
+const getJobOrStageConstants = stage => stage.config?.reduce((res, item) => {
+  console.log('utils.js_Line:235', item.value, isKeyFormat(item.value));
+  if (isKeyFormat(item.value)) {
+    res.push({
+      key: item.value,
+      value: '',
+    });
+  }
+  if (item.renders?.length) {
+    item.renders.forEach((render) => {
+      if (render.type === 'highligh') {
+        render.conditions.forEach((condition) => {
+          if (isKeyFormat(condition.value)) {
+            res.push({
+              key: condition.value,
+              value: '',
+            });
+          }
+        });
+      } else if (render.type === '') {
+        render.range.forEach((value) => {
+          if (isKeyFormat(value)) {
+            res.push({
+              key: value,
+              value: '',
+            });
+          }
+        });
+      }
+    });
+  }
+  return res;
+}, []) || [];
+
 export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   activities: {
     n4e0723c31cd3f97857d28366792ddb5: {
@@ -346,6 +384,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     gateways: {},
     location: [],
     start_event: {},
+    stage_canvas_constants: [],
     canvas_mode: 'stage',
   };
 
@@ -358,6 +397,9 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   const NODE_Y_GAP = 200;
   let nextStageStartPosion = NODE_X_GAP;
   stageCanvasData.forEach((stage, index) => {
+    // 收集Stage上的变量
+    newPipelineTree.stage_canvas_constants.push(...getJobOrStageConstants(stage));
+    console.log('utils.js_Line:400', stage, getJobOrStageConstants(stage));
     const maxLengthJobs = Math.max(...stage.jobs.map(job => job.nodes.length));
     const currentStageXOffset = (maxLengthJobs + 1) * NODE_X_GAP;
     const startXPositon = startPointLocation.x + nextStageStartPosion;
@@ -449,6 +491,8 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     newPipelineTree.gateways[ConvergeGatewayNode.id] = ConvergeGatewayNode;
 
     stage.jobs.forEach((job, index) => {
+      // 收集Job上的变量
+      newPipelineTree.stage_canvas_constants.push(...getJobOrStageConstants(job));
       // 这条JOB上每个节点的间距
       const currentJobNodeGap = currentStageXOffset / (job.nodes.length + 1);
       const currentYPosition = statrYPosition + NODE_Y_GAP * index;
@@ -522,6 +566,7 @@ function formatDuration(startTimestamp, endTimestamp) {
   }
   // 定义时间单位
   const units = {
+    day: 3600000 * 24,
     hours: 3600000, // 1小时 = 3600000毫秒
     minutes: 60000, // 1分钟 = 60000毫秒
     seconds: 1000, // 1秒 = 1000毫秒
@@ -530,6 +575,12 @@ function formatDuration(startTimestamp, endTimestamp) {
 
   let remainingTime = durationInMs;
   const result = [];
+  // 计算天
+  const day = Math.floor(remainingTime / units.day);
+  if (day > 0) {
+    result.push(`${day}h`);
+    remainingTime -= day * units.day;
+  }
 
   // 计算小时
   const hours = Math.floor(remainingTime / units.hours);

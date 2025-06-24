@@ -25,6 +25,10 @@
             class="editing-text">编辑中...</span>
           <span
             v-else
+            v-bk-tooltips="{
+              disabled:!stage.name,
+              content: stage.name,
+            }"
             class="word-elliptic node-name">{{ stage.name || '新Stage' }}</span>
           <div class="tools">
             <div
@@ -248,7 +252,7 @@ import Sortable from 'sortablejs';
       display: flex;
       flex-direction: column;
       position: relative;
-      border: 1px solid #D4E8FF;
+      border: 1px solid #0052d933;
       &.active{
         border: 1px solid #3A83FF; /* 根据设计稿更新边框颜色 */
       }
@@ -289,7 +293,7 @@ import Sortable from 'sortablejs';
       .stage-header {
           margin-bottom: 0;
           padding: 12px 18px;
-          background-color: #E1ECFF; /* 根据设计稿更新背景色 */
+          background-color: #e8eefa; /* 根据设计稿更新背景色 */
           border-bottom: 1px solid #D4E8FF; /* 更新边框颜色 */
           border-radius: 2px 2px 0 0; /* 根据设计稿设置圆角 */
           box-sizing: border-box;
@@ -411,19 +415,19 @@ import Sortable from 'sortablejs';
     &.error{
       border: 1px solid #FFD4D4;
       .stage-header{
-        background-color: #fff9f9;
+        background-color: #fceef1;
       }
     }
     &.success{
       border: 1px solid #D4E8FF;
       .stage-header{
-        background-color: #f2fff6;
+        background-color: #e8eefa;
       }
     }
     &.running{
       border: 1px solid #D4E8FF;
       .stage-header{
-        background-color: #e1ecff;
+        background-color: #e8eefa;
       }
     }
     &.pending{
@@ -447,19 +451,19 @@ import Sortable from 'sortablejs';
 }
 .success{
   .iconCirle{
-    background-color: #5BC882;
+    background-color: #2050d2;
   }
 }
 .error{
   .iconCirle{
-    background-color: #ff5656;
+    background-color: #eb517b;
   }
 }
 .rotateAnimate{
   font-size: 14px;
   margin-right: 8px;
   transform-origin: center;
-  color: #3c96ff;
+  color: #459bd0;
   animation: roate 1s linear infinite;
   transform: scale(2);
   display: flex;

@@ -176,6 +176,7 @@ export default {
               await Promise.all(this.$refs.configItemRefs.map(item => item.validate()));
             }
             Object.assign(this.initData, this.tempData);
+            this.$emit('confirm');
             this.isShowSync = false;
             this.$emit('cancel');
           } catch (error) {

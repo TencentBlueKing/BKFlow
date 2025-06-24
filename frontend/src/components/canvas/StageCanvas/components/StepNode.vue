@@ -36,7 +36,14 @@
         v-else
         class="step-name">
         <span
-          class="word-elliptic name">{{ currentNode?.name || '新节点' }}</span>
+          class="word-elliptic name"><span
+            v-bk-tooltips="{
+              disabled:!currentNode?.name,
+              content: currentNode?.name,
+            }">
+            {{ currentNode?.name || '新节点' }}
+          </span>
+        </span>
         <span
           v-if="isExecute"
           class="toolAndTime">
@@ -419,29 +426,29 @@ export default {
 .isExecute{
   &.node{
     &.error{
-      border: 1px solid #FF5656;
+      border: 1px solid #eb517b;
       .toolAndTime{
         .time{
-          color: #FF5656;
+          color: #eb517b;
         }
       }
       .iconCirle{
-        background-color: #ff5656;
+        background-color: #eb517b;
       }
     }
     &.success{
-      border: 1px solid #5BC882;
+      border: 1px solid #2050d2;
       .time{
-        color: #5BC882;
+        color: #2050d2;
       }
       .iconCirle{
-        background-color: #5BC882;
+        background-color: #2050d2;
       }
     }
     &.running{
-      border: 1px solid #3C96FF;
+      border: 1px solid #459bd0;
       .time{
-        color: #3C96FF;
+        color: #459bd0;
       }
     }
     &.pending{
@@ -464,7 +471,7 @@ export default {
   font-size: 14px;
   margin-right: 8px;
   transform-origin: center;
-  color: #3c96ff;
+  color: #459bd0;
   animation: roate 1s linear infinite;
   transform: scale(2);
   display: flex;

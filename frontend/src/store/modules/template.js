@@ -171,6 +171,7 @@ const template = {
     gateways: {},
     line: [],
     stage_canvas_data: [],
+    stage_canvas_constants: [],
     location: [],
     outputs: [],
     start_event: {},
@@ -236,7 +237,7 @@ const template = {
     setPipelineTree(state, data) {
       const pipelineTreeOrder = [
         'activities', 'constants', 'end_event', 'flows', 'gateways',
-        'line', 'location', 'outputs', 'start_event', 'stage_canvas_data',
+        'line', 'location', 'outputs', 'start_event', 'stage_canvas_data', 'stage_canvas_constants',
       ];
       pipelineTreeOrder.forEach((key) => {
         let val = data[key];
@@ -294,13 +295,21 @@ const template = {
               val = ref(val).value;
             }
           }
+          if (key === 'stage_canvas_constants') {
+            if (!val) {
+              val = ref([]).value;
+            } else {
+              val = ref(val).value;
+            }
+          }
         }
 
         state[key] = val;
       });
     },
     updatePipelineTree(state, data) {
-      const { activities, flows, gateways, line, location, start_event: startEvent, end_event: endEvent, canvas_mode: canvasMode } = data;
+      const { activities, flows, gateways, line, location, start_event: startEvent, end_event: endEvent, canvas_mode: canvasMode, stage_canvas_data: stageCanvasData, stage_canvas_constants: stageCanvasConstants } = data;
+      console.log('template.js_Line:312', stageCanvasConstants);
       activities && (state.activities = activities);
       flows && (state.flows = flows);
       gateways && (state.gateways = gateways);
@@ -309,6 +318,8 @@ const template = {
       startEvent && (state.start_event = startEvent);
       endEvent && (state.end_event = endEvent);
       canvasMode && (state.canvas_mode = canvasMode);
+      stageCanvasConstants && (state.stage_canvas_constants = stageCanvasConstants);
+      stageCanvasData && (state.stage_canvas_data = stageCanvasData);
     },
     updateStageCanvasData(state, stageCanvasData) {
       state.stage_canvas_data = stageCanvasData;
@@ -967,6 +978,7 @@ const template = {
         time_out: timeout, category, description, executor_proxy, template_labels, default_flow_type,
         canvas_mode,
         stage_canvas_data,
+        stage_canvas_constants,
       } = state;
       // 剔除 location 的冗余字段
       const pureLocation = location.map(item => ({
@@ -1003,6 +1015,7 @@ const template = {
         outputs,
         start_event,
         stage_canvas_data,
+        stage_canvas_constants,
       };
       const validateResult = validatePipeline.isPipelineDataValid(pipelineTree);
 
@@ -1198,7 +1211,7 @@ const template = {
     getPipelineTree(state) {
       const {
         activities, constants, end_event, flows, gateways,
-        line, location, outputs, start_event, stage_canvas_data,
+        line, location, outputs, start_event, stage_canvas_data, stage_canvas_constants,
       } = state;
       // 剔除 location 的冗余字段
       const pureLocation = location.map(item => ({
@@ -1221,6 +1234,7 @@ const template = {
         outputs,
         start_event,
         stage_canvas_data,
+        stage_canvas_constants,
       };
     },
   },

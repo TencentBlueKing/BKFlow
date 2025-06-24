@@ -221,7 +221,7 @@ export default {
           border: 1px solid #c4c6cc;
           border-top: none;
           border-radius: 0 0 2px 2px;
-          color: #63656e;
+          color: #828992;
           .suggest-item{
             line-height: 1;
             padding: 8px 16px;

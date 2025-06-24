@@ -61,6 +61,7 @@
           :template-id="templateId"
           :instance-id="instanceId"
           :space-id="spaceId"
+          :overall-state="state"
           @onNodeClick="onNodeClick"
           @onConditionClick="onOpenConditionEdit"
           @onRetryClick="onRetryClick"

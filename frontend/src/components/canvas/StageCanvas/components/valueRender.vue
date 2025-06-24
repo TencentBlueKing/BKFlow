@@ -4,7 +4,12 @@
     <template v-if="renderItem.hasProgress">
       <div class="progress-wrapper">
         <div class="progress-text">
-          <span class="progress-done">{{ renderItem.key }} </span>
+          <span
+            v-bk-tooltips="{
+              disabled:!renderItem.key,
+              content: renderItem.key,
+            }"
+            class="progress-done value-key word-elliptic">{{ renderItem.key }} </span>
           <div class="progress-container">
             <div
               class="progress-bar"
@@ -34,11 +39,21 @@
           <a
             :href="renderItem.linkUrl"
             target="_blank"
-            class="value-link"
-            @click.stop.prevent="openLink(renderItem.linkUrl)">{{ renderItem.key }} {{ renderItem.value }}</a>
+            class="value-link word-elliptic"
+            @click.stop.prevent="openLink(renderItem.linkUrl)"><span
+              v-bk-tooltips="{
+                disabled:!renderItem.key,
+                content: renderItem.key,
+              }"
+              class="value-key word-elliptic">{{ renderItem.key }}</span>  {{ renderItem.value }}</a>
         </template>
         <template v-else>
-          {{ renderItem.key }} {{ renderItem.value }}
+          <span
+            v-bk-tooltips="{
+              disabled:!renderItem.key,
+              content: renderItem.key,
+            }"
+            class="value-key word-elliptic">{{ renderItem.key }}</span> {{ renderItem.value }}
         </template>
       </span>
     </template>
@@ -145,6 +160,7 @@ a{
 .value-link {
     color: #3A83FF;
     text-decoration: none;
+    display: flex;
     cursor: pointer;
     &:hover {
       text-decoration: underline;
@@ -153,5 +169,10 @@ a{
 .highlighted-value{
   line-height: 1.5;
   margin-bottom: 8px;
+  display: flex;
+}
+.value-key{
+  width: 65px;
+  display: inline-block;
 }
 </style>
