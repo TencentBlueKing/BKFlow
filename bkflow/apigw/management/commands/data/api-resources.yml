@@ -607,10 +607,10 @@ paths:
           userVerifiedRequired: false
         disabledStages: []
         descriptionEn: grant apigw permissions of bkflow to other app
-  /create_template_from_json:
+  /import_template:
     post:
-      operationId: create_template_from_json
-      description: 使用json数据创建模板
+      operationId: import_template
+      description: 导入模板
       tags: []
       responses:
         default:
@@ -622,7 +622,7 @@ paths:
         backend:
           type: HTTP
           method: post
-          path: /{env.api_sub_path}apigw/create_template_from_json/
+          path: /{env.api_sub_path}apigw/import_template/
           matchSubpath: false
           timeout: 0
           upstreams: {}
@@ -630,4 +630,4 @@ paths:
         authConfig:
           userVerifiedRequired: false
         disabledStages: []
-        descriptionEn: use json data creation template
+        descriptionEn: import templates

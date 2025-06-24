@@ -27,7 +27,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.serializers.template import CreateTemplateFromJsonSerializer
+from bkflow.apigw.serializers.template import ImportTemplateSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.pipeline_converter.constants import DataTypes
@@ -51,10 +51,10 @@ logger = logging.getLogger("root")
     TemplateOperationSource.api.name,
     extra_info={"tag": "apigw"},
 )
-def create_template_from_json(request, space_id):
+def import_template(request, space_id):
     data = json.loads(request.body)
 
-    ser = CreateTemplateFromJsonSerializer(data=data, context={"request": request})
+    ser = ImportTemplateSerializer(data=data, context={"request": request})
     ser.is_valid(raise_exception=True)
 
     validate_data = dict(ser.validated_data)
@@ -70,7 +70,7 @@ def create_template_from_json(request, space_id):
     web_pipeline_tree = data_model_pipeline_cvt(dm_pipeline).convert()
     draw_pipeline(web_pipeline_tree)
 
-    # 涉及到两张表的创建，需要开启事物，确保两张表全部都创建成功
+    # 涉及到两张表的创建，需要开启事务，确保两张表全部都创建成功
     with transaction.atomic():
         username = validate_data.pop("creator") or request.user.username
         snapshot = TemplateSnapshot.create_snapshot(web_pipeline_tree)

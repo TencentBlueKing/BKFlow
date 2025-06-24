@@ -24,6 +24,16 @@ from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TEMPLATE_NAME, USER_NAME_MAX_LENGTH
+from bkflow.pipeline_converter.constants import NodeTypes
+from bkflow.pipeline_converter.data_models import (
+    ComponentNode,
+    ConditionalParallelGateway,
+    ConvergeGateway,
+    EmptyEndNode,
+    EmptyStartNode,
+    ExclusiveGateway,
+    ParallelGateway,
+)
 from bkflow.space.models import Space
 from bkflow.template.models import Template
 
@@ -33,7 +43,6 @@ logger = logging.getLogger("root")
 class TemplateBaseSerializer(serializers.Serializer):
     creator = serializers.CharField(help_text=_("创建人"), max_length=USER_NAME_MAX_LENGTH, required=False)
     name = serializers.CharField(help_text=_("模版名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=True)
-    notify_config = serializers.JSONField(help_text=_("通知配置"), required=False)
     desc = serializers.CharField(help_text=_("描述"), max_length=256, required=False)
     scope_type = serializers.CharField(help_text=_("流程范围类型"), max_length=128, required=False)
     scope_value = serializers.CharField(help_text=_("流程范围值"), max_length=128, required=False)
@@ -52,6 +61,7 @@ class CreateTemplateSerializer(TemplateBaseSerializer):
     创建模板的序列化器
     """
 
+    notify_config = serializers.JSONField(help_text=_("通知配置"), required=False)
     source_template_id = serializers.IntegerField(help_text=_("来源的模板id"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
 
@@ -81,8 +91,66 @@ class CreateTemplateSerializer(TemplateBaseSerializer):
         return attrs
 
 
-class CreateTemplateFromJsonSerializer(TemplateBaseSerializer):
+class ImportTemplateSerializer(TemplateBaseSerializer):
     pipeline_data = serializers.JSONField(help_text=_("流程信息"), required=True)
+
+    NODE_TYPE_MAPPING = {
+        NodeTypes.COMPONENT.value: ComponentNode,
+        NodeTypes.END_EVENT.value: EmptyEndNode,
+        NodeTypes.START_EVENT.value: EmptyStartNode,
+        NodeTypes.PARALLEL_GATEWAY.value: ParallelGateway,
+        NodeTypes.EXCLUSIVE_GATEWAY.value: ExclusiveGateway,
+        NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value: ConditionalParallelGateway,
+        NodeTypes.CONVERGE_GATEWAY.value: ConvergeGateway,
+    }
+
+    def validate_pipeline_data(self, value):
+        nodes = value.get("nodes")
+        if not isinstance(nodes, list):
+            raise serializers.ValidationError(_("nodes字段必须是列表类型"))
+
+        for index, node in enumerate(nodes, 1):
+            node_type = node.get("type")
+            if not node_type:
+                raise serializers.ValidationError(_(f"第 {index} 个节点缺少type字段"))
+
+            node_class = self.NODE_TYPE_MAPPING.get(node_type)
+            if not node_class:
+                raise serializers.ValidationError(_("不支持的节点类型: %(type)s") % {"type": node_type})
+
+            try:
+                node_class(**node)
+            except Exception as e:
+                error_msg = self._format_error_message(e, index)
+                logger.exception("ImportTemplateSerializer node validate error, err = {}".format(error_msg))
+                raise serializers.ValidationError(error_msg)
+        return value
+
+    def _format_error_message(self, error, node_index):
+        """Format detailed error message from validation exception."""
+        message = f"第 {node_index} 个节点验证失败: "
+
+        if not hasattr(error, "errors"):
+            return f"{message}{str(error)}"
+
+        missing_fields = []
+        type_mismatches = []
+
+        for err in error.errors():
+            field = err["loc"][0]
+
+            if err["type"] == "value_error.missing":
+                missing_fields.append(field)
+            elif err["type"].startswith("type_error."):
+                type_mismatches.append(field)
+
+        parts = []
+        if missing_fields:
+            parts.append(f"缺少必填字段: {', '.join(missing_fields)}")
+        if type_mismatches:
+            parts.append(f"字段: {', '.join(type_mismatches)}类型错误")
+
+        return message + "; ".join(parts)
 
 
 class DeleteTemplateSerializer(serializers.Serializer):

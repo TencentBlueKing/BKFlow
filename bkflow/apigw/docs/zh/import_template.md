@@ -1,6 +1,6 @@
 ### 资源描述
 
-创建模板
+导入模板
 
 ### 输入通用参数说明
 
@@ -14,9 +14,8 @@
 | 字段             | 类型     | 必选 | 描述               |
 |----------------|--------|----|------------------|
 | name           | string | 是  | 模板名称             |
-| pipeline_data  | json   | 是  | 模板信息             |
+| pipeline_data  | dict   | 是  | 模板信息             |
 | creator        | string | 否  | 创建人              |
-| notify_config  | json   | 否  | 模板描述             |
 | desc           | string | 否  | 空间描述             |
 | scope_type     | string | 否  | 模板范围类型           |
 | scope_value    | string | 否  | 模板范围值            |
@@ -25,27 +24,91 @@
 | extra_info     | string | 否  | 模板额外信息           |
 
 
-### notify_config 示例:
-
+### pipeline_data 示例:
 ```json
 {
-  "notify_type": {
-    "success": [
-      "weixin",
-      "wecom_robot",
-      "sms"
-    ],
-    "fail": [
-      "mail",
-      "voice",
-      "weixin",
-      "wecom_robot"
+    "id": "pipeline_id",
+    "name": "pipeline_name",
+    "nodes": [
+        {
+            "id": "start_node",
+            "type": "start_event",
+            "next": "custom_node"
+        },
+        {
+            "id": "custom_node",
+            "type": "component",
+            "name": "component_node",
+            "component": {
+                "code": "bk_display",
+                "version": "v1.0",
+                "data": [
+                    {
+                        "key": "bk_display_message",
+                        "value": 123
+                    }
+                ]
+            },
+            "next": "exclusive_gateway"
+        },
+        {
+            "id": "exclusive_gateway",
+            "name": "exclusive_gateway",
+            "type": "exclusive_gateway",
+            "conditions": [
+                {
+                    "name": "condition_1",
+                    "expr": "1 == 1",
+                    "next": "condition_node_1"
+                },
+                {
+                    "name": "condition_2",
+                    "expr": "1 == 2",
+                    "next": "condition_node_2"
+                }
+            ],
+            "next": [
+                "condition_node_1",
+                "condition_node_2"
+            ]
+        },
+        {
+            "id": "condition_node_1",
+            "name": "condition_node_1",
+            "type": "component",
+            "component": {
+                "code": "bk_display",
+                "version": "v1.0",
+                "data": [
+                    {
+                        "key": "bk_display_message",
+                        "value": 123
+                    }
+                ]
+            },
+            "next": "end_node"
+        },
+        {
+            "id": "condition_node_2",
+            "name": "condition_node_2",
+            "type": "component",
+            "component": {
+                "code": "bk_display",
+                "version": "v1.0",
+                "data": [
+                    {
+                        "key": "bk_display_message",
+                        "value": 123
+                    }
+                ]
+            },
+            "next": "end_node"
+        },
+        {
+            "id": "end_node",
+            "type": "end_event"
+        }
     ]
-  },
-  "notify_receivers": {
-    "receiver_group": [],
-    "more_receiver": ""
-  }
 }
 ```
 
@@ -66,7 +129,6 @@
 | space_id      | string | 流程所属空间ID |
 | name          | string | 流程名称     |
 | desc          | string | 流程描述     |
-| notify_config | dict   | 通知配置     |
 | scope_type    | string | 流程范围类型   |
 | scope_value   | string | 流程范围ID   |
 | pipeline_tree | dict   | 流程树详情    |
