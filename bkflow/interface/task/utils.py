@@ -40,24 +40,15 @@ class StageJobStateHandler:
         Returns: dict: 包含任务相关数据的字典，如果获取失败则包含默认值
         """
         try:
-            # TODO：优化为不渲染所有变量的实现，直接获取对应变量值
-            constants_resp = self.client.render_current_constants(task_id)
             task_detail = self.client.get_task_detail(task_id)
 
-            if "data" not in constants_resp or "data" not in task_detail:
-                logger.warning(
-                    f"Task {task_id} response data missing: constants={constants_resp}, detail={task_detail}"
-                )
+            if "data" not in task_detail:
+                logger.warning(f"Task {task_id} response data missing: detail={task_detail}")
 
-            current_constants = constants_resp.get("data", [])
             pipeline_tree = task_detail.get("data", {}).get("pipeline_tree", {})
-            pipeline_tree["current_constants"] = current_constants
-
             return {
                 "task_detail": task_detail,
                 "pipeline_tree": pipeline_tree,
-                "stage_struct": pipeline_tree.get("stage_canvas_data", []),
-                "activities": pipeline_tree.get("activities", {}),
             }
         except Exception as e:
             logger.exception(f"Failed to get task data for task {task_id}: {str(e)}")
@@ -199,19 +190,36 @@ class StageJobStateHandler:
             # 更新stage状态
             stage["state"] = self.calculate_stage_state(job_states)
 
-    def process(self, task_id: str) -> dict:
+    def process(self, task_id: str) -> list:
         """处理完整的状态更新流程"""
         # 1. 获取基础数据
         task_data = self.get_task_data(task_id)
+        activities = task_data.get("pipeline_tree", {}).get("activities", {})
+        stage_struct = task_data.get("pipeline_tree", {}).get("stage_canvas_data", [])
 
         # 2. 获取节点状态
         node_states = self.get_node_states(task_id)
 
         # 3. 构建映射关系
-        template_to_task_id = self.build_template_task_mapping(task_data["activities"])
+        template_to_task_id = self.build_template_task_mapping(activities)
         node_info_map = self.build_node_info_map(template_to_task_id, node_states)
 
         # 4. 更新状态
-        self.update_states(task_data["stage_struct"], node_info_map)
+        self.update_states(stage_struct, node_info_map)
 
-        return task_data["task_detail"]["data"]
+        return stage_struct
+
+
+class StageConstantHandler:
+    def __init__(self, space_id: int, is_superuser: bool = False):
+        self.space_id = space_id
+        self.is_superuser = is_superuser
+        self.client = TaskComponentClient(space_id=space_id, from_superuser=is_superuser)
+
+    def process(self, task_id: str, node_ids: list, stage_constants: list) -> dict:
+        to_render_constants = [constant["key"] for constant in stage_constants]
+        rendered_constants = self.client.render_context_with_node_outputs(
+            task_id, data={"node_ids": node_ids, "to_render_constants": to_render_constants}
+        )
+
+        return rendered_constants

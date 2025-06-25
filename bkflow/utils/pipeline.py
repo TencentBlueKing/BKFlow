@@ -346,6 +346,7 @@ DEFAULT_STAGE_PIPELINE_TREE = {
             "type": "Stage",
         }
     ],
+    "stage_canvas_constants": [],
 }
 
 

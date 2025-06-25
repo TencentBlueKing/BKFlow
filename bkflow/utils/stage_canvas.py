@@ -51,3 +51,18 @@ class StageCanvasHandler:
                 node["id"] = activities_node_map[node_id]
 
         return pipeline_tree
+
+
+def get_variable_mapping(constants: dict, target_node_ids: set) -> dict:
+    """获取原始变量名到目标变量名的映射，只是用于节点输出变量和节点输出项的关联关系"""
+    mapping = {}
+    for var_info in constants.values():
+        source_info = var_info.get("source_info")
+        if not source_info:
+            continue
+
+        key = var_info["key"]
+        for node_id, original_vars in source_info.items():
+            if node_id in target_node_ids and original_vars:
+                mapping[original_vars[0]] = key
+    return mapping

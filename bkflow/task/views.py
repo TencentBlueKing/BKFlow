@@ -245,6 +245,17 @@ class TaskInstanceViewSet(
         states = task_operation.render_current_constants()
         return Response(dict(states))
 
+    @action(detail=True, methods=["post"], url_path="render_context_with_node_outputs")
+    @validate_task_info
+    def render_context_with_node_outputs(self, request, *args, **kwargs):
+        task_instance = self.get_object()
+        task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
+        node_ids = request.data.get("node_ids", [])
+        to_render_constants = request.data.get("to_render_constants", [])
+        to_render_constants_dict = {item: item for item in to_render_constants}
+        constants = task_operation.render_context_with_node_outputs(node_ids, to_render_constants_dict)
+        return Response(dict(constants))
+
     @swagger_auto_schema(
         methods=["get"], operation_description="任务节点详情查询", query_serializer=GetNodeDetailQuerySerializer
     )
