@@ -89,13 +89,6 @@ class TaskComponentClient(BaseComponentClient):
             data=data,
         )
 
-    def get_task_node_output(self, task_id, node_id, username="", data=None):
-        return self._request(
-            method="get",
-            url=self._get_task_url("task/{}/get_task_node_output/{}/?username={}".format(task_id, node_id, username)),
-            data=data,
-        )
-
     def node_operate(self, task_id, node_id, operation, data):
         return self._request(
             method="post",
@@ -115,9 +108,11 @@ class TaskComponentClient(BaseComponentClient):
             method="get", url=self._get_task_url("task/{}/render_current_constants/".format(task_id)), data=None
         )
 
-    def render_filtered_constants(self, task_id, data=None):
+    def render_context_with_node_outputs(self, task_id, data=None):
         return self._request(
-            method="get", url=self._get_task_url("task/{}/render_filtered_constants/".format(task_id)), data=data
+            method="post",
+            url=self._get_task_url("task/{}/render_context_with_node_outputs/".format(task_id)),
+            data=data,
         )
 
     def get_task_operation_record(self, task_id, data=None):

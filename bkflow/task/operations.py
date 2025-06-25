@@ -29,10 +29,13 @@ from bamboo_engine import exceptions as bamboo_exceptions
 from bamboo_engine import states as bamboo_engine_states
 from bamboo_engine.api import EngineAPIResult
 from bamboo_engine.context import Context
-from bamboo_engine.eri import ContextValueType
+from bamboo_engine.eri import ContextValue, ContextValueType
+from bamboo_engine.template import Template
 from django.utils import timezone
 from pipeline.component_framework.library import ComponentLibrary
 from pipeline.engine.utils import calculate_elapsed_time
+from pipeline.eri.imp.serializer import SerializerMixin
+from pipeline.eri.models import ExecutionData as DBExecutionData
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.parser.context import get_pipeline_context
 from pydantic import BaseModel, validator
@@ -52,6 +55,7 @@ from bkflow.task.models import EngineSpaceConfig, TaskInstance
 from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.dates import format_datetime
+from bkflow.utils.stage_canvas import get_variable_mapping
 
 logger = logging.getLogger("root")
 
@@ -327,13 +331,64 @@ class TaskOperation:
         return OperationResult(result=True, data=data)
 
     @uniform_task_operation_result
-    def get_filtered_constants(self, variables: List[str]):
+    def render_context_with_node_outputs(self, node_ids: List[str], to_render_constants):
         runtime = BambooDjangoRuntime()
         context_values = runtime.get_context(self.task_instance.instance_id)
-        # 从context_values里获取variables
-        context_values = [item for item in context_values if item.key in variables]
-        data = {f"{item.key}": item.value for item in context_values}
-        return OperationResult(result=True, data=data)
+        constants = self.task_instance.pipeline_tree.get("constants", {})
+
+        # 记录已存在的变量键，避免重复添加
+        existing_keys = {cv.key for cv in context_values}
+
+        # 构建节点输出变量的映射关系
+        node_outputs = {}
+        node_id_constants_map = get_variable_mapping(constants, set(node_ids))
+
+        # 获取节点输出数据
+        nodes = DBExecutionData.objects.filter(node_id__in=node_ids).iterator()
+
+        # 反序列化节点输出
+        nodes_data = {}
+        for node in nodes:
+            try:
+                nodes_data[node.node_id] = SerializerMixin()._deserialize(node.outputs, node.outputs_serializer)
+            except Exception as e:
+                logger.exception(
+                    "[render_context] Failed to deserialize node outputs: node_id=%s, error=%s", node.node_id, str(e)
+                )
+                continue
+
+        # 根据映射关系构建最终的输出数据
+        for node_data in nodes_data.values():
+            for original_key, value in node_data.items():
+                if mapped_key := node_id_constants_map.get(original_key):
+                    node_outputs[mapped_key] = value
+
+        # 构建新的上下文值列表
+        new_context_values = []
+
+        # 添加节点输出数据（PLAIN类型）
+        new_context_values.extend(
+            ContextValue(key=key, type=ContextValueType.PLAIN, value=value, code=None)
+            for key, value in node_outputs.items()
+            if key not in existing_keys
+        )
+
+        # 将新的上下文值添加到现有列表中
+        context_values.extend(new_context_values)
+
+        try:
+            context = Context(runtime, context_values, to_render_constants)
+            hydrated_context = context.hydrate(deformat=True)
+            hydrated_param_data = Template(to_render_constants).render(hydrated_context)
+        except Exception as e:
+            logger.exception("[render_context_with_node_outputs] hydrate context failed: %s", e)
+            return OperationResult(
+                result=False, message="hydrate context failed.", exc=e, exc_trace=traceback.format_exc()
+            )
+
+        return OperationResult(
+            result=True, data=[{"key": key, "value": value} for key, value in hydrated_param_data.items()]
+        )
 
 
 class TaskNodeOperation:

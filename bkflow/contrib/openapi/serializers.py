@@ -74,3 +74,8 @@ class TaskBatchDeleteSerializer(serializers.Serializer):
             raise serializers.ValidationError("is_mock must exist when delete all tasks")
 
         return attrs
+
+
+class RenderConstantsBodySerializer(serializers.Serializer):
+    node_ids = serializers.ListField(required=True, child=serializers.CharField())
+    to_render_constants = serializers.ListField(required=True, child=serializers.DictField())
