@@ -31,14 +31,17 @@ export const fontStyleMap = {
     },
   },
 };
+function hasVariableFormat(str) {
+  return /\$\{[^}]*\}/.test(str);
+}
 export const getValueByConstants = (value, constants) => {
-  const findValue = constants.find(constant => constant.key === value);
-  if (!isNaN(value)) {
-    return value;
-  } if (findValue) {
+  if (hasVariableFormat(value)) {
+    const findValue = constants.find(constant => constant.key === value);
+    if (!findValue) return '--';
+    if (findValue.value === value) return '--';
     return findValue.value;
   }
-  return '--';
+  return value;
 };
 export const processConfigItem = (configItem, constants = []) => {
   if (!configItem) return null;
@@ -232,11 +235,10 @@ function isKeyFormat(str) {
 }
 
 const getJobOrStageConstants = stage => stage.config?.reduce((res, item) => {
-  console.log('utils.js_Line:235', item.value, isKeyFormat(item.value));
   if (isKeyFormat(item.value)) {
     res.push({
       key: item.value,
-      value: '',
+      value: item.value,
     });
   }
   if (item.renders?.length) {
@@ -246,16 +248,16 @@ const getJobOrStageConstants = stage => stage.config?.reduce((res, item) => {
           if (isKeyFormat(condition.value)) {
             res.push({
               key: condition.value,
-              value: '',
+              value: condition.value,
             });
           }
         });
-      } else if (render.type === '') {
+      } else if (render.type === 'progress') {
         render.range.forEach((value) => {
           if (isKeyFormat(value)) {
             res.push({
               key: value,
-              value: '',
+              value,
             });
           }
         });
@@ -264,7 +266,15 @@ const getJobOrStageConstants = stage => stage.config?.reduce((res, item) => {
   }
   return res;
 }, []) || [];
-
+export const gatherStageCanvasConstans = stages => stages.reduce((res, stage) => {
+  // 收集Stage上的变量
+  res.push(...getJobOrStageConstants(stage));
+  stage.jobs.forEach((job) => {
+    // 收集Job上的变量
+    res.push(...getJobOrStageConstants(job));
+  });
+  return res;
+}, []);
 export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   activities: {
     n4e0723c31cd3f97857d28366792ddb5: {
@@ -384,7 +394,6 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     gateways: {},
     location: [],
     start_event: {},
-    stage_canvas_constants: [],
     canvas_mode: 'stage',
   };
 
@@ -397,9 +406,6 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   const NODE_Y_GAP = 200;
   let nextStageStartPosion = NODE_X_GAP;
   stageCanvasData.forEach((stage, index) => {
-    // 收集Stage上的变量
-    newPipelineTree.stage_canvas_constants.push(...getJobOrStageConstants(stage));
-    console.log('utils.js_Line:400', stage, getJobOrStageConstants(stage));
     const maxLengthJobs = Math.max(...stage.jobs.map(job => job.nodes.length));
     const currentStageXOffset = (maxLengthJobs + 1) * NODE_X_GAP;
     const startXPositon = startPointLocation.x + nextStageStartPosion;
@@ -491,8 +497,6 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     newPipelineTree.gateways[ConvergeGatewayNode.id] = ConvergeGatewayNode;
 
     stage.jobs.forEach((job, index) => {
-      // 收集Job上的变量
-      newPipelineTree.stage_canvas_constants.push(...getJobOrStageConstants(job));
       // 这条JOB上每个节点的间距
       const currentJobNodeGap = currentStageXOffset / (job.nodes.length + 1);
       const currentYPosition = statrYPosition + NODE_Y_GAP * index;
@@ -578,7 +582,7 @@ function formatDuration(startTimestamp, endTimestamp) {
   // 计算天
   const day = Math.floor(remainingTime / units.day);
   if (day > 0) {
-    result.push(`${day}h`);
+    result.push(`${day}d`);
     remainingTime -= day * units.day;
   }
 

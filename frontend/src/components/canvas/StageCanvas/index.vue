@@ -22,7 +22,7 @@
         :stages="stageCanvasData"
         :index="(index+1).toString()"
         :editable="editable"
-        :constants="stageCanvasConstants"
+        :constants="constants"
         :is-execute="isExecute"
         @deleteNode="deletNode(index)"
         @handleOperateNode="handleOperateNode"
@@ -37,8 +37,8 @@
 
 import StageNode from './components/StageNode.vue';
 
-import {  getDefaultNewStage, stage } from './data';
-import { generatePplTreeByCurrentStageCanvasData, getCopyNode } from './utils';
+import {  ETaskStatusType, getDefaultNewStage, stage } from './data';
+import { gatherStageCanvasConstans, generatePplTreeByCurrentStageCanvasData, getCopyNode } from './utils';
 import JobAndStageEidtSld from './components/JobAndStageEditSld/index.vue';
 import { mapGetters, mapMutations, mapState } from 'vuex';
 import axios from 'axios';
@@ -88,13 +88,14 @@ import Sortable from 'sortablejs';
         isPolling: false,
         debounceTimer: null,
         sortableInstance: null,
+        stageCanvasConstansSet: [],
+        taskNodeIdMap: null,
       };
     },
   computed: {
     ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
         stageCanvasData: state => state.template.stage_canvas_data,
-        stageCanvasConstants: state => state.template.stage_canvas_constants || [],
         activities: state => state.template.activities,
       }),
       ...mapGetters('template/', [
@@ -153,12 +154,13 @@ import Sortable from 'sortablejs';
       },
     },
   },
-  mounted() {
+  async mounted() {
     if (!this.isExecute) {
       this.refresh();
       this.initSortable();
     } else {
-      this.getTaskStageCanvasData();
+      await this.getTaskStageCanvasData();
+      this.stageCanvasConstansSet = gatherStageCanvasConstans(this.stageCanvasData);
     }
     this.refreshPluginIcon();
 },
@@ -218,12 +220,35 @@ import Sortable from 'sortablejs';
       this.timer && clearTimeout(this.timer);
       this.timer = null;
     },
+
+    getRunningNodeIds(stages) {
+      return stages.reduce((res, stage) => {
+        stage.jobs.forEach((job) => {
+          res.push(...(job?.nodes.filter(node => node.state === ETaskStatusType.RUNNING) || []).map(node => this.taskNodeIdMap[node.id].id));
+        });
+        return res;
+      }, []);
+    },
+    generateTaskNodeTemplateIdMap() {
+      this.taskNodeIdMap = Object.values(this.activities).reduce((res, node) => {
+        res[node.template_node_id] = node;
+        return res;
+      }, {});
+    },
     async getTaskStageCanvasData() {
       const res = await this.getStageCanvasDataDetail().then(res => res.data);
-      if (res.pipeline_tree) {
-        console.log('index.vue_Line:224', res.pipeline_tree.stage_canvas_data);
-        this.updatePipelineTree({ stage_canvas_data: res.pipeline_tree.stage_canvas_data, stage_canvas_constants: res.pipeline_tree.stage_canvas_constants || [] });
-        this.constants = res.pipeline_tree.current_constants || [];
+      if (!this.taskNodeIdMap) {
+        this.generateTaskNodeTemplateIdMap();
+      }
+      if (res) {
+        this.updatePipelineTree({ stage_canvas_data: [...res] });
+        const runningNodesIds = this.getRunningNodeIds(this.stageCanvasData);
+        const params = {
+          to_render_constants: this.stageCanvasConstansSet,
+          node_ids: runningNodesIds,
+        };
+        const constants = await this.getStageCanvasConstants(params).then(res => res.data.data);
+        this.constants = [...constants];
       }
     },
     async refreshPluginIcon() {
@@ -247,6 +272,9 @@ import Sortable from 'sortablejs';
     },
     async getStageCanvasDataDetail() {
       return await axios.get(`/task/get_stage_job_states/${this.instanceId}/?space_id=${this.spaceId}`);
+    },
+    async getStageCanvasConstants(params) {
+      return await axios.post(`/task/rendered_stage_constants/${this.instanceId}/?space_id=${this.spaceId}`, params);
     },
     initSortable() {
       this.sortableInstance = new Sortable(this.$refs.stageContainer, {
