@@ -23,6 +23,7 @@ from copy import deepcopy
 
 from django.db import models, transaction
 from django.utils.translation import ugettext_lazy as _
+from pipeline.core.constants import PE
 from pipeline.parser.utils import replace_all_id
 
 from bkflow.constants import TemplateOperationSource, TemplateOperationType
@@ -30,6 +31,8 @@ from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.exceptions import ValidationError
 from bkflow.utils.md5 import compute_pipeline_md5
 from bkflow.utils.models import CommonModel, CommonSnapshot
+from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
+from bkflow.utils.stage_canvas import OperateType
 
 logger = logging.getLogger("root")
 
@@ -49,7 +52,8 @@ class TemplateManager(models.Manager):
         template.pk = None
         template.name = f"Copy {template.name}"
         copyed_pipeline_tree = deepcopy(template_pipeline_tree)
-        replace_all_id(copyed_pipeline_tree)
+        pe_maps = replace_all_id(copyed_pipeline_tree)
+        replace_pipeline_tree_node_ids(copyed_pipeline_tree, OperateType.CREATE_TEMPLATE.value, pe_maps[PE.activities])
         # 拷贝流程并替换节点 避免 id 重叠
         with transaction.atomic():
             # 开启事务 确保都创建成功

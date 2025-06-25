@@ -24,7 +24,7 @@ from bkflow_feel.api import parse_expression
 from pipeline.parser.utils import recursive_replace_id
 
 from bkflow.utils.mako import parse_mako_expression
-from bkflow.utils.stage_canvas import StageCanvasHandler
+from bkflow.utils.stage_canvas import OperateType, StageCanvasHandler
 
 DEFAULT_HORIZONTAL_PIPELINE_TREE = {
     "activities": {
@@ -364,7 +364,7 @@ def build_default_pipeline_tree(canvas_type: str = "horizontal"):
     except KeyError:
         raise ValueError(f"Invalid canvas_type: {canvas_type}，Must be one of: {', '.join(CANVAS_TEMPLATE_MAP.keys())}")
 
-    return replace_pipeline_tree_node_ids(pipeline_tree)
+    return replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
 
 
 def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args, **kwargs) -> bool:
@@ -375,19 +375,35 @@ def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args
     return BoolRule(expr).test()
 
 
-def replace_pipeline_tree_node_ids(pipeline_tree: dict) -> dict:
+def replace_pipeline_tree_node_ids(
+    pipeline_tree: dict, operate_type: str = OperateType.CREATE_TEMPLATE.value, node_map: dict = None
+) -> dict:
     """替换 pipeline tree 中的节点 ID
 
     Args:
         pipeline_tree: 需要处理的 pipeline tree
+        operate_type: 操作类型，create_template, copy_template
+        node_map: 节点新老 ID 映射
 
     Returns:
         处理后的 pipeline tree
     """
-    if pipeline_tree.get("canvas_mode") == "stage":
-        node_map = recursive_replace_id(pipeline_tree)
+    # 如果是复制流程且不是stage画布，直接返回
+    if operate_type == OperateType.COPY_TEMPLATE.value and pipeline_tree.get("canvas_mode") != "stage":
+        return pipeline_tree
+
+    # 处理节点ID映射
+    node_map = node_map or {}
+    is_stage_mode = pipeline_tree.get("canvas_mode") == "stage"
+
+    # 生成或使用节点映射
+    if not (is_stage_mode and node_map):
+        node_map_raw = recursive_replace_id(pipeline_tree)
+        # 直接获取唯一pipeline的activities映射
+        node_map = next(iter(node_map_raw.values())).get("activities", {})
+
+    # 对stage画布进行特殊处理
+    if is_stage_mode:
         StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
-    else:
-        recursive_replace_id(pipeline_tree)
 
     return pipeline_tree
