@@ -9,19 +9,7 @@ export const stage = [
       {
         id: `node${uuid()}`,
         name: '',
-        config: [
-          {
-            key: '已规范',
-            value: '23',
-            renders: [
-              {
-                type: 'progress',
-                range: [0, 42],
-                color: '#3A83FF',
-              },
-            ],
-          },
-        ],
+        config: [],
         nodes: [
           {
             id: `node${uuid()}`,
