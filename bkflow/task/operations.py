@@ -54,8 +54,8 @@ from bkflow.task.context import SystemObject
 from bkflow.task.models import EngineSpaceConfig, TaskInstance
 from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
+from bkflow.utils.canvas import get_variable_mapping
 from bkflow.utils.dates import format_datetime
-from bkflow.utils.stage_canvas import get_variable_mapping
 
 logger = logging.getLogger("root")
 
@@ -336,8 +336,7 @@ class TaskOperation:
         context_values = runtime.get_context(self.task_instance.instance_id)
         constants = self.task_instance.pipeline_tree.get("constants", {})
 
-        # 记录已存在的变量键，避免重复添加
-        existing_keys = {cv.key for cv in context_values}
+        context_dict = {cv.key: cv for cv in context_values}
 
         # 构建节点输出变量的映射关系
         node_outputs = {}
@@ -363,18 +362,14 @@ class TaskOperation:
                 if mapped_key := node_id_constants_map.get(original_key):
                     node_outputs[mapped_key] = value
 
-        # 构建新的上下文值列表
-        new_context_values = []
+        for key, value in node_outputs.items():
+            if key not in context_dict:
+                context_dict[key] = ContextValue(key=key, type=ContextValueType.PLAIN, value=value, code=None)
+            elif value != context_dict[key].value:
+                context_dict[key].value = value
 
-        # 添加节点输出数据（PLAIN类型）
-        new_context_values.extend(
-            ContextValue(key=key, type=ContextValueType.PLAIN, value=value, code=None)
-            for key, value in node_outputs.items()
-            if key not in existing_keys
-        )
-
-        # 将新的上下文值添加到现有列表中
-        context_values.extend(new_context_values)
+        # 转换回列表
+        context_values = list(context_dict.values())
 
         try:
             context = Context(runtime, context_values, to_render_constants)

@@ -35,8 +35,8 @@ from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.space.utils import build_default_pipeline_tree_with_space_id
 from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.utils import err_code
+from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
-from bkflow.utils.stage_canvas import OperateType
 
 logger = logging.getLogger("root")
 

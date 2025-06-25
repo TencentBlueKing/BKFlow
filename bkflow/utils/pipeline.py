@@ -18,13 +18,18 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import copy
+import logging
+from typing import Optional
 
 from bamboo_engine.utils.boolrule import BoolRule
 from bkflow_feel.api import parse_expression
 from pipeline.parser.utils import recursive_replace_id
 
+from bkflow.utils.canvas import OperateType, get_canvas_handler
 from bkflow.utils.mako import parse_mako_expression
-from bkflow.utils.stage_canvas import OperateType, StageCanvasHandler
+
+logger = logging.getLogger(__name__)
+
 
 DEFAULT_HORIZONTAL_PIPELINE_TREE = {
     "activities": {
@@ -376,34 +381,28 @@ def pipeline_gateway_expr_func(expr: str, context: dict, extra_info: dict, *args
 
 
 def replace_pipeline_tree_node_ids(
-    pipeline_tree: dict, operate_type: str = OperateType.CREATE_TEMPLATE.value, node_map: dict = None
+    pipeline_tree: dict, operate_type: str = OperateType.CREATE_TEMPLATE.value, node_map: Optional[dict] = None
 ) -> dict:
-    """替换 pipeline tree 中的节点 ID
+    """替换 pipeline tree 中的节点 ID"""
 
-    Args:
-        pipeline_tree: 需要处理的 pipeline tree
-        operate_type: 操作类型，create_template, copy_template
-        node_map: 节点新老 ID 映射
+    handler = get_canvas_handler(pipeline_tree)
 
-    Returns:
-        处理后的 pipeline tree
-    """
-    # 如果是复制流程且不是stage画布，直接返回
-    if operate_type == OperateType.COPY_TEMPLATE.value and pipeline_tree.get("canvas_mode") != "stage":
+    # 复制操作特殊处理
+    if operate_type == OperateType.COPY_TEMPLATE.value and not handler.should_process_copy(pipeline_tree):
         return pipeline_tree
 
-    # 处理节点ID映射
-    node_map = node_map or {}
-    is_stage_mode = pipeline_tree.get("canvas_mode") == "stage"
+    # 生成节点映射
+    if handler.should_generate_node_map(pipeline_tree, node_map):
+        try:
+            node_map_raw = recursive_replace_id(pipeline_tree)
+            first_pipeline = next(iter(node_map_raw.values()), {})
+            node_map = first_pipeline.get("activities", {})
+        except Exception as e:
+            logger.exception(f"[replace_pipeline_tree_node_ids]Failed to generate node mapping: {e}")
+            node_map = {}
 
-    # 生成或使用节点映射
-    if not (is_stage_mode and node_map):
-        node_map_raw = recursive_replace_id(pipeline_tree)
-        # 直接获取唯一pipeline的activities映射
-        node_map = next(iter(node_map_raw.values())).get("activities", {})
-
-    # 对stage画布进行特殊处理
-    if is_stage_mode:
-        StageCanvasHandler.sync_stage_canvas_data_node_ids(node_map, pipeline_tree)
+    # 处理节点替换
+    if node_map:
+        handler.handle_node_replacement(pipeline_tree, node_map)
 
     return pipeline_tree
