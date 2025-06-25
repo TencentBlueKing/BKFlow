@@ -88,7 +88,7 @@ import Sortable from 'sortablejs';
         isPolling: false,
         debounceTimer: null,
         sortableInstance: null,
-        stageCanvasConstansSet: [],
+        stageCanvasConstansSet: null,
         taskNodeIdMap: null,
       };
     },
@@ -160,7 +160,6 @@ import Sortable from 'sortablejs';
       this.initSortable();
     } else {
       await this.getTaskStageCanvasData();
-      this.stageCanvasConstansSet = gatherStageCanvasConstans(this.stageCanvasData);
     }
     this.refreshPluginIcon();
 },
@@ -224,7 +223,7 @@ import Sortable from 'sortablejs';
     getRunningNodeIds(stages) {
       return stages.reduce((res, stage) => {
         stage.jobs.forEach((job) => {
-          res.push(...(job?.nodes.filter(node => node.state === ETaskStatusType.RUNNING) || []).map(node => this.taskNodeIdMap[node.id].id));
+          res.push(...(job?.nodes.filter(node => node.state === ETaskStatusType.RUNNING || node.state === ETaskStatusType.ERROR) || []).map(node => this.taskNodeIdMap[node.id].id));
         });
         return res;
       }, []);
@@ -237,12 +236,14 @@ import Sortable from 'sortablejs';
     },
     async getTaskStageCanvasData() {
       const res = await this.getStageCanvasDataDetail().then(res => res.data);
-      if (!this.taskNodeIdMap) {
-        this.generateTaskNodeTemplateIdMap();
-      }
+
+      // 初始化任务节点映射map
+      if (!this.taskNodeIdMap) this.generateTaskNodeTemplateIdMap();
       if (res) {
         this.updatePipelineTree({ stage_canvas_data: [...res] });
         const runningNodesIds = this.getRunningNodeIds(this.stageCanvasData);
+        // 初始化变量收集
+        if (!this.stageCanvasConstansSet) this.stageCanvasConstansSet = gatherStageCanvasConstans(this.stageCanvasData);
         const params = {
           to_render_constants: this.stageCanvasConstansSet,
           node_ids: runningNodesIds,
