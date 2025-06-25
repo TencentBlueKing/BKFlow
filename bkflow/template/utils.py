@@ -18,9 +18,12 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
+from datetime import datetime
 
 from pipeline.core.data.expression import ConstantTemplate
 
+from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.exceptions import APIResponseError
 from bkflow.space.configs import CallbackHooksConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.utils.api_client import ApiGwClient
@@ -130,3 +133,32 @@ def send_callback(space_id, callback_type, data):
             "[send_callback] send_callback error, callback_type={}, data={}, err={}".format(callback_type, data, e)
         )
         return
+
+
+def create_trigger_tasks(trigger_data):
+    """
+    提交创建触发器任务
+    """
+    space_id, template_id = trigger_data.get("space_id"), trigger_data.get("template_id")
+    pipeline_tree = trigger_data.get("pipeline_tree")
+    client = TaskComponentClient(space_id=space_id)
+    name = trigger_data.get("name")
+    formatted_time = datetime.now().strftime("%Y%m%d%H%M")
+    task_name = f"{name}_{formatted_time}_trigger"
+    task_data = {
+        "template_id": template_id,
+        "space_id": space_id,
+        "pipeline_tree": pipeline_tree,
+        "creator": trigger_data["creator"],
+        "name": task_name,
+    }
+    resp = client.create_task(task_data)
+    if not resp["result"]:
+        raise APIResponseError(resp["message"])
+    task_id = resp["data"]["id"]
+    trigger_data["operator"] = trigger_data["creator"]
+    resp = client.operate_task(task_id=task_id, operate="start", data=trigger_data)
+    if not resp["result"]:
+        raise APIResponseError(resp["message"])
+        # 创建任务失败或请求失败
+    return task_id

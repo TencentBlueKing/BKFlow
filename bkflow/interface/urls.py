@@ -27,6 +27,7 @@ from .views import (
     home,
     is_admin_or_current_space_superuser,
     is_admin_or_space_superuser,
+    remote_trigger,
     user_exit,
 )
 
@@ -36,6 +37,7 @@ urlpatterns = [
     url(r"^is_admin_user/$", is_admin_or_space_superuser),
     url(r"^is_current_space_admin/$", is_admin_or_current_space_superuser),
     url(r"^callback/(?P<token>.+)/$", callback),
+    url(r"^remote_trigger/(?P<token>.+)/$", remote_trigger),
     url(r"^get_msg_types/$", get_msg_types),
     url(r"^itsm_approve/$", itsm_approve),
     url(r"", include("bkflow.interface.task.urls")),
