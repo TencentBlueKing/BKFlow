@@ -29,10 +29,10 @@ from pipeline.parser.utils import replace_all_id
 from bkflow.constants import TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.exceptions import ValidationError
+from bkflow.utils.canvas import OperateType
 from bkflow.utils.md5 import compute_pipeline_md5
 from bkflow.utils.models import CommonModel, CommonSnapshot
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
-from bkflow.utils.stage_canvas import OperateType
 
 logger = logging.getLogger("root")
 
