@@ -230,6 +230,7 @@
         :common="common"
         :is-view-mode="isViewMode"
         :constants="constants"
+        :templateId="templateId"
         @setNewCloneKeys="setNewCloneKeys"
         @closeEditingPanel="closeEditingPanel"
         @onSaveEditing="onSaveEditing" />
@@ -274,6 +275,10 @@
         type: Boolean,
         default: false,
       },
+      templateId: {
+        type: Number,
+        default: '',
+      }
     },
     data() {
       const varAttrList = [

@@ -99,6 +99,7 @@
           :instance-actions="instanceActions"
           :instance-name="instanceName"
           :instance_id="instanceId"
+          :template-id="templateId"
           :retry-node-id="retryNodeId"
           @nodeTaskRetry="nodeTaskRetry"
           @packUp="packUp" />

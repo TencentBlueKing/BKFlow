@@ -286,6 +286,10 @@
         type: Object,
         default: () => ({}),
       },
+      templateId: {
+        type: Number,
+        default: ''
+      },
     },
     data() {
       const theEditingData = tools.deepClone(this.variableData);
@@ -579,6 +583,7 @@
             if (!metaUrl) return;
             // api插件配置
             const resp = await this.loadUniformApiMeta({
+              templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: metaUrl,
               ...this.scopeInfo,

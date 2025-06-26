@@ -576,6 +576,7 @@
             if (!apiMeta) return;
             // api插件配置
             const resp = await this.loadUniformApiMeta({
+              templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,
