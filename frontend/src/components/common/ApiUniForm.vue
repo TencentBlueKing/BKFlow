@@ -155,9 +155,9 @@
         default: () => ({}),
       },
       templateId: {
-        type: Number,
-        default: ''
-      }
+        type: [String, Number],
+        default: '',
+      },
     },
     data() {
       const { api_meta: apiMeta = {}, api_config: apiConfig = {} } = this.value;

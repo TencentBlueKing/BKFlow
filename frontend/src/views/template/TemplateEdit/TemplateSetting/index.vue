@@ -84,9 +84,9 @@
         default: '',
       },
       templateId: {
-        type: Number,
+        type: [String, Number],
         default: '',
-      }
+      },
     },
     methods: {
       // 关闭面板
