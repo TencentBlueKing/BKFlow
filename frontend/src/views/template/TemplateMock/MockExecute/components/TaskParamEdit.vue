@@ -28,8 +28,8 @@
     },
     props: {
       templateId: {
-        type: Number,
-        default: ''
+        type: [String, Number],
+        default: '',
       },
       constants: {
         type: Object,

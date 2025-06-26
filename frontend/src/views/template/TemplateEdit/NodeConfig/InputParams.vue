@@ -125,9 +125,9 @@
         default: false,
       },
       templateId: {
-        type: Number,
-        default: ''
-      }
+        type: [String, Number],
+        default: '',
+      },
     },
     data() {
       const defaultScheme = Array.isArray(this.scheme) ? [] : {};

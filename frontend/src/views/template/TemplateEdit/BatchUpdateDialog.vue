@@ -204,8 +204,8 @@
         default: '',
       },
       templateId: {
-        type: Number,
-        default: ''
+        type: [String, Number],
+        default: '',
       },
       common: {
         type: String,

@@ -276,9 +276,9 @@
         default: false,
       },
       templateId: {
-        type: Number,
+        type: [String, Number],
         default: '',
-      }
+      },
     },
     data() {
       const varAttrList = [

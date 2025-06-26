@@ -287,8 +287,8 @@
         default: () => ({}),
       },
       templateId: {
-        type: Number,
-        default: ''
+        type: [String, Number],
+        default: '',
       },
     },
     data() {
