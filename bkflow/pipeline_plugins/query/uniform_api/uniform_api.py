@@ -33,7 +33,7 @@ from bkflow.space.models import Credential, SpaceConfig
 from bkflow.template.models import Template
 from bkflow.utils.api_client import HttpRequestResult
 
-from .utils import check_template_by_token
+from .utils import check_template_auth
 
 
 class UniformAPICategorySerializer(serializers.Serializer):
@@ -115,7 +115,7 @@ def _get_space_uniform_api_list_info(space_id, request_data, config_key, usernam
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPICategorySerializer)
 @api_view(["GET"])
 @query_response_handler
-@check_template_by_token
+@check_template_auth
 def get_space_uniform_api_category_list(request, space_id, template_id):
     """
     获取统一API列表
@@ -131,7 +131,7 @@ def get_space_uniform_api_category_list(request, space_id, template_id):
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPIListSerializer)
 @api_view(["GET"])
 @query_response_handler
-@check_template_by_token
+@check_template_auth
 def get_space_uniform_api_list(request, space_id, template_id):
     """
     获取统一API列表
@@ -147,7 +147,7 @@ def get_space_uniform_api_list(request, space_id, template_id):
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPIMetaSerializer)
 @api_view(["GET"])
 @query_response_handler
-@check_template_by_token
+@check_template_auth
 def get_space_uniform_api_meta(requests, space_id, template_id):
     """
     获取统一API元数据
