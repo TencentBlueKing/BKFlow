@@ -98,6 +98,7 @@
           :project-info-loading="projectInfoLoading"
           :template-label-loading="templateLabelLoading"
           :template-labels="templateLabels"
+          :template-id="templateId"
           :active-tab.sync="activeSettingTab"
           :snapshoots="snapshoots"
           :common="common"
@@ -1255,6 +1256,7 @@ import { cloneDeepWith } from 'lodash';
           const { code, api_meta, version } = nodeConfig.component || {};
           if (code === 'uniform_api' && !this.apiExistMap[id]) {
             const resp = await this.loadUniformApiMeta({
+              templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: api_meta.meta_url,
               ...this.scopeInfo,
@@ -1361,6 +1363,7 @@ import { cloneDeepWith } from 'lodash';
                 if (location.atomId === 'uniform_api') {
                   apiMeta = JSON.parse(apiMeta);
                   const resp = await this.loadUniformApiMeta({
+                    templateId: this.templateId,
                     spaceId: this.spaceId,
                     meta_url: apiMeta.meta_url,
                     ...this.scopeInfo,

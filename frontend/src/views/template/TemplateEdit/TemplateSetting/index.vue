@@ -18,6 +18,7 @@
       v-if="activeTab === 'globalVariableTab'"
       :common="common"
       :is-view-mode="isViewMode"
+      :template-id="templateId"
       @viewClick="$emit('viewClick', $event)"
       @templateDataChanged="$emit('templateDataChanged')"
       @onCitedNodeClick="$emit('onCitedNodeClick', $event)"
@@ -82,6 +83,10 @@
         type: [String, Number],
         default: '',
       },
+      templateId: {
+        type: Number,
+        default: '',
+      }
     },
     methods: {
       // 关闭面板
