@@ -531,9 +531,6 @@
       hasOperatePerm() {
         return this.instanceActions.includes('OPERATE');
       },
-      templateType() {
-          return this.$route.query.templateType || 'template';
-      },
       templateComponentName() {
           const canvasModeToComponentMap = {
             horizontal: 'ProcessCanvas',
@@ -1004,7 +1001,7 @@
         this.timer = setTimeout(() => {
           this.loadTaskStatus();
         }, time);
-        this.templateType.toLowerCase() === 'stagecanvas' && this.$refs.processCanvas.setRefreshTaskStageCanvasData();
+        this.canvasMode === 'stage' && this.$refs.processCanvas.setRefreshTaskStageCanvasData();
       },
       cancelTaskStatusTimer() {
         if (this.timer) {

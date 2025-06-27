@@ -596,7 +596,7 @@ function formatDuration(startTimestamp, endTimestamp) {
   // 计算分钟
   const minutes = Math.floor(remainingTime / units.minutes);
   if (minutes > 0) {
-    result.push(`${minutes}min`);
+    result.push(`${minutes}m`);
     remainingTime -= minutes * units.minutes;
   }
 
