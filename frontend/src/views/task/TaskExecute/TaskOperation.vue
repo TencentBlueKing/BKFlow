@@ -535,10 +535,12 @@
           return this.$route.query.templateType || 'template';
       },
       templateComponentName() {
-          if (this.templateType.toLowerCase() === 'StageCanvas'.toLowerCase()) {
-                return  'StageCanvas';
-          }
-            return this.canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas';
+          const canvasModeToComponentMap = {
+            horizontal: 'ProcessCanvas',
+            vertical: 'VerticalCanvas',
+            stage: 'StageCanvas',
+          };
+          return canvasModeToComponentMap[this.canvasMode] || canvasModeToComponentMap.horizontal;
       },
     },
     mounted() {
