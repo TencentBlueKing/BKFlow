@@ -291,6 +291,9 @@ const template = {
         state[key] = val;
       });
     },
+    setTemplateId(state, templateId) {
+      state.template_id = templateId;
+    },
     // 更新模板各相关字段数据
     setTemplateData(state, data) {
       const {
@@ -1112,8 +1115,8 @@ const template = {
     },
     // api插件请求详情
     loadUniformApiMeta({}, data) {
-      const { spaceId, meta_url, scope_type, scope_value } = data;
-      return axios.get(`/api/plugin_query/uniform_api/meta/${spaceId}/`, {
+      const { spaceId, templateId, meta_url, scope_type, scope_value } = data;
+      return axios.get(`/api/plugin_query/uniform_api/meta/${spaceId}/${templateId}/`, {
         params: {
           meta_url,
           scope_type,
@@ -1162,6 +1165,10 @@ const template = {
     },
   },
   getters: {
+    // 获取模板id数据
+    getTemplateId(state) {
+      return state.template_id;
+    },
     // 获取所有模板数据
     getLocalTemplateData(state) {
       return tools.deepClone(state);

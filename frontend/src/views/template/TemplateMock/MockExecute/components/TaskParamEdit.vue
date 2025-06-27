@@ -14,7 +14,7 @@
 </template>
 
 <script>
-  import { mapState, mapActions } from 'vuex';
+  import { mapState, mapActions, mapGetters } from 'vuex';
   import tools from '@/utils/tools.js';
   import atomFilter from '@/utils/atomFilter.js';
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
@@ -87,6 +87,10 @@
         'loadAtomConfig',
         'loadPluginServiceDetail',
       ]),
+      ...mapGetters('template/', [
+        'getTemplateId',
+      ]),
+
 
       /**
        * 加载表单元素的标准插件配置文件
@@ -225,6 +229,7 @@
           // api插件配置
           const resp = await this.loadUniformApiMeta({
             spaceId: this.spaceId,
+            templateId: this.getTemplateId(),
             meta_url: metaUrl,
             ...this.scopeInfo,
           });

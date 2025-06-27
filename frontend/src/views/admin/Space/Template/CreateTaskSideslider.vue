@@ -167,6 +167,7 @@
       ]),
       ...mapMutations('template/', [
         'setPipelineTree',
+        'setTemplateId'
       ]),
       async loadInitialData() {
         try {
@@ -183,6 +184,7 @@
           });
           const { pipeline_tree: pipelineTree, constants_not_referred: notReferredConstants } = resp.data;
           this.setPipelineTree(pipelineTree);
+          this.setTemplateId(this.row.id);
           this.pipelineTree = pipelineTree;
           this.unReferencedConstants = notReferredConstants;
         } catch (error) {
