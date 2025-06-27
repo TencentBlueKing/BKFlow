@@ -405,9 +405,6 @@ import { cloneDeepWith } from 'lodash';
       isViewMode() {
         return this.type === 'view' || !this.tplActions.some(action => ['EDIT', 'MOCK'].includes(action));
       },
-      templateType() {
-          return this.$route.query.templateType || 'template';
-      },
       templateComponentName() {
           const canvasModeToComponentMap = {
             horizontal: 'ProcessCanvas',
