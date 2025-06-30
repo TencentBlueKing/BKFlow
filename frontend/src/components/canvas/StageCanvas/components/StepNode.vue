@@ -1,7 +1,7 @@
 <template>
   <div
     class="node"
-    :class="{ active:activeNode?.id === node.id,isPreview:!editable,isExecute,[ETaskStatusTypeMap[status].class]:true }"
+    :class="{ active:activeNode?.id === node.id,isPreview:!editable,isExecute,[ETaskStatusTypeMap[status].class]:true, isSkip }"
     @click="handleNode(currentNode)">
     <div class="node-icon">
       <span
@@ -20,11 +20,10 @@
           :src="defaultLogo"
           alt="网格图标">
       </template>
-
       <span
         v-else
         style="display: inline-block;">
-        <i :class="`${ETaskStatusIconMap[status]}`" />
+        <i :class="`${isSkip?ETaskStatusIconMap[ETaskStatusType.ERROR]:ETaskStatusIconMap[status]}`" />
       </span>
     </div>
     <div class="node-title">
@@ -195,14 +194,14 @@ export default {
           const type = (this.currentNode.component.code === 'uniform_api' || this.currentNode.component.code === 'remote_plugin') ? this.codeMapToType[this.currentNode.component.code]  : 'component';
           return type;
         }
-      return null;
-    },
-    durationTime() {
-      return getDurationTime(
-          this.node.start_time,
-          this.node.state === ETaskStatusType.RUNNING ? new Date().toString() : this.node.finish_time,
-        );
-    },
+        return null;
+      },
+      durationTime() {
+        return getDurationTime(
+            this.node.start_time,
+            this.node.state === ETaskStatusType.RUNNING ? new Date().toString() : this.node.finish_time,
+          );
+      },
     },
     methods: {
         handleNode(node) {
@@ -274,20 +273,22 @@ export default {
         border: 1px solid #3A83FF;
         background-color: rgba(58, 131, 255, 0.05);
     }
-    .info-icon-item{
-      position: absolute;
-      top: 0;
-      right: 0;
-      margin-right: 0;
-      transform: translate(50%,-50%);
-      &.skip-icon{
-        transform: translate(50%,-50%) rotate(180deg);
-        background-color: #ff9d4d;
-      }
-      &.rty-num{
-        color: #fff;
-        font-size: 10px;
-        background-color: #ff9d4d;
+    .info-icon{
+        .info-icon-item{
+        position: absolute;
+        top: 0;
+        right: 0;
+        margin-right: 0;
+        transform: translate(50%,-50%);
+        &.iconCirle.skip-icon{
+          transform: translate(50%,-50%) rotate(180deg);
+          background-color: #ff9d4d;
+        }
+        &.iconCirle.rty-num{
+          color: #fff;
+          font-size: 10px;
+          background-color: #ff9d4d;
+        }
       }
     }
     .no-allow-move{
@@ -454,8 +455,21 @@ export default {
     &.pending{
       border: 1px solid #C3CDD7;
     }
+    &.isSkip{
+      border: 1px solid #eb517b;
+      .toolAndTime{
+        .time{
+          color: #eb517b;
+        }
+      }
+      .iconCirle{
+        background-color: #eb517b;
+      }
+    }
   }
 }
+
+
 .iconCirle{
   font-size: 6px;
   width: 14px;

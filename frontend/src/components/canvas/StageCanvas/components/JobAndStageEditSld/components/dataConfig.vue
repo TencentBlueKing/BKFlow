@@ -11,10 +11,8 @@
           <template v-if="editable">
             <i class="icon-btn commonicon-icon common-icon-ashcan-delete" />
           </template>
-
         </span>
       </div>
-
       <bk-form
         v-show="!isFold"
         ref="configForm"
@@ -34,6 +32,7 @@
             <bk-input
               v-model="configSync.value"
               :disabled="!editable"
+              placeholder="请输入 $ 选择节点输出变量"
               @focus="toggleShowSuggest(true)"
               @blur="toggleShowSuggest(false)" />
             <div

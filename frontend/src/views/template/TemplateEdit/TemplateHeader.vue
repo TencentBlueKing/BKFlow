@@ -52,6 +52,14 @@
         v-if="isEditProcessPage"
         class="button-area">
         <div class="setting-tab-wrap">
+          <span
+            v-if="ifShowJumpToTaskList"
+            :class="['setting-item']"
+            @click="jumpToTaskList">
+            <i
+              v-bk-tooltips.bottom="$t('跳转任务列表')"
+              class="common-icon-renwu jump-to-task-list-icon" />
+          </span>
           <template v-for="tab in settingTabs">
             <span
               v-if="!(isViewMode && tab.id === 'tplSnapshootTab')"
@@ -272,10 +280,13 @@
         return this.tplActions.some(action => ['EDIT', 'MOCK'].includes(action));
       },
        ifHidenMockBtn() {
-        return this.$route.query.ifHidenMockBtn;
+        return this.$route.query.ifHidenMockBtn === 'true';
        },
        ifShowCreateTaskBtn() {
-        return this.$route.query.ifShowCreateTaskBtn;
+        return this.$route.query.ifShowCreateTaskBtn  === 'true';
+       },
+       ifShowJumpToTaskList() {
+        return this.$route.query.ifShowJumpToTaskList === 'true';
        },
     },
     watch: {
@@ -586,6 +597,11 @@
             window.parent.postMessage({ eventName: 'bk-flow-create-task-handle' }, '*');
           }
       },
+      jumpToTaskList() {
+        if (window.parent) {
+          window.parent.postMessage({ eventName: 'jump-to-task-list' }, '*');
+        }
+      },
     },
   };
 </script>
@@ -686,6 +702,12 @@
             height: 32px;
             line-height: 32px;
             border-right: 1px solid #dcdee5;
+            .jump-to-task-list-icon{
+              font-size: 20px;
+              position: relative;
+              top: 2px;
+              left: 6px;
+            }
             .setting-item {
                 position: relative;
                 margin-right: 20px;
