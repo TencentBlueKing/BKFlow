@@ -453,7 +453,7 @@
       margin-bottom: 15px;
     }
     .basic-form {
-      /deep/.bk-form-content {
+      ::v-deep .bk-form-content {
         width: 560px;
       }
     }

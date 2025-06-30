@@ -32,8 +32,12 @@
 .tag-default-icon:before {
 	content: "\e176";
 }
-
-// icons
+.common-icon-check-circle-fill:before {
+	content: "\e242";
+}
+.common-icon-close-circle-fill:before {
+	content: "\e243";
+}
 .common-icon-add:before {
 	content: "\e101";
 }
@@ -499,6 +503,9 @@
 .common-icon-drawable:before {
 	content: "\e1d7";
 }
+.common-icon-loading:before {
+	content: "\e244";
+}
 .common-icon-favorite:before {
 	content: "\e1d8";
 }
@@ -747,4 +754,7 @@
 }
 .common-icon-credential:before {
 	content: "\e241";
+}
+.common-icon-renwu:before {
+	content: "\e245";
 }

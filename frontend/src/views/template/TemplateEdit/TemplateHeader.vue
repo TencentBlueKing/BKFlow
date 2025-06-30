@@ -52,6 +52,14 @@
         v-if="isEditProcessPage"
         class="button-area">
         <div class="setting-tab-wrap">
+          <span
+            v-if="ifShowJumpToTaskList"
+            :class="['setting-item']"
+            @click="jumpToTaskList">
+            <i
+              v-bk-tooltips.bottom="$t('跳转任务列表')"
+              class="common-icon-renwu jump-to-task-list-icon" />
+          </span>
           <template v-for="tab in settingTabs">
             <span
               v-if="!(isViewMode && tab.id === 'tplSnapshootTab')"
@@ -100,13 +108,20 @@
           {{createTaskBtnText}}
         </bk-button> -->
         <bk-button
-          v-if="tplActions.includes('MOCK')"
+          v-if="tplActions.includes('MOCK')&&!ifHidenMockBtn"
           :class="['task-btn']"
           data-test-id="templateEdit_form_mock"
           :loading="templateMocking"
           :disabled="templateSaving && !templateMocking"
           @click.stop="$emit('jumpToTemplateMock')">
           {{ $t('调试') }}
+        </bk-button>
+        <bk-button
+          v-if="isViewMode && ifShowCreateTaskBtn"
+          :class="['task-btn']"
+
+          @click.stop="exportCreateTaskHandle">
+          {{ $t('创建任务') }}
         </bk-button>
       </div>
       <div
@@ -264,6 +279,15 @@
       hasEditPermission() {
         return this.tplActions.some(action => ['EDIT', 'MOCK'].includes(action));
       },
+       ifHidenMockBtn() {
+        return this.$route.query.ifHidenMockBtn === 'true';
+       },
+       ifShowCreateTaskBtn() {
+        return this.$route.query.ifShowCreateTaskBtn  === 'true';
+       },
+       ifShowJumpToTaskList() {
+        return this.$route.query.ifShowJumpToTaskList === 'true';
+       },
     },
     watch: {
       type(val, oldVal) {
@@ -568,6 +592,16 @@
         this.saveTemplate();
         this.$emit('onOpenExecuteScheme', true);
       },
+      exportCreateTaskHandle() {
+        if (window.parent) {
+            window.parent.postMessage({ eventName: 'bk-flow-create-task-handle' }, '*');
+          }
+      },
+      jumpToTaskList() {
+        if (window.parent) {
+          window.parent.postMessage({ eventName: 'jump-to-task-list' }, '*');
+        }
+      },
     },
   };
 </script>
@@ -668,6 +702,12 @@
             height: 32px;
             line-height: 32px;
             border-right: 1px solid #dcdee5;
+            .jump-to-task-list-icon{
+              font-size: 20px;
+              position: relative;
+              top: 2px;
+              left: 6px;
+            }
             .setting-item {
                 position: relative;
                 margin-right: 20px;

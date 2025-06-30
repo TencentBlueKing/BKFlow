@@ -450,7 +450,7 @@
 .dmn-plugin {
   .decision-selector {
     &.is-disabled {
-      /deep/.bk-select-name {
+      ::v-deep .bk-select-name {
         pointer-events: none;
         background: #fafbfd;
       }
@@ -477,7 +477,7 @@
         i {
           margin-right: 5px;
         }
-        /deep/.bk-button-text {
+        ::v-deep .bk-button-text {
           font-size: 12px;
         }
       }
@@ -518,10 +518,10 @@
     background: #fafbfd;
     border: 1px solid #eaebf0;
     border-radius: 2px;
-    /deep/.bk-form-content {
+    ::v-deep .bk-form-content {
       margin-left: 0 !important;
     }
-    /deep/.bk-form-item {
+    ::v-deep .bk-form-item {
       &.is-error{
         .icon-exclamation-circle-shape {
           right: 40px !important;

@@ -18,10 +18,14 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
+from functools import wraps
 
 from django.conf import settings
 
-from bkflow.exceptions import APIRequestError
+from bkflow.exceptions import APIRequestError, ValidationError
+from bkflow.permission.models import Token
+from bkflow.space.configs import SuperusersConfig
+from bkflow.space.models import SpaceConfig
 from bkflow.utils.api_client import (
     ApigwClientMixin,
     HttpRequestMixin,
@@ -29,6 +33,26 @@ from bkflow.utils.api_client import (
 )
 
 logger = logging.getLogger("root")
+
+
+def check_template_auth(func):
+    @wraps(func)
+    def wrapper(request, *args, **kwargs):
+        space_id = kwargs.get("space_id")
+        space_superusers = SpaceConfig.get_config(space_id, SuperusersConfig.name)
+        is_space_superuser = request.user.username in space_superusers
+        if request.user.is_superuser or is_space_superuser:
+            return func(request, *args, **kwargs)
+        # 获取并解析 token 适用于通过 token 操作模版的情况(非系统 or 空间管理员)
+        if not request.token:
+            raise ValidationError("不存在访问 token")
+        template_id = kwargs.get("template_id")
+        token = Token.objects.filter(resource_type="TEMPLATE", token=request.token, resource_id=template_id)
+        if not token.exists():
+            raise ValidationError("token 不存在或有误")
+        return func(request, *args, **kwargs)
+
+    return wrapper
 
 
 class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):

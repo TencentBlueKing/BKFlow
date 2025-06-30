@@ -552,7 +552,7 @@
   .canvas-minimap {
     position: absolute;
     top: 60px;
-    /deep/.x6-widget-minimap {
+    ::v-deep .x6-widget-minimap {
       .x6-graph {
         box-shadow: none;
       }

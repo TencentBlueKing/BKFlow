@@ -381,7 +381,7 @@
 <style lang="scss" scoped>
 @import '../../scss/config.scss';
     .task-param-wrapper {
-        /deep/ .render-form {
+        ::v-deep .render-form {
             .form-item {
                 margin-bottom: 20px;
             }

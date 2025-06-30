@@ -10,6 +10,7 @@
           </p>
           <TaskParamEdit
             ref="taskParamEdit"
+            :template-id="templateId"
             :editable="tplActions.includes('MOCK')"
             :constants="pipelineTree.constants" />
           <bk-collapse
@@ -19,6 +20,7 @@
               {{ $t('查看未引用变量') }}
               <div slot="content">
                 <TaskParamEdit
+                  :template-id="templateId"
                   :editable="false"
                   :constants="unReferencedConstants" />
               </div>
@@ -373,7 +375,7 @@
           }
         }
       }
-      /deep/.bk-label {
+      ::v-deep .bk-label {
         font-size: 12px;
       }
       .un-mock-list {
@@ -408,7 +410,7 @@
       width: 88px;
     }
   }
-  /deep/.bk-collapse {
+  ::v-deep .bk-collapse {
     margin-top: auto;
     .bk-collapse-item-header {
       font-weight: 600;

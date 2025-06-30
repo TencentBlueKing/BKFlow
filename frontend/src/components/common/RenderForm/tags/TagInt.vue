@@ -81,7 +81,7 @@
     .el-input-number {
         width: 100%;
     }
-    /deep/ .el-input__inner {
+    ::v-deep .el-input__inner {
         height: 32px;
         line-height: 32px;
         text-align: left;

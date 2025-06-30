@@ -113,7 +113,7 @@
         white-space: nowrap;
         text-overflow: ellipsis;
       }
-      /deep/.bk-button-text {
+      ::v-deep .bk-button-text {
         flex-shrink: 0;
         .icon-plus-circle {
           margin-right: 0;

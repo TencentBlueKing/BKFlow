@@ -191,7 +191,7 @@
 </script>
 <style lang="scss" scoped>
   .value-assign-plugin {
-    /deep/.form-content-item {
+    ::v-deep .form-content-item {
       display: flex;
       align-items: center;
       .bk-form-item {
@@ -214,7 +214,7 @@
       .value-selector {
         flex: 1;
         &.is-disabled {
-          /deep/.bk-select-name {
+          ::v-deep .bk-select-name {
             pointer-events: none;
             background: #fafbfd;
           }

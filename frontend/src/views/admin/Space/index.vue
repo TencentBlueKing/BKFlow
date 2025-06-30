@@ -67,11 +67,11 @@
   .space-admin {
     height: 100%;
   }
-  /deep/.bk-table-pagination-wrapper {
+  ::v-deep .bk-table-pagination-wrapper {
     background: #fff;
   }
-  /deep/.template-name,
-  /deep/.task-name {
+  ::v-deep .template-name,
+  ::v-deep .task-name {
     color: #3a84ff;
   }
 </style>

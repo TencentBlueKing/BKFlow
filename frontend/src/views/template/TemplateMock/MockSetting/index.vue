@@ -463,6 +463,7 @@
             await this.loadAtomConfig({ atom: plugin, version, space_id: this.spaceId });
             // api插件配置
             const resp = await this.loadUniformApiMeta({
+              templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,
@@ -708,10 +709,10 @@
     height: 50px;
     padding: 8px 24px 0;
     background: #f0f1f5;
-    /deep/.is-last::after {
+    ::v-deep .is-last::after {
       display: none !important;
     }
-    /deep/.bk-tab-section {
+    ::v-deep .bk-tab-section {
       padding: 8px 0;
     }
   }

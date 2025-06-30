@@ -34,7 +34,7 @@
 </script>
 <style lang="scss" scoped>
   .exception-wrap {
-    /deep/.bk-exception-img {
+    ::v-deep .bk-exception-img {
       width: 440px;
       height: 200px;
     }

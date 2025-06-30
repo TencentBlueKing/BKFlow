@@ -53,6 +53,9 @@ class CreateMockTaskBaseSerializer(serializers.Serializer):
 
 class CreateMockTaskWithPipelineTreeSerializer(CreateMockTaskBaseSerializer):
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
+    include_node_ids = serializers.ListField(
+        child=serializers.CharField(allow_blank=False), help_text=_("包含的节点ID列表"), required=False
+    )
 
 
 class CreateMockTaskWithTemplateIdSerializer(CreateMockTaskBaseSerializer):

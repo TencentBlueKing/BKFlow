@@ -285,10 +285,10 @@
 </script>
 
 <style lang="scss" scoped>
-  /deep/.bk-table-empty-text {
+  ::v-deep .bk-table-empty-text {
     width: 100%;
   }
-  /deep/.bk-table-pagination-wrapper {
+  ::v-deep .bk-table-pagination-wrapper {
     background: #fff;
   }
   .plugin-status {

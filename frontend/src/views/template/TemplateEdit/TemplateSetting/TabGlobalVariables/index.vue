@@ -230,6 +230,7 @@
         :common="common"
         :is-view-mode="isViewMode"
         :constants="constants"
+        :templateId="templateId"
         @setNewCloneKeys="setNewCloneKeys"
         @closeEditingPanel="closeEditingPanel"
         @onSaveEditing="onSaveEditing" />
@@ -273,6 +274,10 @@
       isViewMode: {
         type: Boolean,
         default: false,
+      },
+      templateId: {
+        type: [String, Number],
+        default: '',
       },
     },
     data() {
@@ -879,7 +884,7 @@
         .col-more {
             width: 40px;
         }
-        /deep/.icon-funnel {
+        ::v-deep .icon-funnel {
             font-size: 13px;
             color: #c4c6cc;
             cursor: pointer;
@@ -922,7 +927,7 @@
     }
     .empty-variable-tips {
         height: 280px;
-        /deep/ .no-data-wording {
+        ::v-deep .no-data-wording {
             font-size: 12px;
         }
     }

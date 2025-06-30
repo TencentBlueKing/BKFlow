@@ -49,7 +49,7 @@
     <div class="task-container">
       <div class="pipeline-nodes">
         <component
-          :is="canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas'"
+          :is="templateComponentName"
           v-if="!nodeSwitching"
           ref="processCanvas"
           class="canvas-comp-wrapper"
@@ -57,6 +57,11 @@
           :show-palette="false"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
+          :is-execute="true"
+          :template-id="templateId"
+          :instance-id="instanceId"
+          :space-id="spaceId"
+          :overall-state="state"
           @onNodeClick="onNodeClick"
           @onConditionClick="onOpenConditionEdit"
           @onRetryClick="onRetryClick"
@@ -94,6 +99,7 @@
           :instance-actions="instanceActions"
           :instance-name="instanceName"
           :instance_id="instanceId"
+          :template-id="templateId"
           :retry-node-id="retryNodeId"
           @nodeTaskRetry="nodeTaskRetry"
           @packUp="packUp" />
@@ -242,8 +248,9 @@
   import injectVariableDialog from './InjectVariableDialog.vue';
   import tplPerspective from '@/mixins/tplPerspective.js';
   import { graphToJson } from '@/utils/graphJson.js';
-  import VerticalCanvas from '@/components/VerticalCanvas/index.vue';
-  import ProcessCanvas from '@/components/ProcessCanvas/index.vue';
+  import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
+  import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
+  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
 
   const { CancelToken } = axios;
   let source = CancelToken.source();
@@ -293,6 +300,7 @@
       injectVariableDialog,
       ProcessCanvas,
       VerticalCanvas,
+      StageCanvas,
     },
     mixins: [permission, tplPerspective],
     props: {
@@ -522,6 +530,14 @@
       },
       hasOperatePerm() {
         return this.instanceActions.includes('OPERATE');
+      },
+      templateComponentName() {
+          const canvasModeToComponentMap = {
+            horizontal: 'ProcessCanvas',
+            vertical: 'VerticalCanvas',
+            stage: 'StageCanvas',
+          };
+          return canvasModeToComponentMap[this.canvasMode] || canvasModeToComponentMap.horizontal;
       },
     },
     mounted() {
@@ -985,6 +1001,7 @@
         this.timer = setTimeout(() => {
           this.loadTaskStatus();
         }, time);
+        this.canvasMode === 'stage' && this.$refs.processCanvas.setRefreshTaskStageCanvasData();
       },
       cancelTaskStatusTimer() {
         if (this.timer) {
@@ -1961,17 +1978,17 @@
     background: #f4f7fa;
 }
 
-/deep/ .atom-failed {
+::v-deep .atom-failed {
     font-size: 12px;
 }
 
 .subprocess-failed-tips {
     margin-top: -1px;
     color: #63656e;
-    /deep/.bk-alert-title {
+    ::v-deep .bk-alert-title {
         display: flex;
     }
-    /deep/.bk-link {
+    ::v-deep .bk-link {
         vertical-align: initial;
         line-height: 16px;
         .bk-link-text {
@@ -1989,7 +2006,7 @@
         width: 100%;
         height: 100%;
         transition: width 0.5s ease-in-out;
-        /deep/ .pipeline-canvas{
+        ::v-deep .pipeline-canvas{
             width: 100%;
             .node-canvas {
                 width: 100%;
@@ -2002,7 +2019,7 @@
             }
         }
         .task-management-page {
-            /deep/ .canvas-wrapper.jsflow {
+            ::v-deep .canvas-wrapper.jsflow {
                 background: #f5f7fa;
                 .jtk-endpoint {
                     z-index: 2 !important;
@@ -2011,7 +2028,7 @@
         }
     }
 }
-/deep/.bk-sideslider-content {
+::v-deep .bk-sideslider-content {
     height: calc(100% - 60px);
 }
 .header {
@@ -2061,7 +2078,7 @@
     }
 }
 .approval-dialog-content {
-    /deep/ .bk-form-radio {
+    ::v-deep .bk-form-radio {
         margin-right: 10px;
     }
 }

@@ -37,6 +37,8 @@ class SpaceConfigValueType(Enum):
     JSON = "JSON"
     # 文本类型
     TEXT = "TEXT"
+    # 引用类型 存储在 engine
+    REF = "REF"
 
 
 class SpaceConfigMeta(type):
@@ -86,6 +88,11 @@ class BaseSpaceConfig(metaclass=SpaceConfigMeta):
     @classmethod
     def validate(cls, value):
         return True
+
+    @classmethod
+    def get_value(cls, config, *args, **kwrags):
+        # 默认的父类方法
+        return config.text_value if config.value_type == SpaceConfigValueType.TEXT.value else config.json_value
 
 
 class SpaceConfigHandler:
@@ -167,6 +174,38 @@ class TokenAutoRenewalConfig(BaseSpaceConfig):
                 f"token_auto_renewal only support 'true' or 'false', value: {value}"
             )
         return True
+
+
+class SpaceEngineConfig(BaseSpaceConfig):
+    """
+    引擎模块配置
+    """
+
+    name = "engine_space_config"
+    desc = _("引擎模块配置")
+    value_type = SpaceConfigValueType.REF.value
+    example = {"space": {"{key1}", "{value1}"}, "scope": {"{scope_type}_{scope_value}": {"{key1}": "{value1}"}}}
+    SCHEMA = {
+        "type": "object",
+        "properties": {
+            "space": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean"]}},
+            "scope": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {"type": ["string", "number", "boolean"]},
+                },
+            },
+        },
+        "additionalProperties": False,
+    }
+
+    @classmethod
+    def validate(cls, value: dict):
+        try:
+            jsonschema.validate(instance=value, schema=cls.SCHEMA)
+        except jsonschema.ValidationError as e:
+            raise ValidationError(f"Configuration validation error: {str(e)} excepted: {cls.example}")
 
 
 class CallbackHooksConfig(BaseSpaceConfig):
@@ -335,6 +374,17 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
                     f"{cls.example}"
                 )
             )
+
+    @classmethod
+    def get_value(cls, config, *args, **kwrags):
+        scope = kwrags.get("scope", None)
+        config = config.json_value if config.value_type == SpaceConfigValueType.JSON.value else config.text_value
+        if isinstance(config, str):
+            # 如果是字符串 则只有一个默认配置
+            return config
+        if scope:
+            # 获取特定 scope 的配置
+            return config.get(scope) or config.get("default")
 
 
 class SpacePluginConfig(BaseSpaceConfig):

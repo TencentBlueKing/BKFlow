@@ -27,6 +27,10 @@
       NoData,
     },
     props: {
+      templateId: {
+        type: [String, Number],
+        default: '',
+      },
       constants: {
         type: Object,
         default() {
@@ -224,6 +228,7 @@
           if (!metaUrl) return;
           // api插件配置
           const resp = await this.loadUniformApiMeta({
+            templateId: this.templateId,
             spaceId: this.spaceId,
             meta_url: metaUrl,
             ...this.scopeInfo,
@@ -285,7 +290,7 @@
 </script>
 
 <style lang="scss" scoped>
-  /deep/.render-form {
+  ::v-deep .render-form {
     .rf-form-item {
       margin-bottom: 24px;
     }

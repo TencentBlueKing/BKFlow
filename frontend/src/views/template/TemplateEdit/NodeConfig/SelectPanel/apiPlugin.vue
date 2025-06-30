@@ -134,7 +134,6 @@
       ...mapActions('template', [
         'loadUniformCategoryList',
         'loadUniformApiList',
-        'loadUniformApiMeta',
       ]),
       async getUniformCategoryList() {
         try {

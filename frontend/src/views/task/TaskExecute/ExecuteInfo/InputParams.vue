@@ -239,7 +239,7 @@
                 width: 30%;
             }
         }
-        /deep/.render-form {
+        ::v-deep .render-form {
             >.rf-form-item,
             .rf-form-group >.rf-form-item {
                 margin: 0;
@@ -274,7 +274,7 @@
                 }
             }
         }
-        /deep/.bk-schema-form {
+        ::v-deep .bk-schema-form {
             .bk-schema-form-group-content >.bk-form-item {
                 margin: 0;
                 padding: 5px 0;
