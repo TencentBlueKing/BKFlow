@@ -29,10 +29,13 @@ from bamboo_engine import exceptions as bamboo_exceptions
 from bamboo_engine import states as bamboo_engine_states
 from bamboo_engine.api import EngineAPIResult
 from bamboo_engine.context import Context
-from bamboo_engine.eri import ContextValueType
+from bamboo_engine.eri import ContextValue, ContextValueType
+from bamboo_engine.template import Template
 from django.utils import timezone
 from pipeline.component_framework.library import ComponentLibrary
 from pipeline.engine.utils import calculate_elapsed_time
+from pipeline.eri.imp.serializer import SerializerMixin
+from pipeline.eri.models import ExecutionData as DBExecutionData
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.parser.context import get_pipeline_context
 from pydantic import BaseModel, validator
@@ -48,9 +51,10 @@ from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
 from bkflow.task.context import SystemObject
-from bkflow.task.models import TaskInstance
+from bkflow.task.models import EngineSpaceConfig, TaskInstance
 from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
+from bkflow.utils.canvas import get_variable_mapping
 from bkflow.utils.dates import format_datetime
 
 logger = logging.getLogger("root")
@@ -134,6 +138,24 @@ class TaskOperation:
             )
             system_obj = SystemObject(root_pipeline_data)
             root_pipeline_context = {"${_system}": system_obj}
+
+            # 读取 引擎模块配置 注入空间和域变量
+            engine_var = EngineSpaceConfig.get_space_var(space_id=self.task_instance.space_id)
+            space_var = engine_var.get("space", None)
+            scope_var = engine_var.get("scope", None)
+
+            scope_type, scope_id = root_pipeline_data.get("task_scope_type"), root_pipeline_data.get("task_scope_value")
+
+            if scope_type is not None and scope_id is not None and space_var is not None:
+                # 域变量 存在则加入
+                scope_var = scope_var.get(f"{scope_type}_{scope_id}", None)
+                if scope_var is not None:
+                    scope_obj = SystemObject(scope_var)
+                    root_pipeline_context.update({"${_scope}": scope_obj})
+            if space_var is not None:
+                # 空间变量 存在则加入
+                space_obj = SystemObject(space_var)
+                root_pipeline_context.update({"${_space}": space_obj})
 
             # run pipeline
             result = bamboo_engine_api.run_pipeline(
@@ -307,6 +329,61 @@ class TaskOperation:
 
         data = [{"key": key, "value": value} for key, value in hydrated_context.items()]
         return OperationResult(result=True, data=data)
+
+    @uniform_task_operation_result
+    def render_context_with_node_outputs(self, node_ids: List[str], to_render_constants):
+        runtime = BambooDjangoRuntime()
+        context_values = runtime.get_context(self.task_instance.instance_id)
+        constants = self.task_instance.pipeline_tree.get("constants", {})
+
+        context_dict = {cv.key: cv for cv in context_values}
+
+        # 构建节点输出变量的映射关系
+        node_outputs = {}
+        node_id_constants_map = get_variable_mapping(constants, set(node_ids))
+
+        # 获取节点输出数据
+        nodes = DBExecutionData.objects.filter(node_id__in=node_ids).iterator()
+
+        # 反序列化节点输出
+        nodes_data = {}
+        for node in nodes:
+            try:
+                nodes_data[node.node_id] = SerializerMixin()._deserialize(node.outputs, node.outputs_serializer)
+            except Exception as e:
+                logger.exception(
+                    "[render_context] Failed to deserialize node outputs: node_id=%s, error=%s", node.node_id, str(e)
+                )
+                continue
+
+        # 根据映射关系构建最终的输出数据
+        for node_data in nodes_data.values():
+            for original_key, value in node_data.items():
+                if mapped_key := node_id_constants_map.get(original_key):
+                    node_outputs[mapped_key] = value
+
+        for key, value in node_outputs.items():
+            if key not in context_dict:
+                context_dict[key] = ContextValue(key=key, type=ContextValueType.PLAIN, value=value, code=None)
+            elif value != context_dict[key].value:
+                context_dict[key].value = value
+
+        # 转换回列表
+        context_values = list(context_dict.values())
+
+        try:
+            context = Context(runtime, context_values, to_render_constants)
+            hydrated_context = context.hydrate(deformat=True)
+            hydrated_param_data = Template(to_render_constants).render(hydrated_context)
+        except Exception as e:
+            logger.exception("[render_context_with_node_outputs] hydrate context failed: %s", e)
+            return OperationResult(
+                result=False, message="hydrate context failed.", exc=e, exc_trace=traceback.format_exc()
+            )
+
+        return OperationResult(
+            result=True, data=[{"key": key, "value": value} for key, value in hydrated_param_data.items()]
+        )
 
 
 class TaskNodeOperation:

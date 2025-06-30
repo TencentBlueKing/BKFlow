@@ -29,6 +29,7 @@ from rest_framework.viewsets import GenericViewSet
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.openapi.serializers import (
     GetTasksStatesBodySerializer,
+    RenderConstantsBodySerializer,
     TaskBatchDeleteSerializer,
     TaskEngineAdminSerializer,
 )
@@ -37,6 +38,7 @@ from bkflow.interface.task.permissions import (
     TaskMockTokenPermission,
     TaskTokenPermission,
 )
+from bkflow.interface.task.utils import StageConstantHandler, StageJobStateHandler
 from bkflow.permission.models import TASK_PERMISSION_TYPE, Token
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
@@ -228,4 +230,25 @@ class TaskInterfaceViewSet(GenericViewSet):
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
         data = {"node_id": node_id}
         result = client.get_node_snapshot_config(task_id, data)
+        return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="get_stage_job_states/(?P<task_id>\\d+)")
+    def get_stage_and_job_states(self, request, task_id, *args, **kwargs):
+        """获取stage和job状态的视图函数"""
+        space_id = self.get_space_id(request)
+        handler = StageJobStateHandler(space_id, request.user.is_superuser)
+        result = handler.process(task_id)
+        return Response(result)
+
+    @action(methods=["POST"], detail=False, url_path="rendered_stage_constants/(?P<task_id>\\d+)")
+    @swagger_auto_schema(operation_description="渲染stage画布变量", request_body=RenderConstantsBodySerializer)
+    def render_stage_constants(self, request, task_id, *args, **kwargs):
+        """渲染stage画布变量"""
+        space_id = self.get_space_id(request)
+        serializer = RenderConstantsBodySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        node_ids = serializer.validated_data.get("node_ids", [])
+        stage_constants = serializer.validated_data.get("to_render_constants", {})
+        handler = StageConstantHandler(space_id, request.user.is_superuser)
+        result = handler.process(task_id, node_ids, stage_constants)
         return Response(result)

@@ -463,6 +463,7 @@
             await this.loadAtomConfig({ atom: plugin, version, space_id: this.spaceId });
             // api插件配置
             const resp = await this.loadUniformApiMeta({
+              templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,

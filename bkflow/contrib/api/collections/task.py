@@ -108,6 +108,13 @@ class TaskComponentClient(BaseComponentClient):
             method="get", url=self._get_task_url("task/{}/render_current_constants/".format(task_id)), data=None
         )
 
+    def render_context_with_node_outputs(self, task_id, data=None):
+        return self._request(
+            method="post",
+            url=self._get_task_url("task/{}/render_context_with_node_outputs/".format(task_id)),
+            data=data,
+        )
+
     def get_task_operation_record(self, task_id, data=None):
         return self._request(
             method="get", url=self._get_task_url("task/{}/get_task_operation_record/".format(task_id)), data=data
@@ -130,3 +137,12 @@ class TaskComponentClient(BaseComponentClient):
 
     def batch_delete_tasks(self, data):
         return self._request(method="post", url=self._get_task_url("task/batch_delete_tasks/"), data=data)
+
+    def get_engine_config(self, data):
+        return self._request(method="get", url=self._get_task_url("task/get_engine_config/"), data=data)
+
+    def upsert_engine_config(self, data):
+        return self._request(method="post", url=self._get_task_url("task/upsert_engine_config/"), data=data)
+
+    def delete_engine_config(self, data):
+        return self._request(method="delete", url=self._get_task_url("task/delete_engine_config/"), data=data)

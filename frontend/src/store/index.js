@@ -20,7 +20,7 @@ import system from './modules/system';
 import decisionTable from './modules/decisionTable';
 import credentialConfig from './modules/credentialConfig';
 import plugin from './modules/plugin';
-
+import stageCanvas from './modules/stageCanvas';
 Vue.use(Vuex);
 
 const getAppLang = () => {
@@ -43,6 +43,7 @@ const store = new Vuex.Store({
     decisionTable,
     credentialConfig,
     plugin,
+    stageCanvas,
   },
   // 公共 store
   state: {

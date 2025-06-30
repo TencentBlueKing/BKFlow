@@ -72,6 +72,7 @@
             :variable-data="variableData"
             :common="common"
             :constants="localConstants"
+            :template-id="$route.params.templateId"
             @closeEditingPanel="isVariablePanelShow = false"
             @onSaveEditing="onVariableSaveEditing" />
         </div>
@@ -138,6 +139,7 @@
                     :node-id="nodeId"
                     :scheme="inputs"
                     :subflow-forms="subflowForms"
+                    :template-id="$route.params.templateId"
                     :forms-not-referred="formsNotReferred"
                     :value="inputsParamValue"
                     :render-config="inputsRenderConfig"
@@ -591,6 +593,7 @@
             await this.loadAtomConfig({ atom: plugin, version, space_id: this.spaceId });
             // api插件配置
             const resp = await this.loadUniformApiMeta({
+              templateId: this.$route.params.templateId,
               spaceId: this.spaceId,
               meta_url: this.basicInfo.metaUrl,
               ...this.scopeInfo,

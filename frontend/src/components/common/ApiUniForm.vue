@@ -154,6 +154,10 @@
         type: Object,
         default: () => ({}),
       },
+      templateId: {
+        type: [String, Number],
+        default: '',
+      },
     },
     data() {
       const { api_meta: apiMeta = {}, api_config: apiConfig = {} } = this.value;
@@ -330,6 +334,7 @@
         try {
           const config = this.apiList.find(item => item.id === value) || {};
           const resp = await this.loadUniformApiMeta({
+            templateId: this.templateId,
             spaceId: this.spaceId,
             meta_url: config.meta_url,
             ...this.scopeInfo,

@@ -21,6 +21,7 @@
         :is-used-tip-show="(state !== 'CREATED' && !paramsCanBeModify) ? false : true"
         :pre-mako-disabled="(paramsCanBeModify && state === 'CREATED') ? false : true"
         :constants="constants"
+        :template-id="templateId"
         :un-used-constants="unUsedConstants"
         :editable="paramsCanBeModify && !isChildTaskFlow && editable"
         @onChangeConfigLoading="onChangeConfigLoading" />
@@ -83,8 +84,12 @@
         type: String,
         default: '',
       },
-      instanceId: {
+      instance_id: {
         type: String,
+        default: '',
+      },
+      templateId: {
+        type: [Number, String],
         default: '',
       },
       paramsCanBeModify: Boolean,

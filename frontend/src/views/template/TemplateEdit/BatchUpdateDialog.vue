@@ -53,6 +53,7 @@
                   v-if="subflow.currentForm.inputsConfig.length > 0"
                   :is-subflow="true"
                   :node-id="subflow.id"
+                  :template-id="templateId"
                   :editable="false"
                   :scheme="subflow.currentForm.inputsConfig"
                   :version="subflow.currentForm.version"
@@ -96,6 +97,7 @@
                   ref="inputParams"
                   :is-subflow="true"
                   :node-id="subflow.id"
+                  :template-id="templateId"
                   :scheme="subflow.latestForm.inputsConfig"
                   :version="subflow.latestForm.version"
                   :subflow-forms="subflow.latestForm.form"
@@ -199,6 +201,10 @@
     props: {
       projectId: {
         type: [Number, String],
+        default: '',
+      },
+      templateId: {
+        type: [String, Number],
         default: '',
       },
       common: {

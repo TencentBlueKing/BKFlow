@@ -143,11 +143,28 @@
       color: $whiteColor;
     }
   }
+  @keyframes shake {
+    25% {
+      transform: rotate(-2deg);
+    }
+    50% {
+      transform: rotate(0);
+    }
+    75% {
+      transform: rotate(2deg);
+    }
+    100% {
+      transform: rotate(0);
+    }
+  }
 
   .custom-node {
     width: 100%;
     height: 100%;
     cursor: pointer;
+    &.node-shake {
+      animation: shake .2s ease-in-out 2;
+    }
   }
   :deep(.task-node),
   :deep(.subprocess-node) {

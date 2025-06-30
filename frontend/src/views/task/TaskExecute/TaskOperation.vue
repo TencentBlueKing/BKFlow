@@ -49,7 +49,7 @@
     <div class="task-container">
       <div class="pipeline-nodes">
         <component
-          :is="canvasMode === 'vertical' ? 'VerticalCanvas' : 'ProcessCanvas'"
+          :is="templateComponentName"
           v-if="!nodeSwitching"
           ref="processCanvas"
           class="canvas-comp-wrapper"
@@ -57,6 +57,11 @@
           :show-palette="false"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
+          :is-execute="true"
+          :template-id="templateId"
+          :instance-id="instanceId"
+          :space-id="spaceId"
+          :overall-state="state"
           @onNodeClick="onNodeClick"
           @onConditionClick="onOpenConditionEdit"
           @onRetryClick="onRetryClick"
@@ -94,6 +99,7 @@
           :instance-actions="instanceActions"
           :instance-name="instanceName"
           :instance_id="instanceId"
+          :template-id="templateId"
           :retry-node-id="retryNodeId"
           @nodeTaskRetry="nodeTaskRetry"
           @packUp="packUp" />
@@ -242,8 +248,9 @@
   import injectVariableDialog from './InjectVariableDialog.vue';
   import tplPerspective from '@/mixins/tplPerspective.js';
   import { graphToJson } from '@/utils/graphJson.js';
-  import VerticalCanvas from '@/components/VerticalCanvas/index.vue';
-  import ProcessCanvas from '@/components/ProcessCanvas/index.vue';
+  import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
+  import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
+  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
 
   const { CancelToken } = axios;
   let source = CancelToken.source();
@@ -293,6 +300,7 @@
       injectVariableDialog,
       ProcessCanvas,
       VerticalCanvas,
+      StageCanvas,
     },
     mixins: [permission, tplPerspective],
     props: {
@@ -522,6 +530,14 @@
       },
       hasOperatePerm() {
         return this.instanceActions.includes('OPERATE');
+      },
+      templateComponentName() {
+          const canvasModeToComponentMap = {
+            horizontal: 'ProcessCanvas',
+            vertical: 'VerticalCanvas',
+            stage: 'StageCanvas',
+          };
+          return canvasModeToComponentMap[this.canvasMode] || canvasModeToComponentMap.horizontal;
       },
     },
     mounted() {
@@ -985,6 +1001,7 @@
         this.timer = setTimeout(() => {
           this.loadTaskStatus();
         }, time);
+        this.canvasMode === 'stage' && this.$refs.processCanvas.setRefreshTaskStageCanvasData();
       },
       cancelTaskStatusTimer() {
         if (this.timer) {

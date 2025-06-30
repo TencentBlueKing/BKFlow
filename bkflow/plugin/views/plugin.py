@@ -23,16 +23,25 @@ from django.conf import settings
 from django_filters import FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from pipeline.component_framework.models import ComponentModel
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.viewsets import ViewSet
 
-from bkflow.plugin.permissions import PluginSpaceSuperuserPermission, PluginTokenPermissions
+from bkflow.plugin.handlers import PluginQueryDispatcher
+from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
+from bkflow.plugin.permissions import (
+    PluginSpaceSuperuserPermission,
+    PluginTokenPermissions,
+)
 from bkflow.plugin.serializers.comonent import (
+    ComponentDetailQuerySerializer,
     ComponentListQuerySerializer,
     ComponentModelDetailSerializer,
     ComponentModelListSerializer,
-    ComponentDetailQuerySerializer,
+    PluginType,
+    UniformPluginSerializer,
 )
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
-from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 from bkflow.space.configs import SpacePluginConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.utils.mixins import BKFLOWCommonMixin
@@ -91,3 +100,24 @@ class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
         )
         query_ser.is_valid(raise_exception=True)
         return super().retrieve(request, *args, **kwargs)
+
+
+class UniformPluginViewSet(ViewSet):
+    @action(detail=False, methods=["post"])
+    def get_plugin_detail(self, request, *args, **kwargs):
+        serializer = UniformPluginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        plugin_data = {}
+        for plugin_type in PluginType:
+            if plugin_type.value not in serializer.validated_data:
+                continue
+            try:
+                dispatcher = PluginQueryDispatcher(plugin_type=plugin_type.value, data=serializer.validated_data)
+                plugin_detail = dispatcher.instance.get_plugin_detail()
+                plugin_data[plugin_type.value] = plugin_detail
+            except Exception as e:
+                err_msg = f"Failed to retrieve plugin details for {plugin_type}: {e}"
+                logger.error(err_msg)
+                return Response(exception=True, data={"detail": err_msg})
+
+        return Response({"data": plugin_data})

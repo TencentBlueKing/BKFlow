@@ -124,6 +124,10 @@
         type: Boolean,
         default: false,
       },
+      templateId: {
+        type: [String, Number],
+        default: '',
+      },
     },
     data() {
       const defaultScheme = Array.isArray(this.scheme) ? [] : {};
@@ -358,6 +362,7 @@
             const { metaUrl } = this.$parent.$parent.basicInfo;
             // api插件配置
             const resp = await this.loadUniformApiMeta({
+              templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: metaUrl,
               ...this.scopeInfo,

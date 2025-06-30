@@ -42,6 +42,7 @@
             class="form-wrapper">
             <TaskParamEdit
               ref="taskParamEdit"
+              :template-id="row.id"
               :editable="true"
               :constants="pipelineTree.constants" />
             <bk-collapse
@@ -51,6 +52,7 @@
                 {{ $t('查看未引用变量') }}
                 <div slot="content">
                   <TaskParamEdit
+                    :template-id="row.id"
                     :editable="false"
                     :constants="unReferencedConstants" />
                 </div>

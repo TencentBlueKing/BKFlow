@@ -170,7 +170,13 @@ class HttpRequestMixin:
             raise APIRequestError(message)
         else:
             if not response.ok:
-                message = f"[request api error] status_code: {response.status_code}."
+                # 部分服务除了返回合法的status_code外，还会返回错误信息
+                try:
+                    json_resp = response.json()
+                    message = f"[request api error] message: {json_resp.get('message')}."
+                except json.JSONDecodeError:
+                    message = f"[request api error] status_code: {response.status_code}."
+
                 logger.error(f"{message}, response: {response.text}, {base_message}")
                 return HttpRequestResult(result=False, message=message, resp=response)
 
