@@ -2,7 +2,12 @@
   <div class="valueRender">
     <!-- 渲染进度条 -->
     <template v-if="renderItem.hasProgress">
-      <div class="progress-wrapper">
+      <div
+        class="progress-wrapper"
+        :class="{
+          'progress-link': renderItem.hasLink
+        }"
+        @click.stop="openLink(renderItem.linkUrl)">
         <div class="progress-text">
           <span
             v-bk-tooltips="{
@@ -19,8 +24,7 @@
               }" />
           </div>
           <span
-            class="progress-total"
-            @click.stop="openLink(renderItem.linkUrl)">{{ renderItem.value }}/{{ renderItem.progess.Range[1] }}</span>
+            class="progress-total">{{ renderItem.value }}/{{ renderItem.progess.Range[1] }}</span>
         </div>
       </div>
     </template>
@@ -34,13 +38,13 @@
           fontWeight: renderItem.text.highlightStyle === 'bold' ? 'bold' : 'normal',
           backgroundColor: renderItem.text.highlightBg || 'transparent',
           ...renderItem.text.highlightStyle
-        }">
+        }"
+        @click.stop.prevent="openLink(renderItem.linkUrl)">
         <template v-if="renderItem.hasLink">
           <a
             :href="renderItem.linkUrl"
             target="_blank"
-            class="value-link word-elliptic"
-            @click.stop.prevent="openLink(renderItem.linkUrl)"><span
+            class="value-link"><span
               v-bk-tooltips="{
                 disabled:!renderItem.key,
                 content: renderItem.key,
@@ -102,6 +106,7 @@
 <style lang="scss" scoped>
 .valueRender{
   font-size: 12px;
+  font-weight: 500;
 }
 a{
     text-decoration: none;
@@ -122,6 +127,17 @@ a{
     flex-direction: column;
     gap: 5px;
 }
+.progress-link{
+  &:hover{
+    .progress-done{
+      color: #3A83FF;
+    }
+    .progress-total{
+      color: #3A83FF;
+    }
+  }
+
+}
 .progress-container {
 
     background-color: rgba(58, 131, 255, 0.1); /* 淡蓝色背景 */
@@ -139,7 +155,7 @@ a{
 }
 .progress-text {
     font-size: 12px;
-    color: #666;
+    color: #4D4F56;
     display: flex;
     // justify-content: space-between;
     align-items: center;
@@ -149,7 +165,7 @@ a{
     font-weight: 500;
 }
 .progress-text .progress-total {
-    color: #999;
+    color: #4D4F56;
 }
 .word-elliptic{
     white-space: nowrap;
@@ -161,15 +177,22 @@ a{
     color: #3A83FF;
     text-decoration: none;
     display: flex;
+    justify-content: space-between;
+    width: 100%;
     cursor: pointer;
     &:hover {
-      text-decoration: underline;
+      color: #3A83FF;
     }
 }
 .highlighted-value{
   line-height: 1.5;
   margin-bottom: 8px;
   display: flex;
+  justify-content: space-between;
+  width: 100%;
+  .value-key{
+    flex: 1;
+  }
 }
 .value-key{
   width: 65px;

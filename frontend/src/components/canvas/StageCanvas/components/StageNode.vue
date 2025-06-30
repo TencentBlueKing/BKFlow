@@ -369,6 +369,9 @@ import Sortable from 'sortablejs';
     display: flex;
     flex-direction: column;
     gap: 3px;
+    .stage-status-item{
+      padding-right: 2px;
+    }
 }
 .stage-jobs {
     padding: 20px;

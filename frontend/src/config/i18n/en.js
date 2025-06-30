@@ -584,6 +584,7 @@ const en = {
   任务入参: 'Task Input Parameters',
   查看节点详情: 'View Node Details',
   操作记录: 'Operation Records',
+  跳转任务列表: 'Jump To Task List',
   全局变量: 'Global Variables',
   '设为「常量」的参数中途不允许修改': 'Parameters set as "constants" cannot be modified midway',
   '参数值不符合正则规则：': 'Parameter value does not match regex rule:',
