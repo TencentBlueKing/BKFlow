@@ -607,3 +607,27 @@ paths:
           userVerifiedRequired: false
         disabledStages: []
         descriptionEn: grant apigw permissions of bkflow to other app
+  /import_template:
+    post:
+      operationId: import_template
+      description: 导入模板
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: false
+        allowApplyPermission: false
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}apigw/import_template/
+          matchSubpath: false
+          timeout: 0
+          upstreams: {}
+          transformHeaders: {}
+        authConfig:
+          userVerifiedRequired: false
+        disabledStages: []
+        descriptionEn: import templates
