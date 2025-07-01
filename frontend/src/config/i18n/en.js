@@ -961,6 +961,10 @@ const en = {
   '流程复制成功！': 'Process copied successfully!',
   使用范围编辑成功: 'Scope of Use Edited Successfully',
   '* (对所有空间公开)': '* (All Spaces)',
+  导入流程: 'Import Process',
+  '仅支持 .json 格式文件': 'Only .json format files are supported',
+  导入: 'Import',
+  导入成功: 'Import Successful',
 };
 
 export default en;

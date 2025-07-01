@@ -15,6 +15,11 @@
         {{ $t('创建流程') }}
       </bk-button>
       <bk-button
+        v-if="isAdmin"
+        @click="isImportTplDialogShow = true">
+        {{ $t('导入流程') }}
+      </bk-button>
+      <bk-button
         v-if="selectedTpls.length"
         @click="onBatchDelete">
         {{ $t('删除') }}
@@ -129,11 +134,14 @@
       :is-show="showCreateTplDialog"
       @close="showCreateTplDialog = false"
       @updateList="getTemplateList" />
+    <importTemplateDialog
+      :is-show.sync="isImportTplDialogShow"
+      :space-id="spaceId" />
   </div>
 </template>
 
 <script>
-  import { mapActions, mapMutations } from 'vuex';
+  import { mapActions, mapMutations, mapState } from 'vuex';
   import CancelRequest from '@/api/cancelRequest.js';
   import NoData from '@/components/common/base/NoData.vue';
   import moment from 'moment-timezone';
@@ -142,6 +150,7 @@
   import TableOperate from '../common/TableOperate.vue';
   import CreateTaskSideslider from './CreateTaskSideslider.vue';
   import CreateTemplateDialog from './CreateTemplateDialog.vue';
+  import importTemplateDialog from './importTemplateDialog.vue';
   import i18n from '@/config/i18n/index.js';
 
   const TABLE_FIELDS = [
@@ -235,6 +244,7 @@
       TableOperate,
       CreateTemplateDialog,
       CreateTaskSideslider,
+      importTemplateDialog,
     },
     mixins: [tableHeader, tableCommon],
     data() {
@@ -256,9 +266,13 @@
         dateFields: ['create_at', 'update_at'],
         searchList: SEARCH_LIST,
         pageType: 'templateList', // 页面类型，在mixins中分页表格头显示使用
+        isImportTplDialogShow: false,
       };
     },
     computed: {
+      ...mapState({
+        isAdmin: state => state.isAdmin,
+      }),
       crtPageSelectedAll() {
         return this.templateList.length > 0
           && this.templateList.every(item => this.selectedTpls.find(tpl => tpl.id === item.id));

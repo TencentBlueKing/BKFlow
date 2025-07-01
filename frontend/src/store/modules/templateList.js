@@ -32,6 +32,14 @@ const templateList = {
     copyTemplate({}, data) {
       return axios.post('/api/template/admin/template_copy/', data).then(response => response.data);
     },
+    // 检测上传模板合法性
+    templateUploadCheck({ }, data) {
+      return axios.post('api/template/admin_only/upload_template_file/', data, {
+        headers: {
+          'content-type': 'multipart/form-data',
+        },
+      }).then(response => response.data);
+    },
   },
 };
 
