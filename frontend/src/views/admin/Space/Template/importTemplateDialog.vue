@@ -180,21 +180,21 @@
     .upload-file-area {
       width: 530px;
       margin: 120px auto 100px;
-      /deep/.file-wrapper {
+      ::v-deep .file-wrapper {
         background: #fafbfd;
       }
-      /deep/.all-file .progress-bar {
+      ::v-deep .all-file .progress-bar {
         width: 100%;
       }
     }
     .upload-success {
-      /deep/.all-file .progress-bar {
+      ::v-deep .all-file .progress-bar {
         width: 100%;
         background: #2dcb56;
       }
     }
     .upload-error {
-      /deep/.all-file .progress-bar {
+      ::v-deep .all-file .progress-bar {
         width: 100%;
         background: #ff5656;
       }

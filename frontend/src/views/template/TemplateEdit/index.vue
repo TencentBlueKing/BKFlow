@@ -191,7 +191,6 @@
   import Guide from '@/utils/guide.js';
   import permission from '@/mixins/permission.js';
   import { STRING_LENGTH } from '@/constants/index.js';
-  import { NODES_SIZE_POSITION } from '@/constants/nodes.js';
   import DealVarDirtyData from '@/utils/dealVarDirtyData.js';
   import { graphToJson, generateGraphData } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
