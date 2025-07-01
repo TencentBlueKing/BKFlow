@@ -357,9 +357,10 @@ class TaskOperation:
                 continue
 
         # 根据映射关系构建最终的输出数据
-        for node_data in nodes_data.values():
+        for node_id, node_data in nodes_data.items():
+            node_mapping = node_id_constants_map.get(node_id, {})
             for original_key, value in node_data.items():
-                if mapped_key := node_id_constants_map.get(original_key):
+                if mapped_key := node_mapping.get(original_key):
                     node_outputs[mapped_key] = value
 
         for key, value in node_outputs.items():
