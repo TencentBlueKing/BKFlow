@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from enum import Enum
 
+from pipeline.variable_framework.models import VariableModel
+
 
 class NodeTypes(str, Enum):
     START_EVENT = "start_event"
@@ -24,17 +26,7 @@ class ConstantTypes(str, Enum):
     COMPONENT_INPUTS_CONSTANT = "component_inputs"
     COMPONENT_OUTPUTS_CONSTANT = "component_outputs"
 
-    CUSTOM_CONSTANT_TAGS = [
-        "bk_manage_user_selector.bk_user_selector",
-        "datetime.datetime",
-        "input.input",
-        "int.int",
-        "select.select",
-        "textarea.textarea",
-        "datetime_range.datetime_range",
-        "datatable.datatable",
-        "json_variable.json_variable",
-    ]
+    CUSTOM_CONSTANT_TAGS = [variable.tag for variable in VariableModel.objects.filter(status=True)]
 
 
 class DataTypes(str, Enum):

@@ -110,13 +110,13 @@ class Constant(BaseModel):
     type: str  # source_type
     key: str
     value: Any
-    version: str = "legacy"
-    desc: str = ""
-    show_type: str = "show"
-    validation: str = ""
     custom_type: str
     source_info: List[SourceInfo]
     source_tag: str
+    show_type: str = "show"
+    validation: str = ""
+    version: str = "legacy"
+    desc: str = ""
 
 
 class CustomConstant(Constant):
