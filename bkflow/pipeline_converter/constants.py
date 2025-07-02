@@ -26,6 +26,7 @@ class ConstantTypes(str, Enum):
     COMPONENT_INPUTS_CONSTANT = "component_inputs"
     COMPONENT_OUTPUTS_CONSTANT = "component_outputs"
 
+    CUSTOM_CONSTANT_CUSTOMS = [variable.code for variable in VariableModel.objects.filter(status=True)]
     CUSTOM_CONSTANT_TAGS = [variable.tag for variable in VariableModel.objects.filter(status=True)]
 
 

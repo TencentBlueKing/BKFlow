@@ -8,6 +8,8 @@ from bkflow.pipeline_converter.validators.base import BaseValidator
 
 class ConstantValidator(BaseValidator):
     def validate(self, data: CustomConstant, *args, **kwargs):
+        if data.custom_type not in ConstantTypes.CUSTOM_CONSTANT_CUSTOMS.value:
+            raise ValueError("The parameter custom type does not meet the requirements")
         if data.source_tag not in ConstantTypes.CUSTOM_CONSTANT_TAGS.value:
             raise ValueError("The parameter source tag does not meet the requirements")
 
@@ -29,6 +31,8 @@ class ComponentInputValidator(BaseValidator):
 
 class JsonConstantValidator(BaseValidator):
     def validate(self, data: Dict[str, Any], *args, **kwargs):
+        if data.get("custom_type") not in ConstantTypes.CUSTOM_CONSTANT_CUSTOMS.value:
+            raise ValueError("The parameter custom type does not meet the requirements")
         if data.get("source_tag") not in ConstantTypes.CUSTOM_CONSTANT_TAGS.value:
             raise ValueError("The parameter source tag does not meet the requirements")
 
