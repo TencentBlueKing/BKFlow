@@ -22,8 +22,11 @@ class NodeTypes(str, Enum):
 
 
 class ConstantTypes(str, Enum):
+    # 自定义常量
     CUSTOM_CONSTANT = "custom"
+    # 节点输入常量
     COMPONENT_INPUTS_CONSTANT = "component_inputs"
+    # 节点输出常量
     COMPONENT_OUTPUTS_CONSTANT = "component_outputs"
 
     CUSTOM_CONSTANT_CUSTOMS = [variable.code for variable in VariableModel.objects.filter(status=True)]

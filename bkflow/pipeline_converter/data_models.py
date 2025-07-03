@@ -123,7 +123,7 @@ class CustomConstant(Constant):
     custom_type: str
     source_info: str = ""
     type: str = ConstantTypes.CUSTOM_CONSTANT.value
-    pre_render_make: bool = False
+    pre_render_mako: bool = False
     is_meta: bool = False
 
 

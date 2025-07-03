@@ -33,7 +33,7 @@ class CustomConstantConverter(DataModelToPipelineTreeConverter):
             "source_info": SourceInfoConverter(converter_data.source_info).convert(),
             "validation": converter_data.validation,
             "version": converter_data.version,
-            "pre_render_make": False,
+            "pre_render_mako": converter_data.pre_render_mako,
             "is_meta": converter_data.is_meta,
         }
 

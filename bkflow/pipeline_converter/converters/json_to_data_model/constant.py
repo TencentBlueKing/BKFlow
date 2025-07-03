@@ -34,9 +34,16 @@ class CustomConstantConverter(JsonToDataModelConverter):
             value=self.source_data["value"],
             custom_type=self.source_data["custom_type"],
             source_tag=self.source_data["source_tag"],
-            pre_render_make=False,
         )
-        default_optional_field = ["desc", "source_info", "validation", "is_meta", "version", "show_type"]
+        default_optional_field = [
+            "desc",
+            "source_info",
+            "validation",
+            "is_meta",
+            "version",
+            "show_type",
+            "pre_render_mako",
+        ]
         for field in default_optional_field:
             if field not in self.source_data:
                 continue
