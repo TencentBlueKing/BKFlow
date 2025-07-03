@@ -248,7 +248,6 @@ class TestPipelineConverter:
                     "value": "test_value",
                     "custom_type": "textarea",
                     "source_tag": "textarea.textarea",
-                    "source_info": [],
                 }
             ],
         }
@@ -337,14 +336,11 @@ class TestPipelineConverter:
                     "value": "test_value",
                     "custom_type": "textarea",
                     "source_tag": "textarea.textarea",
-                    "source_info": [],
                 },
                 {
                     "name": "执行结果",
                     "type": ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value,
                     "key": "_result_1",
-                    "custom_type": "",
-                    "source_tag": "",
                     "source_info": [{"key": "custom_node", "value": "_result"}],
                     "value": "",
                 },
@@ -401,7 +397,6 @@ class TestPipelineConverter:
                     "type": ConstantTypes.COMPONENT_INPUTS_CONSTANT.value,
                     "key": "bk_display_message",
                     "value": "test_value",
-                    "custom_type": "",
                     "source_tag": "bk_display.bk_display_message",
                     "version": "v1.0",
                     "source_info": [{"key": "custom_node", "value": "bk_display_message"}],

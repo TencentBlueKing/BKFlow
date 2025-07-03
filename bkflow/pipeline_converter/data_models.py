@@ -110,7 +110,7 @@ class Constant(BaseModel):
     type: str  # source_type
     key: str
     value: Any
-    custom_type: str
+    custom_type: str = ""
     source_info: List[SourceInfo]
     source_tag: str
     show_type: str = "show"
@@ -120,6 +120,8 @@ class Constant(BaseModel):
 
 
 class CustomConstant(Constant):
+    custom_type: str
+    source_info: str = ""
     type: str = ConstantTypes.CUSTOM_CONSTANT.value
     pre_render_make: bool = False
     is_meta: bool = False
@@ -131,6 +133,7 @@ class ComponentInputConstant(Constant):
 
 
 class ComponentOutConstant(Constant):
+    source_tag: str = ""
     type: str = ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value
     show_type: str = "hide"
     plugin_code: str = ""
