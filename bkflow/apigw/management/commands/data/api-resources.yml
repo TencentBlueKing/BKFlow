@@ -622,7 +622,7 @@ paths:
         backend:
           type: HTTP
           method: post
-          path: /{env.api_sub_path}apigw/{space_id}/import_template/
+          path: /{env.api_sub_path}apigw/space/{space_id}/import_template/
           matchSubpath: false
           timeout: 0
           upstreams: {}
