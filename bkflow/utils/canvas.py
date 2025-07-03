@@ -145,15 +145,28 @@ def get_canvas_handler(pipeline_tree: dict) -> Type[CanvasHandler]:
 
 
 def get_variable_mapping(constants: dict, target_node_ids: set) -> dict:
-    """获取原始变量名到目标变量名的映射，只是用于节点输出变量和节点输出项的关联关系"""
-    mapping = {}
-    for var_info in constants.values():
-        source_info = var_info.get("source_info")
-        if not source_info:
-            continue
+    """获取节点输出变量到目标变量的映射关系
 
-        key = var_info["key"]
+    Returns:
+        dict: 格式为 {node_id: {original_key: target_key}}
+    """
+    mapping = {}
+
+    # 预先初始化所有目标节点的映射字典
+    for node_id in target_node_ids:
+        mapping[node_id] = {}
+
+    # 过滤出有效的变量配置
+    valid_vars = (
+        (var_info["key"], var_info.get("source_info", {}))
+        for var_info in constants.values()
+        if var_info.get("source_info")
+    )
+
+    # 构建映射关系
+    for target_key, source_info in valid_vars:
         for node_id, original_vars in source_info.items():
             if node_id in target_node_ids and original_vars:
-                mapping[original_vars[0]] = key
+                mapping[node_id][original_vars[0]] = target_key
+
     return mapping
