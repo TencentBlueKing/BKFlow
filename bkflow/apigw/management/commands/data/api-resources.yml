@@ -607,7 +607,7 @@ paths:
           userVerifiedRequired: false
         disabledStages: []
         descriptionEn: grant apigw permissions of bkflow to other app
-  /import_template:
+  /space/{space_id}/import_template/:
     post:
       operationId: import_template
       description: 导入模板
@@ -622,7 +622,7 @@ paths:
         backend:
           type: HTTP
           method: post
-          path: /{env.api_sub_path}apigw/import_template/
+          path: /{env.api_sub_path}apigw/{space_id}/import_template/
           matchSubpath: false
           timeout: 0
           upstreams: {}
