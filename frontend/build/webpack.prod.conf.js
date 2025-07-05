@@ -76,12 +76,14 @@ module.exports = merge(webpackBase, {
       cleanOnceBeforeBuildPatterns: ['./assets/**'],
       verbose: true,
     }),
-    new CopyPlugin([
-      {
-        from: path.resolve(__dirname, '../login_success.html'),
-        to: path.resolve(__dirname, '../static/'),
-      },
-    ]),
+    new CopyPlugin({
+        patterns: [
+            {
+                from: path.resolve(__dirname, '../login_success.html'),
+                to: path.resolve(__dirname, '../static/'),
+            },
+        ]
+    }),
   ],
   // 优化
   optimization: {

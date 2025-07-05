@@ -1,12 +1,10 @@
 const path = require('path');
 const webpack = require('webpack');
-const HappyPack = require('happypack');
-const VueLoaderPlugin = require('vue-loader/lib/plugin');
+const VueLoaderPlugin = require('vue-loader/lib/plugin')
 const CaseSensitivePathsPlugin = require('case-sensitive-paths-webpack-plugin');
 const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 
 const os = require('os');
-const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length });
 
 module.exports = {
   entry: {
@@ -150,10 +148,5 @@ module.exports = {
     new webpack.ContextReplacementPlugin(/brace\/mode$/, /^\.\/(json|python|sh|text)$/),
     // brace 优化，只提取需要的 theme
     new webpack.ContextReplacementPlugin(/brace\/theme$/, /^\.\/(monokai)$/),
-    new HappyPack({
-      id: 'happy-babel-js',
-      loaders: ['babel-loader?cacheDirectory=true'],
-      threadPool: happyThreadPool,
-    }),
   ],
 };
