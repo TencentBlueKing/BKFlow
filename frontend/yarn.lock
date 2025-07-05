@@ -10944,7 +10944,7 @@ vue-json-pretty@1.8.3:
   resolved "https://mirrors.tencent.com/npm/vue-json-pretty/-/vue-json-pretty-1.8.3.tgz#ee94fb111a8954d17442904e5ace6e45b2dc247d"
   integrity sha512-rpsop8LMy6EybkjmlT8a2fB2mHe0EMvxoCuw6lXcNBDsVkRuD4+eDwzqjshfe5qEki8EVLqr1o6n+lSLkR/tgQ==
 
-vue-loader@^15.2.4:
+vue-loader@^15.11.1:
   version "15.11.1"
   resolved "https://mirrors.tencent.com/npm/vue-loader/-/vue-loader-15.11.1.tgz#dee91169211276ed43c5715caef88a56b1f497b0"
   integrity sha512-0iw4VchYLePqJfJu9s62ACWUXeSqM30SQqlIftbYWM3C+jpPcEHKSPUZBLjSF9au4HTHQ/naF6OGnO3Q/qGR3Q==
