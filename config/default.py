@@ -181,7 +181,6 @@ MAKO_SANDBOX_IMPORT_MODULES = {
     "random": "random",
     "time": "time",
     "os.path": "os.path",
-    "json": "json",
 }
 BambooSettings.MAKO_SANDBOX_IMPORT_MODULES = MAKO_SANDBOX_IMPORT_MODULES
 # 支持 mako 表达式在 dict/list/tuple 情况下嵌套索引
