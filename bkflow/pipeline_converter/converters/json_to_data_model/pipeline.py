@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
-from bkflow.pipeline_converter.constants import NodeTypes
+from bkflow.pipeline_converter.constants import ConstantTypes, NodeTypes
 from bkflow.pipeline_converter.converters.base import JsonToDataModelConverter
+from bkflow.pipeline_converter.converters.json_to_data_model.constant import (
+    ComponentInputConverter,
+    ComponentOutputConverter,
+    CustomConstantConverter,
+)
 from bkflow.pipeline_converter.converters.json_to_data_model.gateway import (
     ConditionalParallelGatewayConverter,
     ConvergeGatewayConverter,
@@ -40,5 +45,22 @@ class PipelineConverter(JsonToDataModelConverter):
             )
             target_nodes.append(converter_cls(node).convert())
         self.target_data.nodes = target_nodes
+
+        constant_type_converter_cls_name_map = {
+            ConstantTypes.CUSTOM_CONSTANT.value: CustomConstantConverter.__name__,
+            ConstantTypes.COMPONENT_INPUTS_CONSTANT.value: ComponentInputConverter.__name__,
+            ConstantTypes.COMPONENT_OUTPUTS_CONSTANT.value: ComponentOutputConverter.__name__,
+        }
+
+        target_constants = []
+        for constant in self.source_data.get("constants", []):
+            converter_cls = ConverterHub.get_converter_cls(
+                source=self.source,
+                target=self.target,
+                converter_name=constant_type_converter_cls_name_map[constant["type"]],
+            )
+            converted_data = converter_cls(constant).convert()
+            target_constants.append(converted_data)
+        self.target_data.constants = target_constants
 
         return self.target_data
