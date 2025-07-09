@@ -169,3 +169,7 @@ SYNC_BK_PLUGINS_CRONTAB = os.getenv("SYNC_BK_PLUGINS_INTERVAL", "*/10 * * * *")
 
 if BKPAAS_ENGINE_REGION == "ieod":
     from ieod_env import *  # noqa: F403, F401
+
+# 允许的HTTP插件域名
+ENABLE_HTTP_PLUGIN_DOMAINS_CHECK = bool(int(os.getenv("ENABLE_HTTP_PLUGIN_DOMAINS_CHECK", 1)))
+ALLOWED_HTTP_PLUGIN_DOMAINS = os.getenv("ALLOWED_HTTP_PLUGIN_DOMAINS", "")

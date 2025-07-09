@@ -40,6 +40,7 @@ from pipeline.utils.boolrule import BoolRule
 from requests import request
 
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
+from bkflow.utils.validate import DomainValidator
 
 __group_name__ = _("蓝鲸服务(BK)")
 
@@ -132,6 +133,13 @@ class HttpRequestService(BKFlowBaseService):
         timeout = min(abs(int(data.inputs.bk_http_timeout)), 60) or 60
         success_exp = data.inputs.bk_http_success_exp.strip()
         other = {"headers": {}, "timeout": timeout}
+
+        valid_url, allowed_domains = DomainValidator.validate(url)
+        if not valid_url:
+            data.outputs.ex_data = _("仅允许访问域名({allowed_domains})下的URL").format(
+                allowed_domains=",".join(allowed_domains),
+            )
+            return False
 
         if method.upper() not in ["GET", "HEAD"]:
             if not isinstance(body, str):
