@@ -185,7 +185,7 @@ MAKO_SANDBOX_IMPORT_MODULES = {
     "random": "random",
     "time": "time",
     "os.path": "os.path",
-    "json": "json",
+    "config.mock.mock_json": "json",
 }
 BambooSettings.MAKO_SANDBOX_IMPORT_MODULES = MAKO_SANDBOX_IMPORT_MODULES
 # 支持 mako 表达式在 dict/list/tuple 情况下嵌套索引
@@ -209,6 +209,9 @@ PAASV3_APIGW_API_HOST = env.BK_APIGW_URL_TMPL.format(
 )
 PLUGIN_APIGW_API_HOST_FORMAT = env.BK_APIGW_URL_TMPL
 
+# 允许的HTTP插件域名
+ENABLE_HTTP_PLUGIN_DOMAINS_CHECK = env.ENABLE_HTTP_PLUGIN_DOMAINS_CHECK
+ALLOWED_HTTP_PLUGIN_DOMAINS = env.ALLOWED_HTTP_PLUGIN_DOMAINS
 
 # 忽略 example 插件
 ENABLE_EXAMPLE_COMPONENTS = False
