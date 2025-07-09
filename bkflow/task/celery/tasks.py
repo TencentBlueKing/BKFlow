@@ -21,7 +21,7 @@ import json
 import logging
 import time
 
-from celery import task
+from celery import current_app
 from django.conf import settings
 from pipeline.eri.models import Process, State
 from pipeline.eri.runtime import BambooDjangoRuntime
@@ -52,7 +52,7 @@ def _ensure_node_can_retry(node_id):
     return False
 
 
-@task
+@current_app.task
 @redis_inst_check
 def auto_retry_node(taskflow_id, root_pipeline_id, node_id, retry_times):
     lock_name = "%s-%s-%s" % (root_pipeline_id, node_id, retry_times)
@@ -84,7 +84,7 @@ def auto_retry_node(taskflow_id, root_pipeline_id, node_id, retry_times):
     settings.redis_inst.delete(lock_name)
 
 
-@task
+@current_app.task
 def send_task_message(task_id, msg_type):
     try:
         task_instance = TaskInstance.objects.get(instance_id=task_id)
@@ -102,7 +102,7 @@ def send_task_message(task_id, msg_type):
         logger.info(f"[send_task_message] task({task_id}) send message({msg_type}) success")
 
 
-@task(acks_late=True)
+@current_app.task(acks_late=True)
 def dispatch_timeout_nodes(record_id: int):
     record = TimeoutNodesRecord.objects.get(id=record_id)
     nodes = json.loads(record.timeout_nodes)
@@ -115,7 +115,7 @@ def dispatch_timeout_nodes(record_id: int):
         )
 
 
-@task(ignore_result=True)
+@current_app.task(ignore_result=True)
 def execute_node_timeout_strategy(node_id, version):
     timeout_config = (
         TimeoutNodeConfig.objects.filter(node_id=node_id).only("task_id", "root_pipeline_id", "action").first()
