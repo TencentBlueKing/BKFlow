@@ -49,6 +49,8 @@ def check_template_auth(func):
         template_id = kwargs.get("template_id")
         token = Token.objects.filter(resource_type="TEMPLATE", token=request.token, resource_id=template_id)
         if not token.exists():
+            if settings.ENABLE_DEBUG_LOG:
+                logger.error(f"token 不存在或有误: {request.token}")
             raise ValidationError("token 不存在或有误")
         return func(request, *args, **kwargs)
 
