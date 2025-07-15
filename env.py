@@ -21,6 +21,9 @@ import json
 import os
 
 # 部署模块相关变量
+# 是否开启部分调试日志
+ENABLE_DEBUG_LOG = bool(int(os.getenv("ENABLE_DEBUG_LOG", 0)))
+
 # 模块类型，合法值详见 BKFLOWModuleType
 BKFLOW_MODULE_TYPE = os.getenv("BKFLOW_MODULE_TYPE")
 BKFLOW_MODULE_CODE = os.getenv("BKFLOW_MODULE_CODE")
@@ -57,6 +60,8 @@ APP_INTERNAL_TOKEN = os.getenv("APP_INTERNAL_TOKEN", "")
 INTERFACE_APP_INTERNAL_TOKEN = os.getenv("INTERFACE_APP_INTERNAL_TOKEN", "")
 # 任务模块调用 Interface 模块的 url
 INTERFACE_APP_URL = os.getenv("INTERFACE_APP_URL", "")
+# TOKEN保留时间，默认半天
+TOKEN_RETENTION_TIME = int(os.getenv("TOKEN_RETENTION_TIME", 12 * 60 * 60))
 
 # 变量名关键字黑名单
 VARIABLE_KEY_BLACKLIST = os.getenv("BKAPP_VARIABLE_KEY_BLACKLIST", "context,")
