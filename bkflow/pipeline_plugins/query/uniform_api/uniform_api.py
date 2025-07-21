@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -29,9 +28,6 @@ from bkflow.space.configs import (
     UniformApiConfig,
     UniformAPIConfigHandler,
 )
-from bkflow.space.models import Credential, SpaceConfig
-from bkflow.task.models import TaskInstance
-from bkflow.template.models import Template
 from bkflow.utils.api_client import HttpRequestResult
 
 from .utils import check_resource_token
@@ -78,6 +74,10 @@ def _get_api_credential(space_id: int, template_id: int = None, task_id: int = N
     :param task_id: 任务ID
     :return: API凭证
     """
+    from bkflow.space.models import Credential, SpaceConfig
+    from bkflow.task.models import TaskInstance
+    from bkflow.template.models import Template
+
     # 校验 space_id template_id task_id 的正确性
     if template_id:
         template = Template.objects.filter(id=template_id, space_id=space_id).first()
@@ -108,13 +108,10 @@ def _get_api_credential(space_id: int, template_id: int = None, task_id: int = N
 
 
 def _get_space_uniform_api_list_info(
-    space_id: int,
-    request_data: dict,
-    config_key: str,
-    username: str,
-    template_id: int = None,
-    task_id: int = None
+    space_id: int, request_data: dict, config_key: str, username: str, template_id: int = None, task_id: int = None
 ):
+    from bkflow.space.models import SpaceConfig
+
     uniform_api_config = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
     if not uniform_api_config:
         raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
