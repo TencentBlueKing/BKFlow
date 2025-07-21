@@ -17,26 +17,9 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-import abc
-import copy
-
-from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from bkflow.space.exceptions import CredentialTypeNotSupport
-
-
-class BaseCredential(metaclass=abc.ABCMeta):
-    def __init__(self, data):
-        self.data = copy.deepcopy(data)
-
-    @abc.abstractmethod
-    def display_value(self):
-        pass
-
-    @abc.abstractmethod
-    def validate_data(self):
-        pass
+from bkflow.space.credential.base import BaseCredential
 
 
 class BkAppCredential(BaseCredential):
@@ -62,22 +45,3 @@ class BkAppCredential(BaseCredential):
         ser = self.BkAppSerializer(data=self.data)
         ser.is_valid(raise_exception=True)
         return ser.validated_data
-
-
-class CredentialDispatcher:
-    CREDENTIAL_MAP = {"BK_APP": BkAppCredential}
-
-    def __init__(self, credential_type, data):
-        credential_cls = self.CREDENTIAL_MAP.get(credential_type)
-        if credential_cls is None:
-            raise CredentialTypeNotSupport(_("type={}".format(type)))
-        self.instance = credential_cls(data=data)
-
-    def display_value(self):
-        return self.instance.display_value()
-
-    def value(self):
-        return self.instance.value()
-
-    def validate_data(self):
-        return self.instance.validate_data()
