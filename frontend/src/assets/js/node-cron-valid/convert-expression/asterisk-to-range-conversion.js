@@ -3,7 +3,7 @@
 export default (() => {
   function convertAsterisk(expression, replecement){
     if(expression.indexOf('*') !== -1){
-      return expression.replace('*', replecement);
+      return expression.replace(/\*/g, replecement);
     }
     return expression;
   }

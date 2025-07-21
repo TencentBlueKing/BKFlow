@@ -17,23 +17,8 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from .bkapp import BkAppCredential  # noqa
+from .dispatcher import CredentialDispatcher  # noqa
 
 
-from django.conf import settings
-from django.conf.urls import include, url
-
-from .select import variable_select_source_data_proxy
-from .uniform_api import uniform_api
-
-urlpatterns = [
-    url(r"^uniform_api/list/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_list),
-    url(
-        r"^uniform_api/category_list/(?P<space_id>\d+)/$",
-        uniform_api.get_space_uniform_api_category_list,
-    ),
-    url(r"^uniform_api/meta/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_meta),
-    url(r"^variable_select_source_data_proxy/$", variable_select_source_data_proxy),
-]
-
-if settings.RUN_VER == "ieod":
-    urlpatterns += [url(r"^", include("bkflow.pipeline_plugins.query.ieod.urls"))]
+__ALL__ = ["BkAppCredential", "CredentialDispatcher"]
