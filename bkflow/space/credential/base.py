@@ -17,19 +17,20 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import abc
+import copy
+
+from django.utils.translation import ugettext_lazy as _
 
 
-from django.conf.urls import url
+class BaseCredential(metaclass=abc.ABCMeta):
+    def __init__(self, data):
+        self.data = copy.deepcopy(data)
 
-from .select import variable_select_source_data_proxy
-from .uniform_api import uniform_api
+    @abc.abstractmethod
+    def display_value(self):
+        pass
 
-urlpatterns = [
-    url(r"^uniform_api/list/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_list),
-    url(
-        r"^uniform_api/category_list/(?P<space_id>\d+)/$",
-        uniform_api.get_space_uniform_api_category_list,
-    ),
-    url(r"^uniform_api/meta/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_meta),
-    url(r"^variable_select_source_data_proxy/$", variable_select_source_data_proxy),
-]
+    @abc.abstractmethod
+    def validate_data(self):
+        pass

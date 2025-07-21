@@ -23,6 +23,7 @@ import uuid
 from enum import Enum
 
 from django.db import models
+from django.db.models.query import QuerySet
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pytimeparse import parse
@@ -55,6 +56,21 @@ TEMPLATE_PERMISSION_TYPE = [
 ]
 
 
+class TokenManager(models.Manager):
+    def get_resource_tokens(self, token_id: str, resource_kwargs: dict) -> QuerySet:
+        """获取资源的token列表
+
+        :param resource_kwargs: 资源配置
+        :return: token queryset
+        """
+        if "template_id" in resource_kwargs:
+            return self.objects.filter(resource_type=ResourceType.TEMPLATE.value, token=token_id)
+        elif "task_id" in resource_kwargs:
+            return self.objects.filter(resource_type=ResourceType.TASK.value, **resource_kwargs)
+        else:
+            raise ValueError("参数中必须包含template_id或task_id")
+
+
 class Token(models.Model):
     RESOURCE_TYPE = (
         (ResourceType.TASK.value, _("任务")),
@@ -76,6 +92,8 @@ class Token(models.Model):
         help_text=_("权限类型"), choices=PERMISSION_TYPE, max_length=32, default=PermissionType.VIEW.value
     )
     expired_time = models.DateTimeField(_("过期时间"), db_index=True)
+
+    objects = TokenManager()
 
     class Meta:
         verbose_name = _("token 表")

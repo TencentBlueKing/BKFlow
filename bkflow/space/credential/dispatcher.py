@@ -17,19 +17,24 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from bkflow.space.credential.bkapp import BkAppCredential
+from bkflow.space.exceptions import CredentialTypeNotSupport
 
 
-from django.conf.urls import url
+class CredentialDispatcher:
+    CREDENTIAL_MAP = {"BK_APP": BkAppCredential}
 
-from .select import variable_select_source_data_proxy
-from .uniform_api import uniform_api
+    def __init__(self, credential_type, data):
+        credential_cls = self.CREDENTIAL_MAP.get(credential_type)
+        if credential_cls is None:
+            raise CredentialTypeNotSupport(_("type={}".format(type)))
+        self.instance = credential_cls(data=data)
 
-urlpatterns = [
-    url(r"^uniform_api/list/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_list),
-    url(
-        r"^uniform_api/category_list/(?P<space_id>\d+)/$",
-        uniform_api.get_space_uniform_api_category_list,
-    ),
-    url(r"^uniform_api/meta/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_meta),
-    url(r"^variable_select_source_data_proxy/$", variable_select_source_data_proxy),
-]
+    def display_value(self):
+        return self.instance.display_value()
+
+    def value(self):
+        return self.instance.value()
+
+    def validate_data(self):
+        return self.instance.validate_data()
