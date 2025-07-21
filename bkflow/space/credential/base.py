@@ -20,8 +20,6 @@ to the current version of the project delivered to anyone in the future.
 import abc
 import copy
 
-from django.utils.translation import ugettext_lazy as _
-
 
 class BaseCredential(metaclass=abc.ABCMeta):
     def __init__(self, data):
