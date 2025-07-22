@@ -1143,14 +1143,14 @@ const template = {
     },
     // api插件请求详情
     loadUniformApiMeta({ state }, data) {
-      const {  spaceId, meta_url, scope_type, scope_value, task_id, templateId } = data;
+      const {  spaceId, meta_url, scope_type, scope_value, taskId, templateId } = data;
       const paramsData = {
         meta_url,
         scope_type,
         scope_value,
       };
-      if (task_id) {
-        paramsData.task_id = task_id;
+      if (taskId) {
+        paramsData.task_id = taskId;
       } else {
         paramsData.template_id = templateId ? templateId : state.template_id;
       }
