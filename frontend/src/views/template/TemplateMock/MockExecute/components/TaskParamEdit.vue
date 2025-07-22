@@ -229,7 +229,6 @@
           const { meta_url: metaUrl } = apiMeta;
           if (!metaUrl) return;
           // api插件配置
-          console.log('获取插件id', this.templateId)
           const resp = await this.loadUniformApiMeta({
             templateId: this.templateId,
             spaceId: this.spaceId,
