@@ -1143,14 +1143,20 @@ const template = {
     },
     // api插件请求详情
     loadUniformApiMeta({ state }, data) {
-      const {  spaceId, meta_url, scope_type, scope_value } = data;
-      const { template_id } = state;
+      const {  spaceId, meta_url, scope_type, scope_value, task_id, templateId } = data;
+      const paramsData = {
+        meta_url,
+        scope_type,
+        scope_value,
+      };
+      if (task_id) {
+        paramsData.task_id = task_id;
+      } else {
+        paramsData.template_id = templateId ? templateId : state.template_id;
+      }
       return axios.get(`/api/plugin_query/uniform_api/meta/${spaceId}/`, {
         params: {
-          meta_url,
-          scope_type,
-          scope_value,
-          template_id
+          ...paramsData,
         },
       }).then(response => response.data);
     },

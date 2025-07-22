@@ -132,6 +132,7 @@
               :space-id="spaceId"
               :plugin-code="pluginCode"
               :template-id="templateId"
+              :task_id="taskId"
               :scope-info="scopeInfo"
               :is-sub-process-node="isSubProcessNode" />
             <section
@@ -309,6 +310,14 @@
       },
       templateId: {
         type: [Number, String],
+        default: '',
+      },
+      instanceId: {
+        type: String,
+        default: '',
+      },
+      taskId: {
+        type: String,
         default: '',
       },
       instanceActions: {
@@ -696,7 +705,7 @@
               if (!apiMeta) return;
               // api插件配置
               const resp = await this.loadUniformApiMeta({
-                templateId: this.templateId,
+                taskId: this.taskId,
                 spaceId: this.spaceId,
                 meta_url: apiMeta.meta_url,
                 ...this.scopeInfo,
