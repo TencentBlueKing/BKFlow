@@ -74,8 +74,8 @@ def _get_api_credential(space_id: int, template_id: int = None, task_id: int = N
     :param task_id: 任务ID
     :return: API凭证
     """
+    from bkflow.contrib.api.collections.task import TaskComponentClient
     from bkflow.space.models import Credential, SpaceConfig
-    from bkflow.task.models import TaskInstance
     from bkflow.template.models import Template
 
     # 校验 space_id template_id task_id 的正确性
@@ -86,10 +86,11 @@ def _get_api_credential(space_id: int, template_id: int = None, task_id: int = N
 
         scope_type, scope_value = template.scope_type, template.scope_value
     else:
-        task = TaskInstance.objects.filter(id=task_id, space_id=space_id).first()
-        if not task:
+        client = TaskComponentClient(space_id=space_id)
+        result = client.get_task_detail(task_id=task_id)
+        if not result.get("result", False):
             raise ValidationError(f"对应 space_id: {space_id} task_id: {task_id} 不存在")
-        scope_type, scope_value = task.scope_type, task.scope_value
+        scope_type, scope_value = result["data"]["scope_type"], result["data"]["scope_value"]
 
     scope = f"{scope_type}_{scope_value}" if scope_type and scope_value else None
 
