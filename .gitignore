@@ -148,3 +148,6 @@ pre-*-bkcodeai
 .vscode/settings.json
 
 .idea
+
+### PreCI ###
+.codecc
