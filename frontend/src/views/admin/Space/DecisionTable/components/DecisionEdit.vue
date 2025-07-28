@@ -381,7 +381,7 @@
               },
             });
           } else {
-            window.close();
+            this.$router.back();
           }
         };
         const isDataEqual = tools.isDataEqual(this.decisionData, this.initData);
