@@ -372,7 +372,7 @@
             this.$emit('close');
             return;
           }
-          if (this.isAdminPath) {
+          if (this.isAdminPath || Boolean(this.$route.params.from)) {
             this.$router.push({
               name: 'spaceAdmin',
               query: {
@@ -381,7 +381,10 @@
               },
             });
           } else {
-            this.$router.back();
+            this.$router.push({
+               path: '/',
+               name: 'home',
+            });
           }
         };
         const isDataEqual = tools.isDataEqual(this.decisionData, this.initData);
