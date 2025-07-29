@@ -59,7 +59,7 @@
   </bk-dialog>
 </template>
 <script>
-  import { mapActions } from 'vuex';
+  import { mapActions, mapMutations} from 'vuex';
   import bus from '@/utils/bus.js';
   import i18n from '@/config/i18n/index.js';
   export default {
@@ -141,6 +141,9 @@
       ...mapActions('system/', [
         'updateSpaceConfig',
       ]),
+      ...mapMutations([
+        'setSpaceId',
+      ]),
       async onSubmit() {
         this.$refs.spaceForm.validate().then(async (validator) => {
           if (!validator) return;
@@ -149,8 +152,8 @@
             this.editLoading = true;
             const resp = await this.updateSpaceConfig(this.spaceFormData);
             if (resp.result === false) return;
-
             this.$emit('close', resp.data.id);
+            this.setSpaceId(resp.data.id);
             bus.$emit('updateSpaceList');
             this.$bkMessage({
               message: this.spaceFormData.id ? this.$t('修改成功！') : this.$t('新增成功！'),
