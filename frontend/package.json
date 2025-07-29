@@ -28,7 +28,7 @@
     "@blueking/platform-config": "^1.0.3",
     "@blueking/user-selector": "^1.0.5-beta.2",
     "ajv": "^6.10.2",
-    "axios": "^1.6.0",
+    "axios": "^1.11.0",
     "bk-magic-vue": "2.5.8",
     "element-ui": "^2.15.13",
     "jquery": "^3.2.1",
