@@ -77,13 +77,16 @@
       ...mapMutations([
         'setAdmin',
         'setCurSpaceSuperuser',
+        'setSpaceSuperuser',
       ]),
       async loadCurSpacePermission() {
         try {
           const resp = await this.getCurrentSpacePermission({ space_id: this.spaceId });
+          console.log('获取当前空间的权限--在导航页面', resp.data);
           const { is_admin: isAdmin, is_space_superuser: isCurSpaceSuperuser } = resp.data || {};
           this.setAdmin(isAdmin);
           this.setCurSpaceSuperuser(isCurSpaceSuperuser);
+          this.setSpaceSuperuser(isCurSpaceSuperuser);
         } catch (error) {
           console.warn(error);
         }

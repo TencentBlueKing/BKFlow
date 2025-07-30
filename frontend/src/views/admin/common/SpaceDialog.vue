@@ -59,7 +59,7 @@
   </bk-dialog>
 </template>
 <script>
-  import { mapActions, mapMutations} from 'vuex';
+  import { mapActions, mapMutations } from 'vuex';
   import bus from '@/utils/bus.js';
   import i18n from '@/config/i18n/index.js';
   export default {
