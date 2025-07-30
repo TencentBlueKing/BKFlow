@@ -372,19 +372,16 @@
             this.$emit('close');
             return;
           }
-          if (this.isAdminPath || Boolean(this.$route.params.from)) {
+          if (this.isAdminPath) {
             this.$router.push({
               name: 'spaceAdmin',
               query: {
                 activeTab: 'decisionTable',
-                spaceId: this.spaceId,
+                space_id: this.spaceId,
               },
             });
           } else {
-            this.$router.push({
-               path: '/',
-               name: 'home',
-            });
+            window.close();
           }
         };
         const isDataEqual = tools.isDataEqual(this.decisionData, this.initData);

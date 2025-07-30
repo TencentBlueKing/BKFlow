@@ -152,14 +152,14 @@
         if (this.path === 'decision') {
           const { href } = this.$router.resolve({
             name: 'decisionEdit',
-            params: { decisionId: this.row.id, path: 'decision', from: 'decisionTable'},
+            params: { decisionId: this.row.id, path: 'decision' },
             query: { space_id: this.spaceId, template_id: this.row.template_id },
           });
           window.open(href, '_blank');
         } else {
           this.$router.push({
             name: 'decisionEdit',
-            params: { decisionId: this.row.id, path: 'admin_decision', from: 'decisionTable'},
+            params: { decisionId: this.row.id, path: 'admin_decision' },
             query: { space_id: this.spaceId },
           });
         }
