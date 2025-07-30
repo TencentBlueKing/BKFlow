@@ -274,7 +274,7 @@
       handleEdit(row = {}) {
         this.$router.push({
           name: 'decisionEdit',
-          params: { decisionId: row.id, path: 'admin_decision', from: 'decisionTable' },
+          params: { decisionId: row.id, path: 'admin_decision' },
           query: { space_id: this.spaceId },
         });
       },
