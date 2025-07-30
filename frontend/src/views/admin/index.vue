@@ -34,6 +34,8 @@
         // 没任何权限下，如果从首页路由进来则打开空间申请弹框，否则重定向home
         if (from.name === 'home') {
           vm.isVisible = true;
+        } else {
+          next({ name: 'home' });
         }
       });
     },
