@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -401,6 +400,9 @@ LANGUAGES = (
     ("en", "English"),
     ("zh-hans", "简体中文"),
 )
+
+# OTEL配置
+INSTALLED_APPS += ("blueapps.opentelemetry.instrument_app",)
 
 """
 以下为框架代码 请勿修改

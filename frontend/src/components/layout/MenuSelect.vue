@@ -129,7 +129,8 @@
         this.pagination.count = 0;
         this.spaceList = [];
         await this.getSpaceList();
-        // 创建成功后切换到最新的空间下
+        // 创建成功后切换到最新的空间下并且更新权限信息
+        this.loadCurSpacePermission(this.spaceList[0].id);
         this.handleSpaceSelected(this.spaceList[0].id);
       });
       await this.getSpaceList();
@@ -140,11 +141,26 @@
       ...mapActions([
         'loadSpaceList',
         'getSpaceDetail',
+        'getCurrentSpacePermission',
       ]),
       ...mapMutations([
         'setSpaceId',
         'setSpaceList',
+        'setAdmin',
+        'setCurSpaceSuperuser',
+        'setSpaceSuperuser',
       ]),
+      async loadCurSpacePermission(spaceId) {
+        try {
+          const resp = await this.getCurrentSpacePermission({ space_id: spaceId });
+          const { is_admin: isAdmin, is_space_superuser: isCurSpaceSuperuser } = resp.data || {};
+          this.setAdmin(isAdmin);
+          this.setCurSpaceSuperuser(isCurSpaceSuperuser);
+          this.setSpaceSuperuser(isCurSpaceSuperuser);
+        } catch (error) {
+          console.warn(error);
+        }
+      },
       async getSpaceList() {
         try {
           const { limit, current } = this.pagination;

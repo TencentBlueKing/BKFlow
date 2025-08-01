@@ -77,6 +77,7 @@
       ...mapMutations([
         'setAdmin',
         'setCurSpaceSuperuser',
+        'setSpaceSuperuser',
       ]),
       async loadCurSpacePermission() {
         try {
@@ -84,6 +85,7 @@
           const { is_admin: isAdmin, is_space_superuser: isCurSpaceSuperuser } = resp.data || {};
           this.setAdmin(isAdmin);
           this.setCurSpaceSuperuser(isCurSpaceSuperuser);
+          this.setSpaceSuperuser(isCurSpaceSuperuser);
         } catch (error) {
           console.warn(error);
         }

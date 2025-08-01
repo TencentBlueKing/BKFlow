@@ -377,7 +377,7 @@
               name: 'spaceAdmin',
               query: {
                 activeTab: 'decisionTable',
-                spaceId: this.spaceId,
+                space_id: this.spaceId,
               },
             });
           } else {
