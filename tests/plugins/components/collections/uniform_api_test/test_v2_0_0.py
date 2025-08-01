@@ -30,7 +30,7 @@ class UniformAPIComponentTest(TestCase, ComponentTestMixin):
         return UniformAPIComponent
 
     def cases(self):
-        return [API_TRIGGER_SUCCESS_CASE, API_CALLBACK_SUCCESS_CASE]
+        return [API_TRIGGER_FAIL_CASE, API_POLLING_FAIL_CASE]
 
 
 API_INPUT_DATA = {
@@ -44,7 +44,7 @@ API_INPUT_DATA = {
     "response_data_path": None,
 }
 
-API_CALLBACK_INPUT_DATA = {**API_INPUT_DATA, "need_callback": True}
+API_POLLING_INPUT_DATA = {**API_INPUT_DATA, "need_polling": True}
 
 TEST_PARENT_DATA = {
     "operator": "admin",
@@ -64,24 +64,9 @@ class MockAPIResponse:
         self.result = result
 
 
-SUCCESS_SPACE_CONFIG = {
-    "result": True,
-    "message": "success",
-    "data": {
-        "configs": {
-            "uniform_api": {
-                "api": {
-                    "default": {
-                        "meta_apis": "https://example.com/meta_apis",
-                        "api_categories": "https://example.com/api_categories",
-                        "display_name": "Default API",
-                    }
-                },
-                "enable_api_parameter_conversion": True,
-            },
-            "credential": {"bk_app_code": "mock_app_code", "bk_app_secret": "mock_app_secret"},
-        }
-    },
+CLIENT_API_SPACE_CONFIG = {
+    "result": False,
+    "message": "api trigger fail",
 }
 SUCCESS_API_HEADER = {
     "X-Bkapi-Authorization": "mock_token",
@@ -90,7 +75,7 @@ SUCCESS_API_HEADER = {
     "X-Bkapi-User": "mock_operator",
 }
 SUCCESS_API_RESPONSE_DATA = MockAPIResponse(
-    status_code=200, json_resp={"result": "success", "data": {"space_id": 1}}, message="success", result=True
+    status_code=200, json_resp={"result": True, "data": {"space_id": 1}}, message="success", result=True
 )
 
 
@@ -102,17 +87,21 @@ class MockUniformAPIClient:
 
 
 SUCCESS_API_CLIENT = MockUniformAPIClient(
-    get_space_infos=SUCCESS_SPACE_CONFIG, gen_default_apigw_header=SUCCESS_API_HEADER, request=SUCCESS_API_RESPONSE_DATA
+    get_space_infos=CLIENT_API_SPACE_CONFIG,
+    gen_default_apigw_header=SUCCESS_API_HEADER,
+    request=SUCCESS_API_RESPONSE_DATA,
 )
 
 
-API_TRIGGER_SUCCESS_CASE = ComponentTestCase(
-    name="api_trigger_success_case",
+API_TRIGGER_FAIL_CASE = ComponentTestCase(
+    name="api_trigger_fail_case",
     inputs={**API_INPUT_DATA},
     parent_data={**TEST_PARENT_DATA},
-    execute_assertion=ExecuteAssertion(outputs={"need_callback": True, "status_code": 200}, success=True),
+    execute_assertion=ExecuteAssertion(
+        outputs={"ex_data": "[uniform_api error] get apigw credential failed: api trigger fail"}, success=False
+    ),
     schedule_assertion=ScheduleAssertion(
-        outputs={"need_callback": True, "status_code": 200}, success=True, callback_data={"result": "success"}
+        outputs={"need_callback": False, "status_code": 200}, success=False, callback_data={"result": False}
     ),
     patchers=[
         Patcher(
@@ -126,18 +115,17 @@ API_TRIGGER_SUCCESS_CASE = ComponentTestCase(
     ],
 )
 
-API_CALLBACK_SUCCESS_CASE = ComponentTestCase(
-    name="api_callback_success_case",
-    inputs={**API_CALLBACK_INPUT_DATA},
+API_POLLING_FAIL_CASE = ComponentTestCase(
+    name="api_polling_fail_case",
+    inputs={**API_POLLING_INPUT_DATA},
     parent_data={**TEST_PARENT_DATA},
     execute_assertion=ExecuteAssertion(
-        success=True,
-        outputs={"need_callback": True, "status_code": 200},
+        outputs={"ex_data": "[uniform_api error] get apigw credential failed: api trigger fail"}, success=False
     ),
     schedule_assertion=ScheduleAssertion(
-        success=True,
-        callback_data={"result": "success"},
-        outputs={"need_callback": True, "status_code": 200},
+        success=False,
+        callback_data={"result": False},
+        outputs={"need_callback": False, "status_code": 200},
     ),
     patchers=[
         Patcher(
