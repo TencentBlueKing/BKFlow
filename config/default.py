@@ -402,6 +402,7 @@ LANGUAGES = (
 )
 
 # OTEL配置
+BK_APP_OTEL_INSTRUMENT_DB_API = True
 INSTALLED_APPS += ("blueapps.opentelemetry.instrument_app",)
 
 """
