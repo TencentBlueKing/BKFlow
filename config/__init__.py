@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,8 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
-from __future__ import absolute_import
 
 import os
 
@@ -55,7 +52,7 @@ APP_TOKEN = SECRET_KEY
 # SaaS运行版本，如非必要请勿修改
 RUN_VER = os.getenv("RUN_VER", "open")
 # 蓝鲸SaaS平台URL，例如 http://paas.bking.com
-BK_URL = None
+BK_URL = ""
 
 APP_NAME = "BKFlow"
 RUN_VER_NAME = _("蓝鲸智云")
