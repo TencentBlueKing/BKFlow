@@ -74,7 +74,7 @@ SUCCESS_API_HEADERS = {
     "X-Bkapi-User": "mock_operator",
 }
 SUCCESS_API_RESPONSE = MockRequestResult(
-    status_code=200, json_resp={"result": "success", "data": {"space_id": 1}}, message="success", result=True
+    status_code=200, json_resp={"result": True, "data": {"space_id": 1}}, message="success", result=True
 )
 
 
@@ -95,7 +95,7 @@ SUCCESS_TEST_CASE = ComponentTestCase(
     inputs={"api_config": TEST_API_CONFIG},
     parent_data={**TEST_PARENT_DATA},
     execute_assertion=ExecuteAssertion(
-        success=True, outputs={"status_code": 200, "data": {"result": "success", "data": {"space_id": 1}}}
+        success=True, outputs={"status_code": 200, "data": {"result": True, "data": {"space_id": 1}}}
     ),
     schedule_assertion=None,
     patchers=[
