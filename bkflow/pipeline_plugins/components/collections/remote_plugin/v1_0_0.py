@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -76,11 +77,13 @@ class RemotePluginService(BKFlowBaseService):
             data.set_outputs("ex_data", message)
             return False
 
-        plugin_context = {
-            key: parent_data.inputs[key]
-            for key in detail_result["data"]["context_inputs"]["properties"].keys()
-            if key in parent_data.inputs
-        }
+        plugin_context = dict(
+            [
+                (key, parent_data.inputs[key])
+                for key in detail_result["data"]["context_inputs"]["properties"].keys()
+                if key in parent_data.inputs
+            ]
+        )
         ok, result_data = plugin_client.invoke(
             plugin_version,
             {"inputs": data.inputs, "context": plugin_context},
@@ -88,7 +91,7 @@ class RemotePluginService(BKFlowBaseService):
         )
         if not ok:
             message = _("调用第三方插件invoke接口错误, 错误内容: {message}, trace_id: {trace_id}").format(
-                message=result_data["message"], trace_id=result_data.get("trace_id")
+                message=detail_result["message"], trace_id=result_data.get("trace_id")
             )
             logger.error(message)
             data.set_outputs("ex_data", message)

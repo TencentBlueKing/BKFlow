@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -61,7 +62,6 @@ class ValueAssignService(BKFlowBaseService):
                 key="bk_assignment_list",
                 type="object",
                 schema=ObjectItemSchema(
-                    property_schemas={},
                     description=_("赋值变量或常量与被赋值变量的映射列表"),
                 ),
             )
