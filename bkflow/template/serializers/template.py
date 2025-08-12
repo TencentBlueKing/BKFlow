@@ -93,7 +93,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         # 校验树的合法性
 
         try:
-            validate_pipeline_tree(pipeline_tree)
+            validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
         except Exception as e:
             logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
             raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))

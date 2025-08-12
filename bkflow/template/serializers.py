@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -12,9 +11,7 @@ software distributed under the License is distributed on
 an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
 either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
-
 We undertake not to change the open source license (MIT license) applicable
-
 to the current version of the project delivered to anyone in the future.
 """
 import logging
@@ -59,14 +56,14 @@ class TemplateSerializers(serializers.ModelSerializer):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
         snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
         validated_data["snapshot_id"] = snapshot.id
-        return super(TemplateSerializers, self).create(validated_data)
+        return super().create(validated_data)
 
     @transaction.atomic()
     def update(self, instance, validated_data):
         # 需要校验哪些字段是不可以更新的
         pipeline_tree = validated_data.pop("pipeline_tree", None)
         instance.update_snapshot(pipeline_tree)
-        return super(TemplateSerializers, self).update(instance, validated_data)
+        return super().update(instance, validated_data)
 
     class Meta:
         model = Template
