@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -65,7 +64,7 @@ class CreateTemplateSerializer(serializers.Serializer):
 
         if pipeline_tree:
             try:
-                validate_pipeline_tree(pipeline_tree)
+                validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
             except Exception as e:
                 logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
                 raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
