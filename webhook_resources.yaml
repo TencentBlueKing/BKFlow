@@ -8,3 +8,5 @@ events:
     name: 任务失败
   - code: task_finished
     name: 任务完成
+  - code: task_create
+    name: 任务创建
