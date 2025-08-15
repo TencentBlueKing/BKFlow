@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -27,13 +26,21 @@ from rest_framework import mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
+from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.serializers.task import (
     CreateMockTaskWithPipelineTreeSerializer,
     CreateTaskSerializer,
 )
 from bkflow.apigw.serializers.template import CreateTemplateSerializer
-from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
+from bkflow.constants import (
+    RecordType,
+    TaskTriggerMethod,
+    TemplateOperationSource,
+    TemplateOperationType,
+    WebhookEventType,
+    WebhookScopeType,
+)
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import APIResponseError, ValidationError
@@ -159,6 +166,18 @@ class AdminTemplateViewSet(AdminModelViewSet):
         result = client.create_task(create_task_data)
         if not result["result"]:
             raise APIResponseError(result["message"])
+
+        event_broadcast_signal.send(
+            sender=WebhookEventType.TASK_CREATE.value,
+            scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
+            extra_info={
+                "task_id": result["data"]["id"],
+                "template_id": template.id,
+                "parameters": create_task_data["constants"],
+                "trigger_source": TaskTriggerMethod.manual.name,
+            },
+        )
+
         return Response(result["data"])
 
     @swagger_auto_schema(method="POST", operation_description="流程批量删除", request_body=TemplateBatchDeleteSerializer)
