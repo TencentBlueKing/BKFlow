@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -283,3 +282,29 @@ class TemplateMockScheme(models.Model):
         verbose_name_plural = "Template Mock Scheme"
         ordering = ["-id"]
         index_together = ["space_id", "template_id"]
+
+
+class Trigger(CommonModel):
+    # 定义触发器类型选项
+    TYPE_PERIODIC = "periodic"
+    TYPE_MANUAL = "manual"
+    TYPE_REMOTE = "remote"
+
+    TYPE_CHOICES = [
+        (TYPE_PERIODIC, "定时"),  # 定时
+        (TYPE_REMOTE, "远程"),  # 远程
+    ]
+
+    space_id = models.IntegerField(help_text="Space ID")
+    template_id = models.IntegerField(help_text="Related template ID", db_index=True)
+    is_enabled = models.BooleanField(default=True, help_text="Indicates whether the trigger is enabled")
+    name = models.CharField(max_length=100)
+    config = models.JSONField(help_text="Configuration for the trigger")
+    type = models.CharField(
+        max_length=20, choices=TYPE_CHOICES, default=TYPE_PERIODIC, help_text="Type of the trigger"  # 设置默认触发类型
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["space_id", "template_id"]),
+        ]
