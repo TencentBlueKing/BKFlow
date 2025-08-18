@@ -254,6 +254,10 @@
         type: [Number, String],
         default: '',
       },
+      taskId: {
+        type: String,
+        default: '',
+      },
     },
     data() {
       return {
@@ -576,6 +580,7 @@
             if (!apiMeta) return;
             // api插件配置
             const resp = await this.loadUniformApiMeta({
+              taskId: this.taskId,
               templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,

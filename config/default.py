@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -81,6 +80,9 @@ MIDDLEWARE = (
 if env.USE_PYINSTRUMENT:
     MIDDLEWARE += ("pyinstrument.middleware.ProfilerMiddleware",)
 
+# 是否开启调试日志
+ENABLE_DEBUG_LOG = env.ENABLE_DEBUG_LOG
+
 # 模块间调用相关配置
 APP_INTERNAL_VALIDATION_SKIP = env.APP_INTERNAL_VALIDATION_SKIP
 APP_INTERNAL_TOKEN = env.APP_INTERNAL_TOKEN
@@ -88,6 +90,7 @@ APP_INTERNAL_TOKEN_HEADER_KEY = "Bkflow-Internal-Token"
 APP_INTERNAL_SPACE_ID_HEADER_KEY = "Bkflow-Internal-Space-Id"
 APP_INTERNAL_FROM_SUPERUSER_HEADER_KEY = "Bkflow-Internal-From-SuperUser"
 APP_INTERNAL_TOKEN_REQUEST_META_KEY = "HTTP_BKFLOW_INTERNAL_TOKEN"
+TOKEN_RETENTION_TIME = env.TOKEN_RETENTION_TIME
 
 APP_WHITE_LIST = env.APP_WHITE_LIST_STR.split(",") if env.APP_WHITE_LIST_STR else []
 
@@ -391,6 +394,10 @@ LANGUAGES = (
     ("en", "English"),
     ("zh-hans", "简体中文"),
 )
+
+# OTEL配置
+BK_APP_OTEL_INSTRUMENT_DB_API = True
+INSTALLED_APPS += ("blueapps.opentelemetry.instrument_app",)
 
 """
 以下为框架代码 请勿修改

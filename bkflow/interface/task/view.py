@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -44,6 +43,7 @@ from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.utils.permissions import AdminPermission
+from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 
 logger = logging.getLogger("root")
 
@@ -57,9 +57,7 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
         result = client.task_list(data={**request.query_params, "space_id": space_id})
         return Response(result)
 
-    @swagger_auto_schema(
-        methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer
-    )
+    @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
     @action(methods=["POST"], detail=False, url_path="get_tasks_states")
     def get_tasks_states(self, request, *args, **kwargs):
         ser = GetTasksStatesBodySerializer(data=request.data)
@@ -90,9 +88,7 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
 class TaskInterfaceSystemSuperuserViewSet(GenericViewSet):
     permission_classes = [AdminPermission]
 
-    @swagger_auto_schema(
-        methods=["post"], operation_description="触发引擎管理操作", request_body=TaskEngineAdminSerializer
-    )
+    @swagger_auto_schema(methods=["post"], operation_description="触发引擎管理操作", request_body=TaskEngineAdminSerializer)
     @action(methods=["POST"], detail=False, url_path="trigger_engine_admin_action")
     def trigger_engine_admin_action(self, request, *args, **kwargs):
         ser = TaskEngineAdminSerializer(data=request.data)
@@ -175,10 +171,15 @@ class TaskInterfaceViewSet(GenericViewSet):
     @action(methods=["POST"], detail=False, url_path="operate_task/(?P<task_id>\\d+)/(?P<operation>\\w+)")
     def operate_task(self, request, task_id, operation, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
-        request.data["operator"] = request.user.username
-        result = client.operate_task(task_id, operation, request.data)
-        return Response(result)
+
+        with start_trace(
+            "operate_task_interface", True, space_id=space_id, task_id=task_id, call_from=CallFrom.WEB.value
+        ):
+            append_attributes({"operation": operation})
+            client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+            request.data["operator"] = request.user.username
+            result = client.operate_task(task_id, operation, request.data)
+            return Response(result)
 
     @action(methods=["GET"], detail=False, url_path="get_task_node_detail/(?P<task_id>\\w+)/node/(?P<node_id>\\w+)")
     def get_task_node_detail(self, request, task_id, node_id, *args, **kwargs):
@@ -194,10 +195,20 @@ class TaskInterfaceViewSet(GenericViewSet):
     )
     def operate_node(self, request, task_id, node_id, operation, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
-        request.data["operator"] = request.user.username
-        result = client.node_operate(task_id, node_id, operation, request.data)
-        return Response(result)
+
+        with start_trace(
+            "operate_task_node_interface",
+            True,
+            space_id=space_id,
+            task_id=task_id,
+            node_id=node_id,
+            call_from=CallFrom.WEB.value,
+        ):
+            append_attributes({"operation": operation})
+            client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+            request.data["operator"] = request.user.username
+            result = client.node_operate(task_id, node_id, operation, request.data)
+            return Response(result)
 
     @action(
         methods=["GET"],

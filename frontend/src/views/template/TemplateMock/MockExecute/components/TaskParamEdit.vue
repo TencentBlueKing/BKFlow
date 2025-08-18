@@ -144,7 +144,8 @@
           }
 
           const isPreRenderMako = this.preMakoDisabled && variable.pre_render_mako; // 变量预渲染
-          atomConfig.forEach((item) => {
+          if (atomConfig) {
+            atomConfig.forEach((item) => {
             if (!item.attrs) {
               item.attrs = {};
             }
@@ -159,6 +160,7 @@
               this.setAtomDisable(item.attrs.children, isPreRenderMako);
             }
           });
+          }
           let currentFormConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
 
           if (currentFormConfig) {

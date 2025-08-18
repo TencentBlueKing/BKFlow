@@ -1,5 +1,5 @@
 spec_version: 2
-app_version: "1.11.0"
+app_version: "1.11.1"
 app:
   region: default
   bk_app_code: &APP_CODE bk_flow_engine
@@ -68,11 +68,11 @@ modules:
         plan: 4C2G5R
         replicas: 5
       beat:
-        command: celery beat -A blueapps.core.celery -l info
+        command: celery -A blueapps.core.celery beat -l info
         plan: 4C1G5R
         replicas: 1
       worker:
-        command: celery worker -A blueapps.core.celery -n interface_worker@%h -P threads -c 100 -l info
+        command: celery -A blueapps.core.celery worker -n interface_worker@%h -P threads -c 100 -l info
         plan: 4C2G5R
         replicas: 2
     svc_discovery:
@@ -119,15 +119,15 @@ modules:
         value: *DEFAULT_ENGINE_INTERNAL_TOKEN
     processes: &default_engine_processes
       er-e:
-        command: celery worker -A blueapps.core.celery -P threads -Q er_execute_${BKFLOW_MODULE_CODE} -n er_e_worker@%h -c 100 -l info
+        command: celery -A blueapps.core.celery worker -P threads -Q er_execute_${BKFLOW_MODULE_CODE} -n er_e_worker@%h -c 100 -l info
         plan: 4C4G5R
         replicas: 5
       er-s:
-        command: celery worker -A blueapps.core.celery -P threads -Q er_schedule_${BKFLOW_MODULE_CODE} -n er_s_worker@%h -c 100 -l info
+        command: celery -A blueapps.core.celery worker -P threads -Q er_schedule_${BKFLOW_MODULE_CODE} -n er_s_worker@%h -c 100 -l info
         plan: 4C4G5R
         replicas: 5
       cworker:
-        command: python manage.py celery worker -Q celery,pipeline_additional_task,pipeline_additional_task_priority,task_common_${BKFLOW_MODULE_CODE},node_auto_retry_${BKFLOW_MODULE_CODE},timeout_node_execute_${BKFLOW_MODULE_CODE},timeout_node_record_${BKFLOW_MODULE_CODE} -n common_worker@%h -P threads -c 10 -l info
+        command: celery -A blueapps.core.celery worker -P threads -Q celery,pipeline_additional_task,pipeline_additional_task_priority,task_common_${BKFLOW_MODULE_CODE},node_auto_retry_${BKFLOW_MODULE_CODE},timeout_node_execute_${BKFLOW_MODULE_CODE},timeout_node_record_${BKFLOW_MODULE_CODE} -n common_worker@%h -c 10 -l info
         plan: 4C1G5R
         replicas: 5
       timeout:
@@ -139,10 +139,10 @@ modules:
         plan: 4C2G5R
         replicas: 5
       beat:
-        command: celery beat -A blueapps.core.celery -l info
+        command: celery -A blueapps.core.celery beat -l info
         plan: 4C1G5R
         replicas: 1
       clean-worker:
-        command: celery worker -A blueapps.core.celery -P threads -Q clean_task_${BKFLOW_MODULE_CODE} -n clean_worker@%h -c 100 -l info
+        command: celery -A blueapps.core.celery worker -P threads -Q clean_task_${BKFLOW_MODULE_CODE} -n clean_worker@%h -c 100 -l info
         plan: 4C4G5R
         replicas: 1

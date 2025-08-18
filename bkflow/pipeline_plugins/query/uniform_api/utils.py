@@ -23,9 +23,6 @@ from functools import wraps
 from django.conf import settings
 
 from bkflow.exceptions import APIRequestError, ValidationError
-from bkflow.permission.models import Token
-from bkflow.space.configs import SuperusersConfig
-from bkflow.space.models import SpaceConfig
 from bkflow.utils.api_client import (
     ApigwClientMixin,
     HttpRequestMixin,
@@ -35,20 +32,32 @@ from bkflow.utils.api_client import (
 logger = logging.getLogger("root")
 
 
-def check_template_auth(func):
+def check_resource_token(func: callable) -> callable:
+    """检查资源 token.
+
+    :param func: 被装饰的函数
+    :return: 装饰后的函数
+    """
     @wraps(func)
     def wrapper(request, *args, **kwargs):
+        from bkflow.space.configs import SuperusersConfig
+        from bkflow.space.models import SpaceConfig
+        from bkflow.permission.models import Token
+
         space_id = kwargs.get("space_id")
         space_superusers = SpaceConfig.get_config(space_id, SuperusersConfig.name)
         is_space_superuser = request.user.username in space_superusers
+
         if request.user.is_superuser or is_space_superuser:
             return func(request, *args, **kwargs)
         # 获取并解析 token 适用于通过 token 操作模版的情况(非系统 or 空间管理员)
         if not request.token:
             raise ValidationError("不存在访问 token")
-        template_id = kwargs.get("template_id")
-        token = Token.objects.filter(resource_type="TEMPLATE", token=request.token, resource_id=template_id)
+
+        token = Token.objects.get_resource_token(request.token, kwargs)
         if not token.exists():
+            if settings.ENABLE_DEBUG_LOG:
+                logger.error(f"token 不存在或有误: {request.token}")
             raise ValidationError("token 不存在或有误")
         return func(request, *args, **kwargs)
 

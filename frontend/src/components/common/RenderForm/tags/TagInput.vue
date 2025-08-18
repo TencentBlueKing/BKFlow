@@ -141,7 +141,7 @@
       onInput (val) {
         const matchResult = val.match(VAR_REG)
         if (matchResult && matchResult[0]) {
-          const regStr = matchResult[0].replace(/[\$\{\}]/g, '\\$&')
+          const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&')
           const inputReg = new RegExp(regStr)
           this.varList = this.constantArr.filter(item => inputReg.test(item))
         } else {

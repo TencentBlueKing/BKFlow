@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -29,21 +28,29 @@ from bkflow.space.configs import (
     UniformApiConfig,
     UniformAPIConfigHandler,
 )
-from bkflow.space.models import Credential, SpaceConfig
-from bkflow.template.models import Template
 from bkflow.utils.api_client import HttpRequestResult
 
-from .utils import check_template_auth
+from .utils import check_resource_token
 
 
-class UniformAPICategorySerializer(serializers.Serializer):
+class UniformAPIBaseSerializer(serializers.Serializer):
+    template_id = serializers.IntegerField(required=False)
+    task_id = serializers.CharField(required=False)
+
+    def validate(self, attrs: dict) -> dict:
+        if not attrs.get("template_id") and not attrs.get("task_id"):
+            raise ValidationError("template_id 和 task_id 至少有一个")
+        return super().validate(attrs)
+
+
+class UniformAPICategorySerializer(UniformAPIBaseSerializer):
     scope_type = serializers.CharField(required=False)
     scope_value = serializers.CharField(required=False)
     key = serializers.CharField(required=False)
     api_name = serializers.CharField(required=False)
 
 
-class UniformAPIListSerializer(serializers.Serializer):
+class UniformAPIListSerializer(UniformAPIBaseSerializer):
     limit = serializers.IntegerField(required=False, default=50)
     offset = serializers.IntegerField(required=False, default=0)
     scope_type = serializers.CharField(required=False)
@@ -53,19 +60,38 @@ class UniformAPIListSerializer(serializers.Serializer):
     api_name = serializers.CharField(required=False)
 
 
-class UniformAPIMetaSerializer(serializers.Serializer):
+class UniformAPIMetaSerializer(UniformAPIBaseSerializer):
     scope_type = serializers.CharField(required=False)
     scope_value = serializers.CharField(required=False)
     meta_url = serializers.CharField(required=True)
 
 
-def _get_api_credential(space_id, template_id):
-    # 校验 space_id template_id 的正确性
-    template = Template.objects.filter(id=template_id, space_id=space_id).first()
-    if not template:
-        raise ValidationError(f"对应 space_id: {space_id} template_id: {template_id} 不存在")
+def _get_api_credential(space_id: int, template_id: int = None, task_id: int = None) -> dict:
+    """获取API凭证.
 
-    scope_type, scope_value = template.scope_type, template.scope_value
+    :param space_id: 空间ID
+    :param template_id: 模板ID
+    :param task_id: 任务ID
+    :return: API凭证
+    """
+    from bkflow.contrib.api.collections.task import TaskComponentClient
+    from bkflow.space.models import Credential, SpaceConfig
+    from bkflow.template.models import Template
+
+    # 校验 space_id template_id task_id 的正确性
+    if template_id:
+        template = Template.objects.filter(id=template_id, space_id=space_id).first()
+        if not template:
+            raise ValidationError(f"对应 space_id: {space_id} template_id: {template_id} 不存在")
+
+        scope_type, scope_value = template.scope_type, template.scope_value
+    else:
+        client = TaskComponentClient(space_id=space_id)
+        result = client.get_task_detail(task_id=task_id)
+        if not result.get("result", False):
+            raise ValidationError(f"对应 space_id: {space_id} task_id: {task_id} 不存在")
+        scope_type, scope_value = result["data"]["scope_type"], result["data"]["scope_value"]
+
     scope = f"{scope_type}_{scope_value}" if scope_type and scope_value else None
 
     api_credential_config = SpaceConfig.get_config(
@@ -82,7 +108,11 @@ def _get_api_credential(space_id, template_id):
     return credential.first().content
 
 
-def _get_space_uniform_api_list_info(space_id, request_data, config_key, username, template_id):
+def _get_space_uniform_api_list_info(
+    space_id: int, request_data: dict, config_key: str, username: str, template_id: int = None, task_id: int = None
+):
+    from bkflow.space.models import SpaceConfig
+
     uniform_api_config = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
     if not uniform_api_config:
         raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
@@ -94,7 +124,7 @@ def _get_space_uniform_api_list_info(space_id, request_data, config_key, usernam
     if not url:
         raise ValidationError("对应API未配置, 请联系对应接入平台管理员")
     # 根据凭证注入请求头
-    credential_content = _get_api_credential(space_id=space_id, template_id=template_id)
+    credential_content = _get_api_credential(space_id=space_id, template_id=template_id, task_id=task_id)
     headers = client.gen_default_apigw_header(
         app_code=credential_content["bk_app_code"], app_secret=credential_content["bk_app_secret"], username=username
     )
@@ -115,8 +145,8 @@ def _get_space_uniform_api_list_info(space_id, request_data, config_key, usernam
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPICategorySerializer)
 @api_view(["GET"])
 @query_response_handler
-@check_template_auth
-def get_space_uniform_api_category_list(request, space_id, template_id):
+@check_resource_token
+def get_space_uniform_api_category_list(request, space_id):
     """
     获取统一API列表
     """
@@ -125,14 +155,21 @@ def get_space_uniform_api_category_list(request, space_id, template_id):
     data = serializer.validated_data
     api_category_key = UniformApiConfig.Keys.API_CATEGORIES.value
     username = request.user.username
-    return _get_space_uniform_api_list_info(space_id, data, api_category_key, username, template_id)
+    return _get_space_uniform_api_list_info(
+        space_id,
+        data,
+        api_category_key,
+        username,
+        template_id=data.get("template_id"),
+        task_id=data.get("task_id"),
+    )
 
 
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPIListSerializer)
 @api_view(["GET"])
 @query_response_handler
-@check_template_auth
-def get_space_uniform_api_list(request, space_id, template_id):
+@check_resource_token
+def get_space_uniform_api_list(request, space_id):
     """
     获取统一API列表
     """
@@ -141,14 +178,21 @@ def get_space_uniform_api_list(request, space_id, template_id):
     data = serializer.validated_data
     meta_apis_key = UniformApiConfig.Keys.META_APIS.value
     username = request.user.username
-    return _get_space_uniform_api_list_info(space_id, data, meta_apis_key, username, template_id)
+    return _get_space_uniform_api_list_info(
+        space_id,
+        data,
+        meta_apis_key,
+        username,
+        template_id=data.get("template_id"),
+        task_id=data.get("task_id"),
+    )
 
 
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPIMetaSerializer)
 @api_view(["GET"])
 @query_response_handler
-@check_template_auth
-def get_space_uniform_api_meta(requests, space_id, template_id):
+@check_resource_token
+def get_space_uniform_api_meta(requests, space_id):
     """
     获取统一API元数据
     """
@@ -159,7 +203,11 @@ def get_space_uniform_api_meta(requests, space_id, template_id):
     username = requests.user.username
 
     client = UniformAPIClient()
-    credential_content = _get_api_credential(space_id=space_id, template_id=template_id)
+    credential_content = _get_api_credential(
+        space_id=space_id,
+        template_id=data.get("template_id"),
+        task_id=data.get("task_id"),
+    )
     headers = client.gen_default_apigw_header(
         app_code=credential_content["bk_app_code"], app_secret=credential_content["bk_app_secret"], username=username
     )

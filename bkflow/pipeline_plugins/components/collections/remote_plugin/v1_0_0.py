@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -28,6 +27,7 @@ from bkflow.pipeline_plugins.components.collections.base import (
     BKFlowBaseService,
     StepIntervalGenerator,
 )
+from bkflow.pipeline_plugins.utils import get_node_callback_url
 from bkflow.utils.handlers import handle_plain_log
 from plugin_service.conf import PLUGIN_LOGGER
 from plugin_service.exceptions import PluginServiceException
@@ -61,6 +61,7 @@ class RemotePluginService(BKFlowBaseService):
         plugin_code = data.get_one_of_inputs("plugin_code")
         plugin_version = data.get_one_of_inputs("plugin_version")
         space_id = parent_data.get_one_of_inputs("task_space_id")
+        task_id = parent_data.get_one_of_inputs("task_id")
 
         try:
             plugin_client = PluginServiceApiClient(plugin_code)
@@ -77,13 +78,25 @@ class RemotePluginService(BKFlowBaseService):
             data.set_outputs("ex_data", message)
             return False
 
-        plugin_context = dict(
-            [
-                (key, parent_data.inputs[key])
-                for key in detail_result["data"]["context_inputs"]["properties"].keys()
-                if key in parent_data.inputs
-            ]
-        )
+        plugin_context = {
+            key: parent_data.inputs[key]
+            for key in detail_result["data"]["context_inputs"]["properties"].keys()
+            if key in parent_data.inputs
+        }
+
+        # 处理回调的情况
+        if detail_result["data"].get("enable_plugin_callback"):
+            logger.info("回调的节点，需要发送回调")
+            self.interval = None
+            plugin_context.update(
+                {
+                    "plugin_callback_info": {
+                        "url": get_node_callback_url(space_id, task_id, self.id, getattr(self, "version", "")),
+                        "data": {},
+                    }
+                }
+            )
+
         ok, result_data = plugin_client.invoke(
             plugin_version,
             {"inputs": data.inputs, "context": plugin_context},
@@ -91,7 +104,7 @@ class RemotePluginService(BKFlowBaseService):
         )
         if not ok:
             message = _("调用第三方插件invoke接口错误, 错误内容: {message}, trace_id: {trace_id}").format(
-                message=detail_result["message"], trace_id=result_data.get("trace_id")
+                message=result_data["message"], trace_id=result_data.get("trace_id")
             )
             logger.error(message)
             data.set_outputs("ex_data", message)

@@ -1114,20 +1114,21 @@ const template = {
     // api插件分类列表
     loadUniformCategoryList({ state }, data) {
       const { spaceId, scope_type, scope_value, api_name } = data;
-      const { template_id: templateId } = state;
-      return axios.get(`api/plugin_query/uniform_api/category_list/${spaceId}/${templateId}/`, {
+      const { template_id } = state;
+      return axios.get(`api/plugin_query/uniform_api/category_list/${spaceId}/`, {
         params: {
           scope_type,
           scope_value,
           api_name,
+          template_id
         },
       }).then(response => response.data);
     },
     // api插件请求列表
     loadUniformApiList({ state }, data) {
       const { spaceId, scope_type, scope_value, offset, limit, category, key, api_name } = data;
-      const { template_id: templateId } = state;
-      return axios.get(`/api/plugin_query/uniform_api/list/${spaceId}/${templateId}/`, {
+      const { template_id } = state;
+      return axios.get(`/api/plugin_query/uniform_api/list/${spaceId}/`, {
         params: {
           limit,
           offset,
@@ -1136,17 +1137,26 @@ const template = {
           category,
           key,
           api_name,
+          template_id
         },
       }).then(response => response.data);
     },
     // api插件请求详情
-    loadUniformApiMeta({}, data) {
-      const { templateId, spaceId, meta_url, scope_type, scope_value } = data;
-      return axios.get(`/api/plugin_query/uniform_api/meta/${spaceId}/${templateId}/`, {
+    loadUniformApiMeta({ state }, data) {
+      const {  spaceId, meta_url, scope_type, scope_value, taskId, templateId } = data;
+      const paramsData = {
+        meta_url,
+        scope_type,
+        scope_value,
+      };
+      if (taskId) {
+        paramsData.task_id = taskId;
+      } else {
+        paramsData.template_id = templateId ? templateId : state.template_id;
+      }
+      return axios.get(`/api/plugin_query/uniform_api/meta/${spaceId}/`, {
         params: {
-          meta_url,
-          scope_type,
-          scope_value,
+          ...paramsData,
         },
       }).then(response => response.data);
     },

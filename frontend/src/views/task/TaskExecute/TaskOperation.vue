@@ -121,6 +121,7 @@
           :gateways="pipelineData.gateways"
           :condition-data="conditionData"
           :space-id="spaceId"
+          :task-id="taskId"
           :scope-info="scopeInfo"
           :template-id="templateId"
           :instance-actions="instanceActions"
