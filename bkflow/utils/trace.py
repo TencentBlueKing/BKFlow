@@ -69,7 +69,7 @@ def append_attributes(attributes: dict):
     """
     current_span = trace.get_current_span()
     for key, value in attributes.items():
-        current_span.set_attribute(f"bkflow.{key}", value)
+        current_span.set_attribute(f"bk_flow.{key}", value)
 
 
 @contextmanager
@@ -83,7 +83,7 @@ def start_trace(span_name: str, propagate: bool = False, **attributes):
     """
     tracer = trace.get_tracer(__name__)
 
-    span_attributes = {f"bk_sops.{key}": value for key, value in attributes.items()}
+    span_attributes = {f"bk_flow.{key}": value for key, value in attributes.items()}
 
     # 设置需要传播的属性
     if propagate:
