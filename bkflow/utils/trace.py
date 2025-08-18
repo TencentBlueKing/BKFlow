@@ -113,8 +113,10 @@ def trace_view(propagate: bool = True, attr_keys=None, **default_attributes):
             attributes = copy.deepcopy(default_attributes)
 
             for attr_key in attr_keys:
-                # 需要的属性只要在kwargs, request.GET, request.POST中就可以
-                for scope in (kwargs, request.GET, request.POST):
+                # 需要的属性只要在kwargs, request.GET, request.query_params(drf), request.POST, request.data(drf)中就可以
+                query_params = getattr(request, "GET", {}) or getattr(request, "query_params", {})
+                query_data = getattr(request, "POST", {}) or getattr(request, "data", {})
+                for scope in (kwargs, query_params, query_data):
                     if attr_key in scope:
                         attributes[attr_key] = kwargs[attr_key]
                         break
