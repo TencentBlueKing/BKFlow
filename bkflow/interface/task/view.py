@@ -43,7 +43,7 @@ from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.utils.permissions import AdminPermission
-from bkflow.utils.trace import CallFrom, trace_view
+from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 
 logger = logging.getLogger("root")
 
@@ -169,13 +169,15 @@ class TaskInterfaceViewSet(GenericViewSet):
         return Response(result)
 
     @action(methods=["POST"], detail=False, url_path="operate_task/(?P<task_id>\\d+)/(?P<operation>\\w+)")
-    @trace_view(attr_keys=["space_id", "task_id", "operation"], call_from=CallFrom.WEB.value)
     def operate_task(self, request, task_id, operation, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
-        request.data["operator"] = request.user.username
-        result = client.operate_task(task_id, operation, request.data)
-        return Response(result)
+
+        with start_trace("operate_task", True, space_id=space_id, task_id=task_id, call_from=CallFrom.WEB.value):
+            append_attributes({"operation": operation})
+            client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+            request.data["operator"] = request.user.username
+            result = client.operate_task(task_id, operation, request.data)
+            return Response(result)
 
     @action(methods=["GET"], detail=False, url_path="get_task_node_detail/(?P<task_id>\\w+)/node/(?P<node_id>\\w+)")
     def get_task_node_detail(self, request, task_id, node_id, *args, **kwargs):
@@ -189,13 +191,17 @@ class TaskInterfaceViewSet(GenericViewSet):
         detail=False,
         url_path="operate_node/(?P<task_id>\\d+)/node/(?P<node_id>\\w+)/(?P<operation>\\w+)",
     )
-    @trace_view(attr_keys=["space_id", "task_id", "node_id", "operation"], call_from=CallFrom.WEB.value)
     def operate_node(self, request, task_id, node_id, operation, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
-        request.data["operator"] = request.user.username
-        result = client.node_operate(task_id, node_id, operation, request.data)
-        return Response(result)
+
+        with start_trace(
+            "operate_node", True, space_id=space_id, task_id=task_id, node_id=node_id, call_from=CallFrom.WEB.value
+        ):
+            append_attributes({"operation": operation})
+            client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+            request.data["operator"] = request.user.username
+            result = client.node_operate(task_id, node_id, operation, request.data)
+            return Response(result)
 
     @action(
         methods=["GET"],
