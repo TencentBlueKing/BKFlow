@@ -26,20 +26,23 @@ from django.views.decorators.http import require_POST
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import OperateTaskSerializer
 from bkflow.contrib.api.collections.task import TaskComponentClient
-from bkflow.utils.trace import CallFrom, trace_view
+from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 
 
 @login_exempt
 @csrf_exempt
 @require_POST
 @apigw_require
-@trace_view(attr_keys=["space_id", "task_id", "operation"], call_from=CallFrom.APIGW.value)
 @check_jwt_and_space
 @return_json_response
 def operate_task(request, space_id, task_id, operation):
     data = json.loads(request.body)
     ser = OperateTaskSerializer(data=data)
     ser.is_valid(raise_exception=True)
-    client = TaskComponentClient(space_id=space_id)
-    result = client.operate_task(task_id, operation, data=ser.data)
-    return result
+    with start_trace(
+        "operate_task_interface", True, space_id=space_id, task_id=task_id, call_from=CallFrom.APIGW.value
+    ):
+        append_attributes({"operation": operation})
+        client = TaskComponentClient(space_id=space_id)
+        result = client.operate_task(task_id, operation, data=ser.data)
+        return result
