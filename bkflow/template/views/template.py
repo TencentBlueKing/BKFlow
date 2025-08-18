@@ -172,6 +172,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
             extra_info={
                 "task_id": result["data"]["id"],
+                "task_name": create_task_data["name"],
                 "template_id": template.id,
                 "parameters": create_task_data["constants"],
                 "trigger_source": TaskTriggerMethod.manual.name,
