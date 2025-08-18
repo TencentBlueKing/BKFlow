@@ -172,7 +172,9 @@ class TaskInterfaceViewSet(GenericViewSet):
     def operate_task(self, request, task_id, operation, *args, **kwargs):
         space_id = self.get_space_id(request)
 
-        with start_trace("operate_task", True, space_id=space_id, task_id=task_id, call_from=CallFrom.WEB.value):
+        with start_trace(
+            "operate_task_interface", True, space_id=space_id, task_id=task_id, call_from=CallFrom.WEB.value
+        ):
             append_attributes({"operation": operation})
             client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
             request.data["operator"] = request.user.username
@@ -195,7 +197,12 @@ class TaskInterfaceViewSet(GenericViewSet):
         space_id = self.get_space_id(request)
 
         with start_trace(
-            "operate_node", True, space_id=space_id, task_id=task_id, node_id=node_id, call_from=CallFrom.WEB.value
+            "operate_task_node_interface",
+            True,
+            space_id=space_id,
+            task_id=task_id,
+            node_id=node_id,
+            call_from=CallFrom.WEB.value,
         ):
             append_attributes({"operation": operation})
             client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
