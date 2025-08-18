@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -62,6 +61,7 @@ from bkflow.task.serializers import (
 from bkflow.utils.handlers import handle_plain_log
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
+from bkflow.utils.trace import start_trace
 from bkflow.utils.views import SimpleGenericViewSet
 
 
@@ -170,14 +170,23 @@ class TaskInstanceViewSet(
         if operation not in self.VALID_TASK_OPERATIONS:
             raise ValidationError("task operation not allowed")
         task_instance = self.get_object()
-        task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
-        operation_method = getattr(task_operation, operation, None)
-        if operation_method is None:
-            raise ValidationError("task operation not found")
-        data = request.data
-        operator = data.pop("operator", request.user.username)
-        operation_result = operation_method(operator=operator, **data)
-        return Response(dict(operation_result))
+
+        with start_trace(
+            "operate_task_engine",
+            propagate=True,
+            space_id=task_instance.space_id,
+            task_id=task_instance.id,
+            template_id=task_instance.template_id,
+            executor=task_instance.executor,
+        ):
+            task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
+            operation_method = getattr(task_operation, operation, None)
+            if operation_method is None:
+                raise ValidationError("task operation not found")
+            data = request.data
+            operator = data.pop("operator", request.user.username)
+            operation_result = operation_method(operator=operator, **data)
+            return Response(dict(operation_result))
 
     @swagger_auto_schema(methods=["post"], operation_description="节点操作", request_body=EmptyBodySerializer)
     @action(detail=True, methods=["post"], url_path="node_operate/(?P<node_id>\\w+)/(?P<operation>\\w+)")
@@ -186,14 +195,24 @@ class TaskInstanceViewSet(
         if operation not in self.VALID_NODE_OPERATIONS:
             raise ValidationError("node operation not allowed")
         task_instance = self.get_object()
-        node_operation = TaskNodeOperation(task_instance=task_instance, node_id=node_id)
-        operation_method = getattr(node_operation, operation, None)
-        if operation_method is None:
-            raise ValidationError("node operation not found")
-        data = request.data
-        operator = data.pop("operator", request.user.username)
-        operation_result = operation_method(operator=operator, **data)
-        return Response(dict(operation_result))
+
+        with start_trace(
+            "operate_task_node_engine",
+            propagate=True,
+            space_id=task_instance.space_id,
+            task_id=task_instance.id,
+            node_id=node_id,
+            template_id=task_instance.template_id,
+            executor=task_instance.executor,
+        ):
+            node_operation = TaskNodeOperation(task_instance=task_instance, node_id=node_id)
+            operation_method = getattr(node_operation, operation, None)
+            if operation_method is None:
+                raise ValidationError("node operation not found")
+            data = request.data
+            operator = data.pop("operator", request.user.username)
+            operation_result = operation_method(operator=operator, **data)
+            return Response(dict(operation_result))
 
     @swagger_auto_schema(methods=["get"], operation_description="任务状态查询")
     @action(detail=True, methods=["get"], url_path="get_states")

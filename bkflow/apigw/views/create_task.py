@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -30,12 +29,14 @@ from bkflow.apigw.serializers.task import CreateTaskSerializer
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
 from bkflow.template.models import Template
+from bkflow.utils.trace import CallFrom, trace_view
 
 
 @login_exempt
 @csrf_exempt
 @require_POST
 @apigw_require
+@trace_view(attr_keys=["space_id"], call_from=CallFrom.APIGW.value)
 @check_jwt_and_space
 @return_json_response
 def create_task(request, space_id):
