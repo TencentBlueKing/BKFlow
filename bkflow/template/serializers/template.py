@@ -134,13 +134,15 @@ class TemplateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         instance.update_snapshot(pipeline_tree)
         instance_copy = deepcopy(instance)
+        instance = super().update(instance, validated_data)
         # 批量修改流程绑定的触发器:
         try:
-            Trigger.objects.batch_modify_triggers(instance_copy, validated_data["triggers"])
+            Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"])
         except Exception as e:
             logger.exception("Triggers update or create failed,{}".format(e))
+            instance = instance_copy
+            instance.save()
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
-        instance = super().update(instance, validated_data)
 
         send_callback(instance.space_id, "template", instance.build_callback_data(operate_type="update"))
         event_broadcast_signal.send(
