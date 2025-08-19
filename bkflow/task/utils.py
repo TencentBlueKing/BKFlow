@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -24,7 +23,7 @@ from functools import wraps
 
 from bamboo_engine import states as bamboo_engine_states
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.core import constants as pipeline_constants
 from pipeline.engine.utils import calculate_elapsed_time
 from redis.client import Redis
@@ -107,9 +106,7 @@ def parse_node_timeout_configs(pipeline_tree: dict) -> list:
             timeout_seconds = timeout_config.get("seconds")
             action = timeout_config.get("action")
             if not timeout_seconds or not isinstance(timeout_seconds, int):
-                message = _(
-                    f"节点执行失败: 节点[ID: {act_id}]配置了非法的超时时间: {timeout_seconds}, 请修改配置后重试"
-                )
+                message = _(f"节点执行失败: 节点[ID: {act_id}]配置了非法的超时时间: {timeout_seconds}, 请修改配置后重试")
                 logger.error(message)
                 # 对于不符合格式要求的情况，则不设置对应超时时间
                 continue

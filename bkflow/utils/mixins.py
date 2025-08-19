@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,7 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 import logging
 
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.pagination import LimitOffsetPagination
@@ -67,7 +66,7 @@ class BKFLOWNoMaxLimitPagination(LimitOffsetPagination):
             setattr(self, "limit", data_len)
             setattr(self, "offset", 0)
             return data
-        return super(BKFLOWNoMaxLimitPagination, self).paginate_queryset(queryset, request, view)
+        return super().paginate_queryset(queryset, request, view)
 
 
 class BKFlowOrderingFilter(OrderingFilter):
@@ -81,9 +80,9 @@ class BKFLOWCommonMixin(GenericViewSet):
     def get_queryset(self):
         """支持不同acton调用不同的queryset"""
         self.queryset = getattr(self, f"{self.action}_queryset", self.queryset)
-        return super(BKFLOWCommonMixin, self).get_queryset()
+        return super().get_queryset()
 
     def get_serializer_class(self):
         """支持不同acton调用不同的serializer_class"""
         self.serializer_class = getattr(self, f"{self.action}_serializer_class", self.serializer_class)
-        return super(BKFLOWCommonMixin, self).get_serializer_class()
+        return super().get_serializer_class()

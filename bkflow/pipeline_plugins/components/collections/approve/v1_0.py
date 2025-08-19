@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,7 +21,7 @@ to the current version of the project delivered to anyone in the future.
 import traceback
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.core.flow.io import StringItemSchema
 
@@ -61,9 +60,7 @@ class ApproveService(BKFlowBaseService):
 
     def outputs_format(self):
         return [
-            self.OutputItem(
-                name=_("单据sn"), key="sn", type="string", schema=StringItemSchema(description=_("单据sn"))
-            ),
+            self.OutputItem(name=_("单据sn"), key="sn", type="string", schema=StringItemSchema(description=_("单据sn"))),
             self.OutputItem(
                 name=_("审核结果"),
                 key="approve_result",

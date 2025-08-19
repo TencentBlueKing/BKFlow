@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,8 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from django.conf.urls import url
-from django.urls import include
+from django.urls import include, re_path
 from rest_framework.routers import DefaultRouter
 
 from bkflow.decision_table.views import (
@@ -34,5 +32,5 @@ drf_router.register(r"internal", DecisionTableInternalViewSet, basename="interna
 
 
 urlpatterns = [
-    url(r"", include(drf_router.urls)),
+    re_path(r"", include(drf_router.urls)),
 ]

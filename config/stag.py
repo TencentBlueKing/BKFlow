@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -39,18 +38,16 @@ RUN_MODE = "STAGING"
 # LOGGING = set_log_level(locals())
 
 # 预发布环境数据库可以在这里配置
-# DATABASES.update(
-#     {
-#         'default': {
-#             'ENGINE': 'django.db.backends.mysql',
-#             'NAME': '',  # 外部数据库名
-#             'USER': '',  # 外部数据库用户
-#             'PASSWORD': '',  # 外部数据库密码
-#             'HOST': '',  # 外部数据库主机
-#             'PORT': '',  # 外部数据库端口
-#         },
-#     }
-# )
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": os.getenv("BKAPP_FLOW_DB_NAME"),  # 外部数据库名
+        "USER": os.getenv("BKAPP_FLOW_DB_USER"),  # 外部数据库用户
+        "PASSWORD": os.getenv("BKAPP_FLOW_DB_PASSWORD"),  # 外部数据库密码
+        "HOST": os.getenv("BKAPP_FLOW_DB_HOST"),  # 外部数据库主机
+        "PORT": os.getenv("BKAPP_FLOW_DB_PORT"),  # 外部数据库端口
+    },
+}
 
 # 前后端开发模式下支持跨域配置
 if FRONTEND_BACKEND_SEPARATION:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,7 +20,7 @@ from enum import Enum
 from typing import Dict, Optional, Type
 
 import jsonschema
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pydantic import BaseModel, constr
 from pytimeparse import parse
 
@@ -368,11 +367,9 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
                 raise ValidationError(f"[validate api_gateway_credential error]: {str(e)}")
         else:
             raise ValidationError(
-                (
-                    "[validate api_gateway_credential error]: "
-                    "api_gateway_credential only support string or list of json: "
-                    f"{cls.example}"
-                )
+                "[validate api_gateway_credential error]: "
+                "api_gateway_credential only support string or list of json: "
+                f"{cls.example}"
             )
 
     @classmethod
