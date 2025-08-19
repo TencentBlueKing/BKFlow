@@ -16,18 +16,20 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import json
 import logging
 
-from django.db import models, transaction
+from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from django_celery_beat.models import CrontabSchedule as DjangoCeleryBeatCrontabSchedule
 from django_celery_beat.models import PeriodicTask as DjangoCeleryBeatPeriodicTask
 from pipeline.contrib.periodic_task.djcelery.models import *  # noqa
 from pipeline.core.constants import PE
 from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.models import CompressJSONField
 from pipeline.parser.utils import replace_all_id
-from pipeline.utils.uniqid import node_uniqid
+from pipeline.utils.uniqid import node_uniqid, uniqid
 
 from bkflow.constants import (
     MAX_LEN_OF_TASK_NAME,
@@ -432,11 +434,56 @@ class EngineSpaceConfig(models.Model):
         return instance.json_value
 
 
+def default_cron():
+    return {
+        "minute": "*",
+        "hour": "*",
+        "day_of_week": "*",
+        "day_of_month": "*",
+        "month_of_year": "*",
+    }
+
+
+class PeriodicTaskManager(models.Manager):
+    def create_task(
+        self, name, template_id, trigger_id, cron, config, creator, extra_info=None, timezone=None, is_enabled=True
+    ):
+        periodic_task = self.create(
+            name=name,
+            template_id=template_id,
+            trigger_id=trigger_id,
+            cron=cron,
+            config=config,
+            creator=creator,
+            extra_info=extra_info,
+        )
+
+        schedule, _ = DjangoCeleryBeatCrontabSchedule.objects.get_or_create(
+            minute=cron.get("minute", "*"),
+            hour=cron.get("hour", "*"),
+            day_of_week=cron.get("day_of_week", "*"),
+            day_of_month=cron.get("day_of_month", "*"),
+            month_of_year=cron.get("month_of_year", "*"),
+            timezone=timezone or "UTC",
+        )
+        _ = schedule.schedule  # noqa
+        celery_task = DjangoCeleryBeatPeriodicTask.objects.create(
+            crontab=schedule,
+            name=uniqid(),
+            task="pipeline.contrib.periodic_task.tasks.bamboo_engine_periodic_task_start",
+            enabled=is_enabled,
+            kwargs=json.dumps({"periodic_task_id": periodic_task.id}),
+        )
+        periodic_task.celery_task = celery_task
+        periodic_task.save()
+        return periodic_task
+
+
 class PeriodicTask(models.Model):
     name = models.CharField(_("周期任务名称"), max_length=64)
     template_id = models.IntegerField(_("关联流程模板 ID"), db_index=True)
     trigger_id = models.IntegerField(_("关联触发器 ID"), db_index=True)
-    cron = models.CharField(_("调度策略"), max_length=128)
+    cron = models.JSONField(_("调度策略"), default=default_cron)
     celery_task = models.ForeignKey(
         DjangoCeleryBeatPeriodicTask,
         related_name="periodic_task",
@@ -448,8 +495,50 @@ class PeriodicTask(models.Model):
     total_run_count = models.PositiveIntegerField(_("执行次数"), default=0)
     last_run_at = models.DateTimeField(_("上次运行时间"), null=True)
     creator = models.CharField(_("创建者"), max_length=32, default="")
-    extra_info = CompressJSONField(verbose_name=_("额外信息"), null=True)
+    extra_info = models.JSONField(verbose_name=_("额外信息"), null=True)
+
+    objects = PeriodicTaskManager()
 
     class Meta:
         verbose_name = _("周期任务")
         verbose_name_plural = _("周期任务")
+
+    def __unicode__(self):
+        return "{name}({id})".format(name=self.name, id=self.id)
+
+    @property
+    def enabled(self):
+        return self.celery_task.enabled
+
+    def delete(self, using=None, keep_parents=False):
+        self.celery_task.delete()
+        return super().delete(using, keep_parents)
+
+    def set_enabled(self, enabled):
+        """修改celery任务开启状态"""
+        self.celery_task.enabled = enabled
+        self.celery_task.save()
+
+    def modify_cron(self, cron, timezone=None, must_disabled=True):
+        """修改celery周期任务周期计划"""
+        schedule, _ = DjangoCeleryBeatCrontabSchedule.objects.get_or_create(
+            minute=cron.get("minute", "*"),
+            hour=cron.get("hour", "*"),
+            day_of_week=cron.get("day_of_week", "*"),
+            day_of_month=cron.get("day_of_month", "*"),
+            month_of_year=cron.get("month_of_year", "*"),
+            timezone=timezone or "UTC",
+        )
+        _ = schedule.schedule  # noqa
+        self.cron = schedule.__str__()
+        if must_disabled and self.enabled:
+            with transaction.atomic():
+                self.set_enabled(False)
+                self.celery_task.crontab = schedule
+                self.celery_task.save()
+                self.set_enabled(True)
+            return
+        else:
+            self.celery_task.crontab = schedule
+            self.celery_task.save()
+        self.save()
