@@ -26,8 +26,9 @@ from pipeline.core.constants import PE
 from pipeline.parser.utils import replace_all_id
 
 from bkflow.constants import TemplateOperationSource, TemplateOperationType
+from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.models import BaseOperateRecord
-from bkflow.exceptions import ValidationError
+from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.md5 import compute_pipeline_md5
 from bkflow.utils.models import CommonModel, CommonSnapshot
@@ -284,6 +285,85 @@ class TemplateMockScheme(models.Model):
         index_together = ["space_id", "template_id"]
 
 
+class TriggerManager(models.Manager):
+    def create_trigger(self, data, template):
+        config = {
+            "space_id": data.get("space_id"),
+            "pipeline_tree": template.pipeline_tree,
+            "scope_type": template.scope_type,
+            "scope_value": template.scope_value,
+        }
+        data["config"] = {**data["config"], **config}
+        periodic_trigger = Trigger.objects.create(**data)
+        if data.get("type") == Trigger.TYPE_PERIODIC:
+            client = TaskComponentClient(space_id=periodic_trigger.space_id)
+            data = {
+                "name": periodic_trigger.name,
+                "trigger_id": periodic_trigger.id,
+                "template_id": periodic_trigger.template_id,
+                "cron": data["config"].get("cron"),
+                "config": config,
+                "creator": template.creator,
+                "extra_info": {
+                    "notify_config": template.notify_config,
+                },
+            }
+            result = client.create_periodic_task(data=data)
+            if not result.get("result"):
+                raise APIResponseError(f"create periodic_task error: {result.get('message')}")
+        return periodic_trigger
+
+    def update_trigger(self, trigger, data, template):
+        config = {
+            "pipeline_tree": template.pipeline_tree,
+            "scope_type": template.scope_type,
+            "scope_value": template.scope_value,
+        }
+        data["config"] = {**data["config"], **config}
+        for field, value in data.items():
+            setattr(trigger, field, value)
+        trigger.save()
+
+        if trigger.type == Trigger.TYPE_PERIODIC:
+            client = TaskComponentClient(space_id=trigger.space_id)
+            update_data = {
+                "trigger_id": trigger.id,
+                "cron": data["config"].get("cron"),
+                "config": config,
+                "extra_info": {"notify_config": template.notify_config},
+                "is_enabled": trigger.is_enabled,
+            }
+            result = client.update_periodic_task(data=update_data)
+            if not result.get("result"):
+                raise APIResponseError(f"update periodic_task error: {result.get('message')}")
+        return trigger
+
+    def create_or_update_triggers(self, template, triggers):
+        input_trigger_ids = [trigger.get("id") for trigger in triggers if trigger.get("id")]
+        exist_triggers = self.filter(template_id=template.id)
+        exist_trigger_ids = exist_triggers.values_list("id", flat=True)
+        to_update_trigger_ids = list(set(input_trigger_ids) & set(exist_trigger_ids))
+        to_delete_trigger_ids = list(set(exist_trigger_ids) - set(input_trigger_ids))
+        to_update_triggers = [
+            trigger for trigger in triggers if trigger.get("id") and trigger.get("id") in to_update_trigger_ids
+        ]
+        # 没有携带id或为空则视为创建
+        to_create_triggers = [trigger for trigger in triggers if not trigger.get("id")]
+        for update_instance in to_update_triggers:
+            trigger = exist_triggers.get(id=update_instance.get("id"))
+            self.update_trigger(trigger, update_instance, template)
+
+        for create_instance in to_create_triggers:
+            self.create_trigger(create_instance, template)
+
+        if to_delete_trigger_ids:
+            client = TaskComponentClient(space_id=template.space_id)
+            result = client.batch_delete_periodic_task(data={"trigger_ids": list(to_delete_trigger_ids)})
+            if not result.get("result"):
+                raise APIResponseError(f"delete periodic_task error: {result.get('message')}")
+            exist_triggers.filter(id__in=to_delete_trigger_ids).delete()
+
+
 class Trigger(CommonModel):
     # 定义触发器类型选项
     TYPE_PERIODIC = "periodic"
@@ -303,6 +383,8 @@ class Trigger(CommonModel):
     type = models.CharField(
         max_length=20, choices=TYPE_CHOICES, default=TYPE_PERIODIC, help_text="Type of the trigger"  # 设置默认触发类型
     )
+
+    objects = TriggerManager()
 
     class Meta:
         indexes = [
