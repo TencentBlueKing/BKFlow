@@ -154,7 +154,7 @@ def execute_node_timeout_strategy(node_id, version):
 
 
 @current_app.task(ignore_result=True)
-def bamboo_engine_periodic_task_start(*args, **kwargs):
+def bkflow_periodic_task_start(*args, **kwargs):
     try:
         periodic_task = PeriodicTask.objects.get(id=kwargs["periodic_task_id"])
     except PeriodicTask.DoesNotExist:
