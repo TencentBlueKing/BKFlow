@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,10 +20,11 @@ from django.conf.urls import url
 from django.urls import include
 from rest_framework.routers import DefaultRouter
 
-from bkflow.task.views import TaskInstanceViewSet
+from bkflow.task.views import PeriodicTaskViewSet, TaskInstanceViewSet
 
 drf_router = DefaultRouter()
-drf_router.register(r"", TaskInstanceViewSet)
+drf_router.register(r"periodic_task", PeriodicTaskViewSet, basename="periodic_tasks")
+drf_router.register(r"", TaskInstanceViewSet, basename="tasks")
 
 
 urlpatterns = [

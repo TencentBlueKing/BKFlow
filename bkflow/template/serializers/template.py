@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -42,7 +41,9 @@ from bkflow.template.models import (
     TemplateMockScheme,
     TemplateOperationRecord,
     TemplateSnapshot,
+    Trigger,
 )
+from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.template.utils import send_callback
 
 logger = logging.getLogger("root")
@@ -79,6 +80,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     notify_config = serializers.JSONField(help_text=_("配置"), required=False)
     version = serializers.CharField(help_text=_("版本"), required=False, allow_blank=True)
     desc = serializers.CharField(help_text=_("流程说明"), required=False, allow_blank=True)
+    triggers = TriggerSerializer(many=True, required=True, allow_null=True)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
@@ -102,7 +104,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
         snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
         validated_data["snapshot_id"] = snapshot.id
-        template = super(TemplateSerializer, self).create(validated_data)
+        template = super().create(validated_data)
 
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
@@ -130,7 +132,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             logger.exception("TemplateSerializer update error, err = {}".format(e))
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         instance.update_snapshot(pipeline_tree)
-        instance = super(TemplateSerializer, self).update(instance, validated_data)
+        instance = super().update(instance, validated_data)
 
         send_callback(instance.space_id, "template", instance.build_callback_data(operate_type="update"))
         event_broadcast_signal.send(
@@ -138,6 +140,12 @@ class TemplateSerializer(serializers.ModelSerializer):
             scopes=[(WebhookScopeType.SPACE.value, str(instance.space_id))],
             extra_info={"template_id": instance.id},
         )
+        # 批量修改流程绑定的触发器:
+        try:
+            Trigger.objects.create_or_update_triggers(instance, validated_data["triggers"])
+        except Exception as e:
+            logger.exception("Triggers update or create failed,{}".format(e))
+            raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         return instance
 
     def get_current_user_auth(self, instance):
@@ -156,7 +164,9 @@ class TemplateSerializer(serializers.ModelSerializer):
         return permissions
 
     def to_representation(self, instance):
-        data = super(TemplateSerializer, self).to_representation(instance)
+        data = super().to_representation(instance)
+        triggers = Trigger.objects.filter(template_id=instance.id)
+        data["triggers"] = TriggerSerializer(triggers, many=True).data
         data["auth"] = self.get_current_user_auth(instance)
         return data
 
@@ -177,7 +187,7 @@ class TemplateOperationRecordSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def to_representation(self, instance):
-        data = super(TemplateOperationRecordSerializer, self).to_representation(instance)
+        data = super().to_representation(instance)
         data["operate_type_name"] = TemplateOperationType[instance.operate_type].value if instance.operate_type else ""
         data["operate_source_name"] = (
             TemplateOperationSource[instance.operate_source].value if instance.operate_source else ""

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -28,6 +27,7 @@ from bkflow.constants import TaskOperationSource, TaskOperationType
 from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
 from bkflow.task.models import (
     EngineSpaceConfigValueType,
+    PeriodicTask,
     TaskInstance,
     TaskOperationRecord,
 )
@@ -161,7 +161,7 @@ class TaskOperationRecordSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def to_representation(self, instance):
-        data = super(TaskOperationRecordSerializer, self).to_representation(instance)
+        data = super().to_representation(instance)
         data["operate_type_name"] = TaskOperationType[instance.operate_type].value if instance.operate_type else ""
         data["operate_source_name"] = (
             TaskOperationSource[instance.operate_source].value if instance.operate_source else ""
@@ -194,3 +194,70 @@ class EngineSpaceConfigSerializer(serializers.Serializer):
 class GetEngineSpaceConfigSerializer(serializers.Serializer):
     interface_config_ids = serializers.ListField(required=True, child=serializers.IntegerField())
     simplified = serializers.BooleanField(required=False, default=False)
+
+
+class PeriodicTaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PeriodicTask
+        fields = "__all__"
+
+
+class PeriodicTaskConfigSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(required=False)
+    constants = serializers.JSONField(help_text="流程变量", required=False, allow_null=True)
+    pipeline_tree = serializers.JSONField(help_text="流程树", required=False, allow_null=True)
+    scope_type = serializers.CharField(help_text="流程所属作用域类型", required=False, allow_null=True)
+    scope_value = serializers.CharField(help_text="流程所属作用域值", required=False, allow_null=True)
+
+
+class CreatePeriodicTaskSerializer(serializers.Serializer):
+    trigger_id = serializers.IntegerField(help_text="触发器ID", required=True)
+    template_id = serializers.IntegerField(help_text="模板ID", required=True)
+    name = serializers.CharField(max_length=100, help_text="名称", required=True)
+    cron = serializers.JSONField(help_text="cron表达式", required=True)
+    creator = serializers.CharField(max_length=100, help_text="创建人", required=True)
+    config = PeriodicTaskConfigSerializer(help_text="流程相关信息", required=True)
+    extra_info = serializers.JSONField(help_text="额外信息", required=False)
+
+    def validate_trigger_id(self, value):
+        if PeriodicTask.objects.filter(trigger_id=value).exists():
+            raise serializers.ValidationError(f"periodic_task with trigger_id {value} already exists")
+        return value
+
+
+class UpdatePeriodicTaskSerializer(serializers.Serializer):
+    trigger_id = serializers.IntegerField(help_text="触发器ID", required=True)
+    name = serializers.CharField(max_length=100, help_text="名称", required=False)
+    cron = serializers.JSONField(help_text="cron表达式", required=False)
+    config = PeriodicTaskConfigSerializer(help_text="流程相关信息", required=False)
+    extra_info = serializers.JSONField(help_text="额外信息", required=False)
+    is_enabled = serializers.BooleanField(help_text="任务开启状态", default=True)
+
+    def update(self, instance, validated_data):
+        for field_name, field_value in validated_data.items():
+            if field_name == "cron":
+                instance.modify_cron(field_value)
+            elif field_name == "config":
+                old_config = instance.config
+                for key, value in field_value.items():
+                    if key not in old_config:
+                        raise serializers.ValidationError(f"Invalid config key: {key}")
+                    old_config[key] = value
+                validated_data["config"] = old_config
+            elif field_name == "is_enabled":
+                instance.set_enabled(field_value)
+                validated_data.pop(field_name)
+                continue
+            setattr(instance, field_name, field_value)
+        instance.save()
+        return instance
+
+    def validate_cron(self, cron_data):
+        required_fields = ["minute", "hour", "day_of_month", "month_of_year", "day_of_week"]
+        if not all(field in cron_data for field in required_fields):
+            raise serializers.ValidationError("Cron expression is missing required fields")
+        return cron_data
+
+
+class BatchDeletePeriodicTaskSerializer(serializers.Serializer):
+    trigger_ids = serializers.ListField(child=serializers.IntegerField(), help_text="触发器ID列表", required=True)

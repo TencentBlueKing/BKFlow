@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -137,6 +136,15 @@ class TaskComponentClient(BaseComponentClient):
 
     def batch_delete_tasks(self, data):
         return self._request(method="post", url=self._get_task_url("task/batch_delete_tasks/"), data=data)
+
+    def create_periodic_task(self, data):
+        return self._request(method="post", url=self._get_task_url("task/periodic_task/"), data=data)
+
+    def update_periodic_task(self, data):
+        return self._request(method="post", url=self._get_task_url("task/periodic_task/update/"), data=data)
+
+    def batch_delete_periodic_task(self, data):
+        return self._request(method="post", url=self._get_task_url("task/periodic_task/batch_delete/"), data=data)
 
     def get_engine_config(self, data):
         return self._request(method="get", url=self._get_task_url("task/get_engine_config/"), data=data)
