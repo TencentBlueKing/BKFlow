@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
+from copy import deepcopy
 
 from django.conf import settings
 from django.db import transaction
@@ -132,6 +133,13 @@ class TemplateSerializer(serializers.ModelSerializer):
             logger.exception("TemplateSerializer update error, err = {}".format(e))
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         instance.update_snapshot(pipeline_tree)
+        instance_copy = deepcopy(instance)
+        # 批量修改流程绑定的触发器:
+        try:
+            Trigger.objects.batch_modify_triggers(instance_copy, validated_data["triggers"])
+        except Exception as e:
+            logger.exception("Triggers update or create failed,{}".format(e))
+            raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         instance = super().update(instance, validated_data)
 
         send_callback(instance.space_id, "template", instance.build_callback_data(operate_type="update"))
@@ -140,12 +148,6 @@ class TemplateSerializer(serializers.ModelSerializer):
             scopes=[(WebhookScopeType.SPACE.value, str(instance.space_id))],
             extra_info={"template_id": instance.id},
         )
-        # 批量修改流程绑定的触发器:
-        try:
-            Trigger.objects.create_or_update_triggers(instance, validated_data["triggers"])
-        except Exception as e:
-            logger.exception("Triggers update or create failed,{}".format(e))
-            raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         return instance
 
     def get_current_user_auth(self, instance):
