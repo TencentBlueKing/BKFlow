@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -83,6 +82,13 @@ class TemplateOperationType(Enum):
     update = _("修改")
 
 
+class TaskTriggerMethod(Enum):
+    """任务触发方式"""
+
+    manual = _("手动")
+    timing = _("定时")
+
+
 class TemplateOperationSource(Enum):
     """记录来源"""
 
@@ -111,3 +117,4 @@ class WebhookEventType(Enum):
     TEMPLATE_CREATE = "template_create"
     TASK_FAILED = "task_failed"
     TASK_FINISHED = "task_finished"
+    TASK_CREATE = "task_create"
