@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,6 +21,8 @@ import logging
 from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from django_celery_beat.models import PeriodicTask as DjangoCeleryBeatPeriodicTask
+from pipeline.contrib.periodic_task.djcelery.models import *  # noqa
 from pipeline.core.constants import PE
 from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.models import CompressJSONField
@@ -429,3 +430,26 @@ class EngineSpaceConfig(models.Model):
             return {}
         instance = qs.first()
         return instance.json_value
+
+
+class PeriodicTask(models.Model):
+    name = models.CharField(_("周期任务名称"), max_length=64)
+    template_id = models.IntegerField(_("关联流程模板 ID"), db_index=True)
+    trigger_id = models.IntegerField(_("关联触发器 ID"), db_index=True)
+    cron = models.CharField(_("调度策略"), max_length=128)
+    celery_task = models.ForeignKey(
+        DjangoCeleryBeatPeriodicTask,
+        related_name="periodic_task",
+        verbose_name=_("celery 周期任务实例"),
+        null=True,
+        on_delete=models.SET_NULL,
+    )
+    config = models.JSONField(help_text="流程相关信息")
+    total_run_count = models.PositiveIntegerField(_("执行次数"), default=0)
+    last_run_at = models.DateTimeField(_("上次运行时间"), null=True)
+    creator = models.CharField(_("创建者"), max_length=32, default="")
+    extra_info = CompressJSONField(verbose_name=_("额外信息"), null=True)
+
+    class Meta:
+        verbose_name = _("周期任务")
+        verbose_name_plural = _("周期任务")
