@@ -493,5 +493,6 @@ class PeriodicTaskViewSet(
         serializer = BatchDeletePeriodicTaskSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         trigger_ids = serializer.validated_data["trigger_ids"]
-        self.get_queryset().filter(trigger_id__in=trigger_ids).delete()
+        for instance in self.get_queryset().filter(trigger_id__in=trigger_ids).select_related("celery_task"):
+            instance.delete()
         return Response(status=status.HTTP_200_OK)

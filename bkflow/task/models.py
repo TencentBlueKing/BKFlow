@@ -436,7 +436,7 @@ class EngineSpaceConfig(models.Model):
 
 def default_cron():
     return {
-        "minute": "*",
+        "minute": "0",
         "hour": "*",
         "day_of_week": "*",
         "day_of_month": "*",
@@ -448,34 +448,35 @@ class PeriodicTaskManager(models.Manager):
     def create_task(
         self, name, template_id, trigger_id, cron, config, creator, extra_info=None, timezone=None, is_enabled=True
     ):
-        periodic_task = self.create(
-            name=name,
-            template_id=template_id,
-            trigger_id=trigger_id,
-            cron=cron,
-            config=config,
-            creator=creator,
-            extra_info=extra_info,
-        )
+        with transaction.atomic():
+            periodic_task = self.create(
+                name=name,
+                template_id=template_id,
+                trigger_id=trigger_id,
+                cron=cron,
+                config=config,
+                creator=creator,
+                extra_info=extra_info,
+            )
 
-        schedule, _ = DjangoCeleryBeatCrontabSchedule.objects.get_or_create(
-            minute=cron.get("minute", "*"),
-            hour=cron.get("hour", "*"),
-            day_of_week=cron.get("day_of_week", "*"),
-            day_of_month=cron.get("day_of_month", "*"),
-            month_of_year=cron.get("month_of_year", "*"),
-            timezone=timezone or "UTC",
-        )
-        _ = schedule.schedule  # noqa
-        celery_task = DjangoCeleryBeatPeriodicTask.objects.create(
-            crontab=schedule,
-            name=uniqid(),
-            task="pipeline.contrib.periodic_task.tasks.bamboo_engine_periodic_task_start",
-            enabled=is_enabled,
-            kwargs=json.dumps({"periodic_task_id": periodic_task.id}),
-        )
-        periodic_task.celery_task = celery_task
-        periodic_task.save()
+            schedule, _ = DjangoCeleryBeatCrontabSchedule.objects.get_or_create(
+                minute=cron.get("minute", "0"),
+                hour=cron.get("hour", "*"),
+                day_of_week=cron.get("day_of_week", "*"),
+                day_of_month=cron.get("day_of_month", "*"),
+                month_of_year=cron.get("month_of_year", "*"),
+                timezone=timezone or "UTC",
+            )
+            _ = schedule.schedule  # noqa
+            celery_task = DjangoCeleryBeatPeriodicTask.objects.create(
+                crontab=schedule,
+                name=uniqid(),
+                task="pipeline.contrib.periodic_task.tasks.bamboo_engine_periodic_task_start",
+                enabled=is_enabled,
+                kwargs=json.dumps({"periodic_task_id": periodic_task.id}),
+            )
+            periodic_task.celery_task = celery_task
+            periodic_task.save()
         return periodic_task
 
 
