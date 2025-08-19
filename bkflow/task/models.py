@@ -471,7 +471,7 @@ class PeriodicTaskManager(models.Manager):
             celery_task = DjangoCeleryBeatPeriodicTask.objects.create(
                 crontab=schedule,
                 name=uniqid(),
-                task="pipeline.contrib.periodic_task.tasks.bamboo_engine_periodic_task_start",
+                task="bkflow.task.celery.tasks.bamboo_engine_periodic_task_start",
                 enabled=is_enabled,
                 kwargs=json.dumps({"periodic_task_id": periodic_task.id}),
             )
