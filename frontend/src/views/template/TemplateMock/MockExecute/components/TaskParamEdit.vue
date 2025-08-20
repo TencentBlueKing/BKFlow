@@ -6,7 +6,8 @@
       v-model="renderData"
       :scheme="renderConfig"
       :constants="variables"
-      :form-option="renderOption" />
+      :form-option="renderOption"
+      :is-trigger-config="true" />
     <NoData
       v-if="isNoData && !isConfigLoading"
       :message="$t('暂无参数')" />
@@ -45,9 +46,27 @@
         type: Boolean,
         default: true,
       },
+      triggerConfig: {
+        type: Object,
+        default() {
+          return {};
+        },
+      },
+      isTriggerConfig: {
+        type: Boolean,
+        default: false,
+      },
+      savedRequestConstants: {
+        type: Object,
+        default() {
+          return {};
+        },
+      },
     },
     data() {
       return {
+        currentFormConfig: tools.deepClone(this.triggerConfig),
+        savedConstants: tools.deepClone(this.savedRequestConstants),
         isConfigLoading: false,
         variables: tools.deepClone(this.constants),
         renderConfig: [],
@@ -63,6 +82,8 @@
         renderData: {},
         initialRenderData: {},
         isNoData: false,
+        triggerInputData: {},
+        isInternalRenderDataUpdate: false,
       };
     },
     computed: {
@@ -78,6 +99,31 @@
         this.variables = tools.deepClone(val);
         this.getFormData();
       },
+      savedRequestConstants(val) {
+        if (val && this.isTriggerConfig) {
+          this.savedConstants = tools.deepClone(val);
+          this.isInternalRenderDataUpdate = true;
+          if (this.savedConstants && this.currentFormConfig.config.mode === 'form') {
+              const newRenderData = tools.deepClone(this.renderData);
+              Object.keys(val).forEach((key) => {
+                newRenderData[key] = tools.deepClone(val[key]);
+              });
+              this.renderData = newRenderData;
+          }
+          this.$nextTick(() => {
+            this.isInternalRenderDataUpdate = false;
+          });
+        }
+      },
+      renderData(val) {
+        if (this.isTriggerConfig) {
+          if (!this.isInternalRenderDataUpdate && this.currentFormConfig.config.mode === 'form') {
+            this.$emit('change', tools.deepClone(val));
+          }
+        } else {
+          this.$emit('change', tools.deepClone(val));
+        }
+      },
     },
     mounted() {
       this.getFormData();
@@ -91,7 +137,6 @@
         'loadAtomConfig',
         'loadPluginServiceDetail',
       ]),
-
       /**
        * 加载表单元素的标准插件配置文件
        */
@@ -203,6 +248,11 @@
             this.renderConfig.push(currentFormConfig);
           }
           this.renderData[key] = tools.deepClone(variable.value);
+        }
+        if (this.isTriggerConfig && this.savedConstants && this.currentFormConfig.config.mode === 'form') {
+          Object.keys(this.savedConstants).forEach((key) => {
+               this.renderData[key] = tools.deepClone(this.savedConstants[key]);
+          });
         }
         this.initialRenderData = this.renderData;
         this.$nextTick(() => {

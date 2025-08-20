@@ -136,6 +136,18 @@
             @change="onSelectNotifyConfig" />
         </section>
         <section class="form-section">
+          <h4>
+            <span>{{ $t('触发器') }}</span>
+            <span class="tip-desc">{{ $t('可以通过配置触发器来执行流程任务') }}</span>
+          </h4>
+          <TimedTriggerConfig
+            :is-view-mode="isViewMode"
+            :triggers="formData.triggers"
+            :template-id="templateId"
+            @change="onTriggerConfigChange" />
+        </section>
+
+        <section class="form-section">
           <h4>{{ $t('其他') }}</h4>
           <!-- <bk-form-item v-if="!common" :label="$t('执行代理人')" data-test-id="tabTemplateConfig_form_executorProxy">
             <member-select
@@ -251,12 +263,14 @@
   import i18n from '@/config/i18n/index.js';
   import NotifyTypeConfig from './NotifyTypeConfig.vue';
   import permission from '@/mixins/permission.js';
+  import TimedTriggerConfig from './TimedTriggerConfig.vue';
 
   export default {
     name: 'TabTemplateConfig',
     components: {
       // MemberSelect,
       NotifyTypeConfig,
+      TimedTriggerConfig,
     },
     mixins: [permission],
     props: {
@@ -276,7 +290,7 @@
     data() {
       const {
         name, category, notify_type: notifyType, notify_receivers: notifyReceivers = {}, description,
-        executor_proxy: execProxy, template_labels, default_flow_type,
+        executor_proxy: execProxy, template_labels, default_flow_type, triggers,
       } = this.$store.state.template;
 
       return {
@@ -290,6 +304,7 @@
           notifyType: notifyType ? [notifyType.success.slice(0), notifyType.fail.slice(0)] : [],
           labels: template_labels,
           defaultFlowType: default_flow_type,
+          triggers,
         },
         stringLength: STRING_LENGTH,
         rules: {
@@ -357,6 +372,9 @@
         projectName: state => state.projectName,
         authActions: state => state.authActions,
       }),
+      ...mapState('template', {
+        templateId: state => state.template_id,
+      }),
     },
     mounted() {
       // 模板没有设置执行代理人时，默认使用项目下的执行代理人
@@ -417,6 +435,7 @@
           notifyType,
           labels,
           defaultFlowType,
+          triggers,
         } = this.formData;
         return {
           name,
@@ -428,6 +447,7 @@
           receiver_group: receiverGroup,
           notify_type: { success: notifyType[0], fail: notifyType[1] },
           default_flow_type: defaultFlowType,
+          triggers,
         };
       },
       jumpProjectManagement() {
@@ -454,12 +474,14 @@
         this.formData.notifyReceiver = receiver;
         this.formData.receiverGroup = receiverGroup;
       },
+      onTriggerConfigChange(triggers) {
+        this.formData.triggers = triggers;
+      },
       onSaveConfig() {
         this.$refs.configForm.validate().then((result) => {
           if (!result) {
             return;
           }
-
           const data = this.getTemplateConfig();
           this.setTplConfig(data);
           this.closeTab();

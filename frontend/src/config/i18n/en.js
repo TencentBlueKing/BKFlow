@@ -961,6 +961,12 @@ const en = {
   '流程复制成功！': 'Process copied successfully!',
   使用范围编辑成功: 'Scope of Use Edited Successfully',
   '* (对所有空间公开)': '* (All Spaces)',
+  '可以通过配置触发器来执行流程任务': 'You can execute process tasks by configuring triggers',
+  '触发器': "Trigger",
+  "启用状态": "Enabled status",
+  "执行周期": "Execution Cycle",
+  "添加定时触发器": "Add Timer Trigger",
+  "修改定时触发器": "Edit Timer Trigger",
 };
 
 export default en;
