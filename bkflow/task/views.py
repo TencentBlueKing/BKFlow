@@ -149,7 +149,10 @@ class TaskInstanceViewSet(
         instance = TaskInstance.objects.create_instance(**serializer.validated_data)
         new_serializer = TaskInstanceSerializer(instance)
         headers = self.get_success_headers(new_serializer.data)
-        return Response(new_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        response_data = new_serializer.data
+        if request.data.get("include_pipeline_tree", False):
+            response_data["pipeline_tree"] = instance.pipeline_tree
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
     @swagger_auto_schema(methods=["post"], operation_description="批量删除任务", request_body=TaskBatchDeleteSerializer)
     @action(detail=False, methods=["post"], url_path="batch_delete_tasks")

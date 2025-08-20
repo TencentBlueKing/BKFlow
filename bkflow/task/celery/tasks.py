@@ -174,6 +174,9 @@ def bkflow_periodic_task_start(*args, **kwargs):
         task_instance = TaskInstance.objects.create_instance(**serializer.validated_data)
         logger.info(f"[bamboo_engine_periodic_task_start] task {task_instance.id} created")
 
+        constants = task_instance.pipeline_tree["constants"]
+        parameters = {key: value["value"] for key, value in constants.items()}
+
         interface_client = InterfaceModuleClient()
         interface_client.broadcast_task_events(
             data={
@@ -183,7 +186,7 @@ def bkflow_periodic_task_start(*args, **kwargs):
                     "task_id": task_instance.id,
                     "task_name": task_instance.name,
                     "template_id": task_instance.template_id,
-                    "parameters": task_data.get("constants", {}),
+                    "parameters": parameters,
                     "trigger_source": TaskTriggerMethod.timing.name,
                 },
             }
