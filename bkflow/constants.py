@@ -118,3 +118,10 @@ class WebhookEventType(Enum):
     TASK_FAILED = "task_failed"
     TASK_FINISHED = "task_finished"
     TASK_CREATE = "task_create"
+
+
+class TriggerConstantsMode(Enum):
+    """触发器参数视图类型"""
+
+    FORM = "form"
+    JSON = "json"
