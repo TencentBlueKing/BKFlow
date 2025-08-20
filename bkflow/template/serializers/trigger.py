@@ -1,13 +1,15 @@
 from rest_framework import serializers
 
+from bkflow.constants import TriggerConstantsMode
 from bkflow.template.models import Trigger
 
 
 class ConfigSerializer(serializers.Serializer):
-    """定时触发器配置序列化器"""
+    """触发器配置序列化器"""
 
     constants = serializers.JSONField(help_text="流程入参", required=True, allow_null=True)
     cron = serializers.JSONField(help_text="cron表达式", required=False)
+    mode = serializers.ChoiceField(choices=[(mode.value, mode.value) for mode in TriggerConstantsMode], required=True)
 
     def validate_cron(self, cron_data):
         required_fields = ["minute", "hour", "day_of_month", "month_of_year", "day_of_week"]
