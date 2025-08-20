@@ -26,8 +26,9 @@ from pipeline.core.constants import PE
 from pipeline.parser.utils import replace_all_id
 
 from bkflow.constants import TemplateOperationSource, TemplateOperationType
+from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.models import BaseOperateRecord
-from bkflow.exceptions import ValidationError
+from bkflow.exceptions import APIResponseError, NotFoundError, ValidationError
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.md5 import compute_pipeline_md5
 from bkflow.utils.models import CommonModel, CommonSnapshot
@@ -284,6 +285,129 @@ class TemplateMockScheme(models.Model):
         index_together = ["space_id", "template_id"]
 
 
+class BaseTriggerHandler:
+    """触发器操作基类"""
+
+    def create(self, trigger, template):
+        raise NotImplementedError
+
+    def update(self, trigger, data, template):
+        raise NotImplementedError
+
+
+class PeriodicTriggerHandler(BaseTriggerHandler):
+    """定时触发器处理器"""
+
+    def create(self, trigger, template):
+        client = TaskComponentClient(space_id=trigger.space_id)
+        data = {
+            "name": trigger.name,
+            "trigger_id": trigger.id,
+            "template_id": trigger.template_id,
+            "cron": trigger.config.get("cron"),
+            "config": {
+                "space_id": trigger.space_id,
+                "pipeline_tree": template.pipeline_tree,
+                "scope_type": template.scope_type,
+                "scope_value": template.scope_value,
+            },
+            "creator": template.creator,
+            "extra_info": {"notify_config": template.notify_config},
+        }
+        result = client.create_periodic_task(data=data)
+        if not result.get("result"):
+            raise APIResponseError(f"create periodic_task error: {result.get('message')}")
+
+    def update(self, trigger, data, template):
+        client = TaskComponentClient(space_id=trigger.space_id)
+        update_data = {
+            "trigger_id": trigger.id,
+            "cron": data["config"].get("cron"),
+            "config": {
+                "pipeline_tree": template.pipeline_tree,
+                "scope_type": template.scope_type,
+                "scope_value": template.scope_value,
+            },
+            "extra_info": {"notify_config": template.notify_config},
+            "is_enabled": trigger.is_enabled,
+        }
+        result = client.update_periodic_task(data=update_data)
+        if not result.get("result"):
+            raise APIResponseError(f"update periodic_task error: {result.get('message')}")
+
+
+class TriggerManager(models.Manager):
+    def create_trigger(self, data, template):
+        config = {
+            "space_id": data.get("space_id"),
+            "pipeline_tree": template.pipeline_tree,
+            "scope_type": template.scope_type,
+            "scope_value": template.scope_value,
+        }
+        data["config"] = {**data["config"], **config}
+        with transaction.atomic():
+            trigger = Trigger.objects.create(**data)
+            handler = self._get_handler(trigger.type)
+            handler.create(trigger, template)
+        return trigger
+
+    def update_trigger(self, trigger, data, template):
+        config = {
+            "pipeline_tree": template.pipeline_tree,
+            "scope_type": template.scope_type,
+            "scope_value": template.scope_value,
+        }
+        data["config"] = {**data["config"], **config}
+        with transaction.atomic():
+            for field, value in data.items():
+                setattr(trigger, field, value)
+            trigger.save()
+            handler = self._get_handler(trigger.type)
+            handler.update(trigger, data, template)
+        return trigger
+
+    def _get_handler(self, trigger_type):
+        handlers = {
+            Trigger.TYPE_PERIODIC: PeriodicTriggerHandler(),
+        }
+        handler = handlers.get(trigger_type)
+        if not handler:
+            raise NotFoundError(f"TriggerHandler with trigger type {trigger_type} not found")
+        return handler
+
+    def batch_modify_triggers(self, template, triggers):
+        """批量更新、创建和删除单个流程下的多个触发器"""
+
+        input_trigger_ids = [trigger.get("id") for trigger in triggers if trigger.get("id")]
+        exist_triggers = self.filter(template_id=template.id)
+
+        # 根据入参中触发器的id集合和数据库中存在的触发器id集合，筛选出待更新、待创建和待删除的触发器id列表
+        exist_triggers_dict = {trigger.id: trigger for trigger in exist_triggers}
+        exist_trigger_ids = exist_triggers_dict.keys()
+        to_update_trigger_ids = list(set(input_trigger_ids) & set(exist_trigger_ids))
+        to_delete_trigger_ids = list(set(exist_trigger_ids) - set(input_trigger_ids))
+        to_update_triggers = [
+            trigger for trigger in triggers if trigger.get("id") and trigger.get("id") in to_update_trigger_ids
+        ]
+        # 没有携带id或为空则视为创建
+        to_create_triggers = [trigger for trigger in triggers if not trigger.get("id")]
+
+        for update_instance in to_update_triggers:
+            trigger = exist_triggers_dict[update_instance.get("id")]
+            self.update_trigger(trigger, update_instance, template)
+
+        for create_instance in to_create_triggers:
+            self.create_trigger(create_instance, template)
+
+        # 批量删除触发器以及其对应的周期任务
+        if to_delete_trigger_ids:
+            client = TaskComponentClient(space_id=template.space_id)
+            result = client.batch_delete_periodic_task(data={"trigger_ids": list(to_delete_trigger_ids)})
+            if not result.get("result"):
+                raise APIResponseError(f"delete periodic_task error: {result.get('message')}")
+            exist_triggers.filter(id__in=to_delete_trigger_ids).delete()
+
+
 class Trigger(CommonModel):
     # 定义触发器类型选项
     TYPE_PERIODIC = "periodic"
@@ -303,6 +427,8 @@ class Trigger(CommonModel):
     type = models.CharField(
         max_length=20, choices=TYPE_CHOICES, default=TYPE_PERIODIC, help_text="Type of the trigger"  # 设置默认触发类型
     )
+
+    objects = TriggerManager()
 
     class Meta:
         indexes = [

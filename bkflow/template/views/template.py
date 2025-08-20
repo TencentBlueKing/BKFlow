@@ -79,6 +79,7 @@ from bkflow.template.serializers.template import (
     AdminTemplateSerializer,
     DrawPipelineSerializer,
     PreviewTaskTreeSerializer,
+    SimplifiedTemplateFileSerializer,
     TemplateBatchDeleteSerializer,
     TemplateCopySerializer,
     TemplateMockDataBatchCreateSerializer,
@@ -89,7 +90,6 @@ from bkflow.template.serializers.template import (
     TemplateOperationRecordSerializer,
     TemplateRelatedResourceSerializer,
     TemplateSerializer,
-    SimplifiedTemplateFileSerializer,
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
@@ -178,6 +178,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
             extra_info={
                 "task_id": result["data"]["id"],
+                "task_name": create_task_data["name"],
                 "template_id": template.id,
                 "parameters": create_task_data["constants"],
                 "trigger_source": TaskTriggerMethod.manual.name,
@@ -186,9 +187,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
 
         return Response(result["data"])
 
-    @swagger_auto_schema(
-        method="POST", operation_description="流程批量删除", request_body=TemplateBatchDeleteSerializer
-    )
+    @swagger_auto_schema(method="POST", operation_description="流程批量删除", request_body=TemplateBatchDeleteSerializer)
     @action(methods=["POST"], detail=False, url_path="batch_delete")
     def batch_delete(self, request, *args, **kwargs):
         ser = TemplateBatchDeleteSerializer(data=request.data)

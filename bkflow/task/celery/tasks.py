@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -20,22 +19,27 @@ to the current version of the project delivered to anyone in the future.
 import json
 import logging
 import time
+import traceback
 
 from celery import current_app
 from django.conf import settings
+from django.utils import timezone
 from pipeline.eri.models import Process, State
 from pipeline.eri.runtime import BambooDjangoRuntime
 
-from bkflow.constants import WebhookEventType
+from bkflow.constants import TaskTriggerMethod, WebhookEventType
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
+from bkflow.exceptions import ValidationError
 from bkflow.task.models import (
     AutoRetryNodeStrategy,
+    PeriodicTask,
     TaskInstance,
     TimeoutNodeConfig,
     TimeoutNodesRecord,
 )
 from bkflow.task.node_timeout import node_timeout_handler
-from bkflow.task.operations import TaskNodeOperation
+from bkflow.task.operations import TaskNodeOperation, TaskOperation
+from bkflow.task.serializers import CreateTaskInstanceSerializer
 from bkflow.task.utils import ATOM_FAILED, redis_inst_check, send_task_instance_message
 
 logger = logging.getLogger("celery")
@@ -55,7 +59,7 @@ def _ensure_node_can_retry(node_id):
 @current_app.task
 @redis_inst_check
 def auto_retry_node(taskflow_id, root_pipeline_id, node_id, retry_times):
-    lock_name = "%s-%s-%s" % (root_pipeline_id, node_id, retry_times)
+    lock_name = "{}-{}-{}".format(root_pipeline_id, node_id, retry_times)
     if not settings.redis_inst.set(name=lock_name, value=1, nx=True, ex=5):
         logger.warning("[auto_retry_node] lock %s acquire failed, operation give up" % lock_name)
         return
@@ -64,7 +68,7 @@ def auto_retry_node(taskflow_id, root_pipeline_id, node_id, retry_times):
     can_retry = _ensure_node_can_retry(node_id=node_id)
     if not can_retry:
         settings.redis_inst.delete(lock_name)
-        logger.warning("[auto_retry_node] task(%s) node(%s) ensure_node_can_retry timeout" % (taskflow_id, node_id))
+        logger.warning("[auto_retry_node] task({}) node({}) ensure_node_can_retry timeout".format(taskflow_id, node_id))
         return
 
     try:
@@ -76,7 +80,9 @@ def auto_retry_node(taskflow_id, root_pipeline_id, node_id, retry_times):
     result = operation.retry(operator="system", inputs={})
 
     if not result.result:
-        logger.error("[auto_retry_node] task(%s) node(%s) auto retry failed: %s" % (taskflow_id, node_id, dict(result)))
+        logger.error(
+            "[auto_retry_node] task({}) node({}) auto retry failed: {}".format(taskflow_id, node_id, dict(result))
+        )
 
     AutoRetryNodeStrategy.objects.filter(root_pipeline_id=root_pipeline_id, node_id=node_id).update(
         retry_times=retry_times + 1
@@ -145,3 +151,56 @@ def execute_node_timeout_strategy(node_id, version):
     )
 
     return action_result
+
+
+@current_app.task(ignore_result=True)
+def bkflow_periodic_task_start(*args, **kwargs):
+    try:
+        periodic_task = PeriodicTask.objects.get(id=kwargs["periodic_task_id"])
+    except PeriodicTask.DoesNotExist:
+        logger.error(f"PeriodicTask not found: {kwargs['period_task_id']}")
+        return
+
+    try:
+        task_data = {
+            "template_id": periodic_task.template_id,
+            "name": periodic_task.name,
+            "creator": periodic_task.creator,
+            "extra_info": periodic_task.extra_info,
+            **periodic_task.config,
+        }
+        serializer = CreateTaskInstanceSerializer(data=task_data)
+        serializer.is_valid(raise_exception=True)
+        task_instance = TaskInstance.objects.create_instance(**serializer.validated_data)
+        logger.info(f"[bamboo_engine_periodic_task_start] task {task_instance.id} created")
+
+        interface_client = InterfaceModuleClient()
+        interface_client.broadcast_task_events(
+            data={
+                "space_id": task_instance.space_id,
+                "event": WebhookEventType.TASK_CREATE.value,
+                "extra_info": {
+                    "task_id": task_instance.id,
+                    "task_name": task_instance.name,
+                    "template_id": task_instance.template_id,
+                    "parameters": task_data.get("constants", {}),
+                    "trigger_source": TaskTriggerMethod.timing.name,
+                },
+            }
+        )
+
+        task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
+        operation_method = getattr(task_operation, "start")
+        if operation_method is None:
+            raise ValidationError("task operation not found")
+        operation_method(operator=periodic_task.creator)
+        logger.info(f"[bamboo_engine_periodic_task_start] task {task_instance.id} started")
+    except Exception as e:
+        logger.exception(f"[bamboo_engine_periodic_task_start] get now time error: {e}")
+        et = traceback.format_exc()
+        logger.error(et)
+        return
+
+    periodic_task.total_run_count += 1
+    periodic_task.last_run_at = timezone.now()
+    periodic_task.save()
