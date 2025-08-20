@@ -23,8 +23,7 @@
       :constants="constants"
       @change="updateForm"
       @onHook="updateHook"
-      @onRenderChange="updateRender">
-    </component>
+      @onRenderChange="updateRender" />
   </div>
 </template>
 <script>
@@ -35,10 +34,10 @@
  * param {Object} formData 表单值
  * param {Object} hooked 已被勾选的表单项
  */
-  import '@/utils/i18n.js'
-  import tools from '@/utils/tools.js'
-  import FormGroup from './FormGroup.vue'
-  import FormItem from './FormItem.vue'
+  import '@/utils/i18n.js';
+  import tools from '@/utils/tools.js';
+  import FormGroup from './FormGroup.vue';
+  import FormItem from './FormItem.vue';
 
   const DEFAUTL_OPTION = {
     showRequired: true, // 是否展示必填icon
@@ -48,7 +47,7 @@
     formEdit: true, // 是否可编辑
     formMode: true, // 是否为表单模式（查看参数时，input、textarea等不需要用表单展示）
     validateSet: ['required', 'custom', 'regex'], // 选择开启的校验类型，默认都开启
-  }
+  };
 
   export default {
     name: 'RenderForm',
@@ -60,36 +59,36 @@
       prop: 'formData',
       event: 'change',
     },
-    provide () {
+    provide() {
       return {
         getFormData: () => this.formData,
-      }
+      };
     },
     props: {
       scheme: {
         type: Array,
-        default () {
-          return []
+        default() {
+          return [];
         },
       },
       formOption: {
         type: Object,
-        default () {
+        default() {
           return {
             ...DEFAUTL_OPTION,
-          }
+          };
         },
       },
       formData: {
         type: Object,
-        default () {
-          return {}
+        default() {
+          return {};
         },
       },
       hooked: {
         type: Object,
-        default () {
-          return {}
+        default() {
+          return {};
         },
       },
       renderConfig: { // 输入参数是否配置渲染豁免
@@ -98,72 +97,76 @@
       },
       constants: {
         type: Object,
-        default () {
-          return {}
+        default() {
+          return {};
         },
       },
+      isTriggerConfig: {
+        type: Boolean,
+        default: false,
+      },
     },
-    data () {
+    data() {
       return {
         value: tools.deepClone(this.formData),
         watchVarInfo: {}, // 监听的变量
         changeVarInfo: {}, // 隐藏的变量
-      }
+      };
     },
     computed: {
-      option () {
-        return Object.assign({}, DEFAUTL_OPTION, this.formOption)
-      },
+      option() {
+        return Object.assign({}, DEFAUTL_OPTION, this.formOption);
+      }
     },
     watch: {
       scheme: {
-        handler (val) {
-          this.checkValue(val, this.value)
+        handler(val) {
+          this.checkValue(val, this.value);
         },
         deep: true,
       },
       formData: {
-        handler (val, oldVal) {
-          this.value = tools.deepClone(val)
+        handler(val) {
+          this.value = tools.deepClone(val);
         },
         deep: true,
-      },
+      }
     },
-    created () {
-      this.checkValue(this.scheme, this.value)
+    created() {
+      this.checkValue(this.scheme, this.value);
       // 设置变量自动隐藏对象
-      const watchVarInfo = {}
-      const changeVarInfo = {}
-      Object.values(this.constants).forEach(item => {
-        if (!item.hide_condition || !item.hide_condition.length) return
-        item.hide_condition.forEach(val => {
-          const { constant_key: key, operator, value } = val
+      const watchVarInfo = {};
+      const changeVarInfo = {};
+      Object.values(this.constants).forEach((item) => {
+        if (!item.hide_condition || !item.hide_condition.length) return;
+        item.hide_condition.forEach((val) => {
+          const { constant_key: key, operator, value } = val;
           // 隐藏的变量和对应的监听变量
           if (!(item.key in changeVarInfo)) {
-            changeVarInfo[item.key] = {}
+            changeVarInfo[item.key] = {};
           }
-          changeVarInfo[item.key][key] = false
+          changeVarInfo[item.key][key] = false;
           // 监听的变量和对应的隐藏变量
           const params = {
             target_key: item.key,
             operator,
             value,
             isOr: true, // 与逻辑或或逻辑 默认或逻辑
-          }
+          };
           if (key in watchVarInfo) {
-            watchVarInfo[key].push(params)
+            watchVarInfo[key].push(params);
           } else {
-            watchVarInfo[key] = [params]
+            watchVarInfo[key] = [params];
           }
-        })
-      })
-      this.watchVarInfo = watchVarInfo
-      this.changeVarInfo = changeVarInfo
+        });
+      });
+      this.watchVarInfo = watchVarInfo;
+      this.changeVarInfo = changeVarInfo;
     },
-    mounted () {
-      if (!Object.keys(this.watchVarInfo).length) return
+    mounted() {
+      if (!Object.keys(this.watchVarInfo).length) return;
       for (const [key, value] of Object.entries(this.formData)) {
-        this.setVariableHideLogic(key, value)
+        this.setVariableHideLogic(key, value);
       }
     },
     methods: {
@@ -173,59 +176,59 @@
        * @param {Array} scheme 表单配置项
        * @param {Object} data 表单值
        */
-      checkValue (scheme, data) {
-        if (!scheme || !Array.isArray(scheme)) return
+      checkValue(scheme, data) {
+        if (!scheme || !Array.isArray(scheme)) return;
 
-        const isSetValueToFormData = this.traverseSchemeAndFillData(scheme, data)
+        const isSetValueToFormData = this.traverseSchemeAndFillData(scheme, data);
         if (isSetValueToFormData) {
-          this.$emit('change', tools.deepClone(data))
+          this.$emit('change', tools.deepClone(data));
         }
       },
       /**
        * 遍历 scheme，填充缺失字段的值，并返回检查是否存在缺失的结果布尔值
        */
-      traverseSchemeAndFillData (scheme, data) {
-        if (!scheme || !Array.isArray(scheme)) return
+      traverseSchemeAndFillData(scheme, data) {
+        if (!scheme || !Array.isArray(scheme)) return;
 
-        let hasValMissing = false // 传入的 data 是否存在 scheme 中对应属性的值有缺失
-        scheme.forEach(item => {
-          const key = item.tag_code
+        let hasValMissing = false; // 传入的 data 是否存在 scheme 中对应属性的值有缺失
+        scheme.forEach((item) => {
+          const key = item.tag_code;
 
           /** warning 前端tag结构变化数据兼容 */
           if (item.tag_code === 'job_task') {
-            data[item.tag_code] = this.reloadValue(item, data)
+            data[item.tag_code] = this.reloadValue(item, data);
           }
 
           if (item.type === 'combine') {
             if (!this.hooked || !this.hooked[item.tag_code]) {
               if (!(key in data)) {
-                hasValMissing = true
-                this.$set(data, key, {})
+                hasValMissing = true;
+                this.$set(data, key, {});
               }
-              const checkResult = this.traverseSchemeAndFillData(item.attrs.children, data[key])
+              const checkResult = this.traverseSchemeAndFillData(item.attrs.children, data[key]);
               if (checkResult) {
-                hasValMissing = true
+                hasValMissing = true;
               }
             }
           } else {
             if (!(key in data)) {
-              hasValMissing = true
-              const value = this.getDefaultValue(item)
-              this.$set(data, key, value)
+              hasValMissing = true;
+              const value = this.getDefaultValue(item);
+              this.$set(data, key, value);
             }
           }
-        })
-        return hasValMissing
+        });
+        return hasValMissing;
       },
       /**
        * 若传入的 formData 不包含表单项的值，取值顺序为：标准插件配置项 value 字段 -> 标准插件配置项 default 字段 -> tag 类型默认值
        */
-      getDefaultValue (scheme) {
-        let val
+      getDefaultValue(scheme) {
+        let val;
         if ('value' in scheme.attrs) {
-          val = tools.deepClone(scheme.attrs.value)
+          val = tools.deepClone(scheme.attrs.value);
         } else if ('default' in scheme.attrs) {
-          val = tools.deepClone(scheme.attrs.default)
+          val = tools.deepClone(scheme.attrs.default);
         } else {
           switch (scheme.type) {
             case 'input':
@@ -239,24 +242,24 @@
             case 'code_editor':
             case 'log_display':
             case 'switch':
-              val = ''
-              break
+              val = '';
+              break;
             case 'checkbox':
             case 'datatable':
             case 'tree':
             case 'upload':
             case 'datetime_range':
-              val = []
-              break
+              val = [];
+              break;
             case 'select':
-              val = scheme.attrs.multiple ? [] : ''
-              break
+              val = scheme.attrs.multiple ? [] : '';
+              break;
             case 'time':
-              val = scheme.attrs.isRange ? ['00:00:00', '23:59:59'] : ''
-              break
+              val = scheme.attrs.isRange ? ['00:00:00', '23:59:59'] : '';
+              break;
             case 'int':
-              val = 0
-              break
+              val = 0;
+              break;
             case 'ip_selector':
               val = {
                 static_ip_table_config: [],
@@ -267,8 +270,8 @@
                 filters: [],
                 excludes: [],
                 with_cloud_id: false,
-              }
-              break
+              };
+              break;
             case 'set_allocation':
               val = {
                 config: {
@@ -279,8 +282,8 @@
                 },
                 data: [],
                 separator: ',',
-              }
-              break
+              };
+              break;
             case 'host_allocation':
               val = {
                 config: {
@@ -291,123 +294,124 @@
                 },
                 data: [],
                 separator: ',',
-              }
-              break
+              };
+              break;
             default:
-              val = ''
+              val = '';
           }
         }
-        return val
+        return val;
       },
-      getFormValue (atom) {
+      getFormValue(atom) {
         /** warning 前端tag结构变化数据兼容 */
         if (atom.tag_code === 'job_task') {
-          this.value[atom.tag_code] = this.reloadValue(atom, this.value)
+          this.value[atom.tag_code] = this.reloadValue(atom, this.value);
         }
-        return this.value[atom.tag_code]
+        return this.value[atom.tag_code];
       },
-      updateForm (fieldArr, val) {
-        const fieldDataObj = tools.deepClone(this.value)
+      updateForm(fieldArr, val) {
+        const fieldDataObj = tools.deepClone(this.value);
         fieldArr.reduce((acc, cur, index, arr) => {
           if (index === arr.length - 1) {
-            acc[cur] = val
-            return
+            acc[cur] = val;
+            return;
           }
           if (!acc.hasOwnProperty(cur)) {
-            acc[cur] = {}
+            acc[cur] = {};
           }
-          return acc[cur]
-        }, fieldDataObj)
-        this.value = tools.deepClone(fieldDataObj) // 更新 value，通过下面触发 change 更新父组件 formData 后，watch 具有滞后性，导致 value 值不是最新的
-        this.$emit('change', fieldDataObj)
+          return acc[cur];
+        }, fieldDataObj);
+        this.value = tools.deepClone(fieldDataObj); // 更新 value，通过下面触发 change 更新父组件 formData 后，watch 具有滞后性，导致 value 值不是最新的
+        // 修改renderData的值
+        this.$emit('change', fieldDataObj);
         // 变量隐藏逻辑
-        if (!Object.keys(this.watchVarInfo).length) return
-        const key = fieldArr[0]
-        this.setVariableHideLogic(key, val)
+        if (!Object.keys(this.watchVarInfo).length) return;
+        const key = fieldArr[0];
+        this.setVariableHideLogic(key, val);
       },
-      updateHook (field, val) {
-        this.$emit('onHookChange', field, val)
+      updateHook(field, val) {
+        this.$emit('onHookChange', field, val);
       },
-      updateRender (field, val) {
-        this.$emit('onRenderChange', field, val)
+      updateRender(field, val) {
+        this.$emit('onRenderChange', field, val);
       },
       // 设置变量隐藏逻辑
-      setVariableHideLogic (key, val) {
+      setVariableHideLogic(key, val) {
         if (key in this.watchVarInfo) {
-          const values = this.watchVarInfo[key]
-          values.forEach(item => {
-            let isEqual = JSON.stringify(val) === JSON.stringify(item.value)
-            const index = this.scheme.findIndex(config => config.tag_code === item.target_key)
-            const targetTag = this.$children[index]
-            const relatedVarInfo = this.changeVarInfo[item.target_key]
+          const values = this.watchVarInfo[key];
+          values.forEach((item) => {
+            let isEqual = JSON.stringify(val) === JSON.stringify(item.value);
+            const index = this.scheme.findIndex(config => config.tag_code === item.target_key);
+            const targetTag = this.$children[index];
+            const relatedVarInfo = this.changeVarInfo[item.target_key];
             // 计算输入值是否匹配
-            isEqual = (item.operator === '=' && isEqual) || (item.operator === '!=' && !isEqual)
-            relatedVarInfo[key] = isEqual
+            isEqual = (item.operator === '=' && isEqual) || (item.operator === '!=' && !isEqual);
+            relatedVarInfo[key] = isEqual;
             // 相关运算逻辑
-            let isMatch = false
-            const relatedVarValues = Object.values(relatedVarInfo)
+            let isMatch = false;
+            const relatedVarValues = Object.values(relatedVarInfo);
             if (item.isOr) {
-              isMatch = relatedVarValues.some(option => option)
+              isMatch = relatedVarValues.some(option => option);
             } else {
-              isMatch = relatedVarValues.every(option => option)
+              isMatch = relatedVarValues.every(option => option);
             }
             // 显示隐藏
             if (isMatch) {
-              targetTag.onHideForm()
+              targetTag.onHideForm();
             } else {
-              targetTag.onShowForm()
+              targetTag.onShowForm();
             }
-          })
+          });
         }
       },
       /**
        * 获取 combine 类型组件的子组件实例
        * @param {String} tagCode 标准插件 tag_code，值空时，返回全部子组件
        */
-      get_child (tagCode) {
-        let childComponent
+      get_child(tagCode) {
+        let childComponent;
         if (typeof tagCode === 'string' && tagCode !== '') {
-          this.$children.some(item => {
+          this.$children.some((item) => {
             if (item.scheme && item.scheme.tag_code === tagCode) {
               // combine组件或tag组件
-              childComponent = tagCode === 'combine' ? item : item.$refs.tagComponent
-              return true
+              childComponent = tagCode === 'combine' ? item : item.$refs.tagComponent;
+              return true;
             }
-          })
+          });
         } else {
-          childComponent = this.$children.map(item => item.scheme.tag_code === 'combine' ? item : item.$refs.tagComponent)
+          childComponent = this.$children.map(item => item.scheme.tag_code === 'combine' ? item : item.$refs.tagComponent);
         }
-        return childComponent
+        return childComponent;
       },
       /**
        * 表单校验函数
        * @TODO: 改写为 promise 异步机制
        */
-      validate () {
-        let isValid = true
-        this.$children.forEach(childComp => {
-          const singleItemValid = childComp.validate()
+      validate() {
+        let isValid = true;
+        this.$children.forEach((childComp) => {
+          const singleItemValid = childComp.validate();
           if (isValid) {
-            isValid = singleItemValid
+            isValid = singleItemValid;
           }
-        })
-        return isValid
+        });
+        return isValid;
       },
       /**
        * 表单参数重载
        * 前端tag结构变化数据兼容
        */
-      reloadValue (atom, rawData) {
+      reloadValue(atom, rawData) {
         if (typeof atom.reloadValue === 'function') {
-          const reloadValue = atom.reloadValue(rawData)
+          const reloadValue = atom.reloadValue(rawData);
           if (reloadValue) {
-            return reloadValue[atom.tag_code]
+            return reloadValue[atom.tag_code];
           }
         }
-        return rawData[atom.tag_code]
+        return rawData[atom.tag_code];
       },
     },
-  }
+  };
 </script>
 <style lang="scss">
 .rf-tag-used {
