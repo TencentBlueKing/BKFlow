@@ -202,8 +202,7 @@ def bkflow_periodic_task_start(*args, **kwargs):
         logger.exception(f"[bamboo_engine_periodic_task_start] get now time error: {e}")
         et = traceback.format_exc()
         logger.error(et)
-        return
-
-    periodic_task.total_run_count += 1
-    periodic_task.last_run_at = timezone.now()
-    periodic_task.save()
+    else:
+        periodic_task.total_run_count += 1
+        periodic_task.last_run_at = timezone.now()
+        periodic_task.save()
