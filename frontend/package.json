@@ -30,6 +30,7 @@
     "ajv": "^6.10.2",
     "axios": "^1.11.0",
     "bk-magic-vue": "2.5.8",
+    "cron-parser-custom": "^2.13.0",
     "element-ui": "^2.15.13",
     "jquery": "^3.2.1",
     "js-cookie": "^3.0.1",

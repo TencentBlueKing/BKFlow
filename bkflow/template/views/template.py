@@ -167,25 +167,25 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
-
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
             raise APIResponseError(result["message"])
 
+        task_data = result["data"]
         event_broadcast_signal.send(
             sender=WebhookEventType.TASK_CREATE.value,
             scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
             extra_info={
-                "task_id": result["data"]["id"],
-                "task_name": create_task_data["name"],
-                "template_id": template.id,
-                "parameters": create_task_data["constants"],
+                "task_id": task_data["id"],
+                "task_name": task_data["name"],
+                "template_id": task_data["template_id"],
+                "parameters": task_data["parameters"],
                 "trigger_source": TaskTriggerMethod.manual.name,
             },
         )
 
-        return Response(result["data"])
+        return Response(task_data)
 
     @swagger_auto_schema(method="POST", operation_description="流程批量删除", request_body=TemplateBatchDeleteSerializer)
     @action(methods=["POST"], detail=False, url_path="batch_delete")
