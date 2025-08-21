@@ -973,8 +973,13 @@ const template = {
         stage_canvas_data, triggers,
       } = state;
       triggers.forEach((trigger) => {
-        if (trigger && trigger.hasOwnProperty('isNewTrigger')) {
-          delete trigger.isNewTrigger;
+        if (trigger) {
+          if (trigger.hasOwnProperty('isNewTrigger')) {
+            delete trigger.isNewTrigger;
+          }
+          if (trigger.config.constants === null || !trigger.config.constants) {
+            trigger.config.constants = {};
+          }
         }
       });
       // 剔除 location 的冗余字段
