@@ -390,11 +390,12 @@ class TriggerManager(models.Manager):
             constant for constant in input_constants_dict if input_constants_dict[constant].get("show_type") == "show"
         }
         new_constants = input_constants - pre_constants
-        for trigger in triggers:
+        for index, trigger in enumerate(triggers):
             trigger_constants = {constant for constant in trigger.get("config", {}).get("constants", {})}
             if new_constants - trigger_constants:
+                cron_config = " ".join([value for time, value in trigger.get("config", {}).get("cron").items()])
                 raise ValidationError(
-                    f"该流程下的触发器 {trigger.id} 有以下新增参数未填写：{', '.join(new_constants - trigger_constants)}"
+                    f"该流程下的触发器 #{index}:{cron_config} 有以下新增参数未填写：{', '.join(new_constants - trigger_constants)}"
                 )
 
     def batch_modify_triggers(self, template, triggers):
