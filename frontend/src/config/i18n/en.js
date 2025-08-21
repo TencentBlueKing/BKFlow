@@ -967,6 +967,7 @@ const en = {
   "执行周期": "Execution Cycle",
   "添加定时触发器": "Add Timer Trigger",
   "修改定时触发器": "Edit Timer Trigger",
+  '触发类型': 'Trigger Type',
 };
 
 export default en;
