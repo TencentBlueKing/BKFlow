@@ -77,10 +77,12 @@
       :auto-close="false"
       header-position="left"
       :title="type === 'edit' ? $t('修改定时触发器') : $t('添加定时触发器')"
+      :style="{ '--dialog-top-translateY': `${dialogTopOffset}px` }"
       @confirm="onTriggerConfirm(type)"
       @cancel="onTriggerCancel">
       <bk-form
-        :label-width="100"
+        ref="triggerForm"
+        :label-width="70"
         :model="currentTriggerConfig">
         <bk-form-item
           :label="$t('执行周期')"
@@ -170,6 +172,7 @@ export default {
     },
     data() {
       return {
+        dialogTopOffset: null,
           triggerData: tools.deepClone(this.triggers),
           triggerFields: [
             {
@@ -237,6 +240,21 @@ export default {
               };
             this.$set(this.triggerData[this.currentTriggerIndex].config, 'cron', jsonCron);
           }
+        },
+        isShowTriggerDialog: {
+          handler(val) {
+            if (val) {
+              const DIALOG_EXTRA_HEIGHT = 134;
+              const el = this.$refs.triggerForm?.$el;
+              if (el) {
+                setTimeout(()=>{
+                    const totalListHeight = el.clientHeight;
+                    this.dialogTopOffset = Math.round((window.innerHeight - (totalListHeight + DIALOG_EXTRA_HEIGHT)) / 2);
+                }, 50);
+              };
+            }
+          },
+          immediate: true,
         },
     },
     methods: {
@@ -409,5 +427,22 @@ export default {
     }
     .bk-button-group{
       margin-bottom: 8px;
+    }
+    ::v-deep .bk-form{
+      .bk-label{
+        height: 20px;
+        font-size: 12px;
+        text-align: right;
+        line-height: 20px;
+        padding-right: 22px;
+      }
+    }
+    ::v-deep .bk-dialog-body{
+      min-height: 300px;
+    }
+    ::v-deep .bk-dialog-wrapper{
+      .bk-dialog{
+        top: var(--dialog-top-translateY) !important;
+        }
     }
 </style>
