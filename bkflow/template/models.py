@@ -301,7 +301,7 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
     def create(self, trigger, template):
         client = TaskComponentClient(space_id=trigger.space_id)
         data = {
-            "name": trigger.name,
+            "name": template.name,
             "trigger_id": trigger.id,
             "template_id": trigger.template_id,
             "cron": trigger.config.get("cron"),
