@@ -3,6 +3,7 @@
     <bk-table :data="filteredTriggerData">
       <bk-table-column
         :label="$t('触发器')"
+        :width="160"
         prop="name">
         <template slot-scope="{ row }">
           {{ row.name }}
@@ -15,6 +16,7 @@
       </bk-table-column>
       <bk-table-column
         :label="$t('执行周期')"
+        :width="160"
         prop="cron">
         <template slot-scope="{ row }">
           <bk-popover
@@ -268,8 +270,20 @@ export default {
           return afterCron;
       },
       translateCron(value) {
-        const orderedValues = Translate(Object.values(value).join(' '));
-        return orderedValues[0] + orderedValues[1] + (orderedValues[2] ? '以及当月' : '') + orderedValues[2] + orderedValues[3] + orderedValues[4];
+        const orderedValues = Translate(this.joinCron(value));
+        let afterTime = '';
+        orderedValues.forEach((item, index) => {
+          if (index !== 2) {
+            afterTime += `${item} `;
+          } else {
+            if (orderedValues[2]) {
+              afterTime += `以及当月 ${item} `;
+            } else {
+              afterTime += `${item} `;
+            }
+          }
+        });
+        return afterTime;
       },
        handelIsEnabledChange(row) {
           this.$emit('change', this.triggerData);
@@ -306,7 +320,7 @@ export default {
               id: null,
               config: {
                   mode: 'form',
-                  constants: null,
+                  constants: {},
                   cron: {
                     minute: '*/30',
                     hour: '*',
@@ -337,7 +351,7 @@ export default {
           this.isShowTriggerDialog = false;
         },
         onTriggerConfirm(type) {
-          const isParamsValid = this.currentTriggerConfig.mode === 'json' ? this.isJsonConstantsValid : this.$refs.taskParamEdit.validate();
+          const isParamsValid = this.currentTriggerConfig.config.mode === 'json' ? this.isJsonConstantsValid : this.$refs.taskParamEdit.validate();
           if (!isParamsValid) {
             return;
           }
