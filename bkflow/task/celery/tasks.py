@@ -196,13 +196,15 @@ def bkflow_periodic_task_start(*args, **kwargs):
         operation_method = getattr(task_operation, "start")
         if operation_method is None:
             raise ValidationError("task operation not found")
-        operation_method(operator=periodic_task.creator)
-        logger.info(f"[bamboo_engine_periodic_task_start] task {task_instance.id} started")
+        result = operation_method(operator=periodic_task.creator)
+        if result.result:
+            logger.info(f"[bamboo_engine_periodic_task_start] task {task_instance.id} started")
+            periodic_task.total_run_count += 1
+            periodic_task.last_run_at = timezone.now()
+            periodic_task.save()
+        else:
+            logger.error(f"[bamboo_engine_periodic_task_start] task {task_instance.id} start failed: {result.message}")
     except Exception as e:
         logger.exception(f"[bamboo_engine_periodic_task_start] get now time error: {e}")
         et = traceback.format_exc()
         logger.error(et)
-    else:
-        periodic_task.total_run_count += 1
-        periodic_task.last_run_at = timezone.now()
-        periodic_task.save()
