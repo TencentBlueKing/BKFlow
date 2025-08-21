@@ -164,7 +164,7 @@ def bkflow_periodic_task_start(*args, **kwargs):
     try:
         task_data = {
             "template_id": periodic_task.template_id,
-            "name": periodic_task.name,
+            "name": periodic_task.name + "_" + timezone.now().strftime("%Y%m%d%H%M%S"),
             "creator": periodic_task.creator,
             "extra_info": periodic_task.extra_info,
             **periodic_task.config,
