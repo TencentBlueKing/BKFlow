@@ -308,6 +308,7 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
             "config": {
                 "space_id": trigger.space_id,
                 "pipeline_tree": template.pipeline_tree,
+                "constants": trigger.config.get("constants"),
                 "scope_type": template.scope_type,
                 "scope_value": template.scope_value,
             },
@@ -324,7 +325,9 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
             "trigger_id": trigger.id,
             "cron": data["config"].get("cron"),
             "config": {
+                "space_id": trigger.space_id,
                 "pipeline_tree": template.pipeline_tree,
+                "constants": data["config"].get("constants"),
                 "scope_type": template.scope_type,
                 "scope_value": template.scope_value,
             },
