@@ -119,7 +119,7 @@
               :editable="true"
               :constants="constants"
               :trigger-config="currentTriggerConfig"
-              :saved-request-constants="currentTriggerConfig.config.constants"
+              :saved-request-constants="copyTriggerConstants"
               :is-trigger-config="true"
               @change="onChangeRenderForm" />
           </div>
@@ -211,7 +211,31 @@ export default {
          currentConstantToJson: '',
          currentTriggerIndex: null,
          isAdd: false,
+         copyTrigger: {},
          copyTriggerConstants: {},
+         copyTriggerCron: {},
+         savedChangeRenderConstants: {},
+         initTrigger: {
+              id: null,
+              config: {
+                  mode: 'form',
+                  constants: {},
+                  cron: {
+                    minute: '*/30',
+                    hour: '*',
+                    day_of_week: '*',
+                    day_of_month: '*',
+                    month_of_year: '*',
+                  },
+              },
+              is_deleted: false,
+              space_id: '',
+              template_id: this.templateId,
+              is_enabled: true,
+              name: '定时触发',
+              type: 'periodic',
+         },
+         saveInitialBackfillData: {}
         };
     },
     computed: {
@@ -311,32 +335,28 @@ export default {
           } else {
             this.currentConstantToJson = '';
           }
+          this.coppyTrigger = row;
+          this.copyTriggerConstants = row.config.constants;
+          this.copyTriggerCron = row.config.cron;
           this.isShowTriggerDialog = true;
         },
         addTrigger() {
           this.isAdd = true;
           this.type = 'add';
+          this.initTrigger.space_id = this.spaceId;
           this.currentTriggerConfig = {
-              id: null,
-              config: {
-                  mode: 'form',
-                  constants: {},
-                  cron: {
-                    minute: '*/30',
-                    hour: '*',
-                    day_of_week: '*',
-                    day_of_month: '*',
-                    month_of_year: '*',
-                  },
-              },
-              is_deleted: false,
-              space_id: this.spaceId,
-              template_id: this.templateId,
-              is_enabled: true,
-              name: '定时触发',
-              type: 'periodic',
-              isNewTrigger: true,
+            ...this.initTrigger,
+            isNewTrigger: true,
           };
+          this.copyTriggerConstants = {};
+          this.copyTriggerCron = {
+               minute: '*/30',
+              hour: '*',
+              day_of_week: '*',
+              day_of_month: '*',
+              month_of_year: '*',
+          },
+          this.coppyTrigger = tools.deepClone(this.currentTriggerConfig);
           this.currentJoinIcon  = this.joinCron(this.currentTriggerConfig.config.cron);
           this.isShowTriggerDialog = true;
           this.currentConstantToJson = '';
@@ -348,6 +368,13 @@ export default {
             this.triggerData.splice(this.triggerData.length - 1, 1);
             this.isAdd = false;
           }
+          if (this.currentTriggerConfig.config.mode === 'form') {
+            this.triggerData[this.currentTriggerIndex].config.constants = this.copyTriggerConstants;
+          }
+          this.triggerData[this.currentTriggerIndex].config.cron = this.copyTriggerCron;
+          this.initTrigger.space_id = this.spaceId;
+          this.currentTriggerConfig = this.initTrigger;
+          this.copyTriggerConstants = {};
           this.isShowTriggerDialog = false;
         },
         onTriggerConfirm(type) {
@@ -360,16 +387,18 @@ export default {
           }
           if (this.currentTriggerConfig.config.mode === 'json') {
              this.$set(this.triggerData[this.currentTriggerIndex].config, 'constants', JSON.parse(this.currentConstantToJson));
+          } else {
+             this.currentTriggerConfig.config.constants = tools.deepClone(this.savedChangeRenderConstants);
+             this.triggerData[this.currentTriggerIndex].config.constants = tools.deepClone(this.savedChangeRenderConstants);
           }
+          this.initTrigger.space_id = this.spaceId;
+          this.currentTriggerConfig = this.initTrigger;
           this.isShowTriggerDialog = false;
           this.$emit('change', this.triggerData);
         },
-        onChangeRenderForm(constants) {
-            if (this.currentTriggerIndex !== null && this.currentTriggerIndex !== undefined
-                  && this.currentTriggerConfig.config.mode === 'form') {
-                 this.currentTriggerConfig.config.constants = constants;
-                 this.triggerData[this.currentTriggerIndex].config.constants = constants;
-             }
+        onChangeRenderForm(constants, saveInitialBackfillData) {
+          this.saveInitialBackfillData = saveInitialBackfillData;
+          this.savedChangeRenderConstants = constants;
         },
     },
 

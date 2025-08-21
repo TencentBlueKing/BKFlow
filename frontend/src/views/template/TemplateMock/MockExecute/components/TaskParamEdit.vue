@@ -84,6 +84,7 @@
         isNoData: false,
         triggerInputData: {},
         isInternalRenderDataUpdate: false,
+        saveInitialBackfillData: {},
       };
     },
     computed: {
@@ -103,13 +104,16 @@
         if (val && this.isTriggerConfig) {
           this.savedConstants = tools.deepClone(val);
           this.isInternalRenderDataUpdate = true;
-          if (this.savedConstants && this.currentFormConfig.config.mode === 'form') {
+          if (Object.keys(this.savedConstants).length === 0) {
+            this.renderData = tools.deepClone(this.initialRenderData);
+          } else if (this.savedConstants && this.currentFormConfig.config.mode === 'form') {
               const newRenderData = tools.deepClone(this.renderData);
               Object.keys(val).forEach((key) => {
                 newRenderData[key] = tools.deepClone(val[key]);
               });
               this.renderData = newRenderData;
-          }
+              this.saveInitialBackfillData = newRenderData;
+            }
           this.$nextTick(() => {
             this.isInternalRenderDataUpdate = false;
           });
@@ -118,7 +122,7 @@
       renderData(val) {
         if (this.isTriggerConfig) {
           if (!this.isInternalRenderDataUpdate && this.currentFormConfig.config.mode === 'form') {
-            this.$emit('change', tools.deepClone(val));
+            this.$emit('change', tools.deepClone(val), this.saveInitialBackfillData);
           }
         } else {
           this.$emit('change', tools.deepClone(val));
