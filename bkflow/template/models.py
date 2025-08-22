@@ -378,6 +378,26 @@ class TriggerManager(models.Manager):
             raise NotFoundError(f"TriggerHandler with trigger type {trigger_type} not found")
         return handler
 
+    def compare_constants(self, pre_constants_dict, input_constants_dict, triggers):
+        """比较模板的新增常量和传入的常量，返回差异"""
+
+        if not triggers:
+            return
+        pre_constants = {
+            constant for constant in pre_constants_dict if pre_constants_dict[constant].get("show_type") == "show"
+        }
+        input_constants = {
+            constant for constant in input_constants_dict if input_constants_dict[constant].get("show_type") == "show"
+        }
+        new_constants = input_constants - pre_constants
+        for index, trigger in enumerate(triggers):
+            trigger_constants = {constant for constant in trigger.get("config", {}).get("constants", {})}
+            if new_constants - trigger_constants:
+                cron_config = " ".join([value for time, value in trigger.get("config", {}).get("cron").items()])
+                raise ValidationError(
+                    f"该流程下的触发器 #{index}:{cron_config} 有以下新增参数未填写：{', '.join(new_constants - trigger_constants)}"
+                )
+
     def batch_modify_triggers(self, template, triggers):
         """批量更新、创建和删除单个流程下的多个触发器"""
 

@@ -100,6 +100,12 @@ class TemplateSerializer(serializers.ModelSerializer):
 
         return pipeline_tree
 
+    def validate_triggers(self, triggers):
+        periodic_triggers = [trigger for trigger in triggers if trigger.get("type") == Trigger.TYPE_PERIODIC]
+        if len(periodic_triggers) > 1:
+            raise serializers.ValidationError(_("参数校验失败，该流程只允许有一个定时触发器！"))
+        return triggers
+
     @transaction.atomic()
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
@@ -132,14 +138,21 @@ class TemplateSerializer(serializers.ModelSerializer):
         except Exception as e:
             logger.exception("TemplateSerializer update error, err = {}".format(e))
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
-        instance.update_snapshot(pipeline_tree)
+        pre_pipeline_tree = instance.pipeline_tree
         instance_copy = deepcopy(instance)
+        instance.update_snapshot(pipeline_tree)
         instance = super().update(instance, validated_data)
         # 批量修改流程绑定的触发器:
         try:
+            Trigger.objects.compare_constants(
+                pre_pipeline_tree.get("constants", {}),
+                pipeline_tree.get("constants", {}),
+                validated_data.get("triggers"),
+            )
             Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"])
         except Exception as e:
             logger.exception("Triggers update or create failed,{}".format(e))
+            instance.update_snapshot(pre_pipeline_tree)
             instance = instance_copy
             instance.save()
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
