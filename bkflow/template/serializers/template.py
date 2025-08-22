@@ -100,6 +100,12 @@ class TemplateSerializer(serializers.ModelSerializer):
 
         return pipeline_tree
 
+    def validate_triggers(self, triggers):
+        periodic_triggers = [trigger for trigger in triggers if trigger.get("type") == Trigger.TYPE_PERIODIC]
+        if len(periodic_triggers) > 1:
+            raise serializers.ValidationError(_("参数校验失败，该流程只允许有一个定时触发器！"))
+        return triggers
+
     @transaction.atomic()
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
