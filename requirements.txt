@@ -42,7 +42,7 @@ django-extensions==3.2.1
 # bkflow feel
 bkflow-feel==1.2.0
 bkflow-dmn==0.2.0
-bkflow-django-webhook==1.2.0rc1
+bkflow-django-webhook==1.2.0
 
 # pytimeparse
 pytimeparse == 1.1.8
