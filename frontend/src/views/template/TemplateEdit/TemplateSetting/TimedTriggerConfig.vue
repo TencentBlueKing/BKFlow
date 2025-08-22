@@ -313,7 +313,7 @@ export default {
         });
         return afterTime;
       },
-       handelIsEnabledChange(row) {
+       handelIsEnabledChange() {
           this.$emit('change', this.triggerData);
        },
        delItemTigger(row, index) {
@@ -374,9 +374,12 @@ export default {
           }
           if (Object.values(this.triggerData).length > 0) {
               if (this.currentTriggerConfig.config.mode === 'form') {
+                //  this.$set(this.triggerData[this.currentTriggerIndex].config, 'constants', this.currentTriggerConfig.config.constants);
+                this.currentTriggerConfig.config.constants = this.copyTriggerConstants;
                  this.triggerData[this.currentTriggerIndex].config.constants = this.copyTriggerConstants;
               }
-              this.triggerData[this.currentTriggerIndex].config.cron = this.copyTriggerCron;
+              // this.$set(this.triggerData[this.currentTriggerIndex].config, 'cron', this.currentTriggerConfig.config.cron);
+              this.triggerData[this.currentTriggerIndex].config.cron = this.currentTriggerConfig.config.cron;
           }
           this.initTrigger.space_id = this.spaceId;
           this.currentTriggerConfig = this.initTrigger;
@@ -395,11 +398,9 @@ export default {
           if (this.currentTriggerConfig.config.mode === 'json') {
              this.$set(this.triggerData[this.currentTriggerIndex].config, 'constants', JSON.parse(this.currentConstantToJson));
           } else {
-             this.currentTriggerConfig.config.constants = tools.deepClone(this.savedChangeRenderConstants);
-             this.triggerData[this.currentTriggerIndex].config.constants = tools.deepClone(this.savedChangeRenderConstants);
+            this.$set(this.triggerData[this.currentTriggerIndex].config, 'constants', tools.deepClone(this.savedChangeRenderConstants));
           }
           this.initTrigger.space_id = this.spaceId;
-          this.currentTriggerConfig = this.initTrigger;
           this.isShowTriggerDialog = false;
           this.$emit('change', this.triggerData);
         },
