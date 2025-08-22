@@ -83,7 +83,6 @@
       :auto-close="false"
       header-position="left"
       :title="type === 'edit' ? $t('修改定时触发器') : $t('添加定时触发器')"
-      :style="{ '--dialog-top-translateY': `${dialogTopOffset}px` }"
       @confirm="onTriggerConfirm(type)"
       @cancel="onTriggerCancel">
       <bk-form
@@ -178,7 +177,6 @@ export default {
     },
     data() {
       return {
-        dialogTopOffset: null,
           triggerData: tools.deepClone(this.triggers),
           triggerFields: [
             {
@@ -271,21 +269,6 @@ export default {
             this.$set(this.triggerData[this.currentTriggerIndex].config, 'cron', jsonCron);
           }
         },
-        isShowTriggerDialog: {
-          handler(val) {
-            if (val) {
-              const DIALOG_EXTRA_HEIGHT = 134;
-              const el = this.$refs.triggerForm?.$el;
-              if (el) {
-                setTimeout(()=>{
-                    const totalListHeight = el.clientHeight;
-                    this.dialogTopOffset = Math.round((window.innerHeight - (totalListHeight + DIALOG_EXTRA_HEIGHT)) / 2);
-                }, 50);
-              };
-            }
-          },
-          immediate: true,
-        },
     },
     methods: {
        joinCron(cron) {
@@ -313,7 +296,7 @@ export default {
         });
         return afterTime;
       },
-       handelIsEnabledChange(row) {
+       handelIsEnabledChange() {
           this.$emit('change', this.triggerData);
        },
        delItemTigger(row, index) {
@@ -374,9 +357,12 @@ export default {
           }
           if (Object.values(this.triggerData).length > 0) {
               if (this.currentTriggerConfig.config.mode === 'form') {
+                //  this.$set(this.triggerData[this.currentTriggerIndex].config, 'constants', this.currentTriggerConfig.config.constants);
+                this.currentTriggerConfig.config.constants = this.copyTriggerConstants;
                  this.triggerData[this.currentTriggerIndex].config.constants = this.copyTriggerConstants;
               }
-              this.triggerData[this.currentTriggerIndex].config.cron = this.copyTriggerCron;
+              // this.$set(this.triggerData[this.currentTriggerIndex].config, 'cron', this.currentTriggerConfig.config.cron);
+              this.triggerData[this.currentTriggerIndex].config.cron = this.currentTriggerConfig.config.cron;
           }
           this.initTrigger.space_id = this.spaceId;
           this.currentTriggerConfig = this.initTrigger;
@@ -395,11 +381,9 @@ export default {
           if (this.currentTriggerConfig.config.mode === 'json') {
              this.$set(this.triggerData[this.currentTriggerIndex].config, 'constants', JSON.parse(this.currentConstantToJson));
           } else {
-             this.currentTriggerConfig.config.constants = tools.deepClone(this.savedChangeRenderConstants);
-             this.triggerData[this.currentTriggerIndex].config.constants = tools.deepClone(this.savedChangeRenderConstants);
+            this.$set(this.triggerData[this.currentTriggerIndex].config, 'constants', tools.deepClone(this.savedChangeRenderConstants));
           }
           this.initTrigger.space_id = this.spaceId;
-          this.currentTriggerConfig = this.initTrigger;
           this.isShowTriggerDialog = false;
           this.$emit('change', this.triggerData);
         },
@@ -436,9 +420,6 @@ export default {
   }
   ::v-deep .bk-dialog-header{
     padding:3px 24px 16px;
-  }
-  ::v-deep .bk-dialog-body{
-    min-height: 500px;
   }
   ::v-deep .bk-table-row{
     .cell{
@@ -488,11 +469,7 @@ export default {
       }
     }
     ::v-deep .bk-dialog-body{
-      min-height: 300px;
-    }
-    ::v-deep .bk-dialog-wrapper{
-      .bk-dialog{
-        top: var(--dialog-top-translateY) !important;
-        }
+      max-height: 500px;
+      overflow-y: scroll;
     }
 </style>
