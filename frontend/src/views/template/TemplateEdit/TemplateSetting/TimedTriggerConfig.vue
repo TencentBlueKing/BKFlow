@@ -384,8 +384,9 @@ export default {
           this.isShowTriggerDialog = false;
         },
         onTriggerConfirm(type) {
+          const isCronError = this.$refs.cronRuleSelect.isError;
           const isParamsValid = this.currentTriggerConfig.config.mode === 'json' ? this.isJsonConstantsValid : this.$refs.taskParamEdit.validate();
-          if (!isParamsValid) {
+          if (!isParamsValid || isCronError) {
             return;
           }
           if (type === 'add') {
