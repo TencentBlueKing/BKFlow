@@ -277,8 +277,8 @@ export default {
               const DIALOG_EXTRA_HEIGHT = 134;
               const el = this.$refs.triggerForm?.$el;
               if (el) {
-                setTimeout(()=>{
-                    const totalListHeight = el.clientHeight;
+                setTimeout(() => {
+                    const totalListHeight = el.clientHeight > 500 ? 500 : el.clientHeight;
                     this.dialogTopOffset = Math.round((window.innerHeight - (totalListHeight + DIALOG_EXTRA_HEIGHT)) / 2);
                 }, 50);
               };
@@ -490,6 +490,8 @@ export default {
     }
     ::v-deep .bk-dialog-body{
       min-height: 300px;
+      max-height: 500px;
+      overflow-y: scroll;
     }
     ::v-deep .bk-dialog-wrapper{
       .bk-dialog{
