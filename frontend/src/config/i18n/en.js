@@ -968,6 +968,7 @@ const en = {
   "添加定时触发器": "Add Timer Trigger",
   "修改定时触发器": "Edit Timer Trigger",
   '触发类型': 'Trigger Type',
+  '只允许创建一个定时触发器': '只允许创建一个定时触发器'
 };
 
 export default en;
