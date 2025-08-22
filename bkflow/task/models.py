@@ -523,7 +523,7 @@ class PeriodicTask(models.Model):
     def modify_cron(self, cron, timezone=None, must_disabled=True):
         """修改celery周期任务周期计划"""
         schedule, _ = DjangoCeleryBeatCrontabSchedule.objects.get_or_create(
-            minute=cron.get("minute", "*"),
+            minute=cron.get("minute", "0"),
             hour=cron.get("hour", "*"),
             day_of_week=cron.get("day_of_week", "*"),
             day_of_month=cron.get("day_of_month", "*"),
