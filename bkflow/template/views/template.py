@@ -64,6 +64,7 @@ from bkflow.template.models import (
     TemplateMockScheme,
     TemplateOperationRecord,
     TemplateSnapshot,
+    Trigger,
 )
 from bkflow.template.permissions import (
     TemplateMockPermission,
@@ -117,6 +118,23 @@ class AdminTemplateViewSet(AdminModelViewSet):
     filter_class = TemplateFilterSet
     pagination_class = BKFLOWNoMaxLimitPagination
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = []
+        has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
+        for template in serializer.data:
+            if template["id"] in has_trigger_template_ids:
+                template["has_interval_trigger"] = True
+            else:
+                template["has_interval_trigger"] = False
+            data.append(template)
+        if page is not None:
+            return self.get_paginated_response(data)
+        return Response(data)
 
     @swagger_auto_schema(method="POST", operation_description="创建流程", request_body=CreateTemplateSerializer)
     @action(methods=["POST"], detail=False, url_path="create_default_template/(?P<space_id>\\d+)")
