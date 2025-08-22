@@ -41,6 +41,7 @@ from bkflow.exceptions import ValidationError
 from bkflow.task.models import (
     EngineSpaceConfig,
     EngineSpaceConfigValueType,
+    PeriodicTask,
     TaskInstance,
     TaskMockData,
     TaskOperationRecord,
@@ -48,15 +49,19 @@ from bkflow.task.models import (
 from bkflow.task.node_log import NodeLogDataSourceFactory
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
 from bkflow.task.serializers import (
+    BatchDeletePeriodicTaskSerializer,
+    CreatePeriodicTaskSerializer,
     CreateTaskInstanceSerializer,
     EngineSpaceConfigSerializer,
     GetEngineSpaceConfigSerializer,
     GetTaskOperationRecordSerializer,
     NodeSnapshotQuerySerializer,
     NodeSnapshotResponseSerializer,
+    PeriodicTaskSerializer,
     RetrieveTaskInstanceSerializer,
     TaskInstanceSerializer,
     TaskOperationRecordSerializer,
+    UpdatePeriodicTaskSerializer,
 )
 from bkflow.utils.handlers import handle_plain_log
 from bkflow.utils.mixins import BKFLOWCommonMixin
@@ -144,7 +149,11 @@ class TaskInstanceViewSet(
         instance = TaskInstance.objects.create_instance(**serializer.validated_data)
         new_serializer = TaskInstanceSerializer(instance)
         headers = self.get_success_headers(new_serializer.data)
-        return Response(new_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        response_data = new_serializer.data
+        constants = instance.pipeline_tree["constants"]
+        parameters = {key: value["value"] for key, value in constants.items()}
+        response_data["parameters"] = parameters
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
     @swagger_auto_schema(methods=["post"], operation_description="批量删除任务", request_body=TaskBatchDeleteSerializer)
     @action(detail=False, methods=["post"], url_path="batch_delete_tasks")
@@ -449,3 +458,45 @@ class TaskInstanceViewSet(
                 exception=True, data={"result": False, "message": f"config with id {instance_id} not exist"}
             )
         return Response({"result": True, "message": "success", "data": serializer.data})
+
+
+@method_decorator(login_exempt, name="dispatch")
+class PeriodicTaskViewSet(
+    BKFLOWCommonMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.ListModelMixin,
+    SimpleGenericViewSet,
+):
+    queryset = PeriodicTask.objects.all()
+    serializer_class = PeriodicTaskSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = CreatePeriodicTaskSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = PeriodicTask.objects.create_task(**serializer.validated_data)
+        return Response(instance, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["post"], url_path="update")
+    def update_task(self, request, *args, **kwargs):
+        serializer = UpdatePeriodicTaskSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        trigger_id = serializer.validated_data["trigger_id"]
+        instance = self.get_queryset().filter(trigger_id=trigger_id).first()
+        if not instance:
+            return Response(
+                status=status.HTTP_404_NOT_FOUND,
+                data={"result": False, "message": f"periodic_task instance with trigger id {trigger_id} not exist"},
+            )
+        serializer.update(instance, serializer.validated_data)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["post"], url_path="batch_delete")
+    def batch_delete(self, request, *args, **kwargs):
+        serializer = BatchDeletePeriodicTaskSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        trigger_ids = serializer.validated_data["trigger_ids"]
+        for instance in self.get_queryset().filter(trigger_id__in=trigger_ids).select_related("celery_task"):
+            instance.delete()
+        return Response(status=status.HTTP_200_OK)

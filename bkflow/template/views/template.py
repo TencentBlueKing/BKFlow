@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -27,13 +26,21 @@ from rest_framework import mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
+from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.serializers.task import (
     CreateMockTaskWithPipelineTreeSerializer,
     CreateTaskSerializer,
 )
 from bkflow.apigw.serializers.template import CreateTemplateSerializer
-from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
+from bkflow.constants import (
+    RecordType,
+    TaskTriggerMethod,
+    TemplateOperationSource,
+    TemplateOperationType,
+    WebhookEventType,
+    WebhookScopeType,
+)
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import APIResponseError, ValidationError
@@ -57,6 +64,7 @@ from bkflow.template.models import (
     TemplateMockScheme,
     TemplateOperationRecord,
     TemplateSnapshot,
+    Trigger,
 )
 from bkflow.template.permissions import (
     TemplateMockPermission,
@@ -111,6 +119,23 @@ class AdminTemplateViewSet(AdminModelViewSet):
     pagination_class = BKFLOWNoMaxLimitPagination
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = []
+        has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
+        for template in serializer.data:
+            if template["id"] in has_trigger_template_ids:
+                template["has_interval_trigger"] = True
+            else:
+                template["has_interval_trigger"] = False
+            data.append(template)
+        if page is not None:
+            return self.get_paginated_response(data)
+        return Response(data)
+
     @swagger_auto_schema(method="POST", operation_description="创建流程", request_body=CreateTemplateSerializer)
     @action(methods=["POST"], detail=False, url_path="create_default_template/(?P<space_id>\\d+)")
     def create_template(self, request, space_id, *args, **kwargs):
@@ -154,12 +179,25 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
-
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
             raise APIResponseError(result["message"])
-        return Response(result["data"])
+
+        task_data = result["data"]
+        event_broadcast_signal.send(
+            sender=WebhookEventType.TASK_CREATE.value,
+            scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
+            extra_info={
+                "task_id": task_data["id"],
+                "task_name": task_data["name"],
+                "template_id": task_data["template_id"],
+                "parameters": task_data["parameters"],
+                "trigger_source": TaskTriggerMethod.manual.name,
+            },
+        )
+
+        return Response(task_data)
 
     @swagger_auto_schema(method="POST", operation_description="流程批量删除", request_body=TemplateBatchDeleteSerializer)
     @action(methods=["POST"], detail=False, url_path="batch_delete")

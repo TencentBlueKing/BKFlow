@@ -196,6 +196,7 @@ const template = {
     spaceId: '',
     scopeInfo: {},
     canvas_mode: '',
+    triggers: [],
   },
   mutations: {
     setTemplateName(state, name) {
@@ -223,6 +224,7 @@ const template = {
       state.executor_proxy = data.executor_proxy;
       state.template_labels = data.template_labels;
       state.default_flow_type = data.default_flow_type;
+      state.triggers = data.triggers;
     },
     setSubprocessUpdated(state, subflow) {
       if (state.subprocess_info) {
@@ -331,7 +333,7 @@ const template = {
         space_id: spaceId,
         scope_type,
         scope_value,
-
+        triggers,
       } = data;
 
       const {
@@ -355,6 +357,7 @@ const template = {
         scope_type,
         scope_value,
       };
+      state.triggers = triggers;
 
       state.canvas_mode = pipelineData.canvas_mode;
       this.commit('template/setPipelineTree', pipelineData);
@@ -967,8 +970,18 @@ const template = {
         location, outputs, start_event, notify_receivers, notify_type,
         time_out: timeout, category, description, executor_proxy, template_labels, default_flow_type,
         canvas_mode,
-        stage_canvas_data,
+        stage_canvas_data, triggers,
       } = state;
+      triggers.forEach((trigger) => {
+        if (trigger) {
+          if (Object.hasOwn(trigger, 'isNewTrigger')) {
+            delete trigger.isNewTrigger;
+          }
+          if (trigger.config.constants === null || !trigger.config.constants) {
+            trigger.config.constants = {};
+          }
+        }
+      });
       // 剔除 location 的冗余字段
       const pureLocation = location.map(item => ({
         id: item.id,
@@ -1042,6 +1055,7 @@ const template = {
           notify_type,
           notify_receivers,
         },
+        triggers,
       }, {
         headers,
       }).then(response => response.data);
@@ -1120,7 +1134,7 @@ const template = {
           scope_type,
           scope_value,
           api_name,
-          template_id
+          template_id,
         },
       }).then(response => response.data);
     },
@@ -1137,7 +1151,7 @@ const template = {
           category,
           key,
           api_name,
-          template_id
+          template_id,
         },
       }).then(response => response.data);
     },
