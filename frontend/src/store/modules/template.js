@@ -974,7 +974,7 @@ const template = {
       } = state;
       triggers.forEach((trigger) => {
         if (trigger) {
-          if (trigger.hasOwnProperty('isNewTrigger')) {
+          if (Object.hasOwn(trigger, 'isNewTrigger')) {
             delete trigger.isNewTrigger;
           }
           if (trigger.config.constants === null || !trigger.config.constants) {
