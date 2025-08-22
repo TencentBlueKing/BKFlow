@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -41,6 +40,23 @@ class TaskInstanceAdmin(admin.ModelAdmin):
     search_fields = ("instance_id", "name", "creator")
     list_filter = ("create_time", "finish_time")
     ordering = ("-create_time",)
+
+
+@admin.register(models.PeriodicTask)
+class PeriodicTaskAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "template_id",
+        "trigger_id",
+        "cron",
+        "name",
+        "creator",
+        "total_run_count",
+        "last_run_at",
+        "creator",
+        "extra_info",
+    )
+    search_fields = ("template_id", "trigger_id", "name", "creator")
 
 
 @admin.register(models.AutoRetryNodeStrategy)
