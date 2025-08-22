@@ -61,15 +61,19 @@
         </template>
       </bk-table-column>
     </bk-table>
-    <bk-button
-      :disabled="isViewMode"
-      theme="primary"
-      icon="plus"
-      class="add-trigger-button"
-      :outline="true"
-      @click="addTrigger">
-      {{ $t('添加定时触发器') }}
-    </bk-button>
+    <bk-popover
+      :content="$t('只允许创建一个定时触发器')"
+      placement="right">
+      <bk-button
+        :disabled="isViewMode || triggerData.length >= 1"
+        theme="primary"
+        icon="plus"
+        class="add-trigger-button"
+        :outline="true"
+        @click="addTrigger">
+        {{ $t('添加定时触发器') }}
+      </bk-button>
+    </bk-popover>
 
     <bk-dialog
       v-model="isShowTriggerDialog"
@@ -235,7 +239,7 @@ export default {
               name: '定时触发',
               type: 'periodic',
          },
-         saveInitialBackfillData: {}
+         saveInitialBackfillData: {},
         };
     },
     computed: {
@@ -368,10 +372,12 @@ export default {
             this.triggerData.splice(this.triggerData.length - 1, 1);
             this.isAdd = false;
           }
-          if (this.currentTriggerConfig.config.mode === 'form') {
-            this.triggerData[this.currentTriggerIndex].config.constants = this.copyTriggerConstants;
+          if (Object.values(this.triggerData).length > 0) {
+              if (this.currentTriggerConfig.config.mode === 'form') {
+                 this.triggerData[this.currentTriggerIndex].config.constants = this.copyTriggerConstants;
+              }
+              this.triggerData[this.currentTriggerIndex].config.cron = this.copyTriggerCron;
           }
-          this.triggerData[this.currentTriggerIndex].config.cron = this.copyTriggerCron;
           this.initTrigger.space_id = this.spaceId;
           this.currentTriggerConfig = this.initTrigger;
           this.copyTriggerConstants = {};
