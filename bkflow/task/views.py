@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 from functools import wraps
 
+import django_filters
 from blueapps.account.decorators import login_exempt
 from django.conf import settings
 from django.utils.decorators import method_decorator
@@ -71,6 +72,8 @@ from bkflow.utils.views import SimpleGenericViewSet
 
 
 class TaskInstanceFilterSet(FilterSet):
+    create_source = django_filters.CharFilter(method="filter_by_create_source")
+
     class Meta:
         model = TaskInstance
         fields = {
@@ -89,6 +92,13 @@ class TaskInstanceFilterSet(FilterSet):
             "is_started": ["exact"],
             "is_finished": ["exact"],
         }
+
+    def filter_by_create_source(self, queryset, name, value):
+        if not value:
+            return queryset
+        matching_tasks = queryset.values("id", "extra_info")
+        task_ids = [task["id"] for task in matching_tasks if task["extra_info"].get("create_source", "manual") == value]
+        return queryset.filter(id__in=task_ids)
 
 
 def validate_task_info(func):

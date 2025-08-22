@@ -162,6 +162,7 @@ def bkflow_periodic_task_start(*args, **kwargs):
         return
 
     try:
+        periodic_task.extra_info.update({"create_source": TaskTriggerMethod.timing.name})
         task_data = {
             "template_id": periodic_task.template_id,
             "name": periodic_task.name + "_" + timezone.now().strftime("%Y%m%d%H%M%S"),

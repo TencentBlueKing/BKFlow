@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -27,6 +26,7 @@ from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import CreateMockTaskWithTemplateIdSerializer
+from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
 from bkflow.template.models import Template
@@ -88,7 +88,10 @@ def create_mock_task(request, space_id):
         "notify_receivers": {"more_receiver": "", "receiver_group": []},
     }
     create_task_data.setdefault("extra_info", {}).update(
-        {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
+        {
+            "notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG,
+            "create_source": TaskTriggerMethod.api.name,
+        }
     )
 
     client = TaskComponentClient(space_id=space_id)
