@@ -159,7 +159,10 @@ class AdminTemplateViewSet(AdminModelViewSet):
             "notify_receivers": {"more_receiver": "", "receiver_group": []},
         }
         create_task_data.setdefault("extra_info", {}).update(
-            {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
+            {
+                "notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG,
+                "create_source": TaskTriggerMethod.manual.name,
+            }
         )
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
@@ -369,7 +372,10 @@ class TemplateViewSet(UserModelViewSet):
             "notify_receivers": {"more_receiver": "", "receiver_group": []},
         }
         create_task_data.setdefault("extra_info", {}).update(
-            {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
+            {
+                "notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG,
+                "create_source": TaskTriggerMethod.manual.name,
+            }
         )
 
         client = TaskComponentClient(space_id=template.space_id)

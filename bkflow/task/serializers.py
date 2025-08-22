@@ -116,6 +116,7 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
     create_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     start_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     finish_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
+    create_source = serializers.SerializerMethodField()
 
     class Meta:
         model = TaskInstance
@@ -137,6 +138,9 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
             "snapshot_id",
             "tree_info_id",
         )
+
+    def get_create_source(self, obj):
+        return obj.extra_info.pop("create_source", "manual")
 
 
 class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
