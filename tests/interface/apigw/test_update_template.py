@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import json
+from unittest.mock import patch
 
 from bamboo_engine.builder import (
     EmptyEndEvent,
@@ -25,13 +25,20 @@ from bamboo_engine.builder import (
     ServiceActivity,
     build_tree,
 )
+from blueapps.account.models import User
 from django.test import TestCase, override_settings
+from rest_framework.test import APIRequestFactory
 
 from bkflow.space.models import Space
 from bkflow.template.models import Template, TemplateSnapshot
+from bkflow.template.views.template import TemplateViewSet
 
 
 class TestUpdateTemplate(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.admin_user = User.objects.create_superuser(username="test_admin", password="password")
+
     def build_pipeline_tree(self):
         start = EmptyStartEvent()
         act_1 = ServiceActivity(component_code="example_component")
@@ -39,7 +46,7 @@ class TestUpdateTemplate(TestCase):
 
         start.extend(act_1).extend(end)
 
-        pipeline = build_tree(start)
+        pipeline = build_tree(start, data={"test": "test"})
 
         return pipeline
 
@@ -72,3 +79,86 @@ class TestUpdateTemplate(TestCase):
         self.assertEqual(resp_data["result"], True)
         self.assertEqual(resp_data["data"]["name"], "测试流程更新")
         self.assertEqual(resp_data["data"]["desc"], "测试描述")
+
+    @patch("bkflow.template.models.PeriodicTriggerHandler.create")
+    @patch("bkflow.template.models.PeriodicTriggerHandler.update")
+    def test_create_trigger_success(self, mock_create, mock_update):
+        space = self.create_space()
+        pipeline_tree = self.build_pipeline_tree()
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+        template = Template.objects.create(name="测试流程", space_id=space.id, snapshot_id=snapshot.id, desc="测试流程描述")
+        snapshot.template_id = template.id
+        snapshot.save()
+
+        data = template.to_json(with_pipeline_tree=True)
+        # 添加单个触发器，验证触发器是否创建成功
+        data["triggers"] = [
+            {
+                "id": None,
+                "space_id": space.id,
+                "template_id": template.id,
+                "config": {
+                    "constants": {"${test}": "test"},
+                    "cron": {
+                        "hour": "*",
+                        "minute": "*/1",
+                        "day_of_week": "*",
+                        "day_of_month": "*",
+                        "month_of_year": "*",
+                    },
+                    "mode": "json",
+                },
+                "updated_by": "who",
+                "creator": "jackvidyu",
+                "is_enabled": False,
+                "name": "old trigger",
+                "type": "periodic",
+            }
+        ]
+
+        mock_create.return_value = None
+
+        url = "/api/template/{}/".format(template.id)
+        request = self.factory.put(url, data=data, format="json")
+        request.user = self.admin_user
+        view_func = TemplateViewSet.as_view({"put": "update"})
+        response = view_func(request=request, pk=template.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["result"], True)
+        self.assertEqual(response.data["data"]["triggers"][0]["name"], "old trigger")
+
+        old_trigger_id = response.data["data"]["triggers"][0]["id"]
+        # 更新刚才创建的触发器
+        data["triggers"] = [
+            {
+                "id": old_trigger_id,
+                "space_id": space.id,
+                "template_id": template.id,
+                "config": {
+                    "constants": {"${test}": "test"},
+                    "cron": {
+                        "hour": "*",
+                        "minute": "*/1",
+                        "day_of_week": "*",
+                        "day_of_month": "*",
+                        "month_of_year": "*",
+                    },
+                    "mode": "json",
+                },
+                "updated_by": "who",
+                "creator": "jackvidyu",
+                "is_enabled": False,
+                "name": "old trigger new name",
+                "type": "periodic",
+            }
+        ]
+
+        mock_update.return_value = None
+
+        request = self.factory.put(url, data=data, format="json")
+        request.user = self.admin_user
+        view_func = TemplateViewSet.as_view({"put": "update"})
+        response = view_func(request=request, pk=template.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["result"], True)
+        self.assertEqual(response.data["data"]["triggers"][0]["name"], "old trigger new name")
