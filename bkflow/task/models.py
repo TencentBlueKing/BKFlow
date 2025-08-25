@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 import json
 import logging
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -445,9 +446,7 @@ def default_cron():
 
 
 class PeriodicTaskManager(models.Manager):
-    def create_task(
-        self, name, template_id, trigger_id, cron, config, creator, extra_info=None, timezone=None, is_enabled=True
-    ):
+    def create_task(self, name, template_id, trigger_id, cron, config, creator, extra_info=None, is_enabled=True):
         with transaction.atomic():
             periodic_task = self.create(
                 name=name,
@@ -465,7 +464,7 @@ class PeriodicTaskManager(models.Manager):
                 day_of_week=cron.get("day_of_week", "*"),
                 day_of_month=cron.get("day_of_month", "*"),
                 month_of_year=cron.get("month_of_year", "*"),
-                timezone=timezone or "UTC",
+                timezone=timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai",
             )
             _ = schedule.schedule  # noqa
             celery_task = DjangoCeleryBeatPeriodicTask.objects.create(
@@ -520,7 +519,7 @@ class PeriodicTask(models.Model):
         self.celery_task.enabled = enabled
         self.celery_task.save()
 
-    def modify_cron(self, cron, timezone=None, must_disabled=True):
+    def modify_cron(self, cron, must_disabled=True):
         """修改celery周期任务周期计划"""
         schedule, _ = DjangoCeleryBeatCrontabSchedule.objects.get_or_create(
             minute=cron.get("minute", "0"),
@@ -528,7 +527,7 @@ class PeriodicTask(models.Model):
             day_of_week=cron.get("day_of_week", "*"),
             day_of_month=cron.get("day_of_month", "*"),
             month_of_year=cron.get("month_of_year", "*"),
-            timezone=timezone or "UTC",
+            timezone=timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai",
         )
         _ = schedule.schedule  # noqa
         self.cron = schedule.__str__()
