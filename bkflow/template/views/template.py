@@ -213,6 +213,10 @@ class AdminTemplateViewSet(AdminModelViewSet):
             update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
                 is_deleted=True
             )
+        trigger_ids = Trigger.objects.filter(template_id__in=ser.validated_data["template_ids"]).values_list(
+            "id", flat=True
+        )
+        Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids), is_full=is_full)
         return Response({"delete_num": update_num})
 
     @swagger_auto_schema(method="POST", operation_description="流程模版复制", request_body=TemplateCopySerializer)

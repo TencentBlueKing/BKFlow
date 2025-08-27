@@ -369,6 +369,15 @@ class TriggerManager(models.Manager):
             handler.update(trigger, data, template)
         return trigger
 
+    def batch_delete_by_ids(self, space_id, trigger_ids, is_full=False):
+        client = TaskComponentClient(space_id=space_id)
+        if is_full:
+            trigger_ids = self.filter(space_id=space_id).values_list("id", flat=True)
+        result = client.batch_delete_periodic_task(data={"trigger_ids": list(trigger_ids)})
+        if not result.get("result"):
+            raise APIResponseError(f"delete periodic_task error: {result.get('message')}")
+        self.filter(id__in=list(trigger_ids)).delete()
+
     def _get_handler(self, trigger_type):
         handlers = {
             Trigger.TYPE_PERIODIC: PeriodicTriggerHandler(),
@@ -424,11 +433,7 @@ class TriggerManager(models.Manager):
 
         # 批量删除触发器以及其对应的周期任务
         if to_delete_trigger_ids:
-            client = TaskComponentClient(space_id=template.space_id)
-            result = client.batch_delete_periodic_task(data={"trigger_ids": list(to_delete_trigger_ids)})
-            if not result.get("result"):
-                raise APIResponseError(f"delete periodic_task error: {result.get('message')}")
-            exist_triggers.filter(id__in=to_delete_trigger_ids).delete()
+            self.batch_delete_by_ids(template.space_id, to_delete_trigger_ids)
 
 
 class Trigger(CommonModel):
