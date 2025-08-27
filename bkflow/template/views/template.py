@@ -172,6 +172,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data["scope_value"] = template.scope_value
         create_task_data["space_id"] = space_id
         create_task_data["pipeline_tree"] = template.pipeline_tree
+        create_task_data["trigger_method"] = TaskTriggerMethod.manual.name
         DEFAULT_NOTIFY_CONFIG = {
             "notify_type": {"fail": [], "success": []},
             "notify_receivers": {"more_receiver": "", "receiver_group": []},
@@ -380,6 +381,7 @@ class TemplateViewSet(UserModelViewSet):
                 "pipeline_tree": pipeline_tree,
                 "mock_data": ser.validated_data["mock_data"],
                 "create_method": "MOCK",
+                "trigger_method": TaskTriggerMethod.manual.name,
             }
         )
         DEFAULT_NOTIFY_CONFIG = {
