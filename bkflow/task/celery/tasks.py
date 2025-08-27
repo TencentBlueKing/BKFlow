@@ -167,6 +167,7 @@ def bkflow_periodic_task_start(*args, **kwargs):
             "name": periodic_task.name + "_" + timezone.localtime(timezone.now()).strftime("%Y%m%d%H%M%S"),
             "creator": periodic_task.creator,
             "extra_info": periodic_task.extra_info,
+            "trigger_method": TaskTriggerMethod.timing.name,
             **periodic_task.config,
         }
         serializer = CreateTaskInstanceSerializer(data=task_data)
