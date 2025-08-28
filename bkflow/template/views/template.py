@@ -123,7 +123,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
-        serializer = self.get_serializer(queryset, many=True)
+        serializer = self.get_serializer(page if page is not None else queryset, many=True)
         data = []
         has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
         for template in serializer.data:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -58,8 +57,10 @@ def update_template(request, space_id, template_id):
     validated_data_dict = dict(ser.data)
 
     validated_data_dict["updated_by"] = validated_data_dict.pop("operator", None) or request.user.username
-
-    success = Template.objects.filter(id=template_id, space_id=space_id).update(**validated_data_dict)
+    template = Template.objects.filter(id=template_id, space_id=space_id, is_deleted=False)
+    if not template.exists():
+        raise UpdateTemplateException(_(f"模板不存在，template_id:{template_id}"))
+    success = template.update(**validated_data_dict)
     # 表示更新失败
     if not success:
         raise UpdateTemplateException(_(f"请检查参数，params:{validated_data_dict}"))
