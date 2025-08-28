@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -42,9 +41,8 @@ def create_mock_task(request, space_id):
     data = json.loads(request.body)
     ser = CreateMockTaskWithTemplateIdSerializer(data=data)
     ser.is_valid(raise_exception=True)
-    # 序列化器已经检查过是否存在了
     try:
-        template = Template.objects.get(id=ser.data["template_id"], space_id=space_id)
+        template = Template.objects.get(id=ser.data["template_id"], space_id=space_id, is_deleted=False)
     except Template.DoesNotExist:
         raise ValidationError(
             _("模版不存在，space_id={space_id}, template_id={template_id}").format(
