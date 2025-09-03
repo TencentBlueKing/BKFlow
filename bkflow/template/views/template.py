@@ -123,7 +123,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
-        serializer = self.get_serializer(queryset, many=True)
+        serializer = self.get_serializer(page if page is not None else queryset, many=True)
         data = []
         has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
         for template in serializer.data:
@@ -213,6 +213,10 @@ class AdminTemplateViewSet(AdminModelViewSet):
             update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
                 is_deleted=True
             )
+        trigger_ids = Trigger.objects.filter(template_id__in=ser.validated_data["template_ids"]).values_list(
+            "id", flat=True
+        )
+        Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids), is_full=is_full)
         return Response({"delete_num": update_num})
 
     @swagger_auto_schema(method="POST", operation_description="流程模版复制", request_body=TemplateCopySerializer)

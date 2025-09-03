@@ -43,9 +43,8 @@ def create_task(request, space_id):
     data = json.loads(request.body)
     ser = CreateTaskSerializer(data=data)
     ser.is_valid(raise_exception=True)
-    # 序列化器已经检查过是否存在了
     try:
-        template = Template.objects.get(id=ser.data["template_id"], space_id=space_id)
+        template = Template.objects.get(id=ser.data["template_id"], space_id=space_id, is_deleted=False)
     except Template.DoesNotExist:
         raise ValidationError(
             _("模版不存在，space_id={space_id}, template_id={template_id}").format(
