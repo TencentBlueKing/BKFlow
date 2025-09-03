@@ -75,7 +75,7 @@ export const processConfigItem = (configItem, constants = []) => {
   const linkRender = renders.find(r => r.type === 'link');
   if (linkRender) {
     processed.hasLink = true;
-    processed.linkUrl = linkRender.url;
+    processed.linkUrl = getValueByConstants(linkRender.url, constants);
   }
 
   // 处理highlight和progress (只能有一个)
@@ -261,6 +261,13 @@ const getJobOrStageConstants = stage => stage.config?.reduce((res, item) => {
             });
           }
         });
+      } else if (render.type === 'link') {
+        if (isKeyFormat(render.url)) {
+          res.push({
+            key: render.url,
+            value: render.url,
+          });
+        }
       }
     });
   }
