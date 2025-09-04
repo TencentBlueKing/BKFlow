@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,7 +22,7 @@ import re
 from enum import Enum
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.component_framework.library import ComponentLibrary
 from pipeline.component_framework.models import ComponentModel
 from pipeline.exceptions import ComponentNotExistException
@@ -96,7 +95,7 @@ class ComponentModelSerializer(serializers.ModelSerializer):
             self.component_name = instance.name.split("-")
         except ComponentNotExistException:
             raise NotFound("Can not found {}({})".format(instance.code, instance.version))
-        return super(ComponentModelSerializer, self).to_representation(instance)
+        return super().to_representation(instance)
 
 
 class ComponentModelListSerializer(ComponentModelSerializer):

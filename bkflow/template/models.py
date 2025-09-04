@@ -21,7 +21,7 @@ import logging
 from copy import deepcopy
 
 from django.db import models, transaction
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.core.constants import PE
 from pipeline.parser.utils import replace_all_id
 

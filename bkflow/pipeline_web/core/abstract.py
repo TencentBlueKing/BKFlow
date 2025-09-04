@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -20,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 
 from django.db import models
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 
 class Node(models.Model):
@@ -35,7 +34,7 @@ class Node(models.Model):
         ordering = ["-id"]
 
 
-class NodeAttr(object):
+class NodeAttr:
 
     node_in_template_attr = {}
     node_in_instance_attr = {}

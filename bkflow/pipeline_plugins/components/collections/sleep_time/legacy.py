@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,10 +21,11 @@ to the current version of the project delivered to anyone in the future.
 import datetime
 import os
 import re
+import zoneinfo
 
 from django.conf import settings
-from django.utils import timezone, translation
-from django.utils.translation import ugettext_lazy as _
+from django.utils import translation
+from django.utils.translation import gettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.core.flow.activity import StaticIntervalGenerator
 from pipeline.core.flow.io import BooleanItemSchema, StringItemSchema
@@ -65,9 +65,7 @@ class SleepTimerService(BKFlowBaseService):
                 name=_("是否强制晚于当前时间"),
                 key="force_check",
                 type="boolean",
-                schema=BooleanItemSchema(
-                    description=_("用户输入日期格式时是否强制要求时间晚于当前时间，只对日期格式定时输入有效")
-                ),
+                schema=BooleanItemSchema(description=_("用户输入日期格式时是否强制要求时间晚于当前时间，只对日期格式定时输入有效")),
             ),
         ]
 
@@ -82,12 +80,12 @@ class SleepTimerService(BKFlowBaseService):
         force_check = data.get_one_of_inputs("force_check", True)
         # todo 需要考虑是否要支持空间的时区配置
         # 项目时区获取
-        tz = timezone.pytz.timezone(settings.TIME_ZONE)
+        tz = zoneinfo.ZoneInfo(settings.TIME_ZONE)
         data.outputs.business_tz = tz
 
         now = datetime.datetime.now(tz=tz)
         if self.date_regex.match(str(timing)):
-            eta = tz.localize(datetime.datetime.strptime(timing, "%Y-%m-%d %H:%M:%S"))
+            eta = datetime.datetime.strptime(timing, "%Y-%m-%d %H:%M:%S").replace(tzinfo=tz)
             if force_check and now > eta:
                 message = _("定时时间需晚于当前时间")
                 data.set_outputs("ex_data", message)

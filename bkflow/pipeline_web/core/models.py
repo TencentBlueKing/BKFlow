@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,7 +20,7 @@ to the current version of the project delivered to anyone in the future.
 
 from django.db import models, transaction
 from django.utils.timezone import now
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from bkflow.pipeline_web.constants import PWE
 from bkflow.pipeline_web.core.abstract import Node

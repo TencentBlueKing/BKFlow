@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -20,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 from typing import List
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.core.flow.io import StringItemSchema
 
 from bkflow.pipeline_plugins.variables.base import (
@@ -36,7 +35,7 @@ class Input(CommonPlainVariable, SelfExplainVariable):
     name = _("输入框")
     type = "general"
     tag = "input.input"
-    form = "%svariables/%s.js" % (settings.STATIC_URL, code)
+    form = "{}variables/{}.js".format(settings.STATIC_URL, code)
     schema = StringItemSchema(description=_("输入框变量"))
 
     @classmethod

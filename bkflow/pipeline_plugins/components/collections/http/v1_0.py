@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,14 +18,12 @@ to the current version of the project delivered to anyone in the future.
 """
 
 
-from __future__ import absolute_import
-
 import json
 import traceback
 from copy import deepcopy
 
 from django.utils import translation
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.conf import settings
 from pipeline.core.flow.activity import StaticIntervalGenerator
@@ -95,10 +92,7 @@ class HttpRequestService(BKFlowBaseService):
                 key="bk_http_success_exp",
                 type="string",
                 schema=StringItemSchema(
-                    description=_(
-                        "根据返回的 JSON 的数据来控制节点的成功或失败, "
-                        "使用 resp 引用返回的 JSON 对象，例 resp.result==True"
-                    )
+                    description=_("根据返回的 JSON 的数据来控制节点的成功或失败, " "使用 resp 引用返回的 JSON 对象，例 resp.result==True")
                 ),
             ),
         ]
@@ -206,10 +200,7 @@ class HttpRequestService(BKFlowBaseService):
 
 class HttpComponent(Component):
     name = _("HTTP 请求")
-    desc = _(
-        "提示: 1.请求URL需要在当前网络下可以访问，否则会超时失败 "
-        "2.响应状态码在200-300(不包括300)之间，并且响应内容是 JSON 格式才会执行成功"
-    )
+    desc = _("提示: 1.请求URL需要在当前网络下可以访问，否则会超时失败 " "2.响应状态码在200-300(不包括300)之间，并且响应内容是 JSON 格式才会执行成功")
     code = "bk_http_request"
     bound_service = HttpRequestService
     version = "v1.0"

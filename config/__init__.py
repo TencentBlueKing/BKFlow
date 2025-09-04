@@ -23,7 +23,7 @@ import os
 # This will make sure the app is always imported when
 # Django starts so that shared_task will use this app.
 from blueapps.core.celery import celery_app
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 __all__ = ["celery_app", "RUN_VER", "APP_CODE", "SECRET_KEY", "BK_URL", "BASE_DIR"]
 

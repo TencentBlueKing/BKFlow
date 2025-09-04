@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -20,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.core.flow.io import ObjectItemSchema, StringItemSchema
 
@@ -70,6 +69,4 @@ class PauseComponent(Component):
     code = "pause_node"
     bound_service = PauseService
     form = settings.STATIC_URL + "components/pause/legacy.js"
-    desc = _(
-        "该节点可以通过node_callback API接口进行回调并传入数据，callback_data参数为dict类型，回调数据会作为该节点的输出数据"
-    )
+    desc = _("该节点可以通过node_callback API接口进行回调并传入数据，callback_data参数为dict类型，回调数据会作为该节点的输出数据")
