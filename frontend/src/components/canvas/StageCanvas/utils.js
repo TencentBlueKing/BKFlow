@@ -562,14 +562,13 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
       });
     });
   });
-  console.log('utils.js_Line:563', constants);
   // 全部节点的id
   const activitieIds = Object.keys(activities);
   // 遍历全部变量，将变量中source节点被删除的变量删除
   Object.keys(constants).forEach((key) => {
     const sourceId = Object.keys(constants[key].source_info)[0];
     if (sourceId && !activitieIds.includes(sourceId)) {
-      delete constants[key];
+      delete constants[key].source_info[sourceId];
     }
   });
   newPipelineTree.constants = { ...constants };
