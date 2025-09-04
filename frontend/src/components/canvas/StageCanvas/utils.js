@@ -231,7 +231,7 @@ const getDefaultActivitie = (id = `node${uuid()}`) => ({
   },
 });
 function isKeyFormat(str) {
-  return /^\$\{[^}]*\}$/.test(str);
+  return /\$\{[^{}]+\}/.test(str);
 }
 
 const getJobOrStageConstants = stage => stage.config?.reduce((res, item) => {
