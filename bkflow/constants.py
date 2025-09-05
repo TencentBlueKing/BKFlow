@@ -86,6 +86,7 @@ class TemplateOperationType(Enum):
 class TaskTriggerMethod(Enum):
     """任务触发方式"""
 
+    api = _("api")
     manual = _("手动")
     timing = _("定时")
 

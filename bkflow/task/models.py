@@ -145,6 +145,7 @@ class TaskInstance(models.Model):
     creator = models.CharField("创建者", max_length=32, blank=True)
     create_time = models.DateTimeField("创建时间", auto_now_add=True, db_index=True)
     create_method = models.CharField("创建方式", choices=CREATE_METHODS, default="API", max_length=32)
+    trigger_method = models.CharField("触发方式", default="manual", max_length=32)
     executor = models.CharField("执行者", max_length=32, blank=True)
     start_time = models.DateTimeField("启动时间", null=True, blank=True)
     finish_time = models.DateTimeField("结束时间", null=True, blank=True)
