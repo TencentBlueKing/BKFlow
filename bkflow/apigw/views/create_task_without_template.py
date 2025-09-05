@@ -42,7 +42,7 @@ def create_task_without_template(request, space_id):
 
     create_task_data = dict(ser.validated_data)
     create_task_data["space_id"] = space_id
-    create_task_data["trigger_method"] = TaskTriggerMethod.api.value
+    create_task_data["trigger_method"] = TaskTriggerMethod.api.name
     DEFAULT_NOTIFY_CONFIG = {
         "notify_type": {"fail": [], "success": []},
         "notify_receivers": {"more_receiver": "", "receiver_group": []},
