@@ -56,7 +56,7 @@
             <span class="task-status-text">{{ props.row.state_text || '--' }}</span>
           </div>
           <div v-else-if="item.id === 'trigger_method'">
-            <span>{{ triggerMethodName[props.row.trigger_method] }}</span>
+            <span>{{ $t(triggerMethodName[props.row.trigger_method]) }}</span>
           </div>
           <!-- 其他 -->
           <template v-else>
