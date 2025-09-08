@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import base64
 import datetime
 import json
+import os
 
 from bamboo_engine.config import Settings as BambooSettings
 from blueapps.conf.default_settings import *  # noqa
@@ -238,7 +239,7 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
 IS_USE_CELERY = True
 
 # 前后端分离开发配置开关，设置为True时dev和stag环境会自动加载允许跨域的相关选项
-FRONTEND_BACKEND_SEPARATION = False
+FRONTEND_BACKEND_SEPARATION = True
 
 # CELERY 并发数，默认为 2，可以通过环境变量或者 Procfile 设置
 CELERYD_CONCURRENCY = env.BK_CELERYD_CONCURRENCY

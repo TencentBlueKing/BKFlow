@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,10 +17,10 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import datetime
+import zoneinfo
 
 from django.conf import settings
-from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 
 class TaskContext:
@@ -40,7 +39,7 @@ class TaskContext:
         self.task_id = taskflow.id
         self.task_name = taskflow.name
         self.is_mock = taskflow.create_method == "MOCK"
-        tz = timezone.pytz.timezone(settings.TIME_ZONE)
+        tz = zoneinfo.ZoneInfo(settings.TIME_ZONE)
         self.task_start_time = datetime.datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
 
     def context(self):
@@ -48,7 +47,7 @@ class TaskContext:
 
     @classmethod
     def to_flat_key(cls, key):
-        return "${%s.%s}" % (cls.prefix, key)
+        return "${{{}.{}}}".format(cls.prefix, key)
 
     @classmethod
     def flat_details(cls):

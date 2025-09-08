@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,7 +20,7 @@ import hashlib
 import json
 
 from django.db import models
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.models import CompressJSONField, SnapshotManager
 
 from bkflow.utils.md5 import compute_pipeline_md5
@@ -44,7 +43,7 @@ class CommonModel(models.Model):
         self.save()
 
     def hard_delete(self):
-        super(CommonModel, self).delete()
+        super().delete()
 
 
 class CommonSnapshotManager(SnapshotManager):

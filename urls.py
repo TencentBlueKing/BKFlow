@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,8 +18,8 @@ to the current version of the project delivered to anyone in the future.
 """
 
 from django.conf import settings
-from django.conf.urls import include, url
 from django.contrib import admin
+from django.urls import include, re_path
 from django.views import static
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
@@ -29,22 +28,24 @@ from rest_framework import permissions
 from bkflow.utils.django_error_hanlder import page_not_found
 
 urlpatterns = [
-    url(r"^bkflow_admin/", admin.site.urls),
-    url(r"^", include("bkflow.urls")),
-    url(r"^apigw/", include("bkflow.apigw.urls")),
-    url(r"^account/", include("blueapps.account.urls")),
-    url(r"^i18n/", include("django.conf.urls.i18n")),
+    re_path(r"^bkflow_admin/", admin.site.urls),
+    re_path(r"^", include("bkflow.urls")),
+    re_path(r"^apigw/", include("bkflow.apigw.urls")),
+    re_path(r"^account/", include("blueapps.account.urls")),
+    re_path(r"^i18n/", include("django.conf.urls.i18n")),
 ]
 
 if settings.IS_LOCAL:
     urlpatterns += [
         # media
-        url(r"^media/(?P<path>.*)$", static.serve, {"document_root": settings.MEDIA_ROOT}),
-        url("favicon.ico", static.serve, {"document_root": settings.STATIC_ROOT, "path": "core/images/bk_sops.png"}),
+        re_path(r"^media/(?P<path>.*)$", static.serve, {"document_root": settings.MEDIA_ROOT}),
+        re_path(
+            "favicon.ico", static.serve, {"document_root": settings.STATIC_ROOT, "path": "core/images/bk_sops.png"}
+        ),
     ]
     if not settings.DEBUG:
         urlpatterns += [
-            url(r"^static/(?P<path>.*)$", static.serve, {"document_root": settings.STATIC_ROOT}),
+            re_path(r"^static/(?P<path>.*)$", static.serve, {"document_root": settings.STATIC_ROOT}),
         ]
 
 handler404 = page_not_found
@@ -62,7 +63,7 @@ schema_view = get_schema_view(
 
 if settings.ENVIRONMENT != "production" or settings.ENABLE_SWAGGER_UI:
     urlpatterns += [
-        url(r"^swagger(?P<format>\.json|\.yaml)$", schema_view.without_ui(cache_timeout=0), name="schema-json"),
-        url(r"^swagger/$", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
-        url(r"^redoc/$", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+        re_path(r"^swagger(?P<format>\.json|\.yaml)$", schema_view.without_ui(cache_timeout=0), name="schema-json"),
+        re_path(r"^swagger/$", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
+        re_path(r"^redoc/$", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
     ]

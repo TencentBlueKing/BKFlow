@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,7 +22,7 @@ import uuid
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
-from django.utils.encoding import force_text
+from django.utils.encoding import force_str
 from django.utils.functional import Promise
 from django.utils.timezone import is_aware
 
@@ -41,7 +40,7 @@ def format_datetime(dt: datetime.datetime, tz: datetime.tzinfo = None):
 def json_encoder_default(self, o):
     # See "Date Time String Format" in the ECMA-262 specification.
     if isinstance(o, Promise):
-        return force_text(o)
+        return force_str(o)
     elif isinstance(o, datetime.datetime):
         r = o.isoformat()
         if o.microsecond:

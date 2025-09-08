@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 from django.conf import settings
-from django.conf.urls import url
+from django.urls import re_path
 
 from module_settings import BKFLOWModuleType
 
@@ -56,35 +55,37 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.validate_pipeline_tree import validate_pipeline_tree
 
     urlpatterns += [
-        url(r"^create_space/$", create_space),
-        url(r"^grant_apigw_permissions_to_app/$", grant_apigw_permissions_to_app),
-        url(r"^space/(?P<space_id>\d+)/apply_token/$", apply_token),
-        url(r"^space/(?P<space_id>\d+)/revoke_token/$", revoke_token),
-        url(r"^space/(?P<space_id>\d+)/create_template/$", create_template),
-        url(r"^space/(?P<space_id>\d+)/get_template_list/$", get_template_list),
-        url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_detail/$", get_template_detail),
-        url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_mock_data/$", get_template_mock_data),
-        url(r"^space/(?P<space_id>\d+)/renew_space_config/$", renew_space_config),
-        url(r"^space/(?P<space_id>\d+)/get_space_configs/$", get_space_configs),
-        url(r"^space/(?P<space_id>\d+)/update_template/(?P<template_id>\d+)/$", update_template),
-        url(r"^space/(?P<space_id>\d+)/delete_template/(?P<template_id>\d+)/$", delete_template),
-        url(r"^space/(?P<space_id>\d+)/create_task/$", create_task),
-        url(r"^space/(?P<space_id>\d+)/create_mock_task/$", create_mock_task),
-        url(r"^space/(?P<space_id>\d+)/create_task_without_template/$", create_task_without_template),
-        url(r"^space/(?P<space_id>\d+)/validate_pipeline_tree/$", validate_pipeline_tree),
-        url(r"^space/(?P<space_id>\d+)/create_credential/$", create_credential),
-        url(r"^space/(?P<space_id>\d+)/get_task_list/$", get_task_list),
-        url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/get_task_detail/$", get_task_detail),
-        url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/get_task_states/$", get_task_states),
-        url(r"^space/(?P<space_id>\d+)/get_tasks_states/$", get_tasks_states),
-        url(
+        re_path(r"^create_space/$", create_space),
+        re_path(r"^grant_apigw_permissions_to_app/$", grant_apigw_permissions_to_app),
+        re_path(r"^space/(?P<space_id>\d+)/apply_token/$", apply_token),
+        re_path(r"^space/(?P<space_id>\d+)/revoke_token/$", revoke_token),
+        re_path(r"^space/(?P<space_id>\d+)/create_template/$", create_template),
+        re_path(r"^space/(?P<space_id>\d+)/get_template_list/$", get_template_list),
+        re_path(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_detail/$", get_template_detail),
+        re_path(
+            r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_mock_data/$", get_template_mock_data
+        ),
+        re_path(r"^space/(?P<space_id>\d+)/renew_space_config/$", renew_space_config),
+        re_path(r"^space/(?P<space_id>\d+)/get_space_configs/$", get_space_configs),
+        re_path(r"^space/(?P<space_id>\d+)/update_template/(?P<template_id>\d+)/$", update_template),
+        re_path(r"^space/(?P<space_id>\d+)/delete_template/(?P<template_id>\d+)/$", delete_template),
+        re_path(r"^space/(?P<space_id>\d+)/create_task/$", create_task),
+        re_path(r"^space/(?P<space_id>\d+)/create_mock_task/$", create_mock_task),
+        re_path(r"^space/(?P<space_id>\d+)/create_task_without_template/$", create_task_without_template),
+        re_path(r"^space/(?P<space_id>\d+)/validate_pipeline_tree/$", validate_pipeline_tree),
+        re_path(r"^space/(?P<space_id>\d+)/create_credential/$", create_credential),
+        re_path(r"^space/(?P<space_id>\d+)/get_task_list/$", get_task_list),
+        re_path(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/get_task_detail/$", get_task_detail),
+        re_path(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/get_task_states/$", get_task_states),
+        re_path(r"^space/(?P<space_id>\d+)/get_tasks_states/$", get_tasks_states),
+        re_path(
             r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/node/(?P<node_id>\w+)/get_task_node_detail/$",
             get_task_node_detail,
         ),
-        url(
+        re_path(
             r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/node/(?P<node_id>\w+)/operate_node/(?P<operation>\w+)/$",
             operate_task_node,
         ),
-        url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/operate_task/(?P<operation>\w+)/$", operate_task),
-        url(r"^space/(?P<space_id>\d+)/apply_webhook_configs/$", apply_webhook_configs),
+        re_path(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/operate_task/(?P<operation>\w+)/$", operate_task),
+        re_path(r"^space/(?P<space_id>\d+)/apply_webhook_configs/$", apply_webhook_configs),
     ]
