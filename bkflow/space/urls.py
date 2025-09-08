@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,7 +17,8 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from django.conf.urls import include, url
+from django.conf.urls import include
+from django.urls import re_path
 from rest_framework.routers import DefaultRouter
 
 from bkflow.space.views import (
@@ -39,6 +39,6 @@ admin_router.register(r"space_config", SpaceConfigAdminViewSet, basename="space_
 admin_router.register(r"credential_config", CredentialConfigAdminViewSet, basename="credential_config")
 
 urlpatterns = [
-    url(r"^", include(router.urls)),
-    url(r"^admin/", include(admin_router.urls)),
+    re_path(r"^", include(router.urls)),
+    re_path(r"^admin/", include(admin_router.urls)),
 ]

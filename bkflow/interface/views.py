@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -30,7 +29,7 @@ from django.conf import settings
 from django.contrib.auth import logout
 from django.http import JsonResponse
 from django.shortcuts import render
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
@@ -115,9 +114,7 @@ def callback(request, token):
     try:
         callback_data = json.loads(request.body)
     except Exception:
-        message = _("节点回调失败: 无效的请求, 请重试. 如持续失败可联系管理员处理. {msg} | api callback").format(
-            msg=traceback.format_exc()
-        )
+        message = _("节点回调失败: 无效的请求, 请重试. 如持续失败可联系管理员处理. {msg} | api callback").format(msg=traceback.format_exc())
         logger.error(message)
         return JsonResponse({"result": False, "message": message}, status=400)
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,17 +18,17 @@ to the current version of the project delivered to anyone in the future.
 """
 
 
-from django.conf.urls import url
+from django.urls import re_path
 
 from .select import variable_select_source_data_proxy
 from .uniform_api import uniform_api
 
 urlpatterns = [
-    url(r"^uniform_api/list/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_list),
-    url(
+    re_path(r"^uniform_api/list/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_list),
+    re_path(
         r"^uniform_api/category_list/(?P<space_id>\d+)/$",
         uniform_api.get_space_uniform_api_category_list,
     ),
-    url(r"^uniform_api/meta/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_meta),
-    url(r"^variable_select_source_data_proxy/$", variable_select_source_data_proxy),
+    re_path(r"^uniform_api/meta/(?P<space_id>\d+)/$", uniform_api.get_space_uniform_api_meta),
+    re_path(r"^variable_select_source_data_proxy/$", variable_select_source_data_proxy),
 ]

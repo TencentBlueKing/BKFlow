@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,7 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 from typing import List
 
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.core.flow.io import StringItemSchema
 
 import settings
@@ -36,7 +35,7 @@ class Datetime(CommonPlainVariable, SelfExplainVariable):
     name = _("日期时间范围")
     type = "general"
     tag = "datetime_range.datetime_range"
-    form = "%svariables/%s.js" % (settings.STATIC_URL, code)
+    form = "{}variables/{}.js".format(settings.STATIC_URL, code)
     schema = StringItemSchema(description=_("日期时间范围变量"))
     desc = _('输出格式: ["2023-01-1 00:00:00", "2023-01-01 23:59:59"]')
 

@@ -18,10 +18,10 @@ to the current version of the project delivered to anyone in the future.
 """
 import datetime
 import time
+import zoneinfo
 
 from django.conf import settings
 from django.test import TestCase
-from django.utils import timezone
 from pipeline.component_framework.test import (
     ComponentTestCase,
     ComponentTestMixin,
@@ -48,7 +48,14 @@ VALID_DATETIME_INPUT = {
     "force_check": True,
 }
 VALID_SECONDS_INPUT = {"bk_timing": 10, "force_check": True}
-BUSINESS_TIMEZONE = timezone.pytz.timezone(settings.TIME_ZONE)
+BUSINESS_TIMEZONE = zoneinfo.ZoneInfo(settings.TIME_ZONE)
+
+# -------------------【Python 3.9+ 修改点】: 提前计算期望结果】-------------------
+# 将字符串解析为 naive datetime 对象
+_NAIVE_DATETIME = datetime.datetime.strptime(VALID_DATETIME_INPUT["bk_timing"], "%Y-%m-%d %H:%M:%S")
+# 使用 .replace() 附加时区信息，得到我们期望的 aware datetime 对象
+EXPECTED_AWARE_DATETIME = _NAIVE_DATETIME.replace(tzinfo=BUSINESS_TIMEZONE)
+# -----------------------------------------------------------------
 
 INVALID_SECONDS_TEST_CASE = ComponentTestCase(
     name="invalid seconds input test case",
@@ -70,21 +77,11 @@ VALID_DATETIME_TEST_CASE = ComponentTestCase(
     parent_data={},
     execute_assertion=ExecuteAssertion(
         success=True,
-        outputs={
-            "business_tz": BUSINESS_TIMEZONE,
-            "timing_time": BUSINESS_TIMEZONE.localize(
-                datetime.datetime.strptime(VALID_DATETIME_INPUT["bk_timing"], "%Y-%m-%d %H:%M:%S")
-            ),
-        },
+        outputs={"business_tz": BUSINESS_TIMEZONE, "timing_time": EXPECTED_AWARE_DATETIME},
     ),
     schedule_assertion=ScheduleAssertion(
         success=True,
-        outputs={
-            "business_tz": BUSINESS_TIMEZONE,
-            "timing_time": BUSINESS_TIMEZONE.localize(
-                datetime.datetime.strptime(VALID_DATETIME_INPUT["bk_timing"], "%Y-%m-%d %H:%M:%S")
-            ),
-        },
+        outputs={"business_tz": BUSINESS_TIMEZONE, "timing_time": EXPECTED_AWARE_DATETIME},
         callback_data={},
     ),
 )
