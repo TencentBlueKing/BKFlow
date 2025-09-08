@@ -75,7 +75,8 @@ export const processConfigItem = (configItem, constants = []) => {
   const linkRender = renders.find(r => r.type === 'link');
   if (linkRender) {
     processed.hasLink = true;
-    processed.linkUrl = getValueByConstants(linkRender.url, constants);
+    const linkUrl = getValueByConstants(linkRender.url, constants);
+    processed.linkUrl = linkUrl === '--' ? linkRender.url : linkUrl;
   }
 
   // 处理highlight和progress (只能有一个)
@@ -563,7 +564,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     });
   });
   // 全部节点的id
-  const activitieIds = Object.keys(activities);
+  const activitieIds = Object.keys(newPipelineTree.activities);
   // 遍历全部变量，将变量中source节点被删除的变量删除
   Object.keys(constants).forEach((key) => {
     const sourceId = Object.keys(constants[key].source_info)[0];
