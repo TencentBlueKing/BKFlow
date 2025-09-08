@@ -2,7 +2,7 @@
 # Python 3.12 & Django 3.2 compatible requirements
 
 # --- 蓝鲸依赖 (Django 3.2 配置) ---
-# blueapps[opentelemetry]==5.0.0rc6   # 本地安装测试
+blueapps[opentelemetry]==5.0.0rc6
 apigw-manager[cryptography]==1.1.7
 
 # --- Django 生态 ---
@@ -26,14 +26,14 @@ bk-notice-sdk==1.4.2
 
 # engine service
 boto3==1.34.129
-bamboo-pipeline==4.0.0rc1
+bamboo-pipeline==5.0.0rc0
 pydantic==1.10.17
 django-extensions==3.2.1
 
 # bkflow feel
 bkflow-feel==1.2.0
 bkflow-dmn==0.2.0
-bkflow-django-webhook==1.2.2
+bkflow-django-webhook==2.0.0rc0
 
 # --- 核心工具库 ---
 gunicorn==23.0.0
