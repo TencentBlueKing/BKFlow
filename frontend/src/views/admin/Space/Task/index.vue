@@ -174,6 +174,11 @@
       label: i18n.t('引擎实例 Id'),
       width: 280,
     },
+    // {
+    //   id: 'trigger_type',
+    //   label: i18n.t('触发类型'),
+    //   width: 160,
+    // },
   ];
   const SEARCH_LIST = [
     {
@@ -208,8 +213,8 @@
   ];
   const TRIGGER_METHOD = {
     api: 'api触发',
-    manual: '定时触发',
-    timing: '手动触发',
+    manual: '手动触发',
+    timing: '定时触发',
   };
   export default {
     name: 'TaskList',
