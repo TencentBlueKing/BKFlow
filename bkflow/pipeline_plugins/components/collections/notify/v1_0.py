@@ -74,7 +74,7 @@ class NotifyService(BKFlowBaseService):
         notify_types = data.inputs.bk_notify_types
         title = data.inputs.bk_notify_title
         content = data.inputs.bk_notify_content
-        receivers = data.inputs.bk_notify_receivers
+        receivers = data.inputs.bk_notify_receivers.split(",")
         notify_executor = data.inputs.notify_executor
 
         # 当通知接收人包含执行人时，执行人放在列表第一位，且对通知名单进行去重处理
