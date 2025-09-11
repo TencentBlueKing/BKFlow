@@ -69,6 +69,7 @@ from bkflow.template.models import (
     TemplateMockScheme,
     TemplateOperationRecord,
     TemplateSnapshot,
+    Trigger,
 )
 from bkflow.template.permissions import (
     TemplateMockPermission,
@@ -124,6 +125,23 @@ class AdminTemplateViewSet(AdminModelViewSet):
     pagination_class = BKFLOWNoMaxLimitPagination
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+
+        serializer = self.get_serializer(page if page is not None else queryset, many=True)
+        data = []
+        has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
+        for template in serializer.data:
+            if template["id"] in has_trigger_template_ids:
+                template["has_interval_trigger"] = True
+            else:
+                template["has_interval_trigger"] = False
+            data.append(template)
+        if page is not None:
+            return self.get_paginated_response(data)
+        return Response(data)
+
     @swagger_auto_schema(method="POST", operation_description="创建流程", request_body=CreateTemplateSerializer)
     @action(methods=["POST"], detail=False, url_path="create_default_template/(?P<space_id>\\d+)")
     def create_template(self, request, space_id, *args, **kwargs):
@@ -160,6 +178,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data["scope_value"] = template.scope_value
         create_task_data["space_id"] = space_id
         create_task_data["pipeline_tree"] = template.pipeline_tree
+        create_task_data["trigger_method"] = TaskTriggerMethod.manual.name
         DEFAULT_NOTIFY_CONFIG = {
             "notify_type": {"fail": [], "success": []},
             "notify_receivers": {"more_receiver": "", "receiver_group": []},
@@ -201,6 +220,10 @@ class AdminTemplateViewSet(AdminModelViewSet):
             update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
                 is_deleted=True
             )
+        trigger_ids = Trigger.objects.filter(template_id__in=ser.validated_data["template_ids"]).values_list(
+            "id", flat=True
+        )
+        Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids), is_full=is_full)
         return Response({"delete_num": update_num})
 
     @swagger_auto_schema(method="POST", operation_description="流程模版复制", request_body=TemplateCopySerializer)
@@ -368,6 +391,7 @@ class TemplateViewSet(UserModelViewSet):
                 "pipeline_tree": pipeline_tree,
                 "mock_data": ser.validated_data["mock_data"],
                 "create_method": "MOCK",
+                "trigger_method": TaskTriggerMethod.manual.name,
             }
         )
         DEFAULT_NOTIFY_CONFIG = {

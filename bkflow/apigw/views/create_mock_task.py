@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -27,6 +26,7 @@ from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import CreateMockTaskWithTemplateIdSerializer
+from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
 from bkflow.template.models import Template
@@ -42,9 +42,8 @@ def create_mock_task(request, space_id):
     data = json.loads(request.body)
     ser = CreateMockTaskWithTemplateIdSerializer(data=data)
     ser.is_valid(raise_exception=True)
-    # 序列化器已经检查过是否存在了
     try:
-        template = Template.objects.get(id=ser.data["template_id"], space_id=space_id)
+        template = Template.objects.get(id=ser.data["template_id"], space_id=space_id, is_deleted=False)
     except Template.DoesNotExist:
         raise ValidationError(
             _("模版不存在，space_id={space_id}, template_id={template_id}").format(
@@ -81,6 +80,7 @@ def create_mock_task(request, space_id):
             "pipeline_tree": template.pipeline_tree,
             "mock_data": ser.validated_data["mock_data"],
             "create_method": "MOCK",
+            "trigger_method": TaskTriggerMethod.api.name,
         }
     )
     DEFAULT_NOTIFY_CONFIG = {

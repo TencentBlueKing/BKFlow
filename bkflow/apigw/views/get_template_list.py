@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -26,7 +25,7 @@ from django.views.decorators.http import require_GET
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.template import TemplateListFilterSerializer
 from bkflow.apigw.utils import paginate_list_data
-from bkflow.template.models import Template
+from bkflow.template.models import Template, Trigger
 from bkflow.utils import err_code
 
 
@@ -62,7 +61,16 @@ def get_template_list(request, space_id):
 
     templates, count = paginate_list_data(request, template_queryset)
 
-    data = [template.to_json(with_pipeline_tree=False) for template in templates]
+    data = []
+
+    has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
+    for template in templates:
+        json_data = template.to_json(with_pipeline_tree=False)
+        if template.id in has_trigger_template_ids:
+            json_data["has_interval_trigger"] = True
+        else:
+            json_data["has_interval_trigger"] = False
+        data.append(json_data)
 
     response = {
         "result": True,

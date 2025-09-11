@@ -93,7 +93,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         # 校验树的合法性
 
         try:
-            validate_pipeline_tree(pipeline_tree)
+            validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
         except Exception as e:
             logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
             raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
@@ -132,7 +132,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             exist_code_list = [
                 node["component"]["data"]["plugin_code"]["value"]
                 for node in pipeline_tree["activities"].values()
-                if node["component"]["data"].get("plugin_code")
+                if node["component"].get("data", {}).get("plugin_code")
             ]
             BKPluginAuthorization.objects.batch_check_authorization(exist_code_list, str(instance.space_id))
         except Exception as e:

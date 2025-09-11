@@ -75,7 +75,8 @@ export const processConfigItem = (configItem, constants = []) => {
   const linkRender = renders.find(r => r.type === 'link');
   if (linkRender) {
     processed.hasLink = true;
-    processed.linkUrl = linkRender.url;
+    const linkUrl = getValueByConstants(linkRender.url, constants);
+    processed.linkUrl = linkUrl === '--' ? linkRender.url : linkUrl;
   }
 
   // 处理highlight和progress (只能有一个)
@@ -231,7 +232,7 @@ const getDefaultActivitie = (id = `node${uuid()}`) => ({
   },
 });
 function isKeyFormat(str) {
-  return /^\$\{[^}]*\}$/.test(str);
+  return /\$\{[^{}]+\}/.test(str);
 }
 
 const getJobOrStageConstants = stage => stage.config?.reduce((res, item) => {
@@ -261,6 +262,13 @@ const getJobOrStageConstants = stage => stage.config?.reduce((res, item) => {
             });
           }
         });
+      } else if (render.type === 'link') {
+        if (isKeyFormat(render.url)) {
+          res.push({
+            key: render.url,
+            value: render.url,
+          });
+        }
       }
     });
   }
@@ -373,8 +381,9 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     },
   ],
   stage_canvas_data: [],
+  constants: {},
 }) => {
-  const { activities, stage_canvas_data: stageCanvasData, location } = cloneDeepWith(pipelineTree);
+  const { activities, stage_canvas_data: stageCanvasData, location, constants } = cloneDeepWith(pipelineTree);
   const startPointLocation = {
     id: `node${uuid()}`,
     type: 'startpoint',
@@ -395,6 +404,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     location: [],
     start_event: {},
     canvas_mode: 'stage',
+    constants: {},
   };
 
   newPipelineTree.location.push(startPointLocation, endPointLocation);
@@ -553,7 +563,16 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
       });
     });
   });
-
+  // 全部节点的id
+  const activitieIds = Object.keys(newPipelineTree.activities);
+  // 遍历全部变量，将变量中source节点被删除的变量删除
+  Object.keys(constants).forEach((key) => {
+    const sourceId = Object.keys(constants[key].source_info)[0];
+    if (sourceId && !activitieIds.includes(sourceId)) {
+      delete constants[key].source_info[sourceId];
+    }
+  });
+  newPipelineTree.constants = { ...constants };
   return newPipelineTree;
 };
 

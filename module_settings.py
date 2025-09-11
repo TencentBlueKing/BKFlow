@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -147,6 +146,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "pipeline.eri",
         "pipeline.log",
         "pipeline.contrib.engine_admin",
+        "pipeline.contrib.periodic_task",
         "pipeline.django_signal_valve",
         "bkflow.task",
         "django_extensions",
@@ -222,6 +222,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "pipeline.engine",
         "pipeline.eri",
         "pipeline.log",
+        "pipeline.contrib.periodic_task",
         "pipeline.django_signal_valve",
         "bkflow.template",
         "bkflow.permission",

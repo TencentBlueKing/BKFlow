@@ -55,6 +55,9 @@
             <span :class="props.row.cls" />
             <span class="task-status-text">{{ props.row.state_text || '--' }}</span>
           </div>
+          <div v-else-if="item.id === 'trigger_method'">
+            <span>{{ $t(triggerMethodName[props.row.trigger_method]) }}</span>
+          </div>
           <!-- 其他 -->
           <template v-else>
             <span>{{ props.row[item.id] || '--' }}</span>
@@ -152,6 +155,11 @@
       width: 160,
     },
     {
+      id: 'trigger_method',
+      label: i18n.t('触发类型'),
+      width: 160,
+    },
+    {
       id: 'start_time',
       label: i18n.t('开始时间'),
       width: 280,
@@ -203,6 +211,11 @@
       name: i18n.t('所属作用域值'),
     },
   ];
+  const TRIGGER_METHOD = {
+    api: 'api触发',
+    manual: '手动触发',
+    timing: '定时触发',
+  };
   export default {
     name: 'TaskList',
     components: {
@@ -224,6 +237,7 @@
         dateFields: ['create_time', 'start_time', 'finish_time'],
         searchList: SEARCH_LIST,
         pageType: 'taskList', // 页面类型，在mixins中分页表格头显示使用
+        triggerMethodName: TRIGGER_METHOD,
       };
     },
     computed: {

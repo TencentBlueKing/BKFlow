@@ -26,6 +26,7 @@ from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import CreateTaskSerializer
+from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
 from bkflow.template.models import Template
@@ -43,9 +44,8 @@ def create_task(request, space_id):
     data = json.loads(request.body)
     ser = CreateTaskSerializer(data=data)
     ser.is_valid(raise_exception=True)
-    # 序列化器已经检查过是否存在了
     try:
-        template = Template.objects.get(id=ser.data["template_id"], space_id=space_id)
+        template = Template.objects.get(id=ser.data["template_id"], space_id=space_id, is_deleted=False)
     except Template.DoesNotExist:
         raise ValidationError(
             _("模版不存在，space_id={space_id}, template_id={template_id}").format(
@@ -58,6 +58,7 @@ def create_task(request, space_id):
     create_task_data["scope_value"] = template.scope_value
     create_task_data["space_id"] = space_id
     create_task_data["pipeline_tree"] = template.pipeline_tree
+    create_task_data["trigger_method"] = TaskTriggerMethod.api.name
     DEFAULT_NOTIFY_CONFIG = {
         "notify_type": {"fail": [], "success": []},
         "notify_receivers": {"more_receiver": "", "receiver_group": []},

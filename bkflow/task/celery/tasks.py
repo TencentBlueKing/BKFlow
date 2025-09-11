@@ -164,15 +164,16 @@ def bkflow_periodic_task_start(*args, **kwargs):
     try:
         task_data = {
             "template_id": periodic_task.template_id,
-            "name": periodic_task.name + "_" + timezone.now().strftime("%Y%m%d%H%M%S"),
+            "name": periodic_task.name + "_" + timezone.localtime(timezone.now()).strftime("%Y%m%d%H%M%S"),
             "creator": periodic_task.creator,
             "extra_info": periodic_task.extra_info,
+            "trigger_method": TaskTriggerMethod.timing.name,
             **periodic_task.config,
         }
         serializer = CreateTaskInstanceSerializer(data=task_data)
         serializer.is_valid(raise_exception=True)
         task_instance = TaskInstance.objects.create_instance(**serializer.validated_data)
-        logger.info(f"[bamboo_engine_periodic_task_start] task {task_instance.id} created")
+        logger.info(f"[bkflow_periodic_task_start] task {task_instance.id} created")
 
         constants = task_instance.pipeline_tree["constants"]
         parameters = {key: value["value"] for key, value in constants.items()}
@@ -198,13 +199,13 @@ def bkflow_periodic_task_start(*args, **kwargs):
             raise ValidationError("task operation not found")
         result = operation_method(operator=periodic_task.creator)
         if result.result:
-            logger.info(f"[bamboo_engine_periodic_task_start] task {task_instance.id} started")
+            logger.info(f"[bkflow_periodic_task_start] task {task_instance.id} started")
             periodic_task.total_run_count += 1
-            periodic_task.last_run_at = timezone.now()
+            periodic_task.last_run_at = timezone.localtime(timezone.now())
             periodic_task.save()
         else:
-            logger.error(f"[bamboo_engine_periodic_task_start] task {task_instance.id} start failed: {result.message}")
+            logger.error(f"[bkflow_periodic_task_start] task {task_instance.id} start failed: {result.message}")
     except Exception as e:
-        logger.exception(f"[bamboo_engine_periodic_task_start] get now time error: {e}")
+        logger.exception(f"[bkflow_periodic_task_start] periodic task start failed: {e} ")
         et = traceback.format_exc()
         logger.error(et)
