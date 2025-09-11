@@ -71,7 +71,7 @@ class NotifyService(BKFlowBaseService):
     def plugin_execute(self, data, parent_data):
         executor = parent_data.get_one_of_inputs("executor")
 
-        notify_types = data.inputs.bk_notify_type
+        notify_types = data.inputs.bk_notify_types
         title = data.inputs.bk_notify_title
         content = data.inputs.bk_notify_content
         receivers = data.inputs.bk_notify_receivers
