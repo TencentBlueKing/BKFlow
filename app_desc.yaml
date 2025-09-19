@@ -127,7 +127,7 @@ modules:
         plan: 4C4G5R
         replicas: 5
       cworker:
-        command: celery -A blueapps.core.celery worker -P threads -Q celery,pipeline_additional_task,pipeline_additional_task_priority,task_common_${BKFLOW_MODULE_CODE},node_auto_retry_${BKFLOW_MODULE_CODE},timeout_node_execute_${BKFLOW_MODULE_CODE},timeout_node_record_${BKFLOW_MODULE_CODE} -n common_worker@%h -c 10 -l info
+        command: celery -A blueapps.core.celery worker -P threads -Q celery,pipeline_additional_task,pipeline_additional_task_priority,task_common_${BKFLOW_MODULE_CODE},task_callback_${BKFLOW_MODULE_CODE},node_auto_retry_${BKFLOW_MODULE_CODE},timeout_node_execute_${BKFLOW_MODULE_CODE},timeout_node_record_${BKFLOW_MODULE_CODE} -n common_worker@%h -c 10 -l info
         plan: 4C1G5R
         replicas: 5
       timeout:

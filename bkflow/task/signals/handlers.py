@@ -130,7 +130,7 @@ def _check_and_callback(instance_id, *args, **kwargs):
     try:
         task_id = TaskInstance.objects.get(instance_id=instance_id).id
         task_callback.apply_async(
-            kwargs=dict(task_id=str(task_id), **kwargs),
+            kwargs=dict(task_id=task_id, **kwargs),
             queue=f"task_callback_{settings.BKFLOW_MODULE.code}",
             routing_key=f"task_callback_{settings.BKFLOW_MODULE.code}",
         )
