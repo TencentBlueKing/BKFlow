@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -175,3 +174,6 @@ SYNC_BK_PLUGINS_CRONTAB = os.getenv("SYNC_BK_PLUGINS_INTERVAL", "*/10 * * * *")
 # 允许的HTTP插件域名
 ENABLE_HTTP_PLUGIN_DOMAINS_CHECK = bool(int(os.getenv("ENABLE_HTTP_PLUGIN_DOMAINS_CHECK", 1)))
 ALLOWED_HTTP_PLUGIN_DOMAINS = os.getenv("ALLOWED_HTTP_PLUGIN_DOMAINS", "")
+
+TEMPLATE_MAX_RECURSIVE_NUMBER = int(os.getenv("TEMPLATE_MAX_RECURSIVE_NUMBER", 10))
+REQUEST_RETRY_NUMBER = int(os.getenv("REQUEST_RETRY_NUMBER", 3))

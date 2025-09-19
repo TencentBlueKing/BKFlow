@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -25,7 +24,6 @@ import hashlib
 import json
 import logging
 
-from django.apps import apps
 from django.conf import settings
 from django.db.models import Q
 from pipeline.exceptions import PipelineException, SubprocessExpiredError
@@ -39,17 +37,16 @@ from bkflow.pipeline_web.core.models import NodeInTemplate
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline
 from bkflow.pipeline_web.parser.clean import PipelineWebTreeCleaner
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
+from bkflow.template.models import Template
 
 from .utils import topology_sort
-
-# from gcloud.template_base.utils import replace_template_id
 
 WEB_TREE_FIELDS = {"location", "line"}
 
 logger = logging.getLogger("root")
 
 
-class PipelineTemplateWebWrapper(object):
+class PipelineTemplateWebWrapper:
     SERIALIZE_DATE_FORMAT = "%Y-%m-%d %H:%M:%S %Z"
     ID_MAP_KEY = "id_to_id"
 
@@ -62,7 +59,7 @@ class PipelineTemplateWebWrapper(object):
         @param version: 模板版本
         @return: 用于渲染表单的变量信息
         """
-        data = self.template.data_for_version(version)
+        data = self.template.get_pipeline_tree_by_version(version)
 
         form = {}
         for key, var_info in list(data["constants"].items()):
@@ -76,7 +73,7 @@ class PipelineTemplateWebWrapper(object):
         @param version: 模板版本
         @return: 输出参数信息
         """
-        data = self.template.data_for_version(version)
+        data = self.template.get_pipeline_tree_by_version(version)
 
         if "constants" not in data:
             return {}
@@ -89,22 +86,18 @@ class PipelineTemplateWebWrapper(object):
         return outputs
 
     @classmethod
-    def unfold_subprocess(cls, pipeline_data, template_model):
+    def unfold_subprocess(cls, pipeline_data):
         """展开 pipeline 数据中所有的子流程
 
         :param pipeline_data: pipeline tree
         :type pipeline_data: dict
-        :param template_model: 用于获取子流程 tree 的 Model
-        :type template_model: TaskTemplate or CommonTemplate
         """
 
-        def _unfold_subprocess(pipeline_data, template_model, recursive_limit):
+        def _unfold_subprocess(pipeline_data, recursive_limit):
             """内部递归调用函数
 
             :param pipeline_data: pipeline tree
             :type pipeline_data: dict
-            :param template_model: 用于获取子流程 tree 的 Model
-            :type template_model: TaskTemplate or CommonTemplate
             :param recursive_limit: 最大递归层数
             :type recursive_limit: int
             """
@@ -120,15 +113,7 @@ class PipelineTemplateWebWrapper(object):
                         version = None
                     else:
                         version = act.get("version")
-                    subprocess_template_model = (
-                        apps.get_model("template", "CommonTemplate")
-                        if act.get("template_source") == "common"
-                        else template_model
-                    )
-                    subproc_data = subprocess_template_model.objects.get(
-                        pipeline_template__template_id=act["template_id"]
-                    ).get_pipeline_tree_by_version(version)
-
+                    subproc_data = Template.objects.get(pk=act["template_id"]).get_pipeline_tree_by_version(version)
                     if "constants" in subproc_data:
                         # 处理子流程中为下拉框并且隐藏的变量:
                         for key, constant in subproc_data.get("constants", {}).items():
@@ -167,13 +152,13 @@ class PipelineTemplateWebWrapper(object):
                         subproc_data, exclude_task_nodes_id, False
                     )
 
-                    _unfold_subprocess(subproc_data, subprocess_template_model, recursive_limit=recursive_limit + 1)
+                    _unfold_subprocess(subproc_data, recursive_limit=recursive_limit + 1)
 
                     subproc_data["id"] = act_id
                     act["pipeline"] = subproc_data
 
         try:
-            return _unfold_subprocess(pipeline_data, template_model, recursive_limit=0)
+            return _unfold_subprocess(pipeline_data, recursive_limit=0)
         except Exception as e:
             logger.error(
                 f"[unfold_subprocess] pipeline with start_event "
@@ -488,6 +473,6 @@ class PipelineTemplateWebWrapper(object):
         }
 
 
-class PipelineInstanceWebWrapper(object):
+class PipelineInstanceWebWrapper:
     def __init__(self, instance):
         self.instance = instance
