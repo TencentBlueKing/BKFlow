@@ -241,6 +241,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "version_log",
         "bk_notice_sdk",
         "bkflow.bk_plugin",
+        "bkflow.pipeline_web",
     )
 
     VARIABLE_KEY_BLACKLIST = (

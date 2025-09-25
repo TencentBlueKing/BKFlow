@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,7 +22,9 @@ from typing import Optional
 
 from bamboo_engine.utils.boolrule import BoolRule
 from bkflow_feel.api import parse_expression
-from pipeline.parser.utils import recursive_replace_id
+from pipeline.core.constants import PE
+from pipeline.parser.utils import replace_all_id
+from pipeline.utils.uniqid import node_uniqid
 
 from bkflow.utils.canvas import OperateType, get_canvas_handler
 from bkflow.utils.mako import parse_mako_expression
@@ -394,7 +395,7 @@ def replace_pipeline_tree_node_ids(
     # 生成节点映射
     if handler.should_generate_node_map(pipeline_tree, node_map):
         try:
-            node_map_raw = recursive_replace_id(pipeline_tree)
+            node_map_raw = _recursive_replace_id_with_node_map(pipeline_tree)
             first_pipeline = next(iter(node_map_raw.values()), {})
             node_map = first_pipeline.get("activities", {})
         except Exception as e:
@@ -406,3 +407,15 @@ def replace_pipeline_tree_node_ids(
         handler.handle_node_replacement(pipeline_tree, node_map)
 
     return pipeline_tree
+
+
+def _recursive_replace_id_with_node_map(pipeline_data, subprocess_id=None):
+    """
+    替换pipeline_id 并返回 对应的 node_map 映射
+    """
+    pipeline_data[PE.id] = node_uniqid()
+    node_map = {}
+    replace_result_map = replace_all_id(pipeline_data)
+    pipeline_id = subprocess_id or pipeline_data[PE.id]
+    node_map[pipeline_id] = replace_result_map
+    return node_map
