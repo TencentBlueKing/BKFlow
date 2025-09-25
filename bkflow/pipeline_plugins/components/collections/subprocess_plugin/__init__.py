@@ -16,26 +16,3 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from django.contrib import admin
-
-from bkflow.contrib.operation_record.admin import BaseOperateRecordAdmin
-from bkflow.template.models import Template, TemplateOperationRecord, Trigger
-
-
-@admin.register(Template)
-class TemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "space_id", "name", "source", "is_enabled")
-    search_fields = ("space_id", "name", "source")
-    list_filter = ("space_id", "source")
-    ordering = ["-id"]
-
-
-@admin.register(Trigger)
-class TriggerAdmin(admin.ModelAdmin):
-    list_display = ("id", "space_id", "template_id", "name", "is_enabled", "type")
-    search_fields = ("space_id", "template_id", "name", "type")
-    list_filter = ("space_id", "template_id", "name", "is_enabled", "type")
-    ordering = ["-id"]
-
-
-admin.site.register(TemplateOperationRecord, BaseOperateRecordAdmin)
