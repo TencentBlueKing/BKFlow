@@ -419,19 +419,3 @@ def _recursive_replace_id_with_node_map(pipeline_data, subprocess_id=None):
     pipeline_id = subprocess_id or pipeline_data[PE.id]
     node_map[pipeline_id] = replace_result_map
     return node_map
-
-
-def inject_original_template_info(pipeline_tree: dict):
-    """填充模版信息到子流程"""
-    from bkflow.template.models import Template
-
-    for act_id, act in pipeline_tree["activities"].items():
-        if act["type"] == "SubProcess":
-            inject_original_template_info(act["pipeline"])
-            template_id = act["template_id"]
-            template = Template.objects.filter(id=template_id).first()
-            if not template:
-                raise ValueError(f"Template with template_id: {template_id} not found")
-
-            act["original_template_id"] = str(template.id)
-            act["notify_config"] = template.notify_config

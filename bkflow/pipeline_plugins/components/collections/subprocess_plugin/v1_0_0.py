@@ -20,24 +20,30 @@ from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.core.flow import Service
+from pipeline.core.flow.io import IntItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pydantic import BaseModel
 
 from bkflow.constants import TaskOperationSource, TaskOperationType, TaskTriggerMethod
+from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.task.models import TaskOperationRecord
 
 
 class Subprocess(BaseModel):
     subprocess_name: str
-    pipeline: dict
     template_id: str
-    notify_config: dict = {}
+    version: str
 
 
 class SubprocessPluginService(Service):
     __need_schedule__ = True
     runtime = BambooDjangoRuntime()
+
+    def outputs_format(self):
+        return [
+            self.OutputItem(name="任务ID", key="task_id", type="int", schema=IntItemSchema(description="Task ID")),
+        ]
 
     def execute(self, data, parent_data):
         from bkflow.task.models import TaskFlowRelation, TaskInstance
@@ -53,7 +59,17 @@ class SubprocessPluginService(Service):
 
         subprocess_data = data.get_one_of_inputs("subprocess") or {}
         subprocess = Subprocess(**subprocess_data)
-        pipeline_tree = subprocess.pipeline
+        template_id = subprocess.template_id
+        version = subprocess.version
+        interface_client = InterfaceModuleClient()
+        template = interface_client.get_subproc_data(template_id=template_id, data={"version": version})
+
+        # 检查API调用是否成功
+        if not template.get("result"):
+            data.set_outputs("ex_data", f"get subprocess data failed: {template['message']}")
+            return False
+
+        pipeline_tree = template["data"]["pipeline_tree"]
 
         # 渲染父任务中的参数
         constants = pipeline_tree.get("constants", {})
@@ -99,11 +115,11 @@ class SubprocessPluginService(Service):
             time_stamp = datetime.datetime.now(tz=time_zone).strftime("%Y%m%d%H%M%S")
             create_task_data = {
                 "name": f"{subprocess.subprocess_name}_子流程_{time_stamp}",
-                "template_id": subprocess.template_id,
+                "template_id": template_id,
                 "creator": parent_task.creator,
-                "scope_type": parent_task.scope_type,
-                "scope_value": parent_task.scope_value,
-                "space_id": parent_task.space_id,
+                "scope_type": template["data"]["scope_type"],
+                "scope_value": template["data"]["scope_value"],
+                "space_id": template["data"]["space_id"],
                 "pipeline_tree": pipeline_tree,
                 "trigger_method": TaskTriggerMethod.subprocess.name,
                 "mock_data": {},
@@ -113,7 +129,7 @@ class SubprocessPluginService(Service):
                 "notify_receivers": {"more_receiver": "", "receiver_group": []},
             }
             create_task_data.setdefault("extra_info", {}).update(
-                {"notify_config": subprocess.notify_config or DEFAULT_NOTIFY_CONFIG}
+                {"notify_config": template["data"]["notify_config"] or DEFAULT_NOTIFY_CONFIG}
             )
 
             task_instance = TaskInstance.objects.create_instance(**create_task_data)
