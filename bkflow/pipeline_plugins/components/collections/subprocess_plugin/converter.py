@@ -13,7 +13,7 @@ import copy
 
 
 class PipelineTreeSubprocessConverter:
-    CONVERT_FIELDS = {"template_id", "template_name", "pipeline", "scope_type", "scope_value", "notify_config"}
+    CONVERT_FIELDS = {"template_id", "version"}
     REMAIN_FIELDS = {
         "id",
         "name",
@@ -61,8 +61,6 @@ class PipelineTreeSubprocessConverter:
         """
         for act_id, act in self.pipeline_tree["activities"].items():
             if act["type"] == "SubProcess":
-                subprocess_converter = PipelineTreeSubprocessConverter(act["pipeline"])
-                subprocess_converter.convert()
                 self.pipeline_tree["activities"][act_id] = self.get_converted_subprocess(act)
 
                 # 替换父任务变量

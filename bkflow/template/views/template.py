@@ -19,7 +19,9 @@ to the current version of the project delivered to anyone in the future.
 import logging
 from collections import defaultdict
 
+from blueapps.account.decorators import login_exempt
 from django.db import transaction
+from django.utils.decorators import method_decorator
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
@@ -49,7 +51,6 @@ from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
-from bkflow.pipeline_web.wrapper import PipelineTemplateWebWrapper
 from bkflow.space.configs import (
     GatewayExpressionConfig,
     UniformApiConfig,
@@ -91,8 +92,7 @@ from bkflow.template.serializers.template import (
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
-from bkflow.utils.permissions import AdminPermission
-from bkflow.utils.pipeline import inject_original_template_info
+from bkflow.utils.permissions import AdminPermission, AppInternalPermission
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet, UserModelViewSet
 
 logger = logging.getLogger("root")
@@ -176,8 +176,6 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data["scope_value"] = template.scope_value
         create_task_data["space_id"] = space_id
         pipeline_tree = template.pipeline_tree
-        PipelineTemplateWebWrapper.unfold_subprocess(pipeline_tree)
-        inject_original_template_info(pipeline_tree)
         create_task_data["pipeline_tree"] = pipeline_tree
         create_task_data["trigger_method"] = TaskTriggerMethod.manual.name
         DEFAULT_NOTIFY_CONFIG = {
@@ -428,6 +426,22 @@ class TemplateViewSet(UserModelViewSet):
         if not result["result"]:
             raise APIResponseError(result["message"])
         return Response(result["data"])
+
+
+@method_decorator(login_exempt, name="dispatch")
+class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, SimpleGenericViewSet):
+    queryset = Template.objects.filter()
+    serializer_class = TemplateSerializer
+    permission_classes = [AdminPermission | AppInternalPermission]
+
+    @action(methods=["GET"], detail=True)
+    def get_subproc_data(self, request, *args, **kwargs):
+        version = request.query_params.get("version")
+        template = self.get_object()
+        subproc_data = self.get_serializer(template).data
+        if version:
+            subproc_data["pipeline_tree"] = template.get_pipeline_tree_by_version(version)
+        return Response(subproc_data)
 
 
 class TemplateMockDataViewSet(
