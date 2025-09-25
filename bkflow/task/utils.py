@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
+import json
 import logging
 from functools import wraps
 
@@ -107,9 +106,7 @@ def parse_node_timeout_configs(pipeline_tree: dict) -> list:
             timeout_seconds = timeout_config.get("seconds")
             action = timeout_config.get("action")
             if not timeout_seconds or not isinstance(timeout_seconds, int):
-                message = _(
-                    f"节点执行失败: 节点[ID: {act_id}]配置了非法的超时时间: {timeout_seconds}, 请修改配置后重试"
-                )
+                message = _(f"节点执行失败: 节点[ID: {act_id}]配置了非法的超时时间: {timeout_seconds}, 请修改配置后重试")
                 logger.error(message)
                 # 对于不符合格式要求的情况，则不设置对应超时时间
                 continue
@@ -160,3 +157,12 @@ def send_task_instance_message(task_instance, msg_type):
     send_message(executor, notify_type, receivers, title, content)
 
     return True
+
+
+def extract_extra_info(constants, keys=None):
+    extra_info = {}
+    if not constants:
+        return ""
+    for key in list(constants.keys()) if not keys else keys:
+        extra_info.update({key: {"name": constants[key]["name"], "value": constants[key]["value"]}})
+    return json.dumps(extra_info, ensure_ascii=False)
