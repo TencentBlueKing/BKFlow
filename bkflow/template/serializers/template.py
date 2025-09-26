@@ -71,6 +71,7 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
             "notify_config",
             "version",
             "space_id",
+            "subprocess_info",
         )
 
 

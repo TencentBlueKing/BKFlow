@@ -174,16 +174,18 @@ class Template(CommonModel):
 
         temp_current_versions = {
             item.id: item
-            for item in Template.objects.filter(id__in=[item["subprocess_template_id"] for item in subprocess_info])
+            for item in Template.objects.filter(
+                id__in=[int(item["subprocess_template_id"]) for item in subprocess_info]
+            )
         }
 
         for item in subprocess_info:
             item["expired"] = (
                 False
                 if item["version"] is None
-                or item["subprocess_template_id"] not in temp_current_versions
+                or int(item["subprocess_template_id"]) not in temp_current_versions
                 or item["always_use_latest"]
-                else (item["version"] != temp_current_versions[int(item["subprocess_template_id"])].version())
+                else (item["version"] != temp_current_versions[int(item["subprocess_template_id"])].version)
             )
             item["subprocess_template_name"] = temp_current_versions[int(item["subprocess_template_id"])].name
             info.append(item)
