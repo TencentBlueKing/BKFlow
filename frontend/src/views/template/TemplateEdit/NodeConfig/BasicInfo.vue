@@ -282,14 +282,18 @@
           </template>
         </bk-input>
         <!-- 子流程版本更新 -->
+        <!-- v-if="!inputLoading && subflowHasUpdate && !subflowUpdated" -->
         <p
-          v-if="!inputLoading && subflowHasUpdate && !subflowUpdated"
+          v-if="isSubflowNeedToUpdate"
           class="update-tooltip">
-          {{ $t('子流程有更新，更新时若存在相同表单数据则获取原表单的值。') }}
+          <bk-icon
+            type="exclamation-circle"
+            class="icon-tip" />
+          <span>{{ $t('子流程有更新，更新时若存在相同表单数据则获取原表单的值。') }}</span>
           <bk-button
             :text="true"
             title="primary"
-            :disabled="isViewMode"
+            :disabled="isViewMode || !isSubflowNeedToUpdate"
             @click="onUpdateSubflowVersion">
             {{ $t('更新子流程') }}
           </bk-button>
@@ -304,10 +308,15 @@
           :readonly="isViewMode"
           @change="updateData" />
       </bk-form-item>
-      <!-- <bk-form-item :label="$t('步骤名称')" property="stageName">
-        <bk-input :readonly="isViewMode" v-model="formData.stageName" @change="updateData"></bk-input>
-      </bk-form-item> -->
-      <bk-form-item>
+      <bk-form-item
+        :label="$t('步骤名称')"
+        property="stageName">
+        <bk-input
+          v-model="formData.stageName"
+          :readonly="isViewMode"
+          @change="updateData" />
+      </bk-form-item>
+      <!-- <bk-form-item>
         <div
           slot="tip"
           class="bk-label slot-bk-label">
@@ -336,8 +345,8 @@
             :key="item.id"
             :name="item.name" />
         </bk-select>
-      </bk-form-item>
-      <template v-if="isShowFailTimeoutHandle">
+      </bk-form-item> -->
+      <template>
         <bk-form-item>
           <div
             slot="tip"
@@ -387,7 +396,6 @@
                   style="width: 68px;"
                   :placeholder="' '"
                   :disabled="isViewMode || !formData.autoRetry.enable"
-                  :max="10"
                   :min="0"
                   :precision="0"
                   @change="updateData" />
@@ -403,8 +411,7 @@
                   style="width: 68px;"
                   :placeholder="' '"
                   :disabled="isViewMode || !formData.autoRetry.enable"
-                  :max="10"
-                  :min="1"
+                  :min="0"
                   :precision="0"
                   @change="updateData" />
                 <span class="unit">{{ $t('次') }}</span>
@@ -545,6 +552,10 @@
         type: Array,
         default: () => ([]),
       },
+      isSubflowNeedToUpdate: {
+        type: Boolean,
+        default: false,
+      },
       isSubflow: Boolean,
       inputLoading: Boolean,
       subflowUpdated: Boolean,
@@ -557,7 +568,6 @@
     },
     data() {
       return {
-        isShowFailTimeoutHandle: false,
         labelData: [],
         labelLoading: false,
         subflowLoading: false,
@@ -684,27 +694,28 @@
       },
     },
     watch: {
-      basicInfo(val, oldVal) {
+      basicInfo(val) {
         this.formData = tools.deepClone(val);
         // 如果有执行方案，默认选中<不使用执行方案>
         if (this.schemeList.length && !this.formData.schemeIdList.length) {
           this.formData.schemeIdList = [0];
         }
-        if (val.tpl !== oldVal.tpl) {
-          this.getSubflowSchemeList();
-        }
+        // if (val.tpl !== oldVal.tpl) {
+        //   this.getSubflowSchemeList();
+        // }
       },
     },
-    created() {
-      if (!this.isSubflow) { // 子流程节点不展示节点标签表单
-        // this.getNodeLabelList()
-      } else {
-        if (this.basicInfo.tpl) {
-          this.getSubflowSchemeList();
-          this.judgeFailTimeoutShow();
-        }
-      }
-    },
+    // created() {
+      // if (!this.isSubflow) { // 子流程节点不展示节点标签表单
+      //   // this.getNodeLabelList()
+      // }
+      // else {
+      //   if (this.basicInfo.tpl) {
+      //     // this.getSubflowSchemeList();
+      //     this.judgeFailTimeoutShow();
+      //   }
+      // }
+    // },
     methods: {
       ...mapMutations('template/', [
         'setNodeBasicInfo',
@@ -725,17 +736,15 @@
         this.subflowLoading = true;
         try {
           const data = {
-            project_id: this.projectId,
-            template_id: this.basicInfo.tpl,
-            scheme_id_list: this.basicInfo.schemeIdList,
-            version: '',
+                templateId: this.basicInfo.tpl,
+                is_all_nodes: true,
+            // project_id: this.projectId,
+            // template_id: this.basicInfo.tpl,
+            // scheme_id_list: this.basicInfo.schemeIdList,
+            // version: '',
           };
-          if (this.common || this.nodeConfig.template_source === 'common') {
-            data.template_source = 'common';
-          } else {
-            data.project_id = this.projectId;
-          }
           const resp = await this.loadSubflowConfig(data);
+          console.log('总是使用最新版本-获取子流程详情', resp);
           this.version = resp.data.version;
         } catch (e) {
           console.log(e);
@@ -756,32 +765,32 @@
         }
       },
       // 加载子流程对应的执行方案列表
-      async getSubflowSchemeList() {
-        try {
-          const data = {
-            project_id: this.projectId,
-            template_id: this.basicInfo.tpl,
-            isCommon: this.common || this.nodeConfig.template_source === 'common',
-          };
-          this.schemeList = await this.loadTaskScheme(data);
-          // 添加<不使用执行方案>,如果没有选择方案时默认选中
-          const { activities = {} } = this.getPipelineTree();
-          const nodeList = Object.keys(activities);
-          if (this.schemeList.length) {
-            this.schemeList.unshift({
-              data: JSON.stringify(nodeList),
-              id: 0,
-              name: `<${i18n.t('不使用执行方案')}>`,
-            });
-            if (!this.formData.schemeIdList.length) {
-              this.formData.schemeIdList = [0];
-            }
-          }
-          this.schemeListLoading = false;
-        } catch (e) {
-          console.log(e);
-        }
-      },
+      // async getSubflowSchemeList() {
+      //   try {
+      //     const data = {
+      //       project_id: this.projectId,
+      //       template_id: this.basicInfo.tpl,
+      //       isCommon: this.common || this.nodeConfig.template_source === 'common',
+      //     };
+      //     this.schemeList = await this.loadTaskScheme(data);
+      //     // 添加<不使用执行方案>,如果没有选择方案时默认选中
+      //     const { activities = {} } = this.getPipelineTree();
+      //     const nodeList = Object.keys(activities);
+      //     if (this.schemeList.length) {
+      //       this.schemeList.unshift({
+      //         data: JSON.stringify(nodeList),
+      //         id: 0,
+      //         name: `<${i18n.t('不使用执行方案')}>`,
+      //       });
+      //       if (!this.formData.schemeIdList.length) {
+      //         this.formData.schemeIdList = [0];
+      //       }
+      //     }
+      //     this.schemeListLoading = false;
+      //   } catch (e) {
+      //     console.log(e);
+      //   }
+      // },
       // 标签分组
       transLabelListToGroup(list) {
         const data = [];
@@ -905,15 +914,15 @@
         this.updateData();
       },
       // 选择执行方案，需要更新子流程输入、输出参数
-      onSelectTaskScheme(val, options) {
-        // 切换执行方案时取消<不使用执行方案>
-        const lastId = options.length ? options[options.length - 1].id : undefined;
-        let value = lastId ? val.filter(id => id) : val;
-        value = lastId === 0 ? [0] : value;
-        this.formData.schemeIdList = value;
-        this.updateData();
-        this.$emit('selectScheme', value);
-      },
+      // onSelectTaskScheme(val, options) {
+      //   // 切换执行方案时取消<不使用执行方案>
+      //   const lastId = options.length ? options[options.length - 1].id : undefined;
+      //   let value = lastId ? val.filter(id => id) : val;
+      //   value = lastId === 0 ? [0] : value;
+      //   this.formData.schemeIdList = value;
+      //   this.updateData();
+      //   this.$emit('selectScheme', value);
+      // },
       updateData() {
         const {
           version, nodeName, stageName, nodeLabel, ignorable, skippable, retryable,
@@ -959,7 +968,6 @@
         if (this.inputLoading) {
           return;
         }
-
         this.$emit('updateSubflowVersion');
       },
       validate() {
@@ -967,17 +975,18 @@
         comp.clearError();
         return comp.validate();
       },
-      async judgeFailTimeoutShow() {
-        try {
-          const res = await this.getProcessOpenRetryAndTimeout({
-            project_id: this.projectId,
-            id: this.basicInfo.tpl,
-          });
-          this.isShowFailTimeoutHandle = res.data.enable;
-        } catch (error) {
-          console.warn(error);
-        }
-      },
+      // 判断是否显示失败超时处理
+      // async judgeFailTimeoutShow() {
+      //   try {
+      //     const res = await this.getProcessOpenRetryAndTimeout({
+      //       project_id: this.projectId,
+      //       id: this.basicInfo.tpl,
+      //     });
+      //     this.isShowFailTimeoutHandle = res.data.enable;
+      //   } catch (error) {
+      //     console.warn(error);
+      //   }
+      // },
       transformPluginDesc(data) {
         const info = data.replace(/\n/g, '<br>');
         return this.filterXSS(info, {
@@ -1164,11 +1173,14 @@
         .update-tooltip {
             position: relative;
             top: 5px;
-            color: #979ba5;
+            color: #EA3636;
             font-size: 12px;
             line-height: 12px;
             .bk-button-text {
                 font-size: 12px;
+            }
+            .icon-tip{
+                font-size: 14px !important;
             }
         }
         .user-selector {

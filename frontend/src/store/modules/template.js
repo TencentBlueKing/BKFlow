@@ -227,7 +227,7 @@ const template = {
       state.triggers = data.triggers;
     },
     setSubprocessUpdated(state, subflow) {
-      if (state.subprocess_info) {
+      if (state.subprocess_info && state.subprocess_info.details) {
         const data = state.subprocess_info.details.find(item => subflow.subprocess_node_id === item.subprocess_node_id);
         data.expired = subflow.expired;
         if (subflow.version) {
@@ -264,11 +264,14 @@ const template = {
               if (!has.call(item, 'isSkipped') && !has.call(item, 'skippable')) {
                 item.isSkipped = true;
               }
+              // if (item.type === 'subflow') {
+              //   item.type = 'SubProcess';
+              // }
             });
           }
           if (key === 'location') {
             val = val.map((item) => {
-              if (item.type === 'tasknode' || item.type === 'subflow') {
+              if (item.type === 'tasknode' || item.type === 'subflow' || item.type === 'SubProcess') {
                 const node = state.activities[item.id];
                 const loc = Object.assign({}, item, {
                   name: node.name,
@@ -351,6 +354,8 @@ const template = {
       state.template_labels = templateLabels || [];
       state.time_out = timeOut;
       state.category = category;
+
+      console.log('当前流程真实的subprocessInfo', subprocessInfo);
       state.subprocess_info = subprocessInfo;
       state.default_flow_type = defaultFlowType;
       state.spaceId = spaceId;
@@ -360,6 +365,8 @@ const template = {
       };
       state.triggers = triggers;
 
+      // 暂时写死数据便于开发
+      console.log('当前真实流程的pipelindeData', pipelineData);
       state.canvas_mode = pipelineData.canvas_mode;
       this.commit('template/setPipelineTree', pipelineData);
     },
@@ -759,6 +766,7 @@ const template = {
             };
           }
           Vue.set(state.activities, location.id, activity);
+          console.log('state.activities----', state.activities);
         }
       } else if (type === 'edit') {
         Vue.set(state.activities, location.id, location);
@@ -770,6 +778,7 @@ const template = {
         });
       } else if (type === 'delete') {
         Vue.delete(state.activities, location.id);
+        console.log('栓除节点后state.activities----', state.activities);
         Object.keys(state.constants).forEach((cKey) => {
           const constant = state.constants[cKey];
           const sourceInfo = constant.source_info;
@@ -973,6 +982,7 @@ const template = {
         canvas_mode,
         stage_canvas_data, triggers,
       } = state;
+      console.log('保存模板数据activities---', activities);
       triggers.forEach((trigger) => {
         if (trigger) {
           if (Object.hasOwn(trigger, 'isNewTrigger')) {
@@ -1021,6 +1031,7 @@ const template = {
       };
       const validateResult = validatePipeline.isPipelineDataValid(pipelineTree);
 
+      console.log('validateResult---', validateResult);
       if (!validateResult.result) {
         return new Promise((resolve) => {
           resolve(validateResult);

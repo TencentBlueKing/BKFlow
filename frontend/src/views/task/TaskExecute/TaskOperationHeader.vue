@@ -77,7 +77,10 @@
           :data-test-id="`taskExcute_form_${operation.action}Btn`"
           @click="onOperationClick(operation.action)" />
       </div>
-      <div class="task-params-btns">
+      <!-- 暂时写死数据便于开发 当前isSubflow为true 这里查看节点详情是需要取反的 -->
+      <div
+        v-if="isSubflow"
+        class="task-params-btns">
         <!-- <i
           :class="[
             'params-btn',
@@ -132,6 +135,17 @@
           </template>
         </bk-popover>
       </div>
+      <div
+        v-else
+        class="sub-task-btns">
+        <i class="common-icon-box-top-right-corner icon-link-to-father" />
+        <p>{{ $t('查看父流程') }}</p>
+        <span class="dividing-line" />
+        <bk-icon
+          :type="statusMap[parentProcessStatus].icon"
+          :class="statusMap[parentProcessStatus].class" />
+        <span class="state-text">{{ statusMap[parentProcessStatus].text }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -139,6 +153,7 @@
   import permission from '@/mixins/permission.js';
   // import PageHeader from '@/components/layout/PageHeader.vue'
   import { mapState } from 'vuex';
+  import i18n from '@/config/i18n/index.js';
 
   export default {
     name: 'TaskOperationHeader',
@@ -194,6 +209,25 @@
     data() {
       return {
         showNodeList: [0, 1, 2],
+        isSubflow: true,
+        statusMap: {
+          success: {
+            icon: 'check-circle-shape',
+            class: 'check-icon',
+            text: i18n.t('成功'),
+          },
+          failure: {
+            icon: 'close-circle-shape',
+            class: 'close-icon',
+            text: i18n.t('失败'),
+          },
+          paused: {
+            icon: 'exclamation-circle-shape',
+            class: 'exclamation-icon',
+            text: i18n.t('暂停'),
+          },
+        },
+        parentProcessStatus: 'success',
       };
     },
     computed: {
@@ -213,6 +247,9 @@
           this.showNodeList = [0, 1, 2];
         }
       },
+    },
+    mounted() {
+      // console.log('nodeNav val---', this.nodeNav);
     },
     methods: {
       onSelectSubflow(id) {
@@ -473,6 +510,41 @@
   cursor: pointer;
   font-size: 12px;
   margin-left: 8px;
+}
+
+.sub-task-btns{
+  display: flex;
+  align-items: center;
+  align-content: center;
+  font-size: 14px;
+  color: #63656E;
+  line-height: 22px;
+  .icon-link-to-father{
+    font-size: 12px !important;
+    margin-right: 6px;
+    margin-top: 2px;
+  }
+  .dividing-line{
+    margin: 0 17px;
+    border-right: 1px solid #DCDEE5;
+    height: 14px;
+  }
+  span {
+    vertical-align: middle; /* 文字也设置垂直居中 */
+  }
+  .close-icon{
+    color: #EA3636;
+  }
+  .check-icon{
+    color: #2dcb56;
+  }
+  .exclamation-icon{
+    color: #ff9c01;
+  }
+  .state-text{
+    margin-left: 5px;
+    margin-right: 4px;
+  }
 }
 </style>
 <style lang="scss">

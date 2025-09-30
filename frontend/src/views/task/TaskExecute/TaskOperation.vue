@@ -103,6 +103,7 @@
           :retry-node-id="retryNodeId"
           @nodeTaskRetry="nodeTaskRetry"
           @packUp="packUp" />
+        <!-- 查看节点详情 viewNodeDetails -->
         <ExecuteInfo
           v-if="nodeInfoType === 'executeInfo' || nodeInfoType === 'viewNodeDetails'"
           :state="state"
@@ -460,12 +461,14 @@
         return this.completePipelineData.location.some(item => item.type === 'subflow');
       },
       canvasData() {
+        console.log('this.pipelineData', this.pipelineData);
         const { line, location, activities } = this.pipelineData;
         const locations = location.map((item) => {
           const code = item.type === 'tasknode' ? activities[item.id].component.code : '';
           const mode = this.hasOperatePerm ? 'execute' : '';
           return { ...item, mode, checked: true, code, ready: true };
         });
+        console.log('任务的canvasData', graphToJson({ locations, lines: line }));
         return graphToJson({
           locations,
           lines: line,
@@ -478,7 +481,11 @@
         return this.templateSource !== 'project';
       },
       nodeData() {
-        const data = this.getOrderedTree(this.completePipelineData);
+        console.log('nodeData当前任务完整树---', this.pipelineData, this.completePipelineData);
+        // 当前任务的完整树 completePipelineData
+        // console.log('当前任务的完整树this.completePipelineData--', this.completePipelineData);
+        const data = this.getOrderedTree(this.completePipelineData);// 无子流程节点pipelineTree
+        console.log('nodeData-在次对子流程状态进行修改---', data);
         return [{
           id: this.instanceId,
           name: this.instanceName,
@@ -580,6 +587,7 @@
         'getNodeExecutionRecord',
         'instanceRetry',
         'subflowNodeRetry',
+        'loadSubflowConfig',
       ]),
       ...mapActions('atomForm/', [
         'loadSingleAtomList',
@@ -626,6 +634,7 @@
               data.subprocess_id = this.taskId;
             }
             instanceStatus = await this.getInstanceStatus(data);
+            console.log('获取节点状态接口返回：', instanceStatus);
           }
           // 处理返回数据
           if (instanceStatus.result) {
@@ -681,6 +690,7 @@
               this.setTaskStatusTimer();
             }
           }
+          console.log('最终的instanceStatus---------', this.instanceStatus);
           this.nodeDisplayStatus = tools.deepClone(this.instanceStatus);
         } catch (e) {
           this.cancelTaskStatusTimer();
@@ -1018,7 +1028,7 @@
       // 更新节点状态
       updateNodeInfo() {
         const nodes = this.instanceStatus.children;
-
+        console.log('任务页面-更新节点状态this.pipelineData', this.pipelineData);
         nodes && Object.keys(nodes).forEach((id) => {
           let code; let skippable; let retryable; let errorIgnorable; let autoRetry;
           const currentNode = nodes[id];
@@ -1052,26 +1062,47 @@
       setTaskNodeStatus(id, data) {
         this.$refs.processCanvas && this.$refs.processCanvas.onUpdateNodeInfo(id, data);
       },
-      async setNodeDetailConfig(id, rootNode) {
+      /**
+       * 设置节点详细配置
+       * @param {string} id - 当前节点ID
+       * @param {boolean} rootNode - 是否根节点
+       */
+      async setNodeDetailConfig(id, rootNode, subflowNode) {
+        console.log('setNodeDetailConfig', id, rootNode, subflowNode);
+        // 初始化节点相关变量
         let code; let version; let componentData;
+
+        // 从pipelineData中获取当前节点信息
         const node = this.pipelineData.activities[id];
+
+        // 如果是ServiceActivity类型节点，提取组件数据和代码
         if (node) {
           componentData = node.type === 'ServiceActivity' ? node.component.data : {};
           code = node.type === 'ServiceActivity' ? node.component.code : '';
           version = (node.type === 'ServiceActivity' ? node.component.version : node.version) || 'legacy';
         }
+        if (subflowNode?.parent) {
+          componentData = subflowNode.type === 'ServiceActivity' ? subflowNode.component.data : {};
+          code = subflowNode.type === 'ServiceActivity' ? subflowNode.component.code : '';
+          version = (subflowNode.type === 'ServiceActivity' ? subflowNode.component.version : subflowNode.version) || 'legacy';
+        }
+        // 处理子流程栈信息
         let subprocessStack = [];
         if (this.selectedFlowPath.length > 1) {
+          // 从选中的流程路径中提取子流程节点ID(排除第一个元素)
           subprocessStack = this.selectedFlowPath.map(item => item.nodeId).slice(1);
         }
+
+        // 设置节点详细配置对象
         this.nodeDetailConfig = {
-          component_code: code,
-          version,
-          node_id: id,
-          instance_id: this.instanceId,
-          root_node: rootNode,
-          subprocess_stack: JSON.stringify(subprocessStack),
-          componentData,
+          component_code: code,       // 组件代码
+          version,                    // 组件版本
+          node_id: id,                // 当前节点ID
+          instance_id: this.instanceId, // 实例ID
+          root_node: rootNode,        // 是否根节点
+          subprocess_stack: JSON.stringify(subprocessStack), // 子流程栈(序列化为JSON)
+          componentData,              // 组件数据
+          subflowNode,
         };
       },
       async onRetryClick(id) {
@@ -1373,7 +1404,14 @@
             break;
         }
       },
+      // recursionDepth = 0
       getOrderedTree(data) {
+        // console.log('获取有序树-当前的task的完整树', data);
+        // console.log('recursionDepth', recursionDepth);
+        // if (recursionDepth >= 2) {
+        //   console.log('只遍历递归子流程的第一层');
+        //   return [];
+        // }
         const startNode = tools.deepClone(data.start_event);
         const endNode = tools.deepClone(data.end_event);
         const fstLine = startNode.outgoing;
@@ -1400,7 +1438,7 @@
        * @param {Boolean} isLoop 条件网关节点是否有循环
        *
        */
-      retrieveLines(data, lineId, ordered, isLoop = false) {
+      async retrieveLines(data, lineId, ordered, isLoop = false) {
         const { end_event, activities, gateways, flows } = data;
         const currentNode = flows[lineId].target;
         const endEvent = end_event.id === currentNode ? tools.deepClone(end_event) : undefined;
@@ -1556,18 +1594,33 @@
           } else if (activity) { // 任务节点
             if (isLoop) return;
             if (isAt) {
-              if (activity.type === 'SubProcess') {
+              if (activity.type === 'SubProcess' || activity.component.code === 'subprocess_plugin') {
+                // const { template_id } = activity.component.data.subprocess.value;
+                // 获取子流程pipelintree
+                // const params = {
+                //   templateId: template_id,
+                //   is_all_nodes: true,
+                // };
+                // const res = await this.loadSubflowConfig(params);
+                // console.log('子流程pipelinetree---左边树--', res);
+                // 只递归第一层 子流程的子流程不递归
+                // const  recursionDepth = 0;
+                // if (res.data.pipeline_tree) {
+                //   activity.subChildren = this.getOrderedTree(res.data.pipeline_tree);
+                //   // activity.subChildren = this.getOrderedTree(res.data.pipeline_tree, recursionDepth + 1);
+                // }
                 if (activity.pipeline) {
-                  activity.subChildren = this.getOrderedTree(activity.pipeline);
+                  activity.children = this.getOrderedTree(activity.pipeline);
                 } else {
-                  if (activity.component.data && activity.component.data.subprocess) {
-                    activity.subChildren = this.getOrderedTree(activity.component.data.subprocess.value.pipeline);
+                  if (activity.component?.data && activity.component.data?.subprocess) {
+                    activity.children = this.getOrderedTree(activity.component.data.subprocess.value.pipeline);
                   }
                 }
               }
               activity.title = activity.name;
-              activity.expanded = activity.pipeline;
+              activity.expanded = activity.type === 'SubProcess' || activity.component.code === 'subprocess_plugin';
               ordered.push(activity);
+              // console.log('ordered---', ordered);
             }
             outgoing.forEach((line) => {
               this.retrieveLines(data, line, ordered);
@@ -1585,6 +1638,7 @@
           const nodeId = flows[start_event.outgoing].target;
           const locInfo = location.find(item => item.id === nodeId);
           const type = locInfo.type === 'subflow' ? 'subflowDetail' : locInfo.type;
+          console.log('头部操作-查看节点详情-locInfo', locInfo);
           this.onNodeClick(nodeId, type);
           return;
         }
@@ -1595,6 +1649,7 @@
       },
       // 打开节点参数信息面板
       openNodeInfoPanel(type, name, isCondition = false) {
+        // console.log('打开节点参数信息面板', type, name);
         this.sideSliderTitle = name;
         this.isNodeInfoPanelShow = true;
         this.nodeInfoType = type;
@@ -1636,16 +1691,27 @@
         const actionType = `task${action.charAt(0).toUpperCase()}${action.slice(1)}`;
         this[actionType]();
       },
-      onNodeClick(id) {
+      onNodeClick(id, type, isSubflowNode = false, subCanvasData) {
+        // if (isSubflowNode) {
+          // console.log('当前是子流程节点点击的回调--------', id);
+          // this.defaultActiveId = id;
+          // this.setNodeDetailConfig(id, false, isSubflowNode, subCanvasData);
+          // console.log('设置后的节点详细信息-nodeDetailConfig', this.nodeDetailConfig);
+        // } else {
+        console.log('任务执行页-节点点击-id', id);
         this.defaultActiveId = id;
         this.setNodeDetailConfig(id);
+        console.log('设置后的节点详细信息-nodeDetailConfig', this.nodeDetailConfig);
         if (this.nodeDetailConfig.node_id) {
           this.updateNodeActived(this.nodeDetailConfig.node_id, false);
         }
         this.updateNodeActived(id, true);
         // 如果为子流程节点则需要重置pipelineData的constants
+        console.log('节点点击---', this.pipelineData);
         this.nodePipelineData = { ...this.pipelineData };
+
         this.openNodeInfoPanel('executeInfo', i18n.t('节点详情'));
+        // }
       },
       onOpenConditionEdit(data, isCondition = true) {
         if (isCondition && data) {
@@ -1766,7 +1832,8 @@
         this.cancelTaskStatusTimer();
         this.updateTaskStatus(id);
       },
-      async onClickTreeNode(nodeHeirarchy, selectNodeId) {
+      async onClickTreeNode(nodeHeirarchy, selectNodeId, nodeType, node) {
+        console.log('节点树点击回调this.nodeDetailConfig---', this.nodeDetailConfig);
         const nodePath = [{
           id: this.instanceId,
           name: this.instanceName,
@@ -1776,8 +1843,11 @@
           this.updateNodeActived(this.nodeDetailConfig.node_id, false);
         }
         this.selectedFlowPath = nodePath;
-        this.setNodeDetailConfig(selectNodeId, false);
+        this.setNodeDetailConfig(selectNodeId, false, node);
         // 节点树切换时，如果为子流程节点则需要重置pipelineData的constants
+        // this.pipelineData 仅仅是当前任务的流程树
+        console.log('节点树点击-设置后的当前节点数据---', this.nodeDetailConfig);
+        console.log('节点树点击---', this.pipelineData);
         this.nodePipelineData = { ...this.pipelineData };
         this.updateNodeActived(selectNodeId, true);
       },

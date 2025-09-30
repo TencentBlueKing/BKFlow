@@ -30,13 +30,6 @@
             {{ $t('查看需要更新的子流程') }}
           </bk-button>
           <bk-button
-            :disabled="isViewMode"
-            :text="true"
-            size="small"
-            @click="onBatchUpdateClick">
-            {{ $t('批量更新') }}
-          </bk-button>
-          <bk-button
             :text="true"
             size="small"
             @click="onFoldClick">
@@ -107,8 +100,10 @@
         }
       },
       onViewClick() {
+        console.log('点击查看需要更新的子流程', this.curId);
         let id;
         let reorderList = [];
+        // 遍历寻找子流程节点id
         if (this.curId === undefined) {
           reorderList = this.sortedList;
         } else {
@@ -132,10 +127,8 @@
           this.$emit('viewClick', id);
         }
       },
-      onBatchUpdateClick() {
-        this.$emit('batchUpdate');
-      },
       onFoldClick() {
+        console.log('点击收起');
         this.showDetail = false;
         this.$emit('foldClick');
       },

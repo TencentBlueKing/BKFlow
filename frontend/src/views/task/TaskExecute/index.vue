@@ -87,6 +87,7 @@
       ]),
       ...mapActions('task/', [
         'getTaskInstanceData',
+        'loadSubflowConfig',
       ]),
       async getTaskData() {
         try {
@@ -112,6 +113,20 @@
             this.primaryTitle = document.title;
             document.title = name;
           }
+          // console.log('当前任务真实的pipelineTree', pipelineTree);
+          // 判断是否存在子流程 节点 如果存在需获取子流程的节点树
+          for (const key in pipelineTree.activities) {
+            const currentItem = pipelineTree.activities[key];
+            if (currentItem.component.code === 'subprocess_plugin') {
+              const { template_id } = currentItem.component.data.subprocess.value;
+              const params = {
+                templateId: template_id,
+                is_all_nodes: true,
+              };
+              const res = await this.loadSubflowConfig(params);
+              currentItem.pipeline = res.data.pipeline_tree;
+            }
+          }
           this.instanceFlow = pipelineTree;
           this.instanceName = name;
           this.templateId = templateId;
@@ -125,6 +140,7 @@
           this.createMethod = createMethod;
           // 将节点树存起来
           this.setPipelineTree(pipelineTree);
+          // console.log('最终的pipelineTree--', pipelineTree);
         } catch (e) {
           console.log(e);
         } finally {

@@ -169,6 +169,16 @@
       value(val) {
         this.formData = tools.deepClone(val);
       },
+      scheme: {
+        handler(val) {
+          console.log('输入参数表单配置变更-scheme--', val);
+            this.formsScheme = this.getFormScheme();
+            this.formsNotReferredScheme = this.getFormScheme('notReferred');
+            console.log('formsScheme--', this.formsScheme);
+            console.log('formsNotReferredScheme--', this.formsNotReferredScheme);
+          },
+        deep: true,
+      },
     },
     mounted() {
       if (this.isJsonSchema) {
@@ -177,6 +187,7 @@
         $.context.exec_env = 'NODE_CONFIG';
         this.hooked = this.getFormsHookState();
         this.formsScheme = this.getFormScheme();
+        console.log(this.formsScheme);
         this.formsNotReferredScheme = this.getFormScheme('notReferred');
       }
     },

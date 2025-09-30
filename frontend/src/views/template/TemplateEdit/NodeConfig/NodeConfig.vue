@@ -102,9 +102,9 @@
                 :subflow-updated="subflowUpdated"
                 :is-view-mode="isViewMode"
                 :is-api-plugin="isApiPlugin"
+                :is-subflow-need-to-update="isSubflowNeedToUpdate"
                 @openSelectorPanel="isSelectorPanelShow = true"
                 @versionChange="versionChange"
-                @selectScheme="onSelectSubflowScheme"
                 @viewSubflow="onViewSubflow"
                 @updateSubflowVersion="updateSubflowVersion"
                 @update="updateBasicInfo" />
@@ -262,6 +262,10 @@
         type: [String, Number],
         default: '',
       },
+      isSubflowNeedToUpdate: {
+        type: Boolean,
+        default: false,
+      },
       subflowListLoading: Boolean,
       backToVariablePanel: Boolean,
       isNotExistAtomOrVersion: Boolean,
@@ -341,10 +345,6 @@
       },
       outputLoading() {
         return this.isBaseInfoLoading || this.taskNodeLoading || this.subflowLoading;
-      },
-      // 子流程节点是否为公共流程
-      isCommonTpl() {
-        return this.common || this.nodeConfig.template_source === 'common';
       },
       // 特殊输入参数插件
       isSpecialPlugin() {
@@ -462,11 +462,13 @@
       ]),
       async initDefaultData() {
         const nodeConfig = tools.deepClone(this.activities[this.nodeId]);
+        console.log('初始化默认数据nodeConfig', nodeConfig);
         const isThirdParty = nodeConfig.component && nodeConfig.component.code === 'remote_plugin';
         const isApiPlugin = nodeConfig.component && nodeConfig.component.code === 'uniform_api';
         if (nodeConfig.type === 'ServiceActivity') {
           this.basicInfo = await this.getNodeBasic(nodeConfig);
         } else {
+          // console.log('获取节点的基础信息-nodeConfig', nodeConfig);
           this.isSelectorPanelShow = !nodeConfig.template_id;
           this.basicInfo = await this.getNodeBasic(nodeConfig);
         }
@@ -517,6 +519,7 @@
       },
       // 初始化节点数据
       async initData() {
+        console.log('initData-初始化节点数据');
         if (!this.basicInfo.plugin && !this.basicInfo.tpl) { // 未选择插件
           return;
         }
@@ -534,6 +537,7 @@
           this.handleJsonValueParse(false, paramsVal);
           this.inputsParamValue = paramsVal;
         } else {
+          console.log('initData-获取子流程详情', this.basicInfo);
           const { tpl, version } = this.basicInfo;
           const forms = {};
           const renderConfig = {};
@@ -545,9 +549,14 @@
             }
           });
           await this.getSubflowDetail(tpl, version);
+          // 加载子流程输入参数表单配置项
           this.inputs = await this.getSubflowInputsConfig();
+          console.log('初始化--子流程节点输入参数的表单配置-inputs--', this.inputs);
+          // 获取子流程任务节点输入参数值
           this.inputsParamValue = this.getSubflowInputsValue(forms);
+          console.log('子流程节点输入参数的渲染配置-renderConfig', renderConfig);
           this.inputsRenderConfig = renderConfig;
+          console.log('inputsRenderConfig--', this.inputsRenderConfig);
         }
         // 节点参数错误时，配置项加载完成后，执行校验逻辑，提示用户错误信息
         const location = this.locations.find(item => item.id === this.nodeConfig.id);
@@ -685,33 +694,28 @@
        * 加载子流程任务节点输入、输出、版本配置项
        */
       async getSubflowDetail(tpl, version = '') {
+        console.log('加载子流程节点详情', tpl, version);
         this.subflowLoading = true;
         try {
-          const schemeIds = this.basicInfo.schemeIdList.filter(item => item);
           const params = {
-            template_id: tpl,
-            scheme_id_list: schemeIds,
-            version,
+            templateId: tpl,
+            is_all_nodes: true,
           };
-          if (this.isCommonTpl) {
-            params.template_source = 'common';
-          } else {
-            params.project_id = this.projectId;
-          }
           const resp = await this.loadSubflowConfig(params);
           // 子流程的输入参数包括流程引用的变量、自定义变量和未被引用的变量
+          // constants_not_referred
           this.subflowForms = {
             ...resp.data.pipeline_tree.constants,
-            ...resp.data.custom_constants,
-            ...resp.data.constants_not_referred };
+            ...resp.data.constants_not_referred,
+          };
           this.formsNotReferred = resp.data.constants_not_referred;
           // 子流程模板版本更新时，未带版本信息，需要请求接口后获取最新版本
           this.updateBasicInfo({ version: resp.data.version });
 
           // 输出变量
           const has = Object.prototype.hasOwnProperty;
-          this.outputs = Object.keys(resp.data.outputs).map((item) => {
-            const output = resp.data.outputs[item];
+          this.outputs = Object.keys(resp.data.pipeline_tree.outputs).map((item) => {
+            const output = resp.data.pipeline_tree.outputs[item];
             return {
               plugin_code: output.plugin_code,
               name: output.name,
@@ -735,6 +739,7 @@
       async getSubflowInputsConfig() {
         this.constantsLoading = true;
         const inputs = [];
+        console.log('子流程输入参数-配置编辑this.subflowForms--', this.subflowForms);
         const variables = Object.keys(this.subflowForms)
           .map(key => this.subflowForms[key])
           .filter(item => item.show_type === 'show')
@@ -895,7 +900,7 @@
           } else {
             const templateData = await this.loadTemplateData({
               templateId,
-              common: this.common || config.template_source === 'common',
+              common: false,
               checkPermission: true })
               .catch((error) => {
                 this.onClosePanel();
@@ -998,6 +1003,8 @@
       // 标准插件（子流程）选择面板切换插件（子流程）
       // isThirdParty 是否为第三方插件
       async onPluginOrTplChange(val) {
+        console.log('选择了插件/子流程', val);
+        console.log('this.nodeConfig', this.nodeConfig);
         // api插件
         if (val.code === 'uniform_api') {
           this.isThirdParty = false;
@@ -1012,6 +1019,7 @@
         }
         this.isApiPlugin = false;
         let { inputs } = this;
+        console.log('上一个子流程的输入参数this.inputs', this.inputs);
         if (this.isSubflow) {
           // 重置basicInfo, 避免基础信息面板因监听basicInfo导致重复调取接口，初始化时获取空值
           const { id, name, version } = val;
@@ -1153,6 +1161,7 @@
         await this.getSubflowDetail(data.id, data.version);
         this.inputs = await this.getSubflowInputsConfig();
         this.inputsParamValue = this.getSubflowInputsValue(this.subflowForms);
+        console.log('子流程的输入参数值inputsParamValue--', this.inputsParamValue);
         this.inputsRenderConfig = Object.keys(this.subflowForms).reduce((acc, crt) => {
           const formItem = this.subflowForms[crt];
           if (formItem.show_type === 'show') {
@@ -1160,6 +1169,7 @@
           }
           return acc;
         }, {});
+        console.log('子流程节点输入参数的渲染配置-inputsRenderConfig', this.inputsRenderConfig);
         this.setSubprocessUpdated({
           expired: false,
           subprocess_node_id: this.nodeConfig.id,
@@ -1172,7 +1182,9 @@
        */
       updateBasicInfo(data) {
         this.isDataChange = true;
+        console.log('更新基础信息-this.basicInfo', this.basicInfo, data);
         this.basicInfo = Object.assign({}, this.basicInfo, data);
+        console.log('更新基础信息-更新后-this.basicInfo', this.basicInfo);
       },
       // 输入参数表单值更新
       updateInputsValue(val) {
@@ -1183,11 +1195,13 @@
        * 子流程版本更新
        */
       async updateSubflowVersion() {
+        console.log('点击立即更新-nodeconfig-updateSubflowVersion', this.basicInfo);
         this.subflowVersionUpdating = true;
         const oldForms = Object.assign({}, this.subflowForms);
         await this.getSubflowDetail(this.basicInfo.tpl);
         await this.subflowUpdateParamsChange();
         this.inputs = await this.getSubflowInputsConfig();
+        console.log('子流程版本更新后--inputs--原表单值还没修改--', this.inputs);
         this.subflowVersionUpdating = false;
         this.$nextTick(() => {
           this.inputsParamValue = this.getSubflowInputsValue(this.subflowForms, oldForms);
@@ -1199,6 +1213,8 @@
             return acc;
           }, {});
           this.subflowUpdated = true;
+          console.log('子流程版本更新后--inputsParamValue--', this.inputsParamValue);
+          console.log('子流程版本更新后--inputsRenderConfig--', this.inputsRenderConfig);
         });
       },
       /**
@@ -1293,40 +1309,33 @@
       },
       // 查看子流程模板
       onViewSubflow(id) {
-        const { name } = this.$route;
-        let routerName = this.isCommonTpl ? 'projectCommonTemplatePanel' : 'templatePanel';
-        routerName = name === 'commonTemplatePanel' ? 'commonTemplatePanel' : routerName;
         const pathData = {
-          name: routerName,
-          params: {
-            type: 'view',
-            project_id: name === 'commonTemplatePanel' ? undefined : this.projectId,
-          },
-          query: {
-            template_id: id,
-            common: name === 'templatePanel' ? undefined : '1',
-          },
+            name: 'templatePanel',
+            params: {
+              templateId: id,
+              type: 'view',
+            }
         };
         const { href } = this.$router.resolve(pathData);
         window.open(href, '_blank');
       },
-      // 切换子流程执行方案，需要重新请求输入、输出参数
-      async onSelectSubflowScheme() {
-        const oldForms = Object.assign({}, this.subflowForms);
-        await this.getSubflowDetail(this.basicInfo.tpl, this.basicInfo.version);
-        await this.subflowUpdateParamsChange();
-        this.inputs = await this.getSubflowInputsConfig();
-        this.$nextTick(() => {
-          this.inputsParamValue = this.getSubflowInputsValue(this.subflowForms, oldForms);
-          this.inputsRenderConfig = Object.keys(this.subflowForms).reduce((acc, crt) => {
-            const formItem = this.subflowForms[crt];
-            if (formItem.show_type === 'show') {
-              acc[crt] = 'need_render' in formItem ? formItem.need_render : true;
-            }
-            return acc;
-          }, {});
-        });
-      },
+      // // 切换子流程执行方案，需要重新请求输入、输出参数
+      // async onSelectSubflowScheme() {
+      //   const oldForms = Object.assign({}, this.subflowForms);
+      //   await this.getSubflowDetail(this.basicInfo.tpl, this.basicInfo.version);
+      //   await this.subflowUpdateParamsChange();
+      //   this.inputs = await this.getSubflowInputsConfig();
+      //   this.$nextTick(() => {
+      //     this.inputsParamValue = this.getSubflowInputsValue(this.subflowForms, oldForms);
+      //     this.inputsRenderConfig = Object.keys(this.subflowForms).reduce((acc, crt) => {
+      //       const formItem = this.subflowForms[crt];
+      //       if (formItem.show_type === 'show') {
+      //         acc[crt] = 'need_render' in formItem ? formItem.need_render : true;
+      //       }
+      //       return acc;
+      //     }, {});
+      //   });
+      // },
       // 是否渲染豁免切换
       onRenderConfigChange(data) {
         this.isDataChange = true;

@@ -36,13 +36,13 @@
         <h4 class="common-section-title">
           {{ $t('执行信息') }}
         </h4>
-        <div
+        <!-- <div
           v-if="isReadyStatus && isSubProcessNode"
           class="subprocee-link"
           @click="onSkipSubProcess">
           <i class="common-icon-box-top-right-corner" />
           {{ $t('子流程详情') }}
-        </div>
+        </div> -->
         <ul
           v-if="isReadyStatus"
           class="operation-table">
@@ -152,6 +152,15 @@
         isExpandTextShow: false,
       };
     },
+    watch: {
+      executeInfo: {
+        handler(val, oldVal) {
+          console.log('watch异常信息-executeInfo', val, oldVal);
+        },
+        deep: true,
+        immediate: true,
+      },
+    },
     mounted() {
       const showDom = document.querySelector('.show-html-text');
       const hideDom = document.querySelector('.hide-html-text');
@@ -160,6 +169,8 @@
         const hideDomHeight = hideDom.getBoundingClientRect().height;
         this.isExpandTextShow = hideDomHeight > showDomHeight;
       }
+      // console.log('执行记录-executeInfo', this.executeInfo);
+      // console.log('执行记录-location', this.location);
     },
     methods: {
       getLastTime(time) {
