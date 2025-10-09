@@ -56,6 +56,11 @@ class TaskTreeInfo(models.Model):
     id = models.BigAutoField(primary_key=True)
     data = CompressJSONField(null=True, blank=True)
 
+    class Meta:
+        verbose_name = "任务流程树信息"
+        verbose_name_plural = "任务流程树信息"
+        ordering = ["-id"]
+
 
 class TaskSnapshot(CommonSnapshot):
     objects = CommonSnapshotManager()

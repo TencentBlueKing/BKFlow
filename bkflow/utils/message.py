@@ -60,6 +60,6 @@ def send_message(executor: str, notify_types: list, receivers: str, title: str, 
             )
             logger.error("send message failed, kwargs={}, result={}".format(json.dumps(kwargs), json.dumps(result)))
             has_error = True
-            error_message = f"{error_message};{message}"
+            error_message = f"{message};{error_message}"
 
     return has_error, error_message
