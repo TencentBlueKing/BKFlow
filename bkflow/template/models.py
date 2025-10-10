@@ -192,6 +192,19 @@ class Template(CommonModel):
 
         return info
 
+    def outputs(self, version=None):
+        data = self.get_pipeline_tree_by_version(version)
+
+        if "constants" not in data:
+            return {}
+
+        outputs_key = data["outputs"]
+        outputs = {}
+        for key in outputs_key:
+            if key in data["constants"]:
+                outputs[key] = data["constants"][key]
+        return outputs
+
 
 class TemplateSnapshot(CommonSnapshot):
     """

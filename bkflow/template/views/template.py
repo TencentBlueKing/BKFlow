@@ -365,7 +365,8 @@ class TemplateViewSet(UserModelViewSet):
 
         try:
             appoint_node_ids = serializer.validated_data["appoint_node_ids"]
-            pipeline_tree = template.pipeline_tree
+            version = serializer.validated_data.get("version")
+            pipeline_tree = template.get_pipeline_tree_by_version(version)
             if not serializer.validated_data["is_all_nodes"]:
                 exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
                     pipeline_tree, appoint_node_ids
@@ -384,6 +385,7 @@ class TemplateViewSet(UserModelViewSet):
         mock_data = TemplateMockDataSerializer(instance=mock_data_instances, many=True)
         data["mock_data"] = mock_data.data
         data["version"] = template.version
+        data["outputs"] = template.outputs(version)
         return Response(data)
 
     @swagger_auto_schema(
