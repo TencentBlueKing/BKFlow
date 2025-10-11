@@ -22,7 +22,7 @@ import logging
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_celery_beat.models import CrontabSchedule as DjangoCeleryBeatCrontabSchedule
 from django_celery_beat.models import PeriodicTask as DjangoCeleryBeatPeriodicTask
 from pipeline.contrib.periodic_task.djcelery.models import *  # noqa

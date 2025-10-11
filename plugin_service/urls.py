@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,17 +18,17 @@ to the current version of the project delivered to anyone in the future.
 """
 
 
-from django.conf.urls import url
+from django.urls import re_path
 
 from . import api
 
 urlpatterns = [
-    url(r"^list/$", api.get_plugin_list),
-    url(r"^detail_list/$", api.get_plugin_detail_list),
-    url(r"^tags/$", api.get_plugin_tags),
-    url(r"^meta/$", api.get_meta),
-    url(r"^detail/$", api.get_plugin_detail),
-    url(r"^logs/$", api.get_logs),
-    url(r"^app_detail/$", api.get_plugin_app_detail),
-    url(r"^data_api/(?P<plugin_code>.+?)/(?P<data_api_path>.+)$", api.get_plugin_api_data),
+    re_path(r"^list/$", api.get_plugin_list),
+    re_path(r"^detail_list/$", api.get_plugin_detail_list),
+    re_path(r"^tags/$", api.get_plugin_tags),
+    re_path(r"^meta/$", api.get_meta),
+    re_path(r"^detail/$", api.get_plugin_detail),
+    re_path(r"^logs/$", api.get_logs),
+    re_path(r"^app_detail/$", api.get_plugin_app_detail),
+    re_path(r"^data_api/(?P<plugin_code>.+?)/(?P<data_api_path>.+)$", api.get_plugin_api_data),
 ]
