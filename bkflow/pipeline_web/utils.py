@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -58,6 +57,8 @@ def pre_handle_pipeline_tree(pipeline_tree):
     :params pipeline_tree 流程树
     """
     for pipeline_node in pipeline_tree["activities"].values():
+        if pipeline_node["type"] == "SubProcess":
+            continue
         if pipeline_node["component"]["code"] == ValueAssignComponent.code:
             data = pipeline_node["component"]["data"]
             for assignment in data["bk_assignment_list"]["value"]:
@@ -72,6 +73,8 @@ def post_handle_pipeline_tree(pipeline_tree):
     :params pipeline_tree 流程树
     """
     for pipeline_node in pipeline_tree["activities"].values():
+        if pipeline_node["type"] == "SubProcess":
+            continue
         if pipeline_node["component"]["code"] == ValueAssignComponent.code:
             data = pipeline_node["component"]["data"]
             for assignment in data["bk_assignment_list"]["value"]:

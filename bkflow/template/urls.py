@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,10 +22,11 @@ from rest_framework.routers import DefaultRouter
 
 from bkflow.template.views.template import (
     AdminTemplateViewSet,
+    TemplateInternalViewSet,
     TemplateMockDataViewSet,
     TemplateMockSchemeViewSet,
-    TemplateViewSet,
     TemplateMockTaskViewSet,
+    TemplateViewSet,
 )
 from bkflow.template.views.variable import VariableViewSet
 
@@ -37,6 +37,7 @@ router.register(r"^template_mock_data", TemplateMockDataViewSet, basename="templ
 router.register(r"^template_mock_scheme", TemplateMockSchemeViewSet, basename="template_mock_scheme")
 router.register(r"^template_mock_task", TemplateMockTaskViewSet, basename="template_mock_task")
 router.register(r"", TemplateViewSet, basename="template")
+router.register(r"^internal", TemplateInternalViewSet, basename="template_id")
 
 urlpatterns = [
     url(r"^", include(router.urls)),

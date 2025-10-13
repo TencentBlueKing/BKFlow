@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -58,4 +57,11 @@ class InterfaceModuleClient(BaseComponentClient):
     def broadcast_task_events(self, data):
         return self._request(
             method="post", url=self._get_interface_url("api/space/internal/broadcast_task_events/"), data=data
+        )
+
+    def get_subproc_data(self, template_id, data):
+        return self._request(
+            method="get",
+            url=self._get_interface_url(f"api/template/internal/{template_id}/get_subproc_data/"),
+            data=data,
         )

@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 import json
 import logging
 
+from bamboo_engine import states
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -28,6 +29,8 @@ from django_celery_beat.models import PeriodicTask as DjangoCeleryBeatPeriodicTa
 from pipeline.contrib.periodic_task.djcelery.models import *  # noqa
 from pipeline.core.constants import PE
 from pipeline.engine.utils import calculate_elapsed_time
+from pipeline.eri.models import Schedule as DBSchedule
+from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.models import CompressJSONField
 from pipeline.parser.utils import replace_all_id
 from pipeline.utils.uniqid import node_uniqid, uniqid
@@ -36,8 +39,12 @@ from bkflow.constants import (
     MAX_LEN_OF_TASK_NAME,
     TaskOperationSource,
     TaskOperationType,
+    TaskTriggerMethod,
 )
 from bkflow.contrib.operation_record.models import BaseOperateRecord
+from bkflow.pipeline_plugins.components.collections.subprocess_plugin.converter import (
+    PipelineTreeSubprocessConverter,
+)
 from bkflow.task.auto_retry import AutoRetryNodeStrategyCreator
 from bkflow.task.utils import parse_node_timeout_configs
 from bkflow.utils.models import CommonSnapshot, CommonSnapshotManager
@@ -95,6 +102,8 @@ class TaskInstanceManager(models.Manager):
         with transaction.atomic():
             snapshot = TaskSnapshot.objects.get_or_create_snapshot(pipeline_tree)
             self.inject_template_node_id(pipeline_tree)
+            converter = PipelineTreeSubprocessConverter(pipeline_tree)
+            converter.convert()
             node_mappings = replace_all_id(pipeline_tree)
             execution_snapshot = TaskExecutionSnapshot.objects.create_snapshot(pipeline_tree)
             instance = self.create(
@@ -288,6 +297,37 @@ class TaskInstance(models.Model):
             "receivers": receivers,
             "format": notify_config.get("notify_format") or {"title": "", "content": ""},
         }
+
+    def change_parent_task_node_state_to_running(self):
+        if not self.trigger_method == TaskTriggerMethod.subprocess.name:
+            logger.info("taskflow[id=%s] is not child taskflow, cannot change parent task node state to running")
+            return
+
+        with transaction.atomic():
+            record = TaskFlowRelation.objects.filter(task_id=self.id).first()
+            if not record:
+                return
+            info = record.extra_info
+            parent_node_id, parent_node_version = info["node_id"], info["node_version"]
+            runtime = BambooDjangoRuntime()
+            node_state = runtime.get_state(parent_node_id)
+            if node_state.name != states.FAILED or node_state.version != parent_node_version:
+                return
+            schedule = runtime.get_schedule_with_node_and_version(parent_node_id, parent_node_version)
+            DBSchedule.objects.filter(id=schedule.id).update(expired=False)
+            # FAILED 状态需要转换为 READY 之后才能转换为 RUNNING
+            runtime.set_state(
+                node_id=parent_node_id, version=parent_node_version, to_state=states.READY, clear_archived_time=True
+            )
+            runtime.set_state(node_id=parent_node_id, version=parent_node_version, to_state=states.RUNNING)
+            data_outputs = runtime.get_execution_data_outputs(parent_node_id)
+            data_outputs.pop("ex_data", None)
+            runtime.set_execution_data_outputs(parent_node_id, data_outputs)
+
+            # 仅当父流程的节点状态为失败时，才需要唤醒父流程的节点
+            parent_task_id = TaskFlowRelation.objects.filter(task_id=self.id).first().parent_task_id
+            parent_task = TaskInstance.objects.get(id=parent_task_id)
+            parent_task.change_parent_task_node_state_to_running()
 
 
 class AutoRetryNodeStrategy(models.Model):
@@ -543,3 +583,15 @@ class PeriodicTask(models.Model):
             self.celery_task.crontab = schedule
             self.celery_task.save()
         self.save()
+
+
+class TaskFlowRelation(models.Model):
+    id = models.BigAutoField(verbose_name="ID", primary_key=True)
+    task_id = models.BigIntegerField(verbose_name=_("任务ID"), db_index=True)
+    parent_task_id = models.BigIntegerField(verbose_name=_("父任务ID"), db_index=True)
+    root_task_id = models.BigIntegerField(verbose_name=_("根任务ID"), db_index=True)
+    create_time = models.DateTimeField(verbose_name=_("创建时间"), auto_now_add=True)
+    extra_info = models.JSONField(verbose_name=_("额外信息"), null=True)
+
+    class Meta:
+        verbose_name = verbose_name_plural = _("任务关系")
