@@ -34,6 +34,7 @@ class Subprocess(BaseModel):
     subprocess_name: str
     template_id: str
     version: str
+    always_use_latest: bool = False
 
 
 class SubprocessPluginService(Service):
@@ -60,7 +61,11 @@ class SubprocessPluginService(Service):
         subprocess_data = data.get_one_of_inputs("subprocess") or {}
         subprocess = Subprocess(**subprocess_data)
         template_id = subprocess.template_id
-        version = subprocess.version
+        always_use_latest = subprocess.always_use_latest
+        if always_use_latest:
+            version = None
+        else:
+            version = subprocess.version
         interface_client = InterfaceModuleClient()
         template = interface_client.get_subproc_data(template_id=template_id, data={"version": version})
 
