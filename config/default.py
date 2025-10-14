@@ -137,6 +137,7 @@ PIPELINE_TEMPLATE_CONTEXT = "bkflow.template.context.get_template_context"
 PIPELINE_INSTANCE_CONTEXT = "bkflow.task.context.get_task_context"
 UUID_DIGIT_STARTS_SENSITIVE = True
 PIPELINE_EXCLUSIVE_GATEWAY_EXPR_FUNC = pipeline_gateway_expr_func
+PIPELINE_RERUN_MAX_TIMES = env.PIPELINE_RERUN_MAX_TIMES
 
 # pipeline mako render settings
 MAKO_SANDBOX_SHIELD_WORDS = [
