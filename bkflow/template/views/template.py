@@ -17,14 +17,19 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
+from collections import defaultdict
 
+from blueapps.account.decorators import login_exempt
 from django.db import transaction
+from django.utils.decorators import method_decorator
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 from webhook.signals import event_broadcast_signal
 
@@ -44,6 +49,9 @@ from bkflow.constants import (
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import APIResponseError, ValidationError
+from bkflow.pipeline_converter.constants import DataTypes
+from bkflow.pipeline_converter.file_handlers import FileHandlerDispatcher
+from bkflow.pipeline_converter.hub import CONVERTER_HUB
 from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
 from bkflow.pipeline_web.preview import preview_template_tree
@@ -63,6 +71,7 @@ from bkflow.template.models import (
     TemplateMockData,
     TemplateMockScheme,
     TemplateOperationRecord,
+    TemplateReference,
     TemplateSnapshot,
     Trigger,
 )
@@ -75,6 +84,7 @@ from bkflow.template.serializers.template import (
     AdminTemplateSerializer,
     DrawPipelineSerializer,
     PreviewTaskTreeSerializer,
+    SimplifiedTemplateFileSerializer,
     TemplateBatchDeleteSerializer,
     TemplateCopySerializer,
     TemplateMockDataBatchCreateSerializer,
@@ -88,7 +98,7 @@ from bkflow.template.serializers.template import (
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
-from bkflow.utils.permissions import AdminPermission
+from bkflow.utils.permissions import AdminPermission, AppInternalPermission
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet, UserModelViewSet
 
 logger = logging.getLogger("root")
@@ -171,7 +181,8 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data["scope_type"] = template.scope_type
         create_task_data["scope_value"] = template.scope_value
         create_task_data["space_id"] = space_id
-        create_task_data["pipeline_tree"] = template.pipeline_tree
+        pipeline_tree = template.pipeline_tree
+        create_task_data["pipeline_tree"] = pipeline_tree
         create_task_data["trigger_method"] = TaskTriggerMethod.manual.name
         DEFAULT_NOTIFY_CONFIG = {
             "notify_type": {"fail": [], "success": []},
@@ -207,10 +218,27 @@ class AdminTemplateViewSet(AdminModelViewSet):
         ser.is_valid(raise_exception=True)
         space_id = ser.validated_data["space_id"]
         is_full = ser.validated_data["is_full"]
+        template_ids = ser.validated_data["template_ids"]
+
+        template_references = TemplateReference.objects.filter(subprocess_template_id__in=template_ids)
+        root_template_ids = [ref.root_template_id for ref in template_references]
+        root_templates_map = {
+            str(t.id): t.name for t in Template.objects.filter(id__in=root_template_ids, is_deleted=False)
+        }
+        if root_templates_map:
+            sub_root_map = defaultdict(list)
+            for ref in template_references:
+                template_key = str(ref.subprocess_template_id)
+                root_id = ref.root_template_id
+                root_name = root_templates_map.get(str(root_id))
+                sub_root_map[template_key].append({"root_template_id": root_id, "root_template_name": root_name})
+
+            return Response(exception=True, data={"sub_root_map": dict(sub_root_map)})
+
         if is_full:
             update_num = Template.objects.filter(space_id=space_id, is_deleted=False).update(is_deleted=True)
         else:
-            template_ids = ser.validated_data["template_ids"]
+
             update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
                 is_deleted=True
             )
@@ -225,9 +253,11 @@ class AdminTemplateViewSet(AdminModelViewSet):
     def copy_template(self, request, *args, **kwargs):
         ser = TemplateCopySerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
+        space_id = ser.validated_data["space_id"]
+        template_id = ser.validated_data["template_id"]
+        copy_subprocess = ser.validated_data["copy_subprocess"]
         try:
-            template = Template.objects.copy_template(template_id, space_id, request.user.username)
+            template = Template.objects.copy_template(template_id, space_id, request.user.username, copy_subprocess)
         except Template.DoesNotExist:
             err_msg = f"模版不存在, space_id={space_id}, template_id={template_id}"
             logger.error(str(err_msg))
@@ -335,7 +365,8 @@ class TemplateViewSet(UserModelViewSet):
 
         try:
             appoint_node_ids = serializer.validated_data["appoint_node_ids"]
-            pipeline_tree = template.pipeline_tree
+            version = serializer.validated_data.get("version")
+            pipeline_tree = template.get_pipeline_tree_by_version(version)
             if not serializer.validated_data["is_all_nodes"]:
                 exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
                     pipeline_tree, appoint_node_ids
@@ -353,6 +384,8 @@ class TemplateViewSet(UserModelViewSet):
         )
         mock_data = TemplateMockDataSerializer(instance=mock_data_instances, many=True)
         data["mock_data"] = mock_data.data
+        data["version"] = template.version
+        data["outputs"] = template.outputs(version)
         return Response(data)
 
     @swagger_auto_schema(
@@ -401,6 +434,22 @@ class TemplateViewSet(UserModelViewSet):
         if not result["result"]:
             raise APIResponseError(result["message"])
         return Response(result["data"])
+
+
+@method_decorator(login_exempt, name="dispatch")
+class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, SimpleGenericViewSet):
+    queryset = Template.objects.filter()
+    serializer_class = TemplateSerializer
+    permission_classes = [AdminPermission | AppInternalPermission]
+
+    @action(methods=["GET"], detail=True)
+    def get_subproc_data(self, request, *args, **kwargs):
+        version = request.query_params.get("version")
+        template = self.get_object()
+        subproc_data = self.get_serializer(template).data
+        if version:
+            subproc_data["pipeline_tree"] = template.get_pipeline_tree_by_version(version)
+        return Response(subproc_data)
 
 
 class TemplateMockDataViewSet(
@@ -517,3 +566,31 @@ class TemplateMockTaskViewSet(mixins.ListModelMixin, GenericViewSet):
         client = TaskComponentClient(space_id=space_id)
         result = client.task_list(data={"template_id": template_id, "space_id": space_id, "create_method": "MOCK"})
         return Response(result)
+
+
+class UploadTemplateFileApiView(APIView):
+    permission_classes = [AdminPermission]
+    parser_classes = [MultiPartParser]
+
+    @swagger_auto_schema(request_body=SimplifiedTemplateFileSerializer())
+    def post(self, request, *args, **kwargs):
+        ser = SimplifiedTemplateFileSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        f = ser.validated_data["file"]
+        try:
+            handler = FileHandlerDispatcher(f).dispatch()
+            simplified_pipeline_tree = handler.handle()
+        except Exception as e:
+            logger.exception("upload template file failed")
+            return Response({"result": False, "message": str(e), "data": None})
+        json_pipeline_cvt = CONVERTER_HUB.get_converter_cls(
+            DataTypes.JSON.value, DataTypes.DATA_MODEL.value, "PipelineConverter"
+        )
+        dm_pipeline = json_pipeline_cvt(simplified_pipeline_tree).convert()
+
+        data_model_pipeline_cvt = CONVERTER_HUB.get_converter_cls(
+            DataTypes.DATA_MODEL.value, DataTypes.WEB_PIPELINE.value, "PipelineConverter"
+        )
+        web_pipeline_tree = data_model_pipeline_cvt(dm_pipeline).convert()
+        return Response({"result": True, "data": {"pipeline_tree": web_pipeline_tree}, "message": ""})

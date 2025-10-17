@@ -56,6 +56,7 @@
   import { Snapline } from '@antv/x6-plugin-snapline';
   import { registryNodes } from './registry/nodes.js';
   import { registryEvents } from './registry/events.js';
+  import horizontalRouter from './registry/router.js';
   // 工具栏
   import Tools from './components/tools.vue';
   // 左侧菜单面板
@@ -169,10 +170,12 @@
       document.addEventListener('mousemove', utilsTools.debounce(this.onMouseMove, 100), false);
     },
     beforeDestroy() {
+      Graph.unregisterRouter('horizontal');
       document.removeEventListener('mousemove', this.onMouseMove);
     },
     methods: {
       initCanvas() {
+        Graph.registerRouter('horizontal', horizontalRouter, true);
         this.graph = new Graph({
           container: this.$refs.processCanvasComp.querySelector('.canvas-material-container'),
           grid: {
@@ -264,20 +267,6 @@
           // 设置节点嵌套，实现分组效果
           embedding: {
             enabled: false,
-            findParent({ node }) {
-              if (node.shape === 'custom-group-node') {
-                return [];
-              }
-              const bbox = node.getBBox();
-              return this.getNodes().filter((node) => {
-                const data = node.getData();
-                if (data && data.parent) {
-                  const targetBBox = node.getBBox();
-                  return bbox.isIntersectWithRect(targetBBox);
-                }
-                return false;
-              });
-            },
           },
           onEdgeLabelRendered: (args) => {
             const { label } = args.label;
@@ -333,11 +322,21 @@
         // 标签沿着连线拖拽
         this.graph.on('edge:change:labels', this.handleLabelDrag);
       },
-      initCanvasData() {
+      initCanvasData(reset = false) {
         if (!this.canvasData.length) return;
         this.canvasData.forEach((cell) => {
           if (cell.shape === 'edge') {
-            this.graph.addEdge({ ...cell });
+            const config = { ...cell };
+            if (reset) {
+              config.router = {
+                name: 'horizontal',
+                args: {
+                  sourcePort: cell.source.port,
+                  targetPort: cell.target.port,
+                },
+              };
+            }
+            this.graph.addEdge(config);
           } else {
             this.graph.addNode({ ...cell });
           }
@@ -786,6 +785,7 @@
       },
       // 节点删除
       onNodeRemove(node, remove = this) {
+        this.updateShortcutPanel();
         // 拷贝数据更新前的数据
         const activities = utilsTools.deepClone(this.activities);
         let nodeConfig = activities[node.id] || {};
@@ -870,7 +870,6 @@
           // 创建新的连线
           this.createEdge(edgeInfo);
         }
-        this.updateShortcutPanel();
       },
       // 停止拖动边时校验连线是否生效
       handleValidateEdge({ edge }) {
@@ -1181,7 +1180,7 @@
       // 重置画布
       resetCells() {
         this.graph.clearCells(true);
-        this.initCanvasData();
+        this.initCanvasData(true);
         const cells = this.graph.getCells();
         this.graph.resetCells(cells, true);
       },

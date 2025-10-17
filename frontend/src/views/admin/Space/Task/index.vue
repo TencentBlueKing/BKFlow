@@ -174,6 +174,11 @@
       label: i18n.t('引擎实例 Id'),
       width: 280,
     },
+    // {
+    //   id: 'trigger_type',
+    //   label: i18n.t('触发类型'),
+    //   width: 160,
+    // },
   ];
   const SEARCH_LIST = [
     {
