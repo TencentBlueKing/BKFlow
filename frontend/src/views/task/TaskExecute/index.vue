@@ -87,6 +87,7 @@
       ]),
       ...mapActions('task/', [
         'getTaskInstanceData',
+        'loadSubflowConfig',
       ]),
       async getTaskData() {
         try {
@@ -111,6 +112,19 @@
           } else {
             this.primaryTitle = document.title;
             document.title = name;
+          }
+          // 判断是否存在子流程节点-如果存在需获取子流程的节点树
+          for (const key in pipelineTree.activities) {
+            const currentItem = pipelineTree.activities[key];
+            if (currentItem.component.code === 'subprocess_plugin') {
+              const { template_id } = currentItem.component.data.subprocess.value;
+              const params = {
+                templateId: template_id,
+                is_all_nodes: true,
+              };
+              const res = await this.loadSubflowConfig(params);
+              currentItem.pipeline = res.data.pipeline_tree;
+            }
           }
           this.instanceFlow = pipelineTree;
           this.instanceName = name;

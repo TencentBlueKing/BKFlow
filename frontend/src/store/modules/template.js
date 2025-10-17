@@ -228,7 +228,7 @@ const template = {
     },
     setSubprocessUpdated(state, subflow) {
       if (state.subprocess_info) {
-        const data = state.subprocess_info.details.find(item => subflow.subprocess_node_id === item.subprocess_node_id);
+        const data = state.subprocess_info.find(item => subflow.subprocess_node_id === item.subprocess_node_id);
         data.expired = subflow.expired;
         if (subflow.version) {
           data.version = subflow.version;
@@ -264,11 +264,14 @@ const template = {
               if (!has.call(item, 'isSkipped') && !has.call(item, 'skippable')) {
                 item.isSkipped = true;
               }
+              // if (item.type === 'subflow') {
+              //   item.type = 'SubProcess';
+              // }
             });
           }
           if (key === 'location') {
             val = val.map((item) => {
-              if (item.type === 'tasknode' || item.type === 'subflow') {
+              if (item.type === 'tasknode' || item.type === 'subflow' || item.type === 'SubProcess') {
                 const node = state.activities[item.id];
                 const loc = Object.assign({}, item, {
                   name: node.name,
@@ -351,6 +354,7 @@ const template = {
       state.template_labels = templateLabels || [];
       state.time_out = timeOut;
       state.category = category;
+
       state.subprocess_info = subprocessInfo;
       state.default_flow_type = defaultFlowType;
       state.spaceId = spaceId;
@@ -359,6 +363,7 @@ const template = {
         scope_value,
       };
       state.triggers = triggers;
+
 
       state.canvas_mode = pipelineData.canvas_mode;
       this.commit('template/setPipelineTree', pipelineData);

@@ -68,14 +68,13 @@ function getGroupInfo(params = {}) {
     });
   }
 };
-
 export const graphToJson = (canvasData) => {
   const { locations, lines, canvasMode } = canvasData;
   const nodeCompMap = {
     startpoint: 'start',
     endpoint: 'end',
     tasknode: 'task',
-    // subflow: 'Subprocess',
+    subflow: 'SubProcess', // 最终画布node.getData()的type
     branchgateway: 'branch-gateway',
     parallelgateway: 'parallel-gateway',
     conditionalparallelgateway: 'conditional-parallel-gateway',

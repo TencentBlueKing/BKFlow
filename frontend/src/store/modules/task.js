@@ -14,6 +14,9 @@ import store from '@/store/index.js';
 
 const task = {
   namespaced: true,
+  state: {
+    subActivities: {},
+  },
   actions: {
     /**
      * 获取任务可选节点的选择方案
@@ -151,7 +154,7 @@ const task = {
      * @param {Array} data.scheme_id_list 执行方案列表
      */
     loadSubflowConfig({}, data) {
-      return axios.post('/taskflow/api/preview_task_tree_with_schemes/', data).then(response => response.data);
+      return axios.post(`/api/template/${data.templateId}/preview_task_tree/`, data).then(response => response.data);
     },
     /**
      * 获取任务节点预览数据
@@ -519,6 +522,11 @@ const task = {
     // 创建mock任务
     createMockTask({}, data) {
       return axios.post(`api/template/${data.id}/create_mock_task/`, data.params).then(response => response.data);
+    },
+  },
+  mutations: {
+    setSubActivities(state, data) {
+      state.subActivities = data;
     },
   },
 };

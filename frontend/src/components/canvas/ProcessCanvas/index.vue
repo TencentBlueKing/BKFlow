@@ -3,7 +3,7 @@
     ref="processCanvasComp"
     class="process-canvas-comp">
     <Tools
-      v-if="graph"
+      v-if="graph && !isSubflowGraph"
       :instance="graph"
       class="canvas-tools"
       :class="{ 'view-mode': !editable }"
@@ -24,7 +24,9 @@
       @onTogglePerspective="onTogglePerspective" />
     <Dnd
       v-if="graph && showPalette"
+      ref="dndInstance"
       :instance="graph"
+      :graph-random-key="graphRandomKey"
       @dragging="onNodeMoving"
       @dragEnd="onNodeMoveStop" />
     <div class="canvas-material-container" />
@@ -35,6 +37,7 @@
         :is-perspective-panel-show="isPerspectivePanelShow"
         :node-variable="nodeVariable"
         :node-tips-panel-position="nodeTipsPanelPosition" />
+      <!-- 节点透视面板/变量引用预览面板 -->
       <ShortcutPanel
         v-if="showShortcutPanel"
         :instance="graph"
@@ -114,6 +117,10 @@
         type: Boolean,
         default: false,
       },
+      isSubflowGraph: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -130,6 +137,7 @@
         nodeVariable: {},
         nodeTipsPanelPosition: {},
         isSelectionOpen: false,
+        graphRandomKey: '',
       };
     },
     computed: {
@@ -141,6 +149,17 @@
         startNode: state => state.template.start_event,
         endNode: state => state.template.end_event,
       }),
+    },
+    watch: {
+      canvasData: {
+        handler(val, oldVal) {
+          if (!utilsTools.isDataEqual(val, oldVal)) {
+            this.resetCells();
+            // console.log('canvasData changed', val, oldVal);
+          }
+        },
+        deep: true,
+      },
     },
     mounted() {
       this.initCanvas();
@@ -523,6 +542,7 @@
       setNodeInsetPointStyle(pointDoms, lineConfig, location) {
         // 节点宽高
         let { width: nodeWidth, height: nodeHeight } = location;
+        // 获取当前画布的缩放比例
         const ratio = this.graph.zoom();
         nodeWidth = nodeWidth * ratio;
         nodeHeight = nodeHeight * ratio;
@@ -955,7 +975,9 @@
           // 展开节点配置面板
           this.openShortcutPanel({ cell, e });
         } else if (cell.shape === 'custom-node') {
+          // 任务执行打开执行信息面板
           this.$emit('onNodeClick', cell.id, cell.data.type);
+          // 模板页面打开配置面板
           this.onShowNodeConfig(cell.id);
         }
       },
@@ -1209,9 +1231,9 @@
         const nodeInstance = this.getNodeInstance(id);
         nodeInstance && nodeInstance.setData(data);
       },
-      setCanvasPosition(id) {
+      setCanvasPosition(id, pos = 'center') {
         const nodeInstance = this.getNodeInstance(id);
-        this.graph.positionCell(nodeInstance, 'center');
+        this.graph.positionCell(nodeInstance, pos);
       },
       onDownloadCanvas() {
         this.onGenerateCanvas().then((res) => {

@@ -8,7 +8,7 @@
     :arrow="false">
     <div class="custom-node">
       <Configs
-        v-if="['task', 'tasknode', 'subprocess'].includes(node.type)"
+        v-if="['task', 'tasknode', 'SubProcess'].includes(node.type)"
         :node="node"
         @onNodeCheckClick="onNodeCheckClick" />
       <ExecuteStatus
@@ -36,7 +36,7 @@
   import Start from './start.vue';
   import End from './end.vue';
   import Task from './task.vue';
-  // import Subprocess from './subprocess.vue';
+  import Subprocess from './subprocess.vue';
   import BranchGateway from './branch-gateway.vue';
   import ParallelGateway from './parallel-gateway.vue';
   import ConditionalParallelGateway from './conditional-parallel-gateway.vue';
@@ -50,7 +50,8 @@
     end: End,
     task: Task,
     tasknode: Task,
-    // subprocess: Subprocess,
+    subflow: Subprocess,
+    SubProcess: Subprocess,
     'branch-gateway': BranchGateway,
     'parallel-gateway': ParallelGateway,
     'conditional-parallel-gateway': ConditionalParallelGateway,
@@ -72,8 +73,13 @@
     },
     computed: {
       comp() {
+        // 获取节点类型
         const node = this.getNode();
-        const { type } = node.getData();
+        const { type, code } = node.getData();
+        // 独立任务下子流程节点的判断
+        if (code === 'subprocess_plugin') {
+          return NODE_COMP_MAP.subflow;
+        }
         return NODE_COMP_MAP[type];
       },
     },

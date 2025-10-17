@@ -42,6 +42,15 @@
         @onChangePanel="onChangeSettingPanel"
         @onSaveTemplate="onSaveTemplate" />
       <template v-if="isEditProcessPage">
+        <!-- 子流程更新提示 -->
+        <SubflowUpdateTips
+          v-if="subflowShouldUpdated.length > 0"
+          class="update-tips"
+          :list="subflowShouldUpdated"
+          :locations="locations"
+          :is-view-mode="isViewMode"
+          @viewClick="viewUpdatedNode"
+          @foldClick="clearDotAnimation" />
         <component
           :is="templateComponentName"
           ref="processCanvas"
@@ -197,8 +206,9 @@
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
   import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
+  import SubflowUpdateTips from './SubflowUpdateTips.vue';
   import bus from '@/utils/bus.js';
-import { cloneDeepWith } from 'lodash';
+  import { cloneDeepWith } from 'lodash';
 
   export default {
     name: 'TemplateEdit',
@@ -208,7 +218,7 @@ import { cloneDeepWith } from 'lodash';
       NodeConfig,
       ConditionEdit,
       TemplateSetting,
-      // SubflowUpdateTips,
+      SubflowUpdateTips,
       // BatchUpdateDialog,
       VerticalCanvas,
       ProcessCanvas,
@@ -319,6 +329,7 @@ import { cloneDeepWith } from 'lodash';
         tplSpaceId: '', // 模板对应的空间id
         spaceRelatedConfig: {}, // 空间相关配置
         templateMocking: false,
+        isSubflowNeedToUpdate: false,
       };
     },
     computed: {
@@ -350,16 +361,15 @@ import { cloneDeepWith } from 'lodash';
       }),
       canvasData() {
         const locations = this.locations.map((location) => {
+          // 节点校验失败列表
           this.validateConnectFailList = [...new Set(this.validateConnectFailList)];
           const status = this.validateConnectFailList.includes(location.id) ? 'FAILED' : '';
-
           const data = { ...location, mode: 'edit', status };
           if (
             this.subprocess_info
-            && this.subprocess_info.details
             && location.type === 'subflow'
           ) {
-            this.subprocess_info.details.some((subflow) => {
+            this.subprocess_info.some((subflow) => {
               if (subflow.subprocess_node_id === location.id) {
                 data.hasUpdated = subflow.expired;
                 return true;
@@ -378,18 +388,19 @@ import { cloneDeepWith } from 'lodash';
       },
       subflowShouldUpdated() {
         if (this.subprocess_info) {
-          return this.subprocess_info.details.reduce((acc, cur) => {
+          const subflowShouldUpdateList = this.subprocess_info.reduce((acc, cur) => {
             const nodeId = cur.subprocess_node_id;
             if (!this.activities[nodeId]) {
               return acc;
             }
-            const { scheme_id_list: schemeIdList = [] } = this.activities[nodeId];
+            // const { scheme_id_list: schemeIdList = [] } = this.activities[nodeId];
             acc.push({
               ...cur,
-              scheme_id_list: schemeIdList,
+              // scheme_id_list: schemeIdList,
             });
             return acc;
           }, []);
+          return subflowShouldUpdateList;
         }
         return [];
       },
@@ -534,7 +545,9 @@ import { cloneDeepWith } from 'lodash';
         this.templateDataLoading = true;
         if (['edit', 'clone', 'view'].includes(this.type)) {
           await this.getTemplateData();
+          // 加载标准插件列表
           this.getSingleAtomList();
+          // 获取快照列表
           this.snapshoots = this.getTplSnapshoots();
         } else {
           let name = `new${moment.tz(this.timeZone).format('YYYYMMDDHHmmss')}`;
@@ -622,6 +635,7 @@ import { cloneDeepWith } from 'lodash';
           }
           this.compVersion = templateData.version;
           this.tplSpaceId = templateData.space_id;
+          // 暂时写死数据便于开发 mock的模板树pinplineTree
           this.setTemplateData(templateData);
           this.setSpaceId(templateData.space_id);
         } catch (e) {
@@ -1202,7 +1216,7 @@ import { cloneDeepWith } from 'lodash';
       async onShowNodeConfig(id) {
         // 判断节点配置的插件是否存在
         const nodeConfig = this.$store.state.template.activities[id];
-        const isDefaultPlugin = !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code);
+        const isDefaultPlugin = nodeConfig && nodeConfig.component ? !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code) : true ;
         if (nodeConfig && nodeConfig.type === 'ServiceActivity' && nodeConfig.name && isDefaultPlugin) {
           let atom = true;
           atom = this.atomList.find(item => item.code === nodeConfig.component.code);
@@ -1219,10 +1233,12 @@ import { cloneDeepWith } from 'lodash';
         if (index > -1) {
           this.validateConnectFailList.splice(index, 1);
         }
+        // 获取节点信息
         const location = this.locations.find(item => item.id === id);
         if (['tasknode', 'subflow'].includes(location.type)) {
-          // 设置第三发插件缓存
+          // 设置第三方插件缓存
           const nodeConfig = this.$store.state.template.activities[id];
+          // 远程插件且未缓存
           if (nodeConfig.component
             && nodeConfig.component.code === 'remote_plugin'
             && !this.thirdPartyList[id]) {
@@ -1337,12 +1353,14 @@ import { cloneDeepWith } from 'lodash';
        * @param {Object} location 节点 location 字段
        */
       async onLocationChange(type, node) {
+        // console.log('节点变更onLocationChange-node', node, node.data);
         if (!node) return;
         const { id, data } = node;
+        console.log('节点变更data.type---', data.type);
         const location = {
           id,
           ...data,
-          type: data.type === 'task' ? 'tasknode' : data.type.split('-').join(''),
+          type: data.type === 'task' ? 'tasknode' : (data.type === 'SubProcess' ? 'subflow' : data.type.split('-').join('')),
           ...node.position(),
         };
         if (data?.oldSouceId) {
@@ -1354,8 +1372,7 @@ import { cloneDeepWith } from 'lodash';
         if (type === 'edit') return;
         switch (data.type) {
           case 'task':
-          case 'subflow':
-            location.type = 'tasknode';
+          case 'SubProcess':
             // 添加任务节点
             if (type === 'add' && location.atomId) {
               if (location.type === 'tasknode') {
@@ -1887,7 +1904,9 @@ import { cloneDeepWith } from 'lodash';
       },
       // 查看需要更新的子流程
       viewUpdatedNode(id) {
+        console.log('查看需要更新的子流程', id);
         this.moveNodeToView(id);
+        this.showDotAnimation(id);
       },
       // 全局变量引用详情点击回调
       onCitedNodeClick(data) {
@@ -1916,7 +1935,6 @@ import { cloneDeepWith } from 'lodash';
        */
       moveNodeToView(id) {
         this.$refs.processCanvas.setCanvasPosition(id);
-
         // 移动画布到选中节点位置的摇晃效果
         const nodeEl = document.querySelector(`g[data-cell-id="${id}"] .custom-node`);
         if (nodeEl) {
@@ -2121,7 +2139,7 @@ import { cloneDeepWith } from 'lodash';
     .update-tips {
         position: absolute;
         top: 64px;
-        left: 450px;
+        left: 520px;
         min-height: 40px;
         overflow: hidden;
         z-index: 4;
