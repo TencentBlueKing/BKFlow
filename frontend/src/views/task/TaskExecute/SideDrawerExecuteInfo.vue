@@ -465,13 +465,6 @@
         },
         deep: true,
       },
-      'executeInfo.id': {
-        handler(val) {
-          console.log('executeInfo.id changed', val);
-        },
-        deep: true,
-        immediate: true,
-      }
     },
     beforeDestroy() {
       if (source) {
@@ -736,7 +729,6 @@
       },
       // 补充记录缺少的字段
       async setFillRecordField(record) {
-        console.log('补充记录缺少的字段', record);
         const { version, component_code: componentCode, componentData = {} } = this.nodeDetailConfig;
         const { inputs, state } = record;
         let { outputs } = record;
