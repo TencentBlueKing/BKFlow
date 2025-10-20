@@ -32,7 +32,7 @@ from bkflow.task.models import (
     TaskInstance,
     TaskOperationRecord,
 )
-from bkflow.task.operations import TaskNodeOperation
+from bkflow.task.operations import TaskNodeOperation, TaskOperation
 from bkflow.utils.strings import standardize_pipeline_node_name
 
 logger = logging.getLogger("root")
@@ -157,8 +157,12 @@ class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
         representation = super().to_representation(instance)
         if instance.trigger_method == "subprocess":
             task_flow_relation = TaskFlowRelation.objects.get(task_id=instance.id)
-            representation["parent_task_id"] = task_flow_relation.parent_task_id
+            parent_task_id = task_flow_relation.parent_task_id
+            task_instance = TaskInstance.objects.get(id=parent_task_id)
+            operation = TaskOperation(task_instance=task_instance).get_task_states()
+            stare = operation.data.get("state") if operation.result is True else None
 
+            representation["parent_task_info"] = {"task_id": parent_task_id, "state": stare}
         return representation
 
 
