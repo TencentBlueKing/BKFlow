@@ -200,9 +200,8 @@
   import Guide from '@/utils/guide.js';
   import permission from '@/mixins/permission.js';
   import { STRING_LENGTH } from '@/constants/index.js';
-  import { NODES_SIZE_POSITION } from '@/constants/nodes.js';
   import DealVarDirtyData from '@/utils/dealVarDirtyData.js';
-  import { graphToJson } from '@/utils/graphJson.js';
+  import { graphToJson, generateGraphData } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
   import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
@@ -360,6 +359,11 @@
         projectId: state => state.project_id,
       }),
       canvasData() {
+        if (!this.locations.length) {
+          const pipelineTree = this.getPipelineTree();
+          return generateGraphData(pipelineTree);
+        }
+
         const locations = this.locations.map((location) => {
           // 节点校验失败列表
           this.validateConnectFailList = [...new Set(this.validateConnectFailList)];
@@ -479,7 +483,6 @@
         'loadProjectBaseInfo',
         'loadTemplateData',
         'saveTemplateData',
-        'getLayoutedPipeline',
         'loadInternalVariable',
         'getVariableCite',
         'loadUniformApiMeta',
@@ -1295,58 +1298,22 @@
       /**
        * 自动排版
        */
-      async onFormatPosition() {
-        const canvasData = {
-          locations: this.locations,
-          activities: this.activities,
-          gateways: this.gateways,
-          start_event: this.start_event,
-          end_event: this.end_event,
-          lines: this.lines,
-        };
-        const validateMessage = validatePipeline.isNodeLineNumValid(canvasData);
-        if (!validateMessage.result) {
-          this.$bkMessage({
-            message: validateMessage.message,
-            theme: 'error',
-            ellipsisLine: 0,
-            delay: 10000,
-          });
-          return;
-        }
-        if (this.canvasDataLoading) {
-          return;
-        }
-        this.canvasDataLoading = true; // @todo 支持画布单独loading
+       async onFormatPosition() {
         try {
-          const { ACTIVITY_SIZE, EVENT_SIZE, GATEWAY_SIZE, START_POSITION } = NODES_SIZE_POSITION;
           const pipelineTree = this.getPipelineTree();
-          const canvasEl = document.querySelector('.x6-graph');
-          const width = canvasEl.offsetWidth - 200;
-          const res = await this.getLayoutedPipeline({
-            canvas_width: width,
-            pipeline_tree: pipelineTree,
-            activity_size: ACTIVITY_SIZE,
-            event_size: EVENT_SIZE,
-            gateway_size: GATEWAY_SIZE,
-            start: START_POSITION,
-          });
-          if (res.result) {
-            this.setPipelineTree(res.data.pipeline_tree);
-            this.$nextTick(() => {
-              this.$refs.processCanvas.resetCells();
-              this.$bkMessage({
-                message: this.$t('排版完成，原内容在本地快照中'),
-                theme: 'success',
-              });
+          generateGraphData(pipelineTree);
+
+          this.$nextTick(() => {
+            this.$refs.processCanvas.resetCells();
+            this.$bkMessage({
+              message: this.$t('排版完成，原内容在本地快照中'),
+              theme: 'success',
             });
-          }
-        } catch (e) {
-          console.log(e);
-        } finally {
-          this.canvasDataLoading = false;
+          });
+        } catch (error) {
+          console.warn(error);
         }
-      },
+       },
       /**
        * 节点变更(添加、删除、编辑)
        * @param {String} changeType 变更类型,添加、删除、编辑

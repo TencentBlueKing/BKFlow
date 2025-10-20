@@ -28,6 +28,7 @@ from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
 from bkflow.task.models import (
     EngineSpaceConfigValueType,
     PeriodicTask,
+    TaskFlowRelation,
     TaskInstance,
     TaskOperationRecord,
 )
@@ -151,6 +152,14 @@ class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
     def get_outputs(self, obj):
         outputs_result = TaskNodeOperation(task_instance=obj, node_id=obj.instance_id).get_outputs()
         return [{"key": key, "value": value} for key, value in outputs_result.data.items()]
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.trigger_method == "subprocess":
+            task_flow_relation = TaskFlowRelation.objects.get(task_id=instance.id)
+            representation["parent_task_id"] = task_flow_relation.parent_task_id
+
+        return representation
 
 
 class GetTaskOperationRecordSerializer(serializers.Serializer):

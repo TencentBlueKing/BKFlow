@@ -75,7 +75,8 @@ export const processConfigItem = (configItem, constants = []) => {
   const linkRender = renders.find(r => r.type === 'link');
   if (linkRender) {
     processed.hasLink = true;
-    processed.linkUrl = getValueByConstants(linkRender.url, constants);
+    const linkUrl = getValueByConstants(linkRender.url, constants);
+    processed.linkUrl = linkUrl === '--' ? linkRender.url : linkUrl;
   }
 
   // 处理highlight和progress (只能有一个)

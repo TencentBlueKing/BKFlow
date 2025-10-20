@@ -71,6 +71,7 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
             "notify_config",
             "version",
             "space_id",
+            "subprocess_info",
         )
 
 
@@ -79,9 +80,10 @@ class TemplateSerializer(serializers.ModelSerializer):
 
     snapshot_id = serializers.IntegerField(help_text=_("快照ID"), required=False, read_only=True)
     notify_config = serializers.JSONField(help_text=_("配置"), required=False)
-    version = serializers.CharField(help_text=_("版本"), required=False, allow_blank=True)
+    version = serializers.CharField(help_text=_("版本"), read_only=True)
     desc = serializers.CharField(help_text=_("流程说明"), required=False, allow_blank=True)
     triggers = TriggerSerializer(many=True, required=True, allow_null=True)
+    subprocess_info = serializers.JSONField(help_text=_("子流程信息"), read_only=True)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
@@ -132,7 +134,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             exist_code_list = [
                 node["component"]["data"]["plugin_code"]["value"]
                 for node in pipeline_tree["activities"].values()
-                if node["component"].get("data", {}).get("plugin_code")
+                if node["type"] == "ServiceActivity" and node["component"].get("data", {}).get("plugin_code")
             ]
             BKPluginAuthorization.objects.batch_check_authorization(exist_code_list, str(instance.space_id))
         except Exception as e:
@@ -140,8 +142,6 @@ class TemplateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         pre_pipeline_tree = instance.pipeline_tree
         instance_copy = deepcopy(instance)
-        instance.update_snapshot(pipeline_tree)
-        instance = super().update(instance, validated_data)
         # 批量修改流程绑定的触发器:
         try:
             Trigger.objects.compare_constants(
@@ -150,6 +150,11 @@ class TemplateSerializer(serializers.ModelSerializer):
                 validated_data.get("triggers"),
             )
             Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"])
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+            instance.snapshot_id = snapshot.id
+            snapshot.template_id = instance.id
+            snapshot.save(update_fields=["template_id"])
+            instance = super().update(instance, validated_data)
         except Exception as e:
             logger.exception("Triggers update or create failed,{}".format(e))
             instance.update_snapshot(pre_pipeline_tree)
@@ -268,8 +273,14 @@ class PreviewTaskTreeSerializer(serializers.Serializer):
         child=serializers.CharField(help_text=_("节点ID")), help_text=_("包含的节点ID列表"), default=[]
     )
     is_all_nodes = serializers.BooleanField(required=False, default=False, help_text=_("preview是否需要过滤节点"))
+    version = serializers.CharField(help_text=_("版本号"), required=False)
 
 
 class TemplateCopySerializer(serializers.Serializer):
     template_id = serializers.IntegerField(help_text=_("模板ID"), required=True)
     space_id = serializers.IntegerField(help_text=_("空间ID"), required=True)
+    copy_subprocess = serializers.BooleanField(help_text=_("是否复制子流程"), required=False, default=False)
+
+
+class SimplifiedTemplateFileSerializer(serializers.Serializer):
+    file = serializers.FileField(help_text="uploaded file")

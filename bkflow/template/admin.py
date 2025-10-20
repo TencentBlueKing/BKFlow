@@ -24,8 +24,8 @@ from bkflow.template.models import Template, TemplateOperationRecord, Trigger
 
 @admin.register(Template)
 class TemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "space_id", "name", "source", "version", "is_enabled")
-    search_fields = ("space_id", "name", "source", "version")
+    list_display = ("id", "space_id", "name", "source", "is_enabled")
+    search_fields = ("space_id", "name", "source")
     list_filter = ("space_id", "source")
     ordering = ["-id"]
 
