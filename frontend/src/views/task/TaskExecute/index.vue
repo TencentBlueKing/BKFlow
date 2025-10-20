@@ -27,7 +27,9 @@
         :scope-info="scopeInfo"
         :create-method="createMethod"
         :canvas-mode="canvasMode"
-        :instance-actions="instanceActions" />
+        :instance-actions="instanceActions"
+        :trigger-method="triggerMethod"
+        :parent-task-info="parentTaskInfo" />
     </template>
   </div>
 </template>
@@ -71,6 +73,8 @@
         scopeInfo: {},
         createMethod: '',
         canvasMode: '',
+        triggerMethod: '',
+        parentTaskInfo: {},
       };
     },
     created() {
@@ -106,6 +110,8 @@
             scope_type: scopeType,
             scope_value: scopeValue,
             create_method: createMethod,
+            trigger_method: triggerMethod,
+            parent_task_info: parentTaskInfo,
           } = instanceData;
           if (this.isFunctional && currentFlow === 'func_claim') {
             this.showParamsFill = true;
@@ -137,6 +143,8 @@
           this.scopeInfo = { scope_type: scopeType, scope_value: scopeValue };
           this.canvasMode = pipelineTree.canvas_mode;
           this.createMethod = createMethod;
+          this.triggerMethod = triggerMethod;
+          this.parentTaskInfo = parentTaskInfo || {};
           // 将节点树存起来
           this.setPipelineTree(pipelineTree);
         } catch (e) {

@@ -78,7 +78,7 @@
           @click="onOperationClick(operation.action)" />
       </div>
       <div
-        v-if="!isSubflow"
+        v-if="triggerMethod !=='subprocess' "
         class="task-params-btns">
         <i
           v-bk-tooltips="{
@@ -123,12 +123,14 @@
         v-else
         class="sub-task-btns">
         <i class="common-icon-box-top-right-corner icon-link-to-father" />
-        <p>{{ $t('查看父流程') }}</p>
+        <p
+          class="view-father-process"
+          @click="onViewFatherProcessExecute">
+          {{ $t('查看父流程') }}
+        </p>
         <span class="dividing-line" />
-        <bk-icon
-          :type="statusMap[parentProcessStatus].icon"
-          :class="statusMap[parentProcessStatus].class" />
-        <span class="state-text">{{ statusMap[parentProcessStatus].text }}</span>
+        <span :class="statusMap[parentTaskInfo.state].icon" />
+        <span class="state-text">{{ statusMap[parentTaskInfo.state].text }}</span>
       </div>
     </div>
   </div>
@@ -189,29 +191,57 @@
       },
       isTaskOperationBtnsShow: Boolean,
       isShowViewProcess: Boolean,
+      triggerMethod: {
+        type: String,
+        default: '',
+      },
+      parentTaskInfo: {
+        type: Object,
+        default: () => ({}),
+      },
     },
     data() {
       return {
         showNodeList: [0, 1, 2],
-        isSubflow: true,
+        isSubflow: false,
         statusMap: {
-          success: {
-            icon: 'check-circle-shape',
-            class: 'check-icon',
-            text: i18n.t('成功'),
+          FINISHED: {
+            icon: 'finished bk-icon icon-check-circle-shape',
+            text: i18n.t('完成'),
           },
-          failure: {
-            icon: 'close-circle-shape',
-            class: 'close-icon',
+          FAILED: {
+            icon: 'failed common-icon-dark-circle-close',
             text: i18n.t('失败'),
           },
-          paused: {
-            icon: 'exclamation-circle-shape',
-            class: 'exclamation-icon',
-            text: i18n.t('暂停'),
+          EXPIRED: {
+            icon: 'expired bk-icon icon-clock-shape',
+            text: i18n.t('已过期'),
+          },
+          REVOKE: {
+            icon: 'revoke common-icon-dark-stop',
+            text: i18n.t('终止'),
+          },
+          SUSPENDED: {
+            icon: 'execute common-icon-dark-circle-pause',
+            text: i18n.t('已暂停'),
+          },
+          RUNNING: {
+            icon: 'running common-icon-dark-circle-ellipsis',
+            text: i18n.t('执行中'),
+          },
+          BLOCKED: {
+            icon: 'running common-icon-dark-circle-ellipsis',
+            text: i18n.t('执行中'),
+          },
+          READY: {
+            icon: 'running common-icon-dark-circle-ellipsis',
+            text: i18n.t('排队中'),
+          },
+          NODE_SUSPENDED: {
+            icon: 'execute',
+            text: i18n.t('节点暂停'),
           },
         },
-        parentProcessStatus: 'success',
       };
     },
     computed: {
@@ -275,10 +305,23 @@
           window.parent.postMessage({ eventName: 'jump-to-flow' }, '*');
         }
       },
+      onViewFatherProcessExecute() {
+        const { href } = this.$router.resolve({
+            name: 'taskExecute',
+            params: {
+              spaceId: this.spaceId,
+            },
+            query: {
+              instanceId: this.parentTaskInfo.task_id,
+            },
+        });
+        window.open(href, '_blank');
+      },
     },
   };
 </script>
 <style lang="scss" scoped>
+@import '../../../scss/task.scss';
 @import '../../../scss/config.scss';
 
 .operation-header {
@@ -494,16 +537,19 @@
 }
 
 .sub-task-btns{
+  @include ui-task-status;
   display: flex;
   align-items: center;
   align-content: center;
   font-size: 14px;
-  color: #63656E;
   line-height: 22px;
   .icon-link-to-father{
     font-size: 12px !important;
     margin-right: 6px;
     margin-top: 2px;
+  }
+  .view-father-process{
+    cursor: pointer;
   }
   .dividing-line{
     margin: 0 17px;

@@ -27,7 +27,7 @@
     { id: 'start', icon: 'startpoint-zh', name: i18n.t('开始节点') },
     { id: 'end', icon: 'endpoint-zh', name: i18n.t('结束节点') },
     { id: 'task', icon: 'tasknode', name: i18n.t('任务节点') },
-    { id: 'SubProcess', icon: 'subprocess', name: i18n.t('子流程') },
+    { id: 'subflow', icon: 'subprocess', name: i18n.t('子流程') },
     { id: 'branch-gateway', icon: 'branchgateway', name: i18n.t('分支网关') },
     { id: 'parallel-gateway', icon: 'parallelgateway', name: i18n.t('并行网关') },
     { id: 'conditional-parallel-gateway', icon: 'conditionalparallelgateway', name: i18n.t('条件并行网关') },
@@ -98,7 +98,8 @@
       },
       startDrag(e) {
         const data = this.getNodeCustomAttribute(e.target);
-        const isRectShape = ['task', 'SubProcess'].includes(data.type);
+        console.log('开始startDrag', data);
+        const isRectShape = ['task', 'subflow'].includes(data.type);
         // 该 node 为拖拽的节点，默认也是放置到画布上的节点，可以自定义任何属性
         let node;
         if (data.type === 'group') {

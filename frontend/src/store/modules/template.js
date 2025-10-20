@@ -229,9 +229,11 @@ const template = {
     setSubprocessUpdated(state, subflow) {
       if (state.subprocess_info) {
         const data = state.subprocess_info.find(item => subflow.subprocess_node_id === item.subprocess_node_id);
-        data.expired = subflow.expired;
-        if (subflow.version) {
-          data.version = subflow.version;
+        if (data) {
+          data.expired = subflow.expired;
+          if (subflow.version) {
+            data.version = subflow.version;
+          }
         }
       }
     },

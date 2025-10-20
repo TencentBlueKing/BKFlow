@@ -1360,7 +1360,7 @@
         const location = {
           id,
           ...data,
-          type: data.type === 'task' ? 'tasknode' : (data.type === 'SubProcess' ? 'subflow' : data.type.split('-').join('')),
+          type: data.type === 'task' ? 'tasknode' : (data.type === 'subflow' ? 'subflow' : data.type.split('-').join('')),
           ...node.position(),
         };
         if (data?.oldSouceId) {
@@ -1372,7 +1372,7 @@
         if (type === 'edit') return;
         switch (data.type) {
           case 'task':
-          case 'SubProcess':
+          case 'subflow':
             // 添加任务节点
             if (type === 'add' && location.atomId) {
               if (location.type === 'tasknode') {

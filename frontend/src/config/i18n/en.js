@@ -1029,6 +1029,7 @@ const en = {
   删除失败: 'Delete failed',
   '包含 x 个流程': 'Contains {num} processes',
   子流程数量: 'Number of subflows',
+  查看父流程: 'View parent process',
 };
 
 export default en;

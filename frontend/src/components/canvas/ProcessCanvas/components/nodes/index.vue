@@ -51,7 +51,6 @@
     task: Task,
     tasknode: Task,
     subflow: Subprocess,
-    SubProcess: Subprocess,
     'branch-gateway': BranchGateway,
     'parallel-gateway': ParallelGateway,
     'conditional-parallel-gateway': ConditionalParallelGateway,
@@ -77,7 +76,7 @@
         const node = this.getNode();
         const { type, code } = node.getData();
         // 独立任务下子流程节点的判断
-        if (code === 'subprocess_plugin') {
+        if (code === 'subprocess_plugin' || type === 'SubProcess') {
           return NODE_COMP_MAP.subflow;
         }
         return NODE_COMP_MAP[type];

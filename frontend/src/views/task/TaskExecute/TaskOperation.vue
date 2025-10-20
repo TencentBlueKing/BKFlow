@@ -28,6 +28,8 @@
       :is-show-view-process="isShowViewProcess"
       :is-task-operation-btns-show="isTaskOperationBtnsShow"
       :params-can-be-modify="paramsCanBeModify"
+      :trigger-method="triggerMethod"
+      :parent-task-info="parentTaskInfo"
       @onOperationClick="onOperationClick"
       @onTaskParamsClick="onTaskParamsClick"
       @onInjectGlobalVariable="onInjectGlobalVariable" />
@@ -345,6 +347,14 @@
         type: [Number, String],
         default: '',
       },
+      triggerMethod: {
+        type: String,
+        default: '',
+      },
+      parentTaskInfo: {
+        type: Object,
+        default: () => ({}),
+      }
     },
     data() {
       const $this = this;
@@ -1106,7 +1116,7 @@
         // 如果是ServiceActivity类型节点，提取组件数据和代码
         if (node) {
           componentData = node.type === 'ServiceActivity' ? node.component.data : {};
-          if (node.type === 'SubProcess') {
+          if (node.type === 'subprocess') {
             code = 'SubProcess';
           } else {
             code = node.type === 'ServiceActivity' ? node.component.code : '';

@@ -1010,7 +1010,7 @@
         }
         this.isPerspectivePanelShow = false;
         // 节点透视面板展开
-        if (this.isPerspective && cell.shape === 'custom-node' && ['task', 'subflow'].includes(cell.data.type)) {
+        if (this.isPerspective && cell.shape === 'custom-node' && ['task', 'SubProcess'].includes(cell.data.type)) {
           const variableInfo = this.nodeVariableInfo[cell.id] || { input: [], output: [] };
           variableInfo.variableList = [...new Set([...variableInfo.input, ...variableInfo.output])];
           this.nodeVariable = variableInfo;
