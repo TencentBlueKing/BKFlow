@@ -169,6 +169,13 @@
       value(val) {
         this.formData = tools.deepClone(val);
       },
+      scheme: {
+        handler(val) {
+            this.formsScheme = this.getFormScheme();
+            this.formsNotReferredScheme = this.getFormScheme('notReferred');
+          },
+        deep: true,
+      },
     },
     mounted() {
       if (this.isJsonSchema) {

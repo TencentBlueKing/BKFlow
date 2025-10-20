@@ -81,6 +81,10 @@
         type: String,
         default: '',
       },
+      subProcessTaskId: {
+          type: [String, Number],
+          default: '',
+      },
     },
     data() {
       return {
@@ -105,7 +109,7 @@
         try {
           this.isFlowLoading = true;
           const resp = await this.getOperationRecordTask({
-            taskId: query.instanceId,
+            taskId: this.subProcessTaskId || query.instanceId,
             node_id: this.nodeId || undefined,
           });
           this.operateFlowData = resp.data.map((data) => {

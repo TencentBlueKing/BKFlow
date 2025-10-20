@@ -1021,6 +1021,15 @@ const en = {
   开始到周: 'start to week',
   的每隔: 'of every',
   和: 'and',
+  子流程: 'Subprocess',
+  ' x 个子流程待更新': ' {num} subflows to be updated',
+  '关联的mock数据不会同步复制，暂不支持复制带有决策表节点的流程': 'The associated mock data will not be synchronized and copied, and copying processes with decision table nodes is not supported yet',
+  复制包含的子流程: 'Copy included subflows',
+  '当前流程被以下流程引用:': 'The current process is referenced by the following processes:',
+  删除失败: 'Delete failed',
+  '包含 x 个流程': 'Contains {num} processes',
+  子流程数量: 'Number of subflows',
+  查看父流程: 'View parent process',
 };
 
 export default en;
