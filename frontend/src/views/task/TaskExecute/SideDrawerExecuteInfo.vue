@@ -536,205 +536,6 @@
         }
         return isExist;
       },
-      // getOrderedTree(data) {
-      //   const startNode = tools.deepClone(data.start_event);
-      //   const endNode = tools.deepClone(data.end_event);
-      //   const fstLine = startNode.outgoing;
-      //   const orderedData = [Object.assign({}, startNode, {
-      //     title: this.$t('开始节点'),
-      //     name: this.$t('开始节点'),
-      //     expanded: false,
-      //   })];
-      //   const endEvent = Object.assign({}, endNode, {
-      //     title: this.$t('结束节点'),
-      //     name: this.$t('结束节点'),
-      //     expanded: false,
-      //   });
-      //   this.retrieveLines(data, fstLine, orderedData);
-      //   orderedData.push(endEvent);
-      //   // 过滤root最上层汇聚网关
-      //   return orderedData;
-      // },
-      // async retrieveLines(data, lineId, ordered, isLoop = false) {
-      //   const { end_event, activities, gateways, flows } = data;
-      //   const currentNode = flows[lineId].target;
-      //   const endEvent = end_event.id === currentNode ? tools.deepClone(end_event) : undefined;
-      //   const activity = tools.deepClone(activities[currentNode]);
-      //   const gateway = tools.deepClone(gateways[currentNode]);
-      //   const node = endEvent || activity || gateway;
-      //   if (node && ordered.findIndex(item => item.id === node.id) === -1) {
-      //     let outgoing;
-      //     if (Array.isArray(node.outgoing)) {
-      //       outgoing = node.outgoing;
-      //     } else {
-      //       outgoing = node.outgoing ? [node.outgoing] : [];
-      //     }
-      //     // 当前tree是否已存在
-      //     const isAt = !this.curNodeIds.includes(node.id);
-      //     if (gateway) { // 网关节点
-      //       const name = NODE_DICT[gateway.type.toLowerCase()];
-      //       gateway.title = name;
-      //       gateway.name = name;
-      //       gateway.expanded = false;
-      //       gateway.children = [];
-      //       if (isAt && (gateway.conditions || gateway.default_condition)) {
-      //         const loopList = []; // 需要打回的node的incoming
-      //         outgoing.forEach((item) => {
-      //           const curNode = activities[flows[item].target] || gateways[flows[item].target];
-      //           if (curNode
-      //             && (ordered.find(ite => ite.id === curNode.id || this.curNodeIds.find(ite => ite === curNode.id)))) {
-      //             loopList.push(...curNode.incoming);
-      //           }
-      //         });
-      //         const conditions = Object.keys(gateway.conditions).map((item) => {
-      //           // 给需要打回的条件添加节点id
-      //           const callback = loopList.includes(item) ? activities[flows[item].target] : '';
-      //           const { evaluate, tag } = gateway.conditions[item];
-      //           const callbackData = {
-      //             id: callback.id,
-      //             name: gateway.conditions[item].name,
-      //             nodeId: gateway.id,
-      //             overlayId: `condition${item}`,
-      //             tag,
-      //             value: evaluate,
-      //           };
-      //           return {
-      //             id: `${gateway.conditions[item].name}-${item}`,
-      //             conditionsId: '',
-      //             callbackName: callback.name,
-      //             name: `${gateway.conditions[item].name}-${item}`,
-      //             title: gateway.conditions[item].name,
-      //             isGateway: true,
-      //             conditionType: 'condition', // 条件、条件并行网关
-      //             expanded: false,
-      //             outgoing: item,
-      //             children: [],
-      //             isLoop: loopList.includes(item),
-      //             callbackData,
-      //           };
-      //         });
-
-      //         // 添加条件分支默认节点
-      //         if (gateway.default_condition) {
-      //           const defaultCondition = [
-      //             {
-      //               id: `${gateway.default_condition.name}-${gateway.default_condition.flow_id}`,
-      //               name: `${gateway.default_condition.name}-${gateway.default_condition.flow_id}`,
-      //               title: gateway.default_condition.name,
-      //               isGateway: true,
-      //               conditionType: 'default',
-      //               expanded: false,
-      //               outgoing: gateway.default_condition.flow_id,
-      //               children: [],
-      //             },
-      //           ];
-      //           conditions.unshift(...defaultCondition);
-      //         }
-
-      //         conditions.forEach((item) => {
-      //           this.retrieveLines(data, item.outgoing, item.children, item.isLoop);
-      //           if (item.children.length === 0) this.conditionOutgoing.push(item.outgoing);
-      //           item.children.forEach((i) => {
-      //             if (!this.curNodeIds.includes(i.id)) {
-      //               this.curNodeIds.push(i.id);
-      //             }
-      //           });
-      //         });
-      //         gateway.children.push(...conditions);
-      //         ordered.push(gateway);
-      //         outgoing.forEach((line) => {
-      //           this.retrieveLines(data, line, ordered);
-      //         });
-      //       } else if (isAt && gateway.type === 'ParallelGateway') {
-      //         // 添加并行默认条件
-      //         const defaultCondition = gateway.outgoing.map((item, index) => ({
-      //           name: this.$t('并行') + (index + 1),
-      //           title: this.$t('并行'),
-      //           isGateway: true,
-      //           expanded: false,
-      //           conditionType: 'parallel',
-      //           outgoing: item,
-      //           children: [],
-      //         }));
-      //         gateway.children.push(...defaultCondition);
-      //         defaultCondition.forEach((item) => {
-      //           this.retrieveLines(data, item.outgoing, item.children);
-      //           item.children.forEach((i) => {
-      //             if (!this.curNodeIds.includes(i.id)) {
-      //               this.curNodeIds.push(i.id);
-      //             }
-      //           });
-      //         });
-      //         ordered.push(gateway);
-      //         outgoing.forEach((line) => {
-      //           this.retrieveLines(data, line, ordered);
-      //         });
-      //       }
-      //       if (gateway.type === 'ConvergeGateway') {
-      //         // 判断ordered中 汇聚网关的incoming是否存在
-      //         const list = [];
-      //         const converList = Object.assign({}, activities, gateways);
-      //         this.curNodeIds.forEach((item) => {
-      //           if (converList[item]) {
-      //             list.push(converList[item]);
-      //           }
-      //         });
-      //         const outgoingList = [];
-      //         list.forEach((item) => {
-      //           if (Array.isArray(item.outgoing)) {
-      //             item.outgoing.forEach((ite) => {
-      //               outgoingList.push(ite);
-      //             });
-      //           } else {
-      //             outgoingList.push(item.outgoing);
-      //           }
-      //         });
-
-      //         if (gateway.incoming.every(item => outgoingList.concat(this.conditionOutgoing).includes(item))) {
-      //           // 汇聚网关push在最近的条件网关下
-      //           const prev = ordered[ordered.findLastIndex(order => order.type !== 'ServiceActivity' || order.type !== 'ConvergeGateway')];
-      //           // 独立子流程的children为 subChildren
-      //           if (prev
-      //             && prev.children
-      //             && !prev.children.find(item => item.id === gateway.id)
-      //             && !this.converNodeList.includes(gateway.id)) {
-      //             this.converNodeList.push(gateway.id);
-      //             gateway.gatewayType = 'converge';
-      //             prev.children.push(gateway);
-      //           }
-      //           if (!this.curNodeIds.includes(gateway.id)) {
-      //             this.curNodeIds.push(gateway.id);
-      //           }
-      //           outgoing.forEach((line) => {
-      //             this.retrieveLines(data, line, ordered);
-      //           });
-      //         }
-      //       }
-      //     } else if (activity) { // 任务节点
-      //       if (isLoop) return;
-      //       if (isAt) {
-      //         if (activity.type === 'SubProcess' || activity.component.code === 'subprocess_plugin') {
-      //           // 只递归第一层 子流程的子流程不递归
-      //           // const  recursionDepth = 0;
-      //           if (activity.pipeline) {
-      //             activity.children = this.getOrderedTree(activity.pipeline);
-      //           } else {
-      //             if (activity.component?.data && activity.component.data?.subprocess && activity.component.data?.subprocess?.value?.pipeline) {
-      //               activity.children = this.getOrderedTree(activity.component.data.subprocess.value.pipeline);
-      //             }
-      //           }
-      //         }
-      //         activity.title = activity.name;
-      //         activity.expanded = !(activity.type === 'SubProcess' || activity.component.code === 'subprocess_plugin');
-      //         // activity.type === 'SubProcess' || activity.component.code === 'subprocess_plugin';
-      //         ordered.push(activity);
-      //       }
-      //       outgoing.forEach((line) => {
-      //         this.retrieveLines(data, line, ordered);
-      //       });
-      //     }
-      //   }
-      // },
       // 画布初始化时缩放比偏移
       // setCanvasZoomPosition() {
       //   // 计算子流程画布高度
@@ -894,6 +695,13 @@
         const canvasInstance = this.$refs.subProcessCanvas.graph;
         canvasInstance.zoom(-0.1);
         this.zoom = this.zoom - 0.1;
+      },
+      // 移动点击节点位置
+      onMoveClickNode(id) {
+        if (this.isExistInSubCanvas(id)) {
+            this.$refs.subProcessCanvas.setCanvasPosition(id);
+            this.$refs.subProcessCanvas.onUpdateNodeInfo(id, { isActive: true });
+        }
       },
       // 点击子流程画布中的节点
       onSubflowNodeClick(id) {
@@ -1328,6 +1136,7 @@
             this.executeInfo = {};
             this.theExecuteTime = undefined;
             this.historyInfo = [];
+            this.onMoveClickNode(this.nodeDetailConfig.node_id);
             return;
           }
           this.isReadyStatus = ['RUNNING', 'SUSPENDED', 'FINISHED', 'FAILED'].indexOf(respData.state) > -1;
@@ -1391,10 +1200,7 @@
           this.isSubprocessLoading = false;
           // 激活子流程画布节点
           this.$nextTick(() => {
-            if (this.isExistInSubCanvas(nodeId)) {
-              this.$refs.subProcessCanvas.setCanvasPosition(nodeId);
-              this.$refs.subProcessCanvas.onUpdateNodeInfo(nodeId, { isActive: true });
-            }
+            this.onMoveClickNode(nodeId);
           });
         } catch (e) {
           this.theExecuteTime = undefined;
@@ -1417,6 +1223,7 @@
         if (record) {
           if (!('isExpand' in record)) {
             this.executeInfo = await this.setFillRecordField(record);
+            this.executeInfo.id = this.nodeDetailConfig.node_id;
             this.executeInfo.name = this.location.name || NODE_DICT[this.location.type];
           }
           this.executeRecord = record;
