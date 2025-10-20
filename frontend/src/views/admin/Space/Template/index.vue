@@ -71,6 +71,7 @@
             class="subflow_update">
             <bk-popover
               placement="top"
+              :disabled="props.row.subprocess_info.length <= 0"
               ext-cls="subflow-popover">
               <span
                 v-if="props.row.subprocess_info.length>0"
@@ -78,7 +79,19 @@
                 {{ props.row.subprocess_info.length }}
               </span>
               <span v-else>--</span>
-              <div slot="content">
+              <bk-button
+                v-if="getSubflowUpdateCount(props.row.subprocess_info) > 0"
+                :text="true">
+                <span class="red-text">
+                  <span class="blue-text">(</span>
+                  {{ $t(' x 个子流程待更新', { num: getSubflowUpdateCount(props.row.subprocess_info) }) }}
+                  <span class="blue-text">)</span>
+                </span>
+              <!-- 立即更新 -->
+              </bk-button>
+              <div
+                v-if="props.row.subprocess_info.length>0"
+                slot="content">
                 <ul
                   v-for="sub in props.row.subprocess_info"
                   :key="sub.subprocess_node_id"
@@ -96,16 +109,6 @@
                 </ul>
               </div>
             </bk-popover>
-            <bk-button
-              v-if="getSubflowUpdateCount(props.row.subprocess_info) > 0"
-              :text="true">
-              <span class="red-text">
-                <span class="blue-text">(</span>
-                {{ $t(' x 个子流程待更新', { num: getSubflowUpdateCount(props.row.subprocess_info) }) }}
-                <span class="blue-text">)</span>
-              </span>
-              <!-- 立即更新 -->
-            </bk-button>
           </div>
           <!-- 其他 -->
           <template v-else>
@@ -216,37 +219,41 @@
           <bk-icon
             type="exclamation"
             class="del-error-icon dialog-icon" />
-          <div class="title-text">
+          <div
+            v-if="referencedProcessList.length>0"
+            class="title-text">
             {{ $t('删除失败') }}
           </div>
         </div>
-        <div>{{ $t('当前流程被以下流程引用:') }}</div>
-        <bk-table
-          :data="referencedProcessList"
-          ext-cls="referenced-process-table"
-          :max-height="197"
-          :dark-header="true"
-          :stripe="true">
-          <bk-table-column
-            :label="$t('包含 x 个流程', {num: referencedProcessList.length})"
-            prop="name">
-            <template slot-scope="props">
-              <div class="reference-list">
-                <span>{{ props.row.name }}</span>
-                <router-link
-                  :to="{
-                    name: 'templatePanel',
-                    params: {
-                      templateId: props.row.id,
-                      type: 'view'
-                    }
-                  }">
-                  <i class="common-icon-box-top-right-corner icon-view-sub"/>
-                </router-link>
-              </div>
-            </template>
-          </bk-table-column>
-        </bk-table>
+        <div v-if="referencedProcessList.length > 0">
+          <div>{{ $t('当前流程被以下流程引用:') }}</div>
+          <bk-table
+            :data="referencedProcessList"
+            ext-cls="referenced-process-table"
+            :max-height="197"
+            :dark-header="true"
+            :stripe="true">
+            <bk-table-column
+              :label="$t('包含 x 个流程', {num: referencedProcessList.length})"
+              prop="name">
+              <template slot-scope="props">
+                <div class="reference-list">
+                  <span>{{ props.row.name }}</span>
+                  <router-link
+                    :to="{
+                      name: 'templatePanel',
+                      params: {
+                        templateId: props.row.id,
+                        type: 'view'
+                      }
+                    }">
+                    <i class="common-icon-box-top-right-corner icon-view-sub" />
+                  </router-link>
+                </div>
+              </template>
+            </bk-table-column>
+          </bk-table>
+        </div>
       </div>
     </bk-dialog>
   </div>
@@ -746,7 +753,7 @@
     width: 100%;
   }
   ::v-deep .bk-dialog-wrapper .bk-dialog-body {
-    padding: 3px 32px 0px;
+    padding: 3px 32px 26px;
   }
   .copy-del-dialog-content{
      .title{
@@ -794,7 +801,7 @@
   ::v-deep .bk-dialog-footer{
     border: none;
     background-color:#FFFFFF;
-    padding: 27px 24px 24px;
+    padding: 0px 24px 24px;
   }
   ::v-deep .referenced-process-table{
     margin-top: 16px;
@@ -826,6 +833,7 @@
     }
   }
   ::v-deep .subflow_update{
+    cursor: pointer;
     .blue-text{
       color: #3a84ff;
     }

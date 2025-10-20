@@ -96,7 +96,7 @@
           data-test-id="taskExcute_form_operatFlow">
           <NodeOperationFlow
             :locations="pipelineData.location"
-            :node-id="executeInfo.id"
+            :node-id="currentExecuteInfo.id"
             :sub-process-task-id="currentNodeDetailConfig.instance_id" />
         </section>
         <!-- 调用日志 -->
@@ -255,7 +255,7 @@
       },
       isCondition() {
         const { nodeType } = this.currentNodeDetailConfig;
-        if (this.gatewayStartEndType.includes(nodeType) || nodeType === 'task') {
+        if (this.gatewayStartEndType.includes(nodeType) || nodeType === 'task' || nodeType === 'tasknode') {
           return false;
         }
         return true;
