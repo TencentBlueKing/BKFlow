@@ -98,7 +98,6 @@
       },
       startDrag(e) {
         const data = this.getNodeCustomAttribute(e.target);
-        console.log('开始startDrag', data);
         const isRectShape = ['task', 'subflow'].includes(data.type);
         // 该 node 为拖拽的节点，默认也是放置到画布上的节点，可以自定义任何属性
         let node;
