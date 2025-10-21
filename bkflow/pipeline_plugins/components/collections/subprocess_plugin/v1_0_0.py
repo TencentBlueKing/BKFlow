@@ -35,6 +35,7 @@ class Subprocess(BaseModel):
     template_id: str
     version: str
     always_use_latest: bool = False
+    constants: dict
 
 
 class SubprocessPluginService(Service):
@@ -75,6 +76,23 @@ class SubprocessPluginService(Service):
             return False
 
         pipeline_tree = template["data"]["pipeline_tree"]
+        subproc_inputs = subprocess.constants
+        # replace show constants with inputs
+        subproc_constants = {}
+        for key, info in subproc_inputs.items():
+            # ignore expired parent constants data
+            if always_use_latest and key not in pipeline_tree["constants"]:
+                continue
+            if "form" in info:
+                info.pop("form")
+
+            # keep source_info consist with subprocess latest version
+            if always_use_latest:
+                info["source_info"] = pipeline_tree["constants"][key]["source_info"]
+
+            subproc_constants[key] = info
+
+        pipeline_tree["constants"].update(subproc_constants)
 
         # 渲染父任务中的参数
         constants = pipeline_tree.get("constants", {})
