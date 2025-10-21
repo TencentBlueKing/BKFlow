@@ -940,7 +940,6 @@
         }
       },
       async nodeTaskSkip(id, subflowInfo, isTopSubflow) {
-        console.log('subflowInfo', subflowInfo);
         if (this.pending.skip) {
           return;
         }
@@ -960,7 +959,6 @@
               theme: 'success',
             });
             if (subflowInfo.taskId || isTopSubflow) {
-              console.log('跳过-获取子流程信息', subflowInfo);
               this.$refs.executeInfo.setTaskStatusTimer();
             } else {
               this.nodeInfoType = '';
@@ -1213,7 +1211,6 @@
                   message: i18n.t('重试成功'),
                   theme: 'success',
                 });
-                console.log('重试成功--', resp);
                 if (subflowInfo?.taskId || isTopSubflow) {
                   this.$refs.executeInfo.setTaskStatusTimer();
                 }

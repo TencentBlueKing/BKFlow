@@ -1253,7 +1253,6 @@
         }
       },
       onSkipClick() {
-        console.log('this.nodeDetailConfig', this.nodeDetailConfig);
          if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onSkipClick', this.nodeDetailConfig.node_id, this.getEmitParams);
         } else {
