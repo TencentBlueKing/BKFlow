@@ -65,7 +65,7 @@
 <script>
   import permission from '@/mixins/permission.js';
   import NoData from '@/components/common/base/NoData.vue';
-
+  import { mapState } from 'vuex';
   export default {
     name: 'Subflow',
     components: {
@@ -100,6 +100,9 @@
       };
     },
     computed: {
+      ...mapState({
+        scopeInfo: state => state.template.scopeInfo,
+       }),
       tableList() {
         // 除流程克隆的情况，流程列表中需要过滤掉url中template_id对应的流程
         if (this.$route.params.type === 'clone') {
@@ -141,6 +144,7 @@
             limit: this.limit,
             offset: (this.crtPage - 1) * this.limit,
             name__icontains: this.searchStr,
+            ...this.scopeInfo, // 作用域
           };
           const resp = await this.$store.dispatch('templateList/loadTemplateList', data);
           const result = [];

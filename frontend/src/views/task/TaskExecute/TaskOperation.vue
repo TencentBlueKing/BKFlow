@@ -106,6 +106,7 @@
           @packUp="packUp" />
         <ExecuteInfo
           v-if="nodeInfoType === 'executeInfo' || nodeInfoType === 'viewNodeDetails'"
+          ref="executeInfo"
           :state="state"
           :node-data="nodeData"
           :node-nav="nodeNav"
@@ -354,7 +355,7 @@
       parentTaskInfo: {
         type: Object,
         default: () => ({}),
-      }
+      },
     },
     data() {
       const $this = this;
@@ -449,6 +450,7 @@
           EmptyStartEvent: 'empty-start-event',
           SubProcess: 'task',
         },
+        subflowInfo: {} // 子流程根节点id和任务id
       };
     },
     computed: {
@@ -470,7 +472,7 @@
         return this.completePipelineData.location.some(item => item.type === 'subflow');
       },
       canvasData() {
-        const { line, location, activities } = { ... tools.deepClone(this.instanceFlow)};
+        const { line, location, activities } = { ... tools.deepClone(this.instanceFlow) };
         const locations = location.map((item) => {
           const code = item.type === 'tasknode' ? activities[item.id].component.code : '';
           const mode = this.hasOperatePerm ? 'execute' : '';
@@ -937,7 +939,7 @@
           this.pending.task = false;
         }
       },
-      async nodeTaskSkip(id) {
+      async nodeTaskSkip(id, subflowInfo, isTopSubflow) {
         if (this.pending.skip) {
           return;
         }
@@ -946,21 +948,25 @@
         this.isFailedSubproceeNodeInfo = null;
         try {
           const data = {
-            instance_id: this.instanceId,
+            instance_id: subflowInfo?.taskId || this.instanceId,
             node_id: id,
             operation: 'skip',
           };
           const res = await this.instanceNodeOperate(data);
           if (res.result) {
-            this.isNodeInfoPanelShow = false;
-            this.nodeInfoType = '';
             this.$bkMessage({
               message: i18n.t('跳过成功'),
               theme: 'success',
             });
+            if (subflowInfo.taskId || isTopSubflow) {
+              this.$refs.executeInfo.setTaskStatusTimer();
+            } else {
+              this.nodeInfoType = '';
+              this.isNodeInfoPanelShow = false;
+            }
             setTimeout(() => {
-              this.setTaskStatusTimer();
-            }, 1000);
+                this.setTaskStatusTimer();
+              }, 1000);
           }
         } catch (e) {
           console.log(e);
@@ -968,14 +974,14 @@
           this.pending.skip = false;
         }
       },
-      async nodeForceFail(id) {
+      async nodeForceFail(id, subflowInfo) {
         if (this.pending.forceFail) {
           return;
         }
         this.pending.forceFail = true;
         try {
           const params = {
-            instance_id: this.instanceId,
+            instance_id: subflowInfo?.taskId || this.instanceId,
             node_id: id,
             operation: 'forced_fail',
           };
@@ -985,8 +991,13 @@
               message: i18n.t('强制终止执行成功'),
               theme: 'success',
             });
-            this.isNodeInfoPanelShow = false;
-            this.nodeInfoType = '';
+            // this.nodeInfoType = '';
+            if (subflowInfo?.taskId) {
+              this.$refs.executeInfo.setTaskStatusTimer();
+            } else {
+              this.nodeInfoType = '';
+              this.isNodeInfoPanelShow = false;
+            }
             setTimeout(() => {
               this.setTaskStatusTimer();
             }, 1000);
@@ -1016,14 +1027,14 @@
           this.pending.selectGateway = false;
         }
       },
-      async nodeResume(id) {
+      async nodeResume(id, subflowInfo) {
         if (this.pending.parseNodeResume) {
           return;
         }
         this.pending.parseNodeResume = true;
         try {
           const data = {
-            instance_id: this.instanceId,
+            instance_id: subflowInfo?.taskId || this.instanceId,
             node_id: id,
             operation: 'callback',
             data: { data: {} },
@@ -1034,8 +1045,13 @@
               message: i18n.t('继续成功'),
               theme: 'success',
             });
-            this.isNodeInfoPanelShow = false;
-            this.nodeInfoType = '';
+            // this.nodeInfoType = '';
+            if (subflowInfo?.taskId) {
+              this.$refs.executeInfo.setTaskStatusTimer();
+            } else {
+              this.nodeInfoType = '';
+              this.isNodeInfoPanelShow = false;
+            }
             setTimeout(() => {
               this.setTaskStatusTimer();
             }, 1000);
@@ -1162,7 +1178,7 @@
           }
         }
       },
-      async onRetryClick(id) {
+      async onRetryClick(id, subflowInfo, isTopSubflow = false) {
         try {
           const h = this.$createElement;
           this.$bkInfo({
@@ -1185,7 +1201,7 @@
             confirmLoading: true,
             confirmFn: async () => {
               const resp = await this.instanceNodeOperate({
-                instance_id: this.instanceId,
+                instance_id: subflowInfo?.taskId || this.instanceId,
                 node_id: id,
                 operation: 'retry',
                 data: {},
@@ -1195,6 +1211,9 @@
                   message: i18n.t('重试成功'),
                   theme: 'success',
                 });
+                if (subflowInfo?.taskId || isTopSubflow) {
+                  this.$refs.executeInfo.setTaskStatusTimer();
+                }
                 // 重新轮询任务状态
                 this.isFailedSubproceeNodeInfo = null;
                 this.setTaskStatusTimer();
@@ -1275,14 +1294,14 @@
           console.warn(e);
         }
       },
-      onSkipClick(id) {
+      onSkipClick(id, subflowInfo, isTopSubflow) {
         this.$bkInfo({
           title: i18n.t('确定跳过当前节点?'),
           subTitle: i18n.t('跳过节点将忽略当前失败节点继续往后执行'),
           maskClose: false,
           confirmLoading: true,
           confirmFn: async () => {
-            await this.nodeTaskSkip(id);
+            await this.nodeTaskSkip(id, subflowInfo, isTopSubflow);
           },
         });
       },
@@ -1335,18 +1354,19 @@
           this.pending.retry = false;
         }
       },
-      onForceFailClick(id) {
+      onForceFailClick(id, subflowInfo) {
         this.$bkInfo({
           title: i18n.t('确定强制终止当前节点?'),
           subTitle: i18n.t('强制终止将强行修改节点状态为失败，但不会中断已经发送到其它系统的请求'),
           maskClose: false,
           confirmLoading: true,
           confirmFn: async () => {
-            await this.nodeForceFail(id);
+            await this.nodeForceFail(id, subflowInfo);
           },
         });
       },
-      onModifyTimeClick(id) {
+      onModifyTimeClick(id, subflowInfo) {
+        this.subflowInfo = subflowInfo;
         this.openNodeInfoPanel('modifyTime', i18n.t('修改时间'));
         this.setNodeDetailConfig(id);
       },
@@ -1373,13 +1393,13 @@
         this.gatewayBranches = branches;
         this.isGatewaySelectDialogShow = true;
       },
-      onTaskNodeResumeClick(id) {
+      onTaskNodeResumeClick(id, subflowInfo) {
         this.$bkInfo({
           title: i18n.t('确定继续往后执行?'),
           maskClose: false,
           confirmLoading: true,
           confirmFn: async () => {
-            await this.nodeResume(id);
+            await this.nodeResume(id, subflowInfo);
           },
         });
       },

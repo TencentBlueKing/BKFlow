@@ -77,7 +77,7 @@ export const graphToJson = (canvasData) => {
     startpoint: 'start',
     endpoint: 'end',
     tasknode: 'task',
-    subflow: 'SubProcess', // 最终画布node.getData()的type
+    subflow: 'subflow', // 最终画布node.getData()的type
     branchgateway: 'branch-gateway',
     parallelgateway: 'parallel-gateway',
     conditionalparallelgateway: 'conditional-parallel-gateway',
