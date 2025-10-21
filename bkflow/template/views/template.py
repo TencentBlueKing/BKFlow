@@ -131,6 +131,11 @@ class AdminTemplateViewSet(AdminModelViewSet):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+        scope_value = request.query_params.get("scope_value")
+        scope_type = request.query_params.get("scope_type")
+        if scope_type is None and scope_value is None:
+            queryset = queryset.filter(scope_type__isnull=True, scope_value__isnull=True)
+
         page = self.paginate_queryset(queryset)
 
         serializer = self.get_serializer(page if page is not None else queryset, many=True)

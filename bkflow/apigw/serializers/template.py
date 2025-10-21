@@ -64,6 +64,11 @@ class CreateTemplateSerializer(TemplateBaseSerializer):
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
 
     def validate(self, attrs):
+        scope_type = attrs.get("scope_type")
+        scope_value = attrs.get("scope_value")
+
+        if (scope_type is not None) != (scope_value is not None):
+            raise serializers.ValidationError(_("作用域类型和作用域值必须同时填写，或同时不填写"))
 
         source_template_id = attrs.get("source_template_id")
         if source_template_id:
