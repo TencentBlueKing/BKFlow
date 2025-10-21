@@ -12,6 +12,7 @@ const LAYOUT_CONFIG = {
 const NODE_SIZES = {
   ServiceActivity: { width: 154, height: 54 },
   default: { width: 34, height: 34 },
+  SubProcess: { width: 154, height: 54 },
 };
 
 // 节点类型映射
@@ -23,6 +24,7 @@ const NODE_TYPE_MAPPING = {
   ParallelGateway: 'parallelgateway',
   ConditionalParallelGateway: 'conditionalparallelgateway',
   ConvergeGateway: 'convergegateway',
+  SubProcess: 'subflow'
 };
 
 // 状态管理

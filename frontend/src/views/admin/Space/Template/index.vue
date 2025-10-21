@@ -220,7 +220,6 @@
             type="exclamation"
             class="del-error-icon dialog-icon" />
           <div
-            v-if="referencedProcessList.length>0"
             class="title-text">
             {{ $t('删除失败') }}
           </div>
@@ -238,12 +237,12 @@
               prop="name">
               <template slot-scope="props">
                 <div class="reference-list">
-                  <span>{{ props.row.name }}</span>
+                  <span>{{ props.row.root_template_name }}</span>
                   <router-link
                     :to="{
                       name: 'templatePanel',
                       params: {
-                        templateId: props.row.id,
+                        templateId: props.row.root_template_id,
                         type: 'view'
                       }
                     }">
@@ -657,17 +656,10 @@
         });
       },
       async onDeleteConfirm(template) {
+        this.referencedProcessList = [];
         if (this.deleting) return;
         this.deleting = true;
-        if (template.subprocess_info.length > 0) {
-          this.isShowDelDialog = true;
-          this.deleting = false;
-          this.referencedProcessList = template.subprocess_info.map(item => ({
-              id: item.subprocess_template_id,
-              name: item.subprocess_template_name,
-            }));
-          return;
-        }
+
         try {
           const data = {
             space_id: this.spaceId,
@@ -675,6 +667,11 @@
           };
           const resp = await this.deleteTemplate(data);
           if (resp.result === false) {
+            if(resp.data.sub_root_map){
+              for (const i in resp.data.sub_root_map) {
+                this.referencedProcessList.push(...resp.data.sub_root_map[i])
+              }
+            }
             this.isShowDelDialog = true;
             return;
           };

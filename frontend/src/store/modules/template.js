@@ -337,8 +337,8 @@ const template = {
         subprocess_info: subprocessInfo,
         default_flow_type: defaultFlowType,
         space_id: spaceId,
-        scope_type,
-        scope_value,
+        scope_type, // 作用域类型
+        scope_value, // 作用域值
         triggers,
       } = data;
 

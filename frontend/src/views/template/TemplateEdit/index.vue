@@ -638,7 +638,6 @@
           }
           this.compVersion = templateData.version;
           this.tplSpaceId = templateData.space_id;
-          // 暂时写死数据便于开发 mock的模板树pinplineTree
           this.setTemplateData(templateData);
           this.setSpaceId(templateData.space_id);
         } catch (e) {
@@ -1871,7 +1870,6 @@
       },
       // 查看需要更新的子流程
       viewUpdatedNode(id) {
-        console.log('查看需要更新的子流程', id);
         this.moveNodeToView(id);
         this.showDotAnimation(id);
       },
@@ -1927,7 +1925,7 @@
       },
       // 关闭所有子流程更新的小红点动画效果
       clearDotAnimation() {
-        const updateNodesDot = document.querySelectorAll('.subflow-node .updated-dot');
+        const updateNodesDot = document.querySelectorAll('.subprocess-node .updated-dot');
         updateNodesDot.forEach((item) => {
           item.classList.remove('show-animation');
         });

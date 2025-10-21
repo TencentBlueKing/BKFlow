@@ -440,6 +440,15 @@
       subProcessTaskId() { // 独立子流程节点的任务id
         return this.nodeDetailConfig.instance_id;
       },
+      getEmitParams() {
+        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+          return {
+            taskId: this.nodeDetailConfig.instance_id,
+            subflowRootId: this.subCanvasData.id,
+          };
+        }
+        return null;
+      },
     },
     watch: {
       nodeDetailConfig: {
@@ -516,7 +525,8 @@
       setTaskStatusTimer(time = 3000) {
           this.cancelTaskStatusTimer();
           this.timer = setTimeout(() => {
-              this.loadSubprocessStatus();
+            this.loadSubprocessStatus();
+            this.updateSubflowCanvasNodeInfo();
           }, time);
       },
       cancelTaskStatusTimer() {
@@ -1155,7 +1165,6 @@
           // 获取记录详情
           await this.onSelectExecuteRecord(this.historyInfo.length, this.historyInfo);
           this.executeInfo.name = this.location.name || NODE_DICT[this.location.type];
-
           const taskInfo = respData.outputsInfo.find(item => item.key === 'task_id') || {};
           this.currentSubflowTaskId = taskInfo.value || ''; // 子流程的任务id
           // isNodeInSubflow
@@ -1163,7 +1172,8 @@
           this.executeInfo.plugin_version = this.isThirdPartyNode ? respData.inputs.plugin_version : version;
           // 获取执行失败节点是否允许跳过，重试状态
           if (this.realTimeState.state === 'FAILED') {
-            const activity = this.pipelineData.activities[nodeId];
+            const activityCollection = Object.assign({}, this.subCanvsActivityCollection, this.pipelineData.activities);
+            const activity = activityCollection[nodeId];
             this.isShowSkipBtn = this.location.type === 'tasknode' && activity.skippable;
             this.isShowRetryBtn = this.location.type === 'tasknode' ? activity.retryable : false;
           } else {
@@ -1235,19 +1245,42 @@
         this.$emit('onClickTreeNode', selectNodeId, nodeType, node);
       },
       onRetryClick() {
-        this.$emit('onRetryClick', this.nodeDetailConfig.node_id);
+        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+          this.$emit('onRetryClick', this.nodeDetailConfig.node_id, this.getEmitParams);
+        } else {
+          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin'
+          this.$emit('onRetryClick', this.nodeDetailConfig.node_id, null, isTopSubflow);
+        }
       },
       onSkipClick() {
-        this.$emit('onSkipClick', this.nodeDetailConfig.node_id);
+        console.log('this.nodeDetailConfig', this.nodeDetailConfig);
+         if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+          this.$emit('onSkipClick', this.nodeDetailConfig.node_id, this.getEmitParams);
+        } else {
+          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin'
+          this.$emit('onSkipClick', this.nodeDetailConfig.node_id, null, isTopSubflow);
+        }
       },
       onResumeClick() {
-        this.$emit('onTaskNodeResumeClick', this.nodeDetailConfig.node_id);
+        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+          this.$emit('onTaskNodeResumeClick', this.nodeDetailConfig.node_id, this.getEmitParams);
+        } else {
+          this.$emit('onTaskNodeResumeClick', this.nodeDetailConfig.node_id, null);
+        }
       },
       onModifyTimeClick() {
-        this.$emit('onModifyTimeClick', this.nodeDetailConfig.node_id);
+        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+          this.$emit('onModifyTimeClick', this.nodeDetailConfig.node_id, this.getEmitParams);
+        } else {
+          this.$emit('onModifyTimeClick', this.nodeDetailConfig.node_id, null);
+        }
       },
       mandatoryFailure() {
-        this.$emit('onForceFail', this.nodeDetailConfig.node_id);
+        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+          this.$emit('onForceFail', this.nodeDetailConfig.node_id, this.getEmitParams);
+        } else {
+          this.$emit('onForceFail', this.nodeDetailConfig.node_id, null);
+        }
       },
     },
   };
