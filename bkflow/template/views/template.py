@@ -133,7 +133,8 @@ class AdminTemplateViewSet(AdminModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         scope_value = request.query_params.get("scope_value")
         scope_type = request.query_params.get("scope_type")
-        if scope_type is None and scope_value is None:
+        empty_scope = request.query_params.get("empty_scope")
+        if scope_type is None and scope_value is None and empty_scope:
             queryset = queryset.filter(scope_type__isnull=True, scope_value__isnull=True)
 
         page = self.paginate_queryset(queryset)
