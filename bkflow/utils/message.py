@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,24 +20,46 @@ import json
 import logging
 
 from bkflow.conf import settings
+from bkflow.utils.handlers import handle_api_error
 
 get_client_by_user = settings.ESB_GET_CLIENT_BY_USER
 
 logger = logging.getLogger("root")
 
 
-def send_message(executor: str, notify_type: list, receivers: str, title: str, content: str):
+def send_message(executor: str, notify_types: list, receivers: str, title: str, content: str):
     client = get_client_by_user(executor)
-    kwargs = {
+    base_kwargs = {
         "receiver__username": receivers,
         "title": title,
         "content": content,
     }
-    for msg_type in notify_type:
-        kwargs.update({"msg_type": msg_type})
-        send_result = client.cmsi.send_msg(kwargs)
-        if not send_result["result"]:
-            logger.error(
-                "send message failed, kwargs={}, result={}".format(json.dumps(kwargs), json.dumps(send_result))
+
+    has_error = False
+    error_message = ""
+    for notify_type in notify_types:
+        if notify_type == "voice":
+            kwargs = {
+                "receiver__username": base_kwargs["receiver__username"],
+                "auto_read_message": "{},{}".format(title, content),
+            }
+            result = client.cmsi.send_voice_msg(kwargs)
+        else:
+            kwargs = {"msg_type": notify_type, **base_kwargs}
+            # 保留通知内容中的换行和空格
+            if notify_type == "mail":
+                kwargs["content"] = "<pre>%s</pre>" % kwargs["content"]
+            result = client.cmsi.send_msg(kwargs)
+
+        if not result["result"]:
+            message = handle_api_error(
+                "cmsi",
+                "cmsi.send_voice_msg" if notify_type == "voice" else "cmsi.send_msg",
+                kwargs,
+                result,
             )
-    return True
+            logger.error("send message failed, kwargs={}, result={}".format(json.dumps(kwargs), json.dumps(result)))
+            has_error = True
+            error_message = f"{message};{error_message}"
+
+    return has_error, error_message
