@@ -321,8 +321,13 @@
   };
 </script>
 <style lang="scss" scoped>
-@import '../../../scss/task.scss';
 @import '../../../scss/config.scss';
+@mixin status-icon-style($color) {
+  display: inline-block;
+  font-size: 12px;
+  color: $color;
+  vertical-align: middle;
+}
 
 .operation-header {
     display: flex;
@@ -537,7 +542,40 @@
 }
 
 .sub-task-btns{
-  @include ui-task-status;
+  text-align: left;
+  .icon-clock-shape {
+    @include status-icon-style(#979ba5);
+  }
+  .common-icon-dark-circle-shape {
+    @include status-icon-style(#979ba5);
+  }
+  .common-icon-dark-circle-ellipsis {
+    @include status-icon-style(#3a84ff);
+  }
+  .icon-check-circle-shape {
+    @include status-icon-style(#30d878);
+  }
+  .common-icon-dark-circle-close {
+    @include status-icon-style(#ff5757);
+  }
+  .common-icon-dark-circle-pause {
+    @include status-icon-style(#ff9c01);
+  }
+  .common-icon-waitting {
+    @include status-icon-style(#979ba5);
+  }
+  .common-icon-dark-stop {
+    @include status-icon-style(#ea3636);
+  }
+  &.revoke {
+    color: #878c9c;
+  }
+  .common-icon-loading {
+    display: inline-block;
+    vertical-align: middle;
+    animation: bk-button-loading 1.4s infinite linear;
+  }
+
   display: flex;
   align-items: center;
   align-content: center;
