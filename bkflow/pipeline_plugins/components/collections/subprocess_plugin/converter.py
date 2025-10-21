@@ -13,7 +13,7 @@ import copy
 
 
 class PipelineTreeSubprocessConverter:
-    CONVERT_FIELDS = {"template_id", "version", "always_use_latest"}
+    CONVERT_FIELDS = {"template_id", "version", "always_use_latest", "constants"}
     REMAIN_FIELDS = {
         "id",
         "name",
