@@ -16,46 +16,29 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from blueapps.core.exceptions.base import BlueException
+from typing import List
+
+from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
+from pipeline.core.flow.io import StringItemSchema
+
+from bkflow.pipeline_plugins.variables.base import (
+    CommonPlainVariable,
+    FieldExplain,
+    SelfExplainVariable,
+    Type,
+)
 
 
-class BKFLOWException(BlueException):
-    ERROR_CODE = None
-    MESSAGE = None
-    STATUS_CODE = 500
+class Credential(CommonPlainVariable, SelfExplainVariable):
+    code = "credential"
+    name = _("凭证")
+    type = "meta"
+    tag = "credential.credential"
+    meta_tag = "credential.credential_meta"
+    form = "{}variables/{}.js".format(settings.STATIC_URL, code)
+    schema = StringItemSchema(description=_("输入凭证"))
 
-    def __init__(self, message="", code=None, errors=None):
-        self.code = code or "0000000"
-        self.data = errors or {}
-        self.message = f"{self.MESSAGE}: {message}" if self.MESSAGE else f"{message}"
-
-    def __str__(self):
-        return self.message
-
-
-class ValidationError(BKFLOWException):
-    pass
-
-
-class NotFoundError(BKFLOWException):
-    pass
-
-
-class UnknownError(BKFLOWException):
-    pass
-
-
-class UserNotFound(BKFLOWException):
-    pass
-
-
-class APIRequestError(BKFLOWException):
-    STATUS_CODE = 400
-
-
-class APIResponseError(BKFLOWException):
-    pass
-
-
-class PluginUnAuthorization(BKFLOWException):
-    pass
+    @classmethod
+    def _self_explain(cls, **kwargs) -> List[FieldExplain]:
+        return [FieldExplain(key="${KEY}", type=Type.STRING, description="用户选择的凭证值")]
