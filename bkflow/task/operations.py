@@ -615,6 +615,9 @@ class TaskNodeOperation:
                 if node_info["type"] == "SubProcess":
                     # remove prefix '${' and subfix '}' in subprocess execution input
                     inputs = {k[2:-1]: v for k, v in preview_result.data.items()}
+                elif node_info["type"] == "ServiceActivity" and node_code == "subprocess_plugin":
+                    raw_inputs = preview_result.data["subprocess"]["constants"]
+                    inputs = {k[2:-1]: v.get("value") for k, v in raw_inputs.items()}
                 else:
                     inputs = preview_result.data
 
