@@ -76,8 +76,10 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(str(e))
 
         constants = value.pop("constants", {})
+        credentials = value.pop("credentials", {})
         pipeline_tree = value.get("pipeline_tree")
         try:
+            # 处理constants
             for key, c_value in constants.items():
                 if key not in pipeline_tree.get("constants", {}):
                     continue
@@ -85,6 +87,12 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
                     meta = copy.deepcopy(pipeline_tree["constants"][key])
                     pipeline_tree["constants"][key]["meta"] = meta
                 pipeline_tree["constants"][key]["value"] = c_value
+
+            # 处理credentials - 如果有credentials参数但pipeline_tree中还没有credentials字段，添加它
+            # 注意：在apigw视图中已经解析了credentials，这里只是确保它们被保留
+            if credentials and "credentials" not in pipeline_tree:
+                pipeline_tree["credentials"] = credentials
+
             standardize_pipeline_node_name(pipeline_tree)
             validate_web_pipeline_tree(pipeline_tree)
         except PipelineException as e:

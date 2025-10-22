@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,7 +21,7 @@ import logging
 import django_filters
 from blueapps.account.decorators import login_exempt
 from django.conf import settings
-from django.db import DatabaseError
+from django.db import DatabaseError, transaction
 from django.db.models import Q
 from django.utils.decorators import method_decorator
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet
@@ -37,15 +36,20 @@ from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.serializers.credential import (
     CreateCredentialSerializer,
+    CredentialScopesChangeSerializer,
+    CredentialScopeSerializer,
+    CredentialSerializer,
     UpdateCredentialSerializer,
 )
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
 from bkflow.exceptions import APIRequestError
 from bkflow.space.configs import ApiGatewayCredentialConfig, SpaceConfigHandler
+from bkflow.space.credential.scope_validator import filter_credentials_by_scope
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import (
     Credential,
+    CredentialScope,
     CredentialType,
     Space,
     SpaceConfig,
@@ -54,7 +58,6 @@ from bkflow.space.models import (
 from bkflow.space.permissions import SpaceExemptionPermission, SpaceSuperuserPermission
 from bkflow.space.serializers import (
     CredentialBaseQuerySerializer,
-    CredentialSerializer,
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
     SpaceConfigSerializer,
@@ -63,6 +66,7 @@ from bkflow.space.serializers import (
 from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
 from bkflow.utils.mixins import BKFLOWDefaultPagination
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
+from bkflow.utils.serializer import params_valid
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet
 
 logger = logging.getLogger("root")
@@ -81,6 +85,20 @@ class CredentialViewSet(AdminModelViewSet):
     permission_classes = [AdminPermission | AppInternalPermission]
     filter_backends = [DjangoFilterBackend]
     filter_class = CredentialFilterSet
+
+    def get_queryset(self):
+        """根据作用域过滤凭证"""
+        queryset = super().get_queryset()
+
+        # 从查询参数获取作用域信息
+        scope_type = self.request.query_params.get("scope_type")
+        scope_value = self.request.query_params.get("scope_value")
+
+        # 如果提供了作用域信息，过滤凭证
+        if scope_type or scope_value:
+            queryset = filter_credentials_by_scope(queryset, scope_type, scope_value)
+
+        return queryset
 
     @action(detail=False, methods=["GET"])
     def get_api_gateway_credential(self, request, *args, **kwargs):
@@ -142,7 +160,7 @@ class SpaceViewSet(AdminModelViewSet):
                 raise APIException(f"{request.user.username} is not the developer of the app {app_code}")
 
         request.data.update({"create_type": SpaceCreateType.WEB.value, "creator": request.user.username})
-        response = super(SpaceViewSet, self).create(request, *args, **kwargs)
+        response = super().create(request, *args, **kwargs)
         if response.status_code == status.HTTP_201_CREATED:
             SpaceConfig.objects.batch_update(
                 space_id=response.data.get("id"), configs={"superusers": [request.user.username]}
@@ -344,15 +362,31 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         serializer = CredentialBaseQuerySerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=True)
         space_id = serializer.validated_data.get("space_id")
+
         try:
-            credential = Credential.create_credential(
-                space_id=space_id,
-                name=credential_data["name"],
-                type=credential_data["type"],
-                content=credential_data["content"],
-                creator=request.user.username,
-                desc=credential_data.get("desc"),
-            )
+            with transaction.atomic():
+                credential = Credential.create_credential(
+                    space_id=space_id,
+                    name=credential_data["name"],
+                    type=credential_data["type"],
+                    content=credential_data["content"],
+                    creator=request.user.username,
+                    desc=credential_data.get("desc"),
+                )
+
+                # 创建凭证作用域
+                scopes = credential_data.get("scopes", [])
+                if scopes:
+                    scope_objects = [
+                        CredentialScope(
+                            credential_id=credential.id,
+                            scope_type=scope.get("scope_type"),
+                            scope_value=scope.get("scope_value"),
+                        )
+                        for scope in scopes
+                    ]
+                    CredentialScope.objects.bulk_create(scope_objects)
+
         except DatabaseError as e:
             err_msg = f"创建凭证失败 {str(e)}"
             logger.error(err_msg)
@@ -371,13 +405,33 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         serializer = UpdateCredentialSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        for attr, value in serializer.validated_data.items():
-            setattr(instance, attr, value)
-
-        instance.updated_by = request.user.username
-        updated_keys = list(serializer.validated_data.keys()) + ["updated_by", "update_at"]
         try:
-            instance.save(update_fields=updated_keys)
+            with transaction.atomic():
+                # 更新凭证基本信息
+                scopes_data = serializer.validated_data.pop("scopes", None)
+                for attr, value in serializer.validated_data.items():
+                    setattr(instance, attr, value)
+
+                instance.updated_by = request.user.username
+                updated_keys = list(serializer.validated_data.keys()) + ["updated_by", "update_at"]
+                instance.save(update_fields=updated_keys)
+
+                # 更新凭证作用域
+                if scopes_data is not None:
+                    # 删除旧的作用域
+                    CredentialScope.objects.filter(credential_id=instance.id).delete()
+                    # 创建新的作用域
+                    if scopes_data:
+                        scope_objects = [
+                            CredentialScope(
+                                credential_id=instance.id,
+                                scope_type=scope.get("scope_type"),
+                                scope_value=scope.get("scope_value"),
+                            )
+                            for scope in scopes_data
+                        ]
+                        CredentialScope.objects.bulk_create(scope_objects)
+
         except DatabaseError as e:
             err_msg = f"更新凭证失败 {str(e)}"
             logger.error(err_msg)
@@ -385,6 +439,49 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         # 序列化更新后的对象
         response_serializer = CredentialSerializer(instance)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["put", "patch"])
+    @params_valid(CredentialScopesChangeSerializer)
+    def update_scopes(self, request, pk=None, params=None):
+        """更新凭证作用域"""
+        try:
+            instance = self.get_object()
+        except Credential.DoesNotExist as e:
+            err_msg = f"更新凭证不存在 {str(e)}"
+            logger.error(err_msg)
+            return Response(err_msg, status=404)
+
+        # 验证scopes数据
+        params = params or {}
+        if params.get("unlimited"):
+            scopes_data = [{"scope_type": None, "scope_value": None}]
+        else:
+            scopes_data = params.get("scopes", [])
+
+        try:
+            with transaction.atomic():
+                # 删除旧的作用域
+                CredentialScope.objects.filter(credential_id=instance.id).delete()
+                # 创建新的作用域
+                scope_objects = [
+                    CredentialScope(
+                        credential_id=instance.id,
+                        scope_type=scope.get("scope_type"),
+                        scope_value=scope.get("scope_value"),
+                    )
+                    for scope in scopes_data
+                ]
+                CredentialScope.objects.bulk_create(scope_objects)
+        except DatabaseError as e:
+            err_msg = f"更新凭证作用域失败 {str(e)}"
+            logger.error(err_msg)
+            return Response(exception=True, data={"detail": err_msg})
+
+        # 返回更新后的凭证信息
+        credential_scopes = []
+        for scope_object in scope_objects:
+            credential_scopes.append(CredentialScopeSerializer(scope_object).data)
+        return Response(credential_scopes, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
         try:

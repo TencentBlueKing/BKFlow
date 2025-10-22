@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -33,6 +32,7 @@ class CreateTaskSerializer(serializers.Serializer):
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     description = serializers.CharField(help_text=_("任务描述"), required=False)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    credentials = serializers.JSONField(help_text=_("任务凭证"), required=False, default={})
 
 
 class TaskMockDataSerializer(serializers.Serializer):
@@ -49,6 +49,7 @@ class CreateMockTaskBaseSerializer(serializers.Serializer):
     mock_data = TaskMockDataSerializer(help_text=_("Mock 数据"), default=TaskMockDataSerializer())
     description = serializers.CharField(help_text=_("任务描述"), required=False)
     constants = serializers.JSONField(help_text=_("任务启动参数"), default={})
+    credentials = serializers.JSONField(help_text=_("任务凭证"), required=False, default={})
 
 
 class CreateMockTaskWithPipelineTreeSerializer(CreateMockTaskBaseSerializer):
@@ -87,6 +88,7 @@ class CreateTaskWithoutTemplateSerializer(serializers.Serializer):
     scope_value = serializers.CharField(help_text=_("任务范围值"), max_length=128, required=False)
     description = serializers.CharField(help_text=_("任务描述"), required=False)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    credentials = serializers.JSONField(help_text=_("任务凭证"), required=False, default={})
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
     notify_config = serializers.JSONField(help_text=_("通知配置"), required=False, default={})
 
