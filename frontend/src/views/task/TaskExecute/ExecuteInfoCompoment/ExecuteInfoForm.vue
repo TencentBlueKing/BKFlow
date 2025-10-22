@@ -384,12 +384,12 @@
             tplConfig = await this.getNodeSnapshotConfig(this.currentNodeDetailConfig);
           }
           this.templateConfig = tplConfig.data || { ...this.nodeActivity, isOldData: true } || {};
-          if (this.nodeActivity.type === 'SubProcess') return;
+          // if (this.nodeActivity.type === 'SubProcess') return;
           if (this.isSubProcessNode) { // 子流程任务节点
             // tplConfig.data为null为该功能之前的旧数据，没有original_template_id字段的，不调接口
-            if (!tplConfig.data || !this.nodeActivity.original_template_id) {
-              return;
-            }
+            // if (!tplConfig.data || !this.nodeActivity.original_template_id) {
+            //   return;
+            // }
             const forms = {};
             const renderConfig = {};
             const constants = this.templateConfig.constants || {};
@@ -466,15 +466,11 @@
         this.subflowLoading = true;
         try {
           const params = {
-            template_id: this.componentValue.template_id,
-            scheme_id_list: this.nodeActivity.schemeIdList || [],
+            templateId: this.componentValue.template_id,
+            is_all_nodes: true,
             version,
           };
-          if (this.componentValue.template_source === 'common') {
-            params.template_source = 'common';
-          } else {
-            params.project_id = this.project_id;
-          }
+          params.project_id = this.project_id;
           const resp = await this.loadSubflowConfig(params);
           // 子流程的输入参数包括流程引用的变量、自定义变量和未被引用的变量
           this.subflowForms = {
@@ -482,7 +478,6 @@
             ...resp.data.custom_constants,
             ...resp.data.constants_not_referred,
           };
-
           // 输出变量
           this.outputs = Object.keys(resp.data.outputs).map((item) => {
             const output = resp.data.outputs[item];

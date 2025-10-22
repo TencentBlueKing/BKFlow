@@ -72,7 +72,7 @@
           :space-id="spaceId"
           :template-id="templateId"
           :is-sub-process-node="isSubProcessNode"
-          :constants="pipelineData.constants"
+          :constants="currentExecuteRecord.constants"
           @updateOutputs="updateOutputs" />
         <!-- 配置快照 -->
         <ExecuteInfoForm

@@ -514,7 +514,11 @@
             const resp = await this.getInstanceStatus(data);
             this.subflowState = resp.data.state;
             this.subflowNodeStatus = resp.data.children || {};
-            this.setTaskStatusTimer();
+            if (['FINISHED', 'REVOKED', 'FAILED'].includes(resp.data.state)) {
+               this.cancelTaskStatusTimer();
+            } else {
+              this.setTaskStatusTimer();
+            }
         } catch (error) {
             console.warn(error);
         } finally {
@@ -555,7 +559,7 @@
       //   const canvasInstance = this.$refs.subProcessCanvas.graph;
       //   canvasInstance?.zoom(this.zoom);
       // },
-      // 获取节点配置
+      // 获取外层画布节点配置
       getNodeDetailConfig(node, instanceId) {
           const { id, parent } = node;
           const { pipelineData } = this;
@@ -739,7 +743,7 @@
       },
       // 补充记录缺少的字段
       async setFillRecordField(record) {
-        const { version, component_code: componentCode, componentData = {} } = this.nodeDetailConfig;
+        const { version, component_code: componentCode, componentData = {}, node_id: nodeId } = this.nodeDetailConfig;
         const { inputs, state } = record;
         let { outputs } = record;
         // 执行记录的outputs可能为Object格式，需要转为Array格式
@@ -762,7 +766,8 @@
         }
         let outputsInfo = [];
         const renderData = {};
-        const constants = {};
+        const activity = Object.assign({}, this.subCanvsActivityCollection, this.pipelineData.activities);
+        let { constants } = this.pipelineData;
         let inputsInfo = inputs;
         let failInfo = '';
         // 添加插件输出表单所需上下文
@@ -771,7 +776,7 @@
         $.context.output_form.state = state;
         // 获取子流程配置详情
         if (componentCode === 'subprocess_plugin') {
-          const { constants } =  this.pipelineData;
+          constants = activity[nodeId].component.data.subprocess.value.constants;
           this.renderConfig = await this.getSubflowInputsConfig(constants);
         } else if (componentCode) { // 任务节点需要加载标准插件
           const pluginVersion = componentData.plugin_version?.value;
@@ -1004,7 +1009,7 @@
           if (variable.custom_type === 'select') {
             formItemConfig.attrs.allowCreate = true;
           }
-          formItemConfig.tag_code = key;
+          formItemConfig.tag_code = key.substring(2, key.length - 1);
           formItemConfig.attrs.name = variable.name;
           // 自定义输入框变量正则校验添加到插件配置项
           if (['input', 'textarea'].includes(variable.custom_type) && variable.validation !== '') {
@@ -1248,7 +1253,7 @@
         if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onRetryClick', this.nodeDetailConfig.node_id, this.getEmitParams);
         } else {
-          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin'
+          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin';
           this.$emit('onRetryClick', this.nodeDetailConfig.node_id, null, isTopSubflow);
         }
       },
@@ -1256,7 +1261,7 @@
          if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onSkipClick', this.nodeDetailConfig.node_id, this.getEmitParams);
         } else {
-          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin'
+          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin';
           this.$emit('onSkipClick', this.nodeDetailConfig.node_id, null, isTopSubflow);
         }
       },
