@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -533,7 +532,7 @@ class TaskNodeOperation:
         node_info = self._get_node_info(
             node_id=self.node_id, pipeline=self.task_instance.execution_data, subprocess_stack=subprocess_stack
         )
-
+        node_code = node_info.get("component", {}).get("code")
         if state:
             # 获取最新的执行数据
             if loop is None or int(loop) >= state[self.node_id]["loop"]:
@@ -551,6 +550,9 @@ class TaskNodeOperation:
                 if node_info["type"] == "SubProcess":
                     # remove prefix '${' and subfix '}' in subprocess execution input
                     inputs = {k[2:-1]: v for k, v in data["inputs"].items()}
+                elif node_info["type"] == "ServiceActivity" and node_code == "subprocess_plugin":
+                    raw_inputs = data["inputs"]["subprocess"]["constants"]
+                    inputs = {key[2:-1]: value.get("value") for key, value in raw_inputs.items()}
                 else:
                     inputs = data["inputs"]
                 outputs = data["outputs"]
