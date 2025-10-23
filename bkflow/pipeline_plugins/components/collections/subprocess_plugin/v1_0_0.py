@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from bkflow.constants import TaskOperationSource, TaskOperationType, TaskTriggerMethod
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
+from bkflow.task.models import TaskOperationRecord
 
 
 class Subprocess(BaseModel):
@@ -47,11 +48,7 @@ class SubprocessPluginService(Service):
         ]
 
     def execute(self, data, parent_data):
-        from bkflow.task.models import (
-            TaskFlowRelation,
-            TaskInstance,
-            TaskOperationRecord,
-        )
+        from bkflow.task.models import TaskFlowRelation, TaskInstance
         from bkflow.task.operations import TaskOperation
         from bkflow.task.utils import extract_extra_info
 
