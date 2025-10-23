@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 from collections import defaultdict
 
+import semver
 from blueapps.account.decorators import login_exempt
 from django.db import transaction
 from django.utils.decorators import method_decorator
@@ -162,7 +163,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         # 涉及到两张表的创建，需要那个开启事物，确保两张表全部都创建成功
         with transaction.atomic():
             username = request.user.username
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, space_id)
             template = Template.objects.create(
                 **ser.data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
             )
@@ -272,6 +273,30 @@ class AdminTemplateViewSet(AdminModelViewSet):
             logger.error(str(e))
             return Response(exception=True, data={"detail": str(e)})
         return Response(data={"template_id": template.id, "template_name": template.name})
+
+    @action(methods=["GET"], detail=True, url_path="retrieve_pipeline_tree")
+    def retrieve_pipeline_tree(self, request, *args, **kwargs):
+        version = request.query_params.get("version")
+        template = self.get_object()
+        pipeline_data = template.get_pipeline_tree_by_version(version)
+        return Response({"pipeline_tree": pipeline_data})
+
+    @action(methods=["POST"], detail=True, url_path="release_template")
+    def release_template(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        if not instance.version or not isinstance(instance.version, str):
+            raise ValidationError("模板当前版本号无效")
+
+        parsed_version = semver.VersionInfo.parse(instance.version)
+        new_version = parsed_version.bump_patch()
+
+        with transaction.atomic():
+            snapshot = instance.release_template(new_version)
+            instance.snapshot_id = snapshot.id
+            instance.save()
+
+        return Response(data={"template_id": instance.id})
 
 
 class TemplateViewSet(UserModelViewSet):
