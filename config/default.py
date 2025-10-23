@@ -137,6 +137,8 @@ PIPELINE_TEMPLATE_CONTEXT = "bkflow.template.context.get_template_context"
 PIPELINE_INSTANCE_CONTEXT = "bkflow.task.context.get_task_context"
 UUID_DIGIT_STARTS_SENSITIVE = True
 PIPELINE_EXCLUSIVE_GATEWAY_EXPR_FUNC = pipeline_gateway_expr_func
+PIPELINE_RERUN_MAX_TIMES = env.PIPELINE_RERUN_MAX_TIMES
+BAMBOO_DJANGO_ERI_NODE_RERUN_LIMIT = env.BAMBOO_DJANGO_ERI_NODE_RERUN_LIMIT
 
 # pipeline mako render settings
 MAKO_SANDBOX_SHIELD_WORDS = [
@@ -398,6 +400,16 @@ LANGUAGES = (
 # OTEL配置
 BK_APP_OTEL_INSTRUMENT_DB_API = True
 INSTALLED_APPS += ("blueapps.opentelemetry.instrument_app",)
+
+# 由于其他平台使用SDK对接时，可能需要访问内置插件的静态文件和依赖的接口，因此特殊开放这类接口允许跨域访问
+INSTALLED_APPS += ("corsheaders",)
+if "corsheaders.middleware.CorsMiddleware" not in MIDDLEWARE:
+    MIDDLEWARE = ("corsheaders.middleware.CorsMiddleware",) + MIDDLEWARE
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = ["GET", "OPTIONS"]
+# 允许 static、openapi 路径跨域访问
+CORS_URLS_REGEX = r"^/(static\/components|openapi)/.*$"
 
 """
 以下为框架代码 请勿修改
