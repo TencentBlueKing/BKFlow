@@ -21,7 +21,7 @@
       <template v-else>
         <!-- 执行次数-初始化默认显示最新执行信息 -->
         <section
-          v-if="isExecuteTimeShow"
+          v-if="isExecuteTimeShow && !isShowSubflowExceutedCount"
           class="execute-time-section">
           <div
             v-if="loop > 1"
@@ -114,7 +114,7 @@
 
 <script>
   import tools from '@/utils/tools.js';
-  import { mapState, mapActions } from 'vuex';
+  import { mapState, mapActions, mapMutations } from 'vuex';
   import taskCondition from '../taskCondition.vue';
   import NodeOperationFlow from './NodeOperationFlow.vue';
   import ExecuteRecord from './ExecuteRecord.vue';
@@ -209,6 +209,10 @@
           default() {
             return {};
           },
+        },
+        isShowSubflowExceutedCount: {
+          type: Boolean,
+          default: false,
         },
     },
     data() {
@@ -325,9 +329,13 @@
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
       ]),
+      ...mapMutations('task/', [
+        'setNodeDetailActivityPanel',
+      ]),
       // 选项卡切换
       onTabChange(name) {
         this.curActiveTab = name;
+        this.setNodeDetailActivityPanel(this.name);
         if (['record', 'log'].includes(name)) {
           this.$emit('selectExecuteRecord', this.theExecuteRecord, this.historyInfo);
         }
