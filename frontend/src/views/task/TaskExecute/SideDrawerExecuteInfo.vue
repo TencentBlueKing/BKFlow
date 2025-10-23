@@ -30,7 +30,35 @@
         v-bkloading="{ isLoading: loading, opacity: 1, zIndex: 100 }"
         :class="['execute-info', { 'loading': loading }]">
         <div class="execute-head">
-          <span class="node-name">{{ nodeDetailConfig?.conditionData ? nodeDetailConfig.conditionData.name : executeInfo.name || location.name }}</span>
+          <bk-breadcrumb
+            v-if="isShowSubflowExceutedCount"
+            v-bkloading="{ isLoading: isBreadCurmbLoading, opacity: 1, zIndex: 100 }"
+            class="node-name">
+            <bk-breadcrumb-item
+              v-for="(item,index) in breadcrumbData"
+              :key="index">
+              <span>{{ item.name }}</span>
+              <bk-select
+                v-if=" nodeDetailActivityPanel === 'record' && item.totalCount > 1"
+                :clearable="false"
+                :value="item.curSelectCount"
+                @selected="selectBreadcrumExecuteCount($event, item)">
+                <bk-option
+                  v-for="count in item.totalCount"
+                  :id="count"
+                  :key="count"
+                  :name="count" />
+              </bk-select>
+              <span
+                v-if="breadcrumbData.length > 1 && index !== breadcrumbData.length - 1"
+                class="separator">/</span>
+            </bk-breadcrumb-item>
+          </bk-breadcrumb>
+          <span
+            v-else
+            class="node-name">
+            {{ nodeDetailConfig?.conditionData ? nodeDetailConfig.conditionData.name : executeInfo.name || location.name }}
+          </span>
           <div class="node-state">
             <span :class="displayStatus" />
             <span class="status-text-messages">{{ nodeState }}</span>
@@ -96,12 +124,13 @@
             :gateways="processGateway"
             :condition-data="nodeDetailConfig.conditionData || {}"
             :third-party-node-code="thirdPartyNodeCode"
+            :is-show-subflow-exceuted-count="isShowSubflowExceutedCount"
             @selectExecuteRecord="onSelectExecuteRecord"
             @selectExecuteLoop="onSelectExecuteLoop" />
         </div>
         <!-- 底部操作按钮 -->
         <div
-          v-if="isShowActionWrap"
+          v-if="isShowActionWrap && isInLatestExecuteNum"
           class="action-wrapper">
           <template v-if="realTimeState.state === 'RUNNING' && !isSubProcessNode">
             <bk-button
@@ -319,6 +348,10 @@
           branchgateway: i18n.t('分支网关'),
           conditionalparallelgateway: i18n.t('条件并行网关'),
         },
+        breadcrumbData: [],
+        isBreadCurmbLoading: false,
+        curSubExecutedTaskId: null, // 当前选择的子流程执行次数的taskId
+        isInLatestExecuteNum: true,
       };
     },
     computed: {
@@ -330,6 +363,9 @@
       }),
       ...mapState('project', {
         project_id: state => state.project_id,
+      }),
+      ...mapState('task', {
+        nodeDetailActivityPanel: state => state.nodeDetailActivityPanel,
       }),
       // 节点实时状态
       realTimeState() {
@@ -425,6 +461,13 @@
         // const isUnExecutedNode = this.nodeDetailConfig.state && this.nodeDetailConfig.state !== 'gateway';
         return isSubprocessNode || isSubChildren || this.nodeDetailConfig.isNodeInSubflow || this.isExistInSubCanvas(this.nodeDetailConfig.node_id);
       },
+      isShowSubflowExceutedCount() {
+        const { node_id: nodeId, component_code: componentCode } = this.nodeDetailConfig;
+        return this.isExistInSubCanvas(nodeId) || (this.isFirstSubFlow(nodeId) && componentCode === 'subprocess_plugin');
+      },
+      isShowUnexecutedSubflow() {
+        return this.historyInfo.length < 1 && this.isExistInSubCanvas(this.nodeDetailConfig.node_id);
+      },
       // 加入子流程节点后的nodeDisplayStatus
       processNodeDisplayStatus() {
         this.currentNodeDisplayStatus.children = Object.assign({}, this.currentNodeDisplayStatus.children, this.subflowNodeStatus);
@@ -454,6 +497,9 @@
       nodeDetailConfig: {
         async handler(val, oldVal) {
           if (val.node_id !== undefined && !tools.isDataEqual(val, oldVal)) {
+            if (oldVal !== undefined && val.node_id !== oldVal.node_id) {
+              this.setNodeDetailActivityPanel('record');
+            }
             this.loadNodeInfo();
           }
         },
@@ -482,23 +528,113 @@
       this.cancelTaskStatusTimer();
     },
     methods: {
-        ...mapActions('task/', [
-          'getNodeActDetail',
-          'loadSubflowConfig',
-          'getInstanceStatus',
-          'getTaskInstanceData',
-        ]),
-        ...mapMutations('task/', [
-          'setSubActivities',
-        ]),
-        ...mapActions('template/', [
-          'loadUniformApiMeta',
-        ]),
-        ...mapActions('atomForm/', [
-          'loadAtomConfig',
-          'loadPluginServiceDetail',
-          'loadPluginServiceAppDetail',
-        ]),
+      ...mapActions('task/', [
+        'getNodeActDetail',
+        'loadSubflowConfig',
+        'getInstanceStatus',
+        'getTaskInstanceData',
+      ]),
+      ...mapMutations('task/', [
+        'setSubActivities',
+        'setNodeDetailActivityPanel',
+      ]),
+      ...mapActions('template/', [
+        'loadUniformApiMeta',
+      ]),
+      ...mapActions('atomForm/', [
+        'loadAtomConfig',
+        'loadPluginServiceDetail',
+        'loadPluginServiceAppDetail',
+      ]),
+      async selectBreadcrumExecuteCount(value, item) {
+        this.isBreadCurmbLoading = true;
+        let taskId = '';
+        const { outputs } = item.allExecutedInfo[value - 1];
+        if (outputs.task_id) {
+          taskId = outputs.task_id;
+        } else if (Array.isArray(outputs)) {
+          const taskInfo = outputs.find(item => item.key === 'task_id') || {};
+          if (taskInfo) {
+            taskId = taskInfo.value;
+          } else {
+            const targetIndex = this.breadcrumbData.findIndex(bread => bread.id === this.nodeDetailConfig.node_id);
+            let prevItem = null;
+            if (targetIndex > 0) {
+              prevItem = this.breadcrumbData[targetIndex - 1];
+            }
+            const curRootInfo = prevItem.allExecutedInfo[prevItem.curSelectCount - 1];
+            if (curRootInfo.outputs.task_id) {
+              taskId = curRootInfo.outputs.task_id;
+            } else if (Array.isArray(outputs)) {
+              taskId = curRootInfo.outputs.find(item => item.key === 'task_id').value || '';
+            }
+          }
+        }
+        this.curSubExecutedTaskId = taskId;
+        if (item.id === this.nodeDetailConfig.node_id) {
+          this.onSelectExecuteRecord(value, this.historyInfo);
+          item.curSelectCount = value;
+          item.taskId = taskId;
+        } else {
+          const targetIndex = this.breadcrumbData.findIndex(bread => bread.id === item.id);
+          this.breadcrumbData[targetIndex].curSelectCount = value;
+          if (!['task', 'subflow', 'ServiceActivity'].includes(this.nodeDetailConfig.nodeType)) {
+            this.isBreadCurmbLoading = false;
+            return;
+          }
+          // 获取当前节点的id
+          const resp = await this.getTaskInstanceData(taskId);
+          const { activities } = resp.pipeline_tree;
+          const activitiesArray = Object.values(activities);
+          const { template_node_id: templateNodeId } = this.subCanvsActivityCollection[this.nodeDetailConfig.node_id];
+          const curNewNodeId = activitiesArray.find(item => item.template_node_id === templateNodeId).id;
+          const query = {
+            space_id: this.spaceId,
+            instance_id: taskId,
+            node_id: curNewNodeId,
+            component_code: this.nodeDetailConfig.component_code,
+          };
+          const res = await this.getNodeActDetail(query);
+           this.breadcrumbData.forEach(async (item) => {
+            if (item.id === this.nodeDetailConfig.node_id) {
+              item.allExecutedInfo = res.data?.skip ? [] : [res.data];
+              if (res.data.histories) {
+                item.allExecutedInfo.unshift(...res.data.histories);
+              }
+              item.curSelectCount = res.data.histories.length + 1;
+              item.totalCount = res.data.histories.length + 1;
+              this.historyInfo = item.allExecutedInfo;
+              this.onSelectExecuteRecord(item.totalCount, item.allExecutedInfo);
+            }
+           });
+        }
+        this.isBreadCurmbLoading = false;
+      },
+      // 递归查找目标节点并收集路径
+      findNodePath(nodes, targetId, currentPath = []) {
+        for (const node of nodes) {
+          const { instanceId } = this.$route.query;
+          const tempPath = [...currentPath, {
+            id: node.id,
+            name: node.name,
+            taskId: this.isFirstSubFlow(node.id) ? instanceId : node.taskId,
+            component_code: node?.component?.code || '',
+            type: node.type,
+          }];
+          // 找到目标节点，返回完整路径
+          if (node.id === targetId) {
+            return tempPath;
+          }
+          // 若当前节点有子节点，递归查找
+          if (node.children && node.children.length > 0) {
+            const result = this.findNodePath(node.children, targetId, tempPath);
+            if (result) {
+              return result;
+            }
+          }
+        }
+        return null;
+      },
       async loadSubprocessStatus() {
         try {
             if (source) {
@@ -514,7 +650,11 @@
             const resp = await this.getInstanceStatus(data);
             this.subflowState = resp.data.state;
             this.subflowNodeStatus = resp.data.children || {};
-            this.setTaskStatusTimer();
+            if (['FINISHED', 'REVOKED', 'FAILED'].includes(resp.data.state)) {
+               this.cancelTaskStatusTimer();
+            } else {
+              this.setTaskStatusTimer();
+            }
         } catch (error) {
             console.warn(error);
         } finally {
@@ -555,7 +695,7 @@
       //   const canvasInstance = this.$refs.subProcessCanvas.graph;
       //   canvasInstance?.zoom(this.zoom);
       // },
-      // 获取节点配置
+      // 获取外层画布节点配置
       getNodeDetailConfig(node, instanceId) {
           const { id, parent } = node;
           const { pipelineData } = this;
@@ -739,7 +879,7 @@
       },
       // 补充记录缺少的字段
       async setFillRecordField(record) {
-        const { version, component_code: componentCode, componentData = {} } = this.nodeDetailConfig;
+        const { version, component_code: componentCode, componentData = {}, node_id: nodeId } = this.nodeDetailConfig;
         const { inputs, state } = record;
         let { outputs } = record;
         // 执行记录的outputs可能为Object格式，需要转为Array格式
@@ -762,7 +902,8 @@
         }
         let outputsInfo = [];
         const renderData = {};
-        const constants = {};
+        const activity = Object.assign({}, this.subCanvsActivityCollection, this.pipelineData.activities);
+        let { constants } = this.pipelineData;
         let inputsInfo = inputs;
         let failInfo = '';
         // 添加插件输出表单所需上下文
@@ -771,7 +912,7 @@
         $.context.output_form.state = state;
         // 获取子流程配置详情
         if (componentCode === 'subprocess_plugin') {
-          const { constants } =  this.pipelineData;
+          constants = activity[nodeId].component.data.subprocess.value.constants;
           this.renderConfig = await this.getSubflowInputsConfig(constants);
         } else if (componentCode) { // 任务节点需要加载标准插件
           const pluginVersion = componentData.plugin_version?.value;
@@ -1004,7 +1145,7 @@
           if (variable.custom_type === 'select') {
             formItemConfig.attrs.allowCreate = true;
           }
-          formItemConfig.tag_code = key;
+          formItemConfig.tag_code = key.substring(2, key.length - 1);
           formItemConfig.attrs.name = variable.name;
           // 自定义输入框变量正则校验添加到插件配置项
           if (['input', 'textarea'].includes(variable.custom_type) && variable.validation !== '') {
@@ -1136,8 +1277,35 @@
           }
         }
       },
+      async loadBreadCrumbData() {
+        if (this.isShowSubflowExceutedCount) {
+          this.isBreadCurmbLoading = true;
+          this.breadcrumbData = this.findNodePath(this.curNodeData[0].children, this.nodeDetailConfig.node_id);
+          this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
+          this.breadcrumbData.forEach(async (item) => {
+          if (item.id) {
+            const query = {
+              space_id: this.spaceId,
+              instance_id: item.taskId,
+              node_id: item.id,
+              component_code: item.component_code,
+            };
+            const resp = await this.getNodeActDetail(query);
+            item.allExecutedInfo = resp.data?.skip ? [] : [resp.data];
+            if (resp.data?.histories) {
+              item.allExecutedInfo.unshift(...resp.data.histories);
+              item.curSelectCount = resp.data.histories.length + 1;
+              item.totalCount = resp.data.histories.length + 1;
+            }
+          }
+          });
+        }
+        this.isBreadCurmbLoading = false;
+      },
       async loadNodeInfo() {
         this.loading = true;
+        this.breadcrumbData = this.findNodePath(this.curNodeData[0].children, this.nodeDetailConfig.node_id);
+        this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
         try {
           this.renderConfig = [];
           let respData = await this.getTaskNodeDetail();
@@ -1164,6 +1332,7 @@
           }
           // 获取记录详情
           await this.onSelectExecuteRecord(this.historyInfo.length, this.historyInfo);
+          await this.loadBreadCrumbData();
           this.executeInfo.name = this.location.name || NODE_DICT[this.location.type];
           const taskInfo = respData.outputsInfo.find(item => item.key === 'task_id') || {};
           this.currentSubflowTaskId = taskInfo.value || ''; // 子流程的任务id
@@ -1248,7 +1417,7 @@
         if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onRetryClick', this.nodeDetailConfig.node_id, this.getEmitParams);
         } else {
-          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin'
+          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin';
           this.$emit('onRetryClick', this.nodeDetailConfig.node_id, null, isTopSubflow);
         }
       },
@@ -1256,7 +1425,7 @@
          if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onSkipClick', this.nodeDetailConfig.node_id, this.getEmitParams);
         } else {
-          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin'
+          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin';
           this.$emit('onSkipClick', this.nodeDetailConfig.node_id, null, isTopSubflow);
         }
       },
@@ -1387,6 +1556,47 @@
               }
             }
         }
+    }
+    ::v-deep .bk-breadcrumb{
+      display: flex;
+      flex-wrap: wrap;
+      .bk-breadcrumb-item{
+        display: flex;
+        align-items: center;
+        .bk-select{
+          height: 22px;
+          line-height: 22px !important;
+          margin: 0 8px;
+          background: #F0F1F5;
+          width: 42px;
+          font-size: 12px;
+          border: none;
+          .bk-select-name{
+            height: 22px;
+            color: #63656E !important;
+            font-weight: normal;
+          }
+          .bk-select-angle{
+            top:0
+          }
+        }
+        .bk-breadcrumb-separator {
+           display: none !important;
+        }
+        .separator{
+          margin: 0px;
+          color: #313238;
+        }
+      }
+      .bk-breadcrumb-item-inner{
+        display: flex;
+        align-items: center;
+        color: #313238;
+      }
+      .bk-breadcrumb-separator{
+        margin:0px;
+        color: #313238;
+      }
     }
     .execute-body{
       overflow-y: auto;

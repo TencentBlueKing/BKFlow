@@ -567,7 +567,7 @@
     },
     data() {
       return {
-        isShowFailTimeoutHandle: false,
+        // isShowFailTimeoutHandle: false,
         labelData: [],
         labelLoading: false,
         subflowLoading: false,
@@ -706,9 +706,9 @@
       // if (!this.isSubflow) { // 子流程节点不展示节点标签表单
       //   // this.getNodeLabelList()
       // } else {
-      if (this.basicInfo.tpl) {
-        this.judgeFailTimeoutShow();
-      }
+      // if (this.basicInfo.tpl) {
+      //   this.judgeFailTimeoutShow();
+      // }
       // }
     },
     methods: {
@@ -731,8 +731,8 @@
         this.subflowLoading = true;
         try {
           const data = {
-                templateId: this.basicInfo.tpl,
-                is_all_nodes: true,
+            templateId: this.basicInfo.tpl,
+            is_all_nodes: true,
           };
           const resp = await this.loadSubflowConfig(data);
           this.version = resp.data.version;
@@ -929,17 +929,17 @@
         return comp.validate();
       },
       // 判断是否显示失败超时处理
-      async judgeFailTimeoutShow() {
-        try {
-          const res = await this.getProcessOpenRetryAndTimeout({
-            project_id: this.projectId,
-            id: this.basicInfo.tpl,
-          });
-          this.isShowFailTimeoutHandle = res.data.enable;
-        } catch (error) {
-          console.warn(error);
-        }
-      },
+      // async judgeFailTimeoutShow() {
+      //   try {
+      //     const res = await this.getProcessOpenRetryAndTimeout({
+      //       project_id: this.projectId,
+      //       id: this.basicInfo.tpl,
+      //     });
+      //     this.isShowFailTimeoutHandle = res.data.enable;
+      //   } catch (error) {
+      //     console.warn(error);
+      //   }
+      // },
       transformPluginDesc(data) {
         const info = data.replace(/\n/g, '<br>');
         return this.filterXSS(info, {

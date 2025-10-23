@@ -450,7 +450,7 @@
           EmptyStartEvent: 'empty-start-event',
           SubProcess: 'task',
         },
-        subflowInfo: {} // 子流程根节点id和任务id
+        subflowInfo: {}, // 子流程根节点id和任务id
       };
     },
     computed: {
@@ -939,6 +939,16 @@
           this.pending.task = false;
         }
       },
+      async updateExecuteInfo() {
+        const execInfoInstance = this.$refs.executeInfo;
+        try {
+          execInfoInstance.loading = true;
+          await execInfoInstance.loadNodeInfo();
+          execInfoInstance.setTaskStatusTimer();
+        } catch (error) {
+          execInfoInstance.loading = false;
+        }
+      },
       async nodeTaskSkip(id, subflowInfo, isTopSubflow) {
         if (this.pending.skip) {
           return;
@@ -958,8 +968,8 @@
               message: i18n.t('跳过成功'),
               theme: 'success',
             });
-            if (subflowInfo.taskId || isTopSubflow) {
-              this.$refs.executeInfo.setTaskStatusTimer();
+            if (subflowInfo?.taskId || isTopSubflow) {
+              this.updateExecuteInfo();
             } else {
               this.nodeInfoType = '';
               this.isNodeInfoPanelShow = false;
@@ -993,7 +1003,7 @@
             });
             // this.nodeInfoType = '';
             if (subflowInfo?.taskId) {
-              this.$refs.executeInfo.setTaskStatusTimer();
+              this.updateExecuteInfo();
             } else {
               this.nodeInfoType = '';
               this.isNodeInfoPanelShow = false;
@@ -1047,7 +1057,7 @@
             });
             // this.nodeInfoType = '';
             if (subflowInfo?.taskId) {
-              this.$refs.executeInfo.setTaskStatusTimer();
+              this.updateExecuteInfo();
             } else {
               this.nodeInfoType = '';
               this.isNodeInfoPanelShow = false;
@@ -1212,7 +1222,7 @@
                   theme: 'success',
                 });
                 if (subflowInfo?.taskId || isTopSubflow) {
-                  this.$refs.executeInfo.setTaskStatusTimer();
+                  this.updateExecuteInfo();
                 }
                 // 重新轮询任务状态
                 this.isFailedSubproceeNodeInfo = null;
@@ -1249,8 +1259,8 @@
                   const nodeConfig = this.pipelineData.activities[id];
                   const { subprocess } = nodeConfig.component.data;
                   nodeInfo.data.inputs[key] = subprocess.value;
-                  Object.keys(value.pipeline.constants).forEach((key) => {
-                    const data = value.pipeline.constants[key];
+                  Object.keys(value.constants).forEach((key) => {
+                    const data = value.constants[key];
                     nodeInputs[key] = data.value;
                   });
                 } else {
@@ -1700,7 +1710,13 @@
           return;
         }
         if (type === 'templateData') {
-          this.templateData = JSON.stringify(this.pipelineData, null, 4);
+          const pipelineData = tools.deepClone(this.pipelineData);
+          for (const i in pipelineData.activities) {
+            if ('pipeline' in pipelineData.activities[i]) {
+               delete pipelineData.activities[i].pipeline;
+            }
+          }
+          this.templateData = JSON.stringify(pipelineData, null, 4);
         }
         this.openNodeInfoPanel(type, name);
       },

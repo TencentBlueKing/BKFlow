@@ -16,6 +16,7 @@ const task = {
   namespaced: true,
   state: {
     subActivities: {},
+    nodeDetailActivityPanel: 'record',
   },
   actions: {
     /**
@@ -527,6 +528,9 @@ const task = {
   mutations: {
     setSubActivities(state, data) {
       state.subActivities = data;
+    },
+    setNodeDetailActivityPanel(state, data) {
+      state.nodeDetailActivityPanel = data;
     },
   },
 };

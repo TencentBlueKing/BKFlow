@@ -693,6 +693,9 @@
             templateId: tpl,
             is_all_nodes: true,
           };
+          if (version) {
+            params.version = version;
+          }
           const resp = await this.loadSubflowConfig(params);
           // 子流程的输入参数包括流程引用的变量、自定义变量和未被引用的变量
           // custom_constants
@@ -1292,11 +1295,11 @@
       // 查看子流程模板
       onViewSubflow(id) {
         const pathData = {
-            name: 'templatePanel',
-            params: {
-              templateId: id,
-              type: 'view',
-            }
+          name: 'templatePanel',
+          params: {
+            templateId: id,
+            type: 'view',
+          },
         };
         const { href } = this.$router.resolve(pathData);
         window.open(href, '_blank');

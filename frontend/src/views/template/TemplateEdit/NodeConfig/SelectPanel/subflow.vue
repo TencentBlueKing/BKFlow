@@ -145,6 +145,7 @@
             offset: (this.crtPage - 1) * this.limit,
             name__icontains: this.searchStr,
             ...this.scopeInfo, // 作用域
+            empty_scope: 1,
           };
           const resp = await this.$store.dispatch('templateList/loadTemplateList', data);
           const result = [];

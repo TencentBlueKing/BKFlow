@@ -223,7 +223,7 @@
           const has = Object.prototype.hasOwnProperty;
           return this.scheme.filter((item) => {
             const result = has.call(this.formsNotReferred, item.tag_code);
-            return type === 'referred' ? result : !result;
+            return type === 'referred' ? !result : result;
           });
         }
         return type === 'referred' ? this.scheme : [];
