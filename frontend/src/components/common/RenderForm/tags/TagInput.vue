@@ -14,39 +14,45 @@
     <div class="rf-form-wrapper">
       <template v-if="formMode">
         <el-input
-          type="text"
           v-model="inputValue"
+          type="text"
           :disabled="!editable || disabled"
           :show-password="showPassword"
           :placeholder="placeholder"
-          @input="onInput">
-        </el-input>
+          @input="onInput" />
         <transition>
-          <div class="rf-select-list" v-show="showVarList && isListOpen">
+          <div
+            v-show="showVarList && isListOpen"
+            class="rf-select-list">
             <ul class="rf-select-content">
               <li
-                class="rf-select-item"
                 v-for="item in varList"
-                :key="item"
-                @click.stop="onSelectVal(item)">
-                {{ item }}
+                :key="item.key"
+                class="rf-select-item"
+                @click.stop="onSelectVal(item.key)">
+                <span class="var-key">{{ item.key }}</span>
+                <span class="var-name">{{ item.name }}</span>
               </li>
             </ul>
           </div>
         </transition>
       </template>
-      <span v-else class="rf-view-value">{{ viewValue }}</span>
+      <span
+        v-else
+        class="rf-view-value">{{ viewValue }}</span>
     </div>
-    <span v-show="!validateInfo.valid" class="common-error-tip error-info">{{ validateInfo.message }}</span>
+    <span
+      v-show="!validateInfo.valid"
+      class="common-error-tip error-info">{{ validateInfo.message }}</span>
   </div>
 </template>
 <script>
-  import '@/utils/i18n.js'
-  import { mapState } from 'vuex'
-  import dom from '@/utils/dom.js'
-  import { getFormMixins } from '../formMixins.js'
+  import '@/utils/i18n.js';
+  import { mapState } from 'vuex';
+  import dom from '@/utils/dom.js';
+  import { getFormMixins } from '../formMixins.js';
 
-  const VAR_REG = /\$.*$/
+  const VAR_REG = /\$.*$/;
 
   export const attrs = {
     placeholder: {
@@ -77,85 +83,85 @@
       default: false,
       inner: true,
     },
-  }
+  };
   export default {
     name: 'TagInput',
     mixins: [getFormMixins(attrs)],
-    data () {
+    data() {
       return {
         isListOpen: false,
         varList: [],
-      }
+      };
     },
     computed: {
       ...mapState({
         internalVariable: state => state.template.internalVariable,
       }),
       constantArr: {
-        get () {
-          let Keylist = []
+        get() {
+          let Keylist = [];
           if (this.constants) {
-            Keylist = [...Object.keys(this.constants)]
+            Keylist = [...Object.values(this.constants)];
           }
           if (this.internalVariable) {
-            Keylist = [...Keylist, ...Object.keys(this.internalVariable)]
+            Keylist = [...Keylist, ...Object.values(this.internalVariable)];
           }
-          return Keylist
+          return Keylist;
         },
-        set (val) {
-          this.varList = val
+        set(val) {
+          this.varList = val;
         },
       },
 
       inputValue: {
-        get () {
-          return this.value
+        get() {
+          return this.value;
         },
-        set (val) {
-          this.updateForm(val)
+        set(val) {
+          this.updateForm(val);
         },
       },
-      viewValue () {
+      viewValue() {
         if (this.value === '' || this.value === undefined) {
-          return '--'
+          return '--';
         }
-        return this.showPassword ? '******' : this.value
+        return this.showPassword ? '******' : this.value;
       },
     },
-    created () {
-      window.addEventListener('click', this.handleListShow, false)
+    created() {
+      window.addEventListener('click', this.handleListShow, false);
     },
-    beforeDestroy () {
-      window.removeEventListener('click', this.handleListShow, false)
+    beforeDestroy() {
+      window.removeEventListener('click', this.handleListShow, false);
     },
     methods: {
-      handleListShow (e) {
+      handleListShow(e) {
         if (!this.isListOpen) {
-          return
+          return;
         }
-        const listPanel = document.querySelector('.rf-select-list')
+        const listPanel = document.querySelector('.rf-select-list');
         if (listPanel && !dom.nodeContains(listPanel, e.target)) {
-          this.isListOpen = false
+          this.isListOpen = false;
         }
       },
-      onInput (val) {
-        const matchResult = val.match(VAR_REG)
+      onInput(val) {
+        const matchResult = val.match(VAR_REG);
         if (matchResult && matchResult[0]) {
-          const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&')
-          const inputReg = new RegExp(regStr)
-          this.varList = this.constantArr.filter(item => inputReg.test(item))
+          const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&');
+          const inputReg = new RegExp(regStr);
+          this.varList = this.constantArr.filter(item => inputReg.test(item.key));
         } else {
-          this.varList = []
+          this.varList = [];
         }
-        this.isListOpen = !!this.varList.length
+        this.isListOpen = !!this.varList.length;
       },
-      onSelectVal (val) {
-        const replacedValue = this.value.replace(VAR_REG, val)
-        this.updateForm(replacedValue)
-        this.isListOpen = false
+      onSelectVal(val) {
+        const replacedValue = this.value.replace(VAR_REG, val);
+        this.updateForm(replacedValue);
+        this.isListOpen = false;
       },
     },
-  }
+  };
 </script>
 <style lang="scss" scoped>
 @import '../../../../scss/mixins/scrollbar.scss';
@@ -190,6 +196,16 @@
             &:hover {
                 background: #eef6fe;
                 color: #3a84ff;
+            }
+            > span {
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+            }
+            .var-name {
+                max-width: 250px;
+                color: #c4c6cc;
+                margin-left: 16px;
             }
         }
     }
