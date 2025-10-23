@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -28,6 +27,7 @@ from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pytimeparse import parse
 
+from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.space.configs import TokenAutoRenewalConfig, TokenExpirationConfig
 from bkflow.space.models import SpaceConfig
 
@@ -144,7 +144,6 @@ class Token(models.Model):
         query_params = {
             "user": user,
             "resource_type": resource_type,
-            "resource_id": resource_id,
             "permission_type": permission_type,
             "token": token,
         }
@@ -153,7 +152,7 @@ class Token(models.Model):
             query_params["space_id"] = space_id
 
         try:
-            token = cls.objects.get(**query_params)
+            db_token = cls.objects.get(**query_params)
         except cls.DoesNotExist:
             logger.info(
                 "[Token->verify] the token does not exist, space_id={}, user={},resource_type={},"
@@ -161,7 +160,16 @@ class Token(models.Model):
             )
             return False
 
-        if token.has_expired():
+        if db_token.has_expired():
             return False
+
+        if db_token.resource_id != resource_id:
+            client = TaskComponentClient(space_id=db_token.space_id)
+            result = client.get_task_detail(resource_id)
+            if result["result"] and result["data"].get("parent_task_info"):
+                parent_task_id = result["data"]["parent_task_info"]["task_id"]
+                return db_token.resource_id == str(parent_task_id)
+            else:
+                return False
 
         return True
