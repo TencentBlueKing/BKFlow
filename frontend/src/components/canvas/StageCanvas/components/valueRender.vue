@@ -44,15 +44,12 @@
           <a
             :href="renderItem.linkUrl"
             target="_blank"
-            class="value-link">
-            <span
+            class="value-link"><span
               v-bk-tooltips="{
                 disabled:!renderItem.key,
                 content: renderItem.key,
               }"
-              class="value-key word-elliptic">{{ renderItem.key }}</span>
-            <span class="value-Item">{{ renderItem.value }}</span>
-          </a>
+              class="value-key word-elliptic">{{ renderItem.key }}</span>  {{ renderItem.value }}</a>
         </template>
         <template v-else>
           <span
@@ -60,8 +57,7 @@
               disabled:!renderItem.key,
               content: renderItem.key,
             }"
-            class="value-key word-elliptic">{{ renderItem.key }}</span>
-          <span class="value-Item">{{ renderItem.value }}</span>
+            class="value-key word-elliptic">{{ renderItem.key }}</span> {{ renderItem.value }}
         </template>
       </span>
     </template>
@@ -196,13 +192,10 @@ a{
   width: 100%;
   .value-key{
     flex: 1;
-    min-width: 65px;
   }
 }
 .value-key{
+  width: 65px;
   display: inline-block;
-}
-.value-Item{
-  white-space: pre-line;
 }
 </style>
