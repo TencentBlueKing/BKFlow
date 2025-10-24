@@ -68,11 +68,7 @@ class TaskCallBacker:
                     runtime.set_state(node_id=node_id, version=version, to_state=states.READY)
                     runtime.set_state(node_id=node_id, version=version, to_state=states.RUNNING)
 
-                if not version:
-                    version = runtime.get_state(node_id).version
-                return bamboo_engine_api.callback(
-                    runtime=runtime, node_id=node_id, version=version, data=self.extra_info
-                )
+                bamboo_engine_api.callback(runtime=runtime, node_id=node_id, version=version, data=self.extra_info)
 
         except Exception as e:
             message = f"[TaskCallBacker _subprocess_callback] error: {e}, with data {self.task_relate.extra_info}"
