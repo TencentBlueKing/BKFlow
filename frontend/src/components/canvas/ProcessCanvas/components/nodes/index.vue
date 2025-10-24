@@ -3,7 +3,7 @@
     theme="light"
     placement="bottom-end"
     ext-cls="custom-node-popover"
-    :disabled="node.mode !== 'execute' || node.task_state === 'REVOKED'"
+    :disabled="node.mode !== 'execute' || node.task_state === 'REVOKED' || node.isSubflowCanvas"
     :distance="5"
     :arrow="false">
     <div class="custom-node">

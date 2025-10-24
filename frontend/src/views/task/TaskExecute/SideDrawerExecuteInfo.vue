@@ -38,17 +38,19 @@
               v-for="(item,index) in breadcrumbData"
               :key="index">
               <span>{{ item.name }}</span>
-              <bk-select
-                v-if=" nodeDetailActivityPanel === 'record' && item.totalCount > 1"
-                :clearable="false"
-                :value="item.curSelectCount"
-                @selected="selectBreadcrumExecuteCount($event, item)">
-                <bk-option
-                  v-for="count in item.totalCount"
-                  :id="count"
-                  :key="count"
-                  :name="count" />
-              </bk-select>
+              <bk-popover :content="$t('当前执行次数')">
+                <bk-select
+                  v-if=" nodeDetailActivityPanel === 'record' && item.totalCount > 1"
+                  :clearable="false"
+                  :value="item.curSelectCount"
+                  @selected="selectBreadcrumExecuteCount($event, item)">
+                  <bk-option
+                    v-for="count in item.totalCount"
+                    :id="count"
+                    :key="count"
+                    :name="count" />
+                </bk-select>
+              </bk-popover>
               <span
                 v-if="breadcrumbData.length > 1 && index !== breadcrumbData.length - 1"
                 class="separator">/</span>
@@ -597,12 +599,15 @@
           const res = await this.getNodeActDetail(query);
            this.breadcrumbData.forEach(async (item) => {
             if (item.id === this.nodeDetailConfig.node_id) {
-              item.allExecutedInfo = res.data?.skip ? [] : [res.data];
+              item.allExecutedInfo = res.data.skip ? [] : [res.data];
               if (res.data.histories) {
                 item.allExecutedInfo.unshift(...res.data.histories);
+                item.curSelectCount = res.data.skip ? res.data.histories.length : res.data.histories.length + 1;
+                item.totalCount = res.data.skip ? res.data.histories.length : res.data.histories.length + 1;
+              } else {
+                item.curSelectCount = item.allExecutedInfo.length;
+                item.totalCount = item.allExecutedInfo.length;
               }
-              item.curSelectCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
-              item.totalCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
               this.historyInfo = item.allExecutedInfo;
               this.onSelectExecuteRecord(item.totalCount, item.allExecutedInfo);
             }
@@ -648,6 +653,7 @@
               cancelToken: source.token,
             };
             const resp = await this.getInstanceStatus(data);
+            if (!resp.result) return;
             this.subflowState = resp.data.state;
             this.subflowNodeStatus = resp.data.children || {};
             if (['FINISHED', 'REVOKED', 'FAILED'].includes(resp.data.state)) {
@@ -1243,7 +1249,7 @@
         const locations = location.map((item) => {
           const code = item.type === 'tasknode' ? activities[item.id].component.code : '';
           const mode = 'execute';
-          return { ...item, mode, checked: true, code, ready: true };
+          return { ...item, mode, checked: true, code, ready: true, isSubflowCanvas: true };
         });
         this.canvasData = graphToJson({
           locations,
@@ -1291,11 +1297,14 @@
               component_code: item.component_code,
             };
             const resp = await this.getNodeActDetail(query);
-            item.allExecutedInfo = resp.data?.skip ? [] : [resp.data];
-            if (resp.data?.histories) {
+            item.allExecutedInfo = resp.data.skip ? [] : [resp.data];
+            if (resp.data.histories) {
               item.allExecutedInfo.unshift(...resp.data.histories);
-              item.curSelectCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
-              item.totalCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
+              item.curSelectCount = resp.data.skip ? resp.data.histories.length : resp.data.histories.length + 1;
+              item.totalCount = resp.data.skip ? resp.data.histories.length : resp.data.histories.length + 1;
+            } else {
+              item.curSelectCount = item.allExecutedInfo.length;
+              item.totalCount = item.allExecutedInfo.length;
             }
           }
           });
