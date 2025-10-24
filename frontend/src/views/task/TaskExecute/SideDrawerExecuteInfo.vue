@@ -601,8 +601,8 @@
               if (res.data.histories) {
                 item.allExecutedInfo.unshift(...res.data.histories);
               }
-              item.curSelectCount = res.data.histories.length + 1;
-              item.totalCount = res.data.histories.length + 1;
+              item.curSelectCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
+              item.totalCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
               this.historyInfo = item.allExecutedInfo;
               this.onSelectExecuteRecord(item.totalCount, item.allExecutedInfo);
             }
@@ -1294,8 +1294,8 @@
             item.allExecutedInfo = resp.data?.skip ? [] : [resp.data];
             if (resp.data?.histories) {
               item.allExecutedInfo.unshift(...resp.data.histories);
-              item.curSelectCount = resp.data.histories.length + 1;
-              item.totalCount = resp.data.histories.length + 1;
+              item.curSelectCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
+              item.totalCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
             }
           }
           });
