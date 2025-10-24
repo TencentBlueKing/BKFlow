@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -142,10 +141,11 @@ class SpaceViewSet(AdminModelViewSet):
                 raise APIException(f"{request.user.username} is not the developer of the app {app_code}")
 
         request.data.update({"create_type": SpaceCreateType.WEB.value, "creator": request.user.username})
-        response = super(SpaceViewSet, self).create(request, *args, **kwargs)
+        response = super().create(request, *args, **kwargs)
         if response.status_code == status.HTTP_201_CREATED:
             SpaceConfig.objects.batch_update(
-                space_id=response.data.get("id"), configs={"superusers": [request.user.username]}
+                space_id=response.data.get("id"),
+                configs={"superusers": [request.user.username], "flow_versioning": "true"},
             )
         return response
 

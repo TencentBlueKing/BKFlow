@@ -35,7 +35,8 @@ from bkflow.constants import (
     WebhookScopeType,
 )
 from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
-from bkflow.space.models import Space
+from bkflow.space.configs import FlowVersioning
+from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
     Template,
     TemplateMockData,
@@ -84,6 +85,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     desc = serializers.CharField(help_text=_("流程说明"), required=False, allow_blank=True)
     triggers = TriggerSerializer(many=True, required=True, allow_null=True)
     subprocess_info = serializers.JSONField(help_text=_("子流程信息"), read_only=True)
+    version_info = serializers.JSONField(help_text=_("版本信息"), read_only=True)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
@@ -111,7 +113,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     @transaction.atomic()
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
-        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, validated_data["space_id"])
         validated_data["snapshot_id"] = snapshot.id
         template = super().create(validated_data)
 
@@ -150,10 +152,13 @@ class TemplateSerializer(serializers.ModelSerializer):
                 validated_data.get("triggers"),
             )
             Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"])
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
-            instance.snapshot_id = snapshot.id
-            snapshot.template_id = instance.id
-            snapshot.save(update_fields=["template_id"])
+            if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
+                instance.update_draft_snapshot(pipeline_tree)
+            else:
+                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, instance.space_id)
+                instance.snapshot_id = snapshot.id
+                snapshot.template_id = instance.id
+                snapshot.save(update_fields=["template_id"])
             instance = super().update(instance, validated_data)
         except Exception as e:
             logger.exception("Triggers update or create failed,{}".format(e))

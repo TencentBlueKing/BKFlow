@@ -29,6 +29,8 @@ from bkflow.constants import TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.exceptions import APIResponseError, NotFoundError, ValidationError
+from bkflow.space.configs import FlowVersioning
+from bkflow.space.models import SpaceConfig
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.md5 import compute_pipeline_md5
 from bkflow.utils.models import CommonModel, CommonSnapshot
@@ -65,7 +67,7 @@ class TemplateManager(models.Manager):
         # 拷贝流程并替换节点 避免 id 重叠
         with transaction.atomic():
             # 开启事务 确保都创建成功
-            copyed_snapshot = TemplateSnapshot.create_snapshot(copyed_pipeline_tree)
+            copyed_snapshot = TemplateSnapshot.create_snapshot(copyed_pipeline_tree, space_id)
             template.snapshot_id = copyed_snapshot.id
             template.updated_by = operator
             template.creator = operator
@@ -119,6 +121,7 @@ class Template(CommonModel):
             "create_at": self.create_at,
             "update_at": self.update_at,
             "updated_by": self.updated_by,
+            "version_info": self.version_info,
         }
         if with_pipeline_tree:
             result["pipeline_tree"] = self.pipeline_tree
@@ -157,11 +160,20 @@ class Template(CommonModel):
     def get_pipeline_tree_by_version(self, version=None):
         if not version:
             return self.pipeline_tree
-        return TemplateSnapshot.objects.filter(md5sum=version).order_by("-id").first().data
+        if self.validate_space("true"):
+            data = {"version": version}
+        else:
+            data = {"md5sum": version}
+        return TemplateSnapshot.objects.filter(**data).order_by("-id").first().data
 
     @property
     def version(self):
+        if self.validate_space("true"):
+            return self.snapshot.version
         return self.snapshot.md5sum
+
+    def validate_space(self, target):
+        return SpaceConfig.get_config(space_id=self.space_id, config_name=FlowVersioning.name) == target
 
     @property
     def subprocess_info(self):
@@ -192,6 +204,19 @@ class Template(CommonModel):
 
         return info
 
+    @property
+    def version_info(self):
+        info = TemplateSnapshot.objects.filter(template_id=self.id)
+        data = []
+        for item in info:
+            data.append(
+                {
+                    "create_time": item.create_time,
+                    "version": item.version if self.validate_space("true") else item.md5sum,
+                }
+            )
+        return data
+
     def outputs(self, version=None):
         data = self.get_pipeline_tree_by_version(version)
 
@@ -205,6 +230,37 @@ class Template(CommonModel):
                 outputs[key] = data["constants"][key]
         return outputs
 
+    def update_draft_snapshot(self, pipeline_tree):
+        try:
+            TemplateSnapshot.objects.update_or_create(
+                template_id=self.id,
+                draft=True,
+                defaults={
+                    "data": pipeline_tree,
+                    "md5sum": compute_pipeline_md5(pipeline_tree),
+                    "create_time": datetime.datetime.now(),
+                },
+            )
+        except Exception as e:
+            logger.error("[Template->update_draft_snapshot] update snapshot error, error = {}".format(e))
+            raise ValidationError("更新草稿版本失败")
+
+    def release_template(self, version):
+        if not version:
+            raise ValidationError("版本号不能为空，且必须为字符串")
+        try:
+            template_snapshot = TemplateSnapshot.objects.get(template_id=self.id, draft=True)
+            template_snapshot.draft = False
+            template_snapshot.version = version
+            template_snapshot.save()
+            return template_snapshot
+        except TemplateSnapshot.DoesNotExist:
+            logger.warning(f"未找到模板（ID: {self.id}）的草稿快照（draft=True）")
+            raise ValidationError(f"该模板{self.id}没有草稿版本")
+        except Exception as e:
+            logger.error(f"发布模板草稿时发生错误（template_id={self.id}）: {e}", exc_info=True)
+            raise ValidationError("发布模板失败，请稍后重试")
+
 
 class TemplateSnapshot(CommonSnapshot):
     """
@@ -212,6 +268,8 @@ class TemplateSnapshot(CommonSnapshot):
     """
 
     template_id = models.BigIntegerField(help_text=_("模板ID"), null=True)
+    version = models.CharField(_("版本号"), max_length=32, null=True, blank=True)
+    draft = models.BooleanField(_("是否草稿"), default=False)
 
     class Meta:
         verbose_name = _("模板快照")
@@ -219,8 +277,11 @@ class TemplateSnapshot(CommonSnapshot):
         ordering = ["-id"]
 
     @classmethod
-    def create_snapshot(cls, pipeline_tree):
-        return cls.objects.create(data=pipeline_tree, md5sum=compute_pipeline_md5(pipeline_tree))
+    def create_snapshot(cls, pipeline_tree, space_id):
+        data = {"data": pipeline_tree, "md5sum": compute_pipeline_md5(pipeline_tree)}
+        if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+            data["version"] = "1.0.0"
+        return cls.objects.create(**data)
 
 
 class TemplateOperationRecord(BaseOperateRecord):
