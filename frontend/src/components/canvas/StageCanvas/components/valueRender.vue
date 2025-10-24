@@ -204,5 +204,6 @@ a{
 }
 .value-Item{
   white-space: pre-line;
+  word-break: break-all;
 }
 </style>
