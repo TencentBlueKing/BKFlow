@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 from django.utils.translation import ugettext_lazy as _
 
 from bkflow.space.exceptions import CredentialScopeValidationError
+from bkflow.space.models import CredentialScope
 
 
 def validate_credential_scope(credential, template_scope_type, template_scope_value):
@@ -52,8 +53,6 @@ def filter_credentials_by_scope(credentials_queryset, scope_type, scope_value):
     :param scope_value: 作用域值
     :return: 过滤后的凭证查询集
     """
-    from bkflow.space.models import CredentialScope
-
     # 获取所有凭证ID
     all_credential_ids = set(credentials_queryset.values_list("id", flat=True))
 
@@ -65,9 +64,9 @@ def filter_credentials_by_scope(credentials_queryset, scope_type, scope_value):
     # 没有作用域限制的凭证ID（可以在任何地方使用）
     credentials_without_scope = all_credential_ids - credentials_with_scope
 
-    # 如果模板没有作用域，返回所有凭证
+    # 如果模板没有作用域，只返回没有设置作用域的凭证
     if not scope_type and not scope_value:
-        return credentials_queryset
+        return credentials_queryset.filter(id__in=credentials_without_scope)
 
     # 查找匹配当前作用域的凭证ID
     matching_credential_ids = set(

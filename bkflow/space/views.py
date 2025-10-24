@@ -449,6 +449,41 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         response_serializer = CredentialSerializer(instance)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
+    @swagger_auto_schema(
+        method="get",
+        operation_summary="获取凭证作用域",
+    )
+    @action(detail=True, methods=["get"])
+    def list_scopes(self, request, pk=None, params=None):
+        """获取凭证的作用域列表"""
+        try:
+            credential = self.get_object()
+        except Credential.DoesNotExist as e:
+            err_msg = f"凭证不存在 {str(e)}"
+            logger.error(err_msg)
+            return Response({"error": err_msg}, status=status.HTTP_404_NOT_FOUND)
+
+        # 获取凭证的所有作用域
+        scopes = CredentialScope.objects.filter(credential_id=credential.id)
+        serializer = CredentialScopeSerializer(scopes, many=True)
+
+        # 判断是否为无限制凭证（没有设置任何作用域）
+        is_unlimited = not scopes.exists()
+
+        return Response(
+            {
+                "credential_id": credential.id,
+                "credential_name": credential.name,
+                "unlimited": is_unlimited,
+                "scopes": serializer.data,
+            }
+        )
+
+    @swagger_auto_schema(
+        methods=["put", "patch"],
+        operation_summary="更新凭证作用域",
+        request_body=CredentialScopesChangeSerializer,
+    )
     @action(detail=True, methods=["put", "patch"])
     @params_valid(CredentialScopesChangeSerializer)
     def update_scopes(self, request, pk=None, params=None):
