@@ -20,14 +20,14 @@ to the current version of the project delivered to anyone in the future.
 
 import logging
 
+from bamboo_engine import api as bamboo_engine_api
 from bamboo_engine import states
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from pipeline.eri.models import Schedule as DBSchedule
 from pipeline.eri.runtime import BambooDjangoRuntime
 
-from bkflow.task.models import TaskFlowRelation, TaskInstance
-from bkflow.task.operations import TaskNodeOperation
+from bkflow.task.models import TaskFlowRelation
 from bkflow.utils.redis_lock import redis_lock
 
 logger = logging.getLogger("root")
@@ -67,11 +67,14 @@ class TaskCallBacker:
                     # FAILED 状态需要转换为 READY 之后才能转换为 RUNNING
                     runtime.set_state(node_id=node_id, version=version, to_state=states.READY)
                     runtime.set_state(node_id=node_id, version=version, to_state=states.RUNNING)
-                parent_task_id = TaskFlowRelation.objects.filter(task_id=self.task_id).first().parent_task_id
-                task_instance = TaskInstance.objects.get(id=parent_task_id)
-                node_operation = TaskNodeOperation(task_instance=task_instance, node_id=node_id)
-                operation_method = getattr(node_operation, "callback", None)
-                operation_method(operator="", version=version, data=self.extra_info)
+
+                runtime = BambooDjangoRuntime()
+                if not version:
+                    version = runtime.get_state(node_id).version
+                return bamboo_engine_api.callback(
+                    runtime=runtime, node_id=node_id, version=version, data=self.extra_info
+                )
+
         except Exception as e:
             message = f"[TaskCallBacker _subprocess_callback] error: {e}, with data {self.task_relate.extra_info}"
             logger.exception(message)
