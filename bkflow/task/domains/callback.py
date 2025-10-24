@@ -68,7 +68,6 @@ class TaskCallBacker:
                     runtime.set_state(node_id=node_id, version=version, to_state=states.READY)
                     runtime.set_state(node_id=node_id, version=version, to_state=states.RUNNING)
 
-                runtime = BambooDjangoRuntime()
                 if not version:
                     version = runtime.get_state(node_id).version
                 return bamboo_engine_api.callback(
