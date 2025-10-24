@@ -459,7 +459,10 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         serializer = CredentialScopeSerializer(scopes, many=True)
 
         # 判断是否为无限制凭证（没有设置任何作用域）
-        is_unlimited = not scopes.exists()
+        if scopes.count() == 1 and scopes.first().scope_type is None and scopes.first().scope_value is None:
+            is_unlimited = True
+        else:
+            is_unlimited = False
 
         return Response(
             {
