@@ -335,7 +335,7 @@
       // 选项卡切换
       onTabChange(name) {
         this.curActiveTab = name;
-        this.setNodeDetailActivityPanel(this.name);
+        this.setNodeDetailActivityPanel(name);
         if (['record', 'log'].includes(name)) {
           this.$emit('selectExecuteRecord', this.theExecuteRecord, this.historyInfo);
         }
