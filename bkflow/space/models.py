@@ -260,6 +260,14 @@ class CredentialType(Enum):
     CUSTOM = "CUSTOM"
 
 
+class CredentialScopeLevel(Enum):
+    """凭证作用域级别"""
+
+    ALL = "all"
+    PART = "part"
+    NONE = "none"
+
+
 class Credential(CommonModel):
     CREDENTIAL_CHOICES = [
         (CredentialType.BK_APP.value, _("蓝鲸应用凭证")),
@@ -268,10 +276,19 @@ class Credential(CommonModel):
         (CredentialType.CUSTOM.value, _("自定义")),
     ]
 
+    CREDENTIAL_SCOPE_LEVEL_CHOICES = [
+        (CredentialScopeLevel.ALL.value, _("空间内开放")),
+        (CredentialScopeLevel.PART.value, _("设置作用域")),
+        (CredentialScopeLevel.NONE.value, _("不开放")),
+    ]
+
     space_id = models.IntegerField(_("空间ID"))
     name = models.CharField(_("凭证名"), max_length=32)
     desc = models.CharField(_("凭证描述"), max_length=128, null=True, blank=True)
     type = models.CharField(_("凭证类型"), max_length=32, choices=CREDENTIAL_CHOICES)
+    scope_level = models.CharField(
+        _("作用域级别"), max_length=32, choices=CREDENTIAL_SCOPE_LEVEL_CHOICES, default=CredentialScopeLevel.NONE.value
+    )
     content = SecretSingleJsonField(_("凭证内容"), null=True, blank=True, default=dict)
 
     def display_json(self):
@@ -291,7 +308,7 @@ class Credential(CommonModel):
         return credential.value()
 
     @classmethod
-    def create_credential(cls, space_id, name, type, content, creator, desc=None):
+    def create_credential(cls, space_id, name, type, content, creator, desc=None, scope_level=None):
         """
         创建一个凭证
 
@@ -301,6 +318,7 @@ class Credential(CommonModel):
         :param content: 凭证内容
         :param creator: 创建者
         :param desc: 凭证描述（可选）
+        :param scope_level: 作用域级别（可选，默认为 NONE）
 
         :return: 创建的凭证实例
         """
@@ -308,6 +326,8 @@ class Credential(CommonModel):
             raise SpaceNotExists("space_id: {}".format(space_id))
         credential = CredentialDispatcher(type, data=content)
         validate_data = credential.validate_data()
+        if scope_level is None:
+            scope_level = CredentialScopeLevel.NONE.value
         credential = cls(
             space_id=space_id,
             name=name,
@@ -316,6 +336,7 @@ class Credential(CommonModel):
             content=validate_data,
             creator=creator,
             updated_by=creator,
+            scope_level=scope_level,
         )
         credential.save()
         return credential
@@ -350,32 +371,38 @@ class Credential(CommonModel):
     def can_use_in_scope(self, template_scope_type, template_scope_value):
         """
         检查凭证是否可以在指定作用域中使用
-        如果凭证没有设置作用域，则可以在任何作用域使用
-        如果模板没有作用域（scope_type和scope_value都为空），则可以使用任何凭证
-        否则，凭证的作用域必须匹配模板的作用域
 
         :param self: 凭证实例
         :param template_scope_type: 作用域类型
         :param template_scope_value: 作用域值
         :return: 如果可以使用返回 True，否则返回 False
         """
-        if not self.has_scope():
-            # 凭证没有设置作用域，不允许被使用
+        # scope_level == NONE 的凭证不能使用
+        if self.scope_level == CredentialScopeLevel.NONE.value:
             return False
 
-        if not template_scope_type and not template_scope_value:
-            # 模板没有作用域，可以使用任何凭证
+        # scope_level == ALL 的凭证可以在任何地方使用
+        if self.scope_level == CredentialScopeLevel.ALL.value:
             return True
 
-        # 检查是否有匹配的作用域
-        return (
-            self.get_scopes()
-            .filter(
-                scope_type=template_scope_type,
-                scope_value=template_scope_value,
+        # scope_level == PART 的凭证需要检查作用域匹配
+        if self.scope_level == CredentialScopeLevel.PART.value:
+            # 如果模板没有作用域，PART 类型的凭证不能使用
+            if not template_scope_type and not template_scope_value:
+                return False
+
+            # 检查是否有匹配的作用域
+            return (
+                self.get_scopes()
+                .filter(
+                    scope_type=template_scope_type,
+                    scope_value=template_scope_value,
+                )
+                .exists()
             )
-            .exists()
-        )
+
+        # 默认不允许使用（向后兼容旧逻辑）
+        return False
 
     class Meta:
         verbose_name = _("空间凭证")
