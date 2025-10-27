@@ -329,6 +329,8 @@
       },
       getQueryData() {
         const source = new CancelRequest();
+        const { query } = this.$route;
+        this.pagination.current = query.current ?  Number(query.current) : this.pagination.current;
         const {
           name,
           id,
@@ -346,7 +348,7 @@
         const data = {
           space_id: this.spaceId,
           limit,
-          offset: (current - 1) * limit,
+          offset: (this.pagination.current - 1) * limit,
           name__icontains: name,
           id,
           creator,
