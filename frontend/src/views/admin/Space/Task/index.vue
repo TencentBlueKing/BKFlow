@@ -343,7 +343,6 @@
           scope_value,
           template_id,
           limit = this.pagination.limit,
-          current = this.pagination.current,
         } = this.requestData;
         const data = {
           space_id: this.spaceId,
