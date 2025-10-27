@@ -72,7 +72,7 @@ from bkflow.space.serializers import (
     SpaceSerializer,
 )
 from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
-from bkflow.utils.mixins import BKFLOWDefaultPagination
+from bkflow.utils.mixins import BKFLOWDefaultPagination, BKFlowOrderingFilter
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
 from bkflow.utils.serializer import params_valid
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet
@@ -345,6 +345,9 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     serializer_class = CredentialSerializer
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
     pagination_class = BKFLOWDefaultPagination
+    filter_backends = [DjangoFilterBackend, BKFlowOrderingFilter]
+    ordering_fields = ["id", "name", "type", "create_at", "update_at"]
+    ordering = ["-create_at"]  # 默认按创建时间倒序
 
     def get_object(self):
         serializer = CredentialBaseQuerySerializer(data=self.request.query_params)
