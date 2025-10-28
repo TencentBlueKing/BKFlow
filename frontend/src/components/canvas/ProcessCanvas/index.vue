@@ -27,6 +27,8 @@
       ref="dndInstance"
       :instance="graph"
       :graph-random-key="graphRandomKey"
+      :is-disable-start-point="isDisableStartPoint"
+      :is-disable-end-point="isDisableEndPoint"
       @dragging="onNodeMoving"
       @dragEnd="onNodeMoveStop" />
     <div class="canvas-material-container" />
@@ -129,7 +131,6 @@
         edgesPosition: {},
         matchLines: {},
         connectionHoverList: [],
-        isDisableEndPoint: false,
         activeCell: null,
         showShortcutPanel: false,
         shortcutPanelPosition: { left: 0, right: 0 },
@@ -139,6 +140,8 @@
         nodeTipsPanelPosition: {},
         isSelectionOpen: false,
         graphRandomKey: '',
+        isDisableStartPoint: false,
+        isDisableEndPoint: false,
       };
     },
     computed: {
@@ -156,13 +159,18 @@
         handler(val, oldVal) {
           if (!utilsTools.isDataEqual(val, oldVal)) {
             this.resetCells();
-            // console.log('canvasData changed', val, oldVal);
+            const allNodeData = Object.values(val);
+            this.isDisableStartPoint = !!allNodeData.find(node => node.data.type === 'start');
+            this.isDisableEndPoint = !!allNodeData.find(node => node.data.type === 'end');
           }
         },
         deep: true,
       },
     },
     mounted() {
+      const allNodeData = Object.values(this.canvasData);
+      this.isDisableStartPoint = !!allNodeData.find(node => node.data.type === 'start');
+      this.isDisableEndPoint = !!allNodeData.find(node => node.data.type === 'end');
       this.initCanvas();
       this.initCanvasData();
       const { x, y } = this.graph.getContentArea();
@@ -444,6 +452,11 @@
       },
       // 节点停止移动
       onNodeMoveStop({ node, type = 'edit' }) {
+        if (node.type === 'start') {
+          this.isDisableStartPoint = true;
+        } else if (node.type === 'end') {
+          this.isDisableEndPoint = true;
+        }
         this.edgesPosition = {};
         if (Object.keys(this.matchLines).length === 1) {
           const location = {

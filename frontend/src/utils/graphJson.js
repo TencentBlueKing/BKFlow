@@ -76,6 +76,8 @@ export const graphToJson = (canvasData) => {
   const nodeCompMap = {
     startpoint: 'start',
     endpoint: 'end',
+    start: 'start',
+    end: 'end',
     tasknode: 'task',
     subflow: 'subflow', // 最终画布node.getData()的type
     branchgateway: 'branch-gateway',

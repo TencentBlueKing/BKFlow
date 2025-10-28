@@ -178,12 +178,12 @@ const translateMap = {
     [Node.TYPE_RANG]: node => `${getMinuteValue(node.min)}${i18n.t('分到')}${getMinuteValue(node.max)}${i18n.t('分')}`,
     [Node.TYPE_REPEAT]: (node) => {
       if (node.value === '*') {
-        return `${i18n.t('每隔')}${node.repeatInterval}${i18n.t('分钟')}`;
+        return `${i18n.t('每隔')}${node.repeatInterval}${i18n.tc('分钟', node.repeatInterval, { n: node.repeatInterval })}`;
       }
-      return `${i18n.t('从')}${getMinuteValue(node.value)}${i18n.t('分开始每隔')}${node.repeatInterval}${i18n.t('分钟')}`;
+      return `${i18n.t('从')}${getMinuteValue(node.value)}${i18n.t('分开始每隔')}${node.repeatInterval}${i18n.tc('分钟', node.repeatInterval, { n: node.repeatInterval })}`;
     },
     // eslint-disable-next-line max-len
-    [Node.TYPE_RANG_REPEAT]: node => `${i18n.t('从')}${getMinuteValue(node.min)}${i18n.t('分开始到')}${getMinuteValue(node.max)}${i18n.t('分的每')}${node.repeatInterval}${i18n.t('分钟')}`,
+    [Node.TYPE_RANG_REPEAT]: node => `${i18n.t('从')}${getMinuteValue(node.min)}${i18n.t('分开始到')}${getMinuteValue(node.max)}${i18n.t('分的每')}${node.repeatInterval}${i18n.tc('分钟', node.repeatInterval, { n: node.repeatInterval })}`,
   },
   hour: {
     genAll: () => `${i18n.t('每小时')}`,

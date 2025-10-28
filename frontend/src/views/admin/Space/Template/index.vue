@@ -15,11 +15,6 @@
         {{ $t('创建流程') }}
       </bk-button>
       <bk-button
-        v-if="isAdmin"
-        @click="isImportTplDialogShow = true">
-        {{ $t('导入流程') }}
-      </bk-button>
-      <bk-button
         v-if="selectedTpls.length"
         @click="onBatchDelete">
         {{ $t('删除') }}

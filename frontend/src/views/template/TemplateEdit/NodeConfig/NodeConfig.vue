@@ -544,7 +544,7 @@
               renderConfig[key] = 'need_render' in form ? form.need_render : true;
             }
           });
-          await this.getSubflowDetail(tpl, version);
+          await this.getSubflowDetail(tpl, version, true);
           // 加载子流程输入参数表单配置项
           this.inputs = await this.getSubflowInputsConfig();
           // 获取子流程任务节点输入参数值
@@ -686,7 +686,7 @@
       /**
        * 加载子流程任务节点输入、输出、版本配置项
        */
-      async getSubflowDetail(tpl, version = '') {
+      async getSubflowDetail(tpl, version = '', isInit = false) {
         this.subflowLoading = true;
         try {
           const params = {
@@ -705,7 +705,11 @@
           };
           this.formsNotReferred = resp.data.constants_not_referred;
           // 子流程模板版本更新时，未带版本信息，需要请求接口后获取最新版本
-          this.updateBasicInfo({ version: resp.data.version });
+          if (isInit) {
+            this.updateBasicInfo({ latestVersion: resp.data.version });
+          } else {
+            this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version});
+          }
 
           // 输出变量
           const has = Object.prototype.hasOwnProperty;

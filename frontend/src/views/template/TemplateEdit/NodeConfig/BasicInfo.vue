@@ -694,12 +694,19 @@
       },
     },
     watch: {
-      basicInfo(val) {
-        this.formData = tools.deepClone(val);
-        // 如果有执行方案，默认选中<不使用执行方案>
-        if (this.schemeList.length && !this.formData.schemeIdList.length) {
-          this.formData.schemeIdList = [0];
-        }
+      basicInfo: {
+        handler(val) {
+          this.formData = tools.deepClone(val);
+          // 如果有执行方案，默认选中<不使用执行方案>
+          if (this.schemeList.length && !this.formData.schemeIdList.length) {
+            this.formData.schemeIdList = [0];
+          }
+          if (this.isSubflow) {
+            this.version = this.basicInfo.latestVersion;
+          }
+        },
+        deep: true,
+        immediate: true,
       },
     },
     created() {
