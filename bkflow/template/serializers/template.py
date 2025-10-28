@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
-from copy import deepcopy
 
 from django.conf import settings
 from django.db import transaction
@@ -141,7 +140,11 @@ class TemplateSerializer(serializers.ModelSerializer):
             logger.exception("TemplateSerializer update error, err = {}".format(e))
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         pre_pipeline_tree = instance.pipeline_tree
-        instance_copy = deepcopy(instance)
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+        instance.snapshot_id = snapshot.id
+        snapshot.template_id = instance.id
+        snapshot.save(update_fields=["template_id"])
+        instance = super().update(instance, validated_data)
         # 批量修改流程绑定的触发器:
         try:
             Trigger.objects.compare_constants(
@@ -150,16 +153,8 @@ class TemplateSerializer(serializers.ModelSerializer):
                 validated_data.get("triggers"),
             )
             Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"])
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
-            instance.snapshot_id = snapshot.id
-            snapshot.template_id = instance.id
-            snapshot.save(update_fields=["template_id"])
-            instance = super().update(instance, validated_data)
         except Exception as e:
             logger.exception("Triggers update or create failed,{}".format(e))
-            instance.update_snapshot(pre_pipeline_tree)
-            instance = instance_copy
-            instance.save()
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
 
         send_callback(instance.space_id, "template", instance.build_callback_data(operate_type="update"))
