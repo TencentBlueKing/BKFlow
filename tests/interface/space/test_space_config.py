@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -40,9 +39,9 @@ from bkflow.space.configs import (
 class TestSpaceConfigHandler:
     def test_get_all_configs(self):
         configs = SpaceConfigHandler.get_all_configs()
-        assert len(configs) == 10
+        assert len(configs) == 11
         configs = SpaceConfigHandler.get_all_configs(only_public=True)
-        assert len(configs) == 9
+        assert len(configs) == 10
 
     def test_get_config(self):
         # valid cases

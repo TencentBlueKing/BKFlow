@@ -121,7 +121,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     @transaction.atomic()
     def update(self, instance, validated_data):
         periodic_triggers = [
-            trigger for trigger in validated_data.get("triggers") if trigger.get("type") == Trigger.TYPE_PERIODIC
+            trigger for trigger in validated_data.get("triggers", []) if trigger.get("type") == Trigger.TYPE_PERIODIC
         ]
         if (
             len(periodic_triggers) > 1

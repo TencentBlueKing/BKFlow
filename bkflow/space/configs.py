@@ -187,6 +187,7 @@ class TemplateTriggerConfig(BaseSpaceConfig):
             raise ValidationError(
                 f"[validate template_trigger error]: template_trigger only support 'true' or 'false', value: {value}"
             )
+        return True
 
 
 class SpaceEngineConfig(BaseSpaceConfig):
