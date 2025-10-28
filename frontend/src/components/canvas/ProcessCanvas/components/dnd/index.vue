@@ -9,7 +9,7 @@
         :class="[
           'node-item',
           node.id === 'group' ? 'group-node' : `common-icon-node-${node.icon}`,
-          { disabled: ['start', 'end'].includes(node.id) },
+          { disabled: isShowStartOrEndPoint(node) },
         ]"
         :data-type="node.id" />
     </ul>
@@ -39,6 +39,14 @@
     name: 'ProcessDnd',
     props: {
       instance: Graph,
+      isDisableStartPoint: {
+        type: Boolean,
+        default: false,
+      },
+      isDisableEndPoint: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -68,6 +76,14 @@
       dndPanelDom.addEventListener('mousedown', this.handleMouseDown);
     },
     methods: {
+      isShowStartOrEndPoint(node) {
+        if (['start'].includes(node.id)) {
+          return this.isDisableStartPoint;
+        } if (['end'].includes(node.id)) {
+          return this.isDisableEndPoint;
+        }
+        return false;
+      },
       handleNodeDragging(e, node) {
         this.$emit('dragging', { e, node, type: 'add' });
       },

@@ -30,12 +30,28 @@ const NODE_RULE = {
     allowed_out: [],
     unique: true,
   },
+  start: {
+    min_in: 0,
+    max_in: 0,
+    min_out: 1,
+    max_out: 1,
+    allowed_out: ['tasknode', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'subflow'],
+    unique: true,
+  },
+  end: {
+    min_in: 1,
+    max_in: 1000,
+    min_out: 0,
+    max_out: 0,
+    allowed_out: [],
+    unique: true,
+  },
   tasknode: {
     min_in: 1,
     max_in: 1000,
     min_out: 1,
     max_out: 1,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
     unique: false,
   },
   subflow: {
@@ -43,7 +59,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
     unique: false,
   },
   branchgateway: {
@@ -51,7 +67,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1000,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
     unique: false,
   },
   conditionalparallelgateway: {
@@ -59,7 +75,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1000,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
     unique: false,
   },
   parallelgateway: {
@@ -75,7 +91,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
     unique: false,
   },
 };

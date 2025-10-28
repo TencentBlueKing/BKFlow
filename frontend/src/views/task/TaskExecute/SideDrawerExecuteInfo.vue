@@ -66,12 +66,11 @@
             <span class="status-text-messages">{{ nodeState }}</span>
             <div
               v-if="isSubflowExecuted"
-              class="view-subflow">
+              class="view-subflow"
+              @click="onViewSubProcessExecute">
               <span class="dividing-line" />
               <i class="common-icon-box-top-right-corner icon-link-to-sub" />
-              <p @click="onViewSubProcessExecute">
-                {{ $t('查看流程') }}
-              </p>
+              <p>{{ $t('查看子流程') }}</p>
             </div>
           </div>
         </div>

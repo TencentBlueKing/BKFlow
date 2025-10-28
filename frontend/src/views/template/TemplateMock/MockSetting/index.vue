@@ -162,7 +162,7 @@
         return codeInfo;
       },
       isApiPlugin() {
-        const { code } = this.nodeConfig.component;
+        const { code } = this.nodeConfig?.component || {};
         return code === 'uniform_api';
       },
       compVersion() {
@@ -185,12 +185,6 @@
       templateId() {
         const { templateId } = this.$route.params;
         return templateId;
-      },
-      componentValue() {
-        if (this.isSubFlow) {
-          return this.nodeConfig.component.data.subprocess.value;
-        }
-        return {};
       },
       isLoading() {
         return (
@@ -302,15 +296,11 @@
         this.subFlowLoading = true;
         try {
           const params = {
-            template_id: this.templateId,
-            scheme_id_list: this.nodeConfig.schemeIdList || [],
+            templateId: this.nodeConfig.template_id,
+            scheme_id_list: [],
             version,
           };
-          if (this.componentValue.template_source === 'common') {
-            params.template_source = 'common';
-          } else {
-            params.project_id = this.project_id;
-          }
+          params.project_id = this.project_id;
           const resp = await this.loadSubflowConfig(params);
           // 子流程的输入参数包括流程引用的变量、自定义变量和未被引用的变量
           this.subFlowForms = {

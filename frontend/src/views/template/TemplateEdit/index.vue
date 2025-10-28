@@ -329,6 +329,12 @@
         spaceRelatedConfig: {}, // 空间相关配置
         templateMocking: false,
         isSubflowNeedToUpdate: false,
+        // typeMap: {
+        //   task: 'tasknode',
+        //   startpoint: 'start',
+        //   endpoint: 'end',
+        //   subflow: 'subflow',
+        // },
       };
     },
     computed: {
@@ -363,7 +369,6 @@
           const pipelineTree = this.getPipelineTree();
           return generateGraphData(pipelineTree);
         }
-
         const locations = this.locations.map((location) => {
           // 节点校验失败列表
           this.validateConnectFailList = [...new Set(this.validateConnectFailList)];
@@ -1319,14 +1324,12 @@
        * @param {Object} location 节点 location 字段
        */
       async onLocationChange(type, node) {
-        // console.log('节点变更onLocationChange-node', node, node.data);
         if (!node) return;
         const { id, data } = node;
-        console.log('节点变更data.type---', data.type);
         const location = {
           id,
           ...data,
-          type: data.type === 'task' ? 'tasknode' : (data.type === 'subflow' ? 'subflow' : data.type.split('-').join('')),
+          type: data.type === 'task' ? 'tasknode' : (['subflow', 'start', 'end'].includes(data.type) ? data.type : data.type.split('-').join('')),
           ...node.position(),
         };
         if (data?.oldSouceId) {
@@ -1404,10 +1407,10 @@
             location.parseLang = this.spaceRelatedConfig.gateway_expression;
             this.setGateways({ type, location });
             break;
-          case 'startpoint':
+          case 'start':
             this.setStartpoint({ type, location });
             break;
-          case 'endpoint':
+          case 'end':
             this.setEndpoint({ type, location });
             break;
         }

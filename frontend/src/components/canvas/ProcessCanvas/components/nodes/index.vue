@@ -8,7 +8,7 @@
     :arrow="false">
     <div class="custom-node">
       <Configs
-        v-if="['task', 'tasknode', 'SubProcess'].includes(node.type)"
+        v-if="['task', 'tasknode', 'subflow'].includes(node.type)"
         :node="node"
         @onNodeCheckClick="onNodeCheckClick" />
       <ExecuteStatus

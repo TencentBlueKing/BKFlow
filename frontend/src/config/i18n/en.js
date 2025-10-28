@@ -33,7 +33,6 @@ const en = {
   清空: 'Clear',
   天: 'Day',
   '0 表示星期天，6 表示星期六': '0 represents Sunday, and 6 represents Saturday',
-  分钟: 'Minute',
   小时: 'Hour',
   星期: 'Weekday',
   日期: 'Date',
@@ -981,7 +980,7 @@ const en = {
   日: 'Sunday',
   到: 'to',
   凌晨: 'early morning',
-  点: "o'clock",
+  点: 'o\'clock',
   上午: 'morning',
   下午: 'afternoon',
   中午: 'noon',
@@ -989,7 +988,6 @@ const en = {
   每分钟: 'every minute',
   分: 'minute',
   分到: 'minute to',
-  分钟: 'minute',
   从: 'from',
   每隔: 'every',
   分开始每隔: 'minute start every',
@@ -1031,6 +1029,8 @@ const en = {
   子流程数量: 'Number of subflows',
   查看父流程: 'View parent process',
   当前执行次数: 'Current execution count',
+  查看子流程: 'View subflow',
+  导入流程: 'Import process',
 };
 
 export default en;
