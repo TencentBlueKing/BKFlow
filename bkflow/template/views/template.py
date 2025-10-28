@@ -227,7 +227,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         template_ids = ser.validated_data["template_ids"]
 
         template_references = TemplateReference.objects.filter(subprocess_template_id__in=template_ids)
-        root_template_ids = [ref.root_template_id for ref in template_references]
+        root_template_ids = list(template_references.values_list("root_template_id", flat=True))
         root_templates_map = {
             str(t.id): t.name for t in Template.objects.filter(id__in=root_template_ids, is_deleted=False)
         }
@@ -236,10 +236,12 @@ class AdminTemplateViewSet(AdminModelViewSet):
             for ref in template_references:
                 template_key = str(ref.subprocess_template_id)
                 root_id = ref.root_template_id
+                if int(root_id) in template_ids:
+                    continue
                 root_name = root_templates_map.get(str(root_id))
                 sub_root_map[template_key].append({"root_template_id": root_id, "root_template_name": root_name})
-
-            return Response(exception=True, data={"sub_root_map": dict(sub_root_map)})
+            if sub_root_map:
+                return Response(exception=True, data={"sub_root_map": dict(sub_root_map)})
 
         if is_full:
             update_num = Template.objects.filter(space_id=space_id, is_deleted=False).update(is_deleted=True)
