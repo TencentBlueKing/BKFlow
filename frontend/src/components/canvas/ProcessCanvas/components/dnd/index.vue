@@ -39,13 +39,9 @@
     name: 'ProcessDnd',
     props: {
       instance: Graph,
-      isDisableStartPoint: {
-        type: Boolean,
-        default: false,
-      },
-      isDisableEndPoint: {
-        type: Boolean,
-        default: false,
+      canvasData: {
+        type: Array,
+        default: () => ([]),
       },
     },
     data() {
@@ -53,6 +49,14 @@
         NODES,
         dnd: null,
       };
+    },
+    computed: {
+      isDisableStartPoint() {
+        return !!Object.values(this.canvasData).find(node => node.data.type === 'start');
+      },
+      isDisableEndPoint() {
+        return !!Object.values(this.canvasData).find(node => node.data.type === 'end');
+      },
     },
     mounted() {
       this.dnd = new Dnd({
@@ -77,9 +81,9 @@
     },
     methods: {
       isShowStartOrEndPoint(node) {
-        if (['start'].includes(node.id)) {
+        if (node.id === 'start') {
           return this.isDisableStartPoint;
-        } if (['end'].includes(node.id)) {
+        } if (node.id === 'end') {
           return this.isDisableEndPoint;
         }
         return false;
