@@ -26,9 +26,7 @@
       v-if="graph && showPalette"
       ref="dndInstance"
       :instance="graph"
-      :graph-random-key="graphRandomKey"
-      :is-disable-start-point="isDisableStartPoint"
-      :is-disable-end-point="isDisableEndPoint"
+      :canvas-data="canvasData"
       @dragging="onNodeMoving"
       @dragEnd="onNodeMoveStop" />
     <div class="canvas-material-container" />
@@ -139,9 +137,6 @@
         nodeVariable: {},
         nodeTipsPanelPosition: {},
         isSelectionOpen: false,
-        graphRandomKey: '',
-        isDisableStartPoint: false,
-        isDisableEndPoint: false,
       };
     },
     computed: {
@@ -154,23 +149,7 @@
         endNode: state => state.template.end_event,
       }),
     },
-    watch: {
-      canvasData: {
-        handler(val, oldVal) {
-          if (!utilsTools.isDataEqual(val, oldVal)) {
-            this.resetCells();
-            const allNodeData = Object.values(val);
-            this.isDisableStartPoint = !!allNodeData.find(node => node.data.type === 'start');
-            this.isDisableEndPoint = !!allNodeData.find(node => node.data.type === 'end');
-          }
-        },
-        deep: true,
-      },
-    },
     mounted() {
-      const allNodeData = Object.values(this.canvasData);
-      this.isDisableStartPoint = !!allNodeData.find(node => node.data.type === 'start');
-      this.isDisableEndPoint = !!allNodeData.find(node => node.data.type === 'end');
       this.initCanvas();
       this.initCanvasData();
       const { x, y } = this.graph.getContentArea();
@@ -452,11 +431,6 @@
       },
       // 节点停止移动
       onNodeMoveStop({ node, type = 'edit' }) {
-        if (node.type === 'start') {
-          this.isDisableStartPoint = true;
-        } else if (node.type === 'end') {
-          this.isDisableEndPoint = true;
-        }
         this.edgesPosition = {};
         if (Object.keys(this.matchLines).length === 1) {
           const location = {
