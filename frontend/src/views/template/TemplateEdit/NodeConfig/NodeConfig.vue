@@ -1833,6 +1833,7 @@
                   expired: false,
                   subprocess_node_id: this.nodeConfig.id,
                 });
+                this.$emit('updateNodeInfo', this.nodeConfig.id, { hasUpdated: false});
               }
               if (!alwaysUseLatest && latestVersion && latestVersion !== version) {
                 this.setSubprocessUpdated({ expired: true, subprocess_node_id: this.nodeConfig.id });
