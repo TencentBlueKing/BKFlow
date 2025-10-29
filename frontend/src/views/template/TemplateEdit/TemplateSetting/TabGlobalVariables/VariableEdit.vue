@@ -32,7 +32,7 @@
               }"
               name="variableKey"
               :readonly="isViewMode || isInternalVal"
-              :disabled="variableData.cited || variableData.source_type === 'component_inputs'" />
+              :disabled="!!variableData.cited || variableData.source_type === 'component_inputs'" />
             <span
               v-show="veeErrors.has('variableKey')"
               class="common-error-tip error-msg">
