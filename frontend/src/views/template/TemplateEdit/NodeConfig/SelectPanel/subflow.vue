@@ -174,8 +174,10 @@
           return;
         }
         const { scrollTop, clientHeight, scrollHeight } = e.target;
-        const isScrollBottom = scrollHeight === (scrollTop + clientHeight);
-        if (isScrollBottom) {
+        // 距离底部一定阈值兼容大屏幕分辨率
+        const threshold = clientHeight / 5;
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+        if (distanceToBottom < threshold && scrollHeight > clientHeight) {
           this.crtPage += 1;
           this.getTplList();
         }
