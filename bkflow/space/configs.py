@@ -176,8 +176,8 @@ class TokenAutoRenewalConfig(BaseSpaceConfig):
 
 
 class TemplateTriggerConfig(BaseSpaceConfig):
-    name = "template_trigger"
-    desc = _("模板触发配置")
+    name = "allow_multiple_triggers"
+    desc = _("是否允许配置多个触发器")
     default_value = "false"
     choices = ["true", "false"]
 
@@ -185,7 +185,7 @@ class TemplateTriggerConfig(BaseSpaceConfig):
     def validate(cls, value: str):
         if value not in cls.choices:
             raise ValidationError(
-                f"[validate template_trigger error]: template_trigger only support 'true' or 'false', value: {value}"
+                f"[validate allow_multiple_triggers error]: only support 'true' or 'false', value: {value}"
             )
         return True
 

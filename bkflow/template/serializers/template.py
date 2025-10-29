@@ -90,6 +90,17 @@ class TemplateSerializer(serializers.ModelSerializer):
 
         return space_id
 
+    def validate_triggers(self, triggers):
+        request = self.context.get("request")
+        if request.method == "POST":
+            space_id = self.initial_data.get("space_id")
+        else:
+            space_id = self.instance.space_id
+        periodic_triggers = [trigger for trigger in triggers if trigger.get("type") == Trigger.TYPE_PERIODIC]
+        if len(periodic_triggers) > 1 and SpaceConfig.get_config(space_id, TemplateTriggerConfig.name) == "false":
+            raise serializers.ValidationError(_("参数校验失败，该流程只允许有一个定时触发器！"))
+        return triggers
+
     def validate_pipeline_tree(self, pipeline_tree):
         # 校验树的合法性
 
@@ -120,14 +131,6 @@ class TemplateSerializer(serializers.ModelSerializer):
 
     @transaction.atomic()
     def update(self, instance, validated_data):
-        periodic_triggers = [
-            trigger for trigger in validated_data.get("triggers", []) if trigger.get("type") == Trigger.TYPE_PERIODIC
-        ]
-        if (
-            len(periodic_triggers) > 1
-            and SpaceConfig.get_config(instance.space_id, TemplateTriggerConfig.name) == "false"
-        ):
-            raise serializers.ValidationError(detail={"msg": _("参数校验失败，该流程只允许有一个定时触发器！")})
         # TODO: 需要校验哪些字段是不可以更新的
         pipeline_tree = validated_data.pop("pipeline_tree", None)
         # 检查新建任务的流程中是否有未二次授权的蓝鲸插件
