@@ -221,32 +221,35 @@
         </div>
         <div v-if="referencedProcessList.length > 0">
           <div>{{ $t('当前流程被以下流程引用:') }}</div>
-          <bk-table
-            :data="referencedProcessList"
-            ext-cls="referenced-process-table"
-            :max-height="197"
-            :dark-header="true"
-            :stripe="true">
-            <bk-table-column
-              :label="$t('包含 x 个流程', {num: referencedProcessList.length})"
-              prop="name">
-              <template slot-scope="props">
-                <div class="reference-list">
-                  <span>{{ props.row.root_template_name }}</span>
-                  <router-link
-                    :to="{
-                      name: 'templatePanel',
-                      params: {
-                        templateId: props.row.root_template_id,
-                        type: 'view'
-                      }
-                    }">
-                    <i class="common-icon-box-top-right-corner icon-view-sub" />
-                  </router-link>
-                </div>
-              </template>
-            </bk-table-column>
-          </bk-table>
+          <div
+            v-for="subflowList in referencedProcessList"
+            :key="subflowList[0]">
+            <bk-table
+              :data="subflowList[1].referenced"
+              ext-cls="referenced-process-table"
+              :max-height="197"
+              :dark-header="true"
+              :stripe="true">
+              <bk-table-column
+                :render-header="(h) => renderReferendLabelHeader(h,subflowList)">
+                <template slot-scope="props">
+                  <div class="reference-list">
+                    <span>{{ props.row.root_template_name }}</span>
+                    <router-link
+                      :to="{
+                        name: 'templatePanel',
+                        params: {
+                          templateId: props.row.root_template_id,
+                          type: 'view'
+                        }
+                      }">
+                      <i class="common-icon-box-top-right-corner icon-view-sub" />
+                    </router-link>
+                  </div>
+                </template>
+              </bk-table-column>
+            </bk-table>
+          </div>
         </div>
       </div>
     </bk-dialog>
@@ -263,7 +266,6 @@
   import TableOperate from '../common/TableOperate.vue';
   import CreateTaskSideslider from './CreateTaskSideslider.vue';
   import CreateTemplateDialog from './CreateTemplateDialog.vue';
-  import importTemplateDialog from './importTemplateDialog.vue';
   import i18n from '@/config/i18n/index.js';
 
   const TABLE_FIELDS = [
@@ -362,7 +364,6 @@
       TableOperate,
       CreateTemplateDialog,
       CreateTaskSideslider,
-      importTemplateDialog,
     },
     mixins: [tableHeader, tableCommon],
     data() {
@@ -412,6 +413,24 @@
       ...mapMutations('template/', [
         'setSpaceId',
       ]),
+      renderReferendLabelHeader(h, value) {
+        return h('div', [
+          h('span', i18n.t('流程')),
+          h('bk-popover',
+            {
+              props: {
+                content: value[1].sub_template_name,
+              },
+            },
+            [
+              h('span', ` (${value[0]}) `),
+            ]
+          ),
+          h('span', i18n.t('包含 x 个流程', {
+            num: value[1].referenced.length,
+          })),
+        ]);
+      },
       async getTemplateList() {
         try {
           if (!this.spaceId) return;
@@ -586,6 +605,7 @@
         });
       },
       async batchDeleteConfirm() {
+        this.referencedProcessList = [];
         const data = {
           space_id: this.spaceId,
           is_full: this.pagination.count === this.selectedTpls.length,
@@ -601,6 +621,12 @@
             message: this.$t('流程删除成功！'),
             theme: 'success',
           });
+        } else {
+          if (res.data.sub_root_map) {
+            this.referencedProcessList = Object.entries(res.data.sub_root_map);
+          }
+          this.isShowDelDialog = true;
+          return;
         }
         return Promise.resolve();
       },
@@ -662,10 +688,8 @@
           };
           const resp = await this.deleteTemplate(data);
           if (resp.result === false) {
-            if(resp.data.sub_root_map){
-              for (const i in resp.data.sub_root_map) {
-                this.referencedProcessList.push(...resp.data.sub_root_map[i])
-              }
+            if (resp.data.sub_root_map) {
+                this.referencedProcessList = Object.entries(resp.data.sub_root_map);
             }
             this.isShowDelDialog = true;
             return;

@@ -521,6 +521,12 @@
         },
         deep: true,
       },
+      nodeDisplayStatus: {
+        handler(val) {
+          this.currentNodeDisplayStatus = tools.deepClone(val);
+        },
+        immediate: true,
+      },
     },
     beforeDestroy() {
       if (source) {
@@ -1347,16 +1353,6 @@
           // isNodeInSubflow
           const { version, node_id: nodeId, componentData, component_code: componentCode, subflowNodeParent, isFirstSubUnexecuted, instance_id: instanceId } = this.nodeDetailConfig;
           this.executeInfo.plugin_version = this.isThirdPartyNode ? respData.inputs.plugin_version : version;
-          // 获取执行失败节点是否允许跳过，重试状态
-          if (this.realTimeState.state === 'FAILED') {
-            const activityCollection = Object.assign({}, this.subCanvsActivityCollection, this.pipelineData.activities);
-            const activity = activityCollection[nodeId];
-            this.isShowSkipBtn = this.location.type === 'tasknode' && activity.skippable;
-            this.isShowRetryBtn = this.location.type === 'tasknode' ? activity.retryable : false;
-          } else {
-            this.isShowSkipBtn = false;
-            this.isShowRetryBtn = false;
-          }
           // 获取第一层独立子流程实例数据-只要外层pipeLineTree包含该节点就是子流程第一层
           // this.isSubProcessNode && !this.nodeDetailConfig.isNodeInSubflow
           if (this.isFirstSubFlow(nodeId) && componentCode === 'subprocess_plugin') {
@@ -1384,6 +1380,18 @@
               // }
             }
           }
+
+          // 获取执行失败节点是否允许跳过，重试状态
+          if (this.realTimeState.state === 'FAILED') {
+            const activityCollection = Object.assign({}, this.subCanvsActivityCollection, this.pipelineData.activities);
+            const activity = activityCollection[nodeId];
+            this.isShowSkipBtn = this.location.type === 'tasknode' && activity.skippable;
+            this.isShowRetryBtn = this.location.type === 'tasknode' ? activity.retryable : false;
+          } else {
+            this.isShowSkipBtn = false;
+            this.isShowRetryBtn = false;
+          }
+
           this.isSubprocessLoading = false;
           // 激活子流程画布节点
           this.$nextTick(() => {
