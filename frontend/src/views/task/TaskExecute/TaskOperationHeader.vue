@@ -78,7 +78,6 @@
           @click="onOperationClick(operation.action)" />
       </div>
       <div
-        v-if="triggerMethod !=='subprocess' "
         class="task-params-btns">
         <i
           v-bk-tooltips="{
@@ -120,7 +119,7 @@
         </bk-popover>
       </div>
       <div
-        v-else
+        v-if="triggerMethod === 'subprocess' "
         class="sub-task-btns">
         <i class="common-icon-box-top-right-corner icon-link-to-father" />
         <p
@@ -433,6 +432,7 @@
         height: 100%;
         .task-operation-btns,
         .task-params-btns {
+          margin-top: -5px;
             float: left;
             .bk-button {
                 border: none;
@@ -451,6 +451,7 @@
             }
         }
         .task-operation-btns {
+            margin-top: 1px;
             margin-right: 35px;
             line-height: initial;
             border-right: 1px solid #dde4eb;
@@ -543,6 +544,7 @@
 
 .sub-task-btns{
   text-align: left;
+  margin-left: 30px;
   .icon-clock-shape {
     @include status-icon-style(#979ba5);
   }
