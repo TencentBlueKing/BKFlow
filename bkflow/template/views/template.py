@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
-from collections import defaultdict
 
 from blueapps.account.decorators import login_exempt
 from django.db import transaction
@@ -228,18 +227,24 @@ class AdminTemplateViewSet(AdminModelViewSet):
 
         template_references = TemplateReference.objects.filter(subprocess_template_id__in=template_ids)
         root_template_ids = list(template_references.values_list("root_template_id", flat=True))
-        root_templates_map = {
-            str(t.id): t.name for t in Template.objects.filter(id__in=root_template_ids, is_deleted=False)
-        }
-        if root_templates_map:
-            sub_root_map = defaultdict(list)
+        if root_template_ids:
+            all_needed_template_ids = set(template_ids) | set(root_template_ids)
+            templates = Template.objects.filter(id__in=all_needed_template_ids, is_deleted=False)
+            templates_map = {str(t.id): t.name for t in templates}
+
+            sub_root_map = {}
             for ref in template_references:
                 template_key = str(ref.subprocess_template_id)
                 root_id = ref.root_template_id
-                if int(root_id) in template_ids:
+                if (int(root_id) in template_ids) or (root_id not in templates_map):
                     continue
-                root_name = root_templates_map.get(str(root_id))
-                sub_root_map[template_key].append({"root_template_id": root_id, "root_template_name": root_name})
+                sub_template_name = templates_map.get(template_key)
+                if template_key not in sub_root_map:
+                    sub_root_map[template_key] = {"sub_template_name": sub_template_name, "referenced": []}
+
+                sub_root_map[template_key]["referenced"].append(
+                    {"root_template_id": root_id, "root_template_name": templates_map.get(str(root_id))}
+                )
             if sub_root_map:
                 return Response(exception=True, data={"sub_root_map": dict(sub_root_map)})
 
