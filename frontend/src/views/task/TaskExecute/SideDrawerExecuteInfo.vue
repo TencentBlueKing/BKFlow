@@ -1338,7 +1338,6 @@
             this.loop = respData.loop;
             this.theExecuteTime = respData.loop;
           }
-          console.log('重新获取节点数据', respData);
           this.executeInfo = respData;
           // 执行历史信息
           this.historyInfo = respData.skip ? [] : [respData];
@@ -1386,7 +1385,6 @@
           if (this.realTimeState.state === 'FAILED') {
             const activityCollection = Object.assign({}, this.subCanvsActivityCollection, this.pipelineData.activities);
             const activity = activityCollection[nodeId];
-            console.log('activity', activity);
             this.isShowSkipBtn = this.location.type === 'tasknode' && activity.skippable;
             this.isShowRetryBtn = this.location.type === 'tasknode' ? activity.retryable : false;
           } else {
