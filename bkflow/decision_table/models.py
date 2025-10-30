@@ -65,7 +65,7 @@ class DecisionTable(CommonModel):
             for node in template.pipeline_tree[PE.activities].values():
                 if node["type"] == "SubProcess":
                     continue
-                elif (
+                if (
                     node["component"]["code"] == DmnPluginComponent.code
                     and node["component"]["data"]["table_id"]["value"] == self.id
                 ):
