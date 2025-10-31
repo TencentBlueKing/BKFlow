@@ -58,12 +58,6 @@ def validate_web_pipeline_tree(web_pipeline_tree):
             ContextValue(key=key_value, type=context_type, value=const["value"], code=const.get("custom_type", ""))
         )
 
-    runtime = BambooDjangoRuntime()
-    try:
-        Context(runtime, context_values, {}).hydrate()
-    except Exception as e:
-        raise exceptions.ParserWebTreeException(str(e))
-
     # outputs key pattern validate
     for output_key in web_pipeline_tree["outputs"]:
         if not KEY_PATTERN_RE.match(output_key):
@@ -71,5 +65,11 @@ def validate_web_pipeline_tree(web_pipeline_tree):
 
     if key_validation_errors:
         raise exceptions.ParserWebTreeException("\n".join(key_validation_errors))
+
+    runtime = BambooDjangoRuntime()
+    try:
+        Context(runtime, context_values, {}).hydrate()
+    except Exception as e:
+        raise exceptions.ParserWebTreeException(f"constant verification failed: {str(e)}")
 
     validate_pipeline_tree(web_pipeline_tree, cycle_tolerate=True)
