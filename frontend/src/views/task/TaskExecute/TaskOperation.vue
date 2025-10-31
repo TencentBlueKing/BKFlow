@@ -1413,7 +1413,8 @@
           },
         });
       },
-      onApprovalClick(id) {
+      onApprovalClick(id, subflowInfo) {
+        this.subflowInfo = subflowInfo;
         this.approval.id = id;
         this.approval.dialogShow = true;
       },
@@ -1430,7 +1431,7 @@
               is_passed,
               message,
               project_id: this.project_id,
-              task_id: this.instanceId,
+              task_id: this.subflowInfo?.taskId || this.instanceId,
               node_id: id,
               space_id: this.spaceId,
             };
