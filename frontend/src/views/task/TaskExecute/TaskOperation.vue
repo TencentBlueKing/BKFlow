@@ -1444,7 +1444,15 @@
               });
               params.subprocess_id = selectedFlowIds;
             }
-            await this.itsmTransition(params);
+            const res = await this.itsmTransition(params);
+            if (res.result) {
+              if (this.subflowInfo?.taskId) {
+                this.updateExecuteInfo();
+              }
+              setTimeout(() => {
+                  this.setTaskStatusTimer();
+                }, 1000);
+            }
             this.approval.id = '';
             this.approval.is_passed = true;
             this.approval.message = '';
