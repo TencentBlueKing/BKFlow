@@ -145,7 +145,7 @@
               v-else-if="nodeDetailConfig.component_code === 'bk_approve'"
               theme="primary"
               data-test-id="taskExcute_form_approvalBtn"
-              @click="$emit('onApprovalClick', nodeDetailConfig.node_id)">
+              @click="onApprovalClick">
               {{ $t('审批') }}
             </bk-button>
             <bk-button
@@ -1450,6 +1450,13 @@
           this.$emit('onTaskNodeResumeClick', this.nodeDetailConfig.node_id, this.getEmitParams);
         } else {
           this.$emit('onTaskNodeResumeClick', this.nodeDetailConfig.node_id, null);
+        }
+      },
+      onApprovalClick() {
+        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+          this.$emit('onApprovalClick', this.nodeDetailConfig.node_id, this.getEmitParams);
+        } else {
+          this.$emit('onApprovalClick', this.nodeDetailConfig.node_id, null);
         }
       },
       onModifyTimeClick() {
