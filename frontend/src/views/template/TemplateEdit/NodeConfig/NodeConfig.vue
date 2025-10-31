@@ -309,6 +309,7 @@
         isDataChange: false, // 数据是否改变
         isApiPlugin: false, // 是否为Api插件
         apiInputs: [], // api数据
+        isInitDecision: true,
       };
     },
     computed: {
@@ -1550,8 +1551,9 @@
           } = this.basicInfo;
           // 设置标准插件节点在 activity 的 component.data 值
           let data = {};
-          if (this.basicInfo.plugin === 'dmn_plugin') {
+          if (this.basicInfo.plugin === 'dmn_plugin') { // 决策插件
             data = this.getDmnNodeComponentData();
+            this.isInitDecision = false;
           } else {
             data = this.getNodeComponentData(plugin, version);
           }
@@ -1878,7 +1880,9 @@
       // 决策表插件切换表的时候更新输出参数配置
       async updateOutputs(outputs) {
         try {
-          await this.clearParamsSourceInfo();
+          if (!this.isInitDecision) {
+             await this.clearParamsSourceInfo();
+          }
           this.outputs = this.outputs.filter(item => !item.fromDmn);
           this.outputs.push(...outputs);
         } catch (error) {

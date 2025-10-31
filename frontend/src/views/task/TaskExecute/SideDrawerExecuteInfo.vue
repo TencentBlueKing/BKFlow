@@ -70,7 +70,7 @@
               @click="onViewSubProcessExecute">
               <span class="dividing-line" />
               <i class="common-icon-box-top-right-corner icon-link-to-sub" />
-              <p>{{ $t('查看子流程') }}</p>
+              <p class="text-link-to-sub">{{ $t('查看子流程') }}</p>
             </div>
           </div>
         </div>
@@ -1576,6 +1576,10 @@
                 font-size: 12px !important;
                 margin-right: 6px;
                 margin-top: 2px;
+                cursor: pointer;
+              }
+              .text-link-to-sub{
+                cursor: pointer;
               }
             }
         }
