@@ -35,7 +35,8 @@ from bkflow.constants import (
     WebhookScopeType,
 )
 from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
-from bkflow.space.models import Space
+from bkflow.space.configs import TemplateTriggerConfig
+from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
     Template,
     TemplateMockData,
@@ -89,6 +90,17 @@ class TemplateSerializer(serializers.ModelSerializer):
 
         return space_id
 
+    def validate_triggers(self, triggers):
+        request = self.context.get("request")
+        if request.method == "POST":
+            space_id = self.initial_data.get("space_id")
+        else:
+            space_id = self.instance.space_id
+        periodic_triggers = [trigger for trigger in triggers if trigger.get("type") == Trigger.TYPE_PERIODIC]
+        if len(periodic_triggers) > 1 and SpaceConfig.get_config(space_id, TemplateTriggerConfig.name) == "false":
+            raise serializers.ValidationError(_("参数校验失败，该流程只允许有一个定时触发器！"))
+        return triggers
+
     def validate_pipeline_tree(self, pipeline_tree):
         # 校验树的合法性
 
@@ -99,12 +111,6 @@ class TemplateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
 
         return pipeline_tree
-
-    def validate_triggers(self, triggers):
-        periodic_triggers = [trigger for trigger in triggers if trigger.get("type") == Trigger.TYPE_PERIODIC]
-        if len(periodic_triggers) > 1:
-            raise serializers.ValidationError(_("参数校验失败，该流程只允许有一个定时触发器！"))
-        return triggers
 
     @transaction.atomic()
     def create(self, validated_data):

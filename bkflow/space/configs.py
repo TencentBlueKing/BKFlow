@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -172,6 +171,21 @@ class TokenAutoRenewalConfig(BaseSpaceConfig):
             raise ValidationError(
                 f"[validate token_auto_renewal error]: "
                 f"token_auto_renewal only support 'true' or 'false', value: {value}"
+            )
+        return True
+
+
+class TemplateTriggerConfig(BaseSpaceConfig):
+    name = "allow_multiple_triggers"
+    desc = _("是否允许配置多个触发器")
+    default_value = "false"
+    choices = ["true", "false"]
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError(
+                f"[validate allow_multiple_triggers error]: only support 'true' or 'false', value: {value}"
             )
         return True
 
@@ -368,11 +382,9 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
                 raise ValidationError(f"[validate api_gateway_credential error]: {str(e)}")
         else:
             raise ValidationError(
-                (
-                    "[validate api_gateway_credential error]: "
-                    "api_gateway_credential only support string or list of json: "
-                    f"{cls.example}"
-                )
+                "[validate api_gateway_credential error]: "
+                "api_gateway_credential only support string or list of json: "
+                f"{cls.example}"
             )
 
     @classmethod
