@@ -38,19 +38,20 @@ logger = logging.getLogger("root")
 
 
 class TemplateManager(models.Manager):
-    def copy_template(self, template_id, space_id, operator, copy_subprocess=False):
+    def copy_template(self, template_id, space_id, operator, copy_subprocess=False, version=None):
         """
         复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
         暂不支持拷贝带决策表插件的流程
         """
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
-        template_pipeline_tree = template.pipeline_tree
+        template_pipeline_tree = template.get_pipeline_tree_by_version(version)
         for node in template_pipeline_tree["activities"].values():
             if node["type"] == "SubProcess":
                 if copy_subprocess:
-                    old_template_id = node["template_id"]
-                    new_sub_template = self.copy_template(old_template_id, space_id, operator)
+                    new_sub_template = self.copy_template(
+                        node["template_id"], space_id, operator, True, node["version"]
+                    )
                     node["template_id"] = new_sub_template.id
                     node["version"] = new_sub_template.version
                 else:
@@ -380,6 +381,7 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
     def update(self, trigger, data, template):
         client = TaskComponentClient(space_id=trigger.space_id)
         update_data = {
+            "name": template.name,
             "trigger_id": trigger.id,
             "cron": data["config"].get("cron"),
             "config": {
