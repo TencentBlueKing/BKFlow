@@ -34,6 +34,7 @@ from bkflow.constants import (
     WebhookScopeType,
 )
 from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
+from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.space.models import Space
 from bkflow.template.models import (
     Template,
@@ -98,6 +99,12 @@ class TemplateSerializer(serializers.ModelSerializer):
         except Exception as e:
             logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
             raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
+
+        data = PipelineTemplateWebPreviewer.is_circular_reference(pipeline_tree)
+        if data["has_cycle"]:
+            raise serializers.ValidationError(
+                _(f"更新失败，子流程节点【{data['node_name']}】引用的模板 {data['template_id']} 与当前流程存在循环引用")
+            )
 
         return pipeline_tree
 
