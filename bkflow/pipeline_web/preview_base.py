@@ -373,6 +373,7 @@ class PipelineTemplateWebPreviewer:
             for sub_id in sub_refs:
                 if has_cycle_from_template(sub_id, visited):
                     return True
+            visited.remove(template_id)
 
             return False
 
