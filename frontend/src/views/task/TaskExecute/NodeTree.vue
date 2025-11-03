@@ -18,6 +18,7 @@
       data-test-id="taskExcute_tree_nodeTree">
       <div
         v-if="!tree.children || tree.name === '汇聚网关' "
+        :key="treeRandomKey"
         :class="['tree-item-info', tree.isGateway ? 'gateway' : '']">
         <div class="tree-line" />
         <div class="tree-item-status">

@@ -320,6 +320,7 @@
               version: has.call(output, 'version')
                 ? output.version
                 : 'legacy',
+              type: output.custom_type
             };
           });
         } catch (e) {
