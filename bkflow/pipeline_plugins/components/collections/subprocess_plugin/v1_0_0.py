@@ -19,7 +19,6 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
-from pipeline.core.flow import Service
 from pipeline.core.flow.io import IntItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pydantic import BaseModel
@@ -27,6 +26,7 @@ from pydantic import BaseModel
 from bkflow.constants import TaskOperationSource, TaskOperationType, TaskTriggerMethod
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
+from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 
 
 class Subprocess(BaseModel):
@@ -37,7 +37,7 @@ class Subprocess(BaseModel):
     constants: dict
 
 
-class SubprocessPluginService(Service):
+class SubprocessPluginService(BKFlowBaseService):
     __need_schedule__ = True
     runtime = BambooDjangoRuntime()
 
@@ -46,7 +46,7 @@ class SubprocessPluginService(Service):
             self.OutputItem(name="任务ID", key="task_id", type="int", schema=IntItemSchema(description="Task ID")),
         ]
 
-    def execute(self, data, parent_data):
+    def plugin_execute(self, data, parent_data):
         from bkflow.task.models import (
             TaskFlowRelation,
             TaskInstance,
@@ -191,7 +191,7 @@ class SubprocessPluginService(Service):
 
         return True
 
-    def schedule(self, data, parent_data, callback_data=None):
+    def plugin_schedule(self, data, parent_data, callback_data=None):
         from bkflow.task.models import TaskInstance
 
         task_success = callback_data.get("task_success", False)
