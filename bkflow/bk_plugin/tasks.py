@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -52,6 +51,8 @@ def fetch_newest_plugins_dict():
             exclude_not_deployed=True,
             include_addresses=0,
             distributor_code_name=PLUGIN_DISTRIBUTOR_NAME,
+            limit=limit,
+            offset=offset,
         )
         if not result["result"]:
             logger.exception(result.get("message", "拉取蓝鲸插件列表失败"))
