@@ -100,7 +100,19 @@ class TemplateSerializer(serializers.ModelSerializer):
             logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
             raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
 
-        data = PipelineTemplateWebPreviewer.is_circular_reference(pipeline_tree)
+        if self.context["request"].method == "POST":
+            space_id = self.initial_data.get("space_id")
+            scope_type = self.initial_data.get("scope_type")
+            scope_value = self.initial_data.get("scope_value")
+        else:
+            space_id = getattr(self.instance, "space_id", None)
+            scope_type = getattr(self.instance, "scope_type", None)
+            scope_value = getattr(self.instance, "scope_value", None)
+
+        template_id = getattr(self.instance, "id", None)
+        data = PipelineTemplateWebPreviewer.is_circular_reference(
+            pipeline_tree, template_id, space_id, scope_type, scope_value
+        )
         if data["has_cycle"]:
             raise serializers.ValidationError(
                 _(f"更新失败，子流程节点【{data['node_name']}】引用的模板 {data['template_id']} 与当前流程存在循环引用")

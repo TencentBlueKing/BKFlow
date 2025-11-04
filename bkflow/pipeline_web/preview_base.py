@@ -31,7 +31,7 @@ from pipeline.validators.gateway import validate_gateways
 from pipeline.validators.utils import format_node_io_to_list
 
 from bkflow.pipeline_web.constants import PWE
-from bkflow.template.models import TemplateReference
+from bkflow.template.models import Template
 
 logger = logging.getLogger("root")
 
@@ -354,35 +354,44 @@ class PipelineTemplateWebPreviewer:
                 break
 
     @staticmethod
-    def is_circular_reference(pipeline_tree):
+    def is_circular_reference(pipeline_tree, current_template_id, space_id, scope_type, scope_value):
         """
-        检查流程模板是否存在循环依赖
+        检查子流程模板是否存在循环依赖
         """
 
-        def has_cycle_from_template(template_id, visited=None):
-            if visited is None:
-                visited = set()
-            if template_id in visited:
+        templates = Template.objects.filter(
+            space_id=space_id, scope_type=scope_type, scope_value=scope_value, is_deleted=False
+        )
+        sub_template_map = {}
+
+        for template in templates:
+            sub_info = template.subprocess_info
+            subprocess_template_id = [int(sub["subprocess_template_id"]) for sub in sub_info]
+            sub_template_map[template.id] = subprocess_template_id
+
+        def has_cycle_from_template(dis_template_id, visited):
+            if dis_template_id in visited:
                 return True
-            visited.add(template_id)
+            visited.add(dis_template_id)
 
-            sub_refs = TemplateReference.objects.filter(root_template_id=template_id).values_list(
-                "subprocess_template_id", flat=True
-            )
+            sub_refs = sub_template_map.get(dis_template_id, [])
 
             for sub_id in sub_refs:
                 if has_cycle_from_template(sub_id, visited):
                     return True
-            visited.remove(template_id)
+            visited.remove(dis_template_id)
 
             return False
 
         activities = pipeline_tree.get("activities", {})
+        visited_templates = set()
+        if current_template_id:
+            visited_templates.add(current_template_id)
 
         for act_key, act_value in activities.items():
             if act_value.get(PWE.type) == PWE.SubProcess:
                 template_id = act_value["template_id"]
-                if has_cycle_from_template(template_id):
+                if has_cycle_from_template(template_id, visited_templates):
                     return {
                         "has_cycle": True,
                         "node_key": act_key,
