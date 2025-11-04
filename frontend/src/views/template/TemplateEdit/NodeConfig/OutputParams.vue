@@ -151,6 +151,7 @@
             version: param.version,
             status: param.status,
             hooked: isHooked,
+            type: param.type,
           };
           list.push(info);
         });
@@ -191,6 +192,7 @@
             },
             version,
             plugin_code: this.isSubflow ? pluginCode : (this.thirdPartyCode || ''),
+            custom_type: props.row.type,
           };
           if (key === 'data' && this.uniformOutputs.length) {
             config.extra_info = this.getUniformExtraInfo();
@@ -203,6 +205,7 @@
             key: props.row.varKey,
             tagCode: props.row.varKey,
             source: 'output',
+            custom_type: props.row.type,
           });
           this.$emit('hookChange', 'delete', config);
         }
