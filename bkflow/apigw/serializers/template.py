@@ -97,11 +97,21 @@ class UpdateTemplateSerializer(serializers.Serializer):
     source = serializers.CharField(help_text=_("来源"), max_length=32, required=False)
     version = serializers.CharField(help_text=_("版本号"), max_length=32, required=False)
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
+    pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
 
     def validate(self, attrs):
         operator = attrs.get("operator")
         if not operator and not self.context.get("request").user.username:
             raise serializers.ValidationError(_("网关用户和operator都为空，请检查"))
+
+        pipeline_tree = attrs.get("pipeline_tree")
+
+        if pipeline_tree:
+            try:
+                validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
+            except Exception as e:
+                logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
+                raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
 
         return attrs
 
