@@ -481,7 +481,9 @@
               name,
               space_id: this.spaceId,
             });
-            this.outputs = this.pluginOutput[plugin][version];
+            if (!this.isSubFlow) {
+              this.outputs = this.pluginOutput[plugin][version];
+            }
           }
           const config = $.atoms[plugin];
           return config;
