@@ -649,16 +649,18 @@
       },
       // 关闭侧栏
       handleCancel() {
-        const { mockDataList, initDataList } = this.$refs.mockConfig;
-        if (!tools.isDataEqual(mockDataList, initDataList)) {
-          this.$bkInfo({
-            ...this.infoBasicConfig,
-            confirmFn: () => {
-              this.$emit('onClose');
-            },
-          });
-        } else {
-          this.$emit('onClose');
+        if(this.$refs.mockConfig){
+          const { mockDataList, initDataList } = this.$refs.mockConfig;
+          if (!tools.isDataEqual(mockDataList, initDataList)) {
+            this.$bkInfo({
+              ...this.infoBasicConfig,
+              confirmFn: () => {
+                this.$emit('onClose');
+              },
+            });
+          } else {
+            this.$emit('onClose');
+          }
         }
       },
     },
