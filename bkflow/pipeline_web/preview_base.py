@@ -31,7 +31,7 @@ from pipeline.validators.gateway import validate_gateways
 from pipeline.validators.utils import format_node_io_to_list
 
 from bkflow.pipeline_web.constants import PWE
-from bkflow.template.models import Template
+from bkflow.template.models import Template, TemplateReference
 
 logger = logging.getLogger("root")
 
@@ -359,27 +359,39 @@ class PipelineTemplateWebPreviewer:
         检查子流程模板是否存在循环依赖
         """
 
-        templates = Template.objects.filter(
-            space_id=space_id, scope_type=scope_type, scope_value=scope_value, is_deleted=False
+        templates = Template.objects.filter(space_id=space_id, is_deleted=False)
+
+        if scope_type is not None:
+            templates = templates.filter(scope_type=scope_type)
+        if scope_value is not None:
+            templates = templates.filter(scope_value=scope_value)
+        if scope_type is None and scope_value is None:
+            templates = templates.filter(scope_type__isnull=True, scope_value__isnull=True)
+
+        template_ids = list(templates.values_list("id", flat=True))
+        template_refs = TemplateReference.objects.filter(root_template_id__in=template_ids).values(
+            "root_template_id", "subprocess_template_id"
         )
+
         sub_template_map = {}
+        for ref in template_refs:
+            root_id = ref["root_template_id"]
+            sub_id = int(ref["subprocess_template_id"])
+            if root_id not in sub_template_map:
+                sub_template_map[root_id] = []
+            sub_template_map[root_id].append(sub_id)
 
-        for template in templates:
-            sub_info = template.subprocess_info
-            subprocess_template_id = [int(sub["subprocess_template_id"]) for sub in sub_info]
-            sub_template_map[template.id] = subprocess_template_id
-
-        def has_cycle_from_template(dis_template_id, visited):
-            if dis_template_id in visited:
+        def has_cycle_from_template(disclose_template_id, visited):
+            if disclose_template_id in visited:
                 return True
-            visited.add(dis_template_id)
+            visited.add(disclose_template_id)
 
-            sub_refs = sub_template_map.get(dis_template_id, [])
+            sub_refs = sub_template_map.get(str(disclose_template_id), [])
 
             for sub_id in sub_refs:
                 if has_cycle_from_template(sub_id, visited):
                     return True
-            visited.remove(dis_template_id)
+            visited.remove(disclose_template_id)
 
             return False
 
