@@ -380,12 +380,10 @@
         try {
           // 获取对应模板配置
           let tplConfig = {};
-          console.log('this.nodeActivity', this.nodeActivity);
           if (this.nodeActivity.template_node_id) {
             tplConfig = await this.getNodeSnapshotConfig(this.currentNodeDetailConfig);
           }
           this.templateConfig = tplConfig.data || { ...this.nodeActivity, isOldData: true } || {};
-          console.log('this.templateConfig-初始化节点数据', this.templateConfig);
           // if (this.nodeActivity.type === 'SubProcess') return;
           if (this.isSubProcessNode) { // 子流程任务节点
             // tplConfig.data为null为该功能之前的旧数据，没有original_template_id字段的，不调接口
