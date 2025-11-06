@@ -712,7 +712,14 @@ class TaskNodeOperation:
                 # 其他输出参数
                 for out_key, out_value in list(outputs_data.items()):
                     if out_key not in archived_keys:
-                        outputs_table.append({"name": out_key, "key": out_key, "value": out_value, "preset": False})
+                        outputs_table.append(
+                            {
+                                "name": out_key[2:-1] if component_code == "subprocess_plugin" else out_key,
+                                "key": out_key,
+                                "value": out_value,
+                                "preset": component_code == "subprocess_plugin",
+                            }
+                        )
         else:
             try:
                 outputs_table = [
