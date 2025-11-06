@@ -163,13 +163,28 @@ class Token(models.Model):
         if db_token.has_expired():
             return False
 
-        if db_token.resource_id != resource_id:
+        def check_parent_task_id(db_token, current_task_id):
             client = TaskComponentClient(space_id=db_token.space_id)
-            result = client.get_task_detail(resource_id)
-            if result["result"] and result["data"].get("parent_task_info"):
-                parent_task_id = result["data"]["parent_task_info"]["task_id"]
-                return db_token.resource_id == str(parent_task_id)
-            else:
+            result = client.get_task_detail(current_task_id)
+
+            if not result.get("result"):
+                logger.warning(
+                    f"[Token->verify] Failed to get task detail, task_id={current_task_id}, "
+                    f"space_id={db_token.space_id}"
+                )
                 return False
 
+            parent_task_info = result["data"].get("parent_task_info")
+            if not parent_task_info:
+                return False
+
+            parent_task_id = parent_task_info["task_id"]
+            if db_token.resource_id == str(parent_task_id):
+                return True
+
+            return check_parent_task_id(db_token, parent_task_id)
+
+        if db_token.resource_id != resource_id:
+            if not check_parent_task_id(db_token, resource_id):
+                return False
         return True

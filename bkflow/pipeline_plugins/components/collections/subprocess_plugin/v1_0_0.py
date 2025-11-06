@@ -46,22 +46,8 @@ class SubprocessPluginService(BKFlowBaseService):
             self.OutputItem(name="任务ID", key="task_id", type="int", schema=IntItemSchema(description="Task ID")),
         ]
 
-    def plugin_execute(self, data, parent_data):
-        from bkflow.task.models import (
-            TaskFlowRelation,
-            TaskInstance,
-            TaskOperationRecord,
-        )
-        from bkflow.task.operations import TaskOperation
-        from bkflow.task.utils import extract_extra_info
-
-        parent_task_id = parent_data.get_one_of_inputs("task_id")
-        try:
-            parent_task = TaskInstance.objects.get(id=parent_task_id)
-        except TaskInstance.DoesNotExist:
-            data.set_outputs("ex_data", f"parent task {parent_task_id} not found")
-            return False
-
+    def _get_subprocess_template(self, data):
+        """获取子流程模板数据"""
         subprocess_data = data.get_one_of_inputs("subprocess") or {}
         subprocess = Subprocess(**subprocess_data)
         template_id = subprocess.template_id
@@ -76,26 +62,32 @@ class SubprocessPluginService(BKFlowBaseService):
         # 检查API调用是否成功
         if not template.get("result"):
             data.set_outputs("ex_data", f"get subprocess data failed: {template['message']}")
-            return False
+            return None, None
 
-        pipeline_tree = template["data"]["pipeline_tree"]
+        return template, subprocess
+
+    def _process_subprocess_constants(self, subprocess, pipeline_tree):
+        """处理子流程常量配置"""
         subproc_inputs = subprocess.constants
         # replace show constants with inputs
         subproc_constants = {}
         for key, info in subproc_inputs.items():
             # ignore expired parent constants data
-            if always_use_latest and key not in pipeline_tree["constants"]:
+            if subprocess.always_use_latest and key not in pipeline_tree["constants"]:
                 continue
             if "form" in info:
                 info.pop("form")
 
             # keep source_info consist with subprocess latest version
-            if always_use_latest:
+            if subprocess.always_use_latest:
                 info["source_info"] = pipeline_tree["constants"][key]["source_info"]
 
             subproc_constants[key] = info
 
         pipeline_tree["constants"].update(subproc_constants)
+
+    def _render_parent_parameters(self, pipeline_tree, parent_task):
+        """渲染父任务参数到子流程常量"""
 
         # 渲染父任务中的参数
         constants = pipeline_tree.get("constants", {})
@@ -136,12 +128,21 @@ class SubprocessPluginService(BKFlowBaseService):
                 constant["value"] = parsed_subprocess_inputs[key]
         self.logger.info(f'subprocess parsed constants: {pipeline_tree.get("constants", {})}')
 
+    def _create_subprocess_task_instance(self, subprocess, template, pipeline_tree, parent_task):
+        """创建子任务实例和关系记录"""
+        from bkflow.task.models import (
+            TaskFlowRelation,
+            TaskInstance,
+            TaskOperationRecord,
+        )
+        from bkflow.task.utils import extract_extra_info
+
         with transaction.atomic():
             time_zone = timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai"
             time_stamp = datetime.datetime.now(tz=time_zone).strftime("%Y%m%d%H%M%S")
             create_task_data = {
                 "name": f"{subprocess.subprocess_name}_子流程_{time_stamp}",
-                "template_id": template_id,
+                "template_id": subprocess.template_id,
                 "creator": parent_task.creator,
                 "scope_type": template["data"]["scope_type"],
                 "scope_value": template["data"]["scope_value"],
@@ -160,14 +161,14 @@ class SubprocessPluginService(BKFlowBaseService):
 
             task_instance = TaskInstance.objects.create_instance(**create_task_data)
             try:
-                root_task_id = TaskFlowRelation.objects.get(task_id=parent_task_id).root_task_id
+                root_task_id = TaskFlowRelation.objects.get(task_id=parent_task.id).root_task_id
             except TaskFlowRelation.DoesNotExist:
-                root_task_id = parent_task_id
+                root_task_id = parent_task.id
 
             relate_info = {"node_id": self.id, "node_version": self.version}
             TaskFlowRelation.objects.create(
                 task_id=task_instance.id,
-                parent_task_id=parent_task_id,
+                parent_task_id=parent_task.id,
                 root_task_id=root_task_id,
                 extra_info=relate_info,
             )
@@ -182,6 +183,32 @@ class SubprocessPluginService(BKFlowBaseService):
                 operator=parent_task.creator,
                 extra_info=extra_info,
             )
+
+            return task_instance
+
+    def plugin_execute(self, data, parent_data):
+        from bkflow.task.models import TaskInstance
+        from bkflow.task.operations import TaskOperation
+
+        parent_task_id = parent_data.get_one_of_inputs("task_id")
+        try:
+            parent_task = TaskInstance.objects.get(id=parent_task_id)
+        except TaskInstance.DoesNotExist:
+            data.set_outputs("ex_data", f"parent task {parent_task_id} not found")
+            return False
+
+        template, subprocess = self._get_subprocess_template(data)
+        if not template:
+            return False
+
+        pipeline_tree = template["data"]["pipeline_tree"]
+        self._process_subprocess_constants(subprocess, pipeline_tree)
+        self._render_parent_parameters(pipeline_tree, parent_task)
+
+        # 创建子任务实例
+        task_instance = self._create_subprocess_task_instance(subprocess, template, pipeline_tree, parent_task)
+
+        # 设置输出并启动任务
         data.set_outputs("task_id", task_instance.id)
         task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
         operation_method = getattr(task_operation, "start", None)
