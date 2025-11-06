@@ -144,6 +144,7 @@
             :is-view-mode="isViewMode"
             :triggers="formData.triggers"
             :template-id="templateId"
+            :is-allow-set-multiple-trigger="isAllowSetMultipleTrigger"
             @change="onTriggerConfigChange" />
         </section>
 
@@ -359,6 +360,7 @@
         colorList: LABEL_COLOR_LIST,
         labelLoading: false,
         proxyPlaceholder: '',
+        isAllowSetMultipleTrigger: false, // 允许设置多个触发器
       };
     },
     computed: {
@@ -374,14 +376,22 @@
       }),
       ...mapState('template', {
         templateId: state => state.template_id,
+        spaceId: state => state.spaceId,
       }),
     },
-    mounted() {
+    async mounted() {
       // 模板没有设置执行代理人时，默认使用项目下的执行代理人
       // if (!this.formData.executorProxy.length) {
       //   this.setExecutorProxy()
       // }
       this.$refs.nameInput.focus();
+      // 获取空间配置判断是否允许设置多个触发器
+      const res = await this.getSpaceConfigData({ space_id: this.spaceId });
+      res.data.map((item) => {
+        if (item.name === 'allow_multiple_triggers') {
+          this.isAllowSetMultipleTrigger = item.value === 'true';
+        }
+      });
     },
     methods: {
       ...mapMutations('template/', [
@@ -390,6 +400,9 @@
       ...mapActions('project', [
         'getProjectConfig',
         'createTemplateLabel',
+      ]),
+      ...mapActions('spaceConfig/', [
+        'getSpaceConfigData',
       ]),
       onEditLabel() {
         if (!this.hasPermission(['project_edit'], this.authActions)) {
