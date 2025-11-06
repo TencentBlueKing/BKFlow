@@ -63,7 +63,7 @@
           </template>
           <template v-if="templateConfig.auto_retry && templateConfig.auto_retry.enable">
             <span class="error-handle-icon"><span class="text">AR</span></span>
-            {{ $t('在') + $tc('秒', templateConfig.auto_retry.interval) + $t('后') + $t('，') }}
+            {{ $t('在 ') + $tc('秒', templateConfig.auto_retry.interval, { n: templateConfig.auto_retry.interval }) + $t('后') + $t('，') }}
             {{ $t('自动重试') + ' ' + templateConfig.auto_retry.times + ' ' + $t('次') }}
           </template>
         </span>
@@ -380,10 +380,12 @@
         try {
           // 获取对应模板配置
           let tplConfig = {};
+          console.log('this.nodeActivity', this.nodeActivity);
           if (this.nodeActivity.template_node_id) {
             tplConfig = await this.getNodeSnapshotConfig(this.currentNodeDetailConfig);
           }
           this.templateConfig = tplConfig.data || { ...this.nodeActivity, isOldData: true } || {};
+          console.log('this.templateConfig-初始化节点数据', this.templateConfig);
           // if (this.nodeActivity.type === 'SubProcess') return;
           if (this.isSubProcessNode) { // 子流程任务节点
             // tplConfig.data为null为该功能之前的旧数据，没有original_template_id字段的，不调接口
