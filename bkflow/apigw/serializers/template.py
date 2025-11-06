@@ -42,11 +42,15 @@ class CreateTemplateSerializer(serializers.Serializer):
     scope_type = serializers.CharField(help_text=_("流程范围类型"), max_length=128, required=False)
     scope_value = serializers.CharField(help_text=_("流程范围值"), max_length=128, required=False)
     source = serializers.CharField(help_text=_("来源"), max_length=32, required=False)
-    version = serializers.CharField(help_text=_("版本号"), max_length=32, required=False)
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
 
     def validate(self, attrs):
+        scope_type = attrs.get("scope_type")
+        scope_value = attrs.get("scope_value")
+
+        if (scope_type is not None) != (scope_value is not None):
+            raise serializers.ValidationError(_("作用域类型和作用域值必须同时填写，或同时不填写"))
 
         source_template_id = attrs.get("source_template_id")
         if source_template_id:

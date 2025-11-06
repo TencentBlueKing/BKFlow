@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -58,7 +57,9 @@ class ComponentModelFilter(FilterSet):
 
 
 class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
-    queryset = ComponentModel.objects.filter(status=True).exclude(code__in=["remote_plugin", "uniform_api"])
+    queryset = ComponentModel.objects.filter(status=True).exclude(
+        code__in=["remote_plugin", "uniform_api", "subprocess_plugin"]
+    )
     retrieve_queryset = ComponentModel.objects.filter(status=True).order_by("name")
     serializer_class = ComponentModelListSerializer
     retrieve_serializer_class = ComponentModelDetailSerializer
