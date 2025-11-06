@@ -63,7 +63,7 @@
           </template>
           <template v-if="templateConfig.auto_retry && templateConfig.auto_retry.enable">
             <span class="error-handle-icon"><span class="text">AR</span></span>
-            {{ $t('在') + $tc('秒', templateConfig.auto_retry.interval) + $t('后') + $t('，') }}
+            {{ $t('在 ') + $tc('秒', templateConfig.auto_retry.interval, { n: templateConfig.auto_retry.interval }) + $t('后') + $t('，') }}
             {{ $t('自动重试') + ' ' + templateConfig.auto_retry.times + ' ' + $t('次') }}
           </template>
         </span>
