@@ -62,10 +62,11 @@
       </bk-table-column>
     </bk-table>
     <bk-popover
+      :disabled="isAllowSetMultipleTrigger"
       :content="$t('只允许创建一个定时触发器')"
       placement="right">
       <bk-button
-        :disabled="isViewMode || triggerData.length >= 1"
+        :disabled="isViewMode || !isAllowSetMultipleTrigger && triggerData.length >= 1"
         theme="primary"
         icon="plus"
         class="add-trigger-button"
@@ -173,6 +174,10 @@ export default {
         default() {
           return [];
         },
+      },
+      isAllowSetMultipleTrigger: {
+        type: Boolean,
+        default: false,
       },
     },
     data() {
@@ -332,12 +337,12 @@ export default {
           this.type = 'add';
           this.initTrigger.space_id = this.spaceId;
           this.currentTriggerConfig = {
-            ...this.initTrigger,
+            ...tools.deepClone(this.initTrigger),
             isNewTrigger: true,
           };
           this.copyTriggerConstants = {};
           this.copyTriggerCron = {
-               minute: '*/30',
+              minute: '*/30',
               hour: '*',
               day_of_week: '*',
               day_of_month: '*',
@@ -365,7 +370,7 @@ export default {
               this.triggerData[this.currentTriggerIndex].config.cron = this.currentTriggerConfig.config.cron;
           }
           this.initTrigger.space_id = this.spaceId;
-          this.currentTriggerConfig = this.initTrigger;
+          this.currentTriggerConfig = tools.deepClone(this.initTrigger);
           this.copyTriggerConstants = {};
           this.isShowTriggerDialog = false;
         },
@@ -386,6 +391,7 @@ export default {
           this.initTrigger.space_id = this.spaceId;
           this.isShowTriggerDialog = false;
           this.$emit('change', this.triggerData);
+          this.currentTriggerConfig = tools.deepClone(this.initTrigger);
         },
         onChangeRenderForm(constants, saveInitialBackfillData) {
           this.saveInitialBackfillData = saveInitialBackfillData;
