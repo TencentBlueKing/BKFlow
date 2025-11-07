@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,19 +16,3 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-
-
-from django.apps import AppConfig
-
-
-class CodeConfig(AppConfig):
-    name = "pipeline_web.core"
-    label = "pipeline_web_core"
-    verbose_name = "PipelineWebCore"
-
-    def ready(self):
-        from bkflow.pipeline_web.core.signals import (  # noqa
-            node_in_instance_post_save,
-            node_in_template_delete,
-            node_in_template_post_save,
-        )
