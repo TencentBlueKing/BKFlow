@@ -228,12 +228,14 @@ class AdminTemplateViewSet(AdminModelViewSet):
         space_id = ser.validated_data["space_id"]
         template_id = ser.validated_data["template_id"]
         name = ser.validated_data.get("name")
+        desc = ser.validated_data.get("desc")
         try:
             template = Template.objects.copy_template(
                 template_id,
                 space_id,
                 request.user.username,
                 name,
+                desc,
             )
         except Template.DoesNotExist:
             err_msg = f"模版不存在, space_id={space_id}, template_id={template_id}"
