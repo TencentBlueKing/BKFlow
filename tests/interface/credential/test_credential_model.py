@@ -19,7 +19,13 @@ to the current version of the project delivered to anyone in the future.
 import pytest
 from django.db import IntegrityError
 
-from bkflow.space.models import Credential, CredentialScope, CredentialType, Space
+from bkflow.space.models import (
+    Credential,
+    CredentialScope,
+    CredentialScopeLevel,
+    CredentialType,
+    Space,
+)
 
 
 @pytest.mark.django_db
@@ -212,6 +218,10 @@ class TestCredentialScope:
 
     def test_can_use_in_scope_with_matching_scope(self, test_credential):
         """测试匹配作用域的凭证可以使用"""
+        # 设置 scope_level 为 PART
+        test_credential.scope_level = CredentialScopeLevel.PART.value
+        test_credential.save()
+
         # 添加作用域
         CredentialScope.objects.create(credential_id=test_credential.id, scope_type="project", scope_value="project_1")
 
@@ -226,18 +236,23 @@ class TestCredentialScope:
         test_credential.get_scopes().delete()
 
     def test_can_use_in_scope_with_template_no_scope(self, test_credential):
-        """测试模板没有作用域时，有作用域的凭证也可以使用"""
-        # 添加作用域
-        CredentialScope.objects.create(credential_id=test_credential.id, scope_type="project", scope_value="project_1")
+        """测试模板没有作用域时，scope_level == ALL 的凭证可以使用"""
+        # 设置 scope_level 为 ALL（空间内开放）
+        test_credential.scope_level = CredentialScopeLevel.ALL.value
+        test_credential.save()
 
-        # 模板没有作用域（都为 None），有作用域的凭证也可以使用
+        # 模板没有作用域（都为 None），scope_level == ALL 的凭证可以使用
         assert test_credential.can_use_in_scope(None, None) is True
 
-        # 清理
-        test_credential.get_scopes().delete()
+        # 有作用域时也可以使用
+        assert test_credential.can_use_in_scope("project", "project_1") is True
 
     def test_multiple_scopes(self, test_credential):
         """测试多个作用域"""
+        # 设置 scope_level 为 PART
+        test_credential.scope_level = CredentialScopeLevel.PART.value
+        test_credential.save()
+
         # 添加多个作用域
         CredentialScope.objects.create(credential_id=test_credential.id, scope_type="project", scope_value="project_1")
         CredentialScope.objects.create(credential_id=test_credential.id, scope_type="project", scope_value="project_2")
