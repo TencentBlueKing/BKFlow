@@ -2,7 +2,7 @@
   <div>
     <bk-table
       size="small"
-      class="credential-dialog-table"
+      class="credential-content-table"
       border
       dark-header
       :data="credentialList">
