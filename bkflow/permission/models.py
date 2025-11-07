@@ -163,6 +163,7 @@ class Token(models.Model):
         if db_token.has_expired():
             return False
 
+        # todo: 此处在递归中查询接口，如果出现子流程嵌套多层导致性能问题，需要优化
         def check_parent_task_id(db_token, current_task_id):
             client = TaskComponentClient(space_id=db_token.space_id)
             result = client.get_task_detail(current_task_id)
