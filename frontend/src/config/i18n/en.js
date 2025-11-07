@@ -1026,7 +1026,8 @@ const en = {
   '包含 x 个流程': 'Contains {num} processes',
   子流程数量: 'Number of subflows',
   查看父流程: 'View parent process',
-  当前执行次数: '当前执行次数',
+  当前执行次数: 'Current execution count',
+  查看子流程: 'View subflow',
 };
 
 export default en;
