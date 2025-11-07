@@ -27,7 +27,9 @@
         :scope-info="scopeInfo"
         :create-method="createMethod"
         :canvas-mode="canvasMode"
-        :instance-actions="instanceActions" />
+        :instance-actions="instanceActions"
+        :trigger-method="triggerMethod"
+        :parent-task-info="parentTaskInfo" />
     </template>
   </div>
 </template>
@@ -71,6 +73,8 @@
         scopeInfo: {},
         createMethod: '',
         canvasMode: '',
+        triggerMethod: '',
+        parentTaskInfo: {},
       };
     },
     created() {
@@ -87,6 +91,7 @@
       ]),
       ...mapActions('task/', [
         'getTaskInstanceData',
+        'loadSubflowConfig',
       ]),
       async getTaskData() {
         try {
@@ -105,12 +110,27 @@
             scope_type: scopeType,
             scope_value: scopeValue,
             create_method: createMethod,
+            trigger_method: triggerMethod,
+            parent_task_info: parentTaskInfo,
           } = instanceData;
           if (this.isFunctional && currentFlow === 'func_claim') {
             this.showParamsFill = true;
           } else {
             this.primaryTitle = document.title;
             document.title = name;
+          }
+          // 判断是否存在子流程节点-如果存在需获取子流程的节点树
+          for (const key in pipelineTree.activities) {
+            const currentItem = pipelineTree.activities[key];
+            if (currentItem.component.code === 'subprocess_plugin') {
+              const { template_id } = currentItem.component.data.subprocess.value;
+              const params = {
+                templateId: template_id,
+                is_all_nodes: true,
+              };
+              const res = await this.loadSubflowConfig(params);
+              currentItem.pipeline = res.data.pipeline_tree;
+            }
           }
           this.instanceFlow = pipelineTree;
           this.instanceName = name;
@@ -123,6 +143,8 @@
           this.scopeInfo = { scope_type: scopeType, scope_value: scopeValue };
           this.canvasMode = pipelineTree.canvas_mode;
           this.createMethod = createMethod;
+          this.triggerMethod = triggerMethod;
+          this.parentTaskInfo = parentTaskInfo || {};
           // 将节点树存起来
           this.setPipelineTree(pipelineTree);
         } catch (e) {

@@ -3,6 +3,7 @@
     <subflow
       v-if="nodeConfig.type === 'SubProcess'"
       :common="common"
+      :space-id="spaceId"
       :node-config="nodeConfig"
       :template-labels="templateLabels"
       @select="$emit('select', $event)" />

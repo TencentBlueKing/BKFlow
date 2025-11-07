@@ -61,6 +61,50 @@
               {{ props.row.name }}
             </router-link>
           </div>
+          <div
+            v-else-if="item.id === 'subflow_count'"
+            class="subflow_update">
+            <bk-popover
+              placement="top"
+              :disabled="props.row.subprocess_info.length <= 0"
+              ext-cls="subflow-popover">
+              <span
+                v-if="props.row.subprocess_info.length>0"
+                class="blue-text">
+                {{ props.row.subprocess_info.length }}
+              </span>
+              <span v-else>--</span>
+              <bk-button
+                v-if="getSubflowUpdateCount(props.row.subprocess_info) > 0"
+                :text="true">
+                <span class="red-text">
+                  <span class="blue-text">(</span>
+                  {{ $t(' x 个子流程待更新', { num: getSubflowUpdateCount(props.row.subprocess_info) }) }}
+                  <span class="blue-text">)</span>
+                </span>
+              <!-- 立即更新 -->
+              </bk-button>
+              <div
+                v-if="props.row.subprocess_info.length>0"
+                slot="content">
+                <ul
+                  v-for="sub in props.row.subprocess_info"
+                  :key="sub.subprocess_node_id"
+                  class="subflow-list">
+                  <li>
+                    <div class="text-name">
+                      {{ sub.subprocess_template_name }}
+                    </div>
+                    <div
+                      v-if="sub.expired"
+                      class="update-text">
+                      <p>待更新</p>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </bk-popover>
+          </div>
           <!-- 其他 -->
           <template v-else>
             <span>{{ props.row[item.id] || '--' }}</span>
@@ -129,6 +173,85 @@
       :is-show="showCreateTplDialog"
       @close="showCreateTplDialog = false"
       @updateList="getTemplateList" />
+    <!-- 复制弹窗 -->
+    <bk-dialog
+      v-model="isShowCopyDialog"
+      theme="primary"
+      width="480"
+      :mask-close="false"
+      footer-position="center"
+      @confirm="onCopyConfirm"
+      @cancel="isSelectCopySubflow = false">
+      <div class="copy-del-dialog-content">
+        <div class="title">
+          <bk-icon
+            type="exclamation"
+            class="info-icon dialog-icon" />
+          <div class="title-text">
+            {{ $t('是否复制该流程？') }}
+          </div>
+        </div>
+        <div class="mock-text">
+          <div>{{ $t('关联的mock数据不会同步复制，暂不支持复制带有决策表节点的流程') }}</div>
+        </div>
+        <bk-checkbox
+          v-model="isSelectCopySubflow">
+          {{ $t('复制包含的子流程') }}
+        </bk-checkbox>
+      </div>
+    </bk-dialog>
+    <!-- 删除弹窗 -->
+    <bk-dialog
+      v-model="isShowDelDialog"
+      theme="primary"
+      width="480"
+      :mask-close="false"
+      :show-footer="false"
+      ext-cls="del-dialog">
+      <div class="copy-del-dialog-content">
+        <div class="title">
+          <bk-icon
+            type="exclamation"
+            class="del-error-icon dialog-icon" />
+          <div
+            class="title-text">
+            {{ $t('删除失败') }}
+          </div>
+        </div>
+        <div v-if="referencedProcessList.length > 0">
+          <div>{{ $t('当前流程被以下流程引用:') }}</div>
+          <div
+            v-for="subflowList in referencedProcessList"
+            :key="subflowList[0]">
+            <bk-table
+              :data="subflowList[1].referenced"
+              ext-cls="referenced-process-table"
+              :max-height="197"
+              :dark-header="true"
+              :stripe="true">
+              <bk-table-column
+                :render-header="(h) => renderReferendLabelHeader(h,subflowList)">
+                <template slot-scope="props">
+                  <div class="reference-list">
+                    <span>{{ props.row.root_template_name }}</span>
+                    <router-link
+                      :to="{
+                        name: 'templatePanel',
+                        params: {
+                          templateId: props.row.root_template_id,
+                          type: 'view'
+                        }
+                      }">
+                      <i class="common-icon-box-top-right-corner icon-view-sub" />
+                    </router-link>
+                  </div>
+                </template>
+              </bk-table-column>
+            </bk-table>
+          </div>
+        </div>
+      </div>
+    </bk-dialog>
   </div>
 </template>
 
@@ -176,6 +299,11 @@
       id: 'create_at',
       label: i18n.t('创建时间'),
       width: 280,
+    },
+    {
+      id: 'subflow_count',
+      label: i18n.t('子流程数量'),
+      width: 200,
     },
     {
       id: 'updated_by',
@@ -247,7 +375,7 @@
         batchDeleting: false,
         deleting: false,
         tableFields: TABLE_FIELDS,
-        defaultSelected: ['id', 'name', 'creator', 'create_at', 'update_by', 'update_at'],
+        defaultSelected: ['id', 'name', 'creator', 'create_at', 'subflow_count', 'update_by', 'update_at'],
         setting: {
           fieldList: TABLE_FIELDS,
           selectedFields: [],
@@ -256,6 +384,11 @@
         dateFields: ['create_at', 'update_at'],
         searchList: SEARCH_LIST,
         pageType: 'templateList', // 页面类型，在mixins中分页表格头显示使用
+        isShowCopyDialog: false,
+        isShowDelDialog: false,
+        isSelectCopySubflow: false,
+        copyTemplateId: null,
+        referencedProcessList: [], // 引用的流程列表
       };
     },
     computed: {
@@ -276,6 +409,24 @@
       ...mapMutations('template/', [
         'setSpaceId',
       ]),
+      renderReferendLabelHeader(h, value) {
+        return h('div', [
+          h('span', i18n.t('流程')),
+          h('bk-popover',
+            {
+              props: {
+                content: value[1].sub_template_name,
+              },
+            },
+            [
+              h('span', ` (${value[0]}) `),
+            ]
+          ),
+          h('span', i18n.t('包含 x 个流程', {
+            num: value[1].referenced.length,
+          })),
+        ]);
+      },
       async getTemplateList() {
         try {
           if (!this.spaceId) return;
@@ -450,6 +601,7 @@
         });
       },
       async batchDeleteConfirm() {
+        this.referencedProcessList = [];
         const data = {
           space_id: this.spaceId,
           is_full: this.pagination.count === this.selectedTpls.length,
@@ -465,36 +617,39 @@
             message: this.$t('流程删除成功！'),
             theme: 'success',
           });
+        } else {
+          if (res.data.sub_root_map) {
+            this.referencedProcessList = Object.entries(res.data.sub_root_map);
+          }
+          this.isShowDelDialog = true;
+          return;
         }
         return Promise.resolve();
       },
+      getSubflowUpdateCount(subflowList) {
+        return subflowList.filter(sub => sub.expired).length;
+      },
       onCopyTemplate(template) {
-        this.$bkInfo({
-          title: this.$t('是否复制该流程？'),
-          subTitle: this.$t('注意：关联的 mock 数据不会同步复制，暂不支持复制带有决策表节点的流程'),
-          type: 'warning',
-          extCls: 'dialog-custom-header-title',
-          maskClose: false,
-          width: 450,
-          confirmLoading: true,
-          cancelText: this.$t('取消'),
-          confirmFn: async () => {
-            try {
-              const resp = await this.copyTemplate({
-                space_id: this.spaceId,
-                template_id: template.id,
-              });
-              if (!resp.result) return;
-              this.getTemplateList();
-              this.$bkMessage({
-                message: this.$t('流程复制成功！'),
-                theme: 'success',
-              });
-            } catch (error) {
-              console.warn(error);
-            }
-          },
-        });
+        this.isShowCopyDialog = true;
+        this.copyTemplateId = template.id;
+      },
+      async onCopyConfirm() {
+        try {
+          const resp = await this.copyTemplate({
+            space_id: this.spaceId,
+            template_id: this.copyTemplateId,
+            copy_subprocess: this.isSelectCopySubflow,
+          });
+          if (!resp.result) return;
+          this.getTemplateList();
+          this.$bkMessage({
+            message: this.$t('流程复制成功！'),
+            theme: 'success',
+          });
+          this.isSelectCopySubflow = false;
+        } catch (error) {
+          console.warn(error);
+        }
       },
       onDeleteTemplate(template) {
         const h = this.$createElement;
@@ -513,20 +668,27 @@
           confirmLoading: true,
           cancelText: this.$t('取消'),
           confirmFn: async () => {
-            await this.onDeleteConfirm(template.id);
+            await this.onDeleteConfirm(template);
           },
         });
       },
-      async onDeleteConfirm(templateId) {
+      async onDeleteConfirm(template) {
+        this.referencedProcessList = [];
         if (this.deleting) return;
         this.deleting = true;
         try {
           const data = {
             space_id: this.spaceId,
-            template_ids: [templateId],
+            template_ids: [template.id],
           };
           const resp = await this.deleteTemplate(data);
-          if (resp.result === false) return;
+          if (resp.result === false) {
+            if (resp.data.sub_root_map) {
+                this.referencedProcessList = Object.entries(resp.data.sub_root_map);
+            }
+            this.isShowDelDialog = true;
+            return;
+          };
           if (this.selectedTpls.find(tpl => tpl.id === templateId)) {
             const index = this.selectedTpls.findIndex(tpl => tpl.id === templateId);
             this.selectedTpls.splice(index, 1);
@@ -601,4 +763,137 @@
   ::v-deep .bk-table-empty-text {
     width: 100%;
   }
+  ::v-deep .bk-dialog-wrapper .bk-dialog-body {
+    padding: 3px 32px 26px;
+  }
+  .copy-del-dialog-content{
+     .title{
+      display: flex;
+      align-items: center;
+      flex-direction: column;
+      .dialog-icon{
+        font-size: 26px !important;
+        border-radius: 50%;
+        width: 42px;
+        height: 42px;
+        line-height: 42px;
+      }
+      .info-icon{
+        background-color: #ffe8c3;
+        color: #ff9c01;
+      }
+      .del-error-icon{
+        background-color: #FFDDDD;
+        color: #ea3636;
+      }
+      .title-text{
+        font-size: 20px;
+        color: #313238;
+        line-height: 32px;
+        margin-top: 19px;
+        margin-bottom: 16px;
+
+      }
+    }
+    .mock-text{
+      padding: 12px 16px;
+      background: #F5F6FA;
+      border-radius: 2px;
+      color: #4D4F56;
+      margin-bottom: 13px;
+    }
+  }
+  ::v-deep .del-dialog{
+    .bk-dialog-body{
+      padding-bottom: 38px;
+    }
+  }
+
+  ::v-deep .bk-dialog-footer{
+    border: none;
+    background-color:#FFFFFF;
+    padding: 0px 24px 24px;
+  }
+  ::v-deep .referenced-process-table{
+    margin-top: 16px;
+    .bk-table-header-wrapper{
+      height: 32px;
+      display: flex;
+      align-items: center;
+
+      .cell{
+        height: 32px;
+        line-height: 32px;
+      }
+    }
+    .bk-table-header-label{
+      font-size: 14px;
+      color: #313238;
+      line-height: 22px
+    }
+    .bk-table-body-wrapper{
+      scrollbar-color: #DCDEE5 transparent;
+      scrollbar-width: thin;
+      &::-webkit-scrollbar-button {
+        display: none !important;
+      }
+      .bk-table-row td{
+        height: 32px;
+        line-height: 32px;
+      }
+    }
+  }
+  ::v-deep .subflow_update{
+    cursor: pointer;
+    .blue-text{
+      color: #3a84ff;
+    }
+    .red-text{
+      color: #ff5757;
+    }
+  }
+</style>
+<style lang="scss">
+.subflow-popover{
+  .tippy-tooltip{
+      background-color: #FFFFFF;
+      border: 1px solid #DCDEE5;
+      box-shadow: 0 2px 6px 0 #0000001a;
+      padding: 8px;
+    }
+  ul{
+    li{
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+      &:last-child {
+        margin-bottom: 0;
+      }
+      .text-name{
+        color: #63656E;
+      }
+      .update-text{
+        margin-left: 2px;
+        background: #FCE9E8;
+        border-radius: 2px;
+        color: #EA3636;
+        p{
+          margin: 2px 3px;
+        }
+      }
+    }
+  }
+  .tippy-arrow{
+    border-top: 8px solid #ffffff !important;
+  }
+}
+.reference-list{
+  display: flex;
+  align-items: center;
+  .icon-view-sub{
+    color: #3a84ff;
+    margin-top: 1px;
+    margin-left: 10px;
+  }
+}
 </style>

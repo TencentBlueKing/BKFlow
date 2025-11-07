@@ -104,7 +104,7 @@
       nodeTypeList() {
         const list = [
           { key: 'tasknode', id: 'task', tips: this.$t('标准插件节点') },
-          // { key: 'subflow', id: 'subflow', tips: '子流程节点' },
+          { key: 'subflow', id: 'subflow', tips: '子流程节点' },
           { key: 'branchgateway', id: 'branch-gateway', tips: this.$t('分支网关') },
           { key: 'parallelgateway', id: 'parallel-gateway', tips: this.$t('并行网关') },
           { key: 'conditionalparallelgateway', id: 'conditional-parallel-gateway', tips: this.$t('条件并行网关') },
@@ -145,10 +145,11 @@
        * @param {String} type -添加节点类型
        */
       onAppendNode(type, isFillParam = false, insert = false) {
-        // 获取新节点坐标
+        // 获取新节点坐标：根据当前激活的节点或边确定新节点的位置
         let currLoc; let lineInfo;
         const { id, shape, data } = this.activeCell;
         if (shape === 'edge') {
+          // 如果当前激活的是边，找到对应的边信息
           lineInfo = this.lines.find(line => line.id === id);
           const sourceId = lineInfo.source.id;
           const nodeInstance = this.getNodeInstance(sourceId);
@@ -170,14 +171,16 @@
         }
         // 如果是复制操作需要
         const nodeId = `node${uuid()}`;
+        // 判断当前节点和待添加节点是否为网关类型
         const isGatewayCurrNode = currLoc.type.indexOf('gateway') > -1;
         const isGatewayAppendNode = type.indexOf('gateway') > -1;
+        // 计算新节点的位置
         const location = {
           id: nodeId,
           y: currLoc.y + ((isGatewayCurrNode ? 34 : 54) / 2) - ((isGatewayAppendNode ? 34 : 54) / 2),
           x: currLoc.x + 200,
         };
-        // 需要新生成的边
+        // 初始化新节点的边信息
         let edges = [
           {
             source: {
@@ -190,7 +193,7 @@
             },
           },
         ];
-        // 仅复制
+        // 如果是复制操作且不需要插入，直接创建节点并返回
         if (isFillParam && !insert) {
           const nodeInstance = this.createNode(type, location, currLoc.data);
           nodeInstance.setData({ oldSouceId: id, id: nodeInstance.id }, { silent: false });
@@ -208,7 +211,7 @@
          * 由边打开的面板，都是插入
          */
         const isHaveNodeBehind = this.lines.find(line => line.source.id === (shape === 'edge' ? lineInfo.source.id : id));
-        // 并行/分支网管类型节点
+        // 并行/分支网关类型节点
         const specialType = ['parallel-gateway', 'branch-gateway', 'conditional-parallel-gateway'];
         // 其他节点类型
         const otherType = ['task', 'subflow', 'converge-gateway', 'start'];
@@ -218,7 +221,7 @@
             if (specialType.indexOf(currLoc.type) > -1) {
               const conditions = this.branchConditions;
               if (conditions[id] && Object.keys(conditions[id]).length > 1) {
-                // 拿到并行中最靠下的节点
+                // 获取并行网关中最靠下的节点位置
                 const { x: parallelX, y: parallelY } = this.getParallelNodeMinDistance(id);
                 location.y = parallelY + 100;
                 location.x = parallelX;
@@ -227,13 +230,13 @@
           } else {
             lineInfo = this.lines.find(line => line.source.id === id);
           }
-          // 生成新的连线
+          // 更新边信息
           edges = this.updateConnector({
             lineInfo,
             nodeId,
           });
         } else if (specialType.indexOf(currLoc.type) > -1 && isHaveNodeBehind) {
-          // 如果网管分支已有输出连线则后续连线输出端点都由bottom出发
+          // 如果网关分支已有输出连线则后续连线输出端点都由bottom出发
           edges[0].source.port = 'port_bottom';
           // 拿到并行中最靠下的节点
           const { x: parallelX, y: parallelY } = this.getParallelNodeMinDistance(id);
@@ -337,8 +340,8 @@
           id: `node${uuid()}`,
           ...location,
           shape: 'custom-node',
-          width: type === 'task' ? 154 : 34,
-          height: type === 'task' ? 54 : 34,
+           width: type === 'task' || type === 'subflow' ? 154 : 34,
+          height: type === 'task' || type === 'subflow' ? 54 : 34,
           data: {
             ...data,
             type,

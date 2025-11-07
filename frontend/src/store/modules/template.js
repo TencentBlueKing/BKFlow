@@ -228,10 +228,12 @@ const template = {
     },
     setSubprocessUpdated(state, subflow) {
       if (state.subprocess_info) {
-        const data = state.subprocess_info.details.find(item => subflow.subprocess_node_id === item.subprocess_node_id);
-        data.expired = subflow.expired;
-        if (subflow.version) {
-          data.version = subflow.version;
+        const data = state.subprocess_info.find(item => subflow.subprocess_node_id === item.subprocess_node_id);
+        if (data) {
+          data.expired = subflow.expired;
+          if (subflow.version) {
+            data.version = subflow.version;
+          }
         }
       }
     },
@@ -268,7 +270,7 @@ const template = {
           }
           if (key === 'location') {
             val = val.map((item) => {
-              if (item.type === 'tasknode' || item.type === 'subflow') {
+              if (item.type === 'tasknode' || item.type === 'subflow' || item.type === 'SubProcess') {
                 const node = state.activities[item.id];
                 const loc = Object.assign({}, item, {
                   name: node.name,
@@ -332,8 +334,8 @@ const template = {
         subprocess_info: subprocessInfo,
         default_flow_type: defaultFlowType,
         space_id: spaceId,
-        scope_type,
-        scope_value,
+        scope_type, // 作用域类型
+        scope_value, // 作用域值
         triggers,
       } = data;
 

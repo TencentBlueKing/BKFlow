@@ -1,6 +1,6 @@
 <template>
   <div class="execute-record">
-    <template v-if="Object.keys(executeInfo).length">
+    <template v-if="Object.keys(executeRecord).length">
       <section
         class="info-section abnormal-section"
         data-test-id="taskExcute_form_exceptionInfo">
@@ -8,15 +8,15 @@
           {{ $t('异常信息') }}
         </h4>
         <div
-          v-if="executeInfo.ex_data"
+          v-if="executeRecord.ex_data"
           class="fail-text">
           <p
             class="hide-html-text"
-            v-html="executeInfo.failInfo" />
+            v-html="executeRecord.failInfo" />
           <div
             class="show-html-text"
             :class="{ 'is-fold': !isExpand }"
-            v-html="executeInfo.failInfo" />
+            v-html="executeRecord.failInfo" />
           <span
             v-if="isExpandTextShow"
             class="expand-btn"
@@ -41,15 +41,15 @@
           class="operation-table">
           <li>
             <span class="th">{{ $t('开始时间') }}</span>
-            <span class="td">{{ executeInfo.start_time || '--' }}</span>
+            <span class="td">{{ executeRecord.start_time || '--' }}</span>
           </li>
           <li>
             <span class="th">{{ $t('结束时间') }}</span>
-            <span class="td">{{ executeInfo.finish_time || '--' }}</span>
+            <span class="td">{{ executeRecord.finish_time || '--' }}</span>
           </li>
           <li>
             <span class="th">{{ $t('耗时') }}</span>
-            <span class="td">{{ getLastTime(executeInfo.elapsed_time) || '--' }}</span>
+            <span class="td">{{ getLastTime(executeRecord.elapsed_time) || '--' }}</span>
           </li>
         </ul>
         <NoData
@@ -60,18 +60,19 @@
       <template v-if="['tasknode', 'subflow', 'ServiceActivity', 'SubProcess'].includes(location.type)">
         <InputParams
           :admin-view="adminView"
-          :inputs="executeInfo.inputs"
-          :render-config="executeInfo.renderConfig"
+          :inputs="executeRecord.inputs"
+          :render-config="executeRecord.renderConfig"
           :constants="constants"
-          :render-data="executeInfo.renderData"
+          :render-data="executeRecord.renderData"
           :plugin-code="pluginCode"
           :space-id="spaceId"
           :template-id="templateId"
           @updateOutputs="$emit('updateOutputs', $event)" />
+        <!-- adminView 始终为false -->
         <OutputParams
           :is-ready-status="isReadyStatus"
           :admin-view="adminView"
-          :outputs="executeInfo.outputsInfo"
+          :outputs="executeRecord.outputsInfo"
           :node-detail-config="nodeDetailConfig" />
       </template>
     </template>
@@ -98,10 +99,6 @@
         type: Boolean,
         default: false,
       },
-      loading: {
-        type: Boolean,
-        default: false,
-      },
       location: {
         type: Object,
         default: () => ({}),
@@ -110,7 +107,7 @@
         type: Boolean,
         default: false,
       },
-      executeInfo: {
+      executeRecord: {
         type: Object,
         default: () => ({}),
       },
@@ -157,12 +154,6 @@
     methods: {
       getLastTime(time) {
         return tools.timeTransform(time);
-      },
-      onSkipSubProcess() {
-        const taskInfo = this.executeInfo.outputsInfo.find(item => item.key === 'task_url');
-        if (taskInfo) {
-          window.open(taskInfo.value, '_blank');
-        }
       },
     },
   };

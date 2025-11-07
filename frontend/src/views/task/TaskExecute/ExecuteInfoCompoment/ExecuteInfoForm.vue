@@ -25,11 +25,11 @@
       <template v-else>
         <li>
           <span class="th">{{ $t('标准插件') }}</span>
-          <span class="td">{{ executeInfo.plugin_name || '--' }}</span>
+          <span class="td">{{ currentExecuteInfo.plugin_name || '--' }}</span>
         </li>
         <li>
           <span class="th">{{ $t('插件版本') }}</span>
-          <span class="td">{{ executeInfo.plugin_version || '--' }}</span>
+          <span class="td">{{ currentExecuteInfo.plugin_version || '--' }}</span>
         </li>
       </template>
       <li>
@@ -63,7 +63,7 @@
           </template>
           <template v-if="templateConfig.auto_retry && templateConfig.auto_retry.enable">
             <span class="error-handle-icon"><span class="text">AR</span></span>
-            {{ $t('在') + $tc('秒', templateConfig.auto_retry.interval) + $t('后') + $t('，') }}
+            {{ $t('在 ') + $tc('秒', templateConfig.auto_retry.interval, { n: templateConfig.auto_retry.interval }) + $t('后') + $t('，') }}
             {{ $t('自动重试') + ' ' + templateConfig.auto_retry.times + ' ' + $t('次') }}
           </template>
         </span>
@@ -71,10 +71,7 @@
           v-else
           class="td">{{ '--' }}</span>
       </li>
-      <!-- <li>
-                <span class="th">{{ $t('超时控制') }}</span>
-                <span class="td">{{ timeoutTextValue }}</span>
-            </li> -->
+
       <li v-if="isSubProcessNode || isTemSubflowNode">
         <span class="th">{{ $t('总是使用最新版本') }}</span>
         <span class="td">
@@ -82,6 +79,7 @@
         </span>
       </li>
     </ul>
+    <!-- v-if="inputAndOutputWrapShow" -->
     <template>
       <h4 class="common-section-title">
         {{ $t('输入参数') }}
@@ -230,15 +228,15 @@
         type: String,
         default: '',
       },
-      isSubProcessNode: {
-        type: Boolean,
-        default: false,
-      },
+      // isSubProcessNode: {
+      //   type: Boolean,
+      //   default: false,
+      // },
       spaceId: {
         type: Number,
         default: 0,
       },
-      scopeInfo: {
+      scopeInfo: { // api插件请求参数
         type: Object,
         default: () => ({}),
       },
@@ -276,6 +274,8 @@
         subflowLoading: false,
         constantsLoading: false,
         isTemSubflowNode: false,
+        currentExecuteInfo: tools.deepClone(this.executeInfo),
+        currentNodeDetailConfig: tools.deepClone(this.nodeDetailConfig),
       };
     },
     computed: {
@@ -286,15 +286,10 @@
       ...mapState({
         pluginConfigs: state => state.atomForm.config,
         pluginOutput: state => state.atomForm.output,
+        atomFormInfo: state => state.atomForm.form,
       }),
-      timeoutTextValue() {
-        const timeoutConfig = this.nodeActivity.timeout_config;
-        if (!timeoutConfig || !timeoutConfig.enable) return '--';
-        const actionText = timeoutConfig.action === 'forced_fail' ? i18n.t('强制终止') : i18n.t('强制终止后跳过');
-        return `${i18n.t('超时')} ${timeoutConfig.seconds} ${i18n.tc('秒', 0)}${i18n.t('后')}${i18n.t('则')}${actionText}`;
-      },
       componentValue() {
-        if (this.isSubProcessNode) {
+        if (this.nodeActivity?.component?.data?.subprocess) {
           return this.nodeActivity.component.data.subprocess.value;
         } if (this.isTemSubflowNode) {
           const { always_use_latest, template_id, template_source } = this.nodeActivity;
@@ -315,6 +310,14 @@
       outputList() {
         return this.getOutputsList();
       },
+      // inputAndOutputWrapShow() {
+      //   const { original_template_id: originTplId } = this.nodeActivity;
+      //   // 普通任务节点展示/该功能上线后的独立子流程任务展示
+      //   return originTplId && !this.templateConfig.isOldData;
+      // },
+      isSubProcessNode() {
+        return this.nodeActivity?.component?.code === 'subprocess_plugin' || this.nodeActivity.type === 'SubProcess';
+      },
       isAutoOperate() {
         const { ignorable, skippable, retryable, auto_retry: autoRetry } = this.templateConfig;
         return ignorable || skippable || retryable || (autoRetry && autoRetry.enable);
@@ -329,6 +332,18 @@
       variableList() {
         const constants = this.isSubProcessNode ? this.subflowForms : this.constants;
         return [...Object.values(constants)];
+      },
+    },
+    watch: {
+      nodeDetailConfig: {
+        handler(val, oldVal) {
+          if (!tools.isDataEqual(val, oldVal)) {
+            this.currentNodeDetailConfig = tools.deepClone(val);
+            this.getThirdpluginNameAndVersion();
+          }
+        },
+        deep: true,
+        immediate: true,
       },
     },
     mounted() {
@@ -358,6 +373,7 @@
       ...mapActions('atomForm/', [
         'loadAtomConfig',
         'loadPluginServiceDetail',
+        'loadPluginServiceAppDetail',
       ]),
       // 初始化节点数据
       async initData() {
@@ -365,15 +381,15 @@
           // 获取对应模板配置
           let tplConfig = {};
           if (this.nodeActivity.template_node_id) {
-            tplConfig = await this.getNodeSnapshotConfig(this.nodeDetailConfig);
+            tplConfig = await this.getNodeSnapshotConfig(this.currentNodeDetailConfig);
           }
           this.templateConfig = tplConfig.data || { ...this.nodeActivity, isOldData: true } || {};
-          if (this.nodeActivity.type === 'SubProcess') return;
+          // if (this.nodeActivity.type === 'SubProcess') return;
           if (this.isSubProcessNode) { // 子流程任务节点
             // tplConfig.data为null为该功能之前的旧数据，没有original_template_id字段的，不调接口
-            if (!tplConfig.data || !this.nodeActivity.original_template_id) {
-              return;
-            }
+            // if (!tplConfig.data || !this.nodeActivity.original_template_id) {
+            //   return;
+            // }
             const forms = {};
             const renderConfig = {};
             const constants = this.templateConfig.constants || {};
@@ -408,6 +424,19 @@
           console.warn(error);
         }
       },
+      // 获取第三方插件版本和名称
+      async getThirdpluginNameAndVersion() {
+        const { component_code: componentCode, version, componentData } = this.currentNodeDetailConfig;
+        if (this.isThirdPartyNode) {
+          const resp = await this.loadPluginServiceAppDetail({ plugin_code: this.thirdPartyNodeCode });
+          this.currentExecuteInfo.plugin_name = resp.data.name;
+          this.currentExecuteInfo.plugin_version = componentData.plugin_version.value;
+        } else if (atomFilter.isConfigExists(componentCode, version, this.atomFormInfo)) {
+          const pluginInfo = this.atomFormInfo[componentCode][version];
+          this.currentExecuteInfo.plugin_name = `${pluginInfo.group_name}-${pluginInfo.name}`;
+          this.currentExecuteInfo.plugin_version = version;
+        }
+      },
       // 获取输入参数勾选状态
       getFormsHookState() {
         const hooked = {};
@@ -437,15 +466,11 @@
         this.subflowLoading = true;
         try {
           const params = {
-            template_id: this.componentValue.template_id,
-            scheme_id_list: this.nodeActivity.schemeIdList || [],
+            templateId: this.componentValue.template_id,
+            is_all_nodes: true,
             version,
           };
-          if (this.componentValue.template_source === 'common') {
-            params.template_source = 'common';
-          } else {
-            params.project_id = this.project_id;
-          }
+          params.project_id = this.project_id;
           const resp = await this.loadSubflowConfig(params);
           // 子流程的输入参数包括流程引用的变量、自定义变量和未被引用的变量
           this.subflowForms = {
@@ -453,7 +478,6 @@
             ...resp.data.custom_constants,
             ...resp.data.constants_not_referred,
           };
-
           // 输出变量
           this.outputs = Object.keys(resp.data.outputs).map((item) => {
             const output = resp.data.outputs[item];
@@ -694,9 +718,9 @@
         this.taskNodeLoading = true;
         try {
           // 获取输入输出参数
-          let { component_code: plugin, version } = this.nodeDetailConfig;
+          let { component_code: plugin, version } = this.currentNodeDetailConfig;
           if (this.isThirdPartyNode) {
-            const { componentData } = this.nodeDetailConfig;
+            const { componentData } = this.currentNodeDetailConfig;
             plugin = componentData.plugin_code.value;
             version = componentData.plugin_version.value;
           }
