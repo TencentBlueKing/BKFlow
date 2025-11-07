@@ -23,7 +23,13 @@ from bkflow.space.exceptions import (
     CredentialNotFoundError,
     CredentialScopeValidationError,
 )
-from bkflow.space.models import Credential, CredentialScope, CredentialType, Space
+from bkflow.space.models import (
+    Credential,
+    CredentialScope,
+    CredentialScopeLevel,
+    CredentialType,
+    Space,
+)
 
 
 @pytest.mark.django_db
@@ -46,6 +52,7 @@ class TestResolveCredentials:
             type=CredentialType.BK_APP.value,
             content={"bk_app_code": "app", "bk_app_secret": "secret"},
             creator="test_user",
+            scope_level=CredentialScopeLevel.PART.value,
         )
         # 添加默认作用域
         CredentialScope.objects.create(credential_id=credential.id, scope_type="test", scope_value="test_1")
@@ -61,6 +68,7 @@ class TestResolveCredentials:
             type=CredentialType.BASIC_AUTH.value,
             content={"username": "admin", "password": "secret"},
             creator="test_user",
+            scope_level=CredentialScopeLevel.PART.value,
         )
         CredentialScope.objects.create(credential_id=credential.id, scope_type="project", scope_value="project_1")
         yield credential

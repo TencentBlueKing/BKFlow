@@ -23,7 +23,7 @@ from rest_framework import serializers
 
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import SpaceConfigHandler, SpaceConfigValueType
-from bkflow.space.models import Space, SpaceConfig
+from bkflow.space.models import CredentialScope, Space, SpaceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,14 @@ class SpaceConfigSerializer(serializers.ModelSerializer):
 
 class SpaceConfigBaseQuerySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
+
+
+class CredentialScopeSerializer(serializers.ModelSerializer):
+    """凭证作用域序列化器"""
+
+    class Meta:
+        model = CredentialScope
+        fields = ["scope_type", "scope_value"]
 
 
 class CredentialBaseQuerySerializer(serializers.Serializer):

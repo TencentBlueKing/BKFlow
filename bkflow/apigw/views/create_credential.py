@@ -26,7 +26,7 @@ from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.credential import CreateCredentialSerializer
-from bkflow.space.models import Credential, CredentialScope
+from bkflow.space.models import Credential, CredentialScope, CredentialScopeLevel
 
 
 @login_exempt
@@ -50,14 +50,17 @@ def create_credential(request, space_id):
     # 提取作用域数据
     credential_data = dict(ser.validated_data)
     scopes = credential_data.pop("scopes", [])
+    scope_level = credential_data.pop("scope_level", None)
 
     # 创建凭证和作用域
     with transaction.atomic():
         # 序列化器已经检查过是否存在了
-        credential = Credential.create_credential(**credential_data, space_id=space_id, creator=request.user.username)
+        credential = Credential.create_credential(
+            **credential_data, space_id=space_id, creator=request.user.username, scope_level=scope_level
+        )
 
         # 创建凭证作用域
-        if scopes:
+        if scope_level == CredentialScopeLevel.PART.value and scopes:
             scope_objects = [
                 CredentialScope(
                     credential_id=credential.id,

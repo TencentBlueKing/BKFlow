@@ -23,7 +23,13 @@ from bkflow.space.credential.scope_validator import (
     validate_credential_scope,
 )
 from bkflow.space.exceptions import CredentialScopeValidationError
-from bkflow.space.models import Credential, CredentialScope, CredentialType, Space
+from bkflow.space.models import (
+    Credential,
+    CredentialScope,
+    CredentialScopeLevel,
+    CredentialType,
+    Space,
+)
 
 
 @pytest.mark.django_db
@@ -46,6 +52,7 @@ class TestValidateCredentialScope:
             type=CredentialType.BK_APP.value,
             content={"bk_app_code": "app", "bk_app_secret": "secret"},
             creator="test_user",
+            scope_level=CredentialScopeLevel.PART.value,
         )
         CredentialScope.objects.create(credential_id=credential.id, scope_type="project", scope_value="project_1")
         yield credential
@@ -53,13 +60,14 @@ class TestValidateCredentialScope:
 
     @pytest.fixture
     def credential_without_scope(self, test_space):
-        """创建没有作用域限制的凭证"""
+        """创建没有作用域限制的凭证（scope_level == ALL）"""
         credential = Credential.create_credential(
             space_id=test_space.id,
             name="no_scope_credential",
             type=CredentialType.BASIC_AUTH.value,
             content={"username": "admin", "password": "secret"},
             creator="test_user",
+            scope_level=CredentialScopeLevel.ALL.value,
         )
         yield credential
         credential.hard_delete()
@@ -78,16 +86,16 @@ class TestValidateCredentialScope:
         assert "不能在作用域" in str(exc_info.value)
 
     def test_validate_credential_without_scope_fails(self, credential_without_scope):
-        """测试验证没有作用域的凭证（应该失败）"""
-        # 凭证没有作用域，不允许使用
-        with pytest.raises(CredentialScopeValidationError):
-            validate_credential_scope(credential_without_scope, "project", "project_1")
+        """测试验证 scope_level == ALL 的凭证（应该可以使用）"""
+        # scope_level == ALL 的凭证可以在任何地方使用
+        result = validate_credential_scope(credential_without_scope, "project", "project_1")
+        assert result is True
 
     def test_validate_credential_with_scope_on_template_without_scope(self, credential_with_scope):
-        """测试在没有作用域的模板中使用有作用域的凭证"""
-        # 模板没有作用域，有作用域的凭证可以使用
-        result = validate_credential_scope(credential_with_scope, None, None)
-        assert result is True
+        """测试在没有作用域的模板中使用 scope_level == PART 的凭证（应该失败）"""
+        # 模板没有作用域，scope_level == PART 的凭证不能使用
+        with pytest.raises(CredentialScopeValidationError):
+            validate_credential_scope(credential_with_scope, None, None)
 
 
 @pytest.mark.django_db
@@ -104,32 +112,35 @@ class TestFilterCredentialsByScope:
     @pytest.fixture
     def setup_credentials(self, test_space):
         """创建测试凭证"""
-        # 1. 没有作用域的凭证
+        # 1. scope_level == ALL 的凭证（空间内开放，可以在任何地方使用）
         cred1 = Credential.create_credential(
             space_id=test_space.id,
             name="no_scope",
             type=CredentialType.BK_APP.value,
             content={"bk_app_code": "app1", "bk_app_secret": "secret1"},
             creator="test_user",
+            scope_level=CredentialScopeLevel.ALL.value,
         )
 
-        # 2. 有匹配作用域的凭证
+        # 2. scope_level == PART 且有匹配作用域的凭证
         cred2 = Credential.create_credential(
             space_id=test_space.id,
             name="matching_scope",
             type=CredentialType.BK_APP.value,
             content={"bk_app_code": "app2", "bk_app_secret": "secret2"},
             creator="test_user",
+            scope_level=CredentialScopeLevel.PART.value,
         )
         CredentialScope.objects.create(credential_id=cred2.id, scope_type="project", scope_value="project_1")
 
-        # 3. 有不匹配作用域的凭证
+        # 3. scope_level == PART 且有不匹配作用域的凭证
         cred3 = Credential.create_credential(
             space_id=test_space.id,
             name="non_matching_scope",
             type=CredentialType.BK_APP.value,
             content={"bk_app_code": "app3", "bk_app_secret": "secret3"},
             creator="test_user",
+            scope_level=CredentialScopeLevel.PART.value,
         )
         CredentialScope.objects.create(credential_id=cred3.id, scope_type="project", scope_value="project_2")
 
@@ -144,18 +155,19 @@ class TestFilterCredentialsByScope:
         """测试模板没有作用域时的过滤"""
         queryset = Credential.objects.filter(space_id=test_space.id, is_deleted=False)
 
-        # 模板没有作用域，应该返回所有凭证
+        # 模板没有作用域，只应该返回 scope_level == ALL 的凭证
         filtered = filter_credentials_by_scope(queryset, None, None)
-        assert filtered.count() == 3
+        assert filtered.count() == 1
+        assert filtered.first().name == "no_scope"
 
     def test_filter_with_matching_scope(self, test_space, setup_credentials):
         """测试匹配作用域的过滤"""
         queryset = Credential.objects.filter(space_id=test_space.id, is_deleted=False)
 
-        # 应该返回：没有作用域的 + 匹配作用域的
+        # 应该返回：scope_level == ALL 的凭证 + scope_level == PART 且作用域匹配的凭证
         filtered = filter_credentials_by_scope(queryset, "project", "project_1")
 
-        # 应该只有 2 个凭证：no_scope 和 matching
+        # 应该只有 2 个凭证：no_scope (ALL) 和 matching_scope (PART 且匹配)
         assert filtered.count() == 2
         names = [c.name for c in filtered]
         assert "no_scope" in names
@@ -166,7 +178,7 @@ class TestFilterCredentialsByScope:
         """测试不存在的作用域过滤"""
         queryset = Credential.objects.filter(space_id=test_space.id, is_deleted=False)
 
-        # 只应该返回没有作用域的凭证
+        # 只应该返回 scope_level == ALL 的凭证（空间内开放，可以在任何地方使用）
         filtered = filter_credentials_by_scope(queryset, "project", "project_999")
 
         assert filtered.count() == 1
