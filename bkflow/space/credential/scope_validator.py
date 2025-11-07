@@ -19,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 from django.utils.translation import ugettext_lazy as _
 
 from bkflow.space.exceptions import CredentialScopeValidationError
-from bkflow.space.models import CredentialScope
+from bkflow.space.models import CredentialScope, CredentialScopeLevel
 
 
 def validate_credential_scope(credential, template_scope_type, template_scope_value):
@@ -54,28 +54,39 @@ def filter_credentials_by_scope(credentials_queryset, scope_type, scope_value):
     :return: 过滤后的凭证查询集
     """
     # 获取所有凭证ID
-    all_credential_ids = set(credentials_queryset.values_list("id", flat=True))
+    all_credential_ids = list(credentials_queryset.values_list("id", flat=True))
 
-    # 获取有作用域限制的凭证ID
-    credentials_with_scope = set(
-        CredentialScope.objects.filter(credential_id__in=all_credential_ids).values_list("credential_id", flat=True)
+    # 如果模板没有作用域（scope_type 和 scope_value 都为 None）
+    if not scope_type and not scope_value:
+        # 只返回 scope_level == ALL 的凭证（空间内开放）
+        return credentials_queryset.filter(id__in=all_credential_ids, scope_level=CredentialScopeLevel.ALL.value)
+
+    # 模板有作用域时，需要过滤：
+    # 1. scope_level == ALL 的凭证（空间内开放，可以在任何地方使用）
+    # 2. scope_level == PART 且作用域匹配的凭证
+
+    # 获取 scope_level == ALL 的凭证ID
+    all_level_credential_ids = set(
+        credentials_queryset.filter(id__in=all_credential_ids, scope_level=CredentialScopeLevel.ALL.value).values_list(
+            "id", flat=True
+        )
     )
 
-    # 没有作用域限制的凭证ID（可以在任何地方使用）
-    credentials_without_scope = all_credential_ids - credentials_with_scope
+    # 获取 scope_level == PART 的凭证ID
+    part_level_credential_ids = set(
+        credentials_queryset.filter(id__in=all_credential_ids, scope_level=CredentialScopeLevel.PART.value).values_list(
+            "id", flat=True
+        )
+    )
 
-    # 如果模板没有作用域，只返回没有设置作用域的凭证
-    if not scope_type and not scope_value:
-        return credentials_queryset.filter(id__in=credentials_without_scope)
-
-    # 查找匹配当前作用域的凭证ID
+    # 查找 scope_level == PART 且作用域匹配的凭证ID
     matching_credential_ids = set(
         CredentialScope.objects.filter(
-            credential_id__in=credentials_with_scope, scope_type=scope_type, scope_value=scope_value
+            credential_id__in=part_level_credential_ids, scope_type=scope_type, scope_value=scope_value
         ).values_list("credential_id", flat=True)
     )
 
-    # 返回：没有作用域限制的凭证 + 匹配当前作用域的凭证
-    available_credential_ids = credentials_without_scope | matching_credential_ids
+    # 返回：scope_level == ALL 的凭证 + scope_level == PART 且作用域匹配的凭证
+    available_credential_ids = all_level_credential_ids | matching_credential_ids
 
     return credentials_queryset.filter(id__in=available_credential_ids)
