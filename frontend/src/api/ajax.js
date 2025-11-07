@@ -48,7 +48,6 @@ axios.interceptors.response.use(
     }
 
     const { response } = error;
-    console.log(response);
     if (response.data.message) {
       response.data.msg = response.data.message;
     }
