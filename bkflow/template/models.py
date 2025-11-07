@@ -38,16 +38,25 @@ logger = logging.getLogger("root")
 
 
 class TemplateManager(models.Manager):
-    def copy_template(self, template_id, space_id, operator):
+    def copy_template(self, template_id, space_id, operator, copy_subprocess=False, version=None):
         """
         复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
         暂不支持拷贝带决策表插件的流程
         """
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
-        template_pipeline_tree = template.pipeline_tree
+        template_pipeline_tree = template.get_pipeline_tree_by_version(version)
         for node in template_pipeline_tree["activities"].values():
-            if node["component"]["code"] == "dmn_plugin":
+            if node["type"] == "SubProcess":
+                if copy_subprocess:
+                    new_sub_template = self.copy_template(
+                        node["template_id"], space_id, operator, True, node["version"]
+                    )
+                    node["template_id"] = new_sub_template.id
+                    node["version"] = new_sub_template.version
+                else:
+                    continue
+            elif node["component"]["code"] == "dmn_plugin":
                 raise ValidationError("流程中存在决策节点 暂不支持拷贝")
         template.pk = None
         template.name = f"Copy {template.name}"
@@ -84,7 +93,6 @@ class Template(CommonModel):
     scope_type = models.CharField(_("流程范围类型"), max_length=128, null=True, blank=True)
     scope_value = models.CharField(_("流程范围"), max_length=128, null=True, blank=True)
     source = models.CharField(_("来源"), max_length=32, null=True, blank=True, help_text=_("第三方系统对应的资源ID"))
-    version = models.CharField(_("版本号"), max_length=32, null=False, blank=False)
     is_enabled = models.BooleanField(_("是否启用"), default=True)
     extra_info = models.JSONField(_("额外的扩展信息"), default=dict)
 
@@ -146,6 +154,57 @@ class Template(CommonModel):
         根据模板创建flow
         """
         return
+
+    def get_pipeline_tree_by_version(self, version=None):
+        if not version:
+            return self.pipeline_tree
+        return TemplateSnapshot.objects.filter(md5sum=version).order_by("-id").first().data
+
+    @property
+    def version(self):
+        return self.snapshot.md5sum
+
+    @property
+    def subprocess_info(self):
+        subprocess_info = TemplateReference.objects.filter(root_template_id=self.id).values(
+            "subprocess_template_id", "subprocess_node_id", "version", "always_use_latest"
+        )
+        info = []
+        if not subprocess_info:
+            return info
+
+        temp_current_versions = {
+            item.id: item
+            for item in Template.objects.filter(
+                id__in=[int(item["subprocess_template_id"]) for item in subprocess_info]
+            )
+        }
+
+        for item in subprocess_info:
+            item["expired"] = (
+                False
+                if item["version"] is None
+                or int(item["subprocess_template_id"]) not in temp_current_versions
+                or item["always_use_latest"]
+                else (item["version"] != temp_current_versions[int(item["subprocess_template_id"])].version)
+            )
+            item["subprocess_template_name"] = temp_current_versions[int(item["subprocess_template_id"])].name
+            info.append(item)
+
+        return info
+
+    def outputs(self, version=None):
+        data = self.get_pipeline_tree_by_version(version)
+
+        if "constants" not in data:
+            return {}
+
+        outputs_key = data["outputs"]
+        outputs = {}
+        for key in outputs_key:
+            if key in data["constants"]:
+                outputs[key] = data["constants"][key]
+        return outputs
 
 
 class TemplateSnapshot(CommonSnapshot):
@@ -322,6 +381,7 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
     def update(self, trigger, data, template):
         client = TaskComponentClient(space_id=trigger.space_id)
         update_data = {
+            "name": template.name,
             "trigger_id": trigger.id,
             "cron": data["config"].get("cron"),
             "config": {
@@ -462,3 +522,15 @@ class Trigger(CommonModel):
         indexes = [
             models.Index(fields=["space_id", "template_id"]),
         ]
+
+
+class TemplateReference(models.Model):
+    """
+    流程模板引用关系：直接引用
+    """
+
+    root_template_id = models.CharField(_("主流程模板ID"), max_length=32, db_index=True)
+    subprocess_template_id = models.CharField(_("子流程模板ID"), max_length=32, null=False, db_index=True)
+    subprocess_node_id = models.CharField(_("子流程节点 ID"), max_length=32, null=False)
+    version = models.CharField(_("快照字符串的md5"), max_length=32, null=False)
+    always_use_latest = models.BooleanField(_("是否永远使用最新版本"), default=False)

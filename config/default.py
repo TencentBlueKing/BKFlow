@@ -445,3 +445,6 @@ if locals().get("DISABLED_APPS"):
         if locals().get(_key) is None:
             continue
         locals()[_key] = tuple([_item for _item in locals()[_key] if not _item.startswith(_app + ".")])
+
+TEMPLATE_MAX_RECURSIVE_NUMBER = env.TEMPLATE_MAX_RECURSIVE_NUMBER
+REQUEST_RETRY_NUMBER = env.REQUEST_RETRY_NUMBER

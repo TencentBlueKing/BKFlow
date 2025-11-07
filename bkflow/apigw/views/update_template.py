@@ -31,7 +31,7 @@ from bkflow.apigw.serializers.template import UpdateTemplateSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
-from bkflow.template.models import Template
+from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.utils import err_code
 
 
@@ -69,15 +69,18 @@ def update_template(request, space_id, template_id):
         except Template.DoesNotExist:
             raise UpdateTemplateException(_(f"模板不存在，template_id:{template_id}"))
 
+        if pipeline_tree:
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+            validated_data_dict["snapshot_id"] = snapshot.id
+            snapshot.template_id = template.id
+            snapshot.save(update_fields=["template_id"])
+
         for key, value in validated_data_dict.items():
             setattr(template, key, value)
         try:
             template.save()
         except Exception as e:
             raise UpdateTemplateException(_(f"保存模板失败，错误: {str(e)}"))
-
-        if pipeline_tree:
-            template.update_snapshot(pipeline_tree)
 
     template = Template.objects.get(id=template_id)
 

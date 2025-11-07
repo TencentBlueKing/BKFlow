@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,12 +20,19 @@ import datetime
 import logging
 
 from bamboo_engine import states as bamboo_engine_states
+from celery import current_app
 from django.conf import settings
 from django.dispatch import receiver
 from pipeline.eri.signals import post_set_state
 
 from bkflow.task.celery.tasks import auto_retry_node, send_task_message
-from bkflow.task.models import AutoRetryNodeStrategy, TaskInstance, TimeoutNodeConfig
+from bkflow.task.domains.callback import TaskCallBacker
+from bkflow.task.models import (
+    AutoRetryNodeStrategy,
+    TaskFlowRelation,
+    TaskInstance,
+    TimeoutNodeConfig,
+)
 from bkflow.task.utils import ATOM_FAILED, TASK_FINISHED, redis_inst_check
 
 logger = logging.getLogger("root")
@@ -56,7 +62,9 @@ def _dispatch_auto_retry_node_task(root_pipeline_id, node_id):
             countdown=strategy.interval,
         )
     except Exception:
-        logger.exception("auto retry dispatch failed, root_pipeline_id: %s, node_id: %s" % (root_pipeline_id, node_id))
+        logger.exception(
+            "auto retry dispatch failed, root_pipeline_id: {}, node_id: {}".format(root_pipeline_id, node_id)
+        )
         return False
 
     return True
@@ -82,6 +90,7 @@ def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version,
         retry_result = _dispatch_auto_retry_node_task(root_id, node_id)
         if retry_result:
             return
+        _check_and_callback(root_id, task_success=False)
         send_task_message.apply_async(
             kwargs={
                 "task_id": root_id,
@@ -95,6 +104,7 @@ def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version,
             TaskInstance.objects.set_revoked(root_id)
         except Exception as e:
             logger.exception(f"TaskInstance set revoked error: {e}")
+        _check_and_callback(root_id, task_success=False)
     elif to_state == bamboo_engine_states.FINISHED and node_id == root_id:
         try:
             TaskInstance.objects.set_finished(root_id)
@@ -108,8 +118,50 @@ def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version,
             queue=f"task_common_{settings.BKFLOW_MODULE.code}",
             routing_key=f"task_common_{settings.BKFLOW_MODULE.code}",
         )
+        _check_and_callback(root_id, task_success=True)
 
     try:
         _node_timeout_info_update(settings.redis_inst, to_state, node_id, version)
     except Exception as e:
         logger.exception(f"node_timeout_info_update error: {e}")
+
+
+def _check_and_callback(instance_id, *args, **kwargs):
+    try:
+        task_id = TaskInstance.objects.get(instance_id=instance_id).id
+        task_callback.apply_async(
+            kwargs=dict(task_id=task_id, **kwargs),
+            queue=f"task_callback_{settings.BKFLOW_MODULE.code}",
+            routing_key=f"task_callback_{settings.BKFLOW_MODULE.code}",
+        )
+    except Exception as e:
+        logger.exception(f"[_check_and_callback] task_callback delay error: {e}")
+
+
+@current_app.task
+def task_callback(task_id, retry_times=0, *args, **kwargs):
+    task_relate = TaskFlowRelation.objects.filter(task_id=task_id).first()
+    if not task_relate:
+        return
+    tcb = TaskCallBacker(task_id, *args, **kwargs)
+    if not tcb.check_record_existence():
+        message = f"[task_callback] task_id {task_id} does not in TaskCallBackRecord."
+        logger.error(message)
+        return
+    try:
+        result = tcb.subprocess_callback()
+    except Exception as e:
+        logger.exception(f"[task_callback] task_id {task_id}, retry_times {retry_times} callback error: {e}")
+        result = False
+
+    if result is None:
+        return
+
+    if not result and retry_times < settings.REQUEST_RETRY_NUMBER:
+        task_callback.apply_async(
+            kwargs=dict(task_id=task_id, retry_times=retry_times + 1, **kwargs),
+            queue=f"task_callback_{settings.BKFLOW_MODULE.code}",
+            routing_key=f"task_callback_{settings.BKFLOW_MODULE.code}",
+            countdown=1,
+        )
+        return
