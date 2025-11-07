@@ -210,6 +210,7 @@
     api: 'api触发',
     manual: '手动触发',
     timing: '定时触发',
+    subprocess: '子流程触发',
   };
   export default {
     name: 'TaskList',

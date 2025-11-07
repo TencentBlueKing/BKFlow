@@ -73,7 +73,6 @@
       FullCodeEditor,
     },
     props: {
-      isShow: Boolean,
       gateways: {
         type: Object,
         default: () => ({}),

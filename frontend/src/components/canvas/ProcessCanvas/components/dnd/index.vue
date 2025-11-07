@@ -9,7 +9,7 @@
         :class="[
           'node-item',
           node.id === 'group' ? 'group-node' : `common-icon-node-${node.icon}`,
-          { disabled: ['start', 'end'].includes(node.id) },
+          { disabled: isShowStartOrEndPoint(node) },
         ]"
         :data-type="node.id" />
     </ul>
@@ -27,7 +27,7 @@
     { id: 'start', icon: 'startpoint-zh', name: i18n.t('开始节点') },
     { id: 'end', icon: 'endpoint-zh', name: i18n.t('结束节点') },
     { id: 'task', icon: 'tasknode', name: i18n.t('任务节点') },
-    // { id: 'subflow', icon: 'subprocess', name: '子流程' },
+    { id: 'subflow', icon: 'subprocess', name: i18n.t('子流程') },
     { id: 'branch-gateway', icon: 'branchgateway', name: i18n.t('分支网关') },
     { id: 'parallel-gateway', icon: 'parallelgateway', name: i18n.t('并行网关') },
     { id: 'conditional-parallel-gateway', icon: 'conditionalparallelgateway', name: i18n.t('条件并行网关') },
@@ -39,12 +39,24 @@
     name: 'ProcessDnd',
     props: {
       instance: Graph,
+      canvasData: {
+        type: Array,
+        default: () => ([]),
+      },
     },
     data() {
       return {
         NODES,
         dnd: null,
       };
+    },
+    computed: {
+      isDisableStartPoint() {
+        return !!Object.values(this.canvasData).find(node => node.data.type === 'start');
+      },
+      isDisableEndPoint() {
+        return !!Object.values(this.canvasData).find(node => node.data.type === 'end');
+      },
     },
     mounted() {
       this.dnd = new Dnd({
@@ -68,6 +80,14 @@
       dndPanelDom.addEventListener('mousedown', this.handleMouseDown);
     },
     methods: {
+      isShowStartOrEndPoint(node) {
+        if (node.id === 'start') {
+          return this.isDisableStartPoint;
+        } if (node.id === 'end') {
+          return this.isDisableEndPoint;
+        }
+        return false;
+      },
       handleNodeDragging(e, node) {
         this.$emit('dragging', { e, node, type: 'add' });
       },
@@ -281,7 +301,7 @@
       }
     }
     .common-icon-node-tasknode,
-    .icon-subprocess {
+    .common-icon-node-subprocess {
       font-size: 20px;
     }
     .group-node {

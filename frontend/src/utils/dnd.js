@@ -56,13 +56,21 @@ export class Dnd extends View {
   }
   start(node, evt) {
     const e = evt;
+    // 阻止默认事件行为，避免浏览器默认拖拽行为干扰
     e.preventDefault();
+    // 开始批量操作，标记为'dnd'类型
     this.targetModel.startBatch('dnd');
+    // 为容器添加'dragging'类，表示当前处于拖拽状态
     Dom.addClass(this.container, 'dragging');
+    // 将容器移动到指定的拖拽容器或文档主体中
     Dom.appendTo(this.container, this.options.draggingContainer || document.body);
+    // 记录拖拽的源节点
     this.sourceNode = node;
+    // 准备拖拽，初始化拖拽节点的位置
     this.prepareDragging(node, e.clientX, e.clientY);
+    // 更新拖拽节点的位置
     const local = this.updateNodePosition(e.clientX, e.clientY);
+    // 如果启用了对齐线功能，捕获光标偏移并设置对齐逻辑
     if (this.isSnaplineEnabled()) {
       this.snapline.captureCursorOffset({
         e,
@@ -72,52 +80,72 @@ export class Dnd extends View {
         x: local.x,
         y: local.y,
       });
+      // 监听拖拽节点位置变化事件，触发对齐逻辑
       this.draggingNode.on('change:position', this.snap, this);
     }
+    // 绑定文档事件，处理拖拽过程中的交互
     this.delegateDocumentEvents(Dnd.documentEvents, e.data);
   }
   isSnaplineEnabled() {
     return this.snapline && this.snapline.isEnabled();
   }
   prepareDragging(sourceNode, clientX, clientY) {
+    // 获取当前拖拽的图形实例
     const { draggingGraph } = this;
+    // 获取拖拽图形的模型
     const draggingModel = draggingGraph.model;
+    // 根据源节点生成拖拽节点，并传入相关上下文信息
     const draggingNode = this.options.getDragNode(sourceNode, {
       sourceNode,
       draggingGraph,
       targetGraph: this.targetGraph,
     });
+    // 初始化拖拽节点的位置为(0, 0)
     draggingNode.position(0, 0);
+    // 设置默认的边距值
     let padding = 5;
+    // 如果启用了对齐线功能，增加对齐线的容差值到边距中
     if (this.isSnaplineEnabled()) {
       padding += this.snapline.options.tolerance || 0;
     }
+    // 如果启用了对齐线功能或需要缩放，调整拖拽图形的缩放比例和边距
     if (this.isSnaplineEnabled() || this.options.scaled) {
       const scale = this.targetGraph.transform.getScale();
       draggingGraph.scale(scale.sx, scale.sy);
       padding *= Math.max(scale.sx, scale.sy);
     } else {
+      // 否则保持原始比例
       draggingGraph.scale(1, 1);
     }
+    // 清除之前的拖拽状态
     this.clearDragging();
+    // 重置拖拽模型的单元格，确保拖拽节点被正确加载
     // if (this.options.animation) {
     //   this.$container.stop(true, true)
     // }
     draggingModel.resetCells([draggingNode]);
+    // 获取拖拽节点的视图实例
     const delegateView = draggingGraph.findViewByCell(draggingNode);
+    // 取消视图的事件代理和单元格的变更监听
     delegateView.undelegateEvents();
     delegateView.cell.off('changed');
+    // 调整拖拽图形的内容以适应边界，并设置边距
     draggingGraph.fitToContent({
       padding,
       allowNewOrigin: 'any',
       useCellGeometry: false,
     });
+    // 获取视图的边界框
     const bbox = delegateView.getBBox();
+    // 获取基于单元格几何的边界框
     this.geometryBBox = delegateView.getBBox({ useCellGeometry: true });
+    // 计算几何边界框与视图边界框的偏移量
     this.delta = this.geometryBBox.getTopLeft().diff(bbox.getTopLeft());
+    // 保存拖拽节点、视图和边界框的引用
     this.draggingNode = draggingNode;
     this.draggingView = delegateView;
     this.draggingBBox = draggingNode.getBBox();
+    // 保存边距和初始偏移量
     this.padding = padding;
     this.originOffset = this.updateGraphPosition(clientX, clientY);
   }

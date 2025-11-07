@@ -2,17 +2,36 @@
   <div
     class="node-item subprocess-node"
     :class="[
+      node.mode === 'execute' ? 'default' : '',
       { 'fail-skip': node.status === 'FINISHED' && node.skip },
       { 'ready': node.ready },
       { 'active': node.isActived },
       { 'unchecked ': node.mode === 'select' && node.optional && !node.checked }
     ]">
     <div class="node-status-block">
-      <i class="bpmn-flow-icon icon-subflow-mark" />
+      <img
+        v-if="node.icon"
+        class="node-icon"
+        :src="node.icon">
+      <i
+        v-else
+        :class="['node-icon-font', getIconCls(node)]" />
+      <div
+        v-if="node.stage_name"
+        class="stage-name">
+        {{ node.stage_name }}
+      </div>
     </div>
     <div class="node-name">
-      <div class="name-text" />
-      <div class="subprocess-mark" />
+      <div class="name-text">
+        {{ node.name }}
+      </div>
+    </div>
+    <!-- 子流程是否需要更新的节点提示 -->
+    <div
+      v-if="node.hasUpdated"
+      class="updated-dot">
+      <div class="ripple" />
     </div>
   </div>
 </template>
@@ -60,6 +79,13 @@
           return;
         }
         this.$emit('onNodeCheckClick', this.node.id, !this.node.checked);
+      },
+      getIconCls(node) {
+        const { code, type } = node;
+         if (code === 'subprocess_plugin' || type === 'subflow') {
+          return 'common-icon-subflow-mark';
+        }
+        return 'common-icon-sys-default';
       },
     },
   };
@@ -110,5 +136,33 @@
     border-bottom-right-radius: 4px;
     box-shadow: -1px -1px 2px -2px rgba(0,0,0,0.5);
   }
+}
+.updated-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 8px;
+    height: 8px;
+    background: #ff5757;
+    border-radius: 50%;
+    z-index: 1;
+    &.show-animation .ripple {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        height: 100%;
+        width: 100%;
+        background: transparent;
+        border: 1px solid #ff5757;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        animation: ripple .8s ease-out 5;
+    }
+}
+@keyframes ripple {
+    100% {
+        width: 200%;
+        height: 200%;
+    }
 }
 </style>

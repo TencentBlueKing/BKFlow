@@ -206,6 +206,12 @@
 .common-icon-node-parallelgateway-shortcut:before {
 	content: "\e13d";
 }
+.common-icon-node-subprocess:before {
+	content: "\e188";
+}
+.common-icon-node-subflow:before {
+	content: "\e200";
+}
 .common-icon-node-startpoint-en:before {
 	content: "\e13e";
 }
@@ -234,7 +240,7 @@
 	content: "\e14b";
 }
 .common-icon-subflow-mark:before {
-	content: "\e14e";
+	content: "\e200";
 }
 .common-icon-sys-bk:before {
 	content: "\e14f";
@@ -373,9 +379,6 @@
 }
 .common-icon-node-subflow-shortcut:before {
 	content: "\e187";
-}
-.common-icon-node-subflow:before {
-	content: "\e188";
 }
 .common-icon-node-tasknode-shortcut:before {
 	content: "\e189";
