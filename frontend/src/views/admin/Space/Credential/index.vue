@@ -4,7 +4,7 @@
       class="mb20"
       theme="primary"
       :disabled="listLoading || !spaceId"
-      @click="isDialogShow = true">
+      @click="handleOperate('create', {})">
       {{ $t("新建") }}
     </bk-button>
     <bk-table
@@ -51,12 +51,6 @@
             <bk-button
               theme="primary"
               text
-              @click="handleOperate('scope', row)">
-              {{ $t("作用域") }}
-            </bk-button>
-            <bk-button
-              theme="primary"
-              text
               @click="handleDelete(row)">
               {{ $t("删除") }}
             </bk-button>
@@ -87,8 +81,8 @@
           @searchClear="handleClearFilter" />
       </div>
     </bk-table>
-    <CredentialDialog
-      :is-show="isDialogShow"
+    <CredentialSlider
+      :is-show.sync="isSliderShow"
       :detail="selectedRow"
       :space-id="spaceId"
       @confirm="handleCredentialDialogConfirm"
@@ -97,13 +91,6 @@
     <CredentialContentDialog
       :is-show="isContentDialogShow"
       :detail="selectedRow"
-      @cancel="handleCredentialDialogCancel" />
-    <!-- 编辑凭证作用域 -->
-    <CredentialScopeDialog
-      :is-show="isScopeDialogShow"
-      :detail="selectedRow"
-      :space-id="spaceId"
-      @confirm="handleCredentialDialogConfirm"
       @cancel="handleCredentialDialogCancel" />
   </div>
 </template>
@@ -115,16 +102,14 @@ import i18n from '@/config/i18n';
 import tableHeader from '@/mixins/tableHeader';
 import tableCommon from '../mixins/tableCommon';
 import NoData from '@/components/common/base/NoData.vue';
-import CredentialDialog from './components/CredentialDialog.vue';
+import CredentialSlider from './components/CredentialSlider.vue';
 import CredentialContentDialog from './components/CredentialContentDialog.vue';
-import CredentialScopeDialog from './components/CredentialScopeDialog.vue';
 
 export default {
   components: {
     NoData,
-    CredentialDialog,
+    CredentialSlider,
     CredentialContentDialog,
-    CredentialScopeDialog,
   },
   mixins: [tableHeader, tableCommon],
   data() {
@@ -132,8 +117,7 @@ export default {
       CREDENTIAL_TYPE_LIST,
       credentialList: [],
       typeFilters: [],
-      isDialogShow: false,
-      isScopeDialogShow: false,
+      isSliderShow: false,
       isContentDialogShow: false,
       selectedRow: {},
       pageType: 'credentialList',
@@ -277,14 +261,14 @@ export default {
     handleOperate(type = 'edit', row) {
       this.selectedRow = row;
       const typeMap = {
+        create: () => {
+          this.isSliderShow = true;
+        },
         edit: () => {
-          this.isDialogShow = true;
+          this.isSliderShow = true;
         },
         content: () => {
           this.isContentDialogShow = true;
-        },
-        scope: () => {
-          this.isScopeDialogShow = true;
         },
       };
       return typeMap[type]?.();
@@ -337,9 +321,8 @@ export default {
     },
     handleCredentialDialogCancel() {
       this.selectedRow = {};
-      this.isDialogShow = false;
+      this.isSliderShow = false;
       this.isContentDialogShow = false;
-      this.isScopeDialogShow = false;
     },
   },
 };
