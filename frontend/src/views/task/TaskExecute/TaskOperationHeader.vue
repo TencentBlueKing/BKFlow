@@ -77,62 +77,60 @@
           :data-test-id="`taskExcute_form_${operation.action}Btn`"
           @click="onOperationClick(operation.action)" />
       </div>
-      <div class="task-params-btns">
-        <div
-          v-if="triggerMethod !=='subprocess' "
-          class="task-params-btns">
-          <i
-            v-bk-tooltips="{
-              content: $t('查看节点详情'),
-              placements: ['top']
-            }"
-            :class="[
-              'params-btn',
-              'solid-eye',
-              'common-icon-solid-eye',
-              {
-                actived: nodeInfoType === 'viewNodeDetails'
-              }
-            ]"
-            @click="onTaskParamsClick('viewNodeDetails', $t('节点详情'))" />
-          <bk-popover
-            placement="bottom-left"
-            theme="light"
-            ext-cls="operate-tip">
-            <i class="bk-icon icon-more drop-icon-ellipsis" />
-            <template slot="content">
-              <p
-                class="operate-item"
-                @click="onTaskParamsClick('operateFlow', $t('操作记录'))">
-                {{ $t('操作记录') }}
-              </p>
-              <p
-                v-if="state !== 'CREATED'"
-                class="operate-item"
-                @click="onTaskParamsClick('globalVariable', $t('全局变量'))">
-                {{ $t('全局变量') }}
-              </p>
-              <p
-                class="operate-item"
-                @click="onTaskParamsClick('templateData', 'Code')">
-                {{ 'Code' }}
-              </p>
-            </template>
-          </bk-popover>
-        </div>
-        <div
-          v-else
-          class="sub-task-btns">
-          <i class="common-icon-box-top-right-corner icon-link-to-father" />
-          <p
-            class="view-father-process"
-            @click="onViewFatherProcessExecute">
-            {{ $t('查看父流程') }}
-          </p>
-          <span class="dividing-line" />
-          <span :class="statusMap[parentTaskInfo.state].icon" />
-          <span class="state-text">{{ statusMap[parentTaskInfo.state].text }}</span>
-        </div>
+      <div
+        v-if="triggerMethod === 'subprocess' "
+        class="sub-task-btns">
+        <i class="common-icon-box-top-right-corner icon-link-to-father" />
+        <p
+          class="view-father-process"
+          @click="onViewFatherProcessExecute">
+          {{ $t('查看父流程') }}
+        </p>
+        <span class="dividing-line" />
+        <span :class="statusMap[parentTaskInfo.state].icon" />
+        <span class="state-text">{{ statusMap[parentTaskInfo.state].text }}</span>
+        <span class="dividing-line" />
+      </div>
+      <div
+        class="task-params-btns">
+        <i
+          v-bk-tooltips="{
+            content: $t('查看节点详情'),
+            placements: ['top']
+          }"
+          :class="[
+            'params-btn',
+            'solid-eye',
+            'common-icon-solid-eye',
+            {
+              actived: nodeInfoType === 'viewNodeDetails'
+            }
+          ]"
+          @click="onTaskParamsClick('viewNodeDetails', $t('节点详情'))" />
+        <bk-popover
+          placement="bottom-left"
+          theme="light"
+          ext-cls="operate-tip">
+          <i class="bk-icon icon-more drop-icon-ellipsis" />
+          <template slot="content">
+            <p
+              class="operate-item"
+              @click="onTaskParamsClick('operateFlow', $t('操作记录'))">
+              {{ $t('操作记录') }}
+            </p>
+            <p
+              v-if="state !== 'CREATED'"
+              class="operate-item"
+              @click="onTaskParamsClick('globalVariable', $t('全局变量'))">
+              {{ $t('全局变量') }}
+            </p>
+            <p
+              class="operate-item"
+              @click="onTaskParamsClick('templateData', 'Code')">
+              {{ 'Code' }}
+            </p>
+          </template>
+        </bk-popover>
       </div>
     </div>
   </div>
@@ -544,7 +542,7 @@
   margin-left: 8px;
 }
 .sub-task-btns{
-  margin-left: 30px;
+  margin-top: 2px;
   text-align: left;
   .icon-clock-shape {
     @include status-icon-style(#979ba5);
