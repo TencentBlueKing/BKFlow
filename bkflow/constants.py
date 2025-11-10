@@ -89,6 +89,7 @@ class TaskTriggerMethod(Enum):
     api = _("api")
     manual = _("手动")
     timing = _("定时")
+    subprocess = _("子流程")
 
 
 class TemplateOperationSource(Enum):
@@ -96,6 +97,7 @@ class TemplateOperationSource(Enum):
 
     app = _("app 页面")
     api = _("api 接口")
+    parent = _("父任务")
 
 
 class RecordType(Enum):

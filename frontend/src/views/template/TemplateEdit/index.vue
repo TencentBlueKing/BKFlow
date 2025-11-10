@@ -42,6 +42,15 @@
         @onChangePanel="onChangeSettingPanel"
         @onSaveTemplate="onSaveTemplate" />
       <template v-if="isEditProcessPage">
+        <!-- 子流程更新提示 -->
+        <SubflowUpdateTips
+          v-if="subflowShouldUpdated.length > 0"
+          class="update-tips"
+          :list="subflowShouldUpdated"
+          :locations="locations"
+          :is-view-mode="isViewMode"
+          @viewClick="viewUpdatedNode"
+          @foldClick="clearDotAnimation" />
         <component
           :is="templateComponentName"
           ref="processCanvas"
@@ -193,12 +202,13 @@
   import { STRING_LENGTH } from '@/constants/index.js';
   import { NODES_SIZE_POSITION } from '@/constants/nodes.js';
   import DealVarDirtyData from '@/utils/dealVarDirtyData.js';
-  import { graphToJson } from '@/utils/graphJson.js';
+  import { graphToJson, generateGraphData } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
   import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
   import bus from '@/utils/bus.js';
-import { cloneDeepWith } from 'lodash';
+  import SubflowUpdateTips from './SubflowUpdateTips.vue';
+  import { cloneDeepWith } from 'lodash';
 
   export default {
     name: 'TemplateEdit',
@@ -208,7 +218,7 @@ import { cloneDeepWith } from 'lodash';
       NodeConfig,
       ConditionEdit,
       TemplateSetting,
-      // SubflowUpdateTips,
+      SubflowUpdateTips,
       // BatchUpdateDialog,
       VerticalCanvas,
       ProcessCanvas,
@@ -319,6 +329,7 @@ import { cloneDeepWith } from 'lodash';
         tplSpaceId: '', // 模板对应的空间id
         spaceRelatedConfig: {}, // 空间相关配置
         templateMocking: false,
+        isSubflowNeedToUpdate: false,
       };
     },
     computed: {
@@ -349,17 +360,20 @@ import { cloneDeepWith } from 'lodash';
         projectId: state => state.project_id,
       }),
       canvasData() {
+        if (!this.locations.length) {
+          const pipelineTree = this.getPipelineTree();
+          return generateGraphData(pipelineTree);
+        }
         const locations = this.locations.map((location) => {
+          // 节点校验失败列表
           this.validateConnectFailList = [...new Set(this.validateConnectFailList)];
           const status = this.validateConnectFailList.includes(location.id) ? 'FAILED' : '';
-
           const data = { ...location, mode: 'edit', status };
           if (
             this.subprocess_info
-            && this.subprocess_info.details
             && location.type === 'subflow'
           ) {
-            this.subprocess_info.details.some((subflow) => {
+            this.subprocess_info.some((subflow) => {
               if (subflow.subprocess_node_id === location.id) {
                 data.hasUpdated = subflow.expired;
                 return true;
@@ -378,18 +392,19 @@ import { cloneDeepWith } from 'lodash';
       },
       subflowShouldUpdated() {
         if (this.subprocess_info) {
-          return this.subprocess_info.details.reduce((acc, cur) => {
+          const subflowShouldUpdateList = this.subprocess_info.reduce((acc, cur) => {
             const nodeId = cur.subprocess_node_id;
             if (!this.activities[nodeId]) {
               return acc;
             }
-            const { scheme_id_list: schemeIdList = [] } = this.activities[nodeId];
+            // const { scheme_id_list: schemeIdList = [] } = this.activities[nodeId];
             acc.push({
               ...cur,
-              scheme_id_list: schemeIdList,
+              // scheme_id_list: schemeIdList,
             });
             return acc;
           }, []);
+          return subflowShouldUpdateList;
         }
         return [];
       },
@@ -534,7 +549,9 @@ import { cloneDeepWith } from 'lodash';
         this.templateDataLoading = true;
         if (['edit', 'clone', 'view'].includes(this.type)) {
           await this.getTemplateData();
+          // 加载标准插件列表
           this.getSingleAtomList();
+          // 获取快照列表
           this.snapshoots = this.getTplSnapshoots();
         } else {
           let name = `new${moment.tz(this.timeZone).format('YYYYMMDDHHmmss')}`;
@@ -1202,7 +1219,7 @@ import { cloneDeepWith } from 'lodash';
       async onShowNodeConfig(id) {
         // 判断节点配置的插件是否存在
         const nodeConfig = this.$store.state.template.activities[id];
-        const isDefaultPlugin = !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code);
+        const isDefaultPlugin = nodeConfig && nodeConfig.component ? !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code) : true ;
         if (nodeConfig && nodeConfig.type === 'ServiceActivity' && nodeConfig.name && isDefaultPlugin) {
           let atom = true;
           atom = this.atomList.find(item => item.code === nodeConfig.component.code);
@@ -1219,10 +1236,12 @@ import { cloneDeepWith } from 'lodash';
         if (index > -1) {
           this.validateConnectFailList.splice(index, 1);
         }
+        // 获取节点信息
         const location = this.locations.find(item => item.id === id);
         if (['tasknode', 'subflow'].includes(location.type)) {
-          // 设置第三发插件缓存
+          // 设置第三方插件缓存
           const nodeConfig = this.$store.state.template.activities[id];
+          // 远程插件且未缓存
           if (nodeConfig.component
             && nodeConfig.component.code === 'remote_plugin'
             && !this.thirdPartyList[id]) {
@@ -1342,7 +1361,7 @@ import { cloneDeepWith } from 'lodash';
         const location = {
           id,
           ...data,
-          type: data.type === 'task' ? 'tasknode' : data.type.split('-').join(''),
+          type: data.type === 'task' ? 'tasknode' : (['subflow', 'start', 'end'].includes(data.type) ? data.type : data.type.split('-').join('')),
           ...node.position(),
         };
         if (data?.oldSouceId) {
@@ -1355,7 +1374,6 @@ import { cloneDeepWith } from 'lodash';
         switch (data.type) {
           case 'task':
           case 'subflow':
-            location.type = 'tasknode';
             // 添加任务节点
             if (type === 'add' && location.atomId) {
               if (location.type === 'tasknode') {
@@ -1421,10 +1439,10 @@ import { cloneDeepWith } from 'lodash';
             location.parseLang = this.spaceRelatedConfig.gateway_expression;
             this.setGateways({ type, location });
             break;
-          case 'startpoint':
+          case 'start':
             this.setStartpoint({ type, location });
             break;
-          case 'endpoint':
+          case 'end':
             this.setEndpoint({ type, location });
             break;
         }
@@ -1942,7 +1960,7 @@ import { cloneDeepWith } from 'lodash';
       },
       // 关闭所有子流程更新的小红点动画效果
       clearDotAnimation() {
-        const updateNodesDot = document.querySelectorAll('.subflow-node .updated-dot');
+        const updateNodesDot = document.querySelectorAll('.subprocess-node .updated-dot');
         updateNodesDot.forEach((item) => {
           item.classList.remove('show-animation');
         });
@@ -2121,7 +2139,7 @@ import { cloneDeepWith } from 'lodash';
     .update-tips {
         position: absolute;
         top: 64px;
-        left: 450px;
+        left: 520px;
         min-height: 40px;
         overflow: hidden;
         z-index: 4;

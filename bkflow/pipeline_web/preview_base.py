@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -31,10 +30,13 @@ from pipeline.models import TemplateScheme
 from pipeline.validators.gateway import validate_gateways
 from pipeline.validators.utils import format_node_io_to_list
 
+from bkflow.pipeline_web.constants import PWE
+from bkflow.template.models import Template, TemplateReference
+
 logger = logging.getLogger("root")
 
 
-class PipelineTemplateWebPreviewer(object):
+class PipelineTemplateWebPreviewer:
     @staticmethod
     def get_template_exclude_task_nodes_with_schemes(pipeline_tree, scheme_id_list, check_schemes_exist=False):
         """
@@ -72,9 +74,9 @@ class PipelineTemplateWebPreviewer(object):
         @return:
         """
         template_nodes_set = set(pipeline_tree[PE.activities].keys())
-        not_optional_nodes_set = set(
-            [node_id for node_id, node in pipeline_tree[PE.activities].items() if not node["optional"]]
-        )
+        not_optional_nodes_set = {
+            node_id for node_id, node in pipeline_tree[PE.activities].items() if not node["optional"]
+        }
         appoint_nodes_id_set = set(appoint_nodes_id)
         exclude_task_nodes_id_set = template_nodes_set - appoint_nodes_id_set - not_optional_nodes_set
         return list(exclude_task_nodes_id_set)
@@ -244,11 +246,13 @@ class PipelineTemplateWebPreviewer(object):
         data = {}
         for act_id, act in list(pipeline_tree[PE.activities].items()):
             if act["type"] == PE.ServiceActivity:
-                node_data = {("%s_%s" % (act_id, key)): value for key, value in list(act["component"]["data"].items())}
+                node_data = {
+                    ("{}_{}".format(act_id, key)): value for key, value in list(act["component"]["data"].items())
+                }
             # PE.SubProcess
             else:
                 node_data = {
-                    ("%s_%s" % (act_id, key)): value
+                    ("{}_{}".format(act_id, key)): value
                     for key, value in list(act.get("constants", {}).items())
                     if value["show_type"] == "show"
                 }
@@ -257,7 +261,7 @@ class PipelineTemplateWebPreviewer(object):
         for gw_id, gw in list(pipeline_tree[PE.gateways].items()):
             if gw["type"] in [PE.ExclusiveGateway, PE.ConditionalParallelGateway]:
                 gw_data = {
-                    ("%s_%s" % (gw_id, key)): {"value": value["evaluate"]}
+                    ("{}_{}".format(gw_id, key)): {"value": value["evaluate"]}
                     for key, value in list(gw["conditions"].items())
                 }
                 data.update(gw_data)
@@ -348,3 +352,63 @@ class PipelineTemplateWebPreviewer(object):
 
             if gateway_count == len(pipeline_tree[PE.gateways]):
                 break
+
+    @staticmethod
+    def is_circular_reference(pipeline_tree, current_template_id, space_id, scope_type, scope_value):
+        """
+        检查子流程模板是否存在循环依赖
+        """
+
+        templates = Template.objects.filter(space_id=space_id, is_deleted=False)
+
+        if scope_type is not None:
+            templates = templates.filter(scope_type=scope_type)
+        if scope_value is not None:
+            templates = templates.filter(scope_value=scope_value)
+        if scope_type is None and scope_value is None:
+            templates = templates.filter(scope_type__isnull=True, scope_value__isnull=True)
+
+        template_ids = list(templates.values_list("id", flat=True))
+        template_refs = TemplateReference.objects.filter(root_template_id__in=template_ids).values(
+            "root_template_id", "subprocess_template_id"
+        )
+
+        sub_template_map = {}
+        for ref in template_refs:
+            root_id = ref["root_template_id"]
+            sub_id = int(ref["subprocess_template_id"])
+            if root_id not in sub_template_map:
+                sub_template_map[root_id] = []
+            sub_template_map[root_id].append(sub_id)
+
+        def has_cycle_from_template(disclose_template_id, visited):
+            if disclose_template_id in visited:
+                return True
+            visited.add(disclose_template_id)
+
+            sub_refs = sub_template_map.get(str(disclose_template_id), [])
+
+            for sub_id in sub_refs:
+                if has_cycle_from_template(sub_id, visited):
+                    return True
+            visited.remove(disclose_template_id)
+
+            return False
+
+        activities = pipeline_tree.get("activities", {})
+        visited_templates = set()
+        if current_template_id:
+            visited_templates.add(current_template_id)
+
+        for act_key, act_value in activities.items():
+            if act_value.get(PWE.type) == PWE.SubProcess:
+                template_id = act_value["template_id"]
+                if has_cycle_from_template(template_id, visited_templates):
+                    return {
+                        "has_cycle": True,
+                        "node_key": act_key,
+                        "node_name": act_value.get("name"),
+                        "template_id": template_id,
+                    }
+
+        return {"has_cycle": False}

@@ -36,13 +36,6 @@
         <h4 class="common-section-title">
           {{ $t('执行信息') }}
         </h4>
-        <div
-          v-if="isReadyStatus && isSubProcessNode"
-          class="subprocee-link"
-          @click="onSkipSubProcess">
-          <i class="common-icon-box-top-right-corner" />
-          {{ $t('子流程详情') }}
-        </div>
         <ul
           v-if="isReadyStatus"
           class="operation-table">
@@ -64,7 +57,7 @@
           :message="$t('暂无执行信息')" />
       </section>
       <!-- 任务节点才允许展示输入、输出配置 -->
-      <template v-if="['tasknode', 'subflow'].includes(location.type)">
+      <template v-if="['tasknode', 'subflow', 'ServiceActivity', 'SubProcess'].includes(location.type)">
         <InputParams
           :admin-view="adminView"
           :inputs="executeInfo.inputs"

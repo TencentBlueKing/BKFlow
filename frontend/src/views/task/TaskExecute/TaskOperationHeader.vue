@@ -78,59 +78,61 @@
           @click="onOperationClick(operation.action)" />
       </div>
       <div class="task-params-btns">
-        <!-- <i
-          :class="[
-            'params-btn',
-            'common-icon-enter-config',
-            {
-              actived: nodeInfoType === 'modifyParams'
-            }
-          ]"
-          v-bk-tooltips="{
-            content: $t('任务入参'),
-            placements: ['top'],
-            hideOnClick: false
-          }"
-          @click="onTaskParamsClick('modifyParams', $t('任务入参'))">
-        </i> -->
-        <i
-          v-bk-tooltips="{
-            content: $t('查看节点详情'),
-            placements: ['top']
-          }"
-          :class="[
-            'params-btn',
-            'solid-eye',
-            'common-icon-solid-eye',
-            {
-              actived: nodeInfoType === 'viewNodeDetails'
-            }
-          ]"
-          @click="onTaskParamsClick('viewNodeDetails', $t('节点详情'))" />
-        <bk-popover
-          placement="bottom-left"
-          theme="light"
-          ext-cls="operate-tip">
-          <i class="bk-icon icon-more drop-icon-ellipsis" />
-          <template slot="content">
-            <p
-              class="operate-item"
-              @click="onTaskParamsClick('operateFlow', $t('操作记录'))">
-              {{ $t('操作记录') }}
-            </p>
-            <p
-              v-if="state !== 'CREATED'"
-              class="operate-item"
-              @click="onTaskParamsClick('globalVariable', $t('全局变量'))">
-              {{ $t('全局变量') }}
-            </p>
-            <p
-              class="operate-item"
-              @click="onTaskParamsClick('templateData', 'Code')">
-              {{ 'Code' }}
-            </p>
-          </template>
-        </bk-popover>
+        <div
+          v-if="triggerMethod !=='subprocess' "
+          class="task-params-btns">
+          <i
+            v-bk-tooltips="{
+              content: $t('查看节点详情'),
+              placements: ['top']
+            }"
+            :class="[
+              'params-btn',
+              'solid-eye',
+              'common-icon-solid-eye',
+              {
+                actived: nodeInfoType === 'viewNodeDetails'
+              }
+            ]"
+            @click="onTaskParamsClick('viewNodeDetails', $t('节点详情'))" />
+          <bk-popover
+            placement="bottom-left"
+            theme="light"
+            ext-cls="operate-tip">
+            <i class="bk-icon icon-more drop-icon-ellipsis" />
+            <template slot="content">
+              <p
+                class="operate-item"
+                @click="onTaskParamsClick('operateFlow', $t('操作记录'))">
+                {{ $t('操作记录') }}
+              </p>
+              <p
+                v-if="state !== 'CREATED'"
+                class="operate-item"
+                @click="onTaskParamsClick('globalVariable', $t('全局变量'))">
+                {{ $t('全局变量') }}
+              </p>
+              <p
+                class="operate-item"
+                @click="onTaskParamsClick('templateData', 'Code')">
+                {{ 'Code' }}
+              </p>
+            </template>
+          </bk-popover>
+        </div>
+        <div
+          v-else
+          class="sub-task-btns">
+          <i class="common-icon-box-top-right-corner icon-link-to-father" />
+          <p
+            class="view-father-process"
+            @click="onViewFatherProcessExecute">
+            {{ $t('查看父流程') }}
+          </p>
+          <span class="dividing-line" />
+          <span :class="statusMap[parentTaskInfo.state].icon" />
+          <span class="state-text">{{ statusMap[parentTaskInfo.state].text }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -139,6 +141,7 @@
   import permission from '@/mixins/permission.js';
   // import PageHeader from '@/components/layout/PageHeader.vue'
   import { mapState } from 'vuex';
+  import i18n from '@/config/i18n/index.js';
 
   export default {
     name: 'TaskOperationHeader',
@@ -190,10 +193,57 @@
       },
       isTaskOperationBtnsShow: Boolean,
       isShowViewProcess: Boolean,
+      triggerMethod: {
+        type: String,
+        default: '',
+      },
+      parentTaskInfo: {
+        type: Object,
+        default: () => ({}),
+      },
     },
     data() {
       return {
         showNodeList: [0, 1, 2],
+        isSubflow: false,
+        statusMap: {
+          FINISHED: {
+            icon: 'finished bk-icon icon-check-circle-shape',
+            text: i18n.t('完成'),
+          },
+          FAILED: {
+            icon: 'failed common-icon-dark-circle-close',
+            text: i18n.t('失败'),
+          },
+          EXPIRED: {
+            icon: 'expired bk-icon icon-clock-shape',
+            text: i18n.t('已过期'),
+          },
+          REVOKE: {
+            icon: 'revoke common-icon-dark-stop',
+            text: i18n.t('终止'),
+          },
+          SUSPENDED: {
+            icon: 'execute common-icon-dark-circle-pause',
+            text: i18n.t('已暂停'),
+          },
+          RUNNING: {
+            icon: 'running common-icon-dark-circle-ellipsis',
+            text: i18n.t('执行中'),
+          },
+          BLOCKED: {
+            icon: 'running common-icon-dark-circle-ellipsis',
+            text: i18n.t('执行中'),
+          },
+          READY: {
+            icon: 'running common-icon-dark-circle-ellipsis',
+            text: i18n.t('排队中'),
+          },
+          NODE_SUSPENDED: {
+            icon: 'execute',
+            text: i18n.t('节点暂停'),
+          },
+        },
       };
     },
     computed: {
@@ -257,12 +307,29 @@
           window.parent.postMessage({ eventName: 'jump-to-flow' }, '*');
         }
       },
+      onViewFatherProcessExecute() {
+        const { href } = this.$router.resolve({
+            name: 'taskExecute',
+            params: {
+              spaceId: this.spaceId,
+            },
+            query: {
+              instanceId: this.parentTaskInfo.task_id,
+            },
+        });
+        window.open(href, '_blank');
+      },
     },
   };
 </script>
 <style lang="scss" scoped>
 @import '../../../scss/config.scss';
-
+@mixin status-icon-style($color) {
+  display: inline-block;
+  font-size: 12px;
+  color: $color;
+  vertical-align: middle;
+}
 .operation-header {
     display: flex;
     justify-content: space-between;
@@ -367,6 +434,7 @@
         height: 100%;
         .task-operation-btns,
         .task-params-btns {
+            margin-top: -5px;
             float: left;
             .bk-button {
                 border: none;
@@ -385,6 +453,7 @@
             }
         }
         .task-operation-btns {
+            margin-top: 1px;
             margin-right: 35px;
             line-height: initial;
             border-right: 1px solid #dde4eb;
@@ -473,6 +542,76 @@
   cursor: pointer;
   font-size: 12px;
   margin-left: 8px;
+}
+.sub-task-btns{
+  margin-left: 30px;
+  text-align: left;
+  .icon-clock-shape {
+    @include status-icon-style(#979ba5);
+  }
+  .common-icon-dark-circle-shape {
+    @include status-icon-style(#979ba5);
+  }
+  .common-icon-dark-circle-ellipsis {
+    @include status-icon-style(#3a84ff);
+  }
+  .icon-check-circle-shape {
+    @include status-icon-style(#30d878);
+  }
+  .common-icon-dark-circle-close {
+    @include status-icon-style(#ff5757);
+  }
+  .common-icon-dark-circle-pause {
+    @include status-icon-style(#ff9c01);
+  }
+  .common-icon-waitting {
+    @include status-icon-style(#979ba5);
+  }
+  .common-icon-dark-stop {
+    @include status-icon-style(#ea3636);
+  }
+  &.revoke {
+    color: #878c9c;
+  }
+  .common-icon-loading {
+    display: inline-block;
+    vertical-align: middle;
+    animation: bk-button-loading 1.4s infinite linear;
+  }
+  display: flex;
+  align-items: center;
+  align-content: center;
+  font-size: 14px;
+  line-height: 22px;
+  .icon-link-to-father{
+    font-size: 12px !important;
+    margin-right: 6px;
+    margin-top: 2px;
+  }
+  .view-father-process{
+    cursor: pointer;
+  }
+  .dividing-line{
+    margin: 0 17px;
+    border-right: 1px solid #DCDEE5;
+    height: 14px;
+  }
+  span {
+    vertical-align: middle; /* 文字也设置垂直居中 */
+  }
+  .close-icon{
+    color: #EA3636;
+  }
+  .check-icon{
+    color: #2dcb56;
+  }
+  .exclamation-icon{
+    color: #ff9c01;
+  }
+  .state-text{
+    margin-left: 5px;
+    margin-right: 4px;
+  }
 }
 </style>
 <style lang="scss">

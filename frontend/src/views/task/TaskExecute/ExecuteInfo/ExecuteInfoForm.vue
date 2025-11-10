@@ -6,7 +6,7 @@
       {{ $t('基础信息') }}
     </h4>
     <ul class="operation-table">
-      <li v-if="isSubProcessNode">
+      <li v-if="isSubProcessNode || isTemSubflowNode">
         <span class="th">{{ $t('流程模板') }}</span>
         <span
           v-if="templateName"
@@ -39,10 +39,6 @@
       <li>
         <span class="th">{{ $t('步骤名称') }}</span>
         <span class="td">{{ templateConfig.stage_name || '--' }}</span>
-      </li>
-      <li v-if="isSubProcessNode">
-        <span class="th">{{ $t('执行方案') }}</span>
-        <span class="td">{{ schemeTextValue || '--' }}</span>
       </li>
       <li>
         <span class="th">{{ $t('是否可选') }}</span>
@@ -79,14 +75,14 @@
                 <span class="th">{{ $t('超时控制') }}</span>
                 <span class="td">{{ timeoutTextValue }}</span>
             </li> -->
-      <li v-if="isSubProcessNode">
+      <li v-if="isSubProcessNode || isTemSubflowNode">
         <span class="th">{{ $t('总是使用最新版本') }}</span>
         <span class="td">
           {{ !('always_use_latest' in componentValue) ? '--' : componentValue.always_use_latest ? $t('是') : $t('否') }}
         </span>
       </li>
     </ul>
-    <template v-if="inputAndOutputWrapShow">
+    <template>
       <h4 class="common-section-title">
         {{ $t('输入参数') }}
       </h4>
@@ -109,7 +105,7 @@
               ref="renderForm"
               :scheme="inputs"
               :hooked="hooked"
-              :constants="isSubProcessNode ? subflowForms : constants"
+              :constants="isSubProcessNode || isTemSubflowNode ? subflowForms : constants"
               :form-option="option"
               :form-data="inputsFormData"
               :render-config="inputsRenderConfig" />
@@ -262,7 +258,6 @@
     data() {
       return {
         templateName: '',
-        schemeTextValue: '',
         templateConfig: {},
         inputs: [],
         outputs: [],
@@ -280,6 +275,7 @@
         taskNodeLoading: false,
         subflowLoading: false,
         constantsLoading: false,
+        isTemSubflowNode: false,
       };
     },
     computed: {
@@ -300,6 +296,13 @@
       componentValue() {
         if (this.isSubProcessNode) {
           return this.nodeActivity.component.data.subprocess.value;
+        } if (this.isTemSubflowNode) {
+          const { always_use_latest, template_id, template_source } = this.nodeActivity;
+          return {
+            always_use_latest,
+            template_id,
+            template_source,
+          };
         }
         return {};
       },
@@ -311,12 +314,6 @@
       },
       outputList() {
         return this.getOutputsList();
-      },
-      inputAndOutputWrapShow() {
-        const { original_template_id: originTplId, type } = this.nodeActivity;
-        // 普通任务节点展示/该功能上线后的独立子流程任务展示
-        return (!this.isSubProcessNode && type !== 'SubProcess')
-          || (originTplId && !this.templateConfig.isOldData);
       },
       isAutoOperate() {
         const { ignorable, skippable, retryable, auto_retry: autoRetry } = this.templateConfig;
@@ -337,7 +334,10 @@
     mounted() {
       $.context.exec_env = 'NODE_EXEC_DETAIL';
       this.initData();
-      if (this.nodeActivity.original_template_id) {
+      if (this.nodeActivity?.component?.data?.subprocess) {
+        this.getTemplateData();
+      } else if (this.nodeActivity.type === 'SubProcess') {
+        this.isTemSubflowNode = true;
         this.getTemplateData();
       }
     },
@@ -349,6 +349,7 @@
         'getTemplatePublicData',
         'getCommonTemplatePublicData',
         'loadUniformApiMeta',
+        'loadTemplateData',
       ]),
       ...mapActions('task', [
         'loadSubflowConfig',
@@ -383,6 +384,7 @@
                 renderConfig[key] = 'need_render' in form ? form.need_render : true;
               }
             });
+            // 加载子流程详情
             await this.getSubflowDetail(this.templateConfig.version);
             this.inputs = await this.getSubflowInputsConfig();
             this.inputsFormData = this.getSubflowInputsValue(forms);
@@ -435,7 +437,7 @@
         this.subflowLoading = true;
         try {
           const params = {
-            template_id: this.nodeActivity.original_template_id,
+            template_id: this.componentValue.template_id,
             scheme_id_list: this.nodeActivity.schemeIdList || [],
             version,
           };
@@ -742,31 +744,21 @@
         return row.status || '';
       },
       async getTemplateData() {
-        const { template_source: templateSource, scheme_id_list: schemeIds } = this.componentValue;
+        const { template_id: templateId } = this.componentValue;
         const data = {
-          templateId: this.nodeActivity.original_template_id,
-          project__id: this.project_id,
+          templateId,
+          common: false,
         };
-        let templateData = {};
-        if (templateSource === 'common') {
-          templateData = await this.getCommonTemplatePublicData(data);
-        } else {
-          templateData = await this.getTemplatePublicData(data);
-        }
-        this.templateName = templateData.data.name;
-        let schemeText = '';
-        templateData.data.schemes.forEach((item) => {
-          if (schemeIds.includes(item.id)) {
-            schemeText = schemeText ? `${schemeText},${item.name}` : item.name;
-          }
-        });
-        this.schemeTextValue = schemeText;
+        const templateData = await this.loadTemplateData(data);
+        this.templateName = templateData.name;
       },
       onSkipSubTemplate() {
         const { href } = this.$router.resolve({
-          name: this.componentValue.template_source === 'common' ? 'projectCommonTemplatePanel' : 'templatePanel',
-          params: { type: 'view' },
-          query: { template_id: this.nodeActivity.original_template_id },
+          name: 'templatePanel',
+          params: {
+            templateId: this.componentValue.template_id,
+            type: 'view',
+          },
         });
         window.open(href, '_blank');
       },

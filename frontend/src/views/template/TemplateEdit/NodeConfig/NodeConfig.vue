@@ -102,9 +102,9 @@
                 :subflow-updated="subflowUpdated"
                 :is-view-mode="isViewMode"
                 :is-api-plugin="isApiPlugin"
+                :is-subflow-need-to-update="isSubflowNeedToUpdate"
                 @openSelectorPanel="isSelectorPanelShow = true"
                 @versionChange="versionChange"
-                @selectScheme="onSelectSubflowScheme"
                 @viewSubflow="onViewSubflow"
                 @updateSubflowVersion="updateSubflowVersion"
                 @update="updateBasicInfo" />
@@ -262,6 +262,10 @@
         type: [String, Number],
         default: '',
       },
+      isSubflowNeedToUpdate: {
+        type: Boolean,
+        default: false,
+      },
       subflowListLoading: Boolean,
       backToVariablePanel: Boolean,
       isNotExistAtomOrVersion: Boolean,
@@ -305,6 +309,7 @@
         isDataChange: false, // 数据是否改变
         isApiPlugin: false, // 是否为Api插件
         apiInputs: [], // api数据
+        isInitDecision: true,
       };
     },
     computed: {
@@ -341,10 +346,6 @@
       },
       outputLoading() {
         return this.isBaseInfoLoading || this.taskNodeLoading || this.subflowLoading;
-      },
-      // 子流程节点是否为公共流程
-      isCommonTpl() {
-        return this.common || this.nodeConfig.template_source === 'common';
       },
       // 特殊输入参数插件
       isSpecialPlugin() {
@@ -544,8 +545,10 @@
               renderConfig[key] = 'need_render' in form ? form.need_render : true;
             }
           });
-          await this.getSubflowDetail(tpl, version);
+          await this.getSubflowDetail(tpl, version, true);
+          // 加载子流程输入参数表单配置项
           this.inputs = await this.getSubflowInputsConfig();
+          // 获取子流程任务节点输入参数值
           this.inputsParamValue = this.getSubflowInputsValue(forms);
           this.inputsRenderConfig = renderConfig;
         }
@@ -684,30 +687,30 @@
       /**
        * 加载子流程任务节点输入、输出、版本配置项
        */
-      async getSubflowDetail(tpl, version = '') {
+      async getSubflowDetail(tpl, version = '', isInit = false) {
         this.subflowLoading = true;
         try {
-          const schemeIds = this.basicInfo.schemeIdList.filter(item => item);
           const params = {
-            template_id: tpl,
-            scheme_id_list: schemeIds,
-            version,
+            templateId: tpl,
+            is_all_nodes: true,
           };
-          if (this.isCommonTpl) {
-            params.template_source = 'common';
-          } else {
-            params.project_id = this.projectId;
+          if (version) {
+            params.version = version;
           }
           const resp = await this.loadSubflowConfig(params);
           // 子流程的输入参数包括流程引用的变量、自定义变量和未被引用的变量
+          // custom_constants
           this.subflowForms = {
             ...resp.data.pipeline_tree.constants,
-            ...resp.data.custom_constants,
-            ...resp.data.constants_not_referred };
+            ...resp.data.constants_not_referred,
+          };
           this.formsNotReferred = resp.data.constants_not_referred;
           // 子流程模板版本更新时，未带版本信息，需要请求接口后获取最新版本
-          this.updateBasicInfo({ version: resp.data.version });
-
+          if (isInit) {
+            this.updateBasicInfo({ latestVersion: resp.data.version });
+          } else {
+            this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version});
+          }
           // 输出变量
           const has = Object.prototype.hasOwnProperty;
           this.outputs = Object.keys(resp.data.outputs).map((item) => {
@@ -895,7 +898,7 @@
           } else {
             const templateData = await this.loadTemplateData({
               templateId,
-              common: this.common || config.template_source === 'common',
+              common: false,
               checkPermission: true })
               .catch((error) => {
                 this.onClosePanel();
@@ -1011,7 +1014,7 @@
           return;
         }
         this.isApiPlugin = false;
-        let { inputs } = this;
+        let { inputs } = this; // 上一个子流程的输入参数
         if (this.isSubflow) {
           // 重置basicInfo, 避免基础信息面板因监听basicInfo导致重复调取接口，初始化时获取空值
           const { id, name, version } = val;
@@ -1185,8 +1188,10 @@
       async updateSubflowVersion() {
         this.subflowVersionUpdating = true;
         const oldForms = Object.assign({}, this.subflowForms);
+        // 获取最新的子流程输入输出数据
         await this.getSubflowDetail(this.basicInfo.tpl);
         await this.subflowUpdateParamsChange();
+        // 获取子流程输入参数配置
         this.inputs = await this.getSubflowInputsConfig();
         this.subflowVersionUpdating = false;
         this.$nextTick(() => {
@@ -1216,7 +1221,7 @@
           const { source_type: sourceType, source_info } = varItem;
           const sourceInfo = source_info[this.nodeId];
           if (sourceInfo) {
-            if (sourceType === 'component_inputs') {
+            if (sourceType === 'component_inputs' || sourceType === 'custom') {
               sourceInfo.forEach((nodeFormItem) => {
                 const newTplVar = this.subflowForms[nodeFormItem];
 
@@ -1230,7 +1235,7 @@
                 }
               });
             }
-            if (sourceType === 'component_outputs') {
+            if (sourceType === 'component_outputs' || sourceType === 'custom') {
               sourceInfo.forEach((nodeFormItem) => {
                 if (!this.outputs.find(item => item.key === nodeFormItem)) {
                   this.setVariableSourceInfo({
@@ -1293,39 +1298,15 @@
       },
       // 查看子流程模板
       onViewSubflow(id) {
-        const { name } = this.$route;
-        let routerName = this.isCommonTpl ? 'projectCommonTemplatePanel' : 'templatePanel';
-        routerName = name === 'commonTemplatePanel' ? 'commonTemplatePanel' : routerName;
         const pathData = {
-          name: routerName,
+          name: 'templatePanel',
           params: {
+            templateId: id,
             type: 'view',
-            project_id: name === 'commonTemplatePanel' ? undefined : this.projectId,
-          },
-          query: {
-            template_id: id,
-            common: name === 'templatePanel' ? undefined : '1',
           },
         };
         const { href } = this.$router.resolve(pathData);
         window.open(href, '_blank');
-      },
-      // 切换子流程执行方案，需要重新请求输入、输出参数
-      async onSelectSubflowScheme() {
-        const oldForms = Object.assign({}, this.subflowForms);
-        await this.getSubflowDetail(this.basicInfo.tpl, this.basicInfo.version);
-        await this.subflowUpdateParamsChange();
-        this.inputs = await this.getSubflowInputsConfig();
-        this.$nextTick(() => {
-          this.inputsParamValue = this.getSubflowInputsValue(this.subflowForms, oldForms);
-          this.inputsRenderConfig = Object.keys(this.subflowForms).reduce((acc, crt) => {
-            const formItem = this.subflowForms[crt];
-            if (formItem.show_type === 'show') {
-              acc[crt] = 'need_render' in formItem ? formItem.need_render : true;
-            }
-            return acc;
-          }, {});
-        });
       },
       // 是否渲染豁免切换
       onRenderConfigChange(data) {
@@ -1552,8 +1533,9 @@
           } = this.basicInfo;
           // 设置标准插件节点在 activity 的 component.data 值
           let data = {};
-          if (this.basicInfo.plugin === 'dmn_plugin') {
+          if (this.basicInfo.plugin === 'dmn_plugin') { // 决策插件
             data = this.getDmnNodeComponentData();
+            this.isInitDecision = false;
           } else {
             data = this.getNodeComponentData(plugin, version);
           }
@@ -1830,10 +1812,12 @@
               nodeData.phase = phase;
             } else {
               if (this.subflowUpdated || alwaysUseLatest) {
+                // 更新store存储的子流程更新信息
                 this.setSubprocessUpdated({
                   expired: false,
                   subprocess_node_id: this.nodeConfig.id,
                 });
+                this.$emit('updateNodeInfo', this.nodeConfig.id, { hasUpdated: false});
               }
               if (!alwaysUseLatest && latestVersion && latestVersion !== version) {
                 this.setSubprocessUpdated({ expired: true, subprocess_node_id: this.nodeConfig.id });
@@ -1878,7 +1862,9 @@
       // 决策表插件切换表的时候更新输出参数配置
       async updateOutputs(outputs) {
         try {
-          await this.clearParamsSourceInfo();
+          if (!this.isInitDecision) {
+             await this.clearParamsSourceInfo();
+          }
           this.outputs = this.outputs.filter(item => !item.fromDmn);
           this.outputs.push(...outputs);
         } catch (error) {

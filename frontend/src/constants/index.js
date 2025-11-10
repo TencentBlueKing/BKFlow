@@ -25,8 +25,8 @@ const TASK_STATE_DICT = {
 const NODE_DICT = {
   startpoint: i18n.t('开始节点'),
   endpoint: i18n.t('结束节点'),
-  // 'startPoint': i18n.t('开始节点'),
-  // 'endPoint': i18n.t('结束节点'),
+  start: i18n.t('开始节点'),
+  end: i18n.t('结束节点'),
   parallelgateway: i18n.t('并行网关'),
   conditionalparallelgateway: i18n.t('条件并行网关'),
   branchgateway: i18n.t('分支网关'),

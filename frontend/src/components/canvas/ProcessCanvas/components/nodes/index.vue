@@ -3,12 +3,12 @@
     theme="light"
     placement="bottom-end"
     ext-cls="custom-node-popover"
-    :disabled="node.mode !== 'execute' || node.task_state === 'REVOKED'"
+    :disabled="node.mode !== 'execute' || node.task_state === 'REVOKED' || node.isSubflowCanvas"
     :distance="5"
     :arrow="false">
     <div class="custom-node">
       <Configs
-        v-if="['task', 'tasknode', 'subprocess'].includes(node.type)"
+        v-if="['task', 'tasknode', 'subflow'].includes(node.type)"
         :node="node"
         @onNodeCheckClick="onNodeCheckClick" />
       <ExecuteStatus
@@ -36,7 +36,7 @@
   import Start from './start.vue';
   import End from './end.vue';
   import Task from './task.vue';
-  // import Subprocess from './subprocess.vue';
+  import Subprocess from './subprocess.vue';
   import BranchGateway from './branch-gateway.vue';
   import ParallelGateway from './parallel-gateway.vue';
   import ConditionalParallelGateway from './conditional-parallel-gateway.vue';
@@ -50,7 +50,7 @@
     end: End,
     task: Task,
     tasknode: Task,
-    // subprocess: Subprocess,
+    subflow: Subprocess,
     'branch-gateway': BranchGateway,
     'parallel-gateway': ParallelGateway,
     'conditional-parallel-gateway': ConditionalParallelGateway,
@@ -73,7 +73,11 @@
     computed: {
       comp() {
         const node = this.getNode();
-        const { type } = node.getData();
+        const { type, code } = node.getData();
+        // 独立任务下子流程节点的判断
+        if (code === 'subprocess_plugin' || type === 'SubProcess') {
+          return NODE_COMP_MAP.subflow;
+        }
         return NODE_COMP_MAP[type];
       },
     },

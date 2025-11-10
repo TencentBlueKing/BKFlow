@@ -132,9 +132,10 @@
             let result = false;
             const varItem = this.constants[item];
             if (varItem.source_type === 'component_outputs') {
+              // 获取该变量在当前节点下的源信息
               const sourceInfo = varItem.source_info[this.nodeId];
               if (sourceInfo && sourceInfo.includes(param.key)) {
-                varKey = item;
+                varKey = item; // 更新变量key名称
                 result = true;
               }
             }
@@ -150,6 +151,7 @@
             version: param.version,
             status: param.status,
             hooked: isHooked,
+            type: param.type,
           };
           list.push(info);
         });
@@ -190,6 +192,7 @@
             },
             version,
             plugin_code: this.isSubflow ? pluginCode : (this.thirdPartyCode || ''),
+            custom_type: props.row.type ?? '',
           };
           if (key === 'data' && this.uniformOutputs.length) {
             config.extra_info = this.getUniformExtraInfo();
@@ -202,6 +205,7 @@
             key: props.row.varKey,
             tagCode: props.row.varKey,
             source: 'output',
+            custom_type: props.row.type ?? '',
           });
           this.$emit('hookChange', 'delete', config);
         }

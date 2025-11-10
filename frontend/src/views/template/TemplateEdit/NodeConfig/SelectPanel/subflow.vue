@@ -6,20 +6,6 @@
       {{ $t('请选择流程进行节点配置') }}
     </p>
     <div class="type-select-wrapper">
-      <!-- 公共流程编辑不显示切换流程类型下拉框 -->
-      <bk-select
-        v-if="!common"
-        style="width: 240px;"
-        :value="tplType"
-        :clearable="false"
-        @change="onTplTypeChange">
-        <bk-option
-          id="business"
-          :name="$t('项目流程')" />
-        <bk-option
-          id="common"
-          :name="$t('公共流程')" />
-      </bk-select>
       <bk-input
         v-model="searchStr"
         class="search-text-input"
@@ -36,40 +22,6 @@
         <div class="th-item tpl-name">
           {{ $t('流程名称') }}
         </div>
-        <div class="th-item tpl-label">
-          <span>{{ $t('标签') }}</span>
-          <div
-            v-if="!commonTpl"
-            class="label-select-wrap">
-            <bk-select
-              v-model="labels"
-              class="tpl-label-filter"
-              ext-popover-cls="label-select"
-              :searchable="true"
-              :clearable="false"
-              :multiple="true"
-              @selected="onSelectLabel">
-              <i
-                slot="trigger"
-                class="bk-icon icon-funnel filter-icon" />
-              <bk-option
-                v-for="option in templateLabels"
-                :id="option.id"
-                :key="option.id"
-                :name="option.name">
-                <div class="label-select-option">
-                  <span
-                    class="label-select-color"
-                    :style="{ background: option.color }" />
-                  <span>{{ option.name }}</span>
-                  <i
-                    v-if="labels.includes(option.id)"
-                    class="bk-option-icon bk-icon icon-check-1" />
-                </div>
-              </bk-option>
-            </bk-select>
-          </div>
-        </div>
       </div>
       <!-- 加一层div用来放bkLoading -->
       <div v-bkloading="{ isLoading: listLoading }">
@@ -78,10 +30,8 @@
             <div
               v-for="item in tableList"
               :key="item.id"
-              v-cursor="{ active: !item.hasPermission }"
               :class="['tpl-item', {
                 'active': String(item.id) === String(nodeConfig.template_id),
-                'text-permission-disable': !item.hasPermission
               }]"
               @click="onSelectTpl(item)">
               <div class="tpl-name name-content">
@@ -100,19 +50,6 @@
                   <i class="common-icon-box-top-right-corner" />
                 </span>
               </div>
-              <!-- 公共流程列表不展示标签 -->
-              <div
-                v-if="!commonTpl && item.template_labels.length > 0"
-                class="tpl-label labels-wrap">
-                <span
-                  v-for="label in item.template_labels"
-                  :key="label.id"
-                  v-bk-overflow-tips
-                  class="label-item"
-                  :style="getLabelStyle(label.label_id)">
-                  {{ label.name }}
-                </span>
-              </div>
             </div>
           </template>
           <NoData
@@ -127,8 +64,8 @@
 </template>
 <script>
   import permission from '@/mixins/permission.js';
-  import { DARK_COLOR_LIST } from '@/constants/index.js';
   import NoData from '@/components/common/base/NoData.vue';
+  import { mapState } from 'vuex';
 
   export default {
     name: 'Subflow',
@@ -145,15 +82,13 @@
         type: Object,
         default: () => ({}),
       },
-      templateLabels: {
-        type: Array,
-        default: () => ([]),
-      }, // 模板标签
+      spaceId: {
+        type: [String, Number],
+        default: '',
+      },
     },
     data() {
       return {
-        // 项目流程 business，公共流程 common, 公共流程编辑默认都是common
-        tplType: this.common ? 'common' : (this.nodeConfig.template_source || 'business'),
         tplList: [],
         listLoading: false,
         isLabelSelectorOpen: false,
@@ -166,15 +101,15 @@
       };
     },
     computed: {
+      ...mapState({
+        scopeInfo: state => state.template.scopeInfo,
+      }),
       tableList() {
         // 除流程克隆的情况，流程列表中需要过滤掉url中template_id对应的流程
         if (this.$route.params.type === 'clone') {
           return this.tplList;
         }
-        return this.tplList.filter(tpl => tpl.id !== Number(this.$route.query.template_id));
-      },
-      commonTpl() {
-        return this.common || this.tplType === 'common';
+        return this.tplList.filter(tpl => tpl.id !== Number(this.$route.params.templateId));
       },
     },
     mounted() {
@@ -197,7 +132,7 @@
       listWrapEl.removeEventListener('scroll', this.handleScroll, false);
     },
     methods: {
-      // 加载项目流程或公共流程列表
+      // 获取流程列表
       async getTplList() {
         if (this.listLoading) {
           return;
@@ -206,21 +141,16 @@
           this.listLoading = true;
           const searchStr = this.escapeRegExp(this.searchStr);
           const data = {
-            label_ids: this.labels.join(','),
-            pipeline_template__name__icontains: this.searchStr || undefined,
+            space_id: this.spaceId,
             limit: this.limit,
             offset: (this.crtPage - 1) * this.limit,
+            name__icontains: this.searchStr,
+            ...this.scopeInfo, // 作用域
+            empty_scope: 1,
           };
-          if (this.commonTpl) {
-            data.common = true;
-          } else {
-            data.project__id = this.$route.params.project_id;
-          }
           const resp = await this.$store.dispatch('templateList/loadTemplateList', data);
-          const reqPermission = this.commonTpl ? ['common_flow_view'] : ['flow_view'];
           const result = [];
-          resp.results.forEach((tpl) => {
-            tpl.hasPermission = this.hasPermission(reqPermission, tpl.auth_actions);
+          resp.data.results.forEach((tpl) => {
             const tplCopy = { ...tpl };
             // 高亮搜索匹配的文字部分
             if (searchStr !== '') {
@@ -232,31 +162,12 @@
             result.push(tplCopy);
           });
           this.tplList.push(...result);
-          this.isCompleteLoading = resp.count === this.tplList.length;
+          this.isCompleteLoading = resp.data.count === this.tplList.length;
         } catch (e) {
           console.log(e);
         } finally {
           this.listLoading = false;
         }
-      },
-      getLabelStyle(id) {
-        if (id) {
-          const label = this.templateLabels.find(item => item.id === Number(id));
-          if (!label) return {};
-          return {
-            background: label.color,
-            color: DARK_COLOR_LIST.includes(label.color) ? '#fff' : '#262e4f',
-          };
-        }
-        return { color: '#000000', minWidth: 'unset', padding: '2px' };
-      },
-      // 流程类型切换
-      onTplTypeChange(val) {
-        this.tplType = val;
-        this.crtPage = 1;
-        this.tplList = [];
-        this.labels = [];
-        this.getTplList();
       },
       // 滚动加载
       handleScroll(e) {
@@ -264,12 +175,15 @@
           return;
         }
         const { scrollTop, clientHeight, scrollHeight } = e.target;
-        const isScrollBottom = scrollHeight === (scrollTop + clientHeight);
-        if (isScrollBottom) {
+        // 距离底部一定阈值兼容大屏幕分辨率
+        const threshold = clientHeight / 5;
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+        if (distanceToBottom < threshold && scrollHeight > clientHeight) {
           this.crtPage += 1;
           this.getTplList();
         }
       },
+      // 对特殊字符串进行转义处理
       escapeRegExp(str) {
         if (typeof str !== 'string') {
           return '';
@@ -295,68 +209,22 @@
         this.tplList = [];
         this.getTplList();
       },
-      // 选择标签
-      onSelectLabel() {
-        this.crtPage = 1;
-        this.tplList = [];
-        this.getTplList();
-      },
       // 选择流程
       onSelectTpl(tpl) {
-        if (tpl.hasPermission) {
-          this.$emit('select', tpl);
-        } else {
-          this.onApplyPermission(tpl);
-        }
+        this.$emit('select', tpl);
       },
       // 查看流程
       onViewTpl(tpl) {
-        if (!tpl.hasPermission) {
-          this.onApplyPermission(tpl);
-          return;
-        }
         const { name } = this.$route;
-        let routerName = this.commonTpl ? 'projectCommonTemplatePanel' : 'templatePanel';
-        routerName = name === 'commonTemplatePanel' ? 'commonTemplatePanel' : routerName;
         const pathData = {
-          name: routerName,
+          name,
           params: {
             type: 'view',
-            project_id: name === 'commonTemplatePanel' ? undefined : this.$route.params.project_id,
-          },
-          query: {
-            template_id: tpl.id,
-            common: name === 'templatePanel' ? undefined : '1',
-          },
+            templateId: tpl.id,
+          }
         };
         const { href } = this.$router.resolve(pathData);
         window.open(href, '_blank');
-      },
-      // 申请权限
-      onApplyPermission(tpl) {
-        let reqPerm; let resourceData;
-        if (this.commonTpl) {
-          reqPerm = 'common_flow_view';
-          resourceData = {
-            common_flow: [{
-              id: tpl.id,
-              name: tpl.name,
-            }],
-          };
-        } else {
-          reqPerm = 'flow_view';
-          resourceData = {
-            flow: [{
-              id: tpl.id,
-              name: tpl.name,
-            }],
-            project: [{
-              id: tpl.project.id,
-              name: tpl.project.name,
-            }],
-          };
-        }
-        this.applyForPermission([reqPerm], [], resourceData);
       },
     },
   };

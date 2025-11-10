@@ -1,4 +1,7 @@
 import { random4 } from '@/utils/uuid.js';
+import { formatLayout } from './formatLayout';
+import tools from '@/utils/tools.js';
+import store from '@/store';
 
 function getNodeTargetMaps(lines) {
   return lines.reduce((acc, cur) => {
@@ -74,8 +77,10 @@ export const graphToJson = (canvasData) => {
   const nodeCompMap = {
     startpoint: 'start',
     endpoint: 'end',
+    start: 'start',
+    end: 'end',
     tasknode: 'task',
-    // subflow: 'Subprocess',
+    subflow: 'subflow', // 最终画布node.getData()的type
     branchgateway: 'branch-gateway',
     parallelgateway: 'parallel-gateway',
     conditionalparallelgateway: 'conditional-parallel-gateway',
@@ -165,4 +170,38 @@ export const graphToJson = (canvasData) => {
     return acc;
   }, []) || [];
   return [...groupCell, ...nodeCell, ...edgeCell];
+};
+
+
+export const generateGraphData = (pipelineTree) => {
+  const {
+    activities = {},
+    flows = [],
+    gateways = {},
+    start_event: start,
+    end_event: end,
+  } = tools.deepClone(pipelineTree);
+
+  const nodes = {
+    ...activities,
+    ...gateways,
+    [start.id]: start,
+    [end.id]: end,
+  };
+
+  try {
+    const graphData = formatLayout(nodes, flows);
+
+    // 更新节点树
+    store.commit('template/setPipelineTree', {
+      ...pipelineTree,
+      location: graphData.locations,
+      line: graphData.lines,
+    });
+
+    return graphToJson(graphData);
+  } catch (error) {
+    console.warn(error);
+    return [];
+  }
 };

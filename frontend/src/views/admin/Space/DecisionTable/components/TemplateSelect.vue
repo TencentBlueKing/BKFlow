@@ -72,6 +72,9 @@
     },
     created() {
       this.getTemplateList();
+      if (this.value) {
+        this.getTemplateData(this.value);
+      }
       this.onRemoteSearch = tools.debounce((val) => {
         this.searchValue = val;
         this.pagination.current = 1;
@@ -81,6 +84,9 @@
     methods: {
       ...mapActions('templateList/', [
         'loadTemplateList',
+      ]),
+      ...mapActions('template/', [
+        'loadTemplateData',
       ]),
       async getTemplateList() {
         try {
@@ -95,7 +101,9 @@
           if (current === 1) {
             this.templateList = resp.data.results;
           } else {
-            this.templateList.push(...resp.data.results);
+              const existingIds = new Set(this.templateList.map(item => item.id));
+              const newItems = resp.data.results.filter(item => !existingIds.has(item.id));
+              this.templateList.push(...newItems);
           }
           // 计算总页数
           this.pagination.count = resp.data.count;
@@ -121,6 +129,19 @@
           console.warn(error);
         } finally {
           this.bottomLoadingOptions.isLoading = false;
+        }
+      },
+      async getTemplateData(templateId) {
+        const isNeedUnshift = !this.templateList.some(item => item?.id === this.value);
+        if (isNeedUnshift || this.templateList.length <= 0) {
+          try {
+            const templateData = await this.loadTemplateData({ templateId });
+            this.$nextTick(() => {
+              this.templateList.unshift(tools.deepClone(templateData));
+            });
+          } catch (error) {
+            console.warn(error);
+          }
         }
       },
     },
