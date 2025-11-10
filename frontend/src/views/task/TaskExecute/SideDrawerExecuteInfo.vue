@@ -70,7 +70,9 @@
               @click="onViewSubProcessExecute">
               <span class="dividing-line" />
               <i class="common-icon-box-top-right-corner icon-link-to-sub" />
-              <p class="text-link-to-sub">{{ $t('查看子流程') }}</p>
+              <p class="text-link-to-sub">
+                {{ $t('查看子流程') }}
+              </p>
             </div>
           </div>
         </div>
@@ -659,6 +661,13 @@
             };
             const resp = await this.getInstanceStatus(data);
             if (!resp.result) return;
+            // 当前请求结果与节点状态不一致重新获取当前节点信息
+            const targetNode =  resp.data.children[this.executeInfo.id];
+            if (targetNode) {
+              if (targetNode.state !== this.executeInfo.state) {
+                this.loadNodeInfo();
+              }
+            }
             this.subflowState = resp.data.state;
             this.subflowNodeStatus = resp.data.children || {};
             if (['FINISHED', 'REVOKED', 'FAILED'].includes(resp.data.state)) {
