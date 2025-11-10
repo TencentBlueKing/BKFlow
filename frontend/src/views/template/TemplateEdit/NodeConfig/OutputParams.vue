@@ -151,6 +151,7 @@
             version: param.version,
             status: param.status,
             hooked: isHooked,
+            type: param.type,
           };
           list.push(info);
         });
