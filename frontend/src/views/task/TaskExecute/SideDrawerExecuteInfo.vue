@@ -664,7 +664,7 @@
             // 当前请求结果与节点状态不一致重新获取当前节点信息
             const targetNode =  resp.data.children[this.executeInfo.id];
             if (targetNode) {
-              if (targetNode.state !== this.executeInfo.state) {
+              if (this.executeInfo.state === 'RUNNING' && targetNode.state !== this.executeInfo.state) {
                 this.loadNodeInfo();
               }
             }
