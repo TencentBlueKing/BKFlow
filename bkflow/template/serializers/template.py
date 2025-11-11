@@ -28,6 +28,7 @@ from webhook.signals import event_broadcast_signal
 
 from bkflow.bk_plugin.models import BKPluginAuthorization
 from bkflow.constants import (
+    MAX_LEN_OF_TEMPLATE_NAME,
     TemplateOperationSource,
     TemplateOperationType,
     WebhookEventType,
@@ -298,5 +299,7 @@ class PreviewTaskTreeSerializer(serializers.Serializer):
 
 class TemplateCopySerializer(serializers.Serializer):
     template_id = serializers.IntegerField(help_text=_("模板ID"), required=True)
+    name = serializers.CharField(help_text=_("模版名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=False)
+    desc = serializers.CharField(help_text=_("描述"), max_length=256, required=False)
     space_id = serializers.IntegerField(help_text=_("空间ID"), required=True)
     copy_subprocess = serializers.BooleanField(help_text=_("是否复制子流程"), required=False, default=False)

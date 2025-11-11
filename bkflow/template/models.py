@@ -38,7 +38,7 @@ logger = logging.getLogger("root")
 
 
 class TemplateManager(models.Manager):
-    def copy_template(self, template_id, space_id, operator, copy_subprocess=False, version=None):
+    def copy_template(self, template_id, space_id, operator, name=None, desc=None, copy_subprocess=False, version=None):
         """
         复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
         暂不支持拷贝带决策表插件的流程
@@ -50,7 +50,7 @@ class TemplateManager(models.Manager):
             if node["type"] == "SubProcess":
                 if copy_subprocess:
                     new_sub_template = self.copy_template(
-                        node["template_id"], space_id, operator, True, node["version"]
+                        node["template_id"], space_id, operator, copy_subprocess=True, version=node["version"]
                     )
                     node["template_id"] = new_sub_template.id
                     node["version"] = new_sub_template.version
@@ -59,10 +59,13 @@ class TemplateManager(models.Manager):
             elif node["component"]["code"] == "dmn_plugin":
                 raise ValidationError("流程中存在决策节点 暂不支持拷贝")
         template.pk = None
-        template.name = f"Copy {template.name}"
+        template.name = name or f"Copy {template.name}"
+        template.desc = desc or template.desc
+
         copyed_pipeline_tree = deepcopy(template_pipeline_tree)
         pe_maps = replace_all_id(copyed_pipeline_tree)
         replace_pipeline_tree_node_ids(copyed_pipeline_tree, OperateType.CREATE_TEMPLATE.value, pe_maps[PE.activities])
+
         # 拷贝流程并替换节点 避免 id 重叠
         with transaction.atomic():
             # 开启事务 确保都创建成功
