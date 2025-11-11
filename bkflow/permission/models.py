@@ -185,7 +185,9 @@ class Token(models.Model):
 
             return check_parent_task_id(db_token, parent_task_id)
 
-        if db_token.resource_id != resource_id:
+        if db_token.resource_id != str(resource_id):
+            if resource_type != ResourceType.TASK.value:
+                return False
             if not check_parent_task_id(db_token, resource_id):
                 return False
         return True
