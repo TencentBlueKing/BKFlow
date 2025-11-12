@@ -39,9 +39,9 @@ from bkflow.space.configs import (
 class TestSpaceConfigHandler:
     def test_get_all_configs(self):
         configs = SpaceConfigHandler.get_all_configs()
-        assert len(configs) == 11
+        assert len(configs) == 12
         configs = SpaceConfigHandler.get_all_configs(only_public=True)
-        assert len(configs) == 10
+        assert len(configs) == 11
 
     def test_get_config(self):
         # valid cases
