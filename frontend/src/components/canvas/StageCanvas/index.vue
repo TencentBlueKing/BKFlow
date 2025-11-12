@@ -206,7 +206,7 @@ import Sortable from 'sortablejs';
       this.$forceUpdate();
     },
     handleOperateNode(type, node) {
-      this.$emit(type, node.id);
+      this.$emit(type, node.id, node.type);
     },
     setRefreshTaskStageCanvasData(time = 2000) {
       this.isPolling = true;
