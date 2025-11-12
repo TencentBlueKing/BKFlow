@@ -19,7 +19,6 @@ jobs:
         id: check
         run: |
           echo "作者关联: ${{ github.event.pull_request.author_association }}"
-
           # 允许的身份：OWNER（所有者）、MEMBER（成员）、COLLABORATOR（协作者）
           if [[ "${{ github.event.pull_request.author_association }}" == "OWNER" ]] || \
              [[ "${{ github.event.pull_request.author_association }}" == "MEMBER" ]] || \
@@ -31,7 +30,6 @@ jobs:
             echo "is_safe=false" >> $GITHUB_OUTPUT
           fi
           echo "author_association=${{ github.event.pull_request.author_association }}" >> $GITHUB_OUTPUT
-
   # 第二步：代码审查（只对可信贡献者自动运行）
   code-review:
     name: 自动代码审查
@@ -54,13 +52,12 @@ jobs:
       - name: 设置 Node.js 环境
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '18'
 
       - name: 安装 CodeBuddy CLI
         run: |
-          npm install -g --registry=https://mirrors.tencent.com/npm @tencent/codebuddy-cli
+          npm install -g @tencent-ai/codebuddy-code
           echo "✅ CodeBuddy CLI 安装完成"
-
       - name: 配置 CodeBuddy CLI
         env:
           CODEBUDDY_API_KEY: ${{ secrets.CODEBUDDY_API_KEY }}
@@ -68,40 +65,21 @@ jobs:
         run: |
           # 验证 API Key 是否存在
           if [ -z "$CODEBUDDY_API_KEY" ]; then
-            echo "❌ 错误: CODEBUDDY_API_KEY 未设置"
+            echo "⚠️ 警告: CODEBUDDY_API_KEY 未设置，CodeBuddy 可能无法正常工作"
             echo "请在 GitHub 仓库的 Settings -> Secrets and variables -> Actions 中添加 CODEBUDDY_API_KEY"
-            echo "CodeBuddy CLI 需要有效的 API Key 才能进行认证"
-            exit 1
+            echo "如果使用公开 API，可以跳过此步骤"
           else
             echo "✅ CodeBuddy API Key 已配置"
-            # 验证 API Key 格式（基本检查）
-            if [ ${#CODEBUDDY_API_KEY} -lt 10 ]; then
-              echo "⚠️ 警告: API Key 长度似乎不正确，请确认 API Key 是否正确"
-            fi
+            # 设置环境变量供 CodeBuddy CLI 使用
+            export CODEBUDDY_API_KEY="$CODEBUDDY_API_KEY"
           fi
-
           # 配置 GitHub MCP Server（用于 CodeBuddy 访问 GitHub API）
           echo "🔧 配置 GitHub MCP Server..."
-
           # 创建 CodeBuddy 配置目录
           CODEBUDDY_CONFIG_DIR="$HOME/.config/codebuddy"
           mkdir -p "$CODEBUDDY_CONFIG_DIR"
-
-          # 创建 CodeBuddy 主配置文件（如果支持配置文件方式）
-          CODEBUDDY_CONFIG_FILE="$CODEBUDDY_CONFIG_DIR/config.json"
-          node -e "
-            const fs = require('fs');
-            const config = {
-              apiKey: process.env.CODEBUDDY_API_KEY || '',
-              nonInteractive: true
-            };
-            fs.writeFileSync('$CODEBUDDY_CONFIG_FILE', JSON.stringify(config, null, 2));
-            console.log('✅ CodeBuddy 配置文件已创建');
-          "
-
           # 创建 MCP 配置文件
           MCP_CONFIG_FILE="$CODEBUDDY_CONFIG_DIR/mcp.json"
-
           # 使用 Node.js 创建配置文件（Node.js 在 GitHub Actions 中可用）
           node -e "
             const fs = require('fs');
@@ -119,73 +97,36 @@ jobs:
             fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
             console.log('✅ GitHub MCP Server 配置已创建');
           "
-
           echo "📋 MCP 配置文件位置: $MCP_CONFIG_FILE"
           echo "📋 配置文件内容:"
           cat "$MCP_CONFIG_FILE"
-
       - name: 执行代码审查
         env:
           CODEBUDDY_API_KEY: ${{ secrets.CODEBUDDY_API_KEY }}
+          CODEBUDDY_INTERNET_ENVIRONMENT: iOA
           GH_TOKEN: ${{ github.token }}
           CI: true
         run: |
           echo "🚀 开始执行 CodeBuddy 代码审查..."
-
-          # 检查 API Key 是否设置
-          if [ -z "$CODEBUDDY_API_KEY" ]; then
-            echo "❌ 错误: CODEBUDDY_API_KEY 未设置，无法执行代码审查"
-            echo "请在 GitHub 仓库的 Settings -> Secrets and variables -> Actions 中添加 CODEBUDDY_API_KEY"
-            exit 1
-          fi
-
           # 检查 codebuddy 是否可用
           if ! command -v codebuddy &> /dev/null && ! command -v cbc &> /dev/null; then
             echo "❌ codebuddy 命令未找到"
             exit 1
           fi
-
           # 使用 codebuddy 或 cbc 命令（两者等价）
-          CODEBUDDY_CMD="codebuddy"
+          CODEBUDDY_CMD="codebuddy -p --dangerously-skip-permissions"
           if ! command -v codebuddy &> /dev/null; then
             CODEBUDDY_CMD="cbc"
           fi
-
-          # 验证 CodeBuddy CLI 版本和帮助信息
-          echo "📋 CodeBuddy CLI 版本信息:"
-          $CODEBUDDY_CMD --version || echo "⚠️ 无法获取版本信息"
-
-          # 调试信息：检查环境变量
-          echo "🔍 调试信息:"
-          echo "  - CODEBUDDY_API_KEY 是否设置: $([ -n "$CODEBUDDY_API_KEY" ] && echo '是' || echo '否')"
-          echo "  - CODEBUDDY_API_KEY 长度: ${#CODEBUDDY_API_KEY}"
-          echo "  - CODEBUDDY_API_KEY 前4个字符: ${CODEBUDDY_API_KEY:0:4}..."
-
-          # 检查是否支持 --api-key 参数
-          if $CODEBUDDY_CMD --help 2>&1 | grep -qE "api-key|apiKey|--api"; then
-            echo "✅ CodeBuddy CLI 支持 API Key 参数"
-            USE_API_KEY_FLAG=true
-          else
-            echo "ℹ️ CodeBuddy CLI 可能通过环境变量 CODEBUDDY_API_KEY 进行认证"
-            USE_API_KEY_FLAG=false
-          fi
-
-          # 显示配置文件位置（如果存在）
-          if [ -f "$HOME/.config/codebuddy/config.json" ]; then
-            echo "📋 CodeBuddy 配置文件存在: $HOME/.config/codebuddy/config.json"
-          fi
-
           # 获取 PR 信息
           PR_NUMBER="${{ github.event.pull_request.number }}"
           REPO="${{ github.repository }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
-
           echo "📦 仓库: $REPO"
           echo "📦 PR 编号: $PR_NUMBER"
           echo "📦 Head SHA: $HEAD_SHA"
           echo "📦 Base SHA: $BASE_SHA"
-
           # 构建审查提示词（使用 printf 避免 YAML 解析问题）
           REVIEW_PROMPT=$(printf '%s\n\n%s\n- %s：%s\n- %s：%s\n- %s：%s\n- %s：%s\n\n%s\n%s\n%s\n%s\n\n%s\n- %s：gh pr view %s --json comments\n- %s：gh pr diff %s\n- %s\n- %s\n\n%s\n- %s\n- %s\n- %s\n- %s\n\n%s\n- %s\n- %s：gh pr review %s --comment\n- %s' \
             "你当前在 GitHub Actions runner 中执行自动化代码审查。gh CLI 可用并已通过 GH_TOKEN 认证。你可以在拉取请求上发表评论。" \
@@ -212,7 +153,5 @@ jobs:
             "提交一次审查，包含行内评论与简明总结" \
             "仅使用" "$PR_NUMBER" \
             "不要使用：gh pr review --approve 或 --request-changes")
-
           # 执行 CodeBuddy 审查
-          # 参考文档：https://copilot.tencent.com/docs/cli/quickstart
-          $CODEBUDDY_CMD -y "$REVIEW_PROMPT"
+          $CODEBUDDY_CMD "$REVIEW_PROMPT"
