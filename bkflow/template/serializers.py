@@ -54,7 +54,9 @@ class TemplateSerializers(serializers.ModelSerializer):
     @transaction.atomic()
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
-        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+        snapshot = TemplateSnapshot.create_snapshot(
+            pipeline_tree, validated_data["space_id"], validated_data["creator"]
+        )
         validated_data["snapshot_id"] = snapshot.id
         return super().create(validated_data)
 

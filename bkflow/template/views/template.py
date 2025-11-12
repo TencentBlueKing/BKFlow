@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 from copy import deepcopy
 
+import django_filters
 from blueapps.account.decorators import login_exempt
 from django.db import transaction
 from django.utils.decorators import method_decorator
@@ -88,11 +89,14 @@ from bkflow.template.serializers.template import (
     TemplateMockSchemeSerializer,
     TemplateOperationRecordSerializer,
     TemplateRelatedResourceSerializer,
+    TemplateReleaseSerializer,
     TemplateSerializer,
+    TemplateSnapshotSerializer,
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
+from bkflow.utils.version import bump_custom
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet, UserModelViewSet
 
 logger = logging.getLogger("root")
@@ -112,6 +116,17 @@ class TemplateFilterSet(FilterSet):
             "is_enabled": ["exact"],
             "create_at": ["gte", "lte"],
             "update_at": ["gte", "lte"],
+        }
+
+
+class TemplateSnapshotFilterSet(FilterSet):
+    desc = django_filters.CharFilter(field_name="desc", lookup_expr="icontains")
+
+    class Meta:
+        model = TemplateSnapshot
+        fields = {
+            "version": ["exact"],
+            "operator": ["exact"],
         }
 
 
@@ -156,7 +171,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         # 涉及到两张表的创建，需要那个开启事物，确保两张表全部都创建成功
         with transaction.atomic():
             username = request.user.username
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, space_id, username)
             template = Template.objects.create(
                 **ser.data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
             )
@@ -285,6 +300,96 @@ class AdminTemplateViewSet(AdminModelViewSet):
             logger.error(str(e))
             return Response(exception=True, data={"detail": str(e)})
         return Response(data={"template_id": template.id, "template_name": template.name})
+
+    @action(methods=["GET"], detail=True, url_path="calculate_version")
+    def calculate_version(self, request, *args, **kwargs):
+        try:
+            new_version = bump_custom(self.get_object().version)
+        except ValueError as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": str(e)})
+        return Response({"version": new_version})
+
+    @swagger_auto_schema(method="POST", operation_description="发布模板", request_body=TemplateReleaseSerializer)
+    @action(methods=["POST"], detail=True, url_path="release_template")
+    def release_template(self, request, *args, **kwargs):
+        instance = self.get_object()
+        ser = TemplateReleaseSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        new_version = bump_custom(instance.version)
+        if new_version != ser.validated_data["version"]:
+            return Response(exception=True, data={"detail": "版本号不正确"})
+
+        with transaction.atomic():
+            data = {"username": request.user.username, **ser.validated_data}
+            snapshot = instance.release_template(data)
+            instance.snapshot_id = snapshot.id
+            instance.save()
+
+        return Response(data={"template_id": instance.id})
+
+    @action(methods=["GET"], detail=True, url_path="get_draft_template")
+    def get_draft_template(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            template = TemplateSnapshot.objects.get(template_id=instance.id, draft=True)
+        except TemplateSnapshot.DoesNotExist:
+            template = instance.update_draft_snapshot(instance.pipeline_tree, request.user.username)
+
+        return Response(data={"pipeline_tree": template.data})
+
+    @action(methods=["POST"], detail=True, url_path="rollback_template")
+    def rollback_template(self, request, *args, **kwargs):
+        instance = self.get_object()
+        version = request.data.get("version")
+        if not version:
+            return Response({"detail": "version 参数不能为空"})
+
+        pipeline_tree = TemplateSnapshot.objects.get(template_id=instance.id, version=version).data
+        draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username)
+        return Response(data=draft_template.data)
+
+
+class TemplateVersionViewSet(
+    BKFLOWCommonMixin,
+    mixins.RetrieveModelMixin,
+    mixins.ListModelMixin,
+):
+    queryset = TemplateSnapshot.objects.filter(is_deleted=False)
+    serializer_class = TemplateSnapshotSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = TemplateSnapshotFilterSet
+    pagination_class = BKFLOWNoMaxLimitPagination
+    permission_classes = [AdminPermission | SpaceSuperuserPermission]
+
+    def list(self, request, *args, **kwargs):
+        template_id = request.query_params.get("template_id")
+        if not template_id:
+            return Response({"detail": "template_id 参数不能为空"}, status=400)
+        queryset = self.filter_queryset(self.get_queryset().filter(template_id=template_id))
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            return self.get_paginated_response(self.get_serializer(page, many=True).data)
+        return Response(self.get_serializer(queryset, many=True).data)
+
+    @action(methods=["POST"], detail=True, url_path="delete_snapshot")
+    def delete_snapshot(self, request, *args, **kwargs):
+        instance = self.get_object()
+        referencing_templates = TemplateReference.objects.filter(
+            subprocess_template_id=instance.template_id, version=instance.version
+        )
+        if referencing_templates.exists():
+            root_template_ids = referencing_templates.values_list("root_template_id", flat=True).distinct()
+            referencing_templates = Template.objects.filter(id__in=root_template_ids, is_deleted=False)
+            if referencing_templates.exists():
+                referencing_ids = list(referencing_templates.values_list("id", flat=True))
+                referencing_ids_str = [str(id_) for id_ in referencing_ids]
+                return Response({"detail": f"版本【{instance.version}】被流程 {', '.join(list(referencing_ids_str))} 引用，无法删除"})
+
+        instance.is_deleted = True
+        instance.save()
+        return Response({"detail": f"版本 {instance.version} 快照已成功删除"})
 
 
 class TemplateViewSet(UserModelViewSet):
