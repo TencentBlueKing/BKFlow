@@ -39,7 +39,7 @@
       gateways: {
         type: Object,
         default: () => ({}),
-      }
+      },
     },
     data() {
       return {

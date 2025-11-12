@@ -99,7 +99,7 @@
           :params-can-be-modify="paramsCanBeModify"
           :instance-actions="instanceActions"
           :instance-name="instanceName"
-          :instance_id="instanceId"
+          :instance-id="instanceId"
           :template-id="templateId"
           :retry-node-id="retryNodeId"
           @nodeTaskRetry="nodeTaskRetry"

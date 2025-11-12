@@ -24,7 +24,7 @@ const NODE_TYPE_MAPPING = {
   ParallelGateway: 'parallelgateway',
   ConditionalParallelGateway: 'conditionalparallelgateway',
   ConvergeGateway: 'convergegateway',
-  SubProcess: 'subflow'
+  SubProcess: 'subflow',
 };
 
 // 状态管理

@@ -84,7 +84,7 @@
         type: String,
         default: '',
       },
-      instance_id: {
+      instanceId: {
         type: String,
         default: '',
       },
@@ -184,7 +184,7 @@
       async getTaskData() {
         this.cntLoading = true;
         try {
-          const instanceData = await this.getTaskInstanceData(this.instance_id);
+          const instanceData = await this.getTaskInstanceData(this.instanceId);
           const pipelineData = JSON.parse(instanceData.pipeline_tree);
           const constants = {};
           Object.keys(pipelineData.constants).forEach((key) => {
@@ -204,7 +204,7 @@
       async getUnUsedConstants() {
         try {
           const resp = await this.getTaskUsedConstants({
-            instance_id: this.instance_id,
+            instance_id: this.instanceId,
           });
           return resp.data.unused_constant_keys || [];
         } catch (error) {
@@ -227,7 +227,7 @@
             // 如果任务正在执行中需要先暂停任务再修改参数
             if (this.state === 'RUNNING') {
               this.pending = true;
-              await this.instancePause(this.instance_id);
+              await this.instancePause(this.instanceId);
               this.$bkMessage({
                 message: i18n.t('任务已暂停执行'),
                 theme: 'success',
@@ -247,7 +247,7 @@
         if (!this.hasSavePermission) {
           const resourceData = {
             task: [{
-              id: this.instance_id,
+              id: this.instanceId,
               name: this.instanceName,
             }],
             project: [{
@@ -306,7 +306,7 @@
           let theme = 'warning';
           // 节点暂停时提交修改，如果未修改则不继续报错直接继续执行任务
           if (this.state === 'SUSPENDED') {
-            const resp = await this.instanceResume(this.instance_id);
+            const resp = await this.instanceResume(this.instanceId);
             message = i18n.t('参数未修改，任务已继续执行');
             theme = 'success';
             if (resp.result) {
@@ -335,7 +335,7 @@
           return acc;
         }, {});
         const data = {
-          instance_id: this.instance_id,
+          instance_id: this.instanceId,
           constants,
           meta_constants: Object.keys(metaConstants).length ? metaConstants : undefined,
           modified_constant_keys: modifiedKeys.length ? modifiedKeys : undefined,
@@ -384,7 +384,7 @@
             let message = i18n.t('参数修改成功');
             // 暂停的任务继续执行
             if (this.state === 'SUSPENDED') {
-              const resp = await this.instanceResume(this.instance_id);
+              const resp = await this.instanceResume(this.instanceId);
               message = i18n.t('参数修改成功，任务已继续执行');
               if (resp.result) {
                 this.$parent.$parent.state = 'RUNNING';
