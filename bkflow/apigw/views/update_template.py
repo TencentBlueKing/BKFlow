@@ -30,10 +30,13 @@ from bkflow.apigw.serializers.template import UpdateTemplateSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
+from bkflow.space.configs import FlowVersioning
+from bkflow.space.models import SpaceConfig
 from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
+from bkflow.utils.version import bump_custom
 
 
 @login_exempt
@@ -59,6 +62,13 @@ def update_template(request, space_id, template_id):
 
     validated_data_dict = dict(ser.data)
 
+    auto_release = validated_data_dict.pop("auto_release", False)
+    version = validated_data_dict.pop("version", None)
+    if version is not None:
+        try:
+            bump_custom(version)
+        except Exception as e:
+            raise UpdateTemplateException(_(f"版本号不符合规范: {str(e)}"))
     pipeline_tree = validated_data_dict.pop("pipeline_tree", None)
     if pipeline_tree:
         replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
@@ -71,10 +81,19 @@ def update_template(request, space_id, template_id):
             raise UpdateTemplateException(_(f"模板不存在，template_id:{template_id}"))
 
         if pipeline_tree:
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, space_id, request.user.username)
-            validated_data_dict["snapshot_id"] = snapshot.id
-            snapshot.template_id = template.id
-            snapshot.save(update_fields=["template_id"])
+            if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+                template.update_draft_snapshot(pipeline_tree, request.user.username)
+                if auto_release:
+                    release_version = version or bump_custom(template.version)
+                    snapshot = template.release_template(
+                        {"version": release_version, "username": request.user.username}
+                    )
+                    template.snapshot_id = snapshot.id
+            else:
+                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, space_id, request.user.username)
+                validated_data_dict["snapshot_id"] = snapshot.id
+                snapshot.template_id = template.id
+                snapshot.save(update_fields=["template_id"])
 
         for key, value in validated_data_dict.items():
             setattr(template, key, value)
