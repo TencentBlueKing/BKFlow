@@ -1358,10 +1358,16 @@
       async onLocationChange(type, node) {
         if (!node) return;
         const { id, data } = node;
+        const typeMap = {
+          task: 'tasknode',
+          subflow: 'subflow',
+          start: 'start',
+          end: 'end'
+        };
         const location = {
           id,
           ...data,
-          type: data.type === 'task' ? 'tasknode' : (['subflow', 'start', 'end'].includes(data.type) ? data.type : data.type.split('-').join('')),
+          type: typeMap[data.type] ?? data.type.split('-').join(''),
           ...node.position(),
         };
         if (data?.oldSouceId) {

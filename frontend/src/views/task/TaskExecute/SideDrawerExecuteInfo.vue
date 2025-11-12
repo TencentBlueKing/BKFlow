@@ -1360,7 +1360,7 @@
           const taskInfo = respData.outputsInfo.find(item => item.key === 'task_id') || {};
           this.currentSubflowTaskId = taskInfo.value || ''; // 子流程的任务id
           // isNodeInSubflow
-          const { version, node_id: nodeId, componentData, component_code: componentCode, subflowNodeParent, } = this.nodeDetailConfig;
+          const { version, node_id: nodeId, componentData, component_code: componentCode, subflowNodeParent } = this.nodeDetailConfig;
           this.executeInfo.plugin_version = this.isThirdPartyNode ? respData.inputs.plugin_version : version;
           // 获取第一层独立子流程实例数据-只要外层pipeLineTree包含该节点就是子流程第一层
           // this.isSubProcessNode && !this.nodeDetailConfig.isNodeInSubflow

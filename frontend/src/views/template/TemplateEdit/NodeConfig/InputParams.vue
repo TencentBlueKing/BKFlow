@@ -170,7 +170,7 @@
         this.formData = tools.deepClone(val);
       },
       scheme: {
-        handler(val) {
+        handler() {
             this.formsScheme = this.getFormScheme();
             this.formsNotReferredScheme = this.getFormScheme('notReferred');
           },
