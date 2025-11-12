@@ -54,11 +54,11 @@ jobs:
       - name: 设置 Node.js 环境
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24'
 
       - name: 安装 CodeBuddy CLI
         run: |
-          npm install -g @tencent-ai/codebuddy-code
+          npm install -g --registry=https://mirrors.tencent.com/npm @tencent/codebuddy-cli
           echo "✅ CodeBuddy CLI 安装完成"
 
       - name: 配置 CodeBuddy CLI
