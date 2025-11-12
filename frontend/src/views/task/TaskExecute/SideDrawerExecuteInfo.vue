@@ -698,7 +698,7 @@
       isExistInSubCanvas(id) {
         let isExist = false;
         if (this.subCanvasData.location) {
-          this.subCanvasData.location.map((item) => {
+          this.subCanvasData.location.forEach((item) => {
             if (item.id === id) {
               isExist = true;
             }
@@ -1239,6 +1239,7 @@
                   nodeInfo = this.getNodeInfo(item.children, nodeId);
                   return !!nodeInfo;
               }
+              return false;
           });
           return nodeInfo;
       },
