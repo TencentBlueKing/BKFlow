@@ -203,7 +203,7 @@ function  getOrderedTree(data, cacheParamsData) {
 }
 
 
-export default function getOrderNodeToNodeTree(pipelineTree, cacheParamsData) {
+export default function getOrderNodeToNodeTree(pipelineTree) {
   const sharedData = {
     curNodeIds: [],
     conditionOutgoing: [],

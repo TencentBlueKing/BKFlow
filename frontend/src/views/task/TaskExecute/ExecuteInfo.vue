@@ -259,7 +259,7 @@
   import SubflowCanvas from '../../../components/canvas/ProcessCanvas/SubflowCanvas.vue';
 
   const { CancelToken } = axios;
-  const source = CancelToken.source();
+  let source = CancelToken.source();
 
   export default {
     name: 'ExecuteInfo',
@@ -690,7 +690,7 @@
           };
       },
       // 获取独立子流程节点详情
-      async getSubprocessData(taskId, nodeInfo, updateState) {
+      async getSubprocessData(taskId, nodeInfo) {
           try {
               const parentId = nodeInfo.parent?.id?.split('-') || [];
                   const resp = await this.getTaskInstanceData(taskId);
@@ -738,12 +738,12 @@
           }
       },
       // 只点击子流程展开/收起
-      async handleDynamicLoad(node, updateState) {
+      async handleDynamicLoad(node) {
           try {
             if (node.id.includes('条件')) {
               return;
             }
-            const { id, parent } = node;
+            const { id } = node;
             const { instanceId } = this.$route.query;
             const nodeDetailConfig = this.getNodeDetailConfig(node, node.taskId || instanceId);
             const query = Object.assign({}, nodeDetailConfig, { loop: this.theExecuteTime });
@@ -757,7 +757,7 @@
             const taskInfo = nodeConfig.outputs.find(item => item.key === 'task_id') || {};
             const taskId = taskInfo.value;
             if (taskId) { // 子流程任务已执行才可以查详情和状态
-                await this.getSubprocessData(taskId, node, updateState);
+                await this.getSubprocessData(taskId, node);
                 this.subprocessTasks[taskId] = {
                     root_node: nodeConfig.parent_id,
                     node_id: id,
@@ -890,7 +890,7 @@
         this.zoom = this.zoom - 0.1;
       },
       // 点击子流程画布中的节点
-      onSubflowNodeClick(id, type) {
+      onSubflowNodeClick(id) {
         this.currentDefaultActiveId = id;
         // this.isClickSubCanvasNode = true;
         // this.$emit('onNodeClick', id, type, true, this.subCanvasData);
