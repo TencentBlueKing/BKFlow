@@ -387,7 +387,7 @@
       this.$refs.nameInput.focus();
       // 获取空间配置判断是否允许设置多个触发器
       const res = await this.getSpaceConfigData({ space_id: this.spaceId });
-      res.data.map((item) => {
+      res.data.forEach((item) => {
         if (item.name === 'allow_multiple_triggers') {
           this.isAllowSetMultipleTrigger = item.value === 'true';
         }

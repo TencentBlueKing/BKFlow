@@ -412,7 +412,8 @@
       renderReferendLabelHeader(h, value) {
         return h('div', [
           h('span', i18n.t('流程')),
-          h('bk-popover',
+          h(
+'bk-popover',
             {
               props: {
                 content: value[1].sub_template_name,

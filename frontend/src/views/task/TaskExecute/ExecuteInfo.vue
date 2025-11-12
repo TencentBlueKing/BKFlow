@@ -651,6 +651,7 @@
                           nodes = item.children;
                           return true;
                       }
+                      return false;
                   });
               });
           }
@@ -665,6 +666,7 @@
                   nodeInfo = this.getNodeInfo(item.children, '', nodeId);
                   return !!nodeInfo;
               }
+              return false;
           });
           return nodeInfo;
       },

@@ -221,7 +221,7 @@
           params: {
             type: 'view',
             templateId: tpl.id,
-          }
+          },
         };
         const { href } = this.$router.resolve(pathData);
         window.open(href, '_blank');
