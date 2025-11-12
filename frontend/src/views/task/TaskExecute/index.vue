@@ -120,7 +120,7 @@
             document.title = name;
           }
           // 判断是否存在子流程节点-如果存在需获取子流程的节点树
-          for (const key in pipelineTree.activities) {
+          for (const key of Object.keys(pipelineTree.activities)) {
             const currentItem = pipelineTree.activities[key];
             if (currentItem.component.code === 'subprocess_plugin') {
               const { template_id } = currentItem.component.data.subprocess.value;

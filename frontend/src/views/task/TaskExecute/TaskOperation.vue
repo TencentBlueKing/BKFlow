@@ -472,7 +472,7 @@
         return this.completePipelineData.location.some(item => item.type === 'subflow');
       },
       canvasData() {
-        const { line, location, activities } = { ... tools.deepClone(this.instanceFlow)};
+        const { line, location, activities } = { ... tools.deepClone(this.instanceFlow) };
         const locations = location.map((item) => {
           const code = item.type === 'tasknode' ? activities[item.id].component.code : '';
           const mode = this.hasOperatePerm ? 'execute' : '';
@@ -574,7 +574,7 @@
     },
     watch: {
       instanceFlow: {
-        handler(val) {
+        handler() {
           this.loadTaskStatus();
         },
         deep: true,
