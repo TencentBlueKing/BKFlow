@@ -168,4 +168,6 @@ jobs:
             "不要使用：gh pr review --approve 或 --request-changes")
 
           # 执行 CodeBuddy 审查
-          $CODEBUDDY_CMD "$REVIEW_PROMPT"
+          # 使用单次命令模式（-p/--print），并添加 --dangerously-skip-permissions 以允许文件访问和执行命令
+          # 参考文档：https://copilot.tencent.com/docs/cli/quickstart
+          $CODEBUDDY_CMD -p "$REVIEW_PROMPT" --dangerously-skip-permissions
