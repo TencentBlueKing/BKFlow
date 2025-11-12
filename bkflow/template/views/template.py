@@ -376,6 +376,12 @@ class TemplateVersionViewSet(
     @action(methods=["POST"], detail=True, url_path="delete_snapshot")
     def delete_snapshot(self, request, *args, **kwargs):
         instance = self.get_object()
+        template_id = request.data.get("template_id")
+        if not template_id:
+            return Response({"detail": "template_id 参数不能为空"}, status=400)
+
+        if instance.draft or Template.objects.get(id=template_id).snapshot_id == instance.id:
+            return Response({"detail": "草稿或最新版本无法删除"})
         referencing_templates = TemplateReference.objects.filter(
             subprocess_template_id=instance.template_id, version=instance.version
         )
