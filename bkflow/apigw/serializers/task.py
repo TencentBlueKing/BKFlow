@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -111,6 +110,9 @@ class GetTaskListSerializer(serializers.Serializer):
     create_at_end = serializers.DateTimeField(help_text=_("创建时间结束"), required=False)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=False)
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
+    id = serializers.IntegerField(help_text=_("任务ID"), required=False)
+    executor = serializers.CharField(help_text=_("执行者"), max_length=USER_NAME_MAX_LENGTH, required=False)
+    template_id = serializers.IntegerField(help_text=_("流程ID"), required=False)
 
 
 class GetTasksStatesSerializer(serializers.Serializer):

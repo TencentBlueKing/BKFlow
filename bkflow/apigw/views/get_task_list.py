@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -46,6 +45,9 @@ def get_task_list(request, space_id):
         "name": "name__icontains",
         "is_started": "is_started",
         "is_finished": "is_finished",
+        "id": "id",
+        "executor": "executor",
+        "template_id": "template_id",
     }
     for k, v in filter_map.items():
         if k in data:
