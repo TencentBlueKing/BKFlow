@@ -978,7 +978,7 @@ const en = {
   日: 'Sunday',
   到: 'to',
   凌晨: 'early morning',
-  点: "o'clock",
+  点: 'o\'clock',
   上午: 'morning',
   下午: 'afternoon',
   中午: 'noon',

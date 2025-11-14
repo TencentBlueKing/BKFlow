@@ -99,7 +99,7 @@
           :params-can-be-modify="paramsCanBeModify"
           :instance-actions="instanceActions"
           :instance-name="instanceName"
-          :instance_id="instanceId"
+          :instance-id="instanceId"
           :template-id="templateId"
           :retry-node-id="retryNodeId"
           @nodeTaskRetry="nodeTaskRetry"
@@ -472,7 +472,7 @@
         return this.completePipelineData.location.some(item => item.type === 'subflow');
       },
       canvasData() {
-        const { line, location, activities } = { ... tools.deepClone(this.instanceFlow)};
+        const { line, location, activities } = { ... tools.deepClone(this.instanceFlow) };
         const locations = location.map((item) => {
           const code = item.type === 'tasknode' ? activities[item.id].component.code : '';
           const mode = this.hasOperatePerm ? 'execute' : '';
@@ -574,7 +574,7 @@
     },
     watch: {
       instanceFlow: {
-        handler(val) {
+        handler() {
           this.loadTaskStatus();
         },
         deep: true,
@@ -1720,9 +1720,9 @@
         }
         if (type === 'templateData') {
           const pipelineData = tools.deepClone(this.pipelineData);
-          for (const i in pipelineData.activities) {
-            if ('pipeline' in pipelineData.activities[i]) {
-               delete pipelineData.activities[i].pipeline;
+          for (const key of Object.keys(pipelineData.activities)) {
+            if ('pipeline' in pipelineData.activities[key]) {
+               delete pipelineData.activities[key].pipeline;
             }
           }
           this.templateData = JSON.stringify(pipelineData, null, 4);
@@ -1775,7 +1775,7 @@
       // type表示第一个节点的类型
       onNodeClick(id, type, conditionData) {
         this.defaultActiveId = id;
-        this.setNodeDetailConfig(id, null, null, type, conditionData);
+        this.setNodeDetailConfig(id, null, null, this.translateNodeType[type] ?? type, conditionData);
         // 如果存在node_id 当前可能是点击网关条件 node_id此时指向网关节点
         if (this.nodeDetailConfig.node_id) {
           this.updateNodeActived(this.nodeDetailConfig.node_id, false);

@@ -607,3 +607,527 @@ paths:
           userVerifiedRequired: false
         disabledStages: []
         descriptionEn: grant apigw permissions of bkflow to other app
+  /sdk/decision_table/user/:
+    get:
+      operationId: sdk_get_user_decision_table
+      description: 获取用户决策表插件列表
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/decision_table/user/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/plugin/:
+    get:
+      operationId: sdk_get_plugin_list
+      description: 获取内置插件列表
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/plugin/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/plugin/{plugin_id}/:
+    get:
+      operationId: sdk_get_plugin_detail
+      description: 获取内置插件配置详情
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/plugin/{plugin_id}/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/plugin_query/uniform_api/category_list/{space_id}/:
+    get:
+      operationId: sdk_get_api_plugin_category_list
+      description: 获取uniform_api插件列表
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/plugin_query/uniform_api/category_list/{space_id}/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/plugin_service/detail/:
+    get:
+      operationId: sdk_get_plugin_service_detail
+      description: 获取第三方插件配置详情
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/plugin_service/detail/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/plugin_service/meta/:
+    get:
+      operationId: sdk_get_plugin_service_meta
+      description: 获取第三方插件元数据
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/plugin_service/meta/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/plugin_service/tags/:
+    get:
+      operationId: sdk_get_plugin_tags
+      description: 获取插件Tag分类
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/plugin_service/tags/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/task/get_task_mock_data/{task_id}/:
+    get:
+      operationId: sdk_get_task_mock_data
+      description: 获取任务的mock数据
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}task/get_task_mock_data/{task_id}/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/task/operate_task/{task_id}/{action}/:
+    post:
+      operationId: sdk_operate_task
+      description: 操作任务
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}task/operate_task/{task_id}/{action}/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/admin/create_default_template/{space_id}/:
+    post:
+      operationId: sdk_create_default_template
+      description: 创建流程
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}api/template/admin/create_default_template/{space_id}/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/admin/template_copy/:
+    post:
+      operationId: sdk_copy_template
+      description: 拷贝流程
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}api/template/admin/template_copy/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/analysis_constants_ref/:
+    post:
+      operationId: sdk_get_template_constant_reference
+      description: 变量引用统计
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}api/template/analysis_constants_ref/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/variable/:
+    get:
+      operationId: sdk_get_template_variable_list
+      description: 获取流程变量类型
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/template/variable/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/variable/check_variable_key/:
+    get:
+      operationId: sdk_template_variable_check_variable_key
+      description: 检测流程变量的key
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/template/variable/check_variable_key/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/variable/get_constant_preview_result/:
+    post:
+      operationId: sdk_template_variable_constant_preview_result
+      description: 流程常量预览结果
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}api/template/variable/get_constant_preview_result/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/variable/system_variable/:
+    get:
+      operationId: sdk_get_template_system_variable
+      description: 获取系统变量
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/template/variable/system_variable/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/variable/{variable_id}/:
+    get:
+      operationId: sdk_get_template_variable_detail
+      description: 获取流程变量详情
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/template/variable/{variable_id}/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/{template_id}/:
+    get:
+      operationId: sdk_fetch_template
+      description: 获取流程详情
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/template/{template_id}/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+    put:
+      operationId: sdk_update_template
+      description: 保存流程
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: put
+          path: /{env.api_sub_path}api/template/{template_id}/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/{template_id}/get_space_related_configs/:
+    get:
+      operationId: sdk_get_space_related_configs
+      description: 获取空间下的流程相关配置
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/template/{template_id}/get_space_related_configs/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+  /sdk/template/{template_id}/get_template_operation_record/:
+    get:
+      operationId: sdk_get_template_operate_record
+      description: 获取流程的操作记录
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}api/template/{template_id}/get_template_operation_record/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]

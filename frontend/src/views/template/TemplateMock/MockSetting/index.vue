@@ -320,7 +320,7 @@
               version: has.call(output, 'version')
                 ? output.version
                 : 'legacy',
-              type: output.custom_type
+              type: output.custom_type,
             };
           });
         } catch (e) {
@@ -649,7 +649,7 @@
       },
       // 关闭侧栏
       handleCancel() {
-        if(this.$refs.mockConfig){
+        if (this.$refs.mockConfig) {
           const { mockDataList, initDataList } = this.$refs.mockConfig;
           if (!tools.isDataEqual(mockDataList, initDataList)) {
             this.$bkInfo({

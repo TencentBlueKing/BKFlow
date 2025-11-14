@@ -698,7 +698,7 @@
       isExistInSubCanvas(id) {
         let isExist = false;
         if (this.subCanvasData.location) {
-          this.subCanvasData.location.map((item) => {
+          this.subCanvasData.location.forEach((item) => {
             if (item.id === id) {
               isExist = true;
             }
@@ -1027,7 +1027,7 @@
       async getTaskNodeDetail() {
         try {
           // 未执行的时候不展示任何信息
-          const { state, component_code: componentCode, subflowNodeParent, node_id } = this.nodeDetailConfig;
+          const { state, subflowNodeParent, node_id } = this.nodeDetailConfig;
           // const isUnexecutedSubprocess = componentCode === 'SubProcess' && ['READY', 'WAIT'].includes(state);
           const isUnexecutedSubprocess = this.isExistInSubCanvas(node_id) && ['READY', 'WAIT'].includes(state);
           const isExceted = subflowNodeParent && ['READY', 'WAIT'].includes(subflowNodeParent.state);
@@ -1239,6 +1239,7 @@
                   nodeInfo = this.getNodeInfo(item.children, nodeId);
                   return !!nodeInfo;
               }
+              return false;
           });
           return nodeInfo;
       },
@@ -1360,7 +1361,7 @@
           const taskInfo = respData.outputsInfo.find(item => item.key === 'task_id') || {};
           this.currentSubflowTaskId = taskInfo.value || ''; // 子流程的任务id
           // isNodeInSubflow
-          const { version, node_id: nodeId, componentData, component_code: componentCode, subflowNodeParent, isFirstSubUnexecuted, instance_id: instanceId } = this.nodeDetailConfig;
+          const { version, node_id: nodeId, componentData, component_code: componentCode, subflowNodeParent } = this.nodeDetailConfig;
           this.executeInfo.plugin_version = this.isThirdPartyNode ? respData.inputs.plugin_version : version;
           // 获取第一层独立子流程实例数据-只要外层pipeLineTree包含该节点就是子流程第一层
           // this.isSubProcessNode && !this.nodeDetailConfig.isNodeInSubflow
@@ -1380,8 +1381,9 @@
                 await this.loadSubprocessStatus();
                 this.updateSubflowCanvasNodeInfo();
               } else { // 未执行
+                  const { template_id: templateId } = subflowNodeParent?.component?.data?.subprocess.value || {};
                   const query = {
-                    subTemplateId: subflowNodeParent?.component?.data?.subprocess.value.template_id,
+                    subTemplateId: templateId ?? '',
                     version: this.nodeDetailConfig.version,
                   };
                 this.getUnexcutedSubflowTemplateCanvas(query);
