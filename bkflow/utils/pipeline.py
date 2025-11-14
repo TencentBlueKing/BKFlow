@@ -395,7 +395,7 @@ def replace_pipeline_tree_node_ids(
     # 生成节点映射
     if handler.should_generate_node_map(pipeline_tree, node_map):
         try:
-            node_map_raw = _recursive_replace_id_with_node_map(pipeline_tree)
+            node_map_raw = _recursive_replace_id_without_subprocess(pipeline_tree)
             first_pipeline = next(iter(node_map_raw.values()), {})
             node_map = first_pipeline.get("activities", {})
         except Exception as e:
@@ -409,9 +409,11 @@ def replace_pipeline_tree_node_ids(
     return pipeline_tree
 
 
-def _recursive_replace_id_with_node_map(pipeline_data, subprocess_id=None):
+def _recursive_replace_id_without_subprocess(pipeline_data, subprocess_id=None):
     """
     替换pipeline_id 并返回 对应的 node_map 映射
+    备注：这里之所以没有引用bamboo-engine里的_recursive_replace_id_with_node_map
+         是因为独立子流程模式下不需要展开子流程
     """
     pipeline_data[PE.id] = node_uniqid()
     node_map = {}
