@@ -386,12 +386,16 @@
       // }
       this.$refs.nameInput.focus();
       // 获取空间配置判断是否允许设置多个触发器
-      const res = await this.getSpaceConfigData({ space_id: this.spaceId });
-      res.data.forEach((item) => {
-        if (item.name === 'allow_multiple_triggers') {
-          this.isAllowSetMultipleTrigger = item.value === 'true';
+      const res = await this.getNotAuthSpaceConfig();
+      if (res.data.allow_multiple_triggers) {
+        const { name } = res.data.allow_multiple_triggers;
+        const result = await this.checkSpaceConfig({ id: this.spaceId, name });
+        if (result) {
+          this.isAllowSetMultipleTrigger = result.data.value === 'true';
         }
-      });
+      } else {
+        this.isAllowSetMultipleTrigger = false;
+      }
     },
     methods: {
       ...mapMutations('template/', [
@@ -402,7 +406,8 @@
         'createTemplateLabel',
       ]),
       ...mapActions('spaceConfig/', [
-        'getSpaceConfigData',
+        'getNotAuthSpaceConfig',
+        'checkSpaceConfig',
       ]),
       onEditLabel() {
         if (!this.hasPermission(['project_edit'], this.authActions)) {

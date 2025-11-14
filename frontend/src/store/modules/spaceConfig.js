@@ -6,6 +6,14 @@ export default {
   state: {},
   mutations: {},
   actions: {
+    // 检查空间配置
+    checkSpaceConfig({}, data) {
+      return axios.get(`/api/space/config/${data.id}/check_space_config/`, { params: data }).then(response => response.data);
+    },
+    // 无鉴权获取空间基本配置信息
+    getNotAuthSpaceConfig({}) {
+      return axios.get('/api/space/config/get_control_config/').then(response => response.data);
+    },
     getSpaceConfigData({}, data) {
       return axios.get('api/space/admin/space_config/get_all_space_configs/', {
         params: {
