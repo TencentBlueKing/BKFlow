@@ -23,7 +23,6 @@ from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from pipeline.parser.utils import recursive_replace_id
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.exceptions import UpdateTemplateException
@@ -33,6 +32,8 @@ from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
 from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.utils import err_code
+from bkflow.utils.canvas import OperateType
+from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
 
 
 @login_exempt
@@ -60,7 +61,7 @@ def update_template(request, space_id, template_id):
 
     pipeline_tree = validated_data_dict.pop("pipeline_tree", None)
     if pipeline_tree:
-        recursive_replace_id(pipeline_tree)
+        replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
 
     validated_data_dict["updated_by"] = validated_data_dict.pop("operator", None) or request.user.username
     with transaction.atomic():
