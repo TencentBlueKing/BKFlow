@@ -54,7 +54,11 @@ from bkflow.space.models import (
     SpaceConfig,
     SpaceCreateType,
 )
-from bkflow.space.permissions import SpaceExemptionPermission, SpaceSuperuserPermission
+from bkflow.space.permissions import (
+    SpaceConfigExemptionPermission,
+    SpaceExemptionPermission,
+    SpaceSuperuserPermission,
+)
 from bkflow.space.serializers import (
     CredentialBaseQuerySerializer,
     CredentialSerializer,
@@ -403,7 +407,7 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
 class SpaceConfigViewSet(ModelViewSet, SimpleGenericViewSet):
     queryset = SpaceConfig.objects.all()
     serializer_class = SpaceConfigSerializer
-    permission_classes = [AdminPermission]
+    permission_classes = [SpaceConfigExemptionPermission | AdminPermission | SpaceSuperuserPermission]
     pagination_class = BKFLOWDefaultPagination
 
     def process_config(self, config_dict):
