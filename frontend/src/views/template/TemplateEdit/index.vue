@@ -34,6 +34,11 @@
         :is-preview-mode="isPreviewMode"
         :exclude-node="excludeNode"
         :execute-scheme-saving="executeSchemeSaving"
+        :lasted-pipeline-tree="lastedPipelineTree"
+        :comp-version="compVersion"
+        :tpl-snapshot-id="tplSnapshotId"
+        :latested-version="latestedVersion"
+        :is-enable-version-manage="isEnableVersionManage"
         @jumpToTemplateMock="jumpToTemplateMock"
         @goBackViewMode="goBackViewMode"
         @goBackToTplEdit="goBackToTplEdit"
@@ -86,6 +91,7 @@
           :back-to-variable-panel="backToVariablePanel"
           :is-not-exist-atom-or-version="isNotExistAtomOrVersion"
           :space-related-config="spaceRelatedConfig"
+          :is-enable-version-manage="isEnableVersionManage"
           @globalVariableUpdate="globalVariableUpdate"
           @updateNodeInfo="onUpdateNodeInfo"
           @templateDataChanged="templateDataChanged"
@@ -330,6 +336,14 @@
         spaceRelatedConfig: {}, // 空间相关配置
         templateMocking: false,
         isSubflowNeedToUpdate: false,
+        isSubflowNodeConfig: false,
+        lastedPipelineTree: {},
+        subTemplateId: '',
+        tplSnapshotId: '', // 最新版本id
+        isChangeTplVersionTime: '',
+        latestedVersion: '', // 最新版本
+        isNeedToProhibitEdit: false,
+        isEnableVersionManage: false,
       };
     },
     computed: {
@@ -455,7 +469,7 @@
       this.initType = this.type;
       this.initData();
     },
-    mounted() {
+    async mounted() {
       this.openSnapshootTimer();
       window.addEventListener('beforeunload', this.handleBeforeUnload, false);
       window.addEventListener('unload', this.handleUnload.bind(this), false);
@@ -463,6 +477,17 @@
       if (this.type === 'edit') {
         const data = this.getTplTabData();
         tplTabCount.setTab(data, 'add');
+      }
+      // 判断是否开启版本管理
+      const res = await this.getNotAuthSpaceConfig();
+      if (res.data.flow_versioning) {
+        const { name } = res.data.flow_versioning;
+        const result = await this.checkSpaceConfig({ id: this.spaceId, name });
+        if (result) {
+          this.isEnableVersionManage = result.data.value === 'true';
+        }
+      } else {
+        this.isEnableVersionManage = false;
       }
     },
     beforeDestroy() {
@@ -474,6 +499,26 @@
       window.removeEventListener('unload', this.handleUnload, false);
       this.resetTemplateData();
       this.hideGuideTips();
+    },
+    async beforeRouteUpdate(to, from, next) {
+      if (to.query.isNeedRefreshVersion) {
+        this.onRefreshVersionList();
+      }
+      if ((to.params.type !== from.params.type && to.params.type === 'edit') || to.query.isRollVersion || to.query.isEditDraft) {
+        // 编辑态获取草稿数据
+        const draftTplData = await this.getDraftVersionData({
+            templateId: this.templateId,
+            common: this.common,
+        });
+        this.lastedPipelineTree = draftTplData.data.pipeline_tree;
+        this.compVersion = this.latestedVersion;
+        this.setPipelineTree(draftTplData.data.pipeline_tree);
+         this.isChangeTplVersionTime = new Date().getTime();
+      } else if (to.params.type !== from.params.type && to.params.type === 'view') {
+        // 查看最新版本
+        this.getTemplateData();
+      }
+      next();
     },
     methods: {
       ...mapActions([
@@ -499,6 +544,10 @@
       ]),
       ...mapActions('project/', [
         'getProjectLabelsWithDefault',
+      ]),
+      ...mapActions('spaceConfig/', [
+        'getNotAuthSpaceConfig',
+        'checkSpaceConfig',
       ]),
       ...mapMutations('template/', [
         'initTemplateData',

@@ -311,6 +311,62 @@
           @change="updateData" />
       </bk-form-item>
       <bk-form-item
+        v-if="isEnableVersionManage"
+        :label="$t('版本号')"
+        :required="true"
+        property="version">
+        <bk-select
+          ref="versionSelect"
+          v-model="subVersionSelectValue"
+          :disabled="isViewMode"
+          ext-popover-cls="select-sub-version-popover-custom"
+          :popover-min-width="577"
+          :popover-width="577"
+          :clearable="false"
+          :placeholder="$t('请选择版本')"
+          ext-cls="subflow-select"
+          :searchable="subVersionlistData.length>0">
+          <bk-option
+            v-for="option in subVersionlistData"
+            :id="option.version"
+            :key="option.id"
+            :name="option.version ?? '--'"
+            :disabled="true">
+            <div class="option-title">
+              <span>{{ option.version ? option.version : $t('草稿版本') }}</span>
+              <div
+                v-if="option.version === subVersionSelectValue"
+                class="latest-version">
+                <div class="text">
+                  {{ $t('最新') }}
+                </div>
+              </div>
+            </div>
+            <div class="version-desc">
+              <p
+                v-bk-overflow-tips
+                class="version-desc-text">
+                {{ option.desc }}
+              </p>
+            </div>
+          </bk-option>
+          <div
+            v-if="subVersionlistData.length>0"
+            slot="extension"
+            class="bottom-view-btn"
+            @click="$emit('viewAllSubflowVerison', basicInfo)">
+            <i class="common-icon-box-top-right-corner" />
+            <span>{{ $t('查看全部版本') }}{{ subVersionSelectValue }}</span>
+          </div>
+        </bk-select>
+        <div
+          class="sub-latest-version">
+          <div class="text">
+            {{ $t('最新') }}
+          </div>
+        </div>
+      </bk-form-item>
+      <bk-form-item
         :label="$t('步骤名称')"
         property="stageName">
         <bk-input
@@ -539,6 +595,7 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
       },
       isViewMode: Boolean,
       isApiPlugin: Boolean,
+      isEnableVersionManage: Boolean,
     },
     data() {
       return {

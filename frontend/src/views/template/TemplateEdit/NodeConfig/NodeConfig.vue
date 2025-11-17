@@ -103,6 +103,7 @@
                 :is-view-mode="isViewMode"
                 :is-api-plugin="isApiPlugin"
                 :is-subflow-need-to-update="isSubflowNeedToUpdate"
+                :is-enable-version-manage="isEnableVersionManage"
                 @openSelectorPanel="isSelectorPanelShow = true"
                 @versionChange="versionChange"
                 @viewSubflow="onViewSubflow"
@@ -275,6 +276,7 @@
         type: Object,
         default: () => ({}),
       },
+      isEnableVersionManage: Boolean,
     },
     data() {
       return {

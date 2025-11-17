@@ -38,6 +38,17 @@
         v-if="!isViewMode && isEditProcessPage"
         class="common-icon-edit"
         @click="$emit('onChangePanel', 'templateConfigTab')" />
+      <VersionSelect
+        v-if="isEnableVersionManage"
+        ref="tplVersionSelect"
+        :template-id="templateId"
+        :is-subflow-node-config="false"
+        :comp-version="compVersion"
+        :is-view-mode="isViewMode"
+        :tpl-snapshot-id="tplSnapshotId"
+        @viewAllVerison="$emit('viewAllVerison')"
+        @versionSelectChange="handleVersionSelectChange"
+        @rollbackVersion="handelRollBackVersion" />
       <!-- 一期不做 -->
       <!-- 执行方案图标 -->
       <!-- <span
@@ -215,6 +226,25 @@
           return [];
         },
       },
+      lastedPipelineTree: { // 最新版本的流程树
+        type: Object,
+        default() {
+          return {};
+        },
+      },
+      compVersion: {
+        type: String,
+        default: '',
+      },
+      tplSnapshotId: {
+        type: [Number, String],
+        default: '',
+      },
+      latestedVersion: {
+        type: String,
+        default: '',
+      },
+      isEnableVersionManage: Boolean,
     },
     data() {
       return {
