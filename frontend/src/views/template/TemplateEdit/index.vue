@@ -38,6 +38,7 @@
         :comp-version="compVersion"
         :tpl-snapshot-id="tplSnapshotId"
         :latested-version="latestedVersion"
+        :is-enable-version-manage="isEnableVersionManage"
         @jumpToTemplateMock="jumpToTemplateMock"
         @goBackViewMode="goBackViewMode"
         @goBackToTplEdit="goBackToTplEdit"
@@ -92,6 +93,7 @@
           :back-to-variable-panel="backToVariablePanel"
           :is-not-exist-atom-or-version="isNotExistAtomOrVersion"
           :space-related-config="spaceRelatedConfig"
+          :is-enable-version-manage="isEnableVersionManage"
           @globalVariableUpdate="globalVariableUpdate"
           @updateNodeInfo="onUpdateNodeInfo"
           @templateDataChanged="templateDataChanged"
@@ -358,6 +360,7 @@
         isChangeTplVersionTime: '',
         latestedVersion: '', // 最新版本
         isNeedToProhibitEdit: false,
+        isEnableVersionManage: false,
       };
     },
     computed: {
@@ -483,7 +486,7 @@
       this.initType = this.type;
       this.initData();
     },
-    mounted() {
+    async mounted() {
       this.openSnapshootTimer();
       window.addEventListener('beforeunload', this.handleBeforeUnload, false);
       window.addEventListener('unload', this.handleUnload.bind(this), false);
@@ -491,6 +494,17 @@
       if (this.type === 'edit') {
         const data = this.getTplTabData();
         tplTabCount.setTab(data, 'add');
+      }
+      // 判断是否开启版本管理
+      const res = await this.getNotAuthSpaceConfig();
+      if (res.data.flow_versioning) {
+        const { name } = res.data.flow_versioning;
+        const result = await this.checkSpaceConfig({ id: this.spaceId, name });
+        if (result) {
+          this.isEnableVersionManage = result.data.value === 'true';
+        }
+      } else {
+        this.isEnableVersionManage = false;
       }
     },
     beforeDestroy() {
@@ -507,7 +521,7 @@
       if (to.query.isNeedRefreshVersion) {
         this.onRefreshVersionList();
       }
-      if ((to.params.type !== from.params.type && to.params.type === 'edit') || to.query.isRollVersion) {
+      if ((to.params.type !== from.params.type && to.params.type === 'edit') || to.query.isRollVersion || to.query.isEditDraft) {
         // 编辑态获取草稿数据
         const draftTplData = await this.getDraftVersionData({
             templateId: this.templateId,
@@ -549,6 +563,10 @@
       ]),
       ...mapActions('project/', [
         'getProjectLabelsWithDefault',
+      ]),
+      ...mapActions('spaceConfig/', [
+        'getNotAuthSpaceConfig',
+        'checkSpaceConfig',
       ]),
       ...mapMutations('template/', [
         'initTemplateData',

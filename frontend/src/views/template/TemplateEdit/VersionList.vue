@@ -65,7 +65,7 @@
             class="version-operation">
             <template slot-scope="props">
               <bk-button
-                v-if="props.row.isLatestVersion || props.row.draft"
+                v-if="(props.row.isLatestVersion && !isHaveDraftVersion) || props.row.draft"
                 theme="primary"
                 class="version-btn"
                 text
@@ -74,7 +74,7 @@
                 {{ $t('编辑') }}
               </bk-button>
               <bk-button
-                v-else
+                v-if="!props.row.isLatestVersion && !props.row.draft"
                 theme="primary"
                 class="version-btn"
                 text
@@ -212,6 +212,9 @@
         const maxHeight = window.innerHeight - 200;
         return maxHeight;
       },
+      isHaveDraftVersion() {
+        return this.versionList.some(item => item.draft);
+      },
     },
     mounted() {
       this.getVersionList();
@@ -263,12 +266,12 @@
         }, {});
         this.getVersionList(data);
       },
-      editVersionItem() {
+      editVersionItem(row) {
         // 跳转到编辑态
         this.$router.replace({
           name: 'templatePanel',
           params: { type: 'edit', templateId: this.$route.params.templateId },
-          query: Object.assign({}, this.$route.query),
+          query: Object.assign({ isEditDraft: row.draft }, this.$route.query),
         });
         this.$emit('close', false);
       },
