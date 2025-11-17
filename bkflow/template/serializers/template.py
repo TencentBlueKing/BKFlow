@@ -315,6 +315,7 @@ class TemplateReleaseSerializer(serializers.Serializer):
     desc = serializers.CharField(help_text=_("描述"), required=False, allow_blank=True)
 
 
+
 class TemplateSnapshotSerializer(serializers.ModelSerializer):
     create_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     update_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
