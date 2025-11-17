@@ -39,6 +39,7 @@
         class="common-icon-edit"
         @click="$emit('onChangePanel', 'templateConfigTab')" />
       <VersionSelect
+        v-if="isEnableVersionManage"
         ref="tplVersionSelect"
         :template-id="templateId"
         :is-subflow-node-config="false"
@@ -369,6 +370,7 @@
         type: String,
         default: '',
       },
+      isEnableVersionManage: Boolean,
     },
     data() {
       return {
