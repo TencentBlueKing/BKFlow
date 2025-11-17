@@ -308,6 +308,7 @@
           @change="updateData" />
       </bk-form-item>
       <bk-form-item
+        v-if="isEnableVersionManage"
         :label="$t('版本号')"
         :required="true"
         property="version">
@@ -585,6 +586,7 @@
       },
       isViewMode: Boolean,
       isApiPlugin: Boolean,
+      isEnableVersionManage: Boolean,
     },
     data() {
       return {
