@@ -107,7 +107,8 @@
                 @versionChange="versionChange"
                 @viewSubflow="onViewSubflow"
                 @updateSubflowVersion="updateSubflowVersion"
-                @update="updateBasicInfo" />
+                @update="updateBasicInfo"
+                @viewAllSubflowVerison="$emit('viewAllSubflowVerison', $event)" />
             </section>
             <!-- 输入参数 -->
             <section
@@ -709,7 +710,7 @@
           if (isInit) {
             this.updateBasicInfo({ latestVersion: resp.data.version });
           } else {
-            this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version});
+            this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version });
           }
           // 输出变量
           const has = Object.prototype.hasOwnProperty;
@@ -891,12 +892,13 @@
         } = config;
         let templateName = i18n.t('请选择子流程');
 
+        let templateData = {};
         if (templateId) {
           const subflowInfo = this.atomTypeList.subflow.find(item => item.template_id === Number(templateId));
           if (subflowInfo) {
             templateName = subflowInfo.name;
           } else {
-            const templateData = await this.loadTemplateData({
+            templateData = await this.loadTemplateData({
               templateId,
               common: false,
               checkPermission: true })
@@ -908,7 +910,7 @@
           }
         }
         const has = Object.prototype.hasOwnProperty;
-        const version = has.call(config, 'version') ? config.version : ''; // 子流程版本，区别于标准插件版本
+        const version = has.call(config, 'version') ? (config.type === 'SubProcess' ? templateData.version : config.version) : ''; // 子流程版本，区别于标准插件版本
         return {
           tpl: templateId || '',
           name: templateName, // 流程模版名称
@@ -1817,7 +1819,7 @@
                   expired: false,
                   subprocess_node_id: this.nodeConfig.id,
                 });
-                this.$emit('updateNodeInfo', this.nodeConfig.id, { hasUpdated: false});
+                this.$emit('updateNodeInfo', this.nodeConfig.id, { hasUpdated: false });
               }
               if (!alwaysUseLatest && latestVersion && latestVersion !== version) {
                 this.setSubprocessUpdated({ expired: true, subprocess_node_id: this.nodeConfig.id });

@@ -135,11 +135,19 @@
             :is-view-mode="isViewMode"
             @change="onSelectNotifyConfig" />
         </section>
-        <section class="form-section">
+        <section class="form-section trigger-section">
           <h4>
             <span>{{ $t('触发器') }}</span>
             <span class="tip-desc">{{ $t('可以通过配置触发器来执行流程任务') }}</span>
           </h4>
+          <div class="trigger-info-container">
+            <div class="trigger-info">
+              <i class="bk-icon icon-info" />
+              <div class="info-title">
+                {{ $t('"仅支持触发当前已发布的最新版本流程"') }}
+              </div>
+            </div>
+          </div>
           <TimedTriggerConfig
             :is-view-mode="isViewMode"
             :triggers="formData.triggers"
@@ -630,6 +638,11 @@
             color: #979ba5;
         }
     }
+    .trigger-section{
+       & > h4 {
+            margin: 0 0 10px 0 !important; 
+       }
+    }
     .btn-wrap {
         padding: 8px 30px;
         border-top: 1px solid #cacedb;
@@ -672,5 +685,29 @@
     .bloack {
         display: block;
     }
+}
+.trigger-info-container{
+    background-color: #f0f8ff;
+    color: #63656e;
+    border: 1px solid #c5daff;
+    border-radius: 2px;
+    margin-bottom: 18px;
+  .trigger-info{
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    .bk-icon{
+      width: 16px;
+      height: 16px;
+      line-height: 16px;
+      font-size: 16px;
+      color: #3a84ff;
+    }
+    .info-title{
+      margin-left: 12px;
+      font-size: 12px;
+    }
+  }
+
 }
 </style>

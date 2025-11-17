@@ -308,6 +308,61 @@
           @change="updateData" />
       </bk-form-item>
       <bk-form-item
+        :label="$t('版本号')"
+        :required="true"
+        property="version">
+        <bk-select
+          ref="versionSelect"
+          v-model="subVersionSelectValue"
+          :disabled="isViewMode"
+          ext-popover-cls="select-sub-version-popover-custom"
+          :popover-min-width="577"
+          :popover-width="577"
+          :clearable="false"
+          :placeholder="$t('请选择版本')"
+          ext-cls="subflow-select"
+          :searchable="subVersionlistData.length>0">
+          <bk-option
+            v-for="option in subVersionlistData"
+            :id="option.version"
+            :key="option.id"
+            :name="option.version ?? '--'"
+            :disabled="true">
+            <div class="option-title">
+              <span>{{ option.version ? option.version : $t('草稿版本') }}</span>
+              <div
+                v-if="option.version === subVersionSelectValue"
+                class="latest-version">
+                <div class="text">
+                  {{ $t('最新') }}
+                </div>
+              </div>
+            </div>
+            <div class="version-desc">
+              <p
+                v-bk-overflow-tips
+                class="version-desc-text">
+                {{ option.desc }}
+              </p>
+            </div>
+          </bk-option>
+          <div
+            v-if="subVersionlistData.length>0"
+            slot="extension"
+            class="bottom-view-btn"
+            @click="$emit('viewAllSubflowVerison', basicInfo)">
+            <i class="common-icon-box-top-right-corner" />
+            <span>{{ $t('查看全部版本') }}{{ subVersionSelectValue }}</span>
+          </div>
+        </bk-select>
+        <div
+          class="sub-latest-version">
+          <div class="text">
+            {{ $t('最新') }}
+          </div>
+        </div>
+      </bk-form-item>
+      <bk-form-item
         :label="$t('步骤名称')"
         property="stageName">
         <bk-input
@@ -495,15 +550,11 @@
 <script>
   import i18n from '@/config/i18n/index.js';
   import tools from '@/utils/tools.js';
-  // import BkUserSelector from '@blueking/user-selector'
   import { mapState, mapActions, mapMutations, mapGetters } from 'vuex';
   import { NAME_REG, STRING_LENGTH, INVALID_NAME_CHAR } from '@/constants/index.js';
 
   export default {
     name: 'BasicInfo',
-    components: {
-      // BkUserSelector,
-    },
     props: {
       projectId: {
         type: [String, Number],
@@ -633,6 +684,9 @@
           placement: 'top-start',
         },
         userApi: `${window.MEMBER_SELECTOR_DATA_HOST}/api/c/compapi/v2/usermanage/fs_list_users/`,
+        subflowVersion: '',
+        subVersionSelectValue: this.basicInfo.version,
+        subVersionlistData: [],
       };
     },
     computed: {
@@ -678,6 +732,11 @@
         immediate: true,
       },
     },
+    mounted() {
+      if (this.isSubflow) {
+        this.getSubVersionList();
+      }
+    },
     methods: {
       ...mapMutations('template/', [
         'setNodeBasicInfo',
@@ -689,10 +748,15 @@
       ...mapActions('template/', [
         'getLabels',
         'getProcessOpenRetryAndTimeout',
+        'getTemplateVersionSnapshotList',
       ]),
       ...mapGetters('template/', [
         'getPipelineTree',
       ]),
+      async getSubVersionList() {
+        const res = await this.getTemplateVersionSnapshotList({ template_id: this.formData.tpl });
+        this.subVersionlistData = res.results.filter(item => item.version);
+      },
       // 加载子流程详情，拿到最新版本子流程的version字段
       async getSubflowDetail() {
         this.subflowLoading = true;
@@ -1118,4 +1182,51 @@
             margin-top: 10px;
         }
     }
+    .select-sub-version-popover-custom{
+    .bk-options-wrapper{
+        max-height: 261px !important;
+    }
+    .option-title{
+       display: flex;
+       align-items: center;
+    }
+    .latest-version{
+        font-size: 10px;
+        color: #14A568;
+        line-height: 16px;
+        background: #E4FAF0;
+        border: 1px solid #A5E0C6;
+        border-radius: 2px;
+        margin-left: 8px;
+        .text{
+            padding: 0px 4px;
+        }
+    }
+    .bottom-view-btn{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px 0;
+      cursor: pointer;
+      .common-icon-box-top-right-corner{
+        margin-right: 8px;
+        margin-top: 3px;
+      }
+    }
+}
+.sub-latest-version{
+  position: absolute;
+  left: 40px;
+  top: 7px;
+  font-size: 10px;
+  color: #14A568;
+  line-height: 16px;
+  background: #E4FAF0;
+  border: 1px solid #A5E0C6;
+  border-radius: 2px;
+  margin-left: 8px;
+  .text{
+      padding: 0px 4px;
+  }
+}
 </style>

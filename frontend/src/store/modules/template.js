@@ -1204,9 +1204,11 @@ const template = {
     },
     // 获取模板预览数据
     gerTemplatePreviewData({}, data) {
-      const { templateId, selectedNodes } = data;
+      // appoint_node_ids: selectedNodes,
+      const { templateId, version = '' } = data;
       return axios.post(`/api/template/${templateId}/preview_task_tree/`, {
-        appoint_node_ids: selectedNodes,
+        version,
+        is_all_nodes: true,
       }).then(response => response.data);
     },
     // 获取模板mock任务列表
@@ -1215,6 +1217,35 @@ const template = {
     },
     getPreviewTaskTree({}, data) {
       return axios.post(`/api/template/${data.templateId}/preview_task_tree/`, data).then(response => response.data);
+    },
+    // 获取版本号
+    getRandomVersion({}, data) {
+      return axios.get(`/api/template/admin/${data.templateId}/calculate_version/`).then(response => response.data);
+    },
+    // 发布模板
+    publishTemplate({}, data) {
+      const { templateId, version, desc } = data;
+      return axios.post(`/api/template/admin/${templateId}/release_template/`, {
+        version,
+        desc,
+      }).then(response => response.data);
+    },
+    // 获取草稿版本模板数据
+    getDraftVersionData({}, data) {
+      return axios.get(`/api/template/admin/${data.templateId}/get_draft_template/`).then(response => response.data);
+    },
+    // 删除版本快照数据
+    deleteVersionSnapshotData({}, data) {
+      // id为版本快照id template_id 限制不能删除最新或草稿版本
+      return axios.post(`/api/template/snapshot/${data.id}/delete_snapshot/`, { template_id: data.template_id }).then(response => response.data);
+    },
+    // 获取指定模板的所有快照信息
+    getTemplateVersionSnapshotList({}, data) {
+      return axios.get('/api/template/snapshot/', { params: data }).then(response => response.data);
+    },
+    // 回滚到指定版本
+    rollbackToVersion({}, data) {
+      return axios.post(`/api/template/admin/${data.templateId}/rollback_template/`, { version: data.version }).then(response => response.data);
     },
   },
   getters: {
