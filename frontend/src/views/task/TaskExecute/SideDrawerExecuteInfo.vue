@@ -698,7 +698,7 @@
       isExistInSubCanvas(id) {
         let isExist = false;
         if (this.subCanvasData.location) {
-          this.subCanvasData.location.map((item) => {
+          this.subCanvasData.location.forEach((item) => {
             if (item.id === id) {
               isExist = true;
             }
@@ -1239,6 +1239,7 @@
                   nodeInfo = this.getNodeInfo(item.children, nodeId);
                   return !!nodeInfo;
               }
+              return false;
           });
           return nodeInfo;
       },
@@ -1380,8 +1381,9 @@
                 await this.loadSubprocessStatus();
                 this.updateSubflowCanvasNodeInfo();
               } else { // 未执行
+                  const { template_id: templateId } = subflowNodeParent?.component?.data?.subprocess.value || {};
                   const query = {
-                    subTemplateId: subflowNodeParent?.component?.data?.subprocess.value.template_id,
+                    subTemplateId: templateId ?? '',
                     version: this.nodeDetailConfig.version,
                   };
                 this.getUnexcutedSubflowTemplateCanvas(query);

@@ -1362,7 +1362,7 @@
           task: 'tasknode',
           subflow: 'subflow',
           start: 'start',
-          end: 'end'
+          end: 'end',
         };
         const location = {
           id,

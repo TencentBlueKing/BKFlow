@@ -41,7 +41,11 @@ from bkflow.apigw.serializers.credential import (
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
 from bkflow.exceptions import APIRequestError
-from bkflow.space.configs import ApiGatewayCredentialConfig, SpaceConfigHandler
+from bkflow.space.configs import (
+    ApiGatewayCredentialConfig,
+    SpaceConfigHandler,
+    SuperusersConfig,
+)
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import (
     Credential,
@@ -50,7 +54,11 @@ from bkflow.space.models import (
     SpaceConfig,
     SpaceCreateType,
 )
-from bkflow.space.permissions import SpaceExemptionPermission, SpaceSuperuserPermission
+from bkflow.space.permissions import (
+    SpaceConfigExemptionPermission,
+    SpaceExemptionPermission,
+    SpaceSuperuserPermission,
+)
 from bkflow.space.serializers import (
     CredentialBaseQuerySerializer,
     CredentialSerializer,
@@ -395,3 +403,44 @@ class CredentialConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
             logger.error(err_msg)
             return Response(err_msg, status=404)
         return Response()
+
+
+class SpaceConfigViewSet(ModelViewSet, SimpleGenericViewSet):
+    queryset = SpaceConfig.objects.all()
+    serializer_class = SpaceConfigSerializer
+    permission_classes = [SpaceConfigExemptionPermission | AdminPermission | SpaceSuperuserPermission]
+    pagination_class = BKFLOWDefaultPagination
+
+    def process_config(self, config_dict):
+        if not config_dict.get("default_value"):
+            config_dict["default_value"] = None
+        return config_dict
+
+    @action(methods=["GET"], detail=False)
+    def get_control_config(self, request, *args, **kwargs):
+        try:
+            configs = SpaceConfigHandler.get_control_configs()
+            return Response({name: self.process_config(config.to_dict()) for name, config in configs.items()})
+        except Exception as e:
+            err_msg = f"获取控制配置失败 {str(e)}"
+            logger.error(err_msg)
+            return Response(exception=True, data={"detail": err_msg})
+
+    @action(methods=["GET"], detail=True)
+    def check_space_config(self, request, *args, **kwargs):
+        space_id = kwargs.get("pk")
+        name = request.query_params.get("name")
+        if not name:
+            return Response(exception=True, data={"detail": "name 配置名称不能为空"})
+        try:
+            superusers = SpaceConfig.get_config(space_id=space_id, config_name=SuperusersConfig.name)
+            if request.user.username not in superusers and not getattr(
+                SpaceConfigHandler.get_config(name), "control", False
+            ):
+                return Response(exception=True, data={"detail": "您无权限查看此配置"})
+            config = SpaceConfig.get_config(space_id, name)
+            return Response({"value": config}, status=200)
+        except Exception as e:
+            err_msg = f"检查空间配置失败：space_id: {space_id}, name: {name}, error: {str(e)}"
+            logger.error(err_msg)
+            return Response(exception=True, data={"detail": err_msg})

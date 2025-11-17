@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -35,6 +34,12 @@ class SpaceExemptionPermission(permissions.BasePermission):
             return True
 
 
+class SpaceConfigExemptionPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if view.action in ["get_control_config", "check_space_config"]:
+            return True
+
+
 class SpaceSuperuserPermission(permissions.BasePermission):
     obj_actions = ["retrieve", "update", "partial_update", "destroy"]
 
@@ -49,7 +54,7 @@ class SpaceSuperuserPermission(permissions.BasePermission):
         if view.action in self.obj_actions:
             # 在 has_object_permission 中校验
             return True
-        candidate_space_ids = set(
+        candidate_space_ids = {
             int(space_id)
             for space_id in [
                 request.query_params.get("space_id"),
@@ -57,7 +62,7 @@ class SpaceSuperuserPermission(permissions.BasePermission):
                 view.kwargs.get("space_id"),
             ]
             if space_id
-        )
+        }
         if len(candidate_space_ids) != 1:
             logger.info(f"校验空间id不唯一: {candidate_space_ids}")
             return False

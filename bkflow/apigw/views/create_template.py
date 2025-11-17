@@ -25,7 +25,6 @@ from blueapps.account.decorators import login_exempt
 from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from pipeline.parser.utils import recursive_replace_id
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.template import CreateTemplateSerializer
@@ -73,7 +72,7 @@ def create_template(request, space_id):
         pipeline_tree = copy.deepcopy(source_template.pipeline_tree)
         replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
     elif pipeline_tree:
-        recursive_replace_id(pipeline_tree)
+        replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
     else:
         pipeline_tree = build_default_pipeline_tree_with_space_id(space_id)
 
