@@ -427,6 +427,7 @@ class FlowVersioning(BaseSpaceConfig):
     desc = _("流程版本控制")
     default_value = "false"
     choices = ["true", "false"]
+    control = True
 
     @classmethod
     def validate(cls, value: str):
