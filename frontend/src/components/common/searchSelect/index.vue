@@ -100,7 +100,7 @@
             </p>
             <!-- 最近搜索 -->
             <dl
-              v-if="!selectInfo.children && recordsData.length"
+              v-if="isShowRecentlySearch && !selectInfo.children && recordsData.length"
               class="recent-search-list">
               <dt>
                 <span class="label">{{ $t('最近搜索') }}</span>
@@ -186,6 +186,10 @@
       disabled: {
         type: Boolean,
         default: false,
+      },
+      isShowRecentlySearch: {
+        type: Boolean,
+        default: true,
       },
     },
     data() {
