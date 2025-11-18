@@ -378,7 +378,7 @@ import Sortable from 'sortablejs';
     display: flex;
     flex-direction: column;
     gap: 0;
-    overflow-y: auto;
+    overflow-y: none;
 }
 
 .tools{
