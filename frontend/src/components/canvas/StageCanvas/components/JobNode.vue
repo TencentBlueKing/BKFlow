@@ -66,7 +66,7 @@
           :is-execute="isExecute"
           @deleteNode="deletStepNode(nodeIndex)"
           @handleNode="handleNode"
-          @addNewStep="addNewStep(nodeIndex)"
+          @addNewStep="(type)=>addNewStep(nodeIndex,type)"
           @handleOperateNode="handleOperateNode"
           @copyNode="handleCopyStepNode(node,nodeIndex)" />
       </div>
@@ -191,9 +191,8 @@ export default {
         addJob() {
           this.$emit('addNewJob');
         },
-        addNewStep(index) {
-          const newStage = getDefaultNewStep();
-
+        addNewStep(index, type = 'Node') {
+          const newStage = getDefaultNewStep(type);
           this.job.nodes.splice(index + 1, 0,  newStage);
           this.refreshPPLT();
         },

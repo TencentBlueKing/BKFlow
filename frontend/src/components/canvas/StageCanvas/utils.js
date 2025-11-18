@@ -231,6 +231,23 @@ const getDefaultActivitie = (id = `node${uuid()}`) => ({
     action: 'forced_fail',
   },
 });
+const getDefaultSubProcessActivitie = (id = `node${uuid()}`) => ({
+  constants: {},
+  hooked_constants: [],
+  id,
+  incoming: [],
+  loop: null,
+  name: '',
+  optional: true,
+  outgoing: '',
+  stage_name: '',
+  type: 'SubProcess',
+  retryable: true,
+  skippable: true,
+  always_use_latest: false,
+  scheme_id_list: [],
+  template_source: 'business',
+});
 function isKeyFormat(str) {
   return /\$\{[^{}]+\}/.test(str);
 }
@@ -517,7 +534,9 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
           target: node.id,
           is_default: false,
         };
-        newPipelineTree.activities[node.id] = activities[node.id] || getDefaultActivitie(node.id);
+
+        const stepNodeType = node.option?.nodeType || 'Node';
+        newPipelineTree.activities[node.id] =  activities[node.id] || (stepNodeType === 'Node' ? getDefaultActivitie(node.id) : getDefaultSubProcessActivitie(node.id));
         newPipelineTree.activities[node.id].incoming = []; // 清空旧连线数据
         newPipelineTree.activities[node.id].outgoing = '';
         newPipelineTree.activities[node.id].incoming.push(newNodeLine.id);
