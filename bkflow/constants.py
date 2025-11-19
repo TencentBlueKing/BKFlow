@@ -80,6 +80,7 @@ class TemplateOperationType(Enum):
     create = _("创建")
     delete = _("删除")
     update = _("修改")
+    release = _("发布")
 
 
 class TaskTriggerMethod(Enum):
