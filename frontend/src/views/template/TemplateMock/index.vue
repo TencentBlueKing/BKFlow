@@ -88,6 +88,14 @@
         type: String,
         default: '',
       },
+      version: {
+        type: [String, null],
+        default: '',
+      },
+      isEnableVersionManage: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -188,9 +196,11 @@
         'getTemplateMockScheme',
         'updateTplMockScheme',
         'loadSpaceRelatedConfig',
+        'getDraftVersionData',
       ]),
       ...mapMutations('template/', [
         'setTemplateData',
+        'setPipelineTree',
       ]),
       ...mapMutations([
         'setSpaceId',
@@ -228,6 +238,13 @@
           this.tplSpaceId = templateData.space_id;
           this.setTemplateData(templateData);
           this.setSpaceId(templateData.space_id);
+          if (this.isEnableVersionManage && (this.version === null || this.version === '')) {
+            const draftTplData = await this.getDraftVersionData({
+              templateId: this.templateId,
+              common: this.common,
+            });
+            await this.setPipelineTree(draftTplData.data.pipeline_tree);
+          }
           this.selectedNodes = [];
           this.allSelectableNodes = this.locations.filter((item) => {
             if (item.optional) {
@@ -381,6 +398,8 @@
               params: {
                 templateId: this.templateId,
                 type: 'edit',
+                version: this.version,
+                isEnableVersionManage: this.isEnableVersionManage,
               },
             });
           }

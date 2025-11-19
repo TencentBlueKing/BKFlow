@@ -481,6 +481,11 @@
           tplTabCount.setTab(data, 'del');
         }
       },
+      spaceId(val, oldVal) {
+        if (val && val !== oldVal) {
+          this.checkoutSpace();
+        }
+      },
     },
     created() {
       this.initType = this.type;
@@ -495,17 +500,7 @@
         const data = this.getTplTabData();
         tplTabCount.setTab(data, 'add');
       }
-      // 判断是否开启版本管理
-      const res = await this.getNotAuthSpaceConfig();
-      if (res.data.flow_versioning) {
-        const { name } = res.data.flow_versioning;
-        const result = await this.checkSpaceConfig({ id: this.spaceId, name });
-        if (result) {
-          this.isEnableVersionManage = result.data.value === 'true';
-        }
-      } else {
-        this.isEnableVersionManage = false;
-      }
+      this.checkoutSpace();
     },
     beforeDestroy() {
       if (this.type === 'edit') {
@@ -518,22 +513,38 @@
       this.hideGuideTips();
     },
     async beforeRouteUpdate(to, from, next) {
-      if (to.query.isNeedRefreshVersion) {
-        this.onRefreshVersionList();
-      }
-      if ((to.params.type !== from.params.type && to.params.type === 'edit') || to.query.isRollVersion || to.query.isEditDraft) {
-        // 编辑态获取草稿数据
-        const draftTplData = await this.getDraftVersionData({
-            templateId: this.templateId,
-            common: this.common,
-        });
-        this.lastedPipelineTree = draftTplData.data.pipeline_tree;
-        this.compVersion = this.latestedVersion;
-        this.setPipelineTree(draftTplData.data.pipeline_tree);
-         this.isChangeTplVersionTime = new Date().getTime();
-      } else if (to.params.type !== from.params.type && to.params.type === 'view') {
-        // 查看最新版本
-        this.getTemplateData();
+      if (this.isEnableVersionManage) {
+        if (to.query.isNeedRefreshVersion) {
+          this.onRefreshVersionList();
+        }
+        if (to.query.isPublish) {
+          this.getTemplateData();
+          setTimeout(() => {
+            this.onRefreshVersionList();
+          }, 1000);
+          next();
+          return;
+        }
+        if (to.params.type === 'edit' && !this.$route.query.isChangeSelectVersion) {
+          if (from.params.type === 'view') {
+            this.compVersion = null;
+          }
+          // this.compVersion = null;
+          this.getDraftPipelineTree(from.params.type === 'view');
+          setTimeout(() => {
+            this.onRefreshVersionList();
+          }, 1000);
+          next();
+          return;
+        } else if (to.query.isRollVersion || to.query.isEditDraft) {
+          this.getDraftPipelineTree(from.params.type === 'view');
+            next();
+            return;
+        }
+        if (to.params.type !== from.params.type && to.params.type === 'view') {
+          // 查看最新版本
+          this.getTemplateData();
+        }
       }
       next();
     },
@@ -552,6 +563,7 @@
         'loadSpaceRelatedConfig',
         'getDraftVersionData',
         'gerTemplatePreviewData',
+        'getTemplateVersionSnapshotList',
       ]),
       ...mapActions('task', [
         'loadSubflowConfig',
@@ -602,6 +614,34 @@
         'loadTaskScheme',
         'saveTaskSchemList',
       ]),
+      async getDraftPipelineTree(isFromView = false) {
+        const draftTplData = await this.getDraftVersionData({
+            templateId: this.templateId,
+            common: this.common,
+        });
+        this.lastedPipelineTree = draftTplData.data.pipeline_tree;
+        // if (typeof this.compVersion === 'string' && this.compVersion.trim() !== '') {
+        //   this.compVersion = isFromView ? null : this.latestedVersion;
+        // }
+        this.compVersion = null;
+        this.setPipelineTree(draftTplData.data.pipeline_tree);
+        this.isChangeTplVersionTime = new Date().getTime(););
+      },
+      // 判断是否开启版本管理
+      async checkoutSpace() {
+        try {
+          const res = await this.getNotAuthSpaceConfig();
+          if (!res.data.flow_versioning || !this.spaceId) {
+            this.isEnableVersionManage = false;
+            return;
+          }
+          const { name } = res.data.flow_versioning;
+          const result = await this.checkSpaceConfig({ id: this.spaceId, name });
+          this.isEnableVersionManage = result.data.value === 'true';
+        } catch (error) {
+          this.isEnableVersionManage = false;
+        }
+      },
       // 轮询更新token
       pollingToken() {
         this.pollingTimer = setTimeout(async () => {
@@ -937,15 +977,29 @@
             this.goToTaskUrl(data.id);
           } else { // 保存后需要切到查看模式(查看执行方案时不需要)
             if (this.initType === 'view') {
-              this.$router.back();
-              this.initData();
+              if (this.isEnableVersionManage) {
+                this.getDraftPipelineTree();
+                // this.$router.replace({
+                //   name: 'templatePanel',
+                //   params: { type: 'edit'},
+                //   query: Object.assign({ templateId: data.id }, this.$route.query),
+                // });
+              } else {
+                this.$router.back();
+                this.initData();
+              }
             } else {
+              // 开启模板管理状态下跳转编辑态
+              // if (this.isEnableVersionManage) {
+              //   console.log('dia')
+              // } else {
               this.$router.replace({
                 name: 'templatePanel',
-                params: { type: 'view' },
+                params: { type: this.isEnableVersionManage ? 'edit' : 'view' },
                 query: Object.assign({ templateId: data.id }, this.$route.query),
               });
-              this.initType = 'view';
+              this.initType = this.isEnableVersionManage ? 'edit' : 'view';
+              // }
             }
           }
         } catch (e) {
@@ -1711,6 +1765,8 @@
                   name: 'templateMock',
                   params: {
                     templateId: this.templateId,
+                    version: this.compVersion,
+                    isEnableVersionManage: this.isEnableVersionManage,
                   },
                 });
               } catch (error) {
@@ -2179,8 +2235,10 @@
         this.isSubflowNodeConfig = false;
         this.isShowVersionList = true;
       },
-      async onSelectVersionChange(version, isLaterVersion) {
-        if (!this.$router.query?.isRollVersion) {
+      async onSelectVersionChange(version, isDraftVersion, isLaterVersion) {
+        if (isDraftVersion && this.$route.params.type !== 'view') {
+          this.getDraftPipelineTree();
+        } else if (!this.$route.query?.isRollVersion && version) {
           const previewData = await this.gerTemplatePreviewData({
             templateId: this.templateId,
             version,
@@ -2188,8 +2246,9 @@
           this.setPipelineTree(previewData.data.pipeline_tree);
           this.isChangeTplVersionTime = new Date().getTime();
           this.compVersion = version;
-          this.isNeedToProhibitEdit = !isLaterVersion;
         }
+        // onSelectVersionChange-version-isDraftVersion-isLaterVersion null true false
+        this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
       },
       // 关闭版本列表侧滑
       onCloseVersionListPanel() {
@@ -2197,7 +2256,7 @@
       },
       onRefreshVersionList(isSubflowNodeConfig) {
         if (!isSubflowNodeConfig) {
-          this.$refs.templateHeader.$refs.tplVersionSelect.getVersionList();
+          this.$refs.templateHeader.getVersionList();
         }
       },
       viewAllSubflowVerison(basicInfo) {

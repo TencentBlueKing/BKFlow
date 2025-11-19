@@ -1029,10 +1029,10 @@ const en = {
   当前执行次数: 'Current execution count',
   查看子流程: 'View subflow',
   发布: 'publish',
-  '确定回滚到此版本？': 'Are you sure you want to roll back to this version?',
-  回滚到此版本: 'Roll back to this version',
+  '确定恢复到此版本？': 'Are you sure you want to revert to this version?',
+  恢复到此版本: 'Revert to this version',
   '版本名称: ': 'Version name: ',
-  '回滚后，会将当前草稿态的内容恢复至选择的版本': 'After rolling back, the current draft content will be restored to the selected version',
+  '恢复后，会将当前草稿态的内容恢复至选择的版本': 'After recovery, the current draft content will be restored to the selected version',
   最新: 'latest',
   版本列表: 'Version List',
   查看全部版本: 'View all versions',
@@ -1050,6 +1050,7 @@ const en = {
   草稿版本: 'Draft Version',
   最新版本和草稿不能删除: 'Latest version and draft cannot be deleted',
   草稿: 'Draft',
+  仅支持触发当前已发布的最新版本流程: 'Only support trigger current latest version flow',
 };
 
 export default en;
