@@ -109,7 +109,8 @@
                 @viewSubflow="onViewSubflow"
                 @updateSubflowVersion="updateSubflowVersion"
                 @update="updateBasicInfo"
-                @viewAllSubflowVerison="$emit('viewAllSubflowVerison', $event)" />
+                @viewAllSubflowVerison="$emit('viewAllSubflowVerison', $event)"
+                @changeSubNodeVersion="onChangeSubNodeVersion" />
             </section>
             <!-- 输入参数 -->
             <section
@@ -911,8 +912,10 @@
             templateName = templateData.name;
           }
         }
+        // templateData.version为子流程的最新版本
+        // config.type === 'SubProcess' ? templateData.version :
         const has = Object.prototype.hasOwnProperty;
-        const version = has.call(config, 'version') ? (config.type === 'SubProcess' ? templateData.version : config.version) : ''; // 子流程版本，区别于标准插件版本
+        const version = has.call(config, 'version') ? config.version : ''; // 子流程版本，区别于标准插件版本
         return {
           tpl: templateId || '',
           name: templateName, // 流程模版名称
@@ -929,6 +932,7 @@
           autoRetry: Object.assign({}, { enable: false, interval: 0, times: 1 }, auto_retry),
           timeoutConfig: timeoutConfig || { enable: false, seconds: 10, action: 'forced_fail' },
           executor_proxy: executorProxy ? executorProxy.split(',') : [],
+          subLatestVersion: templateData.version,
         };
       },
       /**
@@ -1148,6 +1152,9 @@
             return acc;
           }, {});
         }
+      },
+      onChangeSubNodeVersion(data) {
+        this.tplChange(data);
       },
       /**
        * 子流程切换

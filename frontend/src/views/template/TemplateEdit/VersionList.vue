@@ -33,12 +33,13 @@
             :label="field.label"
             :width="field.width"
             :show-overflow-tooltip="true"
-            :prop="field.id">
+            :prop="field.id"
+            :fixed="field.id === 'version' ? 'left' : false ">
             <template slot-scope="{ row }">
               <div
                 v-if="field.id === 'version'"
                 class="table-version-id">
-                <span>{{ row.version || '--' }}</span>
+                <span>{{ row.version || row.desc || '--' }}</span>
                 <div
                   v-if="row.isLatestVersion"
                   class="latest-version version-distinguish-icon">
@@ -61,8 +62,9 @@
           </bk-table-column>
           <bk-table-column
             label="操作"
-            width="250"
-            class="version-operation">
+            width="170"
+            class="version-operation"
+            fixed="right">
             <template slot-scope="props">
               <bk-button
                 v-if="(props.row.isLatestVersion && !isHaveDraftVersion) || props.row.draft"
@@ -74,13 +76,13 @@
                 {{ $t('编辑') }}
               </bk-button>
               <bk-button
-                v-if="!props.row.isLatestVersion && !props.row.draft"
+                v-if="!props.row.draft"
                 theme="primary"
                 class="version-btn"
                 text
                 :disabled="isSubflowNodeConfig"
                 @click="rollbackToCurVersion(props.row)">
-                {{ $t('回滚到此版本') }}
+                {{ $t('恢复到此版本') }}
               </bk-button>
               <bk-button
                 theme="primary"
@@ -113,14 +115,14 @@
             type="exclamation"
             class="info-icon dialog-icon" />
           <div class="title-text">
-            {{ $t('确定回滚到此版本？') }}
+            {{ $t('确定恢复到此版本？') }}
           </div>
         </div>
         <div class="version-text">
           <div>{{ $t('版本名称:') + ' ' + curSelectVersion }}</div>
         </div>
       </div>
-      <div>{{ $t('回滚后，会将当前草稿态的内容恢复至选择的版本') }}</div>
+      <div>{{ $t('恢复后，会将当前草稿态的内容恢复至选择的版本') }}</div>
     </bk-dialog>
   </div>
 </template>
@@ -157,7 +159,7 @@
             {
                 id: 'version',
                 label: i18n.t('版本号'),
-                width: 120,
+                width: 200,
             },
             {
                 id: 'desc',

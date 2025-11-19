@@ -322,17 +322,18 @@
           :clearable="false"
           :placeholder="$t('请选择版本')"
           ext-cls="subflow-select"
-          :searchable="subVersionlistData.length>0">
+          :searchable="subVersionlistData.length>0"
+          @change="changeSubNodeVersion">
           <bk-option
             v-for="option in subVersionlistData"
             :id="option.version"
             :key="option.id"
             :name="option.version ?? '--'"
-            :disabled="true">
+            :disabled="!(option.version == formData.latestVersion || option.version == initVersion)">
             <div class="option-title">
-              <span>{{ option.version ? option.version : $t('草稿版本') }}</span>
+              <span>{{ option.version ? option.version : option.desc }}</span>
               <div
-                v-if="option.version === subVersionSelectValue"
+                v-if="option.version === formData.latestVersion"
                 class="latest-version">
                 <div class="text">
                   {{ $t('最新') }}
@@ -347,16 +348,9 @@
               </p>
             </div>
           </bk-option>
-          <div
-            v-if="subVersionlistData.length>0"
-            slot="extension"
-            class="bottom-view-btn"
-            @click="$emit('viewAllSubflowVerison', basicInfo)">
-            <i class="common-icon-box-top-right-corner" />
-            <span>{{ $t('查看全部版本') }}{{ subVersionSelectValue }}</span>
-          </div>
         </bk-select>
         <div
+          v-if="formData.latestVersion === formData.version "
           class="sub-latest-version">
           <div class="text">
             {{ $t('最新') }}
@@ -595,6 +589,7 @@
         subflowLoading: false,
         version: this.basicInfo.version,
         formData: tools.deepClone(this.basicInfo),
+        initVersion: tools.deepClone(this.basicInfo.version),
         maxNodeExecuteTimeout: window.MAX_NODE_EXECUTE_TIMEOUT,
         schemeList: [],
         schemeListLoading: true,
@@ -755,6 +750,10 @@
       ...mapGetters('template/', [
         'getPipelineTree',
       ]),
+      // 修改子流程版本
+      changeSubNodeVersion(val) {
+        this.$emit('changeSubNodeVersion', { id: this.formData.tpl, version: val });
+      },
       async getSubVersionList() {
         const res = await this.getTemplateVersionSnapshotList({ template_id: this.formData.tpl });
         this.subVersionlistData = res.results.filter(item => item.version);

@@ -39,13 +39,15 @@
         class="common-icon-edit"
         @click="$emit('onChangePanel', 'templateConfigTab')" />
       <VersionSelect
-        v-if="isEnableVersionManage"
+        v-if="isEnableVersionManage && (versionListData.length > 1 || (versionListData.length > 0 && !versionListData[0].draft))"
         ref="tplVersionSelect"
+        v-bkloading="{ isLoading: versionListLoading , zIndex: 100 }"
         :template-id="templateId"
         :is-subflow-node-config="false"
         :comp-version="compVersion"
         :is-view-mode="isViewMode"
         :tpl-snapshot-id="tplSnapshotId"
+        :version-list-data="versionListData"
         @viewAllVerison="$emit('viewAllVerison')"
         @versionSelectChange="handleVersionSelectChange"
         @rollbackVersion="handelRollBackVersion" />
@@ -90,7 +92,7 @@
           v-if="isViewMode && !isProjectCommonTemp"
           theme="primary"
           data-test-id="templateEdit_form_editCanvas"
-          :disabled="!hasEditPermission || !isLaterVersion"
+          :disabled="(!hasEditPermission || (!isDraftVersion && !isLaterVersion))"
           @click.stop="onEditClick">
           {{ $t('编辑') }}
         </bk-button>
@@ -102,7 +104,7 @@
             'task-btn'
           ]"
           :loading="templateSaving && !templateMocking"
-          :disabled="templateMocking || !hasEditPermission || !isPipelineTreeChanged || !isLaterVersion"
+          :disabled="isSaveButtonDisabled"
           data-test-id="templateEdit_form_saveCanvas"
           @click.stop="onSaveClick(false)">
           {{ $t('保存') }}
@@ -123,19 +125,19 @@
           :class="['task-btn']"
           data-test-id="templateEdit_form_mock"
           :loading="templateMocking"
-          :disabled="templateSaving && !templateMocking || !isLaterVersion"
+          :disabled="templateSaving && !templateMocking || ( isEnableVersionManage && !isDraftVersion)"
           @click.stop="$emit('jumpToTemplateMock')">
           {{ $t('调试') }}
         </bk-button>
         <bk-button
-          v-if="!isViewMode && !isProjectCommonTemp"
+          v-if="!isViewMode && !isProjectCommonTemp && isEnableVersionManage"
           theme="primary"
           :class="[
             'task-btn',
             'send-btn'
           ]"
           :loading="templateSaving && !templateMocking"
-          :disabled="!hasEditPermission || isPipelineTreeChanged || !isLaterVersion"
+          :disabled="!hasEditPermission || isPipelineTreeChanged || !isDraftVersion"
           data-test-id="templateEdit_form_publishCanvas"
           @click.stop="onPublishClick">
           <div class="send-container">
@@ -211,14 +213,14 @@
             type="exclamation"
             class="info-icon dialog-icon" />
           <div class="title-text">
-            {{ $t('确定回滚到此版本？') }}
+            {{ $t('确定恢复到此版本？') }}
           </div>
         </div>
         <div class="version-text">
           <div>{{ $t('版本名称:') + ' ' + curSelectVersion }}</div>
         </div>
       </div>
-      <div>{{ $t('回滚后，会将当前草稿态的内容恢复至选择的版本') }}</div>
+      <div>{{ $t('恢复后，会将当前草稿态的内容恢复至选择的版本') }}</div>
     </bk-dialog>
     <!-- 发布弹窗 -->
     <bk-dialog
@@ -370,7 +372,10 @@
         type: String,
         default: '',
       },
-      isEnableVersionManage: Boolean,
+      isEnableVersionManage: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -396,6 +401,9 @@
           version: [{ required: true, message: i18n.t('请输入版本号'), trigger: 'blur' }],
         },
         keysToRemove: ['optional', 'error_ignorable', 'retryable', 'skippable', 'auto_retry', 'timeout_config'],
+        isHaveDraft: false,
+        versionListData: [],
+        versionListLoading: false,
       };
     },
     computed: {
@@ -440,7 +448,10 @@
         return this.type === 'view';
       },
       isLaterVersion() {
-        return this.curSelectVersion ? this.latestedVersion === this.curSelectVersion : true;
+        return this.latestedVersion === this.curSelectVersion;
+      },
+      isDraftVersion() {
+        return this.curSelectVersion === null || this.curSelectVersion === '';
       },
       isProjectCommonTemp() {
         const { name } = this.$route;
@@ -468,7 +479,12 @@
           const lastValue = this.lastedPipelineTree[key];
           return !tools.isDataEqual(currentValue, lastValue);
         });
-      },
+       },
+       isSaveButtonDisabled() {
+        const baseDisabled = this.templateMocking || !this.hasEditPermission;
+        const versionManageDisabled = this.isEnableVersionManage && (!this.isPipelineTreeChanged || !this.isDraftVersion);
+        return baseDisabled || versionManageDisabled;
+       },
     },
     watch: {
       type(val, oldVal) {
@@ -492,12 +508,14 @@
           inputDom && inputDom.focus();
         });
       });
+      this.getVersionList();
       // 新建、克隆公共流程需要查询创建公共流程权限
       if (this.common) {
         await this.queryCreateCommonTplPerm();
       }
       this.setSaveBtnPerm();
       this.setCreateTaskBtnPerm();
+      // this.checktDraftInVesionList();
     },
     methods: {
       ...mapActions([
@@ -506,14 +524,22 @@
       ...mapActions('template/', [
         'getRandomVersion',
         'publishTemplate',
-        'rollbackToVersion'
+        'rollbackToVersion',
+        'getTemplateVersionSnapshotList',
       ]),
       ...mapGetters('template/', [
         'getLocalTemplateData',
       ]),
+      async getVersionList() {
+      this.versionListLoading = true;
+      const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId });
+      this.versionListData = res.results || [];
+      this.isHaveDraft = res.results.some(item => item.draft);
+      this.versionListLoading = false;
+      },
       handleVersionSelectChange(selected) {
         this.curSelectVersion = selected;
-        this.$emit('selectVersionChange', selected, this.isLaterVersion);
+        this.$emit('selectVersionChange', selected, this.isDraftVersion, this.isLaterVersion);
       },
       removeLocationTargetKeys(obj) {
         obj.location.forEach((locationItem) => {
@@ -531,9 +557,6 @@
       },
       async onRollbackVersionConfirm() {
         const res = await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion });
-        if (!res.result) {
-          return;
-        }
         this.$router.replace({
           name: 'templatePanel',
           params: { type: 'edit', templateId: this.$route.params.templateId },
@@ -557,11 +580,12 @@
             message: i18n.t('发布成功'),
             theme: 'success',
           });
+          this.formData.desc = '';
           this.isShowPublishDialog = false;
           this.$router.replace({
             name: 'templatePanel',
             params: { type: 'view', templateId: this.$route.params.templateId },
-            query: Object.assign({ isNeedRefreshVersion: true }, this.$route.query),
+            query: Object.assign({ isPublish: true }, this.$route.query),
           });
         }, (validator) => {
           console.error(validator);

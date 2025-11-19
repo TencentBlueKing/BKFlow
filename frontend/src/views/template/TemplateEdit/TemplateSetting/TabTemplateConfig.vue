@@ -144,7 +144,7 @@
             <div class="trigger-info">
               <i class="bk-icon icon-info" />
               <div class="info-title">
-                {{ $t('"仅支持触发当前已发布的最新版本流程"') }}
+                {{ $t('仅支持触发当前已发布的最新版本流程') }}
               </div>
             </div>
           </div>
