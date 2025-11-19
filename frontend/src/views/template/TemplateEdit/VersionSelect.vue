@@ -135,25 +135,18 @@ export default {
         return cloneData.filter(item => item.version);
       }
       // this.versionSelectValue = this.getVersionIdToNumber(this.compVersion);
-      console.log('listData--', cloneData, this.versionSelectValue);
       return cloneData;
     },
   },
   watch: {
     compVersion: {
       handler(val, oldVal) {
-        console.log('watch-compVersion--', val);
         if (val === oldVal) {
           return;
         }
         this.$nextTick(() => {
           this.versionSelectValue = this.getVersionIdToNumber(val);
-          console.log('watch-compVersion--versionSelectValue', this.versionSelectValue);
         });
-        // console.log('watch-versionSelectValue--', this.versionSelectValue);
-        // if (this.isInitialVersionLoad) {
-          // this.isInitialVersionLoad = false;
-        // }
       },
       immediate: true,
     },

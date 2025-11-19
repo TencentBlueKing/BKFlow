@@ -529,7 +529,6 @@
           if (from.params.type === 'view') {
             this.compVersion = null;
           }
-          console.log('路由守卫');
           // this.compVersion = null;
           this.getDraftPipelineTree(from.params.type === 'view');
           setTimeout(() => {
@@ -621,14 +620,12 @@
             common: this.common,
         });
         this.lastedPipelineTree = draftTplData.data.pipeline_tree;
-        console.log('this.compVersion--', this.compVersion, !this.compVersion);
         // if (typeof this.compVersion === 'string' && this.compVersion.trim() !== '') {
         //   this.compVersion = isFromView ? null : this.latestedVersion;
         // }
         this.compVersion = null;
         this.setPipelineTree(draftTplData.data.pipeline_tree);
-        this.isChangeTplVersionTime = new Date().getTime();
-        console.log('编辑态获取草稿数据-lastedPipelineTree-compVersion', this.lastedPipelineTree, this.compVersion);
+        this.isChangeTplVersionTime = new Date().getTime(););
       },
       // 判断是否开启版本管理
       async checkoutSpace() {
@@ -980,9 +977,7 @@
             this.goToTaskUrl(data.id);
           } else { // 保存后需要切到查看模式(查看执行方案时不需要)
             if (this.initType === 'view') {
-              console.log('当前是否开启模板管理-initType为view', this.isEnableVersionManage);
               if (this.isEnableVersionManage) {
-                console.log('保存成功');
                 this.getDraftPipelineTree();
                 // this.$router.replace({
                 //   name: 'templatePanel',
@@ -998,7 +993,6 @@
               // if (this.isEnableVersionManage) {
               //   console.log('dia')
               // } else {
-              console.log('当前是否开启模板管理', this.isEnableVersionManage);
               this.$router.replace({
                 name: 'templatePanel',
                 params: { type: this.isEnableVersionManage ? 'edit' : 'view' },
@@ -1957,16 +1951,12 @@
             this.$refs.templateHeader.setProjectSelectDialogShow();
           } else {
             if (this.isExecuteScheme) {
-              console.log('this.isExecuteScheme', this.isExecuteScheme);
               if (this.type === 'clone' || this.isTemplateDataChanged) {
-                console.log('this.type', this.type === 'clone' || this.isTemplateDataChanged);
                 this.isExecuteSchemeDialog = true;
               } else {
                 this.isEditProcessPage = false;
-                console.log('this.isEditProcessPage', this.isEditProcessPage);
               }
             } else {
-              console.log('保存逻辑');
               await this.saveTemplate();
             }
           }
@@ -2246,7 +2236,6 @@
         this.isShowVersionList = true;
       },
       async onSelectVersionChange(version, isDraftVersion, isLaterVersion) {
-        console.log('onSelectVersionChange-version-isDraftVersion-isLaterVersion', version, isDraftVersion, isLaterVersion);
         if (isDraftVersion && this.$route.params.type !== 'view') {
           this.getDraftPipelineTree();
         } else if (!this.$route.query?.isRollVersion && version) {
@@ -2260,8 +2249,6 @@
         }
         // onSelectVersionChange-version-isDraftVersion-isLaterVersion null true false
         this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
-        console.log('isNeedToProhibitEdit', this.isNeedToProhibitEdit);
-        console.log('isDraftVersion-isLaterVersion', isDraftVersion, isLaterVersion);
       },
       // 关闭版本列表侧滑
       onCloseVersionListPanel() {
