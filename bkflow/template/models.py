@@ -164,10 +164,13 @@ class Template(CommonModel):
         if not version:
             return self.pipeline_tree
         if self.validate_space("true"):
-            data = {"version": version}
+            data = {"template_id": self.id, "version": version}
         else:
             data = {"md5sum": version}
-        return TemplateSnapshot.objects.filter(**data).order_by("-id").first().data
+        snapshot = TemplateSnapshot.objects.filter(**data).order_by("-id").first()
+        if snapshot is None:
+            raise ValidationError(f"Template snapshot with version {version} not found for template {self.id}")
+        return snapshot.data
 
     @property
     def version(self):
@@ -220,7 +223,7 @@ class Template(CommonModel):
                 outputs[key] = data["constants"][key]
         return outputs
 
-    def update_draft_snapshot(self, pipeline_tree, username):
+    def update_draft_snapshot(self, pipeline_tree, username, version=None):
         try:
             template = TemplateSnapshot.objects.filter(template_id=self.id, draft=True).first()
 
@@ -237,8 +240,11 @@ class Template(CommonModel):
                 template.data = pipeline_tree
                 template.md5sum = compute_pipeline_md5(pipeline_tree)
                 template.operator = username
-                template.save()
 
+            if version:
+                template.desc = f"基于 {version} 版本的草稿"
+
+            template.save()
             return template
 
         except Exception as e:
@@ -293,7 +299,7 @@ class TemplateSnapshot(CommonSnapshot):
             "operator": username,
         }
         if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-            data["version"] = "1.0.0"
+            data["draft"] = True
         return cls.objects.create(**data)
 
 

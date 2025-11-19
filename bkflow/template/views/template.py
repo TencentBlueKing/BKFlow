@@ -304,7 +304,8 @@ class AdminTemplateViewSet(AdminModelViewSet):
     @action(methods=["GET"], detail=True, url_path="calculate_version")
     def calculate_version(self, request, *args, **kwargs):
         try:
-            new_version = bump_custom(self.get_object().version)
+            template_version = getattr(self.get_object(), "version", None)
+            new_version = bump_custom(template_version) if template_version else "1.0.0"
         except ValueError as e:
             logger.error(str(e))
             return Response(exception=True, data={"detail": str(e)})
@@ -317,7 +318,8 @@ class AdminTemplateViewSet(AdminModelViewSet):
         ser = TemplateReleaseSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
 
-        new_version = bump_custom(instance.version)
+        template_version = getattr(instance, "version", None)
+        new_version = bump_custom(template_version) if template_version else "1.0.0"
         if new_version != ser.validated_data["version"]:
             return Response(exception=True, data={"detail": "版本号不正确"})
 
@@ -327,6 +329,13 @@ class AdminTemplateViewSet(AdminModelViewSet):
             instance.snapshot_id = snapshot.id
             instance.save()
 
+        TemplateOperationRecord.objects.create(
+            operate_source=TemplateOperationSource.app.name,
+            operate_type=TemplateOperationType.release.name,
+            instance_id=instance.id,
+            operator=request.user.username,
+        )
+
         return Response(data={"template_id": instance.id})
 
     @action(methods=["GET"], detail=True, url_path="get_draft_template")
@@ -335,7 +344,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         try:
             template = TemplateSnapshot.objects.get(template_id=instance.id, draft=True)
         except TemplateSnapshot.DoesNotExist:
-            template = instance.update_draft_snapshot(instance.pipeline_tree, request.user.username)
+            template = instance.update_draft_snapshot(instance.pipeline_tree, request.user.username, instance.version)
 
         return Response(data={"pipeline_tree": template.data})
 
@@ -347,7 +356,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             return Response({"detail": "version 参数不能为空"})
 
         pipeline_tree = TemplateSnapshot.objects.get(template_id=instance.id, version=version).data
-        draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username)
+        draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username, version)
         return Response(data=draft_template.data)
 
 
@@ -496,7 +505,12 @@ class TemplateViewSet(UserModelViewSet):
         try:
             appoint_node_ids = serializer.validated_data["appoint_node_ids"]
             version = serializer.validated_data.get("version")
-            pipeline_tree = template.get_pipeline_tree_by_version(version)
+            try:
+                pipeline_tree = template.get_pipeline_tree_by_version(version)
+            except Exception as e:
+                message = f"[preview task tree] error: {e}"
+                logger.exception(message)
+                return Response(exception=True, data={"detail": str(e)})
             if not serializer.validated_data["is_all_nodes"]:
                 exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
                     pipeline_tree, appoint_node_ids
