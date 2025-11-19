@@ -1,11 +1,11 @@
 <template>
   <!-- :disabled="isViewMode" -->
   <div
-    :class="['version-select-wrapper',
-             isSubflowNodeConfig ? 'subflow-version':'template-version']">
+    :class="['version-select-wrapper', isSubflowNodeConfig ? 'subflow-version':'template-version']">
     <bk-select
       ref="versionSelect"
       v-model="versionSelectValue"
+      v-bkloading="{ isLoading: isVersionLoading , zIndex: 100 }"
       ext-popover-cls="select-version-popover-custom"
       :popover-min-width="isSubflowNodeConfig ? 577 : 318"
       :popover-width="isSubflowNodeConfig ? 577 : 318"
@@ -13,18 +13,16 @@
       :placeholder="$t('请选择版本')"
       :ext-cls="`${isSubflowNodeConfig ? 'subflow-select' : 'template-select'}`"
       :searchable="listData.length>0"
-      @change="$emit('versionSelectChange', $event, listData)">
-      <!-- handleVersionSelectChange -->
+      @change="handleVersionSelectChange">
       <bk-option
         v-for="option in listData"
-        :id="option.version"
+        :id="option.id"
         :key="option.id"
-        :name="option.version ?? '--'"
-        :disabled="!option.version">
+        :name="option.version ?? option.desc ?? '--'">
         <div class="option-title">
           <span>{{ option.version ? option.version : $t('草稿版本') }}</span>
           <div
-            v-if="option.id === tplSnapshotId"
+            v-if="option.id === tplSnapshotId && !option.draft"
             class="latest-version">
             <div class="text">
               {{ $t('最新') }}
@@ -45,18 +43,19 @@
         class="bottom-view-btn"
         @click="viewAllVerison">
         <i class="common-icon-box-top-right-corner" />
-        <span>{{ $t('查看全部版本') }}{{ versionSelectValue }}</span>
+        <span>{{ $t('查看全部版本') }}</span>
       </div>
     </bk-select>
     <div
-      v-if="tplSnapshotId === curSelectedVersionId"
+      v-if="tplSnapshotId === curSelectedVersionId && !isDraft"
       class="latest-version select-value-show">
       <div class="text">
         {{ $t('最新') }}
       </div>
     </div>
+    <!-- && tplSnapshotId !== curSelectedVersionId -->
     <div
-      v-if="tplSnapshotId !== curSelectedVersionId"
+      v-if="!isInit && !isDraft"
       class="callback-version-info"
       @click="onRollbackVersion">
       <svg
@@ -66,12 +65,13 @@
         xmlns="http://www.w3.org/2000/svg"><path
           fill="#3A84FF"
           d="M32,4C16.5,4,4,16.5,4,32s12.5,28,28,28s28-12.5,28-28S47.5,4,32,4z M47,41.7c-3-3.2-7.1-5-11.5-5	H29v5.9c0,0.6-0.5,1-1,1c-0.3,0-0.5-0.1-0.7-0.3L16.4,32.5c-0.8-0.8-0.8-2,0-2.8c0,0,0,0,0,0l10.9-11c0.4-0.4,1-0.4,1.4,0	c0.2,0.2,0.3,0.4,0.3,0.7v6.3h2.1C39.9,25.8,47,32.9,47,41.7z" /></svg>
-      <span>{{ $t('回滚到此版本') }}</span>
+      <span>{{ $t('恢复到此版本') }}</span>
     </div>
   </div>
 </template>
 <script>
 import { mapActions } from 'vuex';
+import tools from '@/utils/tools.js';
 
 export default {
   name: 'VersionSelect',
@@ -96,41 +96,81 @@ export default {
       type: [Number, String],
       default: '',
     },
+    versionListData: {
+      type: Array,
+      default: () => [],
+    },
   },
   data() {
     return {
-        listData: [],
-        versionSelectValue: this.compVersion,
+        // listData: this.versionListData,
+        versionSelectValue: '',
         isShowVersionList: false,
+        versionListLoading: false,
+        isInit: true,
+        isVersionLoading: true,
     };
   },
   computed: {
     curSelectedVersionId() {
-      const curItem = this.listData.find(item => item.version === this.versionSelectValue);
+      const curItem = this.listData.find(item => item.id === this.versionSelectValue);
       return curItem ? curItem.id : null;
+    },
+    isDraft() {
+      this.isInit = true;
+       let curDraftId = null;
+       this.listData.forEach((item) => {
+        if (item.draft) {
+          curDraftId = item.id;
+          return;
+        }
+      });
+       this.isInit = false;
+      return curDraftId === this.versionSelectValue;
+    },
+    listData() {
+      const currentType = this.$route.params.type;
+      const cloneData = tools.deepClone(this.versionListData);
+      if (currentType === 'view') {
+        return cloneData.filter(item => item.version);
+      }
+      // this.versionSelectValue = this.getVersionIdToNumber(this.compVersion);
+      console.log('listData--', cloneData, this.versionSelectValue);
+      return cloneData;
     },
   },
   watch: {
     compVersion: {
-      handler(val) {
-        this.versionSelectValue = val;
+      handler(val, oldVal) {
+        console.log('watch-compVersion--', val);
+        if (val === oldVal) {
+          return;
+        }
+        this.$nextTick(() => {
+          this.versionSelectValue = this.getVersionIdToNumber(val);
+          console.log('watch-compVersion--versionSelectValue', this.versionSelectValue);
+        });
+        // console.log('watch-versionSelectValue--', this.versionSelectValue);
+        // if (this.isInitialVersionLoad) {
+          // this.isInitialVersionLoad = false;
+        // }
       },
       immediate: true,
     },
-  },
-  mounted() {
-    this.getVersionList();
+    versionListData: {
+      handler() {
+        this.$nextTick(() => {
+          this.versionSelectValue = this.getVersionIdToNumber(this.compVersion);
+        });
+      },
+      immediate: true,
+    },
   },
   methods: {
     ...mapActions('template/', [
       'getRandomVersion',
       'getTemplateVersionSnapshotList',
     ]),
-    async getVersionList() {
-      const { templateId } = this.$route.params;
-      const res = await this.getTemplateVersionSnapshotList({ template_id: this.isSubflowNodeConfig ? this.subflowFormData.tpl : templateId });
-      this.listData = res.results?.filter(item => item.version) || [];
-    },
     viewAllVerison() {
       this.$refs.versionSelect.handleClose();
       if (this.isSubflowNodeConfig) {
@@ -139,9 +179,45 @@ export default {
         this.$emit('viewAllVerison');
       }
     },
+    handleVersionSelectChange() {
+      this.$emit('versionSelectChange', this.getVersionNumber(this.versionSelectValue), this.listData);
+    },
+    getVersionIdToNumber(value) {
+      this.isVersionLoading = true;
+      let temporaryVersionId = null;
+      this.listData?.forEach((item) => {
+         if ((this.compVersion === null || this.compVersion === '') && item.draft) {
+          temporaryVersionId = item.id;
+          return;
+        }
+        if (item.version === value) {
+          temporaryVersionId = item.id;
+          return;
+        }
+      });
+      this.isVersionLoading = false;
+      return temporaryVersionId;
+    },
+    getVersionNumber(id) {
+      let curVersion = null;
+      this.listData.forEach((item) => {
+        if (item.id === id) {
+          curVersion = item.version;
+          return;
+        }
+      });
+      return curVersion;
+    },
     // 回滚版本
     onRollbackVersion() {
-      this.$emit('rollbackVersion', this.versionSelectValue);
+      let curRollVersion = '';
+      this.listData.forEach((item) => {
+        if (item.id === this.versionSelectValue) {
+          curRollVersion = item.version;
+          return;
+        }
+      });
+      this.$emit('rollbackVersion', curRollVersion);
     },
   },
 };
