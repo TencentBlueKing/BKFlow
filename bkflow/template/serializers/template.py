@@ -232,7 +232,7 @@ class DrawPipelineSerializer(serializers.Serializer):
 class TemplateOperationRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = TemplateOperationRecord
-        fields = "__all__"
+        exclude = ["extra_info"]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -240,6 +240,8 @@ class TemplateOperationRecordSerializer(serializers.ModelSerializer):
         data["operate_source_name"] = (
             TemplateOperationSource[instance.operate_source].value if instance.operate_source else ""
         )
+        if instance.operate_type == TemplateOperationType.release.name:
+            data["version"] = instance.extra_info.get("version")
         return data
 
 

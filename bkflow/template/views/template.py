@@ -334,6 +334,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             operate_type=TemplateOperationType.release.name,
             instance_id=instance.id,
             operator=request.user.username,
+            extra_info={"version": new_version},
         )
 
         return Response(data={"template_id": instance.id})
