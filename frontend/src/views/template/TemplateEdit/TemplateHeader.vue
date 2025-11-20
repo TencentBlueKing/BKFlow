@@ -371,10 +371,12 @@
         //   return
         // }
         const { params, query, name } = this.$route;
+        const newQuery = { ...(query || {}) };
+        delete newQuery.isPublish;
         this.$router.push({
           name,
           params: { ...params, type: 'edit' },
-          query,
+          query: newQuery,
         });
       },
       /**

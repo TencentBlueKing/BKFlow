@@ -1730,6 +1730,8 @@
             name: 'templateMock',
             params: {
               templateId: this.templateId,
+              version: this.compVersion,
+              isEnableVersionManage: this.isEnableVersionManage,
             },
           });
         }
