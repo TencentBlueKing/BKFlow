@@ -583,6 +583,34 @@
         'loadTaskScheme',
         'saveTaskSchemList',
       ]),
+      async getDraftPipelineTree(isFromView = false) {
+        const draftTplData = await this.getDraftVersionData({
+            templateId: this.templateId,
+            common: this.common,
+        });
+        this.lastedPipelineTree = draftTplData.data.pipeline_tree;
+        // if (typeof this.compVersion === 'string' && this.compVersion.trim() !== '') {
+        //   this.compVersion = isFromView ? null : this.latestedVersion;
+        // }
+        this.compVersion = null;
+        this.setPipelineTree(draftTplData.data.pipeline_tree);
+        this.isChangeTplVersionTime = new Date().getTime();
+      },
+      // 判断是否开启版本管理
+      async checkoutSpace() {
+        try {
+          const res = await this.getNotAuthSpaceConfig();
+          if (!res.data.flow_versioning || !this.spaceId) {
+            this.isEnableVersionManage = false;
+            return;
+          }
+          const { name } = res.data.flow_versioning;
+          const result = await this.checkSpaceConfig({ id: this.spaceId, name });
+          this.isEnableVersionManage = result.data.value === 'true';
+        } catch (error) {
+          this.isEnableVersionManage = false;
+        }
+      },
       // 轮询更新token
       pollingToken() {
         this.pollingTimer = setTimeout(async () => {
