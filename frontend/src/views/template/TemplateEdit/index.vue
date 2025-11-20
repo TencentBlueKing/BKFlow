@@ -625,7 +625,7 @@
         // }
         this.compVersion = null;
         this.setPipelineTree(draftTplData.data.pipeline_tree);
-        this.isChangeTplVersionTime = new Date().getTime(););
+        this.isChangeTplVersionTime = new Date().getTime();
       },
       // 判断是否开启版本管理
       async checkoutSpace() {
