@@ -180,11 +180,12 @@ def push_task_to_queue(redis_cli, task, operation, node_id=None, data=None):
         task_data.update({"node_data": data})
     task_json = json.dumps(task_data)
     redis_cli.rpush(redis_key, task_json)
-    task.extra_info = {"is_waiting": True}
+    task.extra_info.update({"is_waiting": True})
     task.save()
     return True
 
 
+@redis_inst_check
 def process_task_from_queue(redis_cli, instance_id):
     from bkflow.task.models import TaskInstance
     from bkflow.task.operations import TaskNodeOperation, TaskOperation
@@ -206,7 +207,7 @@ def process_task_from_queue(redis_cli, instance_id):
         operation_method = getattr(node_operation, operation, None)
 
     operation_method(operator=operation, **task_data.get("node_data", {}))
-    task_instance.extra_info = {"is_waiting": False}
+    task_instance.extra_info.update({"is_waiting": False})
     task_instance.save()
     return task_instance
 
@@ -217,7 +218,9 @@ def count_running_tasks(task_instance):
 
     space_id = task_instance.space_id
     template_id = task_instance.template_id
-    task_instances = TaskInstance.objects.filter(space_id=space_id, template_id=template_id, is_deleted=False)
+    task_instances = TaskInstance.objects.filter(
+        space_id=space_id, template_id=template_id, is_deleted=False, is_started=True, is_finished=False
+    )
 
     task_operations = [
         {"task_id": task_instance.id, "operation": TaskOperation(task_instance=task_instance).get_task_states()}
