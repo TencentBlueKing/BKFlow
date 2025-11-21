@@ -34,6 +34,7 @@ from bkflow.constants import (
     TaskOperationType,
     TaskTriggerMethod,
 )
+from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.contrib.openapi.serializers import (
     EmptyBodySerializer,
     GetNodeDetailQuerySerializer,
@@ -68,6 +69,7 @@ from bkflow.task.serializers import (
     TaskOperationRecordSerializer,
     UpdatePeriodicTaskSerializer,
 )
+from bkflow.task.utils import count_running_tasks, push_task_to_queue
 from bkflow.utils.handlers import handle_plain_log
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
@@ -194,6 +196,21 @@ class TaskInstanceViewSet(
             template_id=task_instance.template_id,
             executor=task_instance.executor,
         ):
+
+            interface_client = InterfaceModuleClient()
+            space_infos_result = interface_client.get_space_infos(
+                {"space_id": task_instance.space_id, "config_names": "concurrency_control"}
+            )
+            space_configs = space_infos_result.get("data", {}).get("configs", {})
+            concurrency_control = space_configs.get("concurrency_control", 0)
+
+            if (
+                concurrency_control
+                and count_running_tasks(task_instance) >= int(concurrency_control)
+                and operation in ["start", "resume"]
+            ):
+                push_task_to_queue(settings.redis_inst, task_instance, operation)
+                return Response({"result": True, "data": None, "message": "success"})
             task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
             operation_method = getattr(task_operation, operation, None)
             if operation_method is None:
@@ -222,12 +239,28 @@ class TaskInstanceViewSet(
         ):
             if task_instance.trigger_method == TaskTriggerMethod.subprocess.name and operation in ["skip", "retry"]:
                 task_instance.change_parent_task_node_state_to_running()
+            data = request.data
+            operator = data.pop("operator", request.user.username)
+            interface_client = InterfaceModuleClient()
+            space_infos_result = interface_client.get_space_infos(
+                {"space_id": task_instance.space_id, "config_names": "concurrency_control"}
+            )
+            space_configs = space_infos_result.get("data", {}).get("configs", {})
+            concurrency_control = space_configs.get("concurrency_control", 0)
+
+            if (
+                concurrency_control
+                and count_running_tasks(task_instance) >= int(concurrency_control)
+                and operation in ["skip", "retry"]
+            ):
+                push_task_to_queue(settings.redis_inst, task_instance, operation, node_id, data)
+                return Response({"result": True, "data": None, "message": "success"})
+
             node_operation = TaskNodeOperation(task_instance=task_instance, node_id=node_id)
             operation_method = getattr(node_operation, operation, None)
             if operation_method is None:
                 raise ValidationError("node operation not found")
-            data = request.data
-            operator = data.pop("operator", request.user.username)
+
             operation_result = operation_method(operator=operator, **data)
             return Response(dict(operation_result))
 
