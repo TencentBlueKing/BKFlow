@@ -166,3 +166,69 @@ def extract_extra_info(constants, keys=None):
     for key in list(constants.keys()) if not keys else keys:
         extra_info.update({key: {"name": constants[key]["name"], "value": constants[key]["value"]}})
     return json.dumps(extra_info, ensure_ascii=False)
+
+
+@redis_inst_check
+def push_task_to_queue(redis_cli, task, operation, node_id=None, data=None):
+    template_id = task.template_id
+    redis_key = f"task_wait_{template_id}"
+
+    task_data = {"operation": operation, "task_id": task.id}
+    if node_id:
+        task_data.update({"node_id": node_id})
+    if data:
+        task_data.update({"node_data": data})
+    task_json = json.dumps(task_data)
+    redis_cli.rpush(redis_key, task_json)
+    task.extra_info = {"is_waiting": True}
+    task.save()
+    return True
+
+
+def process_task_from_queue(redis_cli, instance_id):
+    from bkflow.task.models import TaskInstance
+    from bkflow.task.operations import TaskNodeOperation, TaskOperation
+
+    template_id = TaskInstance.objects.get(instance_id=instance_id).template_id
+    redis_key = f"task_wait_{template_id}"
+    task_json = redis_cli.lpop(redis_key)
+    if not task_json:
+        return None
+
+    task_data = json.loads(task_json)
+    operation = task_data.get("operation")
+    task_instance = TaskInstance.objects.get(id=task_data.get("task_id"))
+    if operation in ["start", "resume"]:
+        task_operation = TaskOperation(task_instance, settings.BKFLOW_MODULE.code)
+        operation_method = getattr(task_operation, operation, None)
+    else:
+        node_operation = TaskNodeOperation(task_instance, task_data.get("node_id"))
+        operation_method = getattr(node_operation, operation, None)
+
+    operation_method(operator=operation, **task_data.get("node_data", {}))
+    task_instance.extra_info = {"is_waiting": False}
+    task_instance.save()
+    return task_instance
+
+
+def count_running_tasks(task_instance):
+    from bkflow.task.models import TaskInstance
+    from bkflow.task.operations import TaskOperation
+
+    space_id = task_instance.space_id
+    template_id = task_instance.template_id
+    task_instances = TaskInstance.objects.filter(space_id=space_id, template_id=template_id, is_deleted=False)
+
+    task_operations = [
+        {"task_id": task_instance.id, "operation": TaskOperation(task_instance=task_instance).get_task_states()}
+        for task_instance in task_instances
+    ]
+
+    task_count = 0
+    for task_operation in task_operations:
+        if task_operation["operation"].result is False:
+            continue
+        if task_operation["operation"].data.get("state") == "RUNNING":
+            task_count += 1
+
+    return task_count
