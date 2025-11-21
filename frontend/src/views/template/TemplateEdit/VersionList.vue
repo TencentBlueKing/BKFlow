@@ -61,8 +61,9 @@
           </bk-table-column>
           <bk-table-column
             label="操作"
-            width="250"
-            class="version-operation">
+            width="220"
+            class="version-operation"
+            fixed="right">
             <template slot-scope="props">
               <bk-button
                 v-if="(props.row.isLatestVersion && !isHaveDraftVersion) || props.row.draft"
@@ -74,7 +75,7 @@
                 {{ $t('编辑') }}
               </bk-button>
               <bk-button
-                v-if="!props.row.isLatestVersion && !props.row.draft"
+                v-if="!props.row.draft && (!props.row.isLatestVersion || isHaveDraftVersion)"
                 theme="primary"
                 class="version-btn"
                 text

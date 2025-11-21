@@ -381,6 +381,8 @@
               params: {
                 templateId: this.templateId,
                 type: 'edit',
+                version: this.version,
+                isVersionManageQuitMock: this.isEnableVersionManage,
               },
             });
           }
