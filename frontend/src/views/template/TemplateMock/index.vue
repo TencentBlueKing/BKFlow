@@ -399,7 +399,7 @@
                 templateId: this.templateId,
                 type: 'edit',
                 version: this.version,
-                isEnableVersionManage: this.isEnableVersionManage,
+                isVersionManageQuitMock: this.isEnableVersionManage,
               },
             });
           }

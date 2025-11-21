@@ -64,7 +64,7 @@
       <div
         v-if="isEditProcessPage"
         class="button-area">
-        <div class="setting-tab-wrap">
+        <div :class="{ 'setting-tab-wrap': true, 'right-dividing-line': isNeedHaveDividingLine }">
           <span
             v-if="ifShowJumpToTaskList"
             :class="['setting-item']"
@@ -89,19 +89,19 @@
           </template>
         </div>
         <bk-button
-          v-if="isViewMode && !isProjectCommonTemp"
+          v-if="(isViewMode && !isProjectCommonTemp) && (isDraftVersion || (!isHaveDraft && isLaterVersion))"
           theme="primary"
           data-test-id="templateEdit_form_editCanvas"
-          :disabled="(!hasEditPermission || (!isDraftVersion && !isLaterVersion))"
+          :disabled="!hasEditPermission"
           @click.stop="onEditClick">
           {{ $t('编辑') }}
         </bk-button>
         <bk-button
-          v-else-if="!isProjectCommonTemp"
+          v-else-if="!isProjectCommonTemp && (!isEnableVersionManage || isDraftVersion)"
           theme="primary"
           :class="[
             'save-canvas',
-            'task-btn'
+            'task-btn',
           ]"
           :loading="templateSaving && !templateMocking"
           :disabled="isSaveButtonDisabled"
@@ -121,23 +121,23 @@
           {{createTaskBtnText}}
         </bk-button> -->
         <bk-button
-          v-if="tplActions.includes('MOCK')&&!ifHidenMockBtn"
+          v-if="(tplActions.includes('MOCK')&&!ifHidenMockBtn) && ( !isEnableVersionManage || isDraftVersion)"
           :class="['task-btn']"
           data-test-id="templateEdit_form_mock"
           :loading="templateMocking"
-          :disabled="templateSaving && !templateMocking || ( isEnableVersionManage && !isDraftVersion)"
+          :disabled="templateSaving && !templateMocking"
           @click.stop="$emit('jumpToTemplateMock')">
           {{ $t('调试') }}
         </bk-button>
         <bk-button
-          v-if="!isViewMode && !isProjectCommonTemp && isEnableVersionManage"
+          v-if="(!isViewMode && !isProjectCommonTemp) && (!isEnableVersionManage || isDraftVersion)"
           theme="primary"
           :class="[
             'task-btn',
             'send-btn'
           ]"
           :loading="templateSaving && !templateMocking"
-          :disabled="!hasEditPermission || isPipelineTreeChanged || !isDraftVersion"
+          :disabled="!hasEditPermission || isPipelineTreeChanged || tplInfoAndVarChange"
           data-test-id="templateEdit_form_publishCanvas"
           @click.stop="onPublishClick">
           <div class="send-container">
@@ -376,6 +376,10 @@
         type: Boolean,
         default: false,
       },
+      tplInfoAndVarChange: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -453,6 +457,9 @@
       isDraftVersion() {
         return this.curSelectVersion === null || this.curSelectVersion === '';
       },
+      isNeedHaveDividingLine() { // 无按钮时不需要分隔线
+        return this.isViewMode && !this.isProjectCommonTemp && (this.isDraftVersion || (!this.isHaveDraft && this.isLaterVersion && !this.isEnableVersionManage));
+      },
       isProjectCommonTemp() {
         const { name } = this.$route;
         return name === 'projectCommonTemplatePanel';
@@ -482,7 +489,7 @@
        },
        isSaveButtonDisabled() {
         const baseDisabled = this.templateMocking || !this.hasEditPermission;
-        const versionManageDisabled = this.isEnableVersionManage && (!this.isPipelineTreeChanged || !this.isDraftVersion);
+        const versionManageDisabled = this.isEnableVersionManage && !this.tplInfoAndVarChange && (!this.isPipelineTreeChanged || !this.isDraftVersion);
         return baseDisabled || versionManageDisabled;
        },
     },
@@ -556,7 +563,7 @@
         this.isShowRollbackDialog = true;
       },
       async onRollbackVersionConfirm() {
-        const res = await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion });
+        await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion });
         this.$router.replace({
           name: 'templatePanel',
           params: { type: 'edit', templateId: this.$route.params.templateId },
@@ -968,11 +975,9 @@
       }
       .setting-tab-wrap {
           display: inline-block;
-          margin-right: 20px;
           padding-right: 24px;
           height: 32px;
           line-height: 32px;
-          border-right: 1px solid #dcdee5;
           .jump-to-task-list-icon{
             font-size: 20px;
             position: relative;
@@ -1003,6 +1008,10 @@
                   background: #ff5757;
               }
           }
+      }
+      .right-dividing-line{
+        border-right: 1px solid #dcdee5;
+        margin-right: 20px;
       }
       .task-btn {
           margin-left: 10px;
