@@ -55,7 +55,7 @@
     </div>
     <!-- && tplSnapshotId !== curSelectedVersionId -->
     <div
-      v-if="!isInit && !isDraft"
+      v-if="(!isInit && !isDraft) && isNotDraftAndInLatestVersion"
       class="callback-version-info"
       @click="onRollbackVersion">
       <svg
@@ -71,7 +71,6 @@
 </template>
 <script>
 import { mapActions } from 'vuex';
-import tools from '@/utils/tools.js';
 
 export default {
   name: 'VersionSelect',
@@ -103,7 +102,7 @@ export default {
   },
   data() {
     return {
-        // listData: this.versionListData,
+        listData: this.versionListData,
         versionSelectValue: '',
         isShowVersionList: false,
         versionListLoading: false,
@@ -128,14 +127,11 @@ export default {
        this.isInit = false;
       return curDraftId === this.versionSelectValue;
     },
-    listData() {
-      const currentType = this.$route.params.type;
-      const cloneData = tools.deepClone(this.versionListData);
-      if (currentType === 'view') {
-        return cloneData.filter(item => item.version);
-      }
-      // this.versionSelectValue = this.getVersionIdToNumber(this.compVersion);
-      return cloneData;
+    isHaveDraft() {
+      return this.listData.some(item => item.draft);
+    },
+    isNotDraftAndInLatestVersion() {
+      return this.isHaveDraft || this.tplSnapshotId !== this.curSelectedVersionId;
     },
   },
   watch: {
@@ -151,12 +147,14 @@ export default {
       immediate: true,
     },
     versionListData: {
-      handler() {
+      handler(val) {
+        this.listData = val;
         this.$nextTick(() => {
           this.versionSelectValue = this.getVersionIdToNumber(this.compVersion);
         });
       },
       immediate: true,
+      deep: true,
     },
   },
   methods: {
