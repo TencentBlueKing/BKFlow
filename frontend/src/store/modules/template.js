@@ -359,7 +359,6 @@ const template = {
         scope_value,
       };
       state.triggers = triggers;
-
       state.canvas_mode = pipelineData.canvas_mode;
       this.commit('template/setPipelineTree', pipelineData);
     },
@@ -1213,6 +1212,10 @@ const template = {
     },
     getPreviewTaskTree({}, data) {
       return axios.post(`/api/template/${data.templateId}/preview_task_tree/`, data).then(response => response.data);
+    },
+    // 获取凭证列表
+    getCredentialList({}, data) {
+      return axios.get(`/api/space/admin/credential_config/`, {params: data }).then(response => response.data);
     },
   },
   getters: {
