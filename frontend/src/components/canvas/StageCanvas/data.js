@@ -47,16 +47,14 @@ export const getDefaultNewJob = (id = `node${uuid()}`) => ({
     getDefaultNewStep(),
   ],
 });
-export const getDefaultNewStep = (id = `node${uuid()}`) => ({
+export const getDefaultNewStep = (nodeType = 'Node', id = `node${uuid()}`) => ({
   id,
-  name: '',
   type: 'Node',
-  type: 'check',
-  config: {
+  option: {
     id,
+    nodeType,
   },
-}
-);
+});
 
 export const ETaskStatusType = {
   SUCCESS: 'FINISHED',
