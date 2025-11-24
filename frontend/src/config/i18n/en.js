@@ -1051,6 +1051,7 @@ const en = {
   最新版本和草稿不能删除: 'Latest version and draft cannot be deleted',
   草稿: 'Draft',
   仅支持触发当前已发布的最新版本流程: 'Only support trigger current latest version flow',
+  版本: 'Version',
 };
 
 export default en;
