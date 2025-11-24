@@ -1204,10 +1204,15 @@ const template = {
     },
     // 获取模板预览数据
     gerTemplatePreviewData({}, data) {
-      const { templateId, selectedNodes } = data;
-      return axios.post(`/api/template/${templateId}/preview_task_tree/`, {
-        appoint_node_ids: selectedNodes,
-      }).then(response => response.data);
+      // appoint_node_ids: selectedNodes,
+      const { templateId, version} = data;
+      const requestData = {
+        is_all_nodes: true,
+      };
+      if (version !== undefined && version !== null) {
+        requestData.version = version;
+      }
+      return axios.post(`/api/template/${templateId}/preview_task_tree/`, requestData).then(response => response.data);
     },
     // 获取模板mock任务列表
     getTemplateMockTaskList({}, data) {
