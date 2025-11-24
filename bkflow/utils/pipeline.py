@@ -345,7 +345,14 @@ DEFAULT_STAGE_PIPELINE_TREE = {
                     "id": "nodea995a2776eb4fc455df9ca64777f",
                     "name": "Job-1",
                     "config": [],
-                    "nodes": [{"id": "nodec4b13c772ce97fc184a2612247cc", "type": "Node"}],
+                    "nodes": [{
+                        "id": "nodec4b13c772ce97fc184a2612247cc",
+                        "type": "Node",
+                        "option": {
+                            "id": "nodec4b13c772ce97fc184a2612247cc",
+                            "nodeType": "Node",
+                        }
+                    }],
                     "type": "Job",
                 }
             ],
