@@ -109,6 +109,20 @@
                 @updateSubflowVersion="updateSubflowVersion"
                 @update="updateBasicInfo" />
             </section>
+            <section
+              v-if="basicInfo.isHaveCredentials"
+              class="config-section"
+              data-test-id="templateEdit_form_nodeAccessCredential">
+              <h3>{{ $t('访问凭证') }}</h3>
+              <AccessCredential
+                ref="accessCredential"
+                v-bkloading="{ isLoading: credentialLoading, zIndex: 100 }"
+                :is-view-mode="isViewMode"
+                :basic-info="basicInfo"
+                :scope-info="scopeInfo"
+                :space-id="spaceId"
+                @changeCredential="onChangeCredential" />
+            </section>
             <!-- 输入参数 -->
             <section
               class="config-section"
@@ -218,6 +232,8 @@
   import formSchema from '@/utils/formSchema.js';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
   import copy from '@/mixins/copy.js';
+  import AccessCredential from './AccessCredential.vue';
+import { async } from '@antv/x6/lib/registry/marker/async';
 
   export default {
     name: 'NodeConfig',
@@ -229,6 +245,7 @@
       VariableEdit,
       SliderHeader,
       SpecialPluginInputForm,
+      AccessCredential,
     },
     mixins: [permission, copy],
     props: {
@@ -305,6 +322,7 @@
         isDataChange: false, // 数据是否改变
         isApiPlugin: false, // 是否为Api插件
         apiInputs: [], // api数据
+        credentialLoading: false,
       };
     },
     computed: {
@@ -449,6 +467,7 @@
         'getVariableCite',
         'getProcessOpenChdProcess',
         'loadUniformApiMeta',
+        'getCredentialList',
       ]),
       ...mapActions('task', [
         'loadSubflowConfig',
@@ -530,6 +549,9 @@
           });
           this.inputsRenderConfig = renderConfig;
           await this.getPluginDetail();
+          if (this.nodeConfig.component.credentials) {
+            this.updateBasicInfo({ credentials: this.nodeConfig.component.credentials });
+          }
           // api插件json字段展示解析优化
           this.handleJsonValueParse(false, paramsVal);
           this.inputsParamValue = paramsVal;
@@ -632,6 +654,7 @@
       // 第三方插件输入输出配置
       async getThirdConfig(plugin, version) {
         try {
+          this.credentialLoading = true;
           const resp = await this.loadPluginServiceDetail({
             plugin_code: plugin,
             plugin_version: version,
@@ -646,7 +669,12 @@
             const descList = desc.split('\n');
             desc = descList.join('<br>');
           }
-          this.updateBasicInfo({ desc });
+          if (Object.prototype.hasOwnProperty.call(resp.data, 'credentials')) {
+            this.updateBasicInfo({ desc, isHaveCredentials: true });
+          } else {
+            this.updateBasicInfo({ desc });
+          }
+          this.credentialLoading = false;
           // 获取host
           const { origin } = window.location;
           const hostUrl = `${origin + window.SITE_URL}plugin_service/data_api/${plugin}/`;
@@ -806,6 +834,7 @@
           let code = '';
           let desc = '';
           let version = '';
+          let credentials = null;
           // 节点已选择标准插件
           if (component.code && !this.isNotExistAtomOrVersion) { // 节点插件存在
             if (component.code === 'remote_plugin') {
@@ -815,6 +844,7 @@
               basicInfoName = resp.data.name;
               version = atom.version;
               desc = atom.desc;
+              credentials = resp.data.credentials || null;
             } else if (component.code === 'uniform_api') {
               code = component.code;
               version = component.version;
@@ -850,6 +880,7 @@
             autoRetry: Object.assign({}, { enable: false, interval: 0, times: 1 }, auto_retry),
             timeoutConfig: timeoutConfig || { enable: false, seconds: 10, action: 'forced_fail' },
             executor_proxy: executorProxy ? executorProxy.split(',') : [],
+            credentials,
           };
           if (component.code === 'uniform_api' &&  component.api_meta) { // 新版api插件中component包含api_meta字段
             const { id, name, api_key: apiKey, meta_url, category = {} } = component.api_meta;
@@ -1166,6 +1197,9 @@
         });
         this.$refs.basicInfo && this.$refs.basicInfo.validate(); // 清除节点保存报错时的错误信息
       },
+      onChangeCredential(val,) {
+        this.updateBasicInfo({ credentials: val });
+      },
       /**
        * 更新基础信息
        * 填写基础信息表单，切换插件/子流程，选择插件版本，子流程更新
@@ -1426,7 +1460,6 @@
       // 删除全局变量
       deleteVariable(key) {
         const constant = this.localConstants[key];
-
         Object.keys(this.localConstants).forEach((key) => {
           const varItem = this.localConstants[key];
           if (varItem.index > constant.index) {
@@ -1438,7 +1471,13 @@
       },
       // 节点配置面板表单校验，基础信息和输入参数
       validate() {
-        return this.$refs.basicInfo.validate().then(() => {
+        return this.$refs.basicInfo.validate().then(async () => {
+          if (this.$refs.accessCredential) {
+            const validations = await Promise.all([this.$refs.accessCredential.validate()]);
+            if (!validations) {
+              return false;
+            };
+          }
           if (this.$refs.inputParams) {
             let result = this.$refs.inputParams.validate();
             // api插件额外校验json类型
@@ -1549,6 +1588,7 @@
             autoRetry,
             timeoutConfig,
             executor_proxy,
+            credentials,
           } = this.basicInfo;
           // 设置标准插件节点在 activity 的 component.data 值
           let data = {};
@@ -1562,6 +1602,9 @@
             data,
             version: this.isThirdParty ? '1.0.0' : version,
           };
+          if (credentials) {
+            component.credentials = credentials;
+          }
           if (this.isApiPlugin && this.basicInfo.pluginId) { // 新版api插件中component包含pluginId字段
             const { pluginId, name, metaUrl, groupId, groupName, apiKey } = this.basicInfo;
             component.api_meta = {

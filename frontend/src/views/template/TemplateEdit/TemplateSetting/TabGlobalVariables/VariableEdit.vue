@@ -565,7 +565,7 @@
         const classify = customType ? 'variable' : 'component';
         this.atomConfigLoading = true;
         this.atomTypeKey = atom;
-        if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) {
+        if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 判断配置文件是否已经获取过
           this.getRenderConfig();
           this.$nextTick(() => {
             this.atomConfigLoading = false;
@@ -659,7 +659,6 @@
             error_message: i18n.t('默认值不符合正则规则'),
           });
         }
-
         this.renderConfig = [config];
         if (!this.variableData.key) { // 新建变量
           this.theEditingData.value = atomFilter.getFormItemDefaultValue(this.renderConfig);
@@ -768,7 +767,7 @@
         this.theEditingData.is_meta = data.type === 'meta';
         this.metaTag = data.meta_tag;
 
-        const validateSet = this.getValidateSet();
+        const validateSet = this.getValidateSet(); // 获取校验规则
         this.$set(this.renderOption, 'validateSet', validateSet);
         this.getAtomConfig();
       },
