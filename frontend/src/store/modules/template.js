@@ -1240,7 +1240,8 @@ const template = {
     // 删除版本快照数据
     deleteVersionSnapshotData({}, data) {
       // id为版本快照id template_id 限制不能删除最新或草稿版本
-      return axios.post(`/api/template/snapshot/${data.id}/delete_snapshot/`, { template_id: data.template_id }).then(response => response.data);
+      const { template_id, space_id, id } = data;
+      return axios.post(`/api/template/snapshot/${id}/delete_snapshot/`, { template_id, space_id }).then(response => response.data);
     },
     // 获取指定模板的所有快照信息
     getTemplateVersionSnapshotList({}, data) {

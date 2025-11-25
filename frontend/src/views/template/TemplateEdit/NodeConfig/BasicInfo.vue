@@ -581,6 +581,10 @@
       isViewMode: Boolean,
       isApiPlugin: Boolean,
       isEnableVersionManage: Boolean,
+      spaceId: {
+        type: [String, Number],
+        default: '',
+      },
     },
     data() {
       return {
@@ -755,7 +759,7 @@
         this.$emit('changeSubNodeVersion', { id: this.formData.tpl, version: val });
       },
       async getSubVersionList() {
-        const res = await this.getTemplateVersionSnapshotList({ template_id: this.formData.tpl });
+        const res = await this.getTemplateVersionSnapshotList({ template_id: this.formData.tpl, space_id: this.spaceId });
         this.subVersionlistData = res.results.filter(item => item.version);
       },
       // 加载子流程详情，拿到最新版本子流程的version字段
