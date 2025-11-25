@@ -64,8 +64,8 @@
           ref="processCanvas"
           :key="`${isViewMode}-${isChangeTplVersionTime}`"
           class="canvas-comp-wrapper"
-          :editable="!isViewMode && !isNeedToProhibitEdit"
-          :show-palette="!isViewMode && !isNeedToProhibitEdit"
+          :editable="isViewMode ? false : !isNeedToProhibitEdit"
+          :show-palette="isViewMode ? false : !isNeedToProhibitEdit"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
           :template-id="templateId"
@@ -615,6 +615,7 @@
         const draftTplData = await this.getDraftVersionData({
             templateId: this.templateId,
             common: this.common,
+            space_id: this.spaceId,
         });
         this.lastedPipelineTree = draftTplData.data.pipeline_tree;
         this.compVersion = null;
@@ -2250,7 +2251,7 @@
         this.isSubflowNodeConfig = false;
         this.isShowVersionList = true;
       },
-      async onSelectVersionChange(version, isDraftVersion, isLaterVersion) {
+      async onSelectVersionChange(version, isDraftVersion, isLaterVersion, needToProhibitEdit) {
         if (isDraftVersion) {
           this.getDraftPipelineTree();
         } else if (!this.$route.query?.isRollVersion && version) {
@@ -2262,8 +2263,8 @@
           this.isChangeTplVersionTime = new Date().getTime();
           this.compVersion = version;
         }
-        // onSelectVersionChange-version-isDraftVersion-isLaterVersion null true false
-        this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
+        // this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
+        this.isNeedToProhibitEdit = needToProhibitEdit;
       },
       // 关闭版本列表侧滑
       onCloseVersionListPanel() {
