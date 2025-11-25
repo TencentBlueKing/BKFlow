@@ -448,7 +448,7 @@
         this.isShowRollbackDialog = true;
       },
       async onRollbackVersionConfirm() {
-        await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion });
+        await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion, space_id: this.spaceId });
         this.$router.replace({
           name: 'templatePanel',
           params: { type: 'edit', templateId: this.$route.params.templateId },
@@ -458,13 +458,13 @@
       },
       // 发布
       async onPublishClick() {
-        const res = await this.getRandomVersion({ templateId: this.templateId });
+        const res = await this.getRandomVersion({ templateId: this.templateId, space_id: this.spaceId });
         this.formData.version = res.data.version || '';
         this.isShowPublishDialog = true;
       },
       onPublishConfirm() {
         this.$refs.publishForm.validate().then(async () => {
-          const res = await this.publishTemplate({ templateId: this.templateId, ...this.formData });
+          const res = await this.publishTemplate({ templateId: this.templateId, ...this.formData, space_id: this.spaceId });
           if (!res.result) {
             return;
           }

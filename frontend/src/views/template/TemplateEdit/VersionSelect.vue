@@ -158,9 +158,6 @@ export default {
     },
   },
   methods: {
-    ...mapActions('template/', [
-      'getRandomVersion',
-    ]),
     viewAllVerison() {
       this.$refs.versionSelect.handleClose();
       if (this.isSubflowNodeConfig) {

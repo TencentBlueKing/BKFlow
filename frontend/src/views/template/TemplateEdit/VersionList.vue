@@ -315,7 +315,7 @@
         this.isShowRollbackDialog = true;
       },
       async onRollbackVersionConfirm() {
-        const res = await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion });
+        const res = await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion, space_id: this.spaceId });
         if (!res.result) {
           return;
         }
