@@ -1306,7 +1306,11 @@
           },
         };
         const { href } = this.$router.resolve(pathData);
-        window.open(href, '_blank');
+        if (!window.parent) {
+          window.open(href, '_blank');
+        } else {
+          window.parent.postMessage({ eventName: 'jump-to-sub-flow', data: { id } }, '*');
+        }
       },
       // 是否渲染豁免切换
       onRenderConfigChange(data) {

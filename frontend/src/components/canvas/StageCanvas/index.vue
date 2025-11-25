@@ -176,6 +176,9 @@ import Sortable from 'sortablejs';
       this.stageCanvasData.splice(index + 1, 0,  newStage);
       this.refresh();
     },
+    openStepNodeEdit(id) {
+      this.$emit('onShowNodeConfig', id);
+    },
     onUpdateNodeInfo() {
       // 外部依赖不能删
     },
