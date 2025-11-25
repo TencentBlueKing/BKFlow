@@ -62,8 +62,8 @@
           ref="processCanvas"
           :key="isViewMode"
           class="canvas-comp-wrapper"
-          :editable="!isViewMode"
-          :show-palette="!isViewMode"
+          :editable="isViewMode ? false : !isNeedToProhibitEdit"
+          :show-palette="isViewMode ? false : !isNeedToProhibitEdit"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
           :template-id="templateId"
@@ -2228,7 +2228,7 @@
         this.isSubflowNodeConfig = false;
         this.isShowVersionList = true;
       },
-      async onSelectVersionChange(version, isDraftVersion, isLaterVersion) {
+      async onSelectVersionChange(version, isDraftVersion, isLaterVersion, needToProhibitEdit) {
         if (isDraftVersion) {
           this.getDraftPipelineTree();
         } else if (!this.$route.query?.isRollVersion && version) {
@@ -2240,8 +2240,8 @@
           this.isChangeTplVersionTime = new Date().getTime();
           this.compVersion = version;
         }
-        // onSelectVersionChange-version-isDraftVersion-isLaterVersion null true false
-        this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
+        // this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
+        this.isNeedToProhibitEdit = needToProhibitEdit;
       },
       // 关闭版本列表侧滑
       onCloseVersionListPanel() {
