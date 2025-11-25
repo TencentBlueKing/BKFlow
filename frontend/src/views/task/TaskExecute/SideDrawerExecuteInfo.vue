@@ -64,16 +64,20 @@
           <div class="node-state">
             <span :class="displayStatus" />
             <span class="status-text-messages">{{ nodeState }}</span>
-            <div
+
+            <JumpLinkBKFlowOrExternal
               v-if="isSubflowExecuted"
-              class="view-subflow"
-              @click="onViewSubProcessExecute">
-              <span class="dividing-line" />
-              <i class="common-icon-box-top-right-corner icon-link-to-sub" />
-              <p class="text-link-to-sub">
-                {{ $t('查看子流程') }}
-              </p>
-            </div>
+              :query="{ id: currentSubflowTaskId, type:'task' }"
+              :get-target-url="onViewSubProcessExecute">
+              <div
+                class="view-subflow">
+                <span class="dividing-line" />
+                <i class="common-icon-box-top-right-corner icon-link-to-sub" />
+                <p class="text-link-to-sub">
+                  {{ $t('查看子流程') }}
+                </p>
+              </div>
+            </JumpLinkBKFlowOrExternal>
           </div>
         </div>
         <div class="execute-body">
@@ -192,9 +196,9 @@
   import SubflowCanvas from '@/components/canvas/ProcessCanvas/SubflowCanvas.vue';
   import OptionsPanel from './ExecuteInfoCompoment/OptionsPanel.vue';
   import getOrderNodeToNodeTree from '@/utils/orderCanvasNodeToNodeTree.js';
+  import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   const { CancelToken } = axios;
   let source = CancelToken.source();
-
 
   export default {
     name: 'ExecuteInfo',
@@ -202,6 +206,7 @@
       NodeTree,
       SubflowCanvas,
       OptionsPanel,
+      JumpLinkBKFlowOrExternal,
     },
     props: {
       adminView: {
@@ -895,7 +900,7 @@
               instanceId: this.currentSubflowTaskId,
             },
         });
-        window.open(href, '_blank');
+        return href;
       },
       // 补充记录缺少的字段
       async setFillRecordField(record) {

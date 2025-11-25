@@ -1939,15 +1939,19 @@
        * 移动画布，将节点放到画布左上角
        */
       moveNodeToView(id) {
-        this.$refs.processCanvas.setCanvasPosition(id);
-
-        // 移动画布到选中节点位置的摇晃效果
-        const nodeEl = document.querySelector(`g[data-cell-id="${id}"] .custom-node`);
-        if (nodeEl) {
-          nodeEl.classList.add('node-shake');
-          setTimeout(() => {
-            nodeEl.classList.remove('node-shake');
-          }, 500);
+        if (this.templateComponentName === 'StageCanvas') {
+          // 若为stageCanvas则直接打开编辑窗
+          this.onShowNodeConfig(id);
+        } else {
+          this.$refs.processCanvas.setCanvasPosition(id);
+          // 移动画布到选中节点位置的摇晃效果
+          const nodeEl = document.querySelector(`g[data-cell-id="${id}"] .custom-node`);
+          if (nodeEl) {
+            nodeEl.classList.add('node-shake');
+            setTimeout(() => {
+              nodeEl.classList.remove('node-shake');
+            }, 500);
+          }
         }
       },
       // 开启子流程更新的小红点动画效果
