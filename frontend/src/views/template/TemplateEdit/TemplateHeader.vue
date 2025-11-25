@@ -424,7 +424,7 @@
       ]),
       async getVersionList() {
       this.versionListLoading = true;
-      const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId });
+      const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId, space_id: this.spaceId });
       this.versionListData = res.results || [];
       this.isHaveDraft = res.results.some(item => item.draft);
       this.versionListLoading = false;

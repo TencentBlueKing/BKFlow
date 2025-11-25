@@ -104,6 +104,7 @@
                 :is-api-plugin="isApiPlugin"
                 :is-subflow-need-to-update="isSubflowNeedToUpdate"
                 :is-enable-version-manage="isEnableVersionManage"
+                :space-id="spaceId"
                 @openSelectorPanel="isSelectorPanelShow = true"
                 @versionChange="versionChange"
                 @viewSubflow="onViewSubflow"

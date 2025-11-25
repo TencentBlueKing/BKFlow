@@ -596,6 +596,10 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
       isViewMode: Boolean,
       isApiPlugin: Boolean,
       isEnableVersionManage: Boolean,
+      spaceId: {
+        type: [String, Number],
+        default: '',
+      },
     },
     data() {
       return {
@@ -755,6 +759,14 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
       ...mapGetters('template/', [
         'getPipelineTree',
       ]),
+      // 修改子流程版本
+      changeSubNodeVersion(val) {
+        this.$emit('changeSubNodeVersion', { id: this.formData.tpl, version: val });
+      },
+      async getSubVersionList() {
+        const res = await this.getTemplateVersionSnapshotList({ template_id: this.formData.tpl, space_id: this.spaceId });
+        this.subVersionlistData = res.results.filter(item => item.version);
+      },
       // 加载子流程详情，拿到最新版本子流程的version字段
       async getSubflowDetail() {
         this.subflowLoading = true;

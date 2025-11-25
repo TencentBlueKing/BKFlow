@@ -1221,6 +1221,36 @@ const template = {
     getPreviewTaskTree({}, data) {
       return axios.post(`/api/template/${data.templateId}/preview_task_tree/`, data).then(response => response.data);
     },
+    // 获取版本号
+    getRandomVersion({}, data) {
+      return axios.get(`/api/template/admin/${data.templateId}/calculate_version/`).then(response => response.data);
+    },
+    // 发布模板
+    publishTemplate({}, data) {
+      const { templateId, version, desc } = data;
+      return axios.post(`/api/template/admin/${templateId}/release_template/`, {
+        version,
+        desc,
+      }).then(response => response.data);
+    },
+    // 获取草稿版本模板数据
+    getDraftVersionData({}, data) {
+      return axios.get(`/api/template/admin/${data.templateId}/get_draft_template/`).then(response => response.data);
+    },
+    // 删除版本快照数据
+    deleteVersionSnapshotData({}, data) {
+      // id为版本快照id template_id 限制不能删除最新或草稿版本
+      const { template_id, space_id, id } = data;
+      return axios.post(`/api/template/snapshot/${id}/delete_snapshot/`, { template_id, space_id }).then(response => response.data);
+    },
+    // 获取指定模板的所有快照信息
+    getTemplateVersionSnapshotList({}, data) {
+      return axios.get('/api/template/snapshot/', { params: data }).then(response => response.data);
+    },
+    // 回滚到指定版本
+    rollbackToVersion({}, data) {
+      return axios.post(`/api/template/admin/${data.templateId}/rollback_template/`, { version: data.version }).then(response => response.data);
+    },
   },
   getters: {
     // 获取所有模板数据

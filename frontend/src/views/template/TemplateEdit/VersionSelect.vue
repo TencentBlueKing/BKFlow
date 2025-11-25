@@ -160,7 +160,6 @@ export default {
   methods: {
     ...mapActions('template/', [
       'getRandomVersion',
-      'getTemplateVersionSnapshotList',
     ]),
     viewAllVerison() {
       this.$refs.versionSelect.handleClose();

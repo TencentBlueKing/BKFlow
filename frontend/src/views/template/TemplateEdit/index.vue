@@ -126,6 +126,17 @@
           @useSnapshoot="onUseSnapshoot"
           @updateTemplateLabelList="getTemplateLabelList"
           @updateSnapshoot="onUpdateSnapshoot" />
+        <!-- :is-show="isShowVersionList" -->
+        <version-list
+          v-if="isShowVersionList"
+          ref="versionList"
+          :is-view-mode="isViewMode"
+          :sub-template-id="subTemplateId"
+          :tpl-snapshot-id="tplSnapshotId"
+          :space-id="spaceId"
+          :is-subflow-node-config="isSubflowNodeConfig"
+          @refreshVersionList="onRefreshVersionList"
+          @close="onCloseVersionListPanel" />
       </div>
       <bk-dialog
         width="400"
@@ -730,7 +741,7 @@
             return;
           }
           if (this.isEnableVersionManage) {
-            const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId });
+            const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId, space_id: this.spaceId });
             const isHaveDraft = res.results.some(item => item.draft);
             if (isHaveDraft) {
               this.getDraftPipelineTree();
