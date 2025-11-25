@@ -246,7 +246,6 @@ export default {
           }
         },
         addStep(value) {
-          console.log('StepNode.vue_Line:238', value);
           this.$emit('addNewStep', value);
           this.triggerHandler();
         },

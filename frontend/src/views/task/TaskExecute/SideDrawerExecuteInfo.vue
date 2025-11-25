@@ -901,15 +901,6 @@
             },
         });
         return href;
-        // if (!window.parent) {
-        //   window.open(href, '_blank');
-        // } else {
-        //   console.log('SideDrawerExecuteInfo.vue_Line:901', this.currentSubflowTaskId);
-        //   window.parent.postMessage({ eventName: 'jump-to-sub-flow-task', data: {
-        //     spaceId: this.spaceId,
-        //     instanceId: this.currentSubflowTaskId,
-        //   }  }, '*');
-        // }
       },
       // 补充记录缺少的字段
       async setFillRecordField(record) {

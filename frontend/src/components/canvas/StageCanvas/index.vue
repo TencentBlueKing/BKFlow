@@ -147,7 +147,6 @@ import Sortable from 'sortablejs';
     },
     overallState: {
       handler(value) {
-        console.log('index.vue_Line:149', 'overallState', value);
         if (window.parent) {
           window.parent.postMessage({ eventName: 'bk-flow-task-state-change', state: value }, '*');
         }

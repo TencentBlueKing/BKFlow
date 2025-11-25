@@ -230,13 +230,7 @@
           },
         };
         const { href } = this.$router.resolve(pathData);
-        console.log('subflow.vue_Line:230', tpl, window);
         return href;
-        // if (!this.isIframe) {
-        //   window.open(href, '_blank');
-        // } else {
-        //   window.parent.postMessage({ eventName: 'jump-to-sub-flow', data: tpl }, '*');
-        // }
       },
     },
   };
