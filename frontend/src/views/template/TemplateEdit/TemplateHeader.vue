@@ -546,7 +546,8 @@
       },
       handleVersionSelectChange(selected) {
         this.curSelectVersion = selected;
-        this.$emit('selectVersionChange', selected, this.isDraftVersion, this.isLaterVersion);
+        const curVerNeedToProhibitEdit = !(this.isDraftVersion || (!this.isHaveDraft && this.isLaterVersion));
+        this.$emit('selectVersionChange', selected, this.isDraftVersion, this.isLaterVersion, curVerNeedToProhibitEdit);
       },
       removeLocationTargetKeys(obj) {
         obj.location.forEach((locationItem) => {
