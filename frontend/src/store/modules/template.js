@@ -1232,7 +1232,6 @@ const template = {
     },
     // 获取草稿版本模板数据
     getDraftVersionData({}, data) {
-      console.log('获取草稿', data);
       return axios.get(`/api/template/admin/${data.templateId}/get_draft_template/`, { params: data }).then(response => response.data);
     },
     // 删除版本快照数据
