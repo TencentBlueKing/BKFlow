@@ -615,6 +615,7 @@
         const draftTplData = await this.getDraftVersionData({
             templateId: this.templateId,
             common: this.common,
+            space_id: this.spaceId,
         });
         this.lastedPipelineTree = draftTplData.data.pipeline_tree;
         this.compVersion = null;
