@@ -269,10 +269,13 @@
           readonly>
           <template slot="append">
             <div
-              v-if="basicInfo.tpl"
-              class="view-subflow"
-              @click="$emit('viewSubflow', basicInfo.tpl)">
-              <i class="bk-icon common-icon-box-top-right-corner" />
+              class="view-subflow">
+              <JumpLinkBKFlowOrExternal
+                v-if="basicInfo.tpl"
+                :query="{ id:basicInfo.tpl, type:'template' }"
+                :get-target-url="() => onViewSubflow(basicInfo.tpl)">
+                <i class="bk-icon common-icon-box-top-right-corner" />
+              </JumpLinkBKFlowOrExternal>
             </div>
             <div
               :class="['operate-btn', { 'is-disabled': isViewMode }]"
@@ -498,11 +501,13 @@
   // import BkUserSelector from '@blueking/user-selector'
   import { mapState, mapActions, mapMutations, mapGetters } from 'vuex';
   import { NAME_REG, STRING_LENGTH, INVALID_NAME_CHAR } from '@/constants/index.js';
+import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
 
   export default {
     name: 'BasicInfo',
     components: {
       // BkUserSelector,
+      JumpLinkBKFlowOrExternal,
     },
     props: {
       projectId: {
@@ -904,6 +909,17 @@
             br: [],
           },
         });
+      },
+      onViewSubflow(id) {
+        const pathData = {
+          name: 'templatePanel',
+          params: {
+            templateId: id,
+            type: 'view',
+          },
+        };
+        const { href } = this.$router.resolve(pathData);
+        return href;
       },
     },
   };

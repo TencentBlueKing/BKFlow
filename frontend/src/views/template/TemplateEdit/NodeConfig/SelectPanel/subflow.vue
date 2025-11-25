@@ -44,11 +44,14 @@
                   class="name">
                   {{ item.name }}
                 </div>
-                <span
-                  class="view-tpl"
-                  @click.stop="onViewTpl(item)">
-                  <i class="common-icon-box-top-right-corner" />
-                </span>
+                <JumpLinkBKFlowOrExternal
+                  :query="{ type:'template', ...item }"
+                  :get-target-url="() => onViewTpl(item)">
+                  <span
+                    class="view-tpl">
+                    <i class="common-icon-box-top-right-corner" />
+                  </span>
+                </JumpLinkBKFlowOrExternal>
               </div>
             </div>
           </template>
@@ -65,12 +68,14 @@
 <script>
   import permission from '@/mixins/permission.js';
   import NoData from '@/components/common/base/NoData.vue';
+  import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import { mapState } from 'vuex';
 
   export default {
     name: 'Subflow',
     components: {
       NoData,
+      JumpLinkBKFlowOrExternal,
     },
     mixins: [permission],
     props: {
@@ -103,6 +108,7 @@
     computed: {
       ...mapState({
         scopeInfo: state => state.template.scopeInfo,
+        isIframe: state => state.isIframe,
       }),
       tableList() {
         // 除流程克隆的情况，流程列表中需要过滤掉url中template_id对应的流程
@@ -224,7 +230,7 @@
           },
         };
         const { href } = this.$router.resolve(pathData);
-        window.open(href, '_blank');
+        return href;
       },
     },
   };
