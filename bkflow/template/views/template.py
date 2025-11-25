@@ -385,7 +385,10 @@ class TemplateVersionViewSet(
 
     @action(methods=["POST"], detail=True, url_path="delete_snapshot")
     def delete_snapshot(self, request, *args, **kwargs):
-        instance = self.get_object()
+        try:
+            instance = TemplateSnapshot.objects.get(id=kwargs.get("pk"))
+        except TemplateSnapshot.DoesNotExist:
+            return Response({"detail": "快照不存在"}, status=404)
         template_id = request.data.get("template_id")
         if not template_id:
             return Response({"detail": "template_id 参数不能为空"}, status=400)
