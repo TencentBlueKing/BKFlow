@@ -568,7 +568,7 @@
         this.$router.replace({
           name: 'templatePanel',
           params: { type: 'edit', templateId: this.$route.params.templateId },
-          query: Object.assign({ isRollVersion: true, isNeedRefreshVersion: true }, this.$route.query),
+          query: { isRollVersion: true, isNeedRefreshVersion: true },
         });
         this.isShowRollbackDialog = false;
       },
@@ -593,7 +593,7 @@
           this.$router.replace({
             name: 'templatePanel',
             params: { type: 'view', templateId: this.$route.params.templateId },
-            query: Object.assign({ isPublish: true }, this.$route.query),
+            query: { isPublish: true },
           });
         }, (validator) => {
           console.error(validator);

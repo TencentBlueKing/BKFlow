@@ -364,6 +364,7 @@
         isNeedToProhibitEdit: false,
         isEnableVersionManage: false,
         tplInfoAndVarChange: false, // 全局变量和基础信息发生变化
+        isAtPublish: false,
       };
     },
     computed: {
@@ -515,13 +516,15 @@
           this.onRefreshVersionList();
         }
         if (to.query.isPublish) {
-          this.getTemplateData();
+          this.isAtPublish = true;
+          await this.getTemplateData();
           setTimeout(() => {
             this.onRefreshVersionList();
           }, 1000);
           next();
           return;
         }
+        this.isAtPublish = false;
         if (to.params.type === 'edit' && !this.$route.query.isChangeSelectVersion) {
           if (from.params.type === 'view') {
             this.compVersion = null;
@@ -540,7 +543,7 @@
         }
         if (to.params.type !== from.params.type && to.params.type === 'view') {
           // 查看最新版本
-          this.getTemplateData();
+          await this.getTemplateData();
         }
       }
       next();
@@ -759,7 +762,7 @@
               this.getDraftPipelineTree();
               return;
             }
-              this.compVersion = templateData.version;
+            this.compVersion = templateData.version;
           } else {
             this.compVersion = templateData.version;
           }
@@ -2252,7 +2255,7 @@
         this.isShowVersionList = true;
       },
       async onSelectVersionChange(version, isDraftVersion, isLaterVersion, needToProhibitEdit) {
-        if (isDraftVersion) {
+        if (isDraftVersion && !this.isAtPublish) {
           this.getDraftPipelineTree();
         } else if (!this.$route.query?.isRollVersion && version) {
           const previewData = await this.gerTemplatePreviewData({

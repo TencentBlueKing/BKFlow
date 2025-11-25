@@ -281,7 +281,7 @@
         this.$router.replace({
           name: 'templatePanel',
           params: { type: 'edit', templateId: this.$route.params.templateId },
-          query: Object.assign({ isEditDraft: row.draft }, this.$route.query),
+          query: { isEditDraft: row.draft },
         });
         this.$emit('close', false);
       },
@@ -324,7 +324,7 @@
         this.$router.replace({
           name: 'templatePanel',
           params: { type: 'edit', templateId: this.$route.params.templateId },
-          query: Object.assign({ isRollVersion: true, isNeedRefreshVersion: true }, this.$route.query),
+          query: { isRollVersion: true, isNeedRefreshVersion: true },
         });
         this.$emit('close', false);
       },
