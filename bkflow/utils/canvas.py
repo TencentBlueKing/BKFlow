@@ -103,6 +103,10 @@ class StageCanvasHandler(CanvasHandler):
             node_id = node.get("id")
             if node_id in node_map:
                 node["id"] = node_map[node_id]
+                # 同步更新 option 中的 id
+                option = node.get("option")
+                if option and isinstance(option, dict) and "id" in option:
+                    option["id"] = node_map[node_id]
 
         return pipeline_tree
 
