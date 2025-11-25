@@ -152,6 +152,10 @@
         type: [Number, String],
         default: '',
       },
+      spaceId: {
+        type: [String, Number],
+        default: '',
+      },
     },
     data() {
       return {
@@ -236,7 +240,11 @@
       async getVersionList(data = {}) {
         try {
           const { templateId } = this.$route.params;
-          const requestData = Object.assign({ template_id: this.isSubflowNodeConfig ? this.subTemplateId : templateId }, data);
+          const alsoNeedData = {
+            template_id: this.isSubflowNodeConfig ? this.subTemplateId : templateId,
+            space_id: this.spaceId,
+          };
+          const requestData = Object.assign(alsoNeedData, data);
           const res = await this.getTemplateVersionSnapshotList(requestData);
           this.versionList = res.results;
           const curJudgeId = this.isSubflowNodeConfig ? this.subTemplateId : this.tplSnapshotId;
@@ -299,7 +307,7 @@
         });
       },
       async onDeleteVersionConfirm(id) {
-        await this.deleteVersionSnapshotData({ id, template_id: this.$route.params.templateId });
+        await this.deleteVersionSnapshotData({ id, template_id: this.$route.params.templateId, space_id: this.spaceId });
         this.getVersionList();
         this.$emit('refreshVersionList', this.isSubflowNodeConfig);
       },

@@ -137,6 +137,7 @@
           :is-view-mode="isViewMode"
           :sub-template-id="subTemplateId"
           :tpl-snapshot-id="tplSnapshotId"
+          :space-id="spaceId"
           :is-subflow-node-config="isSubflowNodeConfig"
           @refreshVersionList="onRefreshVersionList"
           @close="onCloseVersionListPanel" />
@@ -751,7 +752,7 @@
             return;
           }
           if (this.isEnableVersionManage) {
-            const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId });
+            const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId, space_id: this.spaceId });
             const isHaveDraft = res.results.some(item => item.draft);
             if (isHaveDraft) {
               this.getDraftPipelineTree();
