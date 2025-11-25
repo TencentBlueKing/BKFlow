@@ -272,8 +272,8 @@
               class="view-subflow">
               <JumpLinkBKFlowOrExternal
                 v-if="basicInfo.tpl"
-                :query="{id:basicInfo.tpl,type:'template'}"
-                :get-target-url="()=>onViewSubflow(basicInfo.tpl)">
+                :query="{ id:basicInfo.tpl, type:'template' }"
+                :get-target-url="() => onViewSubflow(basicInfo.tpl)">
                 <i class="bk-icon common-icon-box-top-right-corner" />
               </JumpLinkBKFlowOrExternal>
             </div>

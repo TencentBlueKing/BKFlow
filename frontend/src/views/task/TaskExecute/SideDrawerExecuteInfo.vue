@@ -67,7 +67,7 @@
 
             <JumpLinkBKFlowOrExternal
               v-if="isSubflowExecuted"
-              :query="{id: currentSubflowTaskId,type:'task'}"
+              :query="{ id: currentSubflowTaskId, type:'task' }"
               :get-target-url="onViewSubProcessExecute">
               <div
                 class="view-subflow">

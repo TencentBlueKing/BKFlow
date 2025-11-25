@@ -23,8 +23,8 @@ export default {
     },
     computed: {
         ...mapState({
-        isIframe: state => state.isIframe,
-      }),
+            isIframe: state => state.isIframe,
+        }),
     },
     methods: {
         jumpToTagetUrl() {

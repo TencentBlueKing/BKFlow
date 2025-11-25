@@ -45,8 +45,8 @@
                   {{ item.name }}
                 </div>
                 <JumpLinkBKFlowOrExternal
-                  :query="{type:'template', ...item}"
-                  :get-target-url="()=>onViewTpl(item)">
+                  :query="{ type:'template', ...item }"
+                  :get-target-url="() => onViewTpl(item)">
                   <span
                     class="view-tpl">
                     <i class="common-icon-box-top-right-corner" />
