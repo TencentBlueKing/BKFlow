@@ -452,8 +452,7 @@
         await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion, space_id: this.spaceId });
         this.$router.replace({
           name: 'templatePanel',
-          params: { type: 'edit', templateId: this.$route.params.templateId },
-          query: { isRollVersion: true, isNeedRefreshVersion: true },
+          params: { type: 'edit', templateId: this.$route.params.templateId, isRollVersion: true, isNeedRefreshVersion: true },
         });
         this.isShowRollbackDialog = false;
       },
@@ -477,8 +476,7 @@
           this.isShowPublishDialog = false;
           this.$router.replace({
             name: 'templatePanel',
-            params: { type: 'view', templateId: this.$route.params.templateId },
-            query: { isPublish: true },
+            params: { type: 'view', templateId: this.$route.params.templateId, isPublish: true },
           });
         }, (validator) => {
           console.error(validator);

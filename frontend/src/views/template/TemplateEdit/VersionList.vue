@@ -279,8 +279,7 @@
         // 跳转到编辑态
         this.$router.replace({
           name: 'templatePanel',
-          params: { type: 'edit', templateId: this.$route.params.templateId },
-          query: { isEditDraft: row.draft },
+          params: { type: 'edit', templateId: this.$route.params.templateId, isEditDraft: row.draft },
         });
         this.$emit('close', false);
       },
@@ -322,8 +321,7 @@
         this.isShowRollbackDialog = false;
         this.$router.replace({
           name: 'templatePanel',
-          params: { type: 'edit', templateId: this.$route.params.templateId },
-          query: { isRollVersion: true, isNeedRefreshVersion: true },
+          params: { type: 'edit', templateId: this.$route.params.templateId, isRollVersion: true, isNeedRefreshVersion: true },
         });
         this.$emit('close', false);
       },
