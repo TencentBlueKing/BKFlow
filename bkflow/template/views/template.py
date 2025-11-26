@@ -466,8 +466,11 @@ class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, Simp
         version = request.query_params.get("version")
         template = self.get_object()
         subproc_data = self.get_serializer(template).data
-        if version:
-            subproc_data["pipeline_tree"] = template.get_pipeline_tree_by_version(version)
+        # 去除子流程中未被引用的变量
+        pipeline_tree = template.get_pipeline_tree_by_version(version)
+        pre_pipeline_tree = deepcopy(pipeline_tree)
+        PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes(pre_pipeline_tree)
+        subproc_data["pipeline_tree"] = pre_pipeline_tree
         return Response(subproc_data)
 
 
