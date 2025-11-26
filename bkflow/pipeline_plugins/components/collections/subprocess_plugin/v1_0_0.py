@@ -179,7 +179,7 @@ class SubprocessPluginService(BKFlowBaseService):
                         "task_name": task_instance.name,
                         "template_id": task_instance.template_id,
                         "parameters": parameters,
-                        "trigger_source": TaskTriggerMethod.api.name,
+                        "trigger_source": TaskTriggerMethod.subprocess.name,
                         "is_subprocess_task": True,
                     },
                 }
