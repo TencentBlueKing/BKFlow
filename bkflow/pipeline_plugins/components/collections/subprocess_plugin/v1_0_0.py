@@ -23,7 +23,12 @@ from pipeline.core.flow.io import IntItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pydantic import BaseModel
 
-from bkflow.constants import TaskOperationSource, TaskOperationType, TaskTriggerMethod
+from bkflow.constants import (
+    TaskOperationSource,
+    TaskOperationType,
+    TaskTriggerMethod,
+    WebhookEventType,
+)
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
@@ -160,6 +165,26 @@ class SubprocessPluginService(BKFlowBaseService):
             )
 
             task_instance = TaskInstance.objects.create_instance(**create_task_data)
+
+            constants = task_instance.pipeline_tree["constants"]
+            parameters = {key: value["value"] for key, value in constants.items()}
+
+            interface_client = InterfaceModuleClient()
+            interface_client.broadcast_task_events(
+                data={
+                    "space_id": task_instance.space_id,
+                    "event": WebhookEventType.TASK_CREATE.value,
+                    "extra_info": {
+                        "task_id": task_instance.id,
+                        "task_name": task_instance.name,
+                        "template_id": task_instance.template_id,
+                        "parameters": parameters,
+                        "trigger_source": TaskTriggerMethod.api.name,
+                        "is_subprocess_task": True,
+                    },
+                }
+            )
+
             try:
                 root_task_id = TaskFlowRelation.objects.get(task_id=parent_task.id).root_task_id
             except TaskFlowRelation.DoesNotExist:
