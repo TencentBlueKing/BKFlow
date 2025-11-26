@@ -88,6 +88,7 @@
             class="sub-process"
             :style="{ height: `${subProcessHeight}px` }">
             <SubflowCanvas
+              :key="canvasDataChangeKey"
               ref="subProcessCanvas"
               :is-subflow-graph="true"
               class="sub-flow"
@@ -336,6 +337,7 @@
         subCanvsLocationCollection: [],
         subCanvsActivityCollection: [],
         canvasData: [],
+        canvasDataChangeKey: '',
         currentDefaultActiveId: this.defaultActiveId,
         currentSubflowTaskId: '',
         subflowNodeStatus: {},
@@ -1275,6 +1277,7 @@
           locations,
           lines: line,
         });
+        this.canvasDataChangeKey = new Date().getTime();
       },
       isFirstSubFlow(nodeId) {
         return this.pipelineData.location.some(item => item.id === nodeId);
