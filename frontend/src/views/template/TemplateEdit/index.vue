@@ -512,10 +512,10 @@
     },
     async beforeRouteUpdate(to, from, next) {
       if (this.isEnableVersionManage) {
-        if (to.query.isNeedRefreshVersion) {
+        if (to.params.isNeedRefreshVersion) {
           this.onRefreshVersionList();
         }
-        if (to.query.isPublish) {
+        if (to.params.isPublish) {
           this.isAtPublish = true;
           await this.getTemplateData();
           setTimeout(() => {
@@ -529,17 +529,17 @@
           if (from.params.type === 'view') {
             this.compVersion = null;
           }
-          // this.compVersion = null;
           this.getDraftPipelineTree(from.params.type === 'view');
           setTimeout(() => {
             this.onRefreshVersionList();
           }, 1000);
           next();
           return;
-        } if (to.query.isRollVersion || to.query.isEditDraft) {
+        }
+        if (to.params.isRollVersion || to.params.isEditDraft) {
           this.getDraftPipelineTree(from.params.type === 'view');
-            next();
-            return;
+          next();
+          return;
         }
         if (to.params.type !== from.params.type && to.params.type === 'view') {
           // 查看最新版本
@@ -2257,7 +2257,7 @@
       async onSelectVersionChange(version, isDraftVersion, isLaterVersion, needToProhibitEdit) {
         if (isDraftVersion && !this.isAtPublish) {
           this.getDraftPipelineTree();
-        } else if (!this.$route.query?.isRollVersion && version) {
+        } else if (!this.$route.params?.isRollVersion && version) {
           const previewData = await this.gerTemplatePreviewData({
             templateId: this.templateId,
             version,
