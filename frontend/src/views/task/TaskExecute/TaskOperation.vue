@@ -1720,9 +1720,9 @@
         }
         if (type === 'templateData') {
           const pipelineData = tools.deepClone(this.pipelineData);
-          for (const i in pipelineData.activities) {
-            if ('pipeline' in pipelineData.activities[i]) {
-               delete pipelineData.activities[i].pipeline;
+          for (const key of Object.keys(pipelineData.activities)) {
+            if ('pipeline' in pipelineData.activities[key]) {
+               delete pipelineData.activities[key].pipeline;
             }
           }
           this.templateData = JSON.stringify(pipelineData, null, 4);

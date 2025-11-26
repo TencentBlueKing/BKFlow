@@ -709,7 +709,7 @@
           if (isInit) {
             this.updateBasicInfo({ latestVersion: resp.data.version });
           } else {
-            this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version});
+            this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version });
           }
           // 输出变量
           const has = Object.prototype.hasOwnProperty;
@@ -1817,7 +1817,7 @@
                   expired: false,
                   subprocess_node_id: this.nodeConfig.id,
                 });
-                this.$emit('updateNodeInfo', this.nodeConfig.id, { hasUpdated: false});
+                this.$emit('updateNodeInfo', this.nodeConfig.id, { hasUpdated: false });
               }
               if (!alwaysUseLatest && latestVersion && latestVersion !== version) {
                 this.setSubprocessUpdated({ expired: true, subprocess_node_id: this.nodeConfig.id });

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -27,6 +26,7 @@ from typing import Optional, Type
 class OperateType(Enum):
     CREATE_TEMPLATE = "create_template"
     COPY_TEMPLATE = "copy_template"
+    UPDATE_TEMPLATE = "update_template"
 
 
 class CanvasType(Enum):
@@ -103,6 +103,10 @@ class StageCanvasHandler(CanvasHandler):
             node_id = node.get("id")
             if node_id in node_map:
                 node["id"] = node_map[node_id]
+                # 同步更新 option 中的 id
+                option = node.get("option")
+                if option and isinstance(option, dict) and "id" in option:
+                    option["id"] = node_map[node_id]
 
         return pipeline_tree
 
@@ -141,7 +145,7 @@ def get_canvas_handler(pipeline_tree: dict) -> Type[CanvasHandler]:
         CanvasType.VERTICAL.value: VerticalCanvasHandler,
         CanvasType.HORIZONTAL.value: HorizontalCanvasHandler,
     }
-    return handlers.get(canvas_mode, VerticalCanvasHandler)  # 默认使用垂直画布处理器
+    return handlers.get(canvas_mode, HorizontalCanvasHandler)  # 默认使用水平画布处理器
 
 
 def get_variable_mapping(constants: dict, target_node_ids: set) -> dict:

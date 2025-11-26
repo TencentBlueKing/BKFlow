@@ -147,7 +147,6 @@ import Sortable from 'sortablejs';
     },
     overallState: {
       handler(value) {
-        console.log('index.vue_Line:149', 'overallState', value);
         if (window.parent) {
           window.parent.postMessage({ eventName: 'bk-flow-task-state-change', state: value }, '*');
         }
@@ -175,6 +174,9 @@ import Sortable from 'sortablejs';
       const newStage = getDefaultNewStage();
       this.stageCanvasData.splice(index + 1, 0,  newStage);
       this.refresh();
+    },
+    openStepNodeEdit(id) {
+      this.$emit('onShowNodeConfig', id);
     },
     onUpdateNodeInfo() {
       // 外部依赖不能删

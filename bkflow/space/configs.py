@@ -116,6 +116,16 @@ class SpaceConfigHandler:
         return {name: config_cls for name, config_cls in cls.__hub.items()}
 
     @classmethod
+    def get_control_configs(cls, only_public=False):
+        if only_public:
+            return {
+                name: config_cls
+                for name, config_cls in cls.__hub.items()
+                if config_cls.is_public and getattr(config_cls, "control", False)
+            }
+        return {name: config_cls for name, config_cls in cls.__hub.items() if getattr(config_cls, "control", False)}
+
+    @classmethod
     def validate_configs(cls, configs: dict):
         return all([cls.validate(name, value) for name, value in configs.items()])
 
@@ -164,6 +174,7 @@ class TokenAutoRenewalConfig(BaseSpaceConfig):
     desc = _("是否开启Token自动续期")
     default_value = "true"
     choices = ["true", "false"]
+    control = True
 
     @classmethod
     def validate(cls, value: str):
@@ -180,6 +191,7 @@ class TemplateTriggerConfig(BaseSpaceConfig):
     desc = _("是否允许配置多个触发器")
     default_value = "false"
     choices = ["true", "false"]
+    control = True
 
     @classmethod
     def validate(cls, value: str):
