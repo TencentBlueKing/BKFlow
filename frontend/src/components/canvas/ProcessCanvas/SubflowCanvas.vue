@@ -59,16 +59,6 @@
         graphRandomKey: '',
       };
     },
-    watch: {
-      canvasData: {
-        handler(val, oldVal) {
-          if (!utilsTools.isDataEqual(val, oldVal)) {
-            this.resetCells();
-          }
-        },
-        deep: true,
-      },
-    },
     mounted() {
       this.initCanvas();
       this.initCanvasData();
