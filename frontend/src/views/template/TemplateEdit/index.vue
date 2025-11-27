@@ -46,7 +46,11 @@
         @onClosePreview="onClosePreview"
         @onOpenExecuteScheme="onOpenExecuteScheme"
         @onChangePanel="onChangeSettingPanel"
-        @onSaveTemplate="onSaveTemplate" />
+        @onSaveTemplate="onSaveTemplate"
+        @viewAllVerison="onViewAllVerison"
+        @selectVersionChange="onSelectVersionChange"
+        @rollbackVersion="onRollbackVersion"
+        @publishTemplate="onPublishTemplate" />
       <template v-if="isEditProcessPage">
         <!-- 子流程更新提示 -->
         <SubflowUpdateTips
@@ -136,7 +140,9 @@
           :space-id="spaceId"
           :is-subflow-node-config="isSubflowNodeConfig"
           @refreshVersionList="onRefreshVersionList"
-          @close="onCloseVersionListPanel" />
+          @close="onCloseVersionListPanel"
+          @rollbackVersion="onRollbackVersion"
+          @editVersionListItem="onEditVersionListItem" />
       </div>
       <bk-dialog
         width="400"
@@ -505,38 +511,16 @@
     },
     async beforeRouteUpdate(to, from, next) {
       if (this.isEnableVersionManage) {
-        if (to.params.isNeedRefreshVersion) {
-          this.onRefreshVersionList();
-        }
-        if (to.params.isPublish) {
-          this.isAtPublish = true;
-          await this.getTemplateData();
-          setTimeout(() => {
-            this.onRefreshVersionList();
-          }, 1000);
-          next();
-          return;
-        }
-        this.isAtPublish = false;
-        if (to.params.type === 'edit' && !this.$route.query.isChangeSelectVersion) {
+        if (to.params.type === 'edit') {
           if (from.params.type === 'view') {
             this.compVersion = null;
           }
-          this.getDraftPipelineTree(from.params.type === 'view');
+          this.getDraftPipelineTree();
           setTimeout(() => {
             this.onRefreshVersionList();
           }, 1000);
           next();
           return;
-        }
-        if (to.params.isRollVersion || to.params.isEditDraft) {
-          this.getDraftPipelineTree(from.params.type === 'view');
-          next();
-          return;
-        }
-        if (to.params.type !== from.params.type && to.params.type === 'view') {
-          // 查看最新版本
-          await this.getTemplateData();
         }
       }
       next();
@@ -2234,7 +2218,7 @@
       async onSelectVersionChange(version, isDraftVersion, isLaterVersion, needToProhibitEdit) {
         if (isDraftVersion && !this.isAtPublish) {
           this.getDraftPipelineTree();
-        } else if (!this.$route.params?.isRollVersion && version) {
+        } else if (version) {
           const previewData = await this.gerTemplatePreviewData({
             templateId: this.templateId,
             version,
@@ -2243,8 +2227,29 @@
           this.isChangeTplVersionTime = new Date().getTime();
           this.compVersion = version;
         }
+        this.isAtPublish = false;
         // this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
         this.isNeedToProhibitEdit = needToProhibitEdit;
+      },
+      onRollbackVersion() {
+        this.onRefreshVersionList();
+        this.getDraftPipelineTree();
+      },
+      onEditVersionListItem(value, isHaveDraftVersion) {
+        this.getDraftPipelineTree();
+        if (isHaveDraftVersion) {
+          setTimeout(() => {
+            this.onRefreshVersionList();
+          }, 1000);
+        }
+      },
+      async onPublishTemplate() {
+          this.isAtPublish = true;
+          await this.getTemplateData();
+          setTimeout(() => {
+            this.onRefreshVersionList();
+            this.isAtPublish = false;
+          }, 1000);
       },
       // 关闭版本列表侧滑
       onCloseVersionListPanel() {
