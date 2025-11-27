@@ -2,28 +2,29 @@
   <div class="access-credential">
     <bk-form
       ref="credentialForm"
-      :label-width="130"
+      :label-width="140"
       :model="formData"
-      :rules="credentialFormRules">
+      :rules="credentialRules">
       <bk-form-item
-        :label="$t('选择凭证')"
+        v-for=" (item, index) in formData.curCredential"
+        :key="item.key"
+        :label="item.key"
         :required="true"
-        property="curSelectedCredential">
+        :desc="item.description"
+        :rules="credentialRules.curCredential"
+        :property="'curCredential.' + index + '.value'">
         <bk-select
-          v-model="formData.curSelectedCredential"
+          v-model="item.value"
           v-bkloading="{ isLoading: listLoading, zIndex: 100 }"
           ext-cls="select-credential"
           :disabled="isViewMode"
-          multiple
-          display-tag
-          :auto-height="false"
+          :clearable="false"
           :placeholder="$t('请选择凭证')"
           @selected="handleSelectedCredential">
           <bk-option
             v-for="option in list"
             :id="option.id"
             :key="option.key"
-            v-bk-tooltips="{ content: option.desc, placement: 'left-start' }"
             :name="option.name" />
         </bk-select>
       </bk-form-item>
@@ -32,6 +33,7 @@
 </template>
 <script>
 import { mapActions } from 'vuex';
+
 export default {
   name: 'AccessCredential',
   props: {
@@ -55,34 +57,14 @@ export default {
   data() {
     return {
       formData: {
-        curSelectedCredential: [],
-      },
-      credentialFormRules: {
-        curSelectedCredential: [
-          { required: true, message: this.$t('请选择凭证'), trigger: 'change' },
-        ],
+        curCredential: this.basicInfo.processCredentials,
       },
       list: [],
       listLoading: false,
-    };
-  },
-  watch: {
-    basicInfo: {
-      handler(val) {
-        if (val?.credentials) {
-          this.formData.curSelectedCredential = [];
-          const credKeys = Object.keys(this.basicInfo.credentials);
-          if (credKeys.length > 0) {
-            for (const item of credKeys) {
-                const curItemValue = val.credentials[item].value;
-               this.formData.curSelectedCredential.push(curItemValue);
-            }
-          }
-        }
+      credentialRules: {
+        curCredential: [{ required: true, message: this.$t('请选择凭证'), trigger: 'blur' }],
       },
-      deep: true,
-      immediate: true,
-    },
+    };
   },
   mounted() {
     this.loadCredentialList();
@@ -97,19 +79,16 @@ export default {
       this.list = res.data.results || [];
       this.listLoading = false;
     },
-    handleSelectedCredential(value) {
-      const curCredentials = {};
-      value?.forEach((id) => {
-        const selectedItem = this.list.find(item => item.id === id);
-        if (selectedItem) {
-          curCredentials[selectedItem.name] = {
-            hook: false,
-            need_render: true,
-            value: selectedItem.id,
+    handleSelectedCredential() {
+      const transformedCredential = this.formData.curCredential.reduce((acc, item) => {
+          acc[item.key] = {
+            hook: item.hook,
+            need_render: item.need_render,
+            value: item.value,
           };
-        }
-      });
-      this.$emit('changeCredential', curCredentials) ;
+          return acc;
+        }, {});
+      this.$emit('changeCredential', transformedCredential) ;
     },
     validate() {
       if (this.$refs.credentialForm) {

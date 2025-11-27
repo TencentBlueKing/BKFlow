@@ -233,7 +233,6 @@
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
   import copy from '@/mixins/copy.js';
   import AccessCredential from './AccessCredential.vue';
-import { async } from '@antv/x6/lib/registry/marker/async';
 
   export default {
     name: 'NodeConfig',
@@ -550,7 +549,13 @@ import { async } from '@antv/x6/lib/registry/marker/async';
           this.inputsRenderConfig = renderConfig;
           await this.getPluginDetail();
           if (this.nodeConfig.component.credentials) {
-            this.updateBasicInfo({ credentials: this.nodeConfig.component.credentials });
+            const backfillData = this.basicInfo.processCredentials.map((item) => {
+              if (this.nodeConfig.component.credentials[item.key]) {
+                item.value = this.nodeConfig.component.credentials[item.key].value;
+              }
+              return item;
+            });
+            this.updateBasicInfo({ credentials: this.nodeConfig.component.credentials, processCredentials: backfillData });
           }
           // api插件json字段展示解析优化
           this.handleJsonValueParse(false, paramsVal);
@@ -670,7 +675,30 @@ import { async } from '@antv/x6/lib/registry/marker/async';
             desc = descList.join('<br>');
           }
           if (Object.prototype.hasOwnProperty.call(resp.data, 'credentials')) {
-            this.updateBasicInfo({ desc, isHaveCredentials: true });
+            const mockData = [
+              {
+                    key: 'bk_access_token',
+                    name: '蓝鲸 access token',
+                    description: '用于调用蓝鲸 API 的 access token',
+              },
+              {
+                    key: 'test_credential',
+                    name: '这是一个测试',
+                    description: '这是一个测试',
+              },
+            ];
+            const processCredentials = [];
+            // resp.data.credentials.forEach((item) => {
+            mockData.forEach((item) => {
+              processCredentials.push({
+                  key: item.key,
+                  hook: false,
+                  need_render: true,
+                  value: '',
+                  description: item.description || '',
+                });
+            });
+            this.updateBasicInfo({ desc, isHaveCredentials: true, processCredentials });
           } else {
             this.updateBasicInfo({ desc });
           }
@@ -1474,7 +1502,7 @@ import { async } from '@antv/x6/lib/registry/marker/async';
         return this.$refs.basicInfo.validate().then(async () => {
           if (this.$refs.accessCredential) {
             const validations = await Promise.all([this.$refs.accessCredential.validate()]);
-            if (!validations) {
+            if (!validations[0]) {
               return false;
             };
           }
