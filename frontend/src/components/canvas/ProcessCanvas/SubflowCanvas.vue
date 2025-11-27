@@ -13,7 +13,7 @@
   // 单选/框选
   import { Selection } from '@antv/x6-plugin-selection';
   import { Clipboard } from '@antv/x6-plugin-clipboard';
-
+  import { registryNodes } from './registry/nodes.js';
   import dom from '@/utils/dom.js';
   import utilsTools from '@/utils/tools.js';
 
@@ -58,16 +58,6 @@
         isSelectionOpen: false,
         graphRandomKey: '',
       };
-    },
-    watch: {
-      canvasData: {
-        handler(val, oldVal) {
-          if (!utilsTools.isDataEqual(val, oldVal)) {
-            this.resetCells();
-          }
-        },
-        deep: true,
-      },
     },
     mounted() {
       this.initCanvas();
@@ -220,7 +210,7 @@
           showNodeSelectionBox: true, // 显示节点的选择框
           pointerEvents: 'none', // 解决节点的事件无法响应
         }));
-        // registryNodes(this.onEventMap);
+        registryNodes(this.onEventMap);
         registryEvents(this.graph, this.editable);
         // 鼠标点击
         this.graph.on('cell:click', this.handleCellClick);
@@ -439,35 +429,35 @@
         if (!className) return canvasDom;
         return canvasDom.querySelector(className) || document.querySelector(className);
       },
-      // onEventMap() {
-      //   const self = this;
-      //   return {
-      //     onNodeCheckClick(id, checked) {
-      //       self.$emit('onNodeCheckClick', id, checked);
-      //     },
-      //     onRetryClick(id) {
-      //       self.$emit('onRetryClick', id);
-      //     },
-      //     onSkipClick(id) {
-      //       self.$emit('onSkipClick', id);
-      //     },
-      //     onTaskNodeResumeClick(id) {
-      //       self.$emit('onTaskNodeResumeClick', id);
-      //     },
-      //     onApprovalClick(id) {
-      //       self.$emit('onApprovalClick', id);
-      //     },
-      //     onForceFail(id) {
-      //       self.$emit('onForceFail', id);
-      //     },
-      //     onSubprocessPauseResumeClick(id, type) {
-      //       self.$emit('onSubprocessPauseResumeClick', id, type);
-      //     },
-      //     onGatewaySelectionClick(id) {
-      //       self.$emit('onGatewaySelectionClick', id);
-      //     },
-      //   };
-      // },
+      onEventMap() {
+        const self = this;
+        return {
+          onNodeCheckClick(id, checked) {
+            self.$emit('onNodeCheckClick', id, checked);
+          },
+          onRetryClick(id) {
+            self.$emit('onRetryClick', id);
+          },
+          onSkipClick(id) {
+            self.$emit('onSkipClick', id);
+          },
+          onTaskNodeResumeClick(id) {
+            self.$emit('onTaskNodeResumeClick', id);
+          },
+          onApprovalClick(id) {
+            self.$emit('onApprovalClick', id);
+          },
+          onForceFail(id) {
+            self.$emit('onForceFail', id);
+          },
+          onSubprocessPauseResumeClick(id, type) {
+            self.$emit('onSubprocessPauseResumeClick', id, type);
+          },
+          onGatewaySelectionClick(id) {
+            self.$emit('onGatewaySelectionClick', id);
+          },
+        };
+      },
       // 重置画布
       resetCells() {
         this.graph.clearCells(true);

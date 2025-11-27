@@ -11,22 +11,46 @@
 */
 <template>
   <div class="tag-textarea">
-    <el-input
-      ref="tagTextarea"
-      type="textarea"
-      v-model="textareaValue"
-      :class="{ 'rf-view-textarea-value': !formMode }"
-      :disabled="!editable || !formMode || disabled"
-      :autosize="formMode ? { minRows: 2 } : true"
-      resize="none"
-      :placeholder="placeholder">
-    </el-input>
-    <span v-show="!validateInfo.valid" class="common-error-tip error-info">{{validateInfo.message}}</span>
+    <div class="rf-form-wrapper">
+      <el-input
+        ref="tagTextarea"
+        v-model="textareaValue"
+        type="textarea"
+        :class="{ 'rf-view-textarea-value': !formMode }"
+        :disabled="!editable || !formMode || disabled"
+        :autosize="formMode ? { minRows: 2 } : true"
+        resize="none"
+        :placeholder="placeholder"
+        @input="onInput" />
+      <transition>
+        <div
+          v-show="showVarList && isListOpen"
+          class="rf-select-list">
+          <ul class="rf-select-content">
+            <li
+              v-for="item in varList"
+              :key="item.key"
+              class="rf-select-item"
+              @click.stop="onSelectVal(item.key)">
+              <span class="var-key">{{ item.key }}</span>
+              <span class="var-name">{{ item.name }}</span>
+            </li>
+          </ul>
+        </div>
+      </transition>
+    </div>
+    <span
+      v-show="!validateInfo.valid"
+      class="common-error-tip error-info">{{ validateInfo.message }}</span>
   </div>
 </template>
 <script>
-  import '@/utils/i18n.js'
-  import { getFormMixins } from '../formMixins.js'
+  import '@/utils/i18n.js';
+  import dom from '@/utils/dom.js';
+  import { getFormMixins } from '../formMixins.js';
+  import { mapState } from 'vuex';
+
+  const VAR_REG = /\$.*$/;
 
   export const attrs = {
     value: {
@@ -46,35 +70,99 @@
       default: '',
       desc: 'placeholder',
     },
-  }
+    showVarList: {
+      type: Boolean,
+      default: false,
+      inner: true,
+    },
+  };
   export default {
     name: 'TagTextarea',
     mixins: [getFormMixins(attrs)],
-    computed: {
-      textareaValue: {
-        get () {
-          if (!this.formMode && ['', undefined].includes(this.value)) {
-            return '--'
-          }
-          return typeof this.value === 'string' ? this.value : JSON.stringify(this.value)
+    props: {
+      constants: {
+        type: Object,
+        default() {
+          return {};
         },
-        set (val) {
-          this.updateForm(val)
+      },
+    },
+    computed: {
+      ...mapState({
+        internalVariable: state => state.template.internalVariable,
+      }),
+      constantArr: {
+        get() {
+          let Keylist = [];
+          if (this.constants) {
+            Keylist = [...Object.values(this.constants)];
+          }
+          if (this.internalVariable) {
+            Keylist = [...Keylist, ...Object.values(this.internalVariable)];
+          }
+          return Keylist;
+        },
+        set(val) {
+          this.varList = val;
+        },
+      },
+      textareaValue: {
+        get() {
+          if (!this.formMode && ['', undefined].includes(this.value)) {
+            return '--';
+          }
+          return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
+        },
+        set(val) {
+          this.updateForm(val);
         },
       },
     },
     watch: {
-      formMode () {
+      formMode() {
         /**
          * 重新计算 textarea 高度，解决 disabled 下有滚动条和空白问题
          * resizeTextarea 为非官方暴露 api，后续需关注 element textarea 组件该问题修复后删除
          */
         this.$nextTick(() => {
-          this.$refs.tagTextarea.resizeTextarea()
-        })
+          this.$refs.tagTextarea.resizeTextarea();
+        });
       },
     },
-  }
+    created() {
+      window.addEventListener('click', this.handleListShow, false);
+    },
+    beforeDestroy() {
+      window.removeEventListener('click', this.handleListShow, false);
+    },
+    methods: {
+      handleListShow(e) {
+        if (!this.isListOpen) {
+          return;
+        }
+        const listPanel = document.querySelector('.rf-select-list');
+        if (listPanel && !dom.nodeContains(listPanel, e.target)) {
+          this.isListOpen = false;
+        }
+      },
+      onInput(val) {
+        const matchResult = val.match(VAR_REG);
+        if (matchResult && matchResult[0]) {
+          const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&');
+          const inputReg = new RegExp(regStr);
+          this.varList = this.constantArr.filter(item => inputReg.test(item.key));
+        } else {
+          this.varList = [];
+        }
+        this.isListOpen = !!this.varList.length;
+      },
+      onSelectVal(val) {
+        const replacedValue = this.value.replace(VAR_REG, val);
+        this.updateForm(replacedValue);
+        this.isListOpen = false;
+      },
+    },
+  };
 </script>
 <style lang="scss">
 @import '../../../../scss/mixins/scrollbar.scss';
@@ -85,6 +173,45 @@
         font-size: 12px;
         word-break: break-all;
         @include scrollbar;
+    }
+    .rf-form-wrapper {
+        position: relative;
+        .rf-select-list {
+            position: absolute;
+            top: 40px;
+            right: 0;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 2px;
+            box-shadow: 0 0 8px 1px rgba(0, 0, 0, 0.1);
+            overflow-y: hidden;
+            z-index: 100;
+        }
+        .rf-select-content {
+            max-height: 100px;
+            overflow: auto;
+            @include scrollbar;
+        }
+        .rf-select-item {
+            padding: 0 10px;
+            line-height: 32px;
+            font-size: 12px;
+            cursor: pointer;
+            &:hover {
+                background: #eef6fe;
+                color: #3a84ff;
+            }
+            > span {
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+            }
+            .var-name {
+                max-width: 250px;
+                color: #c4c6cc;
+                margin-left: 16px;
+            }
+        }
     }
 }
 .rf-view-textarea-value {
