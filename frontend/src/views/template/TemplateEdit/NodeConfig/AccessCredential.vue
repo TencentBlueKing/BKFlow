@@ -3,6 +3,7 @@
     <bk-form
       ref="credentialForm"
       :label-width="140"
+      ext-cls="access-credential-form"
       :model="formData"
       :rules="credentialRules">
       <bk-form-item
@@ -99,6 +100,11 @@ export default {
   },
 };
 </script>
-<style lang="scss" scoped>
 
+<style lang="scss" scoped>
+::v-deep .access-credential-form{
+  .bk-label.has-desc>span {
+    border-bottom: none !important;
+  }
+}
 </style>
