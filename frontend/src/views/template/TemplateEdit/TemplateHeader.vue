@@ -538,11 +538,11 @@
         'getLocalTemplateData',
       ]),
       async getVersionList() {
-      this.versionListLoading = true;
-      const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId, space_id: this.spaceId });
-      this.versionListData = res.results || [];
-      this.isHaveDraft = res.results.some(item => item.draft);
-      this.versionListLoading = false;
+        this.versionListLoading = true;
+        const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId, space_id: this.spaceId });
+        this.versionListData = res.results || [];
+        this.isHaveDraft = res.results?.some(item => item.draft) ?? false;
+        this.versionListLoading = false;
       },
       handleVersionSelectChange(selected) {
         this.curSelectVersion = selected;
@@ -565,10 +565,7 @@
       },
       async onRollbackVersionConfirm() {
         await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion, space_id: this.spaceId });
-        this.$router.replace({
-          name: 'templatePanel',
-          params: { type: 'edit', templateId: this.$route.params.templateId, isRollVersion: true, isNeedRefreshVersion: true },
-        });
+        this.$emit('rollbackVersion');
         this.isShowRollbackDialog = false;
       },
       // 发布
@@ -589,9 +586,10 @@
           });
           this.formData.desc = '';
           this.isShowPublishDialog = false;
+          this.$emit('publishTemplate');
           this.$router.replace({
             name: 'templatePanel',
-            params: { type: 'view', templateId: this.$route.params.templateId, isPublish: true },
+            params: { type: 'view', templateId: this.$route.params.templateId},
           });
         }, (validator) => {
           console.error(validator);

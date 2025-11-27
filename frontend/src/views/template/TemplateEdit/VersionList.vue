@@ -278,9 +278,10 @@
       },
       editVersionItem(row) {
         // 跳转到编辑态
+        this.$emit('editVersionListItem', row, this.isHaveDraftVersion);
         this.$router.replace({
           name: 'templatePanel',
-          params: { type: 'edit', templateId: this.$route.params.templateId, isEditDraft: row.draft },
+          params: { type: 'edit', templateId: this.$route.params.templateId },
         });
         this.$emit('close', false);
       },
@@ -319,11 +320,8 @@
         if (!res.result) {
           return;
         }
+        this.$emit('rollbackVersion');
         this.isShowRollbackDialog = false;
-        this.$router.replace({
-          name: 'templatePanel',
-          params: { type: 'edit', templateId: this.$route.params.templateId, isRollVersion: true, isNeedRefreshVersion: true },
-        });
         this.$emit('close', false);
       },
       beforeClose() {
