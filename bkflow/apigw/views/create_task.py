@@ -80,7 +80,7 @@ def create_task(request, space_id):
             "task_name": task_data["name"],
             "template_id": task_data["template_id"],
             "parameters": task_data["parameters"],
-            "trigger_source": TaskTriggerMethod.manual.name,
+            "trigger_source": TaskTriggerMethod.api.name,
         },
     )
     return result
