@@ -675,21 +675,8 @@
             desc = descList.join('<br>');
           }
           if (Object.prototype.hasOwnProperty.call(resp.data, 'credentials')) {
-            const mockData = [
-              {
-                    key: 'bk_access_token',
-                    name: '蓝鲸 access token',
-                    description: '用于调用蓝鲸 API 的 access token',
-              },
-              {
-                    key: 'test_credential',
-                    name: '这是一个测试',
-                    description: '这是一个测试',
-              },
-            ];
             const processCredentials = [];
-            // resp.data.credentials.forEach((item) => {
-            mockData.forEach((item) => {
+            resp.data.credentials.forEach((item) => {
               processCredentials.push({
                   key: item.key,
                   hook: false,
