@@ -13,6 +13,9 @@
       :placeholder="$t('请选择版本')"
       :ext-cls="`${isSubflowNodeConfig ? 'subflow-select' : 'template-select'}`"
       :searchable="listData.length>0"
+      enable-scroll-load
+      :scroll-loading="bottomLoadingOptions"
+      @scroll-end="handleScrollToBottom"
       @change="handleVersionSelectChange">
       <bk-option
         v-for="option in listData"
@@ -55,7 +58,7 @@
     </div>
     <!-- && tplSnapshotId !== curSelectedVersionId -->
     <div
-      v-if="(!isInit && !isDraft) && isNotDraftAndInLatestVersion"
+      v-if="!isDraft && isNotDraftAndInLatestVersion"
       class="callback-version-info"
       @click="onRollbackVersion">
       <svg
@@ -70,7 +73,7 @@
   </div>
 </template>
 <script>
-import { mapActions } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 
 export default {
   name: 'VersionSelect',
@@ -99,6 +102,14 @@ export default {
       type: Array,
       default: () => [],
     },
+    templateId: {
+      type: [String, Number],
+      default: '',
+    },
+    versionCount: {
+      type: Number,
+      default: 0,
+    },
   },
   data() {
     return {
@@ -106,17 +117,23 @@ export default {
         versionSelectValue: '',
         isShowVersionList: false,
         versionListLoading: false,
-        isInit: true,
         isVersionLoading: true,
+        bottomLoadingOptions: {
+          size: 'mini',
+          isLoading: false,
+        },
+        currentPage: 1,
     };
   },
   computed: {
+    ...mapState({
+        spaceId: state => state.template.spaceId,
+    }),
     curSelectedVersionId() {
       const curItem = this.listData.find(item => item.id === this.versionSelectValue);
       return curItem ? curItem.id : null;
     },
     isDraft() {
-      this.isInit = true;
        let curDraftId = null;
        this.listData.forEach((item) => {
         if (item.draft) {
@@ -124,7 +141,6 @@ export default {
           return;
         }
       });
-       this.isInit = false;
       return curDraftId === this.versionSelectValue;
     },
     isHaveDraft() {
@@ -158,6 +174,24 @@ export default {
     },
   },
   methods: {
+    ...mapActions('template/', [
+      'getTemplateVersionSnapshotList',
+    ]),
+    async handleScrollToBottom() {
+      if (this.listData.length >= this.versionCount) {
+        return;
+      }
+      this.bottomLoadingOptions.isLoading = true;
+      this.currentPage += 1;
+      const res = await this.getTemplateVersionSnapshotList({
+          template_id: this.templateId,
+          space_id: this.spaceId,
+          limit: 10,
+          offset: (this.currentPage - 1) * 10,
+      });
+      this.listData = this.listData.concat(res.results || []);
+      this.bottomLoadingOptions.isLoading = false;
+    },
     viewAllVerison() {
       this.$refs.versionSelect.handleClose();
       if (this.isSubflowNodeConfig) {

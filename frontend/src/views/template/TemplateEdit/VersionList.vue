@@ -21,7 +21,7 @@
           :search-list="searchList"
           @change="handleSearchValueChange" />
         <bk-table
-          :data="pagedVersionList"
+          :data="versionList"
           :pagination="pagination"
           :max-height="tableMaxHeight"
           ext-cls="version-table"
@@ -33,7 +33,8 @@
             :label="field.label"
             :width="field.width"
             :show-overflow-tooltip="true"
-            :prop="field.id">
+            :prop="field.id"
+            :fixed="field.id === 'version' && versionList.length > 0 ? 'left' : false ">
             <template slot-scope="{ row }">
               <div
                 v-if="field.id === 'version'"
@@ -63,7 +64,7 @@
             label="操作"
             width="220"
             class="version-operation"
-            fixed="right">
+            :fixed="versionList.length > 0 ? 'right' : false ">
             <template slot-scope="props">
               <bk-button
                 v-if="(props.row.isLatestVersion && !isHaveDraftVersion) || props.row.draft"
@@ -207,12 +208,6 @@
       };
     },
     computed: {
-      pagedVersionList() {
-        const { current, limit } = this.pagination;
-        const startIndex = (current - 1) * limit;
-        const endIndex = startIndex + limit;
-        return this.versionList.slice(startIndex, endIndex);
-      },
       tableMaxHeight() {
         const maxHeight = window.innerHeight - 200;
         return maxHeight;
@@ -239,9 +234,12 @@
       async getVersionList(data = {}) {
         try {
           const { templateId } = this.$route.params;
+          const { limit, current } = this.pagination;
           const alsoNeedData = {
             template_id: this.isSubflowNodeConfig ? this.subTemplateId : templateId,
             space_id: this.spaceId,
+            limit,
+            offset: (current - 1) * limit,
           };
           const requestData = Object.assign(alsoNeedData, data);
           const res = await this.getTemplateVersionSnapshotList(requestData);
@@ -262,10 +260,12 @@
       },
       handlePageChange(page) {
         this.pagination.current = page;
+        this.getVersionList();
       },
       handlePageLimitChange(limit) {
         this.pagination.limit = limit;
         this.pagination.current = 1;
+        this.getVersionList();
       },
       handleSearchValueChange(data) {
         data = data.reduce((acc, cur) => {
