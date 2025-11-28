@@ -341,13 +341,17 @@ class AdminTemplateViewSet(AdminModelViewSet):
 
     @action(methods=["GET"], detail=True, url_path="get_draft_template")
     def get_draft_template(self, request, *args, **kwargs):
-        instance = self.get_object()
+        template_obj = self.get_object()
         try:
-            template = TemplateSnapshot.objects.get(template_id=instance.id, draft=True)
+            draft_snapshot = TemplateSnapshot.objects.get(template_id=template_obj.id, draft=True)
         except TemplateSnapshot.DoesNotExist:
-            template = instance.update_draft_snapshot(instance.pipeline_tree, request.user.username, instance.version)
+            draft_snapshot = template_obj.update_draft_snapshot(
+                template_obj.pipeline_tree, request.user.username, template_obj.version
+            )
+        data = TemplateSnapshotSerializer(draft_snapshot).data
+        data["pipeline_tree"] = draft_snapshot.data
 
-        return Response(data={"pipeline_tree": template.data})
+        return Response(data=data)
 
     @action(methods=["POST"], detail=True, url_path="rollback_template")
     def rollback_template(self, request, *args, **kwargs):
