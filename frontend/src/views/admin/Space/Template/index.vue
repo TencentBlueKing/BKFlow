@@ -66,10 +66,10 @@
             class="subflow_update">
             <bk-popover
               placement="top"
-              :disabled="props.row.subprocess_info.length <= 0"
+              :disabled="!props.row.subprocess_info || props.row.subprocess_info.length <= 0"
               ext-cls="subflow-popover">
               <span
-                v-if="props.row.subprocess_info.length>0"
+                v-if="props.row.subprocess_info && props.row.subprocess_info.length>0"
                 class="blue-text">
                 {{ props.row.subprocess_info.length }}
               </span>
@@ -85,7 +85,7 @@
               <!-- 立即更新 -->
               </bk-button>
               <div
-                v-if="props.row.subprocess_info.length>0"
+                v-if="props.row.subprocess_info && props.row.subprocess_info.length>0"
                 slot="content">
                 <ul
                   v-for="sub in props.row.subprocess_info"
@@ -628,6 +628,9 @@
         return Promise.resolve();
       },
       getSubflowUpdateCount(subflowList) {
+        if (!subflowList || !Array.isArray(subflowList)) {
+          return 0;
+        }
         return subflowList.filter(sub => sub.expired).length;
       },
       onCopyTemplate(template) {
