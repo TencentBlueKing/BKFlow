@@ -1488,8 +1488,8 @@
       validate() {
         return this.$refs.basicInfo.validate().then(async () => {
           if (this.$refs.accessCredential) {
-            const validations = await Promise.all([this.$refs.accessCredential.validate()]);
-            if (!validations[0]) {
+            const validations = await this.$refs.accessCredential.validate();
+            if (!validations) {
               return false;
             };
           }
