@@ -48,6 +48,7 @@
         :is-view-mode="isViewMode"
         :tpl-snapshot-id="tplSnapshotId"
         :version-list-data="versionListData"
+        :version-count="versionCount"
         @viewAllVerison="$emit('viewAllVerison')"
         @versionSelectChange="handleVersionSelectChange"
         @rollbackVersion="handelRollBackVersion" />
@@ -130,7 +131,7 @@
           {{ $t('调试') }}
         </bk-button>
         <bk-button
-          v-if="(!isViewMode && !isProjectCommonTemp) && (!isEnableVersionManage || isDraftVersion)"
+          v-if="(!isViewMode && !isProjectCommonTemp) && isEnableVersionManage && isDraftVersion"
           theme="primary"
           :class="[
             'task-btn',
@@ -408,6 +409,7 @@
         isHaveDraft: false,
         versionListData: [],
         versionListLoading: false,
+        versionCount: 0,
       };
     },
     computed: {
@@ -537,11 +539,21 @@
       ...mapGetters('template/', [
         'getLocalTemplateData',
       ]),
-      async getVersionList() {
+      async getVersionList(draftInfo) {
         this.versionListLoading = true;
-        const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId, space_id: this.spaceId });
+        const res = await this.getTemplateVersionSnapshotList({
+          template_id: this.templateId,
+          space_id: this.spaceId,
+          limit: 10,
+          offset: 0,
+        });
+        this.versionCount = res.count;
         this.versionListData = res.results || [];
         this.isHaveDraft = res.results?.some(item => item.draft) ?? false;
+        if (!this.isHaveDraft && draftInfo) {
+          this.versionListData.unshift(draftInfo);
+          this.isHaveDraft = true;
+        }
         this.versionListLoading = false;
       },
       handleVersionSelectChange(selected) {
@@ -589,7 +601,7 @@
           this.$emit('publishTemplate');
           this.$router.replace({
             name: 'templatePanel',
-            params: { type: 'view', templateId: this.$route.params.templateId},
+            params: { type: 'view', templateId: this.$route.params.templateId },
           });
         }, (validator) => {
           console.error(validator);
@@ -614,12 +626,11 @@
         //   return
         // }
         const { params, query, name } = this.$route;
-        const newQuery = { ...(query || {}) };
-        delete newQuery.isPublish;
+        this.$emit('editTemplate', params.type);
         this.$router.push({
           name,
           params: { ...params, type: 'edit' },
-          query: newQuery,
+          query: Object.assign({}, query),
         });
       },
       /**

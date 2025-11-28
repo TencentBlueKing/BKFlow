@@ -50,7 +50,8 @@
         @viewAllVerison="onViewAllVerison"
         @selectVersionChange="onSelectVersionChange"
         @rollbackVersion="onRollbackVersion"
-        @publishTemplate="onPublishTemplate" />
+        @publishTemplate="onPublishTemplate"
+        @editTemplate="onEditTemplate" />
       <template v-if="isEditProcessPage">
         <!-- 子流程更新提示 -->
         <SubflowUpdateTips
@@ -369,6 +370,8 @@
         isEnableVersionManage: false,
         tplInfoAndVarChange: false, // 全局变量和基础信息发生变化
         isAtPublish: false,
+        draftInfo: {},
+        isManualVersionChange: true,
       };
     },
     computed: {
@@ -514,22 +517,6 @@
       this.resetTemplateData();
       this.hideGuideTips();
     },
-    async beforeRouteUpdate(to, from, next) {
-      if (this.isEnableVersionManage) {
-        if (to.params.type === 'edit') {
-          if (from.params.type === 'view') {
-            this.compVersion = null;
-          }
-          this.getDraftPipelineTree();
-          setTimeout(() => {
-            this.onRefreshVersionList();
-          }, 1000);
-          next();
-          return;
-        }
-      }
-      next();
-    },
     methods: {
       ...mapActions([
         'updateToken',
@@ -596,13 +583,17 @@
         'loadTaskScheme',
         'saveTaskSchemList',
       ]),
-      async getDraftPipelineTree() {
+      async getDraftPipelineTree(isNeedRefresh = false) {
         const draftTplData = await this.getDraftVersionData({
             templateId: this.templateId,
             common: this.common,
             space_id: this.spaceId,
         });
-        this.lastedPipelineTree = draftTplData.data.pipeline_tree;
+        const { pipeline_tree: pipelineTree, ...draftInfo } = draftTplData.data;
+        if (isNeedRefresh) {
+          this.onRefreshVersionList(draftInfo);
+        }
+        this.lastedPipelineTree = pipelineTree;
         this.compVersion = null;
         this.setPipelineTree(draftTplData.data.pipeline_tree);
         this.isChangeTplVersionTime = new Date().getTime();
@@ -975,27 +966,18 @@
             if (this.initType === 'view') {
               if (this.isEnableVersionManage) {
                 this.getDraftPipelineTree();
-                // this.$router.replace({
-                //   name: 'templatePanel',
-                //   params: { type: 'edit'},
-                //   query: Object.assign({ templateId: data.id }, this.$route.query),
-                // });
               } else {
                 this.$router.back();
                 this.initData();
               }
             } else {
               // 开启模板管理状态下跳转编辑态
-              // if (this.isEnableVersionManage) {
-              //   console.log('dia')
-              // } else {
               this.$router.replace({
                 name: 'templatePanel',
                 params: { type: this.isEnableVersionManage ? 'edit' : 'view' },
                 query: Object.assign({ templateId: data.id }, this.$route.query),
               });
               this.initType = this.isEnableVersionManage ? 'edit' : 'view';
-              // }
             }
           }
         } catch (e) {
@@ -2237,8 +2219,10 @@
         this.isShowVersionList = true;
       },
       async onSelectVersionChange(version, isDraftVersion, isLaterVersion, needToProhibitEdit) {
-        if (isDraftVersion && !this.isAtPublish) {
-          this.getDraftPipelineTree();
+        if (this.isManualVersionChange && isDraftVersion && !this.isAtPublish) {
+          this.isManualVersionChange = false;
+          await this.getDraftPipelineTree();
+          this.isManualVersionChange = true;
         } else if (version) {
           const previewData = await this.gerTemplatePreviewData({
             templateId: this.templateId,
@@ -2252,34 +2236,35 @@
         // this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
         this.isNeedToProhibitEdit = needToProhibitEdit;
       },
-      onRollbackVersion() {
+      async onRollbackVersion() {
+        await this.getDraftPipelineTree();
         this.onRefreshVersionList();
-        this.getDraftPipelineTree();
       },
-      onEditVersionListItem(value, isHaveDraftVersion) {
-        this.getDraftPipelineTree();
-        if (isHaveDraftVersion) {
-          setTimeout(() => {
-            this.onRefreshVersionList();
-          }, 1000);
-        }
+      async onEditVersionListItem(value, isHaveDraftVersion) {
+        await this.getDraftPipelineTree(isHaveDraftVersion);
       },
       async onPublishTemplate() {
+        try {
           this.isAtPublish = true;
           await this.getTemplateData();
-          setTimeout(() => {
-            this.onRefreshVersionList();
-            this.isAtPublish = false;
-          }, 1000);
+          await this.onRefreshVersionList();
+        } catch (e) {
+          console.error(e);
+        } finally {
+          this.isAtPublish = false;
+        }
+      },
+      async onEditTemplate() {
+        if (this.isEnableVersionManage) {
+          await this.getDraftPipelineTree(true);
+        }
       },
       // 关闭版本列表侧滑
       onCloseVersionListPanel() {
         this.isShowVersionList = false;
       },
-      onRefreshVersionList(isSubflowNodeConfig) {
-        if (!isSubflowNodeConfig) {
-          this.$refs.templateHeader.getVersionList();
-        }
+      onRefreshVersionList(draftInfo) {
+        this.$refs.templateHeader.getVersionList(draftInfo);
       },
       viewAllSubflowVerison(basicInfo) {
         this.subTemplateId = basicInfo.tpl;
