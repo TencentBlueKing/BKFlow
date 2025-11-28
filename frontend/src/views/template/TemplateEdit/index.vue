@@ -2221,8 +2221,13 @@
       async onSelectVersionChange(version, isDraftVersion, isLaterVersion, needToProhibitEdit) {
         if (this.isManualVersionChange && isDraftVersion && !this.isAtPublish) {
           this.isManualVersionChange = false;
-          await this.getDraftPipelineTree();
-          this.isManualVersionChange = true;
+          try {
+            await this.getDraftPipelineTree();
+          } catch (e) {
+            console.error(e);
+          } finally {
+            this.isManualVersionChange = true;
+          }
         } else if (version) {
           const previewData = await this.gerTemplatePreviewData({
             templateId: this.templateId,
