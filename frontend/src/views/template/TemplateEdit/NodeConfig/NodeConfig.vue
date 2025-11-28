@@ -237,7 +237,6 @@
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
   import copy from '@/mixins/copy.js';
   import AccessCredential from './AccessCredential.vue';
-import { async } from '@antv/x6/lib/registry/marker/async';
 
   export default {
     name: 'NodeConfig',
@@ -556,7 +555,13 @@ import { async } from '@antv/x6/lib/registry/marker/async';
           this.inputsRenderConfig = renderConfig;
           await this.getPluginDetail();
           if (this.nodeConfig.component.credentials) {
-            this.updateBasicInfo({ credentials: this.nodeConfig.component.credentials });
+            const backfillData = this.basicInfo.processCredentials.map((item) => {
+              if (this.nodeConfig.component.credentials[item.key]) {
+                item.value = this.nodeConfig.component.credentials[item.key].value;
+              }
+              return item;
+            });
+            this.updateBasicInfo({ credentials: this.nodeConfig.component.credentials, processCredentials: backfillData });
           }
           // api插件json字段展示解析优化
           this.handleJsonValueParse(false, paramsVal);
@@ -682,7 +687,17 @@ import { async } from '@antv/x6/lib/registry/marker/async';
             desc = descList.join('<br>');
           }
           if (Object.prototype.hasOwnProperty.call(resp.data, 'credentials')) {
-            this.updateBasicInfo({ desc, isHaveCredentials: true });
+            const processCredentials = [];
+            resp.data.credentials.forEach((item) => {
+              processCredentials.push({
+                  key: item.key,
+                  hook: false,
+                  need_render: true,
+                  value: '',
+                  description: item.description || '',
+                });
+            });
+            this.updateBasicInfo({ desc, isHaveCredentials: true, processCredentials });
           } else {
             this.updateBasicInfo({ desc });
           }
@@ -1478,7 +1493,7 @@ import { async } from '@antv/x6/lib/registry/marker/async';
       validate() {
         return this.$refs.basicInfo.validate().then(async () => {
           if (this.$refs.accessCredential) {
-            const validations = await Promise.all([this.$refs.accessCredential.validate()]);
+            const validations = await this.$refs.accessCredential.validate();
             if (!validations) {
               return false;
             };
