@@ -44,6 +44,7 @@ class CreateTemplateSerializer(serializers.Serializer):
     source = serializers.CharField(help_text=_("来源"), max_length=32, required=False)
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
+    auto_release = serializers.BooleanField(help_text=_("是否自动发布"), required=False)
 
     def validate(self, attrs):
         scope_type = attrs.get("scope_type")

@@ -48,6 +48,7 @@ from bkflow.template.models import (
 )
 from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.template.utils import send_callback
+from bkflow.utils.version import bump_custom
 
 logger = logging.getLogger("root")
 
@@ -137,7 +138,11 @@ class TemplateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
         username = self.context["request"].user.username
-        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, validated_data["space_id"], username)
+        space_id = validated_data["space_id"]
+        if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+            snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+        else:
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
         validated_data["snapshot_id"] = snapshot.id
         template = super().create(validated_data)
 
@@ -171,7 +176,8 @@ class TemplateSerializer(serializers.ModelSerializer):
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
             instance.update_draft_snapshot(pipeline_tree, username)
         else:
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, instance.space_id, username)
+            current_version = bump_custom(instance.snapshot_version)
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, current_version)
             instance.snapshot_id = snapshot.id
             snapshot.template_id = instance.id
             snapshot.save(update_fields=["template_id"])

@@ -82,20 +82,17 @@ def update_template(request, space_id, template_id):
 
         if pipeline_tree:
             if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-                try:
-                    TemplateSnapshot.objects.get(template_id=template_id, draft=True)
-                    template_version = None
-                except TemplateSnapshot.DoesNotExist:
-                    template_version = template.version
-                template.update_draft_snapshot(pipeline_tree, request.user.username, template_version)
                 if auto_release:
                     release_version = version or bump_custom(template.version)
-                    snapshot = template.release_template(
-                        {"version": release_version, "username": request.user.username}
+                    snapshot = TemplateSnapshot.create_draft_snapshot(
+                        pipeline_tree, request.user.username, release_version
                     )
-                    template.snapshot_id = snapshot.id
+                else:
+                    snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, request.user.username)
+                template.snapshot_id = snapshot.id
             else:
-                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, space_id, request.user.username)
+                current_version = bump_custom(template.snapshot_version)
+                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, request.user.username, current_version)
                 validated_data_dict["snapshot_id"] = snapshot.id
                 snapshot.template_id = template.id
                 snapshot.save(update_fields=["template_id"])
