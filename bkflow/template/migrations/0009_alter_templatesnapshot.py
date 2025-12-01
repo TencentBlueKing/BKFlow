@@ -76,16 +76,6 @@ def add_version_to_snapshots(apps, schema_editor):
             snapshots_by_template[snapshot.template_id] = []
         snapshots_by_template[snapshot.template_id].append(snapshot)
 
-    # 批量获取所有操作记录，按实例ID分组
-    all_operation_records = TemplateOperationRecord.objects.filter(instance_id__in=template_ids).order_by(
-        "instance_id", "operate_date"
-    )
-    records_by_template = {}
-    for record in all_operation_records:
-        if record.instance_id not in records_by_template:
-            records_by_template[record.instance_id] = []
-        records_by_template[record.instance_id].append(record)
-
     # 获取所有模板信息
     templates_by_id = {t.id: t for t in Template.objects.filter(id__in=template_ids)}
 
@@ -96,7 +86,6 @@ def add_version_to_snapshots(apps, schema_editor):
             continue
 
         snapshots = snapshots_by_template.get(template_id, [])
-        operation_records = records_by_template.get(template_id, [])
 
         current_version = "1.0.0"
         for index, snapshot in enumerate(snapshots):
@@ -105,23 +94,13 @@ def add_version_to_snapshots(apps, schema_editor):
             snapshot.version = current_version
             snapshot.draft = False
 
-            if index == 0 and not snapshot.creator:
-                snapshot.creator = template.creator
-                snapshot.operator = template.creator
-            elif index - 1 < len(operation_records) and not snapshot.creator:
-                record = operation_records[index - 1]
-                snapshot.creator = record.operator
-                snapshot.operator = record.operator
-
             snapshots_to_update.append(snapshot)
             modified_snapshot_ids.append(snapshot.id)
             current_version = bump_custom(current_version)
 
         logger.info(f"模板 {template.id} 的 {len(snapshots)} 个快照已分配版本号")
 
-    TemplateSnapshot.objects.bulk_update(
-        snapshots_to_update, ["version", "draft", "creator", "operator", "create_time", "update_time"]
-    )
+    TemplateSnapshot.objects.bulk_update(snapshots_to_update, ["version", "draft"])
 
     # 将修改的快照ID保存到schema_editor的connection中，用于回滚
     if hasattr(schema_editor.connection, "migration_data"):
