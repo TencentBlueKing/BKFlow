@@ -419,6 +419,9 @@
           inputDom && inputDom.focus();
         });
       });
+      if (this.isEnableVersionManage) {
+        this.getVersionList();
+      }
       // 新建、克隆公共流程需要查询创建公共流程权限
       if (this.common) {
         await this.queryCreateCommonTplPerm();
