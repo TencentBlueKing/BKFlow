@@ -321,6 +321,12 @@ class AdminTemplateViewSet(AdminModelViewSet):
         instance = self.get_object()
         ser = TemplateReleaseSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
+        new_version = ser.validated_data["version"]
+        try:
+            bump_custom(new_version)
+        except ValueError as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": f"版本号不符合规范: {str(e)}"})
 
         with transaction.atomic():
             data = {"username": request.user.username, **ser.validated_data}
@@ -333,7 +339,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             operate_type=TemplateOperationType.release.name,
             instance_id=instance.id,
             operator=request.user.username,
-            extra_info={"version": ser.validated_data["version"]},
+            extra_info={"version": new_version},
         )
 
         return Response(data={"template_id": instance.id})

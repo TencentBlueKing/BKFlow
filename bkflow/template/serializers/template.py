@@ -138,8 +138,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
         username = self.context["request"].user.username
-        space_id = validated_data["space_id"]
-        if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+        if SpaceConfig.get_config(space_id=validated_data["space_id"], config_name=FlowVersioning.name) == "true":
             snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
         else:
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")

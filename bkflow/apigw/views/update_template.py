@@ -90,6 +90,8 @@ def update_template(request, space_id, template_id):
                 else:
                     snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, request.user.username)
                 template.snapshot_id = snapshot.id
+                snapshot.template_id = template.id
+                snapshot.save(update_fields=["template_id"])
             else:
                 current_version = bump_custom(template.snapshot_version)
                 snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, request.user.username, current_version)
