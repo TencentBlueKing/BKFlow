@@ -36,7 +36,7 @@
             v-if="!isEmptyParams && !loading"
             :key="renderKey"
             v-model="inputRenderDate"
-            :scheme="renderConfig"
+            :scheme="hiddenBtnRenderconfig"
             :form-option="renderOption"
             :constants="inputConstants" />
           <NoData v-else />
@@ -142,6 +142,9 @@
       },
       variableList() {
         return [...Object.values(this.constants)];
+      },
+      hiddenBtnRenderconfig() {
+        return this.renderConfig.filter(item => item.type !== 'button');
       },
     },
     watch: {
