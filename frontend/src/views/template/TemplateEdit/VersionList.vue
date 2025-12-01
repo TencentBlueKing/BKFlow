@@ -34,7 +34,7 @@
             :width="field.width"
             :show-overflow-tooltip="true"
             :prop="field.id"
-            :fixed="field.id === 'version' && versionList.length > 0 ? 'left' : false ">
+            :fixed="field.id === 'version' ? 'left' : false ">
             <template slot-scope="{ row }">
               <div
                 v-if="field.id === 'version'"
@@ -64,7 +64,7 @@
             label="操作"
             width="220"
             class="version-operation"
-            :fixed="versionList.length > 0 ? 'right' : false ">
+            fixed="right">
             <template slot-scope="props">
               <bk-button
                 v-if="(props.row.isLatestVersion && !isHaveDraftVersion) || props.row.draft"
