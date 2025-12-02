@@ -71,12 +71,14 @@ from bkflow.template.models import (
     Trigger,
 )
 from bkflow.template.permissions import (
+    ScopePermission,
     TemplateMockPermission,
     TemplatePermission,
     TemplateRelatedResourcePermission,
 )
 from bkflow.template.serializers.template import (
     AdminTemplateSerializer,
+    BaseTemplateSerializer,
     DrawPipelineSerializer,
     PreviewTaskTreeSerializer,
     TemplateBatchDeleteSerializer,
@@ -125,12 +127,6 @@ class AdminTemplateViewSet(AdminModelViewSet):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
-        scope_value = request.query_params.get("scope_value")
-        scope_type = request.query_params.get("scope_type")
-        empty_scope = request.query_params.get("empty_scope")
-        if scope_type is None and scope_value is None and empty_scope:
-            queryset = queryset.filter(scope_type__isnull=True, scope_value__isnull=True)
-
         page = self.paginate_queryset(queryset)
 
         serializer = self.get_serializer(page if page is not None else queryset, many=True)
@@ -290,9 +286,30 @@ class AdminTemplateViewSet(AdminModelViewSet):
 class TemplateViewSet(UserModelViewSet):
     queryset = Template.objects.filter(is_deleted=False)
     serializer_class = TemplateSerializer
+    filter_backends = [DjangoFilterBackend]
+    filter_class = TemplateFilterSet
     EDIT_ABOVE_ACTIONS = ["update"]
-    MOCK_ABOVE_ACTIONS = ["preview_task_tree", "create_mock_task"]
-    permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission]
+    MOCK_ABOVE_ACTIONS = ["create_mock_task"]
+    permission_classes = [
+        AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
+    ]
+
+    @action(methods=["GET"], detail=False, url_path="list_template")
+    def list_template(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        scope_value = request.query_params.get("scope_value")
+        scope_type = request.query_params.get("scope_type")
+        empty_scope = request.query_params.get("empty_scope")
+        if scope_type is None and scope_value is None and empty_scope:
+            queryset = queryset.filter(scope_type__isnull=True, scope_value__isnull=True)
+
+        page = self.paginate_queryset(queryset)
+
+        serializer = BaseTemplateSerializer(page if page is not None else queryset, many=True)
+        data = serializer.data
+        if page is not None:
+            return self.get_paginated_response(data)
+        return Response(data)
 
     @record_operation(RecordType.template.name, TemplateOperationType.update.name, TemplateOperationSource.app.name)
     def update(self, request, *args, **kwargs):

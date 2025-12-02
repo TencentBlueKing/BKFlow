@@ -52,7 +52,7 @@ from bkflow.template.utils import send_callback
 logger = logging.getLogger("root")
 
 
-class AdminTemplateSerializer(serializers.ModelSerializer):
+class BaseTemplateSerializer(serializers.ModelSerializer):
     create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
 
@@ -70,9 +70,15 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
             "scope_value",
             "source",
             "is_enabled",
-            "notify_config",
             "version",
             "space_id",
+        )
+
+
+class AdminTemplateSerializer(BaseTemplateSerializer):
+    class Meta(BaseTemplateSerializer.Meta):
+        fields = BaseTemplateSerializer.Meta.fields + (
+            "notify_config",
             "subprocess_info",
         )
 
