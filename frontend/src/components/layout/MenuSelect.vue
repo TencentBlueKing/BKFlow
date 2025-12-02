@@ -309,6 +309,7 @@
           color: #fff;
           background: #a09e21;
           border-radius: 2px;
+          overflow: hidden;
         }
         .space-name {
           flex: 1;
