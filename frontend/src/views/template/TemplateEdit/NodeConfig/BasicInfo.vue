@@ -699,6 +699,9 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
           placement: 'top-start',
         },
         userApi: `${window.MEMBER_SELECTOR_DATA_HOST}/api/c/compapi/v2/usermanage/fs_list_users/`,
+        subflowVersion: '',
+        subVersionSelectValue: '',
+        subVersionlistData: [],
       };
     },
     computed: {
@@ -732,6 +735,7 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
       basicInfo: {
         handler(val) {
           this.formData = tools.deepClone(val);
+          this.subVersionSelectValue = this.basicInfo.version;
           // 如果有执行方案，默认选中<不使用执行方案>
           if (this.schemeList.length && !this.formData.schemeIdList.length) {
             this.formData.schemeIdList = [0];
@@ -1203,4 +1207,51 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
             margin-top: 10px;
         }
     }
+    .select-sub-version-popover-custom{
+    .bk-options-wrapper{
+        max-height: 261px !important;
+    }
+    .option-title{
+       display: flex;
+       align-items: center;
+    }
+    .latest-version{
+        font-size: 10px;
+        color: #14A568;
+        line-height: 16px;
+        background: #E4FAF0;
+        border: 1px solid #A5E0C6;
+        border-radius: 2px;
+        margin-left: 15px;
+        .text{
+            padding: 0px 4px;
+        }
+    }
+    .bottom-view-btn{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px 0;
+      cursor: pointer;
+      .common-icon-box-top-right-corner{
+        margin-right: 8px;
+        margin-top: 3px;
+      }
+    }
+}
+.sub-latest-version{
+  position: absolute;
+  left: 40px;
+  top: 7px;
+  font-size: 10px;
+  color: #14A568;
+  line-height: 16px;
+  background: #E4FAF0;
+  border: 1px solid #A5E0C6;
+  border-radius: 2px;
+  margin-left: 8px;
+  .text{
+      padding: 0px 4px;
+  }
+}
 </style>

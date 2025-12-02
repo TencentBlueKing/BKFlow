@@ -197,6 +197,100 @@
       @onConfirm="handleCreateTaskConfirm"
       @onCancel="handleCreateTaskCancel">
     </SelectProjectModal> -->
+
+    <!-- 回滚版本弹窗 -->
+    <bk-dialog
+      v-model="isShowRollbackDialog"
+      theme="primary"
+      width="480"
+      :mask-close="false"
+      footer-position="center"
+      @confirm="onRollbackVersionConfirm"
+      @cancel="isShowRollbackDialog = false">
+      <div class="rollback-dialog-content">
+        <div class="title">
+          <bk-icon
+            type="exclamation"
+            class="info-icon dialog-icon" />
+          <div class="title-text">
+            {{ $t('确定恢复到此版本？') }}
+          </div>
+        </div>
+        <div class="version-text">
+          <div>{{ $t('版本号:') + ' ' + curSelectVersion }}</div>
+        </div>
+      </div>
+      <div>{{ $t('恢复后，会将当前草稿态的内容恢复至选择的版本') }}</div>
+    </bk-dialog>
+    <!-- 发布弹窗 -->
+    <bk-dialog
+      v-model="isShowPublishDialog"
+      theme="primary"
+      width="480"
+      :mask-close="false"
+      header-position="left"
+      :title="$t('发布流程')"
+      footer-position="right">
+      <div class="publish-dialog-content">
+        <bk-form
+          ref="publishForm"
+          :label-width="200"
+          :model="formData"
+          :rules="publishFormRules"
+          form-type="vertical">
+          <bk-form-item
+            :label="$t('版本号')"
+            :required="true"
+            property="version">
+            <bk-input v-model="formData.version">
+              <template slot="prepend">
+                <div class="group-text">
+                  V
+                </div>
+              </template>
+            </bk-input>
+          </bk-form-item>
+          <bk-form-item
+            :label="$t('版本描述')"
+            property="desc">
+            <bk-input
+              v-model="formData.desc"
+              :placeholder="$t('请输入')"
+              :type="'textarea'"
+              :rows="3"
+              :maxlength="500" />
+          </bk-form-item>
+        </bk-form>
+      </div>
+      <template #footer>
+        <bk-button
+          theme="primary"
+          data-test-id="templateEdit_form_publishCanvas"
+          @click.stop="onPublishConfirm">
+          <div class="send-container">
+            <div class="icon-container">
+              <svg
+                class="bk-icon-publish-tpl"
+                style="fill: #fff;"
+                viewBox="0 0 64 64"
+                version="1.1"
+                xmlns="http://www.w3.org/2000/svg">
+                <g>
+                  <path
+                    fill="#fff"
+                    d="M57.06,8.16,6.56,26.73a2,2,0,0,0-.46,3.51l13.81,9.7L20,52.6A2,2,0,0,0,23.39,54l7-6.73,9.14,6.42a2,2,0,0,0,3-.88L59.6,10.79A2,2,0,0,0,57.06,8.16Zm-9.31,7.69L21.36,36.07l-9.84-6.91ZM24,47.92l0-5.15L27,45Zm.82-9.44,28-21.42L39.76,49Z" />
+                </g>
+              </svg>
+            </div>
+            <span> {{ $t('发布') }}</span>
+          </div>
+        </bk-button>
+        <bk-button
+          @click="isShowPublishDialog = false">
+          {{ $t('取消发布') }}
+        </bk-button>
+      </template>
+    </bk-dialog>
   </div>
 </template>
 <script>
