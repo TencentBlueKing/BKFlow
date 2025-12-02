@@ -294,8 +294,8 @@ class TemplateViewSet(UserModelViewSet):
         AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
     ]
 
-    @action(methods=["GET"], detail=False, url_path="list_subprocess_template")
-    def list_subprocess_template(self, request, *args, **kwargs):
+    @action(methods=["GET"], detail=False, url_path="list_template")
+    def list_template(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         scope_value = request.query_params.get("scope_value")
         scope_type = request.query_params.get("scope_type")

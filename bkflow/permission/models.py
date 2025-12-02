@@ -192,9 +192,21 @@ class Token(models.Model):
         if db_token.resource_id != str(resource_id):
             if resource_type == ResourceType.SCOPE.value:
                 scope_parts = db_token.resource_id.split("_")
-                template_obj = Template.objects.get(id=resource_id)
                 scope_type, scope_value = scope_parts[0], scope_parts[1]
-                return template_obj.scope_type == scope_type and template_obj.scope_value == scope_value
+                try:
+                    resource_obj = Template.objects.get(id=resource_id, space_id=db_token.space_id)
+                    return resource_obj.scope_type == scope_type and resource_obj.scope_value == scope_value
+                except Template.DoesNotExist:
+                    client = TaskComponentClient(space_id=db_token.space_id)
+                    result = client.get_task_detail(resource_id)
+                    if not result.get("result"):
+                        logger.warning(
+                            f"[Token->verify] Failed to get task detail, task_id={resource_id}, "
+                            f"space_id={db_token.space_id}"
+                        )
+                        return False
+                    resource_data = result["data"]
+                    return resource_data["scope_type"] == scope_type and resource_data["scope_value"] == scope_value
             elif resource_type == ResourceType.TEMPLATE.value:
                 return False
             elif not check_parent_task_id(db_token, resource_id):

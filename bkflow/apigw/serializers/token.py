@@ -54,6 +54,9 @@ class TokenResourceValidator:
 
     def scope_exists(self, scope_data):
         try:
+            if "_" not in scope_data or scope_data.count("_") > 1:
+                return False
+
             scope_parts = scope_data.split("_")
             if len(scope_parts) < 2:
                 return False
