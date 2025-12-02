@@ -19,7 +19,7 @@
 
 | 字段      | 类型     | 必选 | 描述                                              |
 |---------|--------|----|-------------------------------------------------|
-| node_id | string | 是  | 节点 ID，可以通过 get_task_detail 或 get_task_states 获取 |
+| template_id | string | 是  | 节点 ID，可以通过 get_task_detail 或 get_task_states 获取 |
 
 ### 返回结果示例
 
@@ -118,9 +118,9 @@
 | space_id         | int      | 流程对应的空间 ID                                                     |
 | name             | string   | 流程名称                                                           |
 | desc             | string   | 流程描述                                                           |
-| notify_config    | dict     | 流程通知配置                                                         | 
-| scope_type       | string   | 流程所属领域类型                                                       |
-| scope_value      | string   | 流程所属领域值                                                        | 
+| notify_config    | dict     | 流程通知配置                                                         |
+| scope_type       | string   | 流程所属作用域类型                                                       |
+| scope_value      | string   | 流程所属作用域值                                                        |
 | pipeline_tree    | dict     | 流程树，当 with_mock_data 传参为 true 时，为精简后的流程树 ｜                     |
 | source           | string   | 流程来源，第三方系统对应的资源 ID ｜                                           |
 | version          | string   | 流程版本号，对应第三方系统对应的资源版本 ｜                                         |
