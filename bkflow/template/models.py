@@ -71,7 +71,10 @@ class TemplateManager(models.Manager):
         # 拷贝流程并替换节点 避免 id 重叠
         with transaction.atomic():
             # 开启事务 确保都创建成功
-            copyed_snapshot = TemplateSnapshot.create_snapshot(copyed_pipeline_tree, space_id, operator)
+            if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+                copyed_snapshot = TemplateSnapshot.create_draft_snapshot(copyed_pipeline_tree, operator)
+            else:
+                copyed_snapshot = TemplateSnapshot.create_snapshot(copyed_pipeline_tree, operator, "1.0.0")
             template.snapshot_id = copyed_snapshot.id
             template.updated_by = operator
             template.creator = operator
@@ -177,6 +180,10 @@ class Template(CommonModel):
         if self.validate_space("true"):
             return self.snapshot.version
         return self.snapshot.md5sum
+
+    @property
+    def snapshot_version(self):
+        return self.snapshot.version
 
     def validate_space(self, target):
         return SpaceConfig.get_config(space_id=self.space_id, config_name=FlowVersioning.name) == target
@@ -291,14 +298,27 @@ class TemplateSnapshot(CommonSnapshot):
         ordering = ["-id"]
 
     @classmethod
-    def create_snapshot(cls, pipeline_tree, space_id, username):
+    def create_snapshot(cls, pipeline_tree, username, version):
+        data = {
+            "data": pipeline_tree,
+            "md5sum": compute_pipeline_md5(pipeline_tree),
+            "creator": username,
+            "operator": username,
+            "version": version,
+        }
+        return cls.objects.create(**data)
+
+    @classmethod
+    def create_draft_snapshot(cls, pipeline_tree, username, version=None):
         data = {
             "data": pipeline_tree,
             "md5sum": compute_pipeline_md5(pipeline_tree),
             "creator": username,
             "operator": username,
         }
-        if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+        if version:
+            data["version"] = version
+        else:
             data["draft"] = True
         return cls.objects.create(**data)
 

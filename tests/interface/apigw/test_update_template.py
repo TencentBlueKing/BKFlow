@@ -59,9 +59,7 @@ class TestUpdateTemplate(TestCase):
     def test_update_template_success(self):
         space = self.create_space()
         pipeline_tree = self.build_pipeline_tree()
-        snapshot = TemplateSnapshot.create_snapshot(
-            pipeline_tree=pipeline_tree, space_id=space.id, username="test_admin"
-        )
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_admin", version="1.0.0")
         template = Template.objects.create(name="测试流程", space_id=space.id, snapshot_id=snapshot.id)
         snapshot.template_id = template.id
         snapshot.save()
@@ -89,9 +87,7 @@ class TestUpdateTemplate(TestCase):
     def test_create_trigger_success(self, mock_create, mock_update):
         space = self.create_space()
         pipeline_tree = self.build_pipeline_tree()
-        snapshot = TemplateSnapshot.create_snapshot(
-            pipeline_tree=pipeline_tree, space_id=space.id, username="test_admin"
-        )
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_admin", version="1.0.0")
         template = Template.objects.create(name="测试流程", space_id=space.id, snapshot_id=snapshot.id, desc="测试流程描述")
         snapshot.template_id = template.id
         snapshot.save()

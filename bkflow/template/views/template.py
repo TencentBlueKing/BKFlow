@@ -53,6 +53,7 @@ from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeli
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.space.configs import (
+    FlowVersioning,
     GatewayExpressionConfig,
     UniformApiConfig,
     UniformAPIConfigHandler,
@@ -171,7 +172,10 @@ class AdminTemplateViewSet(AdminModelViewSet):
         # 涉及到两张表的创建，需要那个开启事物，确保两张表全部都创建成功
         with transaction.atomic():
             username = request.user.username
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, space_id, username)
+            if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+                snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+            else:
+                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
             template = Template.objects.create(
                 **ser.data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
             )
@@ -317,11 +321,12 @@ class AdminTemplateViewSet(AdminModelViewSet):
         instance = self.get_object()
         ser = TemplateReleaseSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-
-        template_version = getattr(instance, "version", None)
-        new_version = bump_custom(template_version) if template_version else "1.0.0"
-        if new_version != ser.validated_data["version"]:
-            return Response(exception=True, data={"detail": "版本号不正确"})
+        new_version = ser.validated_data["version"]
+        try:
+            bump_custom(new_version)
+        except ValueError as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": f"版本号不符合规范: {str(e)}"})
 
         with transaction.atomic():
             data = {"username": request.user.username, **ser.validated_data}
