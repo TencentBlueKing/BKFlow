@@ -32,7 +32,7 @@
             :width="200"
             :show-overflow-tooltip="true"
             prop="version"
-            :fixed=" versionList.length > 0 ? 'left' : false">
+            :fixed=" isNeedFixed ? 'left' : false">
             <template slot-scope="{ row }">
               <div
                 class="table-version-id">
@@ -69,7 +69,7 @@
             label="操作"
             width="220"
             class="version-operation"
-            :fixed=" versionList.length > 0 ? 'right' : false">
+            :fixed=" isNeedFixed ? 'right' : false">
             <template slot-scope="props">
               <bk-button
                 v-if="(props.row.isLatestVersion && !isHaveDraftVersion) || props.row.draft"
@@ -227,6 +227,9 @@
       },
       isSearchEmpty() {
         return !!this.searchValue.length;
+      },
+      isNeedFixed() {
+        return this.versionList.length > 0;
       },
     },
     mounted() {
