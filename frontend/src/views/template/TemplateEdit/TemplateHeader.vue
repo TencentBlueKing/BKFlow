@@ -218,7 +218,7 @@
           </div>
         </div>
         <div class="version-text">
-          <div>{{ $t('版本名称:') + ' ' + curSelectVersion }}</div>
+          <div>{{ $t('版本号:') + ' ' + curSelectVersion }}</div>
         </div>
       </div>
       <div>{{ $t('恢复后，会将当前草稿态的内容恢复至选择的版本') }}</div>

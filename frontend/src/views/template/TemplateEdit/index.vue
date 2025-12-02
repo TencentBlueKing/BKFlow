@@ -65,7 +65,7 @@
         <component
           :is="templateComponentName"
           ref="processCanvas"
-          :key="`${isViewMode}-${isChangeTplVersionTime}`"
+          :key="`${isViewMode}-${isChangeTplVersionTime}-${isNeedToProhibitEdit}`"
           class="canvas-comp-wrapper"
           :editable="isViewMode ? false : !isNeedToProhibitEdit"
           :show-palette="isViewMode ? false : !isNeedToProhibitEdit"
