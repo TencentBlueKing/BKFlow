@@ -27,7 +27,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.serializers.template import CreateTemplateSerializer
+from bkflow.apigw.serializers.template import CreateTemplateApigwSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.space.configs import FlowVersioning
@@ -61,7 +61,7 @@ def create_template(request, space_id):
 
     data = json.loads(request.body)
 
-    ser = CreateTemplateSerializer(data=data, context={"space_id": int(space_id), "request": request})
+    ser = CreateTemplateApigwSerializer(data=data, context={"space_id": int(space_id), "request": request})
     ser.is_valid(raise_exception=True)
 
     validate_data = dict(ser.data)

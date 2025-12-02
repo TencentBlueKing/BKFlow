@@ -44,7 +44,6 @@ class CreateTemplateSerializer(serializers.Serializer):
     source = serializers.CharField(help_text=_("来源"), max_length=32, required=False)
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
-    auto_release = serializers.BooleanField(help_text=_("是否自动发布"), required=False, default=False)
 
     def validate(self, attrs):
         scope_type = attrs.get("scope_type")
@@ -79,6 +78,10 @@ class CreateTemplateSerializer(serializers.Serializer):
             raise serializers.ValidationError(_("网关用户和creator都为空，请检查"))
 
         return attrs
+
+
+class CreateTemplateApigwSerializer(CreateTemplateSerializer):
+    auto_release = serializers.BooleanField(help_text=_("是否自动发布"), required=False, default=False)
 
 
 class DeleteTemplateSerializer(serializers.Serializer):
