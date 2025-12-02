@@ -21,6 +21,7 @@
           :search-list="searchList"
           @change="handleSearchValueChange" />
         <bk-table
+          :key="tableKey"
           :data="versionList"
           :pagination="pagination"
           :max-height="tableMaxHeight"
@@ -230,6 +231,9 @@
       },
       isNeedFixed() {
         return this.versionList.length > 0;
+      },
+      tableKey() {
+        return `table-${this.isNeedFixed}`;
       },
     },
     mounted() {
