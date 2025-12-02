@@ -21,6 +21,7 @@
           :search-list="searchList"
           @change="handleSearchValueChange" />
         <bk-table
+          :key="tableKey"
           :data="versionList"
           :pagination="pagination"
           :max-height="tableMaxHeight"
@@ -28,16 +29,13 @@
           @page-change="handlePageChange"
           @page-limit-change="handlePageLimitChange">
           <bk-table-column
-            v-for="field in tableFileds"
-            :key="field.id"
-            :label="field.label"
-            :width="field.width"
+            :label="$t('版本号')"
+            :width="200"
             :show-overflow-tooltip="true"
-            :prop="field.id"
-            :fixed="field.id === 'version' ? 'left' : false ">
+            prop="version"
+            :fixed=" isNeedFixed ? 'left' : false">
             <template slot-scope="{ row }">
               <div
-                v-if="field.id === 'version'"
                 class="table-version-id">
                 <span>{{ row.version || row.desc || '--' }}</span>
                 <div
@@ -55,16 +53,24 @@
                   </div>
                 </div>
               </div>
-              <span
-                v-else
-                class="table-cell">{{ row[field.id] || '--' }}</span>
+            </template>
+          </bk-table-column>
+          <bk-table-column
+            v-for="field in tableFileds"
+            :key="field.id"
+            :label="field.label"
+            :width="field.width"
+            :show-overflow-tooltip="true"
+            :prop="field.id">
+            <template slot-scope="{ row }">
+              <span class="table-cell">{{ row[field.id] || '--' }}</span>
             </template>
           </bk-table-column>
           <bk-table-column
             label="操作"
             width="220"
             class="version-operation"
-            fixed="right">
+            :fixed=" isNeedFixed ? 'right' : false">
             <template slot-scope="props">
               <bk-button
                 v-if="(props.row.isLatestVersion && !isHaveDraftVersion) || props.row.draft"
@@ -98,6 +104,14 @@
               </bk-button>
             </template>
           </bk-table-column>
+          <div
+            slot="empty"
+            class="empty-data">
+            <NoData
+              :type="isSearchEmpty ? 'search-empty' : 'empty'"
+              :message="isSearchEmpty ? $t('搜索结果为空') : ''"
+              @searchClear="updateSearchSelect" />
+          </div>
         </bk-table>
       </template>
     </bk-sideslider>
@@ -129,11 +143,13 @@
 <script>
   import i18n from '@/config/i18n/index.js';
   import SearchSelect from '@/components/common/searchSelect/index.vue';
+  import NoData from '@/components/common/base/NoData.vue';
   import { mapActions } from 'vuex';
   export default {
     name: 'VersionList',
     components: {
       SearchSelect,
+      NoData,
     },
     props: {
       isShow: {
@@ -160,11 +176,6 @@
     data() {
       return {
         tableFileds: [
-            {
-                id: 'version',
-                label: i18n.t('版本号'),
-                width: 200,
-            },
             {
                 id: 'desc',
                 label: i18n.t('版本描述'),
@@ -214,6 +225,15 @@
       },
       isHaveDraftVersion() {
         return this.versionList.some(item => item.draft);
+      },
+      isSearchEmpty() {
+        return this.searchValue.length > 0;
+      },
+      isNeedFixed() {
+        return this.versionList.length > 0;
+      },
+      tableKey() {
+        return `table-${this.isNeedFixed}`;
       },
     },
     mounted() {
@@ -274,6 +294,9 @@
           return acc;
         }, {});
         this.getVersionList(data);
+      },
+      updateSearchSelect() {
+        this.searchValue = [];
       },
       editVersionItem(row) {
         // 跳转到编辑态
@@ -408,6 +431,11 @@
   .bk-dialog-wrapper .bk-dialog-footer {
     padding: 4px 24px 28px 24px;
     border-radius: 2px;
+  }
+}
+.version-table{
+  .bk-table-empty-block {
+    height: 223px;
   }
 }
 </style>
