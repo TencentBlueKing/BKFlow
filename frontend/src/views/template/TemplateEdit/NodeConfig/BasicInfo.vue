@@ -694,7 +694,7 @@
         },
         userApi: `${window.MEMBER_SELECTOR_DATA_HOST}/api/c/compapi/v2/usermanage/fs_list_users/`,
         subflowVersion: '',
-        subVersionSelectValue: this.basicInfo.version,
+        subVersionSelectValue: '',
         subVersionlistData: [],
       };
     },
@@ -729,6 +729,7 @@
       basicInfo: {
         handler(val) {
           this.formData = tools.deepClone(val);
+          this.subVersionSelectValue = this.basicInfo.version;
           // 如果有执行方案，默认选中<不使用执行方案>
           if (this.schemeList.length && !this.formData.schemeIdList.length) {
             this.formData.schemeIdList = [0];
@@ -1221,7 +1222,7 @@
         background: #E4FAF0;
         border: 1px solid #A5E0C6;
         border-radius: 2px;
-        margin-left: 8px;
+        margin-left: 15px;
         .text{
             padding: 0px 4px;
         }
