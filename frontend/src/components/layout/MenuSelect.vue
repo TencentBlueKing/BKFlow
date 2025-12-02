@@ -318,6 +318,11 @@
           text-overflow: ellipsis;
         }
       }
+      ::v-deep .tippy-popper{
+        .tippy-content{
+          padding: 0 !important;
+        }
+      }
     }
     &::after {
       content: '';
