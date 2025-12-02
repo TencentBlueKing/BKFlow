@@ -232,7 +232,7 @@
         return this.versionList.some(item => item.draft);
       },
       isSearchEmpty() {
-        return !!this.searchValue.length;
+        return this.searchValue.length > 0;
       },
       isNeedFixed() {
         return this.versionList.length > 0;
