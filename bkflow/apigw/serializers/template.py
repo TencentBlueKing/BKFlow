@@ -110,6 +110,12 @@ class UpdateTemplateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         operator = attrs.get("operator")
+        scope_type = attrs.get("scope_type")
+        scope_value = attrs.get("scope_value")
+
+        if (scope_type is not None) != (scope_value is not None):
+            raise serializers.ValidationError(_("作用域类型和作用域值必须同时填写，或同时不填写"))
+
         if not operator and not self.context.get("request").user.username:
             raise serializers.ValidationError(_("网关用户和operator都为空，请检查"))
 
