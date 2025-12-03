@@ -24,8 +24,8 @@
   </div>
 </template>
 <script>
-  import '@/utils/i18n.js'
-  import { getFormMixins } from '../formMixins.js'
+  import '@/utils/i18n.js';
+  import { getFormMixins } from '../formMixins.js';
 
   export const attrs = {
     title: {
@@ -71,16 +71,16 @@
       default: false,
       desc: 'text button',
     },
-  }
+  };
   export default {
     name: 'TagButton',
     mixins: [getFormMixins(attrs)],
     methods: {
-      onClick () {
-        this.emit_event(this.tagCode, 'click', this.value)
+      onClick() {
+        this.emit_event(this.tagCode, 'click', this.value);
       },
     },
-  }
+  };
 </script>
 <style lang="scss" scoped>
     .tag-button {

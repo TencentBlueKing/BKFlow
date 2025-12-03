@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
+import json
 import logging
 
 import curlify
@@ -102,7 +101,7 @@ def _http_request(
         else:
             return {"result": False, "message": "Unsupported http method %s" % method}
     except Exception as e:
-        logger.exception("Error occurred when requesting method=%s url=%s" % (method, url))
+        logger.exception("Error occurred when requesting method={} url={}".format(method, url))
         return {"result": False, "message": "Request API error, exception: %s" % str(e)}
     else:
         if not resp.ok:
@@ -111,7 +110,7 @@ def _http_request(
             except Exception:
                 resp_message = resp.content
             message = "Request API error, status_code: {}, url: {}, method: {}, data:{}, resp data: {}".format(
-                resp.status_code, url, method, data, resp_message
+                resp.status_code, url, method, json.dumps(data), resp_message
             )
 
             return {"result": False, "message": message}

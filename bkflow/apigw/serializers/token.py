@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -53,8 +52,24 @@ class TokenResourceValidator:
     def template_exists(self, template_id):
         return Template.exists(template_id)
 
+    def scope_exists(self, scope_data):
+        try:
+            if "_" not in scope_data or scope_data.count("_") > 1:
+                return False
+
+            scope_parts = scope_data.split("_")
+            if len(scope_parts) < 2:
+                return False
+
+            scope_type, scope_value = scope_parts[0], scope_parts[1]
+            return Template.objects.filter(
+                space_id=self.space_id, scope_type=scope_type, scope_value=scope_value
+            ).exists()
+        except (ValueError, IndexError):
+            return False
+
     def validate(self):
-        resource_map = {"TEMPLATE": self.template_exists, "TASK": self.task_exists}
+        resource_map = {"TEMPLATE": self.template_exists, "TASK": self.task_exists, "SCOPE": self.scope_exists}
 
         is_exists_func = resource_map.get(self.resource_type, None)
         if is_exists_func is None:

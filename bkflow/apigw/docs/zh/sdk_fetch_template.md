@@ -9,6 +9,12 @@
 | bk_app_code   | string | 是  | 应用ID(app id)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取     |
 | bk_app_secret | string | 是  | 安全秘钥(app secret)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取 |
 
+### HTTP Header 参数说明
+
+| 参数名称          | 参数类型   | 必须 | 参数说明                                                       |
+|---------------|--------|----|------------------------------------------------------------|
+| HTTP_BKFLOW_TOKEN | string | 是  | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 接口申请。该 token 用于验证用户对指定模板的查看权限 |
+
 ### 路径参数
 
 | 字段         | 类型     | 必选 | 描述    |
@@ -79,8 +85,8 @@ GET /sdk/template/{template_id}/?with_mock_data=false
 | name          | string | 流程名称                  |
 | desc          | string | 流程描述                  |
 | notify_config | dict   | 流程通知配置                |
-| scope_type    | string | 流程所属领域类型              |
-| scope_value   | string | 流程所属领域值               |
+| scope_type    | string | 流程所属作用域类型              |
+| scope_value   | string | 流程所属作用域值               |
 | pipeline_tree | dict   | 流程树详情                 |
 | source        | string | 流程来源                  |
 | version       | string | 流程版本号                 |

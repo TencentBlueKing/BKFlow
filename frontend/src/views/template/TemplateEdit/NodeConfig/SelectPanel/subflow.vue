@@ -125,11 +125,11 @@
       const { maxHeight } = window.getComputedStyle(listWrapEl);
 
       // 计算出每页加载的条数
-      // 规则为容器高度除以每条的高度，考虑到后续可能需要触发容器滚动事件，在实际可容纳的条数上再增加1条
+      // 规则为容器高度除以每条的高度，考虑到后续可能需要触发容器滚动事件，在实际可容纳的条数上再增加3条
       // @notice: 每个流程条目的高度需要固定，目前取的css定义的高度40px
       if (maxHeight) {
         const height = Number(maxHeight.replace('px', ''));
-        this.limit = Math.ceil(height / 40) + 1;
+        this.limit = Math.ceil(height / 40) + 3;
       }
       this.getTplList();
     },
