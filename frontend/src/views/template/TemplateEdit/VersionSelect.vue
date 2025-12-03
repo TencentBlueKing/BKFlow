@@ -282,7 +282,7 @@ export default {
         background: #E4FAF0;
         border: 1px solid #A5E0C6;
         border-radius: 2px;
-        margin-left: 8px;
+        margin-left: 15px;
         .text{
             padding: 0px 4px;
         }
