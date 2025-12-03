@@ -21,7 +21,6 @@ const tableCommon = {
       ordering: '',
       requestData: {},
       searchValue: [],
-      tableKey: 0,
     };
   },
   computed: {
@@ -92,8 +91,6 @@ const tableCommon = {
         fieldList: fieldIds,
         size,
       }));
-      // 强制重新渲染表格以解决固定列层级问题
-      this.tableKey += 1;
     },
     handleSearchSelectChange(val) {
       this.requestData = val;
