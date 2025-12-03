@@ -153,6 +153,7 @@
             name__icontains: this.searchStr,
             ...this.scopeInfo, // 作用域
             empty_scope: 1,
+            isSelectSubTemplate: true,
           };
           const resp = await this.$store.dispatch('templateList/loadTemplateList', data);
           const result = [];
