@@ -867,6 +867,28 @@
         }
         return false;
       },
+      // 处理保存后的页面跳转逻辑
+      handleSaveRedirect(templateId) {
+        // 如果开启版本管理，直接刷新草稿数据
+        if (this.isEnableVersionManage) {
+          this.getDraftPipelineTree();
+          return;
+        }
+        // 保存后需要切到查看模式(查看执行方案时不需要)
+        if (this.initType === 'view') {
+          // 从查看模式进入编辑，保存后返回上一页
+          this.$router.back();
+          this.initData();
+        } else {
+          // 从编辑模式保存，跳转到查看模式
+          this.$router.replace({
+            name: 'templatePanel',
+            params: { type: 'view' },
+            query: Object.assign({ templateId }, this.$route.query),
+          });
+          this.initType = 'view';
+        }
+      },
       /**
        * 保存流程模板
        */
@@ -952,24 +974,11 @@
               query: Object.assign({}, this.$router.query),
             });
           } else if (this.createTaskSaving) {
+            // 保存并创建任务，跳转到任务创建页面
             this.goToTaskUrl(data.id);
-          } else { // 保存后需要切到查看模式(查看执行方案时不需要)
-            if (this.initType === 'view') {
-              if (this.isEnableVersionManage) {
-                this.getDraftPipelineTree();
-              } else {
-                this.$router.back();
-                this.initData();
-              }
-            } else {
-              // 开启模板管理状态下跳转编辑态
-              this.$router.replace({
-                name: 'templatePanel',
-                params: { type: 'view' },
-                query: Object.assign({ templateId: data.id }, this.$route.query),
-              });
-              this.initType = this.isEnableVersionManage ? 'edit' : 'view';
-            }
+          } else {
+            // 普通保存，处理页面跳转逻辑
+            this.handleSaveRedirect(data.id);
           }
         } catch (e) {
           console.log(e);
