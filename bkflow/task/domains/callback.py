@@ -27,16 +27,18 @@ from django.core.exceptions import ValidationError
 from pipeline.eri.models import Schedule as DBSchedule
 from pipeline.eri.runtime import BambooDjangoRuntime
 
-from bkflow.task.models import TaskFlowRelation
+from bkflow.contrib.api.collections.interface import InterfaceModuleClient
+from bkflow.task.models import TaskInstance
+from bkflow.task.utils import count_running_tasks, push_task_to_queue
 from bkflow.utils.redis_lock import redis_lock
 
 logger = logging.getLogger("root")
 
 
 class TaskCallBacker:
-    def __init__(self, task_id, *args, **kwargs):
+    def __init__(self, task_id, task_relate, *args, **kwargs):
         self.task_id = task_id
-        self.task_relate = TaskFlowRelation.objects.filter(task_id=self.task_id).first()
+        self.task_relate = task_relate
         self.extra_info = {"task_id": self.task_id, **self.task_relate.extra_info, **kwargs}
 
     def check_record_existence(self):
@@ -67,6 +69,20 @@ class TaskCallBacker:
                     # FAILED 状态需要转换为 READY 之后才能转换为 RUNNING
                     runtime.set_state(node_id=node_id, version=version, to_state=states.READY)
                     runtime.set_state(node_id=node_id, version=version, to_state=states.RUNNING)
+
+                parent_task_id = self.extra_info["parent_task_id"]
+                parent_task = TaskInstance.objects.filter(id=parent_task_id).first()
+
+                interface_client = InterfaceModuleClient()
+                space_infos_result = interface_client.get_space_infos(
+                    {"space_id": parent_task.space_id, "config_names": "concurrency_control"}
+                )
+                space_configs = space_infos_result.get("data", {}).get("configs", {})
+                concurrency_control = space_configs.get("concurrency_control", 0)
+
+                if concurrency_control and count_running_tasks(parent_task) > int(concurrency_control):
+                    push_task_to_queue(settings.redis_inst, parent_task, "callback")
+                    return True
 
                 bamboo_engine_api.callback(runtime=runtime, node_id=node_id, version=version, data=self.extra_info)
 
