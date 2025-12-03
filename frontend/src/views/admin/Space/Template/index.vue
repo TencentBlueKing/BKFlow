@@ -21,6 +21,7 @@
       </bk-button>
     </table-operate>
     <bk-table
+      :key="tableKey"
       v-bkloading="{ isLoading: listLoading }"
       :data="templateList"
       :pagination="pagination"

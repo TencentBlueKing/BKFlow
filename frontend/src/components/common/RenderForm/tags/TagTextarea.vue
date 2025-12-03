@@ -25,7 +25,8 @@
       <transition>
         <div
           v-show="showVarList && isListOpen"
-          class="rf-select-list">
+          class="rf-select-list"
+          :style="{ top: selectListTop + 'px' }">
           <ul class="rf-select-content">
             <li
               v-for="item in varList"
@@ -87,6 +88,13 @@
         },
       },
     },
+    data() {
+      return {
+        isListOpen: false,
+        varList: [],
+        textareaHeight: 40, // 默认高度
+      };
+    },
     computed: {
       ...mapState({
         internalVariable: state => state.template.internalVariable,
@@ -117,6 +125,10 @@
           this.updateForm(val);
         },
       },
+      // 动态计算下拉列表的位置，基于文本框的实际高度
+      selectListTop() {
+        return this.textareaHeight + 2;
+      },
     },
     watch: {
       formMode() {
@@ -126,16 +138,35 @@
          */
         this.$nextTick(() => {
           this.$refs.tagTextarea.resizeTextarea();
+          this.updateTextareaHeight();
         });
+      },
+      textareaValue() {
+        // 当文本内容变化时，更新高度
+        this.updateTextareaHeight();
       },
     },
     created() {
       window.addEventListener('click', this.handleListShow, false);
     },
+    mounted() {
+      this.updateTextareaHeight();
+    },
     beforeDestroy() {
       window.removeEventListener('click', this.handleListShow, false);
     },
     methods: {
+      // 获取文本框的实际高度
+      updateTextareaHeight() {
+        this.$nextTick(() => {
+          if (this.$refs.tagTextarea && this.$refs.tagTextarea.$el) {
+            const textareaEl = this.$refs.tagTextarea.$el.querySelector('.el-textarea__inner');
+            if (textareaEl) {
+              this.textareaHeight = textareaEl.offsetHeight;
+            }
+          }
+        });
+      },
       handleListShow(e) {
         if (!this.isListOpen) {
           return;
@@ -146,6 +177,7 @@
         }
       },
       onInput(val) {
+        this.updateTextareaHeight();
         const matchResult = val.match(VAR_REG);
         if (matchResult && matchResult[0]) {
           const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&');
@@ -178,7 +210,6 @@
         position: relative;
         .rf-select-list {
             position: absolute;
-            top: 40px;
             right: 0;
             width: 100%;
             background: #ffffff;

@@ -17,6 +17,7 @@
     <template v-if="!adminView">
       <SpecialPluginInputForm
         v-if="isSpecialPlugin && !isShowInputOrigin"
+        :key="inputRandomKey"
         :value="inputs"
         :code="pluginCode"
         :space-id="spaceId"
@@ -130,6 +131,7 @@
         renderKey: null,
         inputConstants: {},
         inputRenderDate: {},
+        inputRandomKey: '',
       };
     },
     computed: {
@@ -148,6 +150,9 @@
       inputs: {
         handler(val) {
           this.inputsInfo = tools.deepClone(val);
+          if (this.pluginCode === 'dmn_plugin') {
+            this.inputRandomKey = new Date().getTime();
+          }
         },
         immediate: true,
       },
