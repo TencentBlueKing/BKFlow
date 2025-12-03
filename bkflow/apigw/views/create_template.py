@@ -79,7 +79,7 @@ def create_template(request, space_id):
     # 涉及到两张表的创建，需要那个开启事物，确保两张表全部都创建成功
     with transaction.atomic():
         username = validate_data.pop("creator", "") or request.user.username
-        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, space_id, username)
         template = Template.objects.create(
             **validate_data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
         )
