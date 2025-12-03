@@ -181,7 +181,10 @@ class TemplateSerializer(serializers.ModelSerializer):
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
             instance.update_draft_snapshot(pipeline_tree, username)
         else:
-            current_version = bump_custom(instance.snapshot_version)
+            if instance.snapshot_version is None:
+                current_version = "1.0.0"
+            else:
+                current_version = bump_custom(instance.snapshot_version)
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, current_version)
             instance.snapshot_id = snapshot.id
             snapshot.template_id = instance.id
@@ -334,4 +337,15 @@ class TemplateSnapshotSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TemplateSnapshot
-        fields = ["id", "create_time", "update_time", "version", "template_id", "desc", "draft", "creator", "operator"]
+        fields = [
+            "id",
+            "create_time",
+            "update_time",
+            "version",
+            "template_id",
+            "desc",
+            "draft",
+            "creator",
+            "operator",
+            "md5sum",
+        ]

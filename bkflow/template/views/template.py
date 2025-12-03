@@ -47,6 +47,7 @@ from bkflow.constants import (
 )
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.decorators import record_operation
+from bkflow.decision_table.models import DecisionTable
 from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
@@ -237,6 +238,12 @@ class AdminTemplateViewSet(AdminModelViewSet):
         is_full = ser.validated_data["is_full"]
         template_ids = ser.validated_data["template_ids"]
 
+        decision_obj = DecisionTable.objects.filter(template_id__in=template_ids)
+        if decision_obj.exists():
+            decision_template_ids = list(decision_obj.values_list("template_id", flat=True))
+            decision_template_ids_str = [str(template_id) for template_id in decision_template_ids]
+            return Response(exception=True, data={"detail": f"模版 {','.join(decision_template_ids_str)} 被决策表引用，无法删除"})
+
         template_references = TemplateReference.objects.filter(subprocess_template_id__in=template_ids)
         root_template_ids = list(template_references.values_list("root_template_id", flat=True))
         if root_template_ids:
@@ -318,8 +325,10 @@ class AdminTemplateViewSet(AdminModelViewSet):
         ser = TemplateReleaseSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         new_version = ser.validated_data["version"]
+        if TemplateSnapshot.objects.filter(template_id=instance.id, version=new_version).exists():
+            return Response(exception=True, data={"detail": "版本已存在"})
         try:
-            bump_custom(new_version)
+            bump_custom(new_version, instance.version)
         except ValueError as e:
             logger.error(str(e))
             return Response(exception=True, data={"detail": f"版本号不符合规范: {str(e)}"})
@@ -420,6 +429,7 @@ class TemplateViewSet(UserModelViewSet):
     filter_class = TemplateFilterSet
     EDIT_ABOVE_ACTIONS = ["update"]
     MOCK_ABOVE_ACTIONS = ["create_mock_task"]
+    pagination_class = BKFLOWNoMaxLimitPagination
     permission_classes = [
         AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
     ]
@@ -430,8 +440,17 @@ class TemplateViewSet(UserModelViewSet):
         scope_value = request.query_params.get("scope_value")
         scope_type = request.query_params.get("scope_type")
         empty_scope = request.query_params.get("empty_scope")
+        space_id = request.query_params.get("space_id")
+
         if scope_type is None and scope_value is None and empty_scope:
             queryset = queryset.filter(scope_type__isnull=True, scope_value__isnull=True)
+
+        if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+            template_snapshot_ids = list(queryset.values_list("snapshot_id", flat=True))
+            draft_snapshot_ids = list(
+                TemplateSnapshot.objects.filter(id__in=template_snapshot_ids, draft=False).values_list("id", flat=True)
+            )
+            queryset = queryset.filter(snapshot_id__in=draft_snapshot_ids)
 
         page = self.paginate_queryset(queryset)
 
