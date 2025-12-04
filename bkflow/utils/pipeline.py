@@ -345,14 +345,16 @@ DEFAULT_STAGE_PIPELINE_TREE = {
                     "id": "nodea995a2776eb4fc455df9ca64777f",
                     "name": "Job-1",
                     "config": [],
-                    "nodes": [{
-                        "id": "nodec4b13c772ce97fc184a2612247cc",
-                        "type": "Node",
-                        "option": {
+                    "nodes": [
+                        {
                             "id": "nodec4b13c772ce97fc184a2612247cc",
-                            "nodeType": "Node",
+                            "type": "Node",
+                            "option": {
+                                "id": "nodec4b13c772ce97fc184a2612247cc",
+                                "nodeType": "Node",
+                            },
                         }
-                    }],
+                    ],
                     "type": "Job",
                 }
             ],
@@ -428,3 +430,17 @@ def _recursive_replace_id_without_subprocess(pipeline_data, subprocess_id=None):
     pipeline_id = subprocess_id or pipeline_data[PE.id]
     node_map[pipeline_id] = replace_result_map
     return node_map
+
+
+def replace_subprocess_version(pipeline_tree: dict, space_id) -> dict:
+    from bkflow.template.models import TemplateSnapshot
+
+    for key, value in pipeline_tree["activities"].items():
+        if not value["type"] == "SubProcess":
+            continue
+        # 只有在开启了版本控制后，存量空间中的子流程数据版本需要从md5sum转换为version
+        if len(value["version"]) == 32:
+            version = TemplateSnapshot.objects.get(md5sum=value["version"]).version
+            value["version"] = version
+
+    return pipeline_tree

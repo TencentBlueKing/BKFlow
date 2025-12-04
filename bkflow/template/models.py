@@ -205,6 +205,9 @@ class Template(CommonModel):
         }
 
         for item in subprocess_info:
+            if self.validate_space("true") and len(item["version"]) == 32:
+                version = TemplateSnapshot.objects.get(md5sum=item["version"]).version
+                item["version"] = version
             item["expired"] = (
                 False
                 if item["version"] is None
