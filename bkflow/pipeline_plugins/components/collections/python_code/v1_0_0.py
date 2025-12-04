@@ -19,7 +19,6 @@ to the current version of the project delivered to anyone in the future.
 import re
 import signal
 import sys
-import traceback
 from io import StringIO
 from typing import Any, Dict
 
@@ -283,7 +282,8 @@ class PythonCodeExecutor:
             # 编译代码
             byte_code = compile_restricted(code, filename="<inline>", mode="exec")
 
-            if byte_code.errors:
+            # RestrictedPython 8.1: 检查返回对象是否有 errors 属性
+            if hasattr(byte_code, "errors") and byte_code.errors:
                 error_msgs = "\n".join(byte_code.errors)
                 return False, None, f"代码编译错误: {error_msgs}"
 
@@ -317,7 +317,9 @@ class PythonCodeExecutor:
                 sys.stderr = stderr_capture
 
                 # 执行代码（定义main函数）
-                exec(byte_code.code, safe_globals, safe_locals)
+                # RestrictedPython 8.1: byte_code 可能是 code 对象本身，也可能是包装对象
+                code_to_exec = byte_code.code if hasattr(byte_code, "code") else byte_code
+                exec(code_to_exec, safe_globals, safe_locals)
 
                 # 恢复输出
                 sys.stdout = old_stdout
@@ -349,8 +351,8 @@ class PythonCodeExecutor:
             except TimeoutError:
                 return False, None, f"代码编译超时（{exec_timeout}秒）"
             except Exception as e:
-                error_trace = traceback.format_exc()
-                return False, None, f"编译错误: {str(e)}\n{error_trace}"
+                # 只返回错误消息，不包含调用栈信息（安全考虑）
+                return False, None, f"编译错误: {str(e)}"
             finally:
                 # 恢复内存限制
                 if HAS_RESOURCE and "old_memory_limit" in locals() and old_memory_limit:
@@ -448,8 +450,8 @@ class PythonCodeExecutor:
             except TimeoutError:
                 return False, None, f"main函数执行超时（{exec_timeout}秒）"
             except Exception as e:
-                error_trace = traceback.format_exc()
-                return False, None, f"执行错误: {str(e)}\n{error_trace}"
+                # 只返回错误消息，不包含调用栈信息（安全考虑）
+                return False, None, f"执行错误: {str(e)}"
             finally:
                 # 恢复内存限制
                 if HAS_RESOURCE and old_memory_limit:
