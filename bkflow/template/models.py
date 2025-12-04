@@ -209,7 +209,7 @@ class Template(CommonModel):
 
         md5_to_version_map = {}
         if md5sums_to_query:
-            snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sums_to_query).order_by("id")
+            snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sums_to_query, draft=False).order_by("id")
             md5_to_version_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
 
         for item in subprocess_info:
