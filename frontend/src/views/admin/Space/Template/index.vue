@@ -250,6 +250,10 @@
             </bk-table>
           </div>
         </div>
+        <div
+          v-else-if="delTplErrorMessage"
+          class="tpl-error-message"
+          v-text="delTplErrorMessage" />
       </div>
     </bk-dialog>
   </div>
@@ -389,6 +393,7 @@
         isSelectCopySubflow: false,
         copyTemplateId: null,
         referencedProcessList: [], // 引用的流程列表
+        delTplErrorMessage: '',
       };
     },
     computed: {
@@ -597,6 +602,7 @@
           width: 450,
           confirmLoading: true,
           confirmFn: async () => {
+            this.delTplErrorMessage = '';
             await this.batchDeleteConfirm();
           },
         });
@@ -622,6 +628,7 @@
           if (res.data.sub_root_map) {
             this.referencedProcessList = Object.entries(res.data.sub_root_map);
           }
+          this.delTplErrorMessage = res.message || '';
           this.isShowDelDialog = true;
           return;
         }
@@ -672,6 +679,7 @@
           confirmLoading: true,
           cancelText: this.$t('取消'),
           confirmFn: async () => {
+            this.delTplErrorMessage = '';
             await this.onDeleteConfirm(template);
           },
         });
@@ -690,6 +698,7 @@
             if (resp.data.sub_root_map) {
                 this.referencedProcessList = Object.entries(resp.data.sub_root_map);
             }
+            this.delTplErrorMessage = resp.message || '';
             this.isShowDelDialog = true;
             return;
           };
@@ -810,6 +819,13 @@
   ::v-deep .del-dialog{
     .bk-dialog-body{
       padding-bottom: 38px;
+    }
+    .tpl-error-message{
+      display: flex;
+      justify-content: center;
+      padding: 12px 16px;
+      background: #F5F6FA;
+      border-radius: 2px;
     }
   }
 
