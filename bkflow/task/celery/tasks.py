@@ -164,7 +164,7 @@ def bkflow_periodic_task_start(*args, **kwargs):
 
     try:
         pre_pipeline_tree = periodic_task.config["pipeline_tree"]
-        space_infos_params = {"space_id": periodic_task["space_id"], "config_names": "flow_versioning"}
+        space_infos_params = {"space_id": periodic_task.config["space_id"], "config_names": "flow_versioning"}
         space_infos_result = InterfaceModuleClient().get_space_infos(space_infos_params)
         space_configs = space_infos_result.get("data", {}).get("configs", {})
         if space_configs.get("flow_versioning") == "true":
