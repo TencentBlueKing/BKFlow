@@ -680,7 +680,7 @@
           confirmLoading: true,
           cancelText: this.$t('取消'),
           confirmFn: async () => {
-            this.delTplErrorMessage= '';
+            this.delTplErrorMessage = '';
             await this.onDeleteConfirm(template);
           },
         });
