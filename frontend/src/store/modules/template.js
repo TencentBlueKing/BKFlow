@@ -1223,16 +1223,16 @@ const template = {
     },
     // 获取版本号
     getRandomVersion({}, data) {
-      return axios.get(`/api/template/admin/${data.templateId}/calculate_version/`, { params: data }).then(response => response.data);
+      return axios.get(`/api/template/${data.templateId}/calculate_version/`, { params: data }).then(response => response.data);
     },
     // 发布模板
     publishTemplate({}, data) {
       const { templateId, version, desc, space_id } = data;
-      return axios.post(`/api/template/admin/${templateId}/release_template/`, { version, desc, space_id }).then(response => response.data);
+      return axios.post(`/api/template/${templateId}/release_template/`, { version, desc, space_id }).then(response => response.data);
     },
     // 获取草稿版本模板数据
     getDraftVersionData({}, data) {
-      return axios.get(`/api/template/admin/${data.templateId}/get_draft_template/`, { params: data }).then(response => response.data);
+      return axios.get(`/api/template/${data.templateId}/get_draft_template/`, { params: data }).then(response => response.data);
     },
     // 删除版本快照数据
     deleteVersionSnapshotData({}, data) {
@@ -1247,7 +1247,7 @@ const template = {
     // 回滚到指定版本
     rollbackToVersion({}, data) {
       const { templateId, space_id, version } = data;
-      return axios.post(`/api/template/admin/${templateId}/rollback_template/`, { version, space_id }).then(response => response.data);
+      return axios.post(`/api/template/${templateId}/rollback_template/`, { version, space_id }).then(response => response.data);
     },
   },
   getters: {
