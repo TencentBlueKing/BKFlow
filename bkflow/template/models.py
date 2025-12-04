@@ -203,10 +203,18 @@ class Template(CommonModel):
                 id__in=[int(item["subprocess_template_id"]) for item in subprocess_info]
             )
         }
+        md5sums_to_query = []
+        if self.validate_space("true"):
+            md5sums_to_query = [item["version"] for item in subprocess_info if len(item["version"]) == 32]
+
+        md5_to_version_map = {}
+        if md5sums_to_query:
+            snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sums_to_query).order_by("id")
+            md5_to_version_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
 
         for item in subprocess_info:
             if self.validate_space("true") and len(item["version"]) == 32:
-                version = TemplateSnapshot.objects.get(md5sum=item["version"]).version
+                version = md5_to_version_map.get(item["version"])
                 item["version"] = version
             item["expired"] = (
                 False
