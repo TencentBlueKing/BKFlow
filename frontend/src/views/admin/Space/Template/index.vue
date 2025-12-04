@@ -252,9 +252,8 @@
         </div>
         <div
           v-else-if="delTplErrorMessage"
-          class="tpl-error-message">
-          {{ delTplErrorMessage }}
-        </div>
+          class="tpl-error-message"
+          v-text="delTplErrorMessage" />
       </div>
     </bk-dialog>
   </div>
