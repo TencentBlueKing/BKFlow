@@ -603,6 +603,7 @@
           width: 450,
           confirmLoading: true,
           confirmFn: async () => {
+            this.delTplErrorMessage = '';
             await this.batchDeleteConfirm();
           },
         });
@@ -679,6 +680,7 @@
           confirmLoading: true,
           cancelText: this.$t('取消'),
           confirmFn: async () => {
+            this.delTplErrorMessage= '';
             await this.onDeleteConfirm(template);
           },
         });
