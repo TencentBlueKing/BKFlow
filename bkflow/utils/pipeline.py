@@ -442,7 +442,7 @@ def replace_subprocess_version(pipeline_tree: dict) -> dict:
 
     snapshot_map = {}
     if md5sum_list:
-        snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sum_list)
+        snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sum_list).order_by("id")
         snapshot_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
 
     for key, value in pipeline_tree["activities"].items():
