@@ -200,6 +200,9 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data["space_id"] = space_id
 
         pre_pipeline_tree = deepcopy(template.pipeline_tree)
+        if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+            pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree)
+
         PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes(pre_pipeline_tree)
         create_task_data["pipeline_tree"] = pre_pipeline_tree
         create_task_data["trigger_method"] = TaskTriggerMethod.manual.name
