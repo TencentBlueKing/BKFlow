@@ -494,7 +494,7 @@ class TemplateViewSet(UserModelViewSet):
                 return Response(exception=True, data={"detail": str(e)})
 
             if SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true":
-                pipeline_tree = replace_subprocess_version(pipeline_tree, template.space_id)
+                pipeline_tree = replace_subprocess_version(pipeline_tree)
 
             if not serializer.validated_data["is_all_nodes"]:
                 exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
@@ -576,7 +576,7 @@ class TemplateViewSet(UserModelViewSet):
         data = TemplateSnapshotSerializer(draft_snapshot).data
         pipeline_tree = draft_snapshot.data
         if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) == "true":
-            pipeline_tree = replace_subprocess_version(draft_snapshot.data, template_obj.space_id)
+            pipeline_tree = replace_subprocess_version(draft_snapshot.data)
 
         data["pipeline_tree"] = pipeline_tree
         return Response(data=data)

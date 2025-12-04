@@ -233,7 +233,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         data["auth"] = self.get_current_user_auth(instance)
         pipeline_tree = instance.pipeline_tree
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
-            pipeline_tree = replace_subprocess_version(pipeline_tree, instance.space_id)
+            pipeline_tree = replace_subprocess_version(pipeline_tree)
         data["pipeline_tree"] = pipeline_tree
         return data
 

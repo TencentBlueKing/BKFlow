@@ -432,15 +432,22 @@ def _recursive_replace_id_without_subprocess(pipeline_data, subprocess_id=None):
     return node_map
 
 
-def replace_subprocess_version(pipeline_tree: dict, space_id) -> dict:
+def replace_subprocess_version(pipeline_tree: dict) -> dict:
     from bkflow.template.models import TemplateSnapshot
 
+    md5sum_list = []
     for key, value in pipeline_tree["activities"].items():
-        if not value["type"] == "SubProcess":
-            continue
-        # 只有在开启了版本控制后，存量空间中的子流程数据版本需要从md5sum转换为version
-        if len(value["version"]) == 32:
-            version = TemplateSnapshot.objects.get(md5sum=value["version"]).version
-            value["version"] = version
+        if value["type"] == "SubProcess" and len(value["version"]) == 32:
+            md5sum_list.append(value["version"])
+
+    snapshot_map = {}
+    if md5sum_list:
+        snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sum_list)
+        snapshot_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
+
+    for key, value in pipeline_tree["activities"].items():
+        if value["type"] == "SubProcess" and len(value["version"]) == 32:
+            # 使用查询结果更新version，如果不存在则保持原样
+            value["version"] = snapshot_map.get(value["version"], value["version"])
 
     return pipeline_tree
