@@ -52,6 +52,15 @@ def validate_web_pipeline_tree(web_pipeline_tree):
         if not KEY_PATTERN_RE.match(key):
             key_validation_errors.append("invalid key: {}".format(key))
 
+        # Skip constants that are not in data_inputs (e.g., component_outputs with empty source_info)
+        if key_value not in classification["data_inputs"]:
+            # If it's a component_outputs type with empty source_info, it's invalid
+            if const.get("source_type") == "component_outputs" and not const.get("source_info"):
+                key_validation_errors.append(
+                    "constants {} has source_type 'component_outputs' but source_info is empty".format(key)
+                )
+            continue
+
         data_type = classification["data_inputs"][key_value]["type"]
         context_type = ContextValueType(CONTEXT_VALUE_TYPE_MAP[data_type])
         context_values.append(

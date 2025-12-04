@@ -296,6 +296,9 @@
                 separator: ',',
               };
               break;
+            case 'python_code_input_vars':
+              val = { arg1: '', arg2: '' };
+              break;
             default:
               val = '';
           }
