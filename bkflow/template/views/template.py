@@ -100,6 +100,7 @@ from bkflow.template.serializers.template import (
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
+from bkflow.utils.pipeline import replace_subprocess_version
 from bkflow.utils.version import bump_custom
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet, UserModelViewSet
 
@@ -308,72 +309,6 @@ class AdminTemplateViewSet(AdminModelViewSet):
             return Response(exception=True, data={"detail": str(e)})
         return Response(data={"template_id": template.id, "template_name": template.name})
 
-    @action(methods=["GET"], detail=True, url_path="calculate_version")
-    def calculate_version(self, request, *args, **kwargs):
-        try:
-            template_version = getattr(self.get_object(), "version", None)
-            new_version = bump_custom(template_version) if template_version else "1.0.0"
-        except ValueError as e:
-            logger.error(str(e))
-            return Response(exception=True, data={"detail": str(e)})
-        return Response({"version": new_version})
-
-    @swagger_auto_schema(method="POST", operation_description="发布模板", request_body=TemplateReleaseSerializer)
-    @action(methods=["POST"], detail=True, url_path="release_template")
-    def release_template(self, request, *args, **kwargs):
-        instance = self.get_object()
-        ser = TemplateReleaseSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        new_version = ser.validated_data["version"]
-        if TemplateSnapshot.objects.filter(template_id=instance.id, version=new_version).exists():
-            return Response(exception=True, data={"detail": "版本已存在"})
-        try:
-            bump_custom(new_version, instance.version)
-        except ValueError as e:
-            logger.error(str(e))
-            return Response(exception=True, data={"detail": f"版本号不符合规范: {str(e)}"})
-
-        with transaction.atomic():
-            data = {"username": request.user.username, **ser.validated_data}
-            snapshot = instance.release_template(data)
-            instance.snapshot_id = snapshot.id
-            instance.save()
-
-        TemplateOperationRecord.objects.create(
-            operate_source=TemplateOperationSource.app.name,
-            operate_type=TemplateOperationType.release.name,
-            instance_id=instance.id,
-            operator=request.user.username,
-            extra_info={"version": new_version},
-        )
-
-        return Response(data={"template_id": instance.id})
-
-    @action(methods=["GET"], detail=True, url_path="get_draft_template")
-    def get_draft_template(self, request, *args, **kwargs):
-        template_obj = self.get_object()
-        try:
-            draft_snapshot = TemplateSnapshot.objects.get(template_id=template_obj.id, draft=True)
-        except TemplateSnapshot.DoesNotExist:
-            draft_snapshot = template_obj.update_draft_snapshot(
-                template_obj.pipeline_tree, request.user.username, template_obj.version
-            )
-        data = TemplateSnapshotSerializer(draft_snapshot).data
-        data["pipeline_tree"] = draft_snapshot.data
-
-        return Response(data=data)
-
-    @action(methods=["POST"], detail=True, url_path="rollback_template")
-    def rollback_template(self, request, *args, **kwargs):
-        instance = self.get_object()
-        version = request.data.get("version")
-        if not version:
-            return Response({"detail": "version 参数不能为空"})
-
-        pipeline_tree = TemplateSnapshot.objects.get(template_id=instance.id, version=version).data
-        draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username, version)
-        return Response(data=draft_template.data)
-
 
 class TemplateVersionViewSet(
     BKFLOWCommonMixin,
@@ -557,6 +492,10 @@ class TemplateViewSet(UserModelViewSet):
                 message = f"[preview task tree] error: {e}"
                 logger.exception(message)
                 return Response(exception=True, data={"detail": str(e)})
+
+            if SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true":
+                pipeline_tree = replace_subprocess_version(pipeline_tree)
+
             if not serializer.validated_data["is_all_nodes"]:
                 exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
                     pipeline_tree, appoint_node_ids
@@ -624,6 +563,75 @@ class TemplateViewSet(UserModelViewSet):
         if not result["result"]:
             raise APIResponseError(result["message"])
         return Response(result["data"])
+
+    @action(methods=["GET"], detail=True, url_path="get_draft_template")
+    def get_draft_template(self, request, *args, **kwargs):
+        template_obj = self.get_object()
+        try:
+            draft_snapshot = TemplateSnapshot.objects.get(template_id=template_obj.id, draft=True)
+        except TemplateSnapshot.DoesNotExist:
+            draft_snapshot = template_obj.update_draft_snapshot(
+                template_obj.pipeline_tree, request.user.username, template_obj.version
+            )
+        data = TemplateSnapshotSerializer(draft_snapshot).data
+        pipeline_tree = draft_snapshot.data
+        if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) == "true":
+            pipeline_tree = replace_subprocess_version(draft_snapshot.data)
+
+        data["pipeline_tree"] = pipeline_tree
+        return Response(data=data)
+
+    @action(methods=["GET"], detail=True, url_path="calculate_version")
+    def calculate_version(self, request, *args, **kwargs):
+        try:
+            template_version = getattr(self.get_object(), "version", None)
+            new_version = bump_custom(template_version) if template_version else "1.0.0"
+        except ValueError as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": str(e)})
+        return Response({"version": new_version})
+
+    @swagger_auto_schema(method="POST", operation_description="发布模板", request_body=TemplateReleaseSerializer)
+    @action(methods=["POST"], detail=True, url_path="release_template")
+    def release_template(self, request, *args, **kwargs):
+        instance = self.get_object()
+        ser = TemplateReleaseSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        new_version = ser.validated_data["version"]
+        if TemplateSnapshot.objects.filter(template_id=instance.id, version=new_version).exists():
+            return Response(exception=True, data={"detail": "版本已存在"})
+        try:
+            bump_custom(new_version, instance.version)
+        except ValueError as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": f"版本号不符合规范: {str(e)}"})
+
+        with transaction.atomic():
+            data = {"username": request.user.username, **ser.validated_data}
+            snapshot = instance.release_template(data)
+            instance.snapshot_id = snapshot.id
+            instance.save()
+
+        TemplateOperationRecord.objects.create(
+            operate_source=TemplateOperationSource.app.name,
+            operate_type=TemplateOperationType.release.name,
+            instance_id=instance.id,
+            operator=request.user.username,
+            extra_info={"version": new_version},
+        )
+
+        return Response(data={"template_id": instance.id})
+
+    @action(methods=["POST"], detail=True, url_path="rollback_template")
+    def rollback_template(self, request, *args, **kwargs):
+        instance = self.get_object()
+        version = request.data.get("version")
+        if not version:
+            return Response({"detail": "version 参数不能为空"})
+
+        pipeline_tree = TemplateSnapshot.objects.get(template_id=instance.id, version=version).data
+        draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username, version)
+        return Response(data=draft_template.data)
 
 
 @method_decorator(login_exempt, name="dispatch")

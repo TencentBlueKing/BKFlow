@@ -48,6 +48,7 @@ from bkflow.template.models import (
 )
 from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.template.utils import send_callback
+from bkflow.utils.pipeline import replace_subprocess_version
 from bkflow.utils.version import bump_custom
 
 logger = logging.getLogger("root")
@@ -230,6 +231,10 @@ class TemplateSerializer(serializers.ModelSerializer):
         triggers = Trigger.objects.filter(template_id=instance.id)
         data["triggers"] = TriggerSerializer(triggers, many=True).data
         data["auth"] = self.get_current_user_auth(instance)
+        pipeline_tree = instance.pipeline_tree
+        if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
+            pipeline_tree = replace_subprocess_version(pipeline_tree)
+        data["pipeline_tree"] = pipeline_tree
         return data
 
     class Meta:
