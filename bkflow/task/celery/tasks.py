@@ -41,7 +41,6 @@ from bkflow.task.node_timeout import node_timeout_handler
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
 from bkflow.task.serializers import CreateTaskInstanceSerializer
 from bkflow.task.utils import ATOM_FAILED, redis_inst_check, send_task_instance_message
-from bkflow.utils.pipeline import replace_subprocess_version
 
 logger = logging.getLogger("celery")
 
@@ -163,13 +162,11 @@ def bkflow_periodic_task_start(*args, **kwargs):
         return
 
     try:
-        pre_pipeline_tree = periodic_task.config["pipeline_tree"]
-        space_infos_params = {"space_id": periodic_task.config["space_id"], "config_names": "flow_versioning"}
-        space_infos_result = InterfaceModuleClient().get_space_infos(space_infos_params)
-        space_configs = space_infos_result.get("data", {}).get("configs", {})
-        if space_configs.get("flow_versioning") == "true":
-            pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree)
-            periodic_task.config["pipeline_tree"] = pre_pipeline_tree
+        interface_client = InterfaceModuleClient()
+        template = interface_client.get_template_data(
+            template_id=periodic_task.template_id, data={"space_id": periodic_task.config["space_id"]}
+        )
+        periodic_task.config["pipeline_tree"] = template["data"]["pipeline_tree"]
 
         task_data = {
             "template_id": periodic_task.template_id,
