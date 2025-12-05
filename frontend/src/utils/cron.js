@@ -204,7 +204,7 @@ const translateMap = {
     [Node.TYPE_RANG]: node => `${node.min}${i18n.t('号到')}${node.max}${i18n.t('号')}`,
     [Node.TYPE_REPEAT]: (node) => {
       if (node.value === '*') {
-        return `${i18n.t('每隔')}}${i18n.tc('天', node.repeatInterval, { n: node.repeatInterval })}`;
+        return `${i18n.t('每隔')}${i18n.tc('天', node.repeatInterval, { n: node.repeatInterval })}`;
       }
       return `${i18n.t('从')}${node.value}${i18n.t('号开始每隔')}${i18n.tc('天', node.repeatInterval, { n: node.repeatInterval })}`;
     },

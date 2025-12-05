@@ -986,7 +986,6 @@ const en = {
   每分钟: 'every minute',
   分: 'minute',
   分到: 'minute to',
-  分钟: 'minute',
   从: 'from',
   每隔: 'every',
   分开始每隔: 'minute start every',
