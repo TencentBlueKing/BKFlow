@@ -644,7 +644,7 @@ class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, Simp
     permission_classes = [AdminPermission | AppInternalPermission]
 
     @action(methods=["GET"], detail=True)
-    def get_subproc_data(self, request, *args, **kwargs):
+    def get_template_data(self, request, *args, **kwargs):
         version = request.query_params.get("version")
         template = self.get_object()
         subproc_data = self.get_serializer(template).data
@@ -652,6 +652,8 @@ class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, Simp
         pipeline_tree = template.get_pipeline_tree_by_version(version)
         pre_pipeline_tree = deepcopy(pipeline_tree)
         PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes(pre_pipeline_tree)
+        if SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true":
+            pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree)
         subproc_data["pipeline_tree"] = pre_pipeline_tree
         return Response(subproc_data)
 
