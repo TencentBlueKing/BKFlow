@@ -24,6 +24,7 @@ from rest_framework import permissions
 
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import Space, SpaceConfig
+from bkflow.template.models import Template, TemplateSnapshot
 
 logger = logging.getLogger("root")
 
@@ -75,7 +76,16 @@ class SpaceSuperuserPermission(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if settings.BLOCK_ADMIN_PERMISSION:
             return False
-        space_id = obj.id if isinstance(obj, Space) else obj.space_id
+        if isinstance(obj, Space):
+            space_id = obj.id
+        elif isinstance(obj, TemplateSnapshot):
+            try:
+                template = Template.objects.get(id=obj.template_id)
+                space_id = template.space_id
+            except Template.DoesNotExist:
+                return False
+        else:
+            space_id = obj.space_id
         space_superusers = SpaceConfig.get_config(space_id, SuperusersConfig.name)
         is_space_superuser = request.user.username in space_superusers
         setattr(request, "is_space_superuser", is_space_superuser)

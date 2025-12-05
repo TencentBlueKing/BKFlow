@@ -103,11 +103,15 @@
                 :is-view-mode="isViewMode"
                 :is-api-plugin="isApiPlugin"
                 :is-subflow-need-to-update="isSubflowNeedToUpdate"
+                :is-enable-version-manage="isEnableVersionManage"
+                :space-id="spaceId"
                 @openSelectorPanel="isSelectorPanelShow = true"
                 @versionChange="versionChange"
                 @viewSubflow="onViewSubflow"
                 @updateSubflowVersion="updateSubflowVersion"
-                @update="updateBasicInfo" />
+                @update="updateBasicInfo"
+                @viewAllSubflowVerison="$emit('viewAllSubflowVerison', $event)"
+                @changeSubNodeVersion="onChangeSubNodeVersion" />
             </section>
             <!-- 输入参数 -->
             <section
@@ -275,6 +279,7 @@
         type: Object,
         default: () => ({}),
       },
+      isEnableVersionManage: Boolean,
     },
     data() {
       return {
@@ -891,12 +896,13 @@
         } = config;
         let templateName = i18n.t('请选择子流程');
 
+        let templateData = {};
         if (templateId) {
           const subflowInfo = this.atomTypeList.subflow.find(item => item.template_id === Number(templateId));
           if (subflowInfo) {
             templateName = subflowInfo.name;
           } else {
-            const templateData = await this.loadTemplateData({
+            templateData = await this.loadTemplateData({
               templateId,
               common: false,
               checkPermission: true })
@@ -907,6 +913,8 @@
             templateName = templateData.name;
           }
         }
+        // templateData.version为子流程的最新版本
+        // config.type === 'SubProcess' ? templateData.version :
         const has = Object.prototype.hasOwnProperty;
         const version = has.call(config, 'version') ? config.version : ''; // 子流程版本，区别于标准插件版本
         return {
@@ -925,6 +933,7 @@
           autoRetry: Object.assign({}, { enable: false, interval: 0, times: 1 }, auto_retry),
           timeoutConfig: timeoutConfig || { enable: false, seconds: 10, action: 'forced_fail' },
           executor_proxy: executorProxy ? executorProxy.split(',') : [],
+          subLatestVersion: templateData.version,
         };
       },
       /**
@@ -1144,6 +1153,9 @@
             return acc;
           }, {});
         }
+      },
+      onChangeSubNodeVersion(data) {
+        this.tplChange(data);
       },
       /**
        * 子流程切换

@@ -66,10 +66,10 @@
             class="subflow_update">
             <bk-popover
               placement="top"
-              :disabled="props.row.subprocess_info.length <= 0"
+              :disabled="!props.row.subprocess_info || props.row.subprocess_info.length <= 0"
               ext-cls="subflow-popover">
               <span
-                v-if="props.row.subprocess_info.length>0"
+                v-if="props.row.subprocess_info && props.row.subprocess_info.length > 0"
                 class="blue-text">
                 {{ props.row.subprocess_info.length }}
               </span>
@@ -85,7 +85,7 @@
               <!-- 立即更新 -->
               </bk-button>
               <div
-                v-if="props.row.subprocess_info.length>0"
+                v-if="props.row.subprocess_info && props.row.subprocess_info.length > 0"
                 slot="content">
                 <ul
                   v-for="sub in props.row.subprocess_info"
@@ -250,6 +250,10 @@
             </bk-table>
           </div>
         </div>
+        <div
+          v-else-if="delTplErrorMessage"
+          class="tpl-error-message"
+          v-text="delTplErrorMessage" />
       </div>
     </bk-dialog>
   </div>
@@ -389,6 +393,7 @@
         isSelectCopySubflow: false,
         copyTemplateId: null,
         referencedProcessList: [], // 引用的流程列表
+        delTplErrorMessage: '',
       };
     },
     computed: {
@@ -597,6 +602,7 @@
           width: 450,
           confirmLoading: true,
           confirmFn: async () => {
+            this.delTplErrorMessage = '';
             await this.batchDeleteConfirm();
           },
         });
@@ -622,12 +628,16 @@
           if (res.data.sub_root_map) {
             this.referencedProcessList = Object.entries(res.data.sub_root_map);
           }
+          this.delTplErrorMessage = res.message || '';
           this.isShowDelDialog = true;
           return;
         }
         return Promise.resolve();
       },
       getSubflowUpdateCount(subflowList) {
+        if (!subflowList || !Array.isArray(subflowList)) {
+          return 0;
+        }
         return subflowList.filter(sub => sub.expired).length;
       },
       onCopyTemplate(template) {
@@ -669,6 +679,7 @@
           confirmLoading: true,
           cancelText: this.$t('取消'),
           confirmFn: async () => {
+            this.delTplErrorMessage = '';
             await this.onDeleteConfirm(template);
           },
         });
@@ -687,6 +698,7 @@
             if (resp.data.sub_root_map) {
                 this.referencedProcessList = Object.entries(resp.data.sub_root_map);
             }
+            this.delTplErrorMessage = resp.message || '';
             this.isShowDelDialog = true;
             return;
           };
@@ -807,6 +819,13 @@
   ::v-deep .del-dialog{
     .bk-dialog-body{
       padding-bottom: 38px;
+    }
+    .tpl-error-message{
+      display: flex;
+      justify-content: center;
+      padding: 12px 16px;
+      background: #F5F6FA;
+      border-radius: 2px;
     }
   }
 

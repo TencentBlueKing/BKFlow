@@ -80,6 +80,10 @@ class CreateTemplateSerializer(serializers.Serializer):
         return attrs
 
 
+class CreateTemplateApigwSerializer(CreateTemplateSerializer):
+    auto_release = serializers.BooleanField(help_text=_("是否自动发布"), required=False, default=False)
+
+
 class DeleteTemplateSerializer(serializers.Serializer):
     template_id = serializers.IntegerField(help_text=_("模板ID"), required=True)
     space_id = serializers.IntegerField(help_text=_("空间ID"), required=False)
@@ -102,9 +106,16 @@ class UpdateTemplateSerializer(serializers.Serializer):
     version = serializers.CharField(help_text=_("版本号"), max_length=32, required=False)
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
+    auto_release = serializers.BooleanField(help_text=_("是否自动发布"), required=False, default=False)
 
     def validate(self, attrs):
         operator = attrs.get("operator")
+        scope_type = attrs.get("scope_type")
+        scope_value = attrs.get("scope_value")
+
+        if (scope_type is not None) != (scope_value is not None):
+            raise serializers.ValidationError(_("作用域类型和作用域值必须同时填写，或同时不填写"))
+
         if not operator and not self.context.get("request").user.username:
             raise serializers.ValidationError(_("网关用户和operator都为空，请检查"))
 
