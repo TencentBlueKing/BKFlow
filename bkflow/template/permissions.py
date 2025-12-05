@@ -53,8 +53,12 @@ class ScopePermission(BaseTokenPermission):
         if view.action in view.MOCK_ABOVE_ACTIONS:
             return False
 
+        has_edit_permission = self.has_edit_permission(request.user.username, obj.space_id, obj.id, request.token)
+        if view.action in view.EDIT_ABOVE_ACTIONS:
+            return has_edit_permission
+
         has_view_permission = self.has_view_permission(request.user.username, obj.space_id, obj.id, request.token)
-        return has_view_permission
+        return has_view_permission or has_edit_permission
 
 
 class TemplateMockPermission(BaseMockTokenPermission):
