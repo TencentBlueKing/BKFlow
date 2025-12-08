@@ -273,7 +273,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             templates_map = {str(t.id): t.name for t in templates}
 
             for ref in template_references:
-                template_key = str(ref["subprocess_template_id"])
+                template_key = ref["subprocess_template_id"]
                 root_id = ref["root_template_id"]
                 # 如果父流程也在删除列表中或父流程已经被删除了，则跳过
                 if (int(root_id) in template_ids) or (root_id not in templates_map):
