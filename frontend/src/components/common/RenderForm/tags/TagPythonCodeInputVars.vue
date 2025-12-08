@@ -100,6 +100,8 @@
         varList: [],
         isListOpen: false,
         currentIndex: -1,
+        isUpdatingFromFormList: false,
+        isUpdatingFromValue: false,
       };
     },
     computed: {
@@ -145,26 +147,41 @@
     watch: {
       formList: {
         handler(val) {
+          // 如果正在从 value 更新 formList，跳过此次更新
+          if (this.isUpdatingFromValue) {
+            return;
+          }
           const obj = this.listToObject(val);
           // 如果转换后的对象与当前 value 相同，跳过更新
           if (tools.isDataEqual(obj, this.value)) {
             return;
           }
+          // 设置标志位，防止 value watch 触发
+          this.isUpdatingFromFormList = true;
+          this.updateForm(obj);
+          // 使用 $nextTick 确保所有相关的 watcher 执行完毕后再重置标志位
           this.$nextTick(() => {
-            this.updateForm(obj);
+            this.isUpdatingFromFormList = false;
           });
         },
         deep: true,
       },
       value: {
         handler(val) {
+          // 如果正在从 formList 更新 value，跳过此次更新
+          if (this.isUpdatingFromFormList) {
+            return;
+          }
           const currentObj = this.listToObject(this.formList);
           // 如果新值与当前 formList 转换后的对象相同，跳过更新
           if (tools.isDataEqual(val, currentObj)) {
             return;
           }
+          // 设置标志位，防止 formList watch 触发
+          this.isUpdatingFromValue = true;
+          this.formList = this.objectToList(val);
           this.$nextTick(() => {
-            this.formList = this.objectToList(val);
+            this.isUpdatingFromValue = false;
           });
         },
         immediate: false,
