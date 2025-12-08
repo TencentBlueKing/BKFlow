@@ -243,28 +243,42 @@ class AdminTemplateViewSet(AdminModelViewSet):
         template_ids = ser.validated_data["template_ids"]
 
         failed_data = {}
-        decision_obj = DecisionTable.objects.filter(template_id__in=template_ids)
-        if decision_obj.exists():
-            decision_template_ids = list(decision_obj.values_list("template_id", flat=True))
-            decision_template_ids_str = [str(template_id) for template_id in decision_template_ids]
-            failed_data.update(
-                {"isHaveOtherError": True, "detail": f"模版 {','.join(decision_template_ids_str)} 被决策表引用，无法删除"}
+        decision_templates = list(
+            DecisionTable.objects.filter(template_id__in=template_ids).values("id", "name", "template_id")
+        )
+        if decision_templates:
+            decision_template_map = {}
+            template_map = dict(
+                Template.objects.filter(id__in=template_ids, is_deleted=False).values_list("id", "name")
             )
+            for dec in decision_templates:
+                if dec["template_id"] not in decision_template_map:
+                    template_name = template_map.get(dec["template_id"])
+                    decision_template_map[dec["template_id"]] = {"template_name": template_name, "decision_info": []}
 
-        template_references = TemplateReference.objects.filter(subprocess_template_id__in=template_ids)
-        root_template_ids = list(template_references.values_list("root_template_id", flat=True))
-        if root_template_ids:
-            all_needed_template_ids = set(template_ids) | set(root_template_ids)
-            templates = Template.objects.filter(id__in=all_needed_template_ids, is_deleted=False)
+                decision_template_map[dec["template_id"]]["decision_info"].append(
+                    {"id": dec["id"], "name": dec["name"]}
+                )
+            if decision_template_map:
+                failed_data["decision_detail"] = decision_template_map
+
+        template_references_obj = TemplateReference.objects.filter(subprocess_template_id__in=template_ids)
+        root_template_ids = list(template_references_obj.values_list("root_template_id", flat=True))
+        template_references = template_references_obj.values("subprocess_template_id", "root_template_id")
+
+        if template_references:
+            sub_root_map = {}
+            all_needed_template_ids = set(map(str, template_ids)) | set(root_template_ids)
+            templates = Template.objects.filter(id__in=list(all_needed_template_ids), is_deleted=False)
             templates_map = {str(t.id): t.name for t in templates}
 
-            sub_root_map = {}
             for ref in template_references:
-                template_key = str(ref.subprocess_template_id)
-                root_id = ref.root_template_id
+                template_key = str(ref["subprocess_template_id"])
+                root_id = ref["root_template_id"]
+                # 如果父流程也在删除列表中或父流程已经被删除了，则跳过
                 if (int(root_id) in template_ids) or (root_id not in templates_map):
                     continue
-                sub_template_name = templates_map.get(template_key)
+                sub_template_name = templates_map.get(ref["subprocess_template_id"])
                 if template_key not in sub_root_map:
                     sub_root_map[template_key] = {"sub_template_name": sub_template_name, "referenced": []}
 
@@ -280,7 +294,6 @@ class AdminTemplateViewSet(AdminModelViewSet):
         if is_full:
             update_num = Template.objects.filter(space_id=space_id, is_deleted=False).update(is_deleted=True)
         else:
-
             update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
                 is_deleted=True
             )
