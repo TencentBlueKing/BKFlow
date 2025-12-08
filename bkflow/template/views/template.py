@@ -242,11 +242,14 @@ class AdminTemplateViewSet(AdminModelViewSet):
         is_full = ser.validated_data["is_full"]
         template_ids = ser.validated_data["template_ids"]
 
+        failed_data = {}
         decision_obj = DecisionTable.objects.filter(template_id__in=template_ids)
         if decision_obj.exists():
             decision_template_ids = list(decision_obj.values_list("template_id", flat=True))
             decision_template_ids_str = [str(template_id) for template_id in decision_template_ids]
-            return Response(exception=True, data={"detail": f"模版 {','.join(decision_template_ids_str)} 被决策表引用，无法删除"})
+            failed_data.update(
+                {"isHaveOtherError": True, "detail": f"模版 {','.join(decision_template_ids_str)} 被决策表引用，无法删除"}
+            )
 
         template_references = TemplateReference.objects.filter(subprocess_template_id__in=template_ids)
         root_template_ids = list(template_references.values_list("root_template_id", flat=True))
@@ -269,7 +272,10 @@ class AdminTemplateViewSet(AdminModelViewSet):
                     {"root_template_id": root_id, "root_template_name": templates_map.get(str(root_id))}
                 )
             if sub_root_map:
-                return Response(exception=True, data={"sub_root_map": dict(sub_root_map)})
+                failed_data["sub_root_map"] = dict(sub_root_map)
+
+        if failed_data:
+            return Response(exception=True, data=failed_data)
 
         if is_full:
             update_num = Template.objects.filter(space_id=space_id, is_deleted=False).update(is_deleted=True)
