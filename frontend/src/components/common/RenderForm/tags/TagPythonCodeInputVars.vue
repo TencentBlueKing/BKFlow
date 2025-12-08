@@ -11,7 +11,10 @@
 */
 <template>
   <div class="tag-python-code-input-vars">
-    <bk-form ref="formRef" :label-width="0" :model="{ formList }">
+    <bk-form
+      ref="formRef"
+      :label-width="0"
+      :model="{ formList }">
       <div
         v-for="(item, index) in formList"
         :key="index"
@@ -21,14 +24,14 @@
           :rules="keyRules">
           <bk-input
             v-model="item.key"
-            :disabled="disabled"
+            :disabled="disabled || !editable"
             :placeholder="$t('参数名')"
             class="param-input" />
         </bk-form-item>
         <div class="var-input-wrapper">
           <bk-input
             v-model="item.value"
-            :disabled="disabled"
+            :disabled="disabled || !editable"
             :placeholder="$t('请输入值或 $ 选择变量')"
             @input="onInput($event, index)"
             @focus="onFocus(index)"
@@ -47,7 +50,7 @@
             </li>
           </ul>
         </div>
-        <template v-if="!disabled">
+        <template v-if="!disabled && editable">
           <bk-button
             icon="icon-plus-line"
             class="add-btn"
@@ -60,17 +63,20 @@
         </template>
       </div>
     </bk-form>
-    <span v-show="!validateInfo.valid" class="common-error-tip error-info">{{validateInfo.message}}</span>
+    <span
+      v-show="!validateInfo.valid"
+      class="common-error-tip error-info">{{ validateInfo.message }}</span>
   </div>
 </template>
 <script>
-  import '@/utils/i18n.js'
-  import { getFormMixins } from '../formMixins.js'
-  import dom from '@/utils/dom.js'
-  import { mapState } from 'vuex'
+  import '@/utils/i18n.js';
+  import { getFormMixins } from '../formMixins.js';
+  import dom from '@/utils/dom.js';
+  import { mapState } from 'vuex';
+  import tools from '@/utils/tools.js';
 
   // 匹配变量的正则表达式 - 匹配 $ 开头的内容
-  const VAR_REG = /\$.*$/
+  const VAR_REG = /\$.*$/;
 
   export const attrs = {
     value: {
@@ -81,41 +87,41 @@
       type: Boolean,
       default: false,
     },
-  }
+  };
 
   export default {
     name: 'TagPythonCodeInputVars',
     mixins: [getFormMixins(attrs)],
     data() {
       // 将对象转换为数组用于显示
-      const formList = this.objectToList(this.value)
+      const formList = this.objectToList(this.value);
       return {
         formList,
         varList: [],
         isListOpen: false,
         currentIndex: -1,
-      }
+      };
     },
     computed: {
       ...mapState({
         internalVariable: state => state.template.internalVariable,
       }),
       constantArr() {
-        let keyList = []
+        let keyList = [];
         if (this.constants) {
           keyList = Object.keys(this.constants).map(key => ({
-            key: key,  // 直接使用 constants 的 key，它就是纯变量名
+            key,  // 直接使用 constants 的 key，它就是纯变量名
             name: this.constants[key].name || key,
-          }))
+          }));
         }
         if (this.internalVariable) {
           const internalVars = Object.keys(this.internalVariable).map(key => ({
-            key: key,  // 直接使用 internalVariable 的 key
+            key,  // 直接使用 internalVariable 的 key
             name: this.internalVariable[key].name || key,
-          }))
-          keyList = [...keyList, ...internalVars]
+          }));
+          keyList = [...keyList, ...internalVars];
         }
-        return keyList
+        return keyList;
       },
       keyRules() {
         return [
@@ -127,114 +133,125 @@
           {
             validator: (val) => {
               // 校验 key 不重复
-              const keys = this.formList.map(item => item.key).filter(key => key === val)
-              return keys.length <= 1
+              const keys = this.formList.map(item => item.key).filter(key => key === val);
+              return keys.length <= 1;
             },
             message: this.$t('参数名不能重复'),
             trigger: 'change',
           },
-        ]
+        ];
       },
-    },
-    created() {
-      window.addEventListener('click', this.handleListShow, false)
-    },
-    beforeDestroy() {
-      window.removeEventListener('click', this.handleListShow, false)
     },
     watch: {
       formList: {
         handler(val) {
-          // 将数组转换回对象
-          const obj = this.listToObject(val)
-          this.updateForm(obj)
+          const obj = this.listToObject(val);
+          // 如果转换后的对象与当前 value 相同，跳过更新
+          if (tools.isDataEqual(obj, this.value)) {
+            return;
+          }
+          this.$nextTick(() => {
+            this.updateForm(obj);
+          });
         },
         deep: true,
       },
       value: {
         handler(val) {
-          this.formList = this.objectToList(val)
+          const currentObj = this.listToObject(this.formList);
+          // 如果新值与当前 formList 转换后的对象相同，跳过更新
+          if (tools.isDataEqual(val, currentObj)) {
+            return;
+          }
+          this.$nextTick(() => {
+            this.formList = this.objectToList(val);
+          });
         },
         immediate: false,
         deep: true,
       },
     },
+    created() {
+      window.addEventListener('click', this.handleListShow, false);
+    },
+    beforeDestroy() {
+      window.removeEventListener('click', this.handleListShow, false);
+    },
     methods: {
       objectToList(obj) {
         if (!obj || typeof obj !== 'object' || Object.keys(obj).length === 0) {
-          return [{ key: 'arg1', value: '' }, { key: 'arg2', value: '' }]
+          return [{ key: 'arg1', value: '' }, { key: 'arg2', value: '' }];
         }
-        return Object.entries(obj).map(([key, value]) => ({ key, value }))
+        return Object.entries(obj).map(([key, value]) => ({ key, value }));
       },
       listToObject(list) {
-        const obj = {}
-        list.forEach(item => {
+        const obj = {};
+        list.forEach((item) => {
           if (item.key) {
-            obj[item.key] = item.value
+            obj[item.key] = item.value;
           }
-        })
-        return obj
+        });
+        return obj;
       },
       handleListShow(e) {
         if (!this.isListOpen) {
-          return
+          return;
         }
-        const listPanel = document.querySelector('.rf-select-list')
+        const listPanel = document.querySelector('.rf-select-list');
         if (listPanel && !dom.nodeContains(listPanel, e.target)) {
-          this.isListOpen = false
+          this.isListOpen = false;
         }
       },
       onInput(val, index) {
-        const matchResult = val.match(VAR_REG)
+        const matchResult = val.match(VAR_REG);
         if (matchResult && matchResult[0]) {
-          const searchStr = matchResult[0].substring(1) // 去掉 $ 符号
-          this.varList = this.constantArr.filter(item => {
-            return item.key.includes(searchStr)
-          })
-          this.isListOpen = this.varList.length > 0
-          this.currentIndex = index
+          const searchStr = matchResult[0].substring(1); // 去掉 $ 符号
+          this.varList = this.constantArr.filter(item => item.key.includes(searchStr));
+          this.isListOpen = this.varList.length > 0;
+          this.currentIndex = index;
         } else {
-          this.varList = []
-          this.isListOpen = false
+          this.varList = [];
+          this.isListOpen = false;
         }
       },
       onBlur() {
         setTimeout(() => {
-          this.isListOpen = false
-          this.currentIndex = -1
-        }, 200)
+          this.isListOpen = false;
+          this.currentIndex = -1;
+        }, 200);
       },
       onFocus(index) {
-        this.currentIndex = index
+        this.currentIndex = index;
         // 如果已经输入了 $ 符号，立即显示提示
-        const val = this.formList[index].value
+        const val = this.formList[index].value;
         if (val && val.includes('$')) {
-          this.onInput(val, index)
+          this.onInput(val, index);
         }
       },
       onSelectVal(val, index) {
         // 替换为 ${var_key} 格式
-        const varRef = `\${${val}}`
-        const replacedValue = this.formList[index].value.replace(VAR_REG, varRef)
-        this.formList[index].value = replacedValue
-        this.isListOpen = false
-        this.currentIndex = -1
+        // const varRef = `\${${val}}`;
+        const varRef = val;
+        const replacedValue = this.formList[index].value.replace(VAR_REG, varRef);
+        this.formList[index].value = replacedValue;
+        this.isListOpen = false;
+        this.currentIndex = -1;
       },
       updateList(index, type) {
         if (type === 'delete') {
-          this.formList.splice(index, 1)
+          this.formList.splice(index, 1);
         } else {
           this.formList.splice(index + 1, 0, {
             key: '',
             value: '',
-          })
+          });
         }
       },
       validate() {
-        return this.$refs.formRef.validate()
+        return this.$refs.formRef.validate();
       },
     },
-  }
+  };
 </script>
 <style lang="scss" scoped>
 @import '../../../../scss/mixins/scrollbar.scss';

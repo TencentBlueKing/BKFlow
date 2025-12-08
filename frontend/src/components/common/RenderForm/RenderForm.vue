@@ -116,7 +116,7 @@
     computed: {
       option() {
         return Object.assign({}, DEFAUTL_OPTION, this.formOption);
-      }
+      },
     },
     watch: {
       scheme: {
@@ -130,7 +130,7 @@
           this.value = tools.deepClone(val);
         },
         deep: true,
-      }
+      },
     },
     created() {
       this.checkValue(this.scheme, this.value);
@@ -319,7 +319,7 @@
             acc[cur] = val;
             return;
           }
-          if (!acc.hasOwnProperty(cur)) {
+          if (!Object.prototype.hasOwnProperty.call(acc, cur)) {
             acc[cur] = {};
           }
           return acc[cur];
