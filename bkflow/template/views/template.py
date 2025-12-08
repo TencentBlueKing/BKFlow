@@ -244,7 +244,9 @@ class AdminTemplateViewSet(AdminModelViewSet):
 
         failed_data = {}
         decision_templates = list(
-            DecisionTable.objects.filter(template_id__in=template_ids).values("id", "name", "template_id")
+            DecisionTable.objects.filter(template_id__in=template_ids, is_deleted=False).values(
+                "id", "name", "template_id"
+            )
         )
         if decision_templates:
             decision_template_map = {}
