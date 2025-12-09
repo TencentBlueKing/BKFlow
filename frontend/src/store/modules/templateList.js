@@ -21,7 +21,12 @@ const templateList = {
         delete data.cancelToken;
       }
       delete data.new;
-      return axios.get('api/template/admin/', {
+      const { isSelectSubTemplate = false } = data;
+      if (data.isSelectSubTemplate) {
+        delete data.isSelectSubTemplate;
+      }
+      const url = isSelectSubTemplate ? 'api/template/list_template/' : 'api/template/admin/';
+      return axios.get(url, {
         params: data,
         ...config,
       }).then(response => response.data);

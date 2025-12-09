@@ -30,6 +30,7 @@ from pytimeparse import parse
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.space.configs import TokenAutoRenewalConfig, TokenExpirationConfig
 from bkflow.space.models import SpaceConfig
+from bkflow.template.models import Template
 
 logger = logging.getLogger("root")
 
@@ -39,6 +40,8 @@ class ResourceType(Enum):
     TASK = "TASK"
     # 流程
     TEMPLATE = "TEMPLATE"
+    # 作用域
+    SCOPE = "SCOPE"
 
 
 class PermissionType(Enum):
@@ -75,6 +78,7 @@ class Token(models.Model):
     RESOURCE_TYPE = (
         (ResourceType.TASK.value, _("任务")),
         (ResourceType.TEMPLATE.value, _("流程")),
+        (ResourceType.SCOPE.value, _("作用域")),
     )
 
     PERMISSION_TYPE = (
@@ -186,8 +190,25 @@ class Token(models.Model):
             return check_parent_task_id(db_token, parent_task_id)
 
         if db_token.resource_id != str(resource_id):
-            if resource_type != ResourceType.TASK.value:
+            if resource_type == ResourceType.SCOPE.value:
+                scope_parts = db_token.resource_id.split("_")
+                scope_type, scope_value = scope_parts[0], scope_parts[1]
+                try:
+                    resource_obj = Template.objects.get(id=resource_id, space_id=db_token.space_id)
+                    return resource_obj.scope_type == scope_type and resource_obj.scope_value == scope_value
+                except Template.DoesNotExist:
+                    client = TaskComponentClient(space_id=db_token.space_id)
+                    result = client.get_task_detail(resource_id)
+                    if not result.get("result"):
+                        logger.warning(
+                            f"[Token->verify] Failed to get task detail, task_id={resource_id}, "
+                            f"space_id={db_token.space_id}"
+                        )
+                        return False
+                    resource_data = result["data"]
+                    return resource_data["scope_type"] == scope_type and resource_data["scope_value"] == scope_value
+            elif resource_type == ResourceType.TEMPLATE.value:
                 return False
-            if not check_parent_task_id(db_token, resource_id):
+            elif not check_parent_task_id(db_token, resource_id):
                 return False
         return True

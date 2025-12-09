@@ -87,6 +87,12 @@
         },
       },
     },
+    data() {
+      return {
+        isListOpen: false,
+        varList: [],
+      };
+    },
     computed: {
       ...mapState({
         internalVariable: state => state.template.internalVariable,

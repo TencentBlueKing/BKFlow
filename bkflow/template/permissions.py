@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -35,6 +34,26 @@ class TemplatePermission(BaseTokenPermission):
 
         has_edit_permission = self.has_edit_permission(request.user.username, obj.space_id, obj.id, request.token)
 
+        if view.action in view.EDIT_ABOVE_ACTIONS:
+            return has_edit_permission
+
+        has_view_permission = self.has_view_permission(request.user.username, obj.space_id, obj.id, request.token)
+        return has_view_permission or has_edit_permission
+
+
+class ScopePermission(BaseTokenPermission):
+    def get_resource_type(self):
+        return "SCOPE"
+
+    def has_permission(self, request, view):
+        if view.action in view.MOCK_ABOVE_ACTIONS:
+            return False
+
+    def has_object_permission(self, request, view, obj):
+        if view.action in view.MOCK_ABOVE_ACTIONS:
+            return False
+
+        has_edit_permission = self.has_edit_permission(request.user.username, obj.space_id, obj.id, request.token)
         if view.action in view.EDIT_ABOVE_ACTIONS:
             return has_edit_permission
 
