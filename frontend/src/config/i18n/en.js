@@ -1052,6 +1052,8 @@ const en = {
   仅支持触发当前已发布的最新版本流程: 'Only support trigger current latest version flow',
   版本: 'Version',
   '版本号:': 'Version Number:',
+  被以下决策表引用: 'Referenced by the following decision tables',
+  '当前流程被以下决策表引用:': 'The current process is referenced by the following decision tables',
 };
 
 export default en;
