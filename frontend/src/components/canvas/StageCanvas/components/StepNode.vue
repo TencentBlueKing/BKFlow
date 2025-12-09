@@ -52,7 +52,9 @@
         <span
           v-if="isExecute"
           class="toolAndTime">
-          <div class="tool">
+          <div
+            v-if="ifShowStepTool"
+            class="tool">
             <bk-button
               v-if="status === ETaskStatusType.RUNNING"
               theme="danger"
@@ -163,6 +165,18 @@ export default {
           type: Boolean,
           default: false,
         },
+        pluginsDetail: {
+          type: Object,
+          default: () => ({}),
+        },
+        activities: {
+          type: Object,
+          default: () => ({}),
+        },
+        ifShowStepTool: {
+          type: Boolean,
+          default: true,
+        },
     },
     data() {
         return {
@@ -202,8 +216,6 @@ export default {
     computed: {
       ...mapState({
         activeNode: state => state.stageCanvas.activeNode,
-        activities: state => state.template.activities,
-        pluginsDetail: state => state.stageCanvas.pluginsDetail,
       }),
       status() {
         return this.node.state || ETaskStatusType.PENDING;

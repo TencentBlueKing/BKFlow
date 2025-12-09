@@ -205,7 +205,7 @@
   import { graphToJson, generateGraphData } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
-  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
+  import StageCanvas from '@/components/canvas/StageCanvas/MainStageCanvas.vue';
   import bus from '@/utils/bus.js';
   import SubflowUpdateTips from './SubflowUpdateTips.vue';
   import { cloneDeepWith } from 'lodash';

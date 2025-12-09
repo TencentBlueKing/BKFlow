@@ -87,19 +87,27 @@
             v-bkloading="{ isLoading: isSubprocessLoading, opacity: 1, zIndex: 100 }"
             class="sub-process"
             :style="{ height: `${subProcessHeight}px` }">
-            <SubflowCanvas
-              :key="canvasDataChangeKey"
+            <component
+              :is="templateComponentName"
+              :key="templateComponentName==='SubStageCanvas'? 'SubStageCanvas' : canvasDataChangeKey"
               ref="subProcessCanvas"
               :is-subflow-graph="true"
               class="sub-flow"
               :editable="false"
               :show-palette="false"
               :is-execute="true"
+              :is-stage-canvas-task-execute="!!currentSubflowTaskId"
+              :space-id="spaceId"
               :gateways="processGateway"
+              :instance-id="currentSubflowTaskId"
+              :pipeline-tree="subCanvasData"
+              :template-id="subTemplateId"
               :canvas-data="canvasData"
               @onSubflowNodeClick="onSubflowNodeClick"
               @onConditionClick="onSubConditionClick" />
-            <div class="flow-option">
+            <div
+              v-if="templateComponentName!=='SubStageCanvas'"
+              class="flow-option">
               <i
                 v-bk-tooltips.top="$t('缩小')"
                 class="bk-icon icon-narrow-line"
@@ -198,6 +206,7 @@
   import OptionsPanel from './ExecuteInfoCompoment/OptionsPanel.vue';
   import getOrderNodeToNodeTree from '@/utils/orderCanvasNodeToNodeTree.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
+  import SubStageCanvas from '../../../components/canvas/StageCanvas/SubStageCanvas.vue';
   const { CancelToken } = axios;
   let source = CancelToken.source();
 
@@ -208,6 +217,7 @@
       SubflowCanvas,
       OptionsPanel,
       JumpLinkBKFlowOrExternal,
+      SubStageCanvas,
     },
     props: {
       adminView: {
@@ -304,6 +314,10 @@
           return [];
         },
       },
+      canvasMode: {
+        type: String,
+        default: '',
+      },
     },
     data() {
       return {
@@ -342,6 +356,7 @@
         currentSubflowTaskId: '',
         subflowNodeStatus: {},
         subflowTaskId: '',
+        subTemplateId: '',
         canvasRandomKey: '',
         subflowState: '',
         currentNodeDisplayStatus: tools.deepClone(this.nodeDisplayStatus),
@@ -421,7 +436,7 @@
           }
           return result;
         });
-        if (!curLocation.name) {
+        if (!curLocation?.name) {
           curLocation.name = this.translateLocationName[curLocation.type];
         }
         return curLocation;
@@ -501,6 +516,14 @@
           };
         }
         return null;
+      },
+      templateComponentName() {
+          const canvasModeToComponentMap = {
+            horizontal: 'SubflowCanvas',
+            vertical: 'SubflowCanvas',
+            stage: 'SubStageCanvas',
+          };
+          return canvasModeToComponentMap[this.canvasMode] || canvasModeToComponentMap.horizontal;
       },
     },
     watch: {
@@ -694,6 +717,7 @@
           this.timer = setTimeout(() => {
             this.loadSubprocessStatus();
             this.updateSubflowCanvasNodeInfo();
+            this.templateComponentName === 'SubStageCanvas' && this.$refs.subProcessCanvas.setRefreshTaskStageCanvasData();
           }, time);
       },
       cancelTaskStatusTimer() {
@@ -756,6 +780,7 @@
       async getSubprocessData(taskId, nodeInfo, isOnlyExpand = false) {
         try {
             const resp = await this.getTaskInstanceData(taskId);
+            this.subTemplateId = resp.template_id;
             this.subCanvsLocationCollection = [...resp.pipeline_tree.location, ...this.subCanvsLocationCollection];
             this.subCanvsActivityCollection = Object.assign({}, resp.pipeline_tree.activities);
             this.setSubActivities(this.subCanvsActivityCollection);
@@ -876,8 +901,8 @@
       // 移动点击节点位置
       onMoveClickNode(id) {
         if (this.isExistInSubCanvas(id)) {
-            this.$refs.subProcessCanvas.setCanvasPosition(id);
-            this.$refs.subProcessCanvas.onUpdateNodeInfo(id, { isActive: true });
+            this.$refs.subProcessCanvas?.setCanvasPosition?.(id);
+            this.$refs.subProcessCanvas?.onUpdateNodeInfo?.(id, { isActive: true });
         }
       },
       // 点击子流程画布中的节点
@@ -1294,13 +1319,15 @@
               this.subflowTaskId = taskId;
               await this.loadSubprocessStatus(); // 获取独立子流程任务状态
               this.updateSubflowCanvasNodeInfo(); // 更新画布节点状态
+              this.templateComponentName === 'SubStageCanvas' && this.$refs.subProcessCanvas.setRefreshTaskStageCanvasData();
           } else { // 未执行情况下获取模板树
           // componentCode === 'subprocess_plugin' && !isNodeInSubflow
-            if (componentCode === 'subprocess_plugin') {
+          if (componentCode === 'subprocess_plugin') {
                 const query = {
                     subTemplateId: componentData.subprocess.value.template_id,
                     version,
                 };
+                this.subTemplateId = componentData.subprocess.value.template_id;
                 this.getUnexcutedSubflowTemplateCanvas(query);
             }
           }
@@ -1382,6 +1409,8 @@
               // if (!this.isExistInSubCanvas(nodeId)) {
               if (subflowNodeParent && subflowNodeParent.taskId) { // 已经执行
                 const resp = await this.getTaskInstanceData(subflowNodeParent.taskId);
+                this.currentSubflowTaskId = subflowNodeParent.taskId;
+                console.log('SideDrawerExecuteInfo.vue1413', this.currentSubflowTaskId, this.subCanvasData);
                 this.subCanvsLocationCollection = [...resp.pipeline_tree.location, ...this.subCanvsLocationCollection];
                 this.subCanvsActivityCollection = Object.assign({}, resp.pipeline_tree.activities);
                 this.setSubActivities(this.subCanvsActivityCollection);

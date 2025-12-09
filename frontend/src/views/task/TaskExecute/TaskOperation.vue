@@ -126,6 +126,7 @@
           :scope-info="scopeInfo"
           :template-id="templateId"
           :instance-actions="instanceActions"
+          :canvas-mode="canvasMode"
           @onOpenConditionInfo="onOpenConditionInfo"
           @onRetryClick="onRetryClick"
           @onSkipClick="onSkipClick"
@@ -242,8 +243,7 @@
   import { graphToJson } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
-  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
-
+  import StageCanvas from '@/components/canvas/StageCanvas/MainStageCanvas.vue';
   const { CancelToken } = axios;
   let source = CancelToken.source();
 

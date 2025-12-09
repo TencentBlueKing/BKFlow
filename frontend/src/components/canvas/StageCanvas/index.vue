@@ -6,12 +6,6 @@
       isPreview:!editable,
       isExecute
     }">
-    <JobAndStageEidtSld
-      :is-show.sync="isShowJobAndStageEdit"
-      :init-data="activeNode"
-      :editable="editable"
-      @confirm="hadEditedJobAndStage"
-      @cancel="cancelJobAndStageEidtSld" />
     <div
       ref="stageContainer"
       class="stage-container">
@@ -24,11 +18,16 @@
         :editable="editable"
         :constants="constants"
         :is-execute="isExecute"
+        :plugins-detail="pluginsDetail"
+        :activities="activities"
+        :active-node="activeNode"
+        :if-show-step-tool="ifShowStepTool"
         @deleteNode="deletNode(index)"
         @handleOperateNode="handleOperateNode"
         @addNewStage="addNewStage(index)"
         @refreshPPLT="refresh"
         @handleNode="handleNode"
+        @setActiveNode="setActiveNode"
         @copyNode="handleCopyNode(stage,index)" />
     </div>
   </div>
@@ -37,10 +36,8 @@
 
 import StageNode from './components/StageNode.vue';
 
-import {  ETaskStatusType, getDefaultNewStage, stage } from './data';
+import { ETaskStatusType, getDefaultNewStage } from './data';
 import { gatherStageCanvasConstans, generatePplTreeByCurrentStageCanvasData, getCopyNode } from './utils';
-import JobAndStageEidtSld from './components/JobAndStageEditSld/index.vue';
-import { mapGetters, mapMutations, mapState } from 'vuex';
 import axios from 'axios';
 import { cloneDeepWith } from 'lodash';
 import Sortable from 'sortablejs';
@@ -49,7 +46,6 @@ import Sortable from 'sortablejs';
   name: 'StageCanvas',
   components: {
     StageNode,
-    JobAndStageEidtSld,
   },
   props: {
     editable: {
@@ -76,13 +72,35 @@ import Sortable from 'sortablejs';
       type: String,
       default: '',
     },
+    activeNode: {
+      type: Object,
+      default: null,
+    },
+    stageCanvasData: {
+      type: Array,
+      default: null,
+    },
+    activities: {
+      type: Object,
+      default: () => ({}),
+    },
+    getPipelineTree: {
+      type: Object,
+      default: null,
+    },
+    pluginsDetail: {
+      type: Object,
+      default: () => ({}),
+    },
+    ifShowStepTool: {
+      type: Boolean,
+      default: true,
+    },
   },
 
   data() {
     return {
-        stageData: [...stage],
         activeItem: null,
-        isShowJobAndStageEdit: false,
         constants: [],
         timer: null,
         isPolling: false,
@@ -93,16 +111,8 @@ import Sortable from 'sortablejs';
       };
     },
   computed: {
-    ...mapState({
-        activeNode: state => state.stageCanvas.activeNode,
-        stageCanvasData: state => state.template.stage_canvas_data,
-        activities: state => state.template.activities,
-      }),
-      ...mapGetters('template/', [
-        'getPipelineTree',
-      ]),
       plugins() {
-        return Object.values(this.activities).reduce((res, item) => {
+        return Object.values(this.$props.activities).reduce((res, item) => {
           if (item.component && item.component.code) {
             if (item.component.code === 'uniform_api') {
               res.uniform_api.push({
@@ -124,13 +134,6 @@ import Sortable from 'sortablejs';
 
   },
   watch: {
-    activeNode: {
-      handler(value) {
-        if (value) {
-          this.isShowJobAndStageEdit = true;
-        }
-      },
-    },
     plugins: {
       handler() {
         this.debounceTimer && clearTimeout(this.debounceTimer);
@@ -145,13 +148,6 @@ import Sortable from 'sortablejs';
         this.sortableInstance.option('disabled', !value);
       },
     },
-    overallState: {
-      handler(value) {
-        if (window.parent) {
-          window.parent.postMessage({ eventName: 'bk-flow-task-state-change', state: value }, '*');
-        }
-      },
-    },
   },
   async mounted() {
     if (!this.isExecute) {
@@ -163,16 +159,21 @@ import Sortable from 'sortablejs';
     this.refreshPluginIcon();
 },
   methods: {
-    ...mapMutations('template/', [
-        'updatePipelineTree',
-        'updateStageCanvasData',
-      ]),
-      ...mapMutations('stageCanvas/', [
-        'setPluginsDetail',
-      ]),
+    updatePipelineTree(value) {
+      this.$emit('updatePipelineTree', value);
+    },
+    updateStageCanvasData(value) {
+      this.$emit('updateStageCanvasData', value);
+    },
+    setPluginsDetail(value) {
+      this.$emit('setPluginsDetail', value);
+    },
+    setActiveNode(node) {
+      this.$emit('setActiveNode', node);
+    },
     addNewStage(index) {
       const newStage = getDefaultNewStage();
-      this.stageCanvasData.splice(index + 1, 0,  newStage);
+      this.$props.stageCanvasData.splice(index + 1, 0,  newStage);
       this.refresh();
     },
     openStepNodeEdit(id) {
@@ -182,33 +183,26 @@ import Sortable from 'sortablejs';
       // 外部依赖不能删
     },
     deletNode(index) {
-      this.stageCanvasData.splice(index, 1);
+      this.$props.stageCanvasData.splice(index, 1);
       this.refresh();
     },
     handleCopyNode(stage, index) {
       const copyStage =  getCopyNode(stage);
-      this.stageCanvasData.splice(index + 1, 0,  copyStage);
+      this.$props.stageCanvasData.splice(index + 1, 0,  copyStage);
       this.refresh();
     },
-    setActiveItem(node) {
-      this.$store.commit('stageCanvas/setActiveNode', node);
-    },
-    cancelJobAndStageEidtSld() {
-      this.setActiveItem(null);
-    },
-    hadEditedJobAndStage() {
-      this.refresh();
-    },
+
+
     handleNode(node) {
-      this.$emit('onShowNodeConfig', node.id);
+      this.$emit('handleNode', node);
     },
     refresh() {
-      const res = generatePplTreeByCurrentStageCanvasData(this.getPipelineTree);
+      const res = generatePplTreeByCurrentStageCanvasData(this.$props.getPipelineTree);
       this.updatePipelineTree(res);
       this.$forceUpdate();
     },
     handleOperateNode(type, node) {
-      this.$emit(type, node.id, node.type);
+      this.$emit('handleOperateNode', type, node);
     },
     setRefreshTaskStageCanvasData(time = 2000) {
       this.isPolling = true;
@@ -231,30 +225,32 @@ import Sortable from 'sortablejs';
       }, []);
     },
     generateTaskNodeTemplateIdMap() {
-      this.taskNodeIdMap = Object.values(this.activities).reduce((res, node) => {
+      this.taskNodeIdMap = Object.values(this.$props.activities).reduce((res, node) => {
         res[node.template_node_id] = node;
         return res;
       }, {});
     },
     async getTaskStageCanvasData() {
+       if (!this.instanceId) return;
       const res = await this.getStageCanvasDataDetail().then(res => res.data);
 
       // 初始化任务节点映射map
       if (!this.taskNodeIdMap) this.generateTaskNodeTemplateIdMap();
       if (res) {
         this.updatePipelineTree({ stage_canvas_data: [...res] });
-        const runningNodesIds = this.getRunningNodeIds(this.stageCanvasData);
+        const runningNodesIds = this.getRunningNodeIds(this.$props.stageCanvasData);
         // 初始化变量收集
-        if (!this.stageCanvasConstansSet) this.stageCanvasConstansSet = gatherStageCanvasConstans(this.stageCanvasData);
+        if (!this.stageCanvasConstansSet) this.stageCanvasConstansSet = gatherStageCanvasConstans(this.$props.stageCanvasData);
         const params = {
           to_render_constants: this.stageCanvasConstansSet,
           node_ids: runningNodesIds,
         };
-        const constants = await this.getStageCanvasConstants(params).then(res => res.data.data);
+        const constants = await this.getStageCanvasConstants(params).then(res => res.data.data || []);
         this.constants = [...constants];
       }
     },
     async refreshPluginIcon() {
+      if (!this.templateId) return;
       const plugins = cloneDeepWith(this.plugins);
       if (!plugins.uniform_api.length) delete plugins.uniform_api;
       if (!plugins.component.length) delete plugins.component;
@@ -268,6 +264,7 @@ import Sortable from 'sortablejs';
         };
         const res = await this.getPluginDetail(params).then(res => res.data.data);
         this.setPluginsDetail(res);
+        this.$forceUpdate();
       }
     },
     async getPluginDetail(params) {
@@ -286,7 +283,7 @@ import Sortable from 'sortablejs';
           handle: '.stage-move-icon',
           onEnd: (evt) => {
             const { oldIndex, newIndex } = evt;
-            this.stageCanvasData.splice(newIndex, 0, ...this.stageCanvasData.splice(oldIndex, 1));
+            this.$props.stageCanvasData.splice(newIndex, 0, ...this.$props.stageCanvasData.splice(oldIndex, 1));
             this.refresh();
           },
         });

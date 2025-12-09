@@ -400,7 +400,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   stage_canvas_data: [],
   constants: {},
 }) => {
-  const { activities, stage_canvas_data: stageCanvasData, location, constants } = cloneDeepWith(pipelineTree);
+  const { activities = {}, stage_canvas_data: stageCanvasData = [], location, constants = {} } = cloneDeepWith(pipelineTree);
   const startPointLocation = {
     id: `node${uuid()}`,
     type: 'startpoint',
