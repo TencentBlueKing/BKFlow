@@ -1031,7 +1031,7 @@
         this.$set(record, 'isExpand', true);
         return record;
       },
-      async getTaskNodeDetail() {
+      async getTaskNodeDetail(isChangeExecuteLoop) {
         try {
           // 未执行的时候不展示任何信息
           const { state, subflowNodeParent, node_id } = this.nodeDetailConfig;
@@ -1039,7 +1039,10 @@
           const isUnexecutedSubprocess = this.isExistInSubCanvas(node_id) && ['READY', 'WAIT'].includes(state);
           const isExceted = subflowNodeParent && ['READY', 'WAIT'].includes(subflowNodeParent.state);
           if (this.nodeDetailConfig.root_node || isExceted || this.nodeDetailConfig?.conditionData || isUnexecutedSubprocess) return;
-          const query = Object.assign({}, this.nodeDetailConfig, { loop: this.theExecuteTime });
+          const query = { ...this.nodeDetailConfig };
+          if (isChangeExecuteLoop) {
+            query.loop = this.theExecuteTime;
+          }
           // 非任务节点请求参数不传 component_code
           if (!this.nodeDetailConfig.component_code) {
             delete query.component_code;
@@ -1334,13 +1337,13 @@
         }
         this.isBreadCurmbLoading = false;
       },
-      async loadNodeInfo() {
+      async loadNodeInfo(isChangeExecuteLoop = false) {
         this.loading = true;
         this.breadcrumbData = this.findNodePath(this.curNodeData[0].children, this.nodeDetailConfig.node_id);
         this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
         try {
           this.renderConfig = [];
-          let respData = await this.getTaskNodeDetail();
+          let respData = await this.getTaskNodeDetail(isChangeExecuteLoop);
           if (!respData) {
             this.isReadyStatus = false;
             this.executeInfo = {};
@@ -1352,7 +1355,7 @@
           this.isReadyStatus = ['RUNNING', 'SUSPENDED', 'FINISHED', 'FAILED'].indexOf(respData.state) > -1;
 
           respData = await this.setFillRecordField(respData);
-          if (this.theExecuteTime === undefined) {
+          if(!isChangeExecuteLoop){
             this.loop = respData.loop;
             this.theExecuteTime = respData.loop;
           }
@@ -1429,7 +1432,7 @@
       // 切换循环次数
       onSelectExecuteLoop(time) {
         this.theExecuteTime = time;
-        this.loadNodeInfo();
+        this.loadNodeInfo(true);
       },
       // 切换执行次数
       async onSelectExecuteRecord(time, historyInfo) {
