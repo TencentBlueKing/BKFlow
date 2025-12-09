@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -75,10 +74,16 @@ def apply_token(request, space_id):
 
     TokenResourceValidator(space_id, ser.data["resource_type"], ser.data["resource_id"]).validate()
 
-    try:
-        # 检查该token是否存在
-        token = Token.objects.get(**ser.data, expired_time__gte=timezone.now(), user=request.user.username)
-    except Token.DoesNotExist:
+    # 检查该token是否存在，考虑可能有多个token的情况
+    tokens = Token.objects.filter(
+        **ser.data, expired_time__gte=timezone.now(), user=request.user.username, space_id=space_id
+    ).order_by(
+        "-expired_time"
+    )  # 按过期时间降序排列，选择最晚过期的token
+
+    if tokens.exists():
+        token = tokens.first()
+    else:
         logger.error("[apigw>apply_token], the token is not exists, now while create a new token。")
         token = Token.objects.create(
             **ser.data,
