@@ -203,14 +203,23 @@ class TemplateSerializer(serializers.ModelSerializer):
         ):
             return TEMPLATE_PERMISSION_TYPE
         username = self.context["request"].user.username
-        permissions = Token.objects.filter(
+        scope_permissions = Token.objects.filter(
+            space_id=instance.space_id,
+            user=username,
+            resource_id=f"{instance.scope_type}_{instance.scope_value}",
+            resource_type="SCOPE",
+            expired_time__gte=timezone.now(),
+        ).values_list("permission_type", flat=True)
+        if scope_permissions:
+            return scope_permissions
+        template_permissions = Token.objects.filter(
             space_id=instance.space_id,
             user=username,
             resource_id=instance.id,
             resource_type="TEMPLATE",
             expired_time__gte=timezone.now(),
         ).values_list("permission_type", flat=True)
-        return permissions
+        return template_permissions
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
