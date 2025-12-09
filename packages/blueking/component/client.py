@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,9 +21,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 import random
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 
 import requests
 import ujson as json
@@ -42,7 +39,7 @@ except Exception:
 logger = logging.getLogger("component")
 
 
-class BaseComponentClient(object):
+class BaseComponentClient:
     """Base client class for component"""
 
     @classmethod
@@ -127,7 +124,7 @@ class BaseComponentClient(object):
 
     def __getattr__(self, key):
         if key not in self.available_collections:
-            return getattr(super(BaseComponentClient, self), key)
+            return getattr(super(), key)
 
         if key not in self._cached_collections:
             collection = self.available_collections[key]
