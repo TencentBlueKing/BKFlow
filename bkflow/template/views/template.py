@@ -216,7 +216,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
-            raise APIResponseError(result["message"])
+            return Response(exception=True, data=result["data"])
 
         task_data = result["data"]
         event_broadcast_signal.send(
@@ -344,7 +344,9 @@ class TemplateVersionViewSet(
     filter_backends = [DjangoFilterBackend]
     filterset_class = TemplateSnapshotFilterSet
     pagination_class = BKFLOWNoMaxLimitPagination
-    permission_classes = [AdminPermission | SpaceSuperuserPermission]
+    permission_classes = [
+        AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
+    ]
 
     def list(self, request, *args, **kwargs):
         template_id = request.query_params.get("template_id")
