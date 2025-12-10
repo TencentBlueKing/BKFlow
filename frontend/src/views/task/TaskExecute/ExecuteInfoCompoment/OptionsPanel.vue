@@ -287,10 +287,8 @@
         },
         deep: true,
       },
-      theExecuteTime: {
-        handler(val) {
-          this.theExecuteLoop = tools.deepClone(val);
-        },
+      theExecuteTime(val) {
+        this.theExecuteLoop = tools.deepClone(val);
       },
       historyInfo: {
         handler(val, oldVal) {
