@@ -62,10 +62,14 @@
         type: Boolean,
         default: false,
       },
+      activeNodeId: {
+        type: String,
+        default: null,
+      },
     },
     data() {
       return {
-        activeNode: null,
+
         loadedTemplate: false,
         pluginsDetail: { component: {}, uniform_api: {}, blueking: {} },
       };
@@ -76,6 +80,12 @@
       },
       activities() {
         return this.pipelineTree.activities || {};
+      },
+      activeNode() {
+        if (this.activeNodeId) {
+          return this.activities[this.activeNodeId];
+        }
+        return null;
       },
     },
     watch: {
@@ -111,8 +121,8 @@
       onUpdateNodeInfo() {
         // 外部依赖不能删
       },
-      setActiveItem(node) {
-        this.activeNode = node;
+      setActiveItem() {
+        // this.activeNode = node;
       },
       cancelJobAndStageEidtSld() {
         this.setActiveItem(null);
