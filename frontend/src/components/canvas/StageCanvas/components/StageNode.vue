@@ -6,7 +6,7 @@
               isExecute,[ETaskStatusTypeMap[status].class]:true} ">
     <div
       class="stage-header"
-      @click="setActiveItem(stage)">
+      @click="setActiveNode(stage)">
       <h3>
         <span
           v-if="editable"
@@ -65,12 +65,17 @@
         :constants="constants"
         :index="`${index}.${jobIndex + 1}`"
         :editable="editable"
+        :plugins-detail="pluginsDetail"
+        :activities="activities"
+        :active-node="activeNode"
         :show-not-allow-move="notAllowMoveIndex === jobIndex"
+        :if-show-step-tool="ifShowStepTool"
         @deleteNode="deletJobNode(jobIndex)"
         @handleNode="handleNode"
         @addNewJob="addNewJob(jobIndex)"
         @handleOperateNode="handleOperateNode"
         @refreshPPLT="refreshPPLT"
+        @setActiveNode="setActiveNode"
         @copyNode="handleCopyJobNode(job,jobIndex)" />
     </div>
     <div class="add-stage-btn">
@@ -84,7 +89,6 @@
 </template>
 <script>
 import JobNode from './JobNode.vue';
-import { mapState } from 'vuex';
 import ValueRender from './valueRender.vue';
 import { getCopyNode, transformNodeConfigToRenderItems } from '../utils';
 import { getDefaultNewJob, ETaskStatusType, ETaskStatusTypeMap } from '../data';
@@ -97,8 +101,8 @@ import Sortable from 'sortablejs';
     },
     props: {
         stage: {
-            type: Object,
-            required: true,
+          type: Object,
+          required: true,
         },
         index: {
           type: String,
@@ -119,6 +123,22 @@ import Sortable from 'sortablejs';
         constants: {
           type: Array,
           default: () => ([]),
+        },
+        pluginsDetail: {
+          type: Object,
+          default: () => ({}),
+        },
+        activities: {
+          type: Object,
+          default: () => ({}),
+        },
+        activeNode: {
+          type: Object,
+          default: null,
+        },
+        ifShowStepTool: {
+          type: Boolean,
+          default: true,
         },
     },
     data() {
@@ -153,9 +173,6 @@ import Sortable from 'sortablejs';
           };
       },
     computed: {
-      ...mapState({
-        activeNode: state => state.stageCanvas.activeNode,
-      }),
       status() {
         return this.stage.state || ETaskStatusType.PENDING;
       },
@@ -175,8 +192,8 @@ import Sortable from 'sortablejs';
     },
     methods: {
       transformNodeConfigToRenderItems,
-      setActiveItem(node) {
-        this.$store.commit('stageCanvas/setActiveNode', node);
+      setActiveNode(node) {
+        this.$emit('setActiveNode', node);
       },
       addNewStage() {
         this.$emit('addNewStage');

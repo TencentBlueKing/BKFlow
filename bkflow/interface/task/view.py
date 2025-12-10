@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 import logging
 
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from drf_yasg.utils import swagger_auto_schema
@@ -34,6 +35,7 @@ from bkflow.contrib.openapi.serializers import (
 )
 from bkflow.exceptions import APIRequestError
 from bkflow.interface.task.permissions import (
+    ScopePermission,
     TaskMockTokenPermission,
     TaskTokenPermission,
 )
@@ -107,7 +109,9 @@ class TaskInterfaceSystemSuperuserViewSet(GenericViewSet):
 class TaskInterfaceViewSet(GenericViewSet):
     OPERATE_ABOVE_ACTIONS = ["operate_node", "operate_task"]
     MOCK_ABOVE_ACTIONS = ["get_task_mock_data"]
-    permission_classes = [AdminPermission | SpaceSuperuserPermission | TaskTokenPermission | TaskMockTokenPermission]
+    permission_classes = [
+        AdminPermission | SpaceSuperuserPermission | TaskTokenPermission | TaskMockTokenPermission | ScopePermission
+    ]
 
     @staticmethod
     def _inject_user_task_auth(request, data):
@@ -118,13 +122,13 @@ class TaskInterfaceViewSet(GenericViewSet):
                 return
 
             permissions = Token.objects.filter(
+                Q(resource_id=f"{task_detail['scope_type']}_{task_detail['scope_value']}", resource_type="SCOPE")
+                | Q(resource_id=task_detail["id"], resource_type="TASK"),
                 space_id=task_detail["space_id"],
                 user=request.user.username,
-                resource_id=task_detail["id"],
-                resource_type="TASK",
                 expired_time__gte=timezone.now(),
             ).values_list("permission_type", flat=True)
-            task_detail["auth"] = list(permissions)
+            task_detail["auth"] = list(set(permissions))
 
     def get_space_id(self, request):
         request_space_id = request.query_params.get("space_id", None) or request.data.get("space_id", None)
