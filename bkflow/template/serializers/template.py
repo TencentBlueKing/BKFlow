@@ -20,6 +20,7 @@ import logging
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.validators import validate_pipeline_tree
@@ -204,13 +205,13 @@ class TemplateSerializer(serializers.ModelSerializer):
             return TEMPLATE_PERMISSION_TYPE
         username = self.context["request"].user.username
         permissions = Token.objects.filter(
+            Q(resource_id=f"{instance.scope_type}_{instance.scope_value}", resource_type="SCOPE")
+            | Q(resource_id=instance.id, resource_type="TEMPLATE"),
             space_id=instance.space_id,
             user=username,
-            resource_id=instance.id,
-            resource_type="TEMPLATE",
             expired_time__gte=timezone.now(),
         ).values_list("permission_type", flat=True)
-        return permissions
+        return list(set(permissions))
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
