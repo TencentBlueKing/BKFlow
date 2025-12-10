@@ -290,6 +290,7 @@ class TemplateViewSet(UserModelViewSet):
     filter_class = TemplateFilterSet
     EDIT_ABOVE_ACTIONS = ["update"]
     MOCK_ABOVE_ACTIONS = ["create_mock_task"]
+    pagination_class = BKFLOWNoMaxLimitPagination
     permission_classes = [
         AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
     ]
