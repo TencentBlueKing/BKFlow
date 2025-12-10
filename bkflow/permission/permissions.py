@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -29,6 +28,16 @@ class BaseTokenPermission(permissions.BasePermission):
     @abc.abstractmethod
     def get_resource_type(self):
         pass
+
+    def has_operate_permission(self, username, space_id, resource_id, token):
+        return Token.verify(
+            space_id,
+            username,
+            resource_type=self.get_resource_type(),
+            resource_id=resource_id,
+            permission_type=PermissionType.OPERATE.value,
+            token=token,
+        )
 
     def has_edit_permission(self, username, space_id, resource_id, token):
         return Token.verify(
