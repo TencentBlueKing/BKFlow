@@ -82,7 +82,6 @@
         return this.pipelineTree.activities || {};
       },
       activeNode() {
-        console.log('SubStageCanvas.vue_Line:85', this.activeNodeId, this.activities[this.activeNodeId]);
         if (this.activeNodeId) {
           return this.activities[this.activeNodeId];
         }

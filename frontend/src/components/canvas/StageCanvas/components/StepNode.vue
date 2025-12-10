@@ -252,7 +252,6 @@ export default {
     },
     methods: {
         handleNode(node) {
-          console.log('StepNode.vue_Line:255', this.activeNode, this.currentNode.id);
           if (this.isExecute) {
             this.$emit('handleOperateNode', 'onNodeClick', this.currentNode);
           } else {
