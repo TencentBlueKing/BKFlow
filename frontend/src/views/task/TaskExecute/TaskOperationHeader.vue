@@ -82,10 +82,18 @@
         class="sub-task-btns">
         <i class="common-icon-box-top-right-corner icon-link-to-father" />
         <p
-          class="view-father-process"
-          @click="onViewFatherProcessExecute">
-          {{ $t('查看父流程') }}
+          class="view-father-process">
+          <JumpLinkBKFlowOrExternal
+            :get-target-url="onViewFatherProcessExecute"
+            :query="{
+              id:parentTaskInfo.task_id,
+              type:'jumpParentTask'
+            }">
+            {{ $t('查看父流程') }}
+          </JumpLinkBKFlowOrExternal>
         </p>
+
+
         <span class="dividing-line" />
         <span :class="statusMap[parentTaskInfo.state].icon" />
         <span class="state-text">{{ statusMap[parentTaskInfo.state].text }}</span>
@@ -140,11 +148,13 @@
   // import PageHeader from '@/components/layout/PageHeader.vue'
   import { mapState } from 'vuex';
   import i18n from '@/config/i18n/index.js';
+  import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
 
   export default {
     name: 'TaskOperationHeader',
     components: {
       // PageHeader,
+      JumpLinkBKFlowOrExternal,
     },
     mixins: [permission],
     props: {
@@ -315,7 +325,7 @@
               instanceId: this.parentTaskInfo.task_id,
             },
         });
-        window.open(href, '_blank');
+        return href;
       },
     },
   };

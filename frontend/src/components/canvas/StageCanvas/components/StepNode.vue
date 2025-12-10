@@ -1,7 +1,7 @@
 <template>
   <div
     class="node"
-    :class="{ active:activeNode?.id === node.id,isPreview:!editable,isExecute,[ETaskStatusTypeMap[status].class]:true, isSkip }"
+    :class="{ active:activeNode?.id === currentNode?.id,isPreview:!editable,isExecute,[ETaskStatusTypeMap[status].class]:true, isSkip }"
     @click="handleNode(currentNode)">
     <div class="node-icon">
       <span
@@ -139,7 +139,6 @@
   </div>
 </template>
 <script>
-import { mapState } from 'vuex';
 import { ETaskStatusType, ETaskStatusTypeMap } from '../data';
 import { SYSTEM_GROUP_ICON } from '@/constants/index.js';
 import { getDurationTime } from '../utils';
@@ -176,6 +175,10 @@ export default {
         ifShowStepTool: {
           type: Boolean,
           default: true,
+        },
+        activeNode: {
+          type: Object,
+          default: null,
         },
     },
     data() {
@@ -214,9 +217,6 @@ export default {
         };
     },
     computed: {
-      ...mapState({
-        activeNode: state => state.stageCanvas.activeNode,
-      }),
       status() {
         return this.node.state || ETaskStatusType.PENDING;
       },
@@ -248,6 +248,7 @@ export default {
             this.node.state === ETaskStatusType.RUNNING ? new Date().toString() : this.node.finish_time,
           );
       },
+
     },
     methods: {
         handleNode(node) {
@@ -327,8 +328,11 @@ export default {
         }
     }
     &.active {
-        border: 1px solid #3A83FF;
-        background-color: rgba(58, 131, 255, 0.05);
+        // border: 1px solid #3A83FF;
+        // background-color: rgba(58, 131, 255, 0.05);
+        .node-title {
+          color: #2050d2;
+        }
     }
     .info-icon{
         .info-icon-item{

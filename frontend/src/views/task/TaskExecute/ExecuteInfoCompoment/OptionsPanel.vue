@@ -287,6 +287,9 @@
         },
         deep: true,
       },
+      theExecuteTime(val) {
+        this.theExecuteLoop = tools.deepClone(val);
+      },
       historyInfo: {
         handler(val, oldVal) {
           if (!tools.isDataEqual(val, oldVal)) {
