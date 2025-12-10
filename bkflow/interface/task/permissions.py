@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -29,6 +28,37 @@ logger = logging.getLogger("root")
 class TaskTokenPermission(BaseTokenPermission):
     def get_resource_type(self):
         return "TASK"
+
+    def has_operate_permission(self, username, space_id, resource_id, token):
+        return Token.verify(
+            space_id,
+            username,
+            resource_type=self.get_resource_type(),
+            resource_id=resource_id,
+            permission_type=PermissionType.OPERATE.value,
+            token=token,
+        )
+
+    def has_permission(self, request, view):
+        task_id = view.kwargs.get("task_id", None)
+        if task_id is None:
+            return False
+
+        if view.action in view.MOCK_ABOVE_ACTIONS:
+            return False
+
+        has_operate_permission = self.has_operate_permission(request.user.username, None, task_id, request.token)
+
+        if view.action in view.OPERATE_ABOVE_ACTIONS:
+            return has_operate_permission
+
+        has_view_permission = self.has_view_permission(request.user.username, None, task_id, request.token)
+        return has_operate_permission or has_view_permission
+
+
+class ScopePermission(BaseTokenPermission):
+    def get_resource_type(self):
+        return "SCOPE"
 
     def has_operate_permission(self, username, space_id, resource_id, token):
         return Token.verify(
