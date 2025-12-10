@@ -63,6 +63,7 @@
           :nodes="job.nodes"
           :plugins-detail="pluginsDetail"
           :editable="editable"
+          :active-node="activeNode"
           :show-not-allow-move="notAllowMoveIndex === nodeIndex"
           :is-execute="isExecute"
           :activities="activities"

@@ -99,6 +99,7 @@
               :is-stage-canvas-task-execute="!!currentSubflowTaskId"
               :space-id="spaceId"
               :gateways="processGateway"
+              :active-node-id="defaultActiveId"
               :instance-id="currentSubflowTaskId"
               :pipeline-tree="subCanvasData"
               :template-id="subTemplateId"
