@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 import logging
 
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from drf_yasg.utils import swagger_auto_schema
@@ -120,25 +121,14 @@ class TaskInterfaceViewSet(GenericViewSet):
                 task_detail["auth"] = TASK_PERMISSION_TYPE
                 return
 
-            scope_permissions = Token.objects.filter(
+            permissions = Token.objects.filter(
+                Q(resource_id=f"{task_detail['scope_type']}_{task_detail['scope_value']}", resource_type="SCOPE")
+                | Q(resource_id=task_detail["id"], resource_type="TASK"),
                 space_id=task_detail["space_id"],
                 user=request.user.username,
-                resource_id=f"{task_detail['scope_type']}_{task_detail['scope_value']}",
-                resource_type="SCOPE",
                 expired_time__gte=timezone.now(),
             ).values_list("permission_type", flat=True)
-            if scope_permissions:
-                task_detail["auth"] = list(scope_permissions)
-                return
-
-            task_permissions = Token.objects.filter(
-                space_id=task_detail["space_id"],
-                user=request.user.username,
-                resource_id=task_detail["id"],
-                resource_type="TASK",
-                expired_time__gte=timezone.now(),
-            ).values_list("permission_type", flat=True)
-            task_detail["auth"] = list(task_permissions)
+            task_detail["auth"] = list(set(permissions))
 
     def get_space_id(self, request):
         request_space_id = request.query_params.get("space_id", None) or request.data.get("space_id", None)
