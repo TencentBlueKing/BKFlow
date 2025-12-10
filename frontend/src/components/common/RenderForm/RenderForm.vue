@@ -296,7 +296,7 @@
                 separator: ',',
               };
               break;
-            case 'python_code_input_vars':
+            case 'field_mappings':
               val = { arg1: '', arg2: '' };
               break;
             default:
@@ -391,14 +391,8 @@
        * @TODO: 改写为 promise 异步机制
        */
       validate() {
-        let isValid = true;
-        this.$children.forEach((childComp) => {
-          const singleItemValid = childComp.validate();
-          if (isValid) {
-            isValid = singleItemValid;
-          }
-        });
-        return isValid;
+        const promises = this.$children.map(child => Promise.resolve(child.validate()));
+        return Promise.all(promises).then(results => results.every(result => result === true));
       },
       /**
        * 表单参数重载

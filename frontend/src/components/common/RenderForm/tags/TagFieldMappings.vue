@@ -37,29 +37,25 @@
             @focus="onFocus(index)"
             @blur="onBlur" />
           <!-- 变量提示列表 -->
-          <ul
-            v-show="isListOpen && currentIndex === index"
-            class="rf-select-list">
-            <li
-              v-for="(varItem, varIndex) in varList"
-              :key="varIndex"
-              class="var-item"
-              @mousedown="onSelectVal(varItem.key, index)">
-              <span class="var-key">{{ varItem.key }}</span>
-              <span class="var-name">{{ varItem.name }}</span>
-            </li>
-          </ul>
+          <variable-list
+            :is-list-open="isListOpen && currentIndex === index"
+            :var-list="varList"
+            :textarea-height="32"
+            @select="onSelectVal" />
         </div>
         <template v-if="!disabled && editable">
           <bk-button
-            icon="icon-plus-line"
-            class="add-btn"
+            theme="default"
+            icon="plus"
+            class="var-button"
             @click="updateList(index, 'add')" />
           <bk-button
-            icon="icon-minus-line"
-            class="delete-btn"
+            theme="default"
+            class="var-button"
             :disabled="formList.length === 1"
-            @click="updateList(index, 'delete')" />
+            @click="updateList(index, 'delete')">
+            <i class="common-icon-zoom-minus" />
+          </bk-button>
         </template>
       </div>
     </bk-form>
@@ -74,6 +70,7 @@
   import dom from '@/utils/dom.js';
   import { mapState } from 'vuex';
   import tools from '@/utils/tools.js';
+  import VariableList from '../VariableList.vue';
 
   // 匹配变量的正则表达式 - 匹配 $ 开头的内容
   const VAR_REG = /\$.*$/;
@@ -90,7 +87,10 @@
   };
 
   export default {
-    name: 'TagPythonCodeInputVars',
+    name: 'TagFieldMappings',
+    components: {
+      VariableList,
+    },
     mixins: [getFormMixins(attrs)],
     data() {
       // 将对象转换为数组用于显示
@@ -245,12 +245,10 @@
           this.onInput(val, index);
         }
       },
-      onSelectVal(val, index) {
-        // 替换为 ${var_key} 格式
-        // const varRef = `\${${val}}`;
+      onSelectVal(val) {
         const varRef = val;
-        const replacedValue = this.formList[index].value.replace(VAR_REG, varRef);
-        this.formList[index].value = replacedValue;
+        const replacedValue = this.formList[this.currentIndex].value.replace(VAR_REG, varRef);
+        this.formList[this.currentIndex].value = replacedValue;
         this.isListOpen = false;
         this.currentIndex = -1;
       },
@@ -265,7 +263,10 @@
         }
       },
       validate() {
-        return this.$refs.formRef.validate();
+        return this.$refs.formRef.validate().catch((e) => {
+          console.error(e);
+          return false;
+        });
       },
     },
   };
@@ -288,54 +289,13 @@
       position: relative;
       flex: 1;
     }
-
-    .add-btn,
-    .delete-btn {
-      width: 32px;
-      min-width: 32px;
-      padding: 0;
-      margin-top: 0;
-    }
-
     ::v-deep .bk-form-item {
       margin-bottom: 0;
     }
-  }
-
-  .rf-select-list {
-    position: absolute;
-    top: 32px;
-    left: 0;
-    right: 0;
-    max-height: 200px;
-    overflow-y: auto;
-    background: #fff;
-    border: 1px solid #dcdee5;
-    border-radius: 2px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-    @include scrollbar;
-
-    .var-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-size: 12px;
-
-      &:hover {
-        background: #f0f1f5;
-      }
-
-      .var-key {
-        color: #313238;
-        font-weight: 500;
-        margin-right: 12px;
-      }
-
-      .var-name {
-        color: #979ba5;
-      }
+    .var-button{
+      margin-right: 2px;
+      min-width: 32px !important;
+      padding: 0 !important;
     }
   }
 

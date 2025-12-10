@@ -127,7 +127,7 @@ export const getDefaultValueFormat = (scheme) => {
         },
       };
       break;
-    case 'python_code_input_vars':
+    case 'field_mappings':
       valueFormat = {
         type: ['Array', 'Object'],
         value: {},
