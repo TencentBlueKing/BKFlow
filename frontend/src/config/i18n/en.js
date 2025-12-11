@@ -1028,6 +1028,9 @@ const en = {
   查看父流程: 'View parent process',
   当前执行次数: 'Current execution count',
   查看子流程: 'View subflow',
+  参数名不能为空: 'Parameter name cannot be empty',
+  参数名不能重复: 'Parameter name cannot be duplicated',
+  '请输入值或 $ 选择变量': 'Enter value or $ to select variable',
 };
 
 export default en;
