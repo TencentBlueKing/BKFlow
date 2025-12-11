@@ -1054,6 +1054,9 @@ const en = {
   '版本号:': 'Version Number:',
   被以下决策表引用: 'Referenced by the following decision tables',
   '当前流程被以下决策表引用:': 'The current process is referenced by the following decision tables',
+  参数名不能为空: 'Parameter name cannot be empty',
+  参数名不能重复: 'Parameter name cannot be duplicated',
+  '请输入值或 $ 选择变量': 'Enter value or $ to select variable',
 };
 
 export default en;

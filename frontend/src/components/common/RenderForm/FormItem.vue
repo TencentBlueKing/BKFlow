@@ -33,25 +33,36 @@
       v-if="scheme.type === 'section'"
       ref="tagComponent"
       :name="scheme.attrs.name"
-      :tag-code="scheme.tag_code">
-    </tag-section>
+      :tag-code="scheme.tag_code" />
     <template v-else>
       <!-- 表单作为全局变量时的名称 -->
-      <div v-if="showFormTitle" :class="['rf-group-name', { 'not-reuse': showNotReuseTitle }]">
-        <span class="name">{{scheme.name || scheme.attrs.name}}</span>
-        <span class="required" v-if="isRequired()">*</span>
-        <span class="scheme-code" v-if="!option.showHook">{{ scheme.attrs.varKey || scheme.tag_code }}</span>
-        <span v-if="showNotReuseTitle" class="not-reuse-tip">
-          <i class="common-icon-dark-circle-warning"></i>
+      <div
+        v-if="showFormTitle"
+        :class="['rf-group-name', { 'not-reuse': showNotReuseTitle }]">
+        <span class="name">{{ scheme.name || scheme.attrs.name }}</span>
+        <span
+          v-if="isRequired()"
+          class="required">*</span>
+        <span
+          v-if="!option.showHook"
+          class="scheme-code">{{ scheme.attrs.varKey || scheme.tag_code }}</span>
+        <span
+          v-if="showNotReuseTitle"
+          class="not-reuse-tip">
+          <i class="common-icon-dark-circle-warning" />
           {{ $t('未能重用') }}
         </span>
         <!-- 编辑模式下才显示常量禁止修改tip -->
-        <span class="pre-mako-tip" v-if="option.formEdit && scheme.attrs.pre_mako_tip">
-          <i class="common-icon-dark-circle-warning"></i>
+        <span
+          v-if="option.formEdit && scheme.attrs.pre_mako_tip"
+          class="pre-mako-tip">
+          <i class="common-icon-dark-circle-warning" />
           {{ scheme.attrs.pre_mako_tip }}
         </span>
-        <span class="used-tip" v-else-if="!scheme.attrs.html_used_tip && scheme.attrs.used_tip">
-          <i class="common-icon-dark-circle-warning"></i>
+        <span
+          v-else-if="!scheme.attrs.html_used_tip && scheme.attrs.used_tip"
+          class="used-tip">
+          <i class="common-icon-dark-circle-warning" />
           {{ scheme.attrs.used_tip }}
         </span>
       </div>
@@ -71,7 +82,7 @@
             disabled: !!!scheme.attrs.tips
           }"
           :class="{ 'tag-label-tips': scheme.attrs.tips }">
-          {{scheme.attrs.name}}
+          {{ scheme.attrs.name }}
         </span>
       </label>
       <!-- 参数被使用占位popover -->
@@ -84,29 +95,39 @@
         :z-index="2072"
         class="html-used-tippy"
         ext-cls="html-used-tippy-popper">
-        <div class="empty-box"></div>
+        <div class="empty-box" />
         <template slot="content">
           <p class="tip-title">
-            <i class="common-icon-dark-circle-warning"></i>
+            <i class="common-icon-dark-circle-warning" />
             {{ scheme.attrs.used_tip }}
           </p>
-          <p class="tip-content">{{ $t('将沿用原参数值提交') }}</p>
-          <p class="tip-btn" @click="handleFoldUsedTip">{{ $t('知道了') }}</p>
+          <p class="tip-content">
+            {{ $t('将沿用原参数值提交') }}
+          </p>
+          <p
+            class="tip-btn"
+            @click="handleFoldUsedTip">
+            {{ $t('知道了') }}
+          </p>
         </template>
       </bk-popover>
       <!-- 表单勾选为全局变量 -->
-      <div v-show="hook" class="rf-tag-form">
-        <bk-input :disabled="true" :value="String(value)"></bk-input>
+      <div
+        v-show="hook"
+        class="rf-tag-form">
+        <bk-input
+          :disabled="true"
+          :value="String(value)" />
       </div>
       <!-- 表单元素 -->
       <component
+        :is="tagComponent"
         v-show="!hook"
+        ref="tagComponent"
         :class="[
           scheme.attrs.name ? 'rf-tag-form' : '',
           showTagUsedStyle
         ]"
-        ref="tagComponent"
-        :is="tagComponent"
         v-bind="getDefaultAttrs()"
         :tag-code="scheme.tag_code"
         :hook="hook"
@@ -118,8 +139,7 @@
         @init="$emit('init', $event)"
         @change="updateForm"
         @onShow="onShowForm"
-        @onHide="onHideForm">
-      </component>
+        @onHide="onHideForm" />
       <!-- 变量勾选checkbox -->
       <!-- <div class="rf-tag-hook" v-if="showHook">
         <i
@@ -141,52 +161,62 @@
           @click="onRenderChange">
         </i>
       </div> -->
-      <div class="scheme-desc-wrap" v-if="scheme.attrs.desc">
-        <div class="hide-html-text">{{ scheme.attrs.desc }}</div>
-        <div :class="['rf-group-desc', { 'is-fold': !isExpand }]">{{ scheme.attrs.desc }}</div>
-        <div :class="{ 'mt10': isExpand }" v-if="isDescTipsShow">
+      <div
+        v-if="scheme.attrs.desc"
+        class="scheme-desc-wrap">
+        <div class="hide-html-text">
+          {{ scheme.attrs.desc }}
+        </div>
+        <div :class="['rf-group-desc', { 'is-fold': !isExpand }]">
+          {{ scheme.attrs.desc }}
+        </div>
+        <div
+          v-if="isDescTipsShow"
+          :class="{ 'mt10': isExpand }">
           <span v-if="!isExpand">...</span>
-          <span class="expand-btn" @click="isExpand = !isExpand">{{ isExpand ? $t('收起') : $t('展开全部') }}</span>
+          <span
+            class="expand-btn"
+            @click="isExpand = !isExpand">{{ isExpand ? $t('收起') : $t('展开全部') }}</span>
         </div>
       </div>
     </template>
   </div>
 </template>
 <script>
-  import '@/utils/i18n.js'
-  import tools from '@/utils/tools.js'
-  import { checkDataType, getDefaultValueFormat } from '@/utils/checkDataType.js'
-  import FormGroup from './FormGroup.vue'
+  import '@/utils/i18n.js';
+  import tools from '@/utils/tools.js';
+  import { checkDataType, getDefaultValueFormat } from '@/utils/checkDataType.js';
+  import FormGroup from './FormGroup.vue';
 
   // 导入 tag 文件注册为组件
-  function registerTag () {
+  function registerTag() {
     const innerComponent = require.context(
       './tags/',
       false,
       /Tag[A-Z]\w+\.(vue|js)$/
-    )
+    );
     // const userComponent = require.context(
     //   '../../tags/',
     //   false,
     //   /Tag[A-Z]\w+\.(vue|js)$/
     // )
-    const tagComponent = {}
+    const tagComponent = {};
     const register = (fileName, context) => {
-      const componentConfig = context(fileName)
-      const comp = componentConfig.default
-      const typeName = comp.name.slice(3).replace(/[A-Z]/g, match => `-${match.toLowerCase()}`)
-      const name = `tag${typeName}`
+      const componentConfig = context(fileName);
+      const comp = componentConfig.default;
+      const typeName = comp.name.slice(3).replace(/[A-Z]/g, match => `-${match.toLowerCase()}`);
+      const name = `tag${typeName}`;
 
-      tagComponent[name] = comp
-    }
-    innerComponent.keys().forEach(fileName => {
-      register(fileName, innerComponent)
-    })
+      tagComponent[name] = comp;
+    };
+    innerComponent.keys().forEach((fileName) => {
+      register(fileName, innerComponent);
+    });
     // userComponent.keys().forEach(fileName => {
     //   register(fileName, userComponent)
     // })
 
-    return tagComponent
+    return tagComponent;
   }
 
   export default {
@@ -197,14 +227,14 @@
     props: {
       scheme: {
         type: Object,
-        default () {
-          return {}
+        default() {
+          return {};
         },
       },
       option: {
         type: Object,
-        default () {
-          return {}
+        default() {
+          return {};
         },
       },
       value: {
@@ -225,27 +255,27 @@
       },
       constants: {
         type: Object,
-        default () {
-          return {}
+        default() {
+          return {};
         },
       },
     },
-    data () {
-      let showForm = true
+    data() {
+      let showForm = true;
       // 原子配置为默认隐藏
       if ('hidden' in this.scheme.attrs) {
-        showForm = !this.scheme.attrs.hidden
+        showForm = !this.scheme.attrs.hidden;
       }
       // 原子配置为非编辑状态下隐藏，优先级高于 hidden
       if ('formViewHidden' in this.scheme.attrs && !this.option.formEdit) {
-        showForm = !this.scheme.attrs.formViewHidden
+        showForm = !this.scheme.attrs.formViewHidden;
       }
 
       // 是否展示右侧变量勾选checkbox
       const showHook = ('hookable' in this.scheme.attrs)
         ? (this.scheme.attrs.hookable && this.option.showHook)
-        : !!this.option.showHook
-      const formValue = this.getFormValue(this.value)
+        : !!this.option.showHook;
+      const formValue = this.getFormValue(this.value);
 
       return {
         randomKey: null,
@@ -259,133 +289,133 @@
         },
         isDescTipsShow: false,
         isExpand: false,
-      }
+      };
     },
     computed: {
-      showFormTitle () {
-        return !this.hook && this.option.showGroup && !!(this.scheme.name || this.scheme.attrs.name)
+      showFormTitle() {
+        return !this.hook && this.option.showGroup && !!(this.scheme.name || this.scheme.attrs.name);
       },
-      showNotReuseTitle () {
-        return this.option.formEdit && this.scheme.attrs.notReuse
+      showNotReuseTitle() {
+        return this.option.formEdit && this.scheme.attrs.notReuse;
       },
-      showTagUsedStyle () {
-        const { type, attrs } = this.scheme
+      showTagUsedStyle() {
+        const { type, attrs } = this.scheme;
         if (attrs.html_used_tip && ['input', 'textarea', 'select'].includes(type)) {
-          return 'rf-tag-used'
+          return 'rf-tag-used';
         }
-        return ''
+        return '';
       },
     },
     watch: {
-      scheme (val) {
-        this.tagComponent = `tag-${this.scheme.type.replace(/_/g, '-')}`
+      scheme() {
+        this.tagComponent = `tag-${this.scheme.type.replace(/_/g, '-')}`;
       },
-      value (val) {
-        this.formValue = this.getFormValue(val)
+      value: {
+        handler(val) {
+          this.formValue = this.getFormValue(val);
+        },
       },
     },
-    beforeCreate () {
-      const tagComponent = registerTag()
-      Object.keys(tagComponent).forEach(item => {
-        this.$options.components[item] = tagComponent[item]
-      })
+    beforeCreate() {
+      const tagComponent = registerTag();
+      Object.keys(tagComponent).forEach((item) => {
+        this.$options.components[item] = tagComponent[item];
+      });
     },
     methods: {
-      getDefaultAttrs () {
-        const attrs = tools.deepClone(this.scheme.attrs)
-        attrs.showVarList = this.option.showVarList // 是否自动显示变量列表
-        attrs.formEdit = this.option.formEdit
-        attrs.formMode = this.option.formMode
-        attrs.validateSet = this.option.validateSet
+      getDefaultAttrs() {
+        const attrs = tools.deepClone(this.scheme.attrs);
+        attrs.showVarList = this.option.showVarList; // 是否自动显示变量列表
+        attrs.formEdit = this.option.formEdit;
+        attrs.formMode = this.option.formMode;
+        attrs.validateSet = this.option.validateSet;
 
         // UI 配置项里的 formEdit 优先于标准插件配置项里的 editable 属性
         // if ('editable' in this.option) {
         //     attrs.editable = this.option.editable
         // }
 
-        return { ...attrs }
+        return { ...attrs };
       },
-      getFormValue (val) {
+      getFormValue(val) {
         // 不使用默认值
         if (this.scheme.attrs.usedValue) {
-          return tools.deepClone(val)
+          return tools.deepClone(val);
         }
-        const valueType = checkDataType(val)
+        const valueType = checkDataType(val);
 
         if (valueType === 'Undefined') {
-          return
+          return;
         }
 
-        let defaultValueFormat
-        let formValue
+        let defaultValueFormat;
+        let formValue;
 
         if (this.hook) {
           defaultValueFormat = {
             type: 'String',
             value: '',
-          }
+          };
         } else {
-          defaultValueFormat = getDefaultValueFormat(this.scheme)
+          defaultValueFormat = getDefaultValueFormat(this.scheme);
         }
-
         const isTypeValid = Array.isArray(defaultValueFormat.type)
           ? defaultValueFormat.type.indexOf(valueType) > -1
-          : defaultValueFormat.type === valueType
-
+          : defaultValueFormat.type === valueType;
         if (isTypeValid) {
-          formValue = tools.deepClone(val)
+          formValue = tools.deepClone(val);
         } else {
-          formValue = tools.deepClone(defaultValueFormat.value)
-          this.updateForm([this.scheme.tag_code], formValue)
+          formValue = tools.deepClone(defaultValueFormat.value);
+          this.updateForm([this.scheme.tag_code], formValue);
         }
 
-        return formValue
+        return formValue;
       },
-      isRequired () {
-        let required = false
+      isRequired() {
+        let required = false;
         if (this.option.showRequired === true && 'validation' in this.scheme.attrs) {
-          required = this.scheme.attrs.validation.some(item => item.type === 'required')
+          required = this.scheme.attrs.validation.some(item => item.type === 'required');
         }
-        return required
+        return required;
       },
-      updateForm (fieldArr, val) {
-        this.$emit('change', fieldArr, val)
+      updateForm(fieldArr, val) {
+        this.$emit('change', fieldArr, val);
       },
-      onShowForm () {
-        this.showForm = true
+      onShowForm() {
+        this.showForm = true;
       },
-      onHideForm () {
-        this.showForm = false
+      onHideForm() {
+        this.showForm = false;
       },
-      onHookForm (val) {
+      onHookForm(val) {
         if (!this.option.formEdit || !this.render) {
-          return
+          return;
         }
-        this.$emit('onHook', this.scheme.tag_code, val)
+        this.$emit('onHook', this.scheme.tag_code, val);
       },
-      onRenderChange () {
+      onRenderChange() {
         if (!this.option.formEdit || this.hook) {
-          return
+          return;
         }
-        this.$emit('onRenderChange', this.scheme.tag_code, !this.render)
+        this.$emit('onRenderChange', this.scheme.tag_code, !this.render);
       },
-      validate (combineValue) {
+      validate(combineValue) {
         // 表单未被勾选并且为显示状态
         if (!this.hook && this.showForm) {
-          return this.$refs.tagComponent.validate(combineValue)
+          return this.$refs.tagComponent.validate(combineValue);
         }
-        return true
+        return true;
       },
-      handleFoldUsedTip () {
-        this.$refs.htmlUsedTipPopper.hideHandler()
-        this.scheme.attrs.html_used_tip = false
-        this.scheme.attrs.disabled = true
-        this.formValue = this.constants[this.scheme.tag_code].value
-        this.updateForm([this.scheme.tag_code], this.formValue)
-        this.randomKey = new Date().getTime()
+      handleFoldUsedTip() {
+        this.$refs.htmlUsedTipPopper.hideHandler();
+        this.scheme.attrs.html_used_tip = false;
+        this.scheme.attrs.disabled = true;
+        this.formValue = this.constants[this.scheme.tag_code].value;
+        this.updateForm([this.scheme.tag_code], this.formValue);
+        this.randomKey = new Date().getTime();
       },
     },
-  }
+  };
 </script>
 <style lang="scss">
 .rf-form-item {

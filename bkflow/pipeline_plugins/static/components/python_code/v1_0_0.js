@@ -2,7 +2,7 @@
     $.atoms.python_code = [
         {
             tag_code: "bk_input_vars",
-            type: "python_code_input_vars",
+            type: "field_mappings",
             attrs: {
                 name: gettext("输入变量"),
                 hookable: false,
