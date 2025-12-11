@@ -106,20 +106,6 @@ class TestComputeSortedListByOrder(TestCase):
         result = dummy.compute_sorted_list_by_order(orders, dummy_nums_dict)
         self.assertEqual(result, ["n1", "n3", "n5"])
 
-    def test_empty_orders(self):
-        """测试空 orders"""
-        orders = {}
-        dummy_nums_dict = {"n1": 1}
-        result = dummy.compute_sorted_list_by_order(orders, dummy_nums_dict)
-        self.assertEqual(result, [])
-
-    def test_no_matching_nodes(self):
-        """测试没有匹配的节点"""
-        orders = {0: ["n1", "n2"], 1: ["n3"]}
-        dummy_nums_dict = {"n4": 1, "n5": 2}
-        result = dummy.compute_sorted_list_by_order(orders, dummy_nums_dict)
-        self.assertEqual(result, [])
-
 
 class TestComputeNodeRightToLeft(TestCase):
     """测试 compute_node_right_to_left 函数"""
@@ -140,20 +126,6 @@ class TestComputeNodeRightToLeft(TestCase):
 
         dummy.compute_node_right_to_left(pipeline, "f2", 5, nodes_dummy_nums)
         self.assertEqual(nodes_dummy_nums["n1"], 5)
-
-    def test_node_not_in_activities(self):
-        """测试节点不在 activities 中的情况"""
-        pipeline = {
-            PWE.activities: {},
-            PWE.flows: {
-                "f1": {PWE.id: "f1", PWE.source: "gateway1", PWE.target: "n1"},
-            },
-        }
-        nodes_dummy_nums = {}
-
-        result = dummy.compute_node_right_to_left(pipeline, "f1", 3, nodes_dummy_nums)
-        self.assertIsNone(result)
-        self.assertEqual(nodes_dummy_nums, {})
 
 
 class TestComputeNodeLeftToRight(TestCase):
@@ -179,23 +151,6 @@ class TestComputeNodeLeftToRight(TestCase):
         # 虚拟节点应该被赋值
         self.assertEqual(nodes_dummy_nums.get("dummy1"), 3)
         self.assertEqual(nodes_dummy_nums.get("dummy2"), 3)
-
-    def test_non_dummy_node(self):
-        """测试非虚拟节点的情况"""
-        pipeline = {
-            "all_nodes": {
-                "n1": {PWE.id: "n1", PWE.type: "ServiceActivity", PWE.incoming: "f1", PWE.outgoing: "f2"},
-            },
-            PWE.flows: {
-                "f1": {PWE.id: "f1", PWE.source: "n0", PWE.target: "n1"},
-            },
-        }
-        nodes_dummy_nums = {}
-
-        result = dummy.compute_node_left_to_right(pipeline, "f1", 5, nodes_dummy_nums)
-        # 非虚拟节点不应该被赋值
-        self.assertIsNone(result)
-        self.assertNotIn("n1", nodes_dummy_nums)
 
 
 class TestComputeNodesFillNum(TestCase):

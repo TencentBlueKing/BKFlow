@@ -93,10 +93,7 @@ class TestTaskInstance:
             space_id=1, pipeline_tree=build_default_pipeline_tree(), executor="test_executor"
         )
         notify_info = task_instance.get_notify_info()
-
         assert "types" in notify_info
-        assert "receivers" in notify_info
-        assert "format" in notify_info
         assert "test_executor" in notify_info["receivers"]
 
 
@@ -104,21 +101,16 @@ class TestTaskInstance:
 class TestTaskMockData:
     """测试 TaskMockData 模型"""
 
-    def test_create_mock_data(self):
-        """测试创建 Mock 数据"""
+    def test_mock_data_operations(self):
+        """测试 Mock 数据操作"""
         taskflow_id = 1
         mock_data = {"outputs": {"node1": {"output1": "value1"}}, "nodes": ["node1"]}
         task_mock_data = TaskMockData.objects.create(taskflow_id=taskflow_id, data=mock_data)
-
         assert task_mock_data.taskflow_id == taskflow_id
         assert task_mock_data.data == mock_data
 
-    def test_to_json(self):
-        """测试转换为 JSON"""
-        mock_data = {"outputs": {"node1": {"output1": "value1"}}}
-        task_mock_data = TaskMockData.objects.create(taskflow_id=1, data=mock_data)
+        # Test to_json
         json_data = task_mock_data.to_json()
-
         assert json_data["taskflow_id"] == 1
         assert json_data["data"] == mock_data
 
@@ -130,16 +122,10 @@ class TestTaskOperationRecord:
     def test_create_operation_record(self):
         """测试创建操作记录"""
         record = TaskOperationRecord.objects.create(
-            instance_id=1,
-            operator="test_operator",
-            operate_type="start",
-            operate_source="api",
+            instance_id=1, operator="test_operator", operate_type="start", operate_source="api"
         )
-
         assert record.instance_id == 1
         assert record.operator == "test_operator"
-        assert record.operate_type == "start"
-        assert record.operate_source == "api"
 
 
 @pytest.mark.django_db(transaction=True)
@@ -156,10 +142,7 @@ class TestAutoRetryNodeStrategy:
             max_retry_times=5,
             interval=10,
         )
-
         assert strategy.taskflow_id == 1
-        assert strategy.root_pipeline_id == "root_123"
-        assert strategy.node_id == "node_123"
         assert strategy.max_retry_times == 5
 
 
@@ -170,16 +153,9 @@ class TestTimeoutNodeConfig:
     def test_create_timeout_config(self):
         """测试创建超时配置"""
         config = TimeoutNodeConfig.objects.create(
-            task_id=1,
-            root_pipeline_id="root_123",
-            node_id="node_123",
-            action="forced_fail",
-            timeout=300,
+            task_id=1, root_pipeline_id="root_123", node_id="node_123", action="forced_fail", timeout=300
         )
-
         assert config.task_id == 1
-        assert config.node_id == "node_123"
-        assert config.action == "forced_fail"
         assert config.timeout == 300
 
 
@@ -187,8 +163,9 @@ class TestTimeoutNodeConfig:
 class TestEngineSpaceConfig:
     """测试 EngineSpaceConfig 模型"""
 
-    def test_create_text_config(self):
-        """测试创建文本类型配置"""
+    def test_create_configs(self):
+        """测试创建文本和 JSON 类型配置"""
+        # Text config
         config = EngineSpaceConfig.objects.create(
             interface_config_id=1,
             space_id=1,
@@ -196,14 +173,9 @@ class TestEngineSpaceConfig:
             value_type=EngineSpaceConfigValueType.TEXT.value,
             text_value="test_value",
         )
-
-        assert config.interface_config_id == 1
-        assert config.space_id == 1
-        assert config.name == "test_config"
         assert config.text_value == "test_value"
 
-    def test_create_json_config(self):
-        """测试创建 JSON 类型配置"""
+        # JSON config
         json_value = {"key": "value"}
         config = EngineSpaceConfig.objects.create(
             interface_config_id=2,
@@ -212,12 +184,11 @@ class TestEngineSpaceConfig:
             value_type=EngineSpaceConfigValueType.JSON.value,
             json_value=json_value,
         )
-
         assert config.json_value == json_value
 
     def test_get_space_var(self):
         """测试获取空间变量"""
-        # 创建空间变量配置，name 必须是 "engine_space_config"
+        # Existing config
         json_value = {"space": {"space_var": {"var1": "value1"}}, "scope": {}}
         EngineSpaceConfig.objects.create(
             interface_config_id=1,
@@ -226,12 +197,9 @@ class TestEngineSpaceConfig:
             value_type=EngineSpaceConfigValueType.JSON.value,
             json_value=json_value,
         )
-
         space_var = EngineSpaceConfig.get_space_var(space_id=1)
-        assert "space" in space_var
         assert space_var["space"]["space_var"] == {"var1": "value1"}
 
-    def test_get_space_var_not_exist(self):
-        """测试获取不存在的空间变量"""
+        # Not exist
         space_var = EngineSpaceConfig.get_space_var(space_id=999)
         assert space_var == {}

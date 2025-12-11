@@ -94,45 +94,21 @@ class TestBKFlowOrderingFilter:
 
 
 class TestBKFLOWCommonMixin:
-    def test_get_queryset_default(self):
-        """Test get_queryset returns default queryset"""
+    def test_get_queryset(self):
+        """Test get_queryset with default and action-specific queryset"""
         mixin = BKFLOWCommonMixin()
         mixin.queryset = ["default"]
         mixin.action = "list"
 
         with mock.patch.object(BKFLOWCommonMixin.__bases__[0], "get_queryset", return_value=["default"]):
-            result = mixin.get_queryset()
-            assert result == ["default"]
+            assert mixin.get_queryset() == ["default"]
 
-    def test_get_queryset_action_specific(self):
-        """Test get_queryset with action-specific queryset"""
-        mixin = BKFLOWCommonMixin()
-        mixin.queryset = ["default"]
         mixin.list_queryset = ["list_specific"]
-        mixin.action = "list"
-
         with mock.patch.object(BKFLOWCommonMixin.__bases__[0], "get_queryset", return_value=["list_specific"]):
-            result = mixin.get_queryset()
-            assert result == ["list_specific"]
+            assert mixin.get_queryset() == ["list_specific"]
 
-    def test_get_serializer_class_default(self):
-        """Test get_serializer_class returns default"""
-
-        class MockSerializerClass:
-            pass
-
-        mixin = BKFLOWCommonMixin()
-        mixin.serializer_class = MockSerializerClass
-        mixin.action = "list"
-
-        with mock.patch.object(
-            BKFLOWCommonMixin.__bases__[0], "get_serializer_class", return_value=MockSerializerClass
-        ):
-            result = mixin.get_serializer_class()
-            assert result == MockSerializerClass
-
-    def test_get_serializer_class_action_specific(self):
-        """Test get_serializer_class with action-specific serializer"""
+    def test_get_serializer_class(self):
+        """Test get_serializer_class with default and action-specific serializer"""
 
         class MockSerializerClass:
             pass
@@ -142,9 +118,14 @@ class TestBKFLOWCommonMixin:
 
         mixin = BKFLOWCommonMixin()
         mixin.serializer_class = MockSerializerClass
+        mixin.action = "list"
+
+        with mock.patch.object(
+            BKFLOWCommonMixin.__bases__[0], "get_serializer_class", return_value=MockSerializerClass
+        ):
+            assert mixin.get_serializer_class() == MockSerializerClass
+
         mixin.retrieve_serializer_class = CustomSerializer
         mixin.action = "retrieve"
-
         with mock.patch.object(BKFLOWCommonMixin.__bases__[0], "get_serializer_class", return_value=CustomSerializer):
-            result = mixin.get_serializer_class()
-            assert result == CustomSerializer
+            assert mixin.get_serializer_class() == CustomSerializer

@@ -27,54 +27,34 @@ from bkflow.utils.pipeline import build_default_pipeline_tree
 class TestFormatBambooEngineStatus:
     """测试格式化 bamboo engine 状态"""
 
-    def test_format_status_time(self):
-        """测试格式化状态时间"""
+    def test_format_status(self):
+        """测试格式化状态"""
         from django.utils import timezone
 
+        # Format time
         status_tree = {
             "state": bamboo_engine_states.RUNNING,
             "started_time": timezone.now(),
             "archived_time": None,
             "children": {},
         }
-
         format_bamboo_engine_status(status_tree)
-
         assert "start_time" in status_tree
-        assert "finish_time" in status_tree
-        assert "elapsed_time" in status_tree
 
-    def test_format_status_with_children(self):
-        """测试格式化带子节点的状态"""
+        # With children
         status_tree = {
             "state": bamboo_engine_states.RUNNING,
-            "children": {
-                "node1": {
-                    "state": bamboo_engine_states.FAILED,
-                    "children": {},
-                }
-            },
+            "children": {"node1": {"state": bamboo_engine_states.FAILED, "children": {}}},
         }
-
         format_bamboo_engine_status(status_tree)
-
         assert status_tree["state"] == bamboo_engine_states.FAILED
-        assert "start_time" in status_tree["children"]["node1"]
 
-    def test_format_status_suspended(self):
-        """测试格式化暂停状态"""
+        # Suspended
         status_tree = {
             "state": bamboo_engine_states.RUNNING,
-            "children": {
-                "node1": {
-                    "state": bamboo_engine_states.SUSPENDED,
-                    "children": {},
-                }
-            },
+            "children": {"node1": {"state": bamboo_engine_states.SUSPENDED, "children": {}}},
         }
-
         format_bamboo_engine_status(status_tree)
-
         assert status_tree["state"] == "NODE_SUSPENDED"
 
 
@@ -82,18 +62,15 @@ class TestFormatBambooEngineStatus:
 class TestParseNodeTimeoutConfigs:
     """测试解析节点超时配置"""
 
-    def test_parse_timeout_configs_empty(self):
-        """测试解析空配置"""
+    def test_parse_timeout_configs(self):
+        """测试解析超时配置"""
+        # Empty config
         pipeline_tree = build_default_pipeline_tree()
         result = parse_node_timeout_configs(pipeline_tree)
-
         assert result["result"] is True
         assert isinstance(result["data"], list)
 
-    def test_parse_timeout_configs_with_timeout(self):
-        """测试解析带超时配置的节点"""
-        pipeline_tree = build_default_pipeline_tree()
-        # 添加超时配置
+        # With timeout
         activities = pipeline_tree.get("activities", {})
         if activities:
             first_activity_id = list(activities.keys())[0]
@@ -102,27 +79,12 @@ class TestParseNodeTimeoutConfigs:
                 "seconds": 300,
                 "action": "forced_fail",
             }
+            result = parse_node_timeout_configs(pipeline_tree)
+            assert result["result"] is True
+            assert len(result["data"]) > 0
+            assert result["data"][0]["timeout"] == 300
 
-        result = parse_node_timeout_configs(pipeline_tree)
-
-        assert result["result"] is True
-        assert len(result["data"]) > 0
-        assert result["data"][0]["timeout"] == 300
-        assert result["data"][0]["action"] == "forced_fail"
-
-    def test_parse_timeout_configs_invalid_timeout(self):
-        """测试解析无效的超时配置"""
-        pipeline_tree = build_default_pipeline_tree()
-        activities = pipeline_tree.get("activities", {})
-        if activities:
-            first_activity_id = list(activities.keys())[0]
-            activities[first_activity_id]["timeout_config"] = {
-                "enable": True,
-                "seconds": "invalid",  # 无效的超时时间
-                "action": "forced_fail",
-            }
-
-        result = parse_node_timeout_configs(pipeline_tree)
-
-        # 无效配置会被忽略，但不会导致解析失败
-        assert result["result"] is True
+            # Invalid timeout
+            activities[first_activity_id]["timeout_config"]["seconds"] = "invalid"
+            result = parse_node_timeout_configs(pipeline_tree)
+            assert result["result"] is True

@@ -6,14 +6,11 @@ from bkflow.task.auto_retry import AutoRetryNodeStrategyCreator
 
 
 class TestAutoRetryNodeStrategyCreator:
-    def test_initialization(self):
-        """Test AutoRetryNodeStrategyCreator initialization"""
+    def test_initialization_and_constants(self):
+        """Test initialization and constants"""
         creator = AutoRetryNodeStrategyCreator(taskflow_id=123, root_pipeline_id="pipe_456")
         assert creator.taskflow_id == 123
         assert creator.root_pipeline_id == "pipe_456"
-
-    def test_constants(self):
-        """Test class constants"""
         assert AutoRetryNodeStrategyCreator.TASKFLOW_NODE_AUTO_RETRY_MAX_TIMES == 10
         assert AutoRetryNodeStrategyCreator.TASKFLOW_NODE_AUTO_RETRY_MAX_INTERVAL == 10
         assert AutoRetryNodeStrategyCreator.TASKFLOW_NODE_AUTO_RETRY_BATCH_CREATE_COUNT == 1000

@@ -24,34 +24,22 @@ from bkflow.utils.mako import parse_mako_expression
 class TestMakoUtils:
     """Test mako expression parsing"""
 
-    def test_parse_true_expression(self):
-        """Test parsing expression that evaluates to True"""
-        result = parse_mako_expression("${1 == 1}", {})
-        assert result is True
+    def test_parse_mako_expression(self):
+        """Test mako expression parsing"""
+        # True/False
+        assert parse_mako_expression("${1 == 1}", {}) is True
+        assert parse_mako_expression("${1 == 2}", {}) is False
 
-    def test_parse_false_expression(self):
-        """Test parsing expression that evaluates to False"""
-        result = parse_mako_expression("${1 == 2}", {})
-        assert result is False
-
-    def test_parse_with_context(self):
-        """Test parsing with context variables"""
+        # With context
         context = {"x": 10, "y": 5}
-        result = parse_mako_expression("${x > y}", context)
-        assert result is True
+        assert parse_mako_expression("${x > y}", context) is True
 
-    def test_parse_complex_expression(self):
-        """Test complex boolean expression"""
+        # Complex expression
         context = {"a": 10, "b": 20, "c": 15}
-        result = parse_mako_expression("${a < c and c < b}", context)
-        assert result is True
+        assert parse_mako_expression("${a < c and c < b}", context) is True
 
-    def test_parse_invalid_result(self):
-        """Test that non-boolean result raises ValueError"""
+        # Invalid results
         with pytest.raises(ValueError, match="must be a boolean"):
             parse_mako_expression("${1 + 1}", {})
-
-    def test_parse_string_result(self):
-        """Test that string result raises ValueError"""
         with pytest.raises(ValueError, match="must be a boolean"):
             parse_mako_expression("${'hello'}", {})
