@@ -21,7 +21,8 @@ from django.utils.translation import ugettext_lazy as _
 from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
 
-from bkflow.space.models import Space
+from bkflow.space.configs import FlowVersioning
+from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import Template, TemplateSnapshot
 
 logger = logging.getLogger("root")
@@ -54,7 +55,10 @@ class TemplateSerializers(serializers.ModelSerializer):
     @transaction.atomic()
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
-        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+        if SpaceConfig.get_config(space_id=validated_data["space_id"], config_name=FlowVersioning.name) == "true":
+            snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, validated_data["creator"])
+        else:
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, validated_data["creator"], "1.0.0")
         validated_data["snapshot_id"] = snapshot.id
         return super().create(validated_data)
 

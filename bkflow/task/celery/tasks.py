@@ -162,6 +162,12 @@ def bkflow_periodic_task_start(*args, **kwargs):
         return
 
     try:
+        interface_client = InterfaceModuleClient()
+        template = interface_client.get_template_data(
+            template_id=periodic_task.template_id, data={"space_id": periodic_task.config["space_id"]}
+        )
+        periodic_task.config["pipeline_tree"] = template["data"]["pipeline_tree"]
+
         task_data = {
             "template_id": periodic_task.template_id,
             "name": periodic_task.name + "_" + timezone.localtime(timezone.now()).strftime("%Y%m%d%H%M%S"),

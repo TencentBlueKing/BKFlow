@@ -59,9 +59,9 @@ class InterfaceModuleClient(BaseComponentClient):
             method="post", url=self._get_interface_url("api/space/internal/broadcast_task_events/"), data=data
         )
 
-    def get_subproc_data(self, template_id, data):
+    def get_template_data(self, template_id, data):
         return self._request(
             method="get",
-            url=self._get_interface_url(f"api/template/internal/{template_id}/get_subproc_data/"),
+            url=self._get_interface_url(f"api/template/internal/{template_id}/get_template_data/"),
             data=data,
         )

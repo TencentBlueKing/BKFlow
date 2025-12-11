@@ -422,6 +422,22 @@ class SpacePluginConfig(BaseSpaceConfig):
         return SpacePluginConfigParser(config=value).is_valid()
 
 
+class FlowVersioning(BaseSpaceConfig):
+    name = "flow_versioning"
+    desc = _("流程版本控制")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError(
+                f"[validate flow version error]: flow version only support 'true' or 'false', value: {value}"
+            )
+        return True
+
+
 # 定义 SCHEMA_V1 对应的模型
 class SchemaV1Model(BaseModel):
     meta_apis: str
