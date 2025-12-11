@@ -71,7 +71,7 @@ def update_template(request, space_id, template_id):
             raise UpdateTemplateException(_(f"模板不存在，template_id:{template_id}"))
 
         if pipeline_tree:
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, space_id, request.user.username)
             validated_data_dict["snapshot_id"] = snapshot.id
             snapshot.template_id = template.id
             snapshot.save(update_fields=["template_id"])
