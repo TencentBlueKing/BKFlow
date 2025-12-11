@@ -8,11 +8,11 @@ apigateway:
     - "{{ member }}"
     {% endfor %}
 
-stage:
+stages:
   - name: {{ settings.BK_APIGW_STAGE_NAME }}
     vars:
       api_sub_path: "{{ settings.BK_APIGW_API_SERVER_SUB_PATH }}"
-    backend:
+    backends:
       - name: default
         config:
           timeout: 120
@@ -32,18 +32,12 @@ stage:
             __default:
               - tokens: 5000
                 period: 60
-      - type: bk-header-rewrite
-        yaml: |-
-          set:
-            - key: bkflow-token
-              value: "$arg_token"
 
 grant_permissions:
   {% for app_code in settings.BK_APIGW_GRANT_APPS %}
   - bk_app_code: "{{ app_code }}"
     grant_dimension: "api"
   {% endfor %}
-
 
 resource_docs:
   archivefile: {{ settings.BK_APIGW_RESOURCE_DOCS_ARCHIVE_FILE }}
