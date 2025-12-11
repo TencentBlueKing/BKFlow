@@ -60,18 +60,24 @@ TEMPLATE_PERMISSION_TYPE = [
 
 
 class TokenManager(models.Manager):
-    def get_resource_tokens(self, token_id: str, resource_kwargs: dict) -> QuerySet:
+    def get_resource_tokens(self, token_id: str, resource_params: dict) -> QuerySet:
         """获取资源的token列表
 
         :param resource_kwargs: 资源配置
         :return: token queryset
         """
-        if "template_id" in resource_kwargs:
-            return self.objects.filter(resource_type=ResourceType.TEMPLATE.value, token=token_id)
-        elif "task_id" in resource_kwargs:
-            return self.objects.filter(resource_type=ResourceType.TASK.value, **resource_kwargs)
-        else:
-            raise ValueError("参数中必须包含template_id或task_id")
+        query_filter = models.Q()
+        if resource_params.get("scope_type") and resource_params.get("scope_value"):
+            scope_resource_id = f"{resource_params.get('scope_type')}_{resource_params.get('scope_value')}"
+            query_filter |= models.Q(resource_id=scope_resource_id, resource_type=ResourceType.SCOPE.value)
+        if "template_id" in resource_params:
+            query_filter |= models.Q(
+                resource_id=resource_params.get("template_id"), resource_type=ResourceType.TEMPLATE.value
+            )
+        elif "task_id" in resource_params:
+            query_filter |= models.Q(resource_id=resource_params.get("task_id"), resource_type=ResourceType.TASK.value)
+
+        return self.filter(query_filter, token=token_id)
 
 
 class Token(models.Model):
