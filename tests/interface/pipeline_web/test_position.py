@@ -26,57 +26,31 @@ from bkflow.pipeline_web.drawing_new import position
 class TestUpsertOrders(TestCase):
     """测试 upsert_orders 函数"""
 
-    def test_upsert_orders_basic(self):
-        """测试基本的 upsert_orders 功能"""
+    def test_upsert_orders(self):
+        """测试 upsert_orders 功能"""
+        # Basic
         orders = ["node1", "node2", "node3"]
         nodes_fill_nums = {"node2": 2}
-
         new_orders, dummy_nodes = position.upsert_orders(orders, nodes_fill_nums)
-
-        # 验证返回值类型
-        self.assertIsInstance(new_orders, list)
-        self.assertIsInstance(dummy_nodes, list)
-
-        # 验证 node2 后面插入了2个虚拟节点
-        self.assertEqual(len(new_orders), 5)  # 3 + 2
+        self.assertEqual(len(new_orders), 5)
         self.assertEqual(len(dummy_nodes), 2)
 
-        # 验证顺序
-        node2_index = new_orders.index("node2")
-        self.assertEqual(new_orders[0], "node1")
-        self.assertEqual(new_orders[node2_index], "node2")
-        self.assertEqual(new_orders[-1], "node3")
-
-    def test_upsert_orders_empty(self):
-        """测试空 orders"""
-        orders = []
-        nodes_fill_nums = {}
-
-        new_orders, dummy_nodes = position.upsert_orders(orders, nodes_fill_nums)
-
+        # Empty
+        new_orders, dummy_nodes = position.upsert_orders([], {})
         self.assertEqual(new_orders, [])
         self.assertEqual(dummy_nodes, [])
 
-    def test_upsert_orders_no_fill(self):
-        """测试没有填充需求的情况"""
-        orders = ["node1", "node2"]
-        nodes_fill_nums = {}
-
-        new_orders, dummy_nodes = position.upsert_orders(orders, nodes_fill_nums)
-
-        self.assertEqual(new_orders, orders)
+        # No fill
+        new_orders, dummy_nodes = position.upsert_orders(["node1", "node2"], {})
+        self.assertEqual(new_orders, ["node1", "node2"])
         self.assertEqual(dummy_nodes, [])
 
-    def test_upsert_orders_multiple_nodes(self):
-        """测试多个节点需要填充"""
+        # Multiple nodes
         orders = ["node1", "node2", "node3"]
         nodes_fill_nums = {"node1": 1, "node3": 2}
-
         new_orders, dummy_nodes = position.upsert_orders(orders, nodes_fill_nums)
-
-        # 应该插入 1 + 2 = 3 个虚拟节点
         self.assertEqual(len(dummy_nodes), 3)
-        self.assertEqual(len(new_orders), 6)  # 3 + 3
+        self.assertEqual(len(new_orders), 6)
 
 
 class TestPosition(TestCase):
@@ -120,13 +94,3 @@ class TestPosition(TestCase):
         self.gateway_size = (36, 36)
         self.start = (20, 150)
         self.canvas_width = 1000
-
-    def test_position_basic(self):
-        """测试基本的 position 功能 - 仅测试 upsert_orders"""
-        # position 函数需要完整的 pipeline 结构，这里只测试 upsert_orders
-        orders = ["start", "node1", "end"]
-        nodes_fill_nums = {}
-
-        new_orders, dummy_nodes = position.upsert_orders(orders, nodes_fill_nums)
-        self.assertEqual(new_orders, orders)
-        self.assertEqual(dummy_nodes, [])

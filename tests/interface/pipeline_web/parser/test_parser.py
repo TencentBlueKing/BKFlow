@@ -71,24 +71,15 @@ class TestPipelineParser(unittest.TestCase):
             ComponentLibrary.components.pop("test")
 
     def test_web_pipeline_parser(self):
+        """Test web pipeline parser"""
         parser_obj = WebPipelineAdapter(WEB_PIPELINE_DATA)
         self.assertIsInstance(parser_obj.parse(), Pipeline)
 
-    def test_web_pipeline_parser_subprocess(self):
         parser_obj = WebPipelineAdapter(WEB_PIPELINE_WITH_SUB_PROCESS)
         self.assertIsInstance(parser_obj.parse(), Pipeline)
 
-    def test_web_pipeline_parser2(self):
         parser_obj = WebPipelineAdapter(WEB_PIPELINE_WITH_SUB_PROCESS2)
         self.assertIsInstance(parser_obj.parse(), Pipeline)
 
-    def test_pipeline_get_act_inputs(self):
-        parser_obj = WebPipelineAdapter(WEB_PIPELINE_WITH_SUB_PROCESS2)
         act_inputs = parser_obj.get_act_inputs(id_list2[3], [id_list2[10]])
-        self.assertEqual(
-            act_inputs,
-            {
-                "input_test": "custom2",
-                "radio_test": "1",
-            },
-        )
+        self.assertEqual(act_inputs, {"input_test": "custom2", "radio_test": "1"})

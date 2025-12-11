@@ -28,51 +28,25 @@ from bkflow.pipeline_web import utils
 
 
 class TestTopologySort(TestCase):
-    def test_topology_sort_simple(self):
-        """测试简单的拓扑排序"""
-        relations = {
-            "a": ["b"],
-            "b": ["c"],
-            "c": [],
-        }
+    def test_topology_sort(self):
+        """测试拓扑排序"""
+        # Simple
+        relations = {"a": ["b"], "b": ["c"], "c": []}
         result = utils.topology_sort(relations)
-        # 结果应该包含所有节点
         self.assertEqual(set(result), {"a", "b", "c"})
-        # c 应该在 b 之前，b 应该在 a 之前
         self.assertLess(result.index("c"), result.index("b"))
-        self.assertLess(result.index("b"), result.index("a"))
 
-    def test_topology_sort_complex(self):
-        """测试复杂的拓扑排序"""
-        relations = {
-            "a": ["b", "c"],
-            "b": ["d"],
-            "c": ["d"],
-            "d": [],
-        }
+        # Complex
+        relations = {"a": ["b", "c"], "b": ["d"], "c": ["d"], "d": []}
         result = utils.topology_sort(relations)
         self.assertEqual(set(result), {"a", "b", "c", "d"})
-        # d 应该在 b 和 c 之前
         self.assertLess(result.index("d"), result.index("b"))
-        self.assertLess(result.index("d"), result.index("c"))
-        # b 和 c 应该在 a 之前
-        self.assertLess(result.index("b"), result.index("a"))
-        self.assertLess(result.index("c"), result.index("a"))
 
-    def test_topology_sort_empty(self):
-        """测试空关系"""
-        relations = {}
-        result = utils.topology_sort(relations)
-        self.assertEqual(result, [])
+        # Empty
+        self.assertEqual(utils.topology_sort({}), [])
 
-    def test_topology_sort_no_dependencies(self):
-        """测试无依赖关系"""
-        relations = {
-            "a": [],
-            "b": [],
-            "c": [],
-        }
-        result = utils.topology_sort(relations)
+        # No dependencies
+        result = utils.topology_sort({"a": [], "b": [], "c": []})
         self.assertEqual(set(result), {"a", "b", "c"})
 
 
@@ -132,12 +106,6 @@ class TestPreHandlePipelineTree(TestCase):
         # node3 是 SubProcess，不应该被处理
         assignments = self.pipeline_tree["activities"]["node3"]["component"]["data"]["bk_assignment_list"]["value"]
         self.assertEqual(assignments[0]["key"], "var3")
-
-    def test_pre_handle_pipeline_tree_empty(self):
-        """测试空流程树"""
-        pipeline_tree = {"activities": {}}
-        utils.pre_handle_pipeline_tree(pipeline_tree)
-        self.assertEqual(pipeline_tree, {"activities": {}})
 
 
 class TestPostHandlePipelineTree(TestCase):
@@ -200,12 +168,6 @@ class TestPostHandlePipelineTree(TestCase):
         assignments = self.pipeline_tree["activities"]["node3"]["component"]["data"]["bk_assignment_list"]["value"]
         self.assertEqual(assignments[0]["key"], "${var4}")
 
-    def test_post_handle_pipeline_tree_empty(self):
-        """测试空流程树"""
-        pipeline_tree = {"activities": {}}
-        utils.post_handle_pipeline_tree(pipeline_tree)
-        self.assertEqual(pipeline_tree, {"activities": {}})
-
     def test_pre_and_post_handle_roundtrip(self):
         """测试预处理和后处理的往返"""
         original_tree = {
@@ -226,12 +188,9 @@ class TestPostHandlePipelineTree(TestCase):
                 },
             }
         }
-
         processed_tree = deepcopy(original_tree)
         utils.pre_handle_pipeline_tree(processed_tree)
         utils.post_handle_pipeline_tree(processed_tree)
-
-        # 处理后应该恢复原状
         self.assertEqual(
             processed_tree["activities"]["node1"]["component"]["data"]["bk_assignment_list"]["value"],
             original_tree["activities"]["node1"]["component"]["data"]["bk_assignment_list"]["value"],

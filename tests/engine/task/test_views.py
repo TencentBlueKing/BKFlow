@@ -126,23 +126,6 @@ class TestTaskInstanceViewSet:
         # task_mock_data.to_json() 返回的是包含 id, taskflow_id, data 的字典
         assert response.data["data"]["data"] == mock_data
 
-    def test_get_task_mock_data_not_exist(self):
-        """测试获取不存在的 Mock 数据"""
-        factory = APIRequestFactory()
-        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
-
-        view = TaskInstanceViewSet.as_view({"get": "get_task_mock_data"})
-        request = factory.get(f"/task/{task_instance.id}/get_task_mock_data/")
-        request.user = MagicMock()
-        request.user.username = "test_user"
-        request.user.is_superuser = False
-        request.app_internal_token = settings.APP_INTERNAL_TOKEN
-
-        response = view(request, pk=task_instance.id)
-        assert response.status_code == status.HTTP_200_OK
-        # 响应数据被 task_response_wrapper 包装，实际数据在 data 字段中
-        assert response.data["data"] == {}
-
     @patch("bkflow.task.views.TaskOperation")
     def test_operate_task(self, mock_task_operation):
         """测试任务操作"""

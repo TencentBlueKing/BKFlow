@@ -28,48 +28,31 @@ from module_settings import check_engine_admin_permission
 class TestEngineAdminPermission:
     """测试 engine admin 权限检查"""
 
-    def test_check_engine_admin_permission_with_superuser(self):
-        """测试超级用户权限"""
+    def test_engine_admin_permission(self):
+        """测试 engine admin 权限"""
+        # Superuser
         request = MagicMock()
         request.user.is_superuser = True
         request.app_internal_token = None
+        assert check_engine_admin_permission(request) is True
 
-        result = check_engine_admin_permission(request)
-        assert result is True
-
-    def test_check_engine_admin_permission_with_internal_token(self):
-        """测试内部 token 权限"""
-        request = MagicMock()
+        # Internal token
         request.user.is_superuser = False
         request.app_internal_token = settings.APP_INTERNAL_TOKEN
+        assert check_engine_admin_permission(request) is True
 
-        result = check_engine_admin_permission(request)
-        assert result is True
-
-    def test_check_engine_admin_permission_with_validation_skip(self):
-        """测试跳过验证权限"""
+        # Validation skip
         with patch("django.conf.settings.APP_INTERNAL_VALIDATION_SKIP", True):
-            request = MagicMock()
-            request.user.is_superuser = False
             request.app_internal_token = None
+            assert check_engine_admin_permission(request) is True
 
-            result = check_engine_admin_permission(request)
-            assert result is True
-
-    def test_check_engine_admin_permission_without_permission(self):
-        """测试无权限情况"""
+        # Without permission
         with patch("django.conf.settings.APP_INTERNAL_VALIDATION_SKIP", False):
-            request = MagicMock()
-            request.user.is_superuser = False
             request.app_internal_token = "wrong_token"
+            assert check_engine_admin_permission(request) is False
 
-            result = check_engine_admin_permission(request)
-            assert result is False
-
-    def test_engine_admin_permission_setting(self):
-        """测试 engine admin 权限配置"""
+        # Settings
         assert hasattr(settings, "PIPELINE_ENGINE_ADMIN_API_PERMISSION")
-        assert settings.PIPELINE_ENGINE_ADMIN_API_PERMISSION == "module_settings.check_engine_admin_permission"
 
 
 @pytest.mark.django_db

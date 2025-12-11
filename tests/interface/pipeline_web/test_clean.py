@@ -191,7 +191,9 @@ class TestPipelineWebTreeCleaner(TestCase):
             },
         )
 
-    def test_to_web__without_subprocess(self):
+    def test_to_web(self):
+        """测试 to_web 方法"""
+        # Without subprocess
         nodes_attr = {
             id_list[3]: {
                 PWE.labels: [{"label": "label11", "group": "group1"}, {"label": "label12", "group": "group1"}]
@@ -202,7 +204,7 @@ class TestPipelineWebTreeCleaner(TestCase):
         self.cleaner_simple.to_web(nodes_attr)
         self.assertEqual(self.cleaner_simple.pipeline_tree, self.cleaner_simple.origin_data)
 
-    def test_to_web__with_subprocess__recursive_nodes_attr(self):
+        # With subprocess - recursive
         nodes_attr = {
             id_list[3]: {
                 PWE.labels: [{"label": "label11", "group": "group1"}, {"label": "label12", "group": "group1"}]
@@ -213,7 +215,7 @@ class TestPipelineWebTreeCleaner(TestCase):
         self.cleaner_with_sub.to_web(nodes_attr, with_subprocess=True)
         self.assertEqual(self.cleaner_with_sub.pipeline_tree, self.cleaner_with_sub.origin_data)
 
-    def test_to_web__with_subprocess__plain_nodes_attr(self):
+        # With subprocess - plain
         nodes_attr = {
             id_list[3]: {
                 PWE.labels: [{"label": "label11", "group": "group1"}, {"label": "label12", "group": "group1"}]

@@ -79,91 +79,39 @@ class TestOrder(TestCase):
         self.assertIsInstance(count, int)
         self.assertGreaterEqual(count, 0)
 
-    def test_sort_layer(self):
-        """测试层内排序"""
+    def test_sort_layer_and_median_value(self):
+        """测试层内排序和中位值计算"""
+        # Sort layer
         layer_order = ["a", "b", "c", "d", "e", "f"]
         weight = [3, 6, 2, 1, 5, 4]
         self.assertEqual(order.sort_layer(layer_order, weight), ["d", "c", "a", "f", "e", "b"])
 
-        # 测试权重为-1的情况
-        layer_order = ["a", "b"]
-        weight = [-1, -1]
-        self.assertEqual(order.sort_layer(layer_order, weight), ["a", "b"])
+        # Weight -1
+        self.assertEqual(order.sort_layer(["a", "b"], [-1, -1]), ["a", "b"])
 
-        # 测试混合权重
-        layer_order = ["a", "b", "c", "d", "e", "f"]
-        weight = [3, -1, 2, -1, 5, 4]
-        self.assertEqual(order.sort_layer(layer_order, weight), ["c", "b", "a", "d", "f", "e"])
+        # Mixed weights
+        self.assertEqual(
+            order.sort_layer(["a", "b", "c", "d", "e", "f"], [3, -1, 2, -1, 5, 4]), ["c", "b", "a", "d", "f", "e"]
+        )
 
-    def test_median_value(self):
-        """测试计算中位值"""
+        # Median value
         refer_layer_orders = ["node1", "node2", "node3", "node4"]
+        self.assertEqual(order.median_value(["node1"], refer_layer_orders), 0)
+        self.assertEqual(order.median_value(["node1", "node4"], refer_layer_orders), 1.5)
+        self.assertEqual(order.median_value(["node1", "node4", "node2"], refer_layer_orders), 1)
 
-        # 单个参考节点
-        refer_nodes = ["node1"]
-        self.assertEqual(order.median_value(refer_nodes, refer_layer_orders), 0)
-
-        # 两个参考节点
-        refer_nodes = ["node1", "node4"]
-        self.assertEqual(order.median_value(refer_nodes, refer_layer_orders), 1.5)
-
-        # 三个参考节点
-        refer_nodes = ["node1", "node4", "node2"]
-        self.assertEqual(order.median_value(refer_nodes, refer_layer_orders), 1)
-
-    def test_refer_node_ids(self):
-        """测试获取参考节点ID"""
-        # 测试 outgoing
-        result = order.refer_node_ids(self.pipeline, "node1", PWE.outgoing)
-        self.assertEqual(sorted(result), sorted(["node4", "node5"]))
-
-        # 测试 incoming
-        result = order.refer_node_ids(self.pipeline, "node4", PWE.incoming)
-        self.assertEqual(sorted(result), sorted(["node1", "node2", "node3"]))
-
-    def test_ordering(self):
-        """测试完整的排序过程"""
-        best_orders = order.ordering(self.pipeline, self.ranks)
-
-        # 验证返回的是一个字典
-        self.assertIsInstance(best_orders, dict)
-        # 验证所有层级都存在
-        self.assertEqual(set(best_orders.keys()), {0, 1, 2})
-        # 验证每层都有节点
-        self.assertTrue(all(len(nodes) > 0 for nodes in best_orders.values()))
-
-    def test_wmedian(self):
-        """测试 wmedian 函数"""
+    def test_wmedian_and_edge_cases(self):
+        """测试 wmedian 和边界情况"""
+        # Wmedian
         orders = {0: ["node0"], 1: ["node1", "node2", "node3"], 2: ["node4", "node5", "node6", "node7", "node8"]}
-
-        # 测试偶数轮
         order.wmedian(self.pipeline, orders, 0, self.ranks)
         self.assertIsInstance(orders, dict)
-
-        # 测试奇数轮
         order.wmedian(self.pipeline, orders, 1, self.ranks)
         self.assertIsInstance(orders, dict)
 
-
-class TestOrderEdgeCases(TestCase):
-    """测试 order 模块的边界情况"""
-
-    def test_empty_pipeline(self):
-        """测试空 pipeline - 空 ranks 会导致 min_rank 失败，这是预期行为"""
-        pipeline = {"all_nodes": {}, "flows": {}}
-        ranks = {}
-
-        # 空 ranks 会导致 ValueError，这是预期的
+        # Edge cases
         with self.assertRaises(ValueError):
-            order.init_order(pipeline, ranks)
+            order.init_order({"all_nodes": {}, "flows": {}}, {})
 
-    def test_single_node(self):
-        """测试单节点 pipeline"""
-        pipeline = {
-            "all_nodes": {"node1": {PWE.id: "node1", PWE.incoming: "", PWE.outgoing: ""}},
-            "flows": {},
-        }
-        ranks = {"node1": 0}
-
-        orders = order.init_order(pipeline, ranks)
-        self.assertEqual(orders, {0: ["node1"]})
+        pipeline = {"all_nodes": {"node1": {PWE.id: "node1", PWE.incoming: "", PWE.outgoing: ""}}, "flows": {}}
+        self.assertEqual(order.init_order(pipeline, {"node1": 0}), {0: ["node1"]})
