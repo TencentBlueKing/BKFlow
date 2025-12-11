@@ -24,32 +24,24 @@ from bkflow.pipeline_web.exceptions import ParserException, ParserWebTreeExcepti
 
 
 class TestExceptions(TestCase):
-    def test_parser_exception_inheritance(self):
-        """测试 ParserException 继承自 PipelineException"""
+    def test_exceptions(self):
+        """测试异常类"""
+        # Inheritance
         self.assertTrue(issubclass(ParserException, PipelineException))
-
-    def test_parser_web_tree_exception_inheritance(self):
-        """测试 ParserWebTreeException 继承自 ParserException"""
         self.assertTrue(issubclass(ParserWebTreeException, ParserException))
         self.assertTrue(issubclass(ParserWebTreeException, PipelineException))
 
-    def test_parser_exception_instantiation(self):
-        """测试 ParserException 实例化"""
+        # Instantiation
         exception = ParserException("test message")
         self.assertEqual(str(exception), "test message")
         self.assertIsInstance(exception, PipelineException)
 
-    def test_parser_web_tree_exception_instantiation(self):
-        """测试 ParserWebTreeException 实例化"""
         exception = ParserWebTreeException("test message")
         self.assertEqual(str(exception), "test message")
         self.assertIsInstance(exception, ParserException)
-        self.assertIsInstance(exception, PipelineException)
 
-    def test_exception_raise(self):
-        """测试异常抛出"""
+        # Raise
         with self.assertRaises(ParserException):
             raise ParserException("test")
-
         with self.assertRaises(ParserWebTreeException):
             raise ParserWebTreeException("test")

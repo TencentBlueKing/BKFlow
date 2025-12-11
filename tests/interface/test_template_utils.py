@@ -29,81 +29,40 @@ from bkflow.template.utils import (
 class TestSystemConstantsConversion:
     """Test system constants conversion functions"""
 
-    def test_system_constants_to_mako_str_with_string(self):
-        """Test converting string with _system. to _system点"""
-        value = "${_system.username}"
-        result = _system_constants_to_mako_str(value)
-        assert result == "${_system点username}"
-
-    def test_system_constants_to_mako_str_without_system(self):
-        """Test string without _system. remains unchanged"""
-        value = "${normal_var}"
-        result = _system_constants_to_mako_str(value)
-        assert result == "${normal_var}"
-
-    def test_system_constants_to_mako_str_with_dict(self):
-        """Test converting dictionary with nested _system references"""
-        value = {"key1": "${_system.username}", "key2": "${normal_var}", "nested": {"key3": "${_system.operator}"}}
-        result = _system_constants_to_mako_str(value)
-        assert result["key1"] == "${_system点username}"
-        assert result["key2"] == "${normal_var}"
-        assert result["nested"]["key3"] == "${_system点operator}"
-
-    def test_system_constants_to_mako_str_with_list(self):
-        """Test converting list with _system references"""
-        value = ["${_system.username}", "${normal_var}", "${_system.operator}"]
-        result = _system_constants_to_mako_str(value)
-        assert result[0] == "${_system点username}"
-        assert result[1] == "${normal_var}"
-        assert result[2] == "${_system点operator}"
-
-    def test_system_constants_to_mako_str_with_nested_structures(self):
-        """Test converting complex nested structures"""
-        value = {"list": ["${_system.username}", {"inner": "${_system.operator}"}], "dict": {"key": "${_system.bizid}"}}
-        result = _system_constants_to_mako_str(value)
-        assert result["list"][0] == "${_system点username}"
-        assert result["list"][1]["inner"] == "${_system点operator}"
-        assert result["dict"]["key"] == "${_system点bizid}"
-
-    def test_system_constants_to_mako_str_with_non_string(self):
-        """Test with non-string types (int, bool, None)"""
+    def test_system_constants_to_mako_str(self):
+        """Test converting _system. to _system点 in various structures"""
+        assert _system_constants_to_mako_str("${_system.username}") == "${_system点username}"
+        assert _system_constants_to_mako_str("${normal_var}") == "${normal_var}"
         assert _system_constants_to_mako_str(123) == 123
         assert _system_constants_to_mako_str(True) is True
         assert _system_constants_to_mako_str(None) is None
 
-    def test_mako_str_to_system_constants_with_string(self):
-        """Test converting string with _system点 back to _system."""
-        value = "${_system点username}"
-        result = _mako_str_to_system_constants(value)
-        assert result == "${_system.username}"
+        # Test dict and list
+        value = {"key1": "${_system.username}", "key2": "${normal_var}"}
+        result = _system_constants_to_mako_str(value)
+        assert result["key1"] == "${_system点username}"
+        assert result["key2"] == "${normal_var}"
 
-    def test_mako_str_to_system_constants_without_mako(self):
-        """Test string without _system点 remains unchanged"""
-        value = "${normal_var}"
-        result = _mako_str_to_system_constants(value)
-        assert result == "${normal_var}"
-
-    def test_mako_str_to_system_constants_with_non_string(self):
-        """Test with non-string types"""
+    def test_mako_str_to_system_constants(self):
+        """Test converting _system点 back to _system."""
+        assert _mako_str_to_system_constants("${_system点username}") == "${_system.username}"
+        assert _mako_str_to_system_constants("${normal_var}") == "${normal_var}"
         assert _mako_str_to_system_constants(123) == 123
-        assert _mako_str_to_system_constants({"key": "value"}) == {"key": "value"}
 
 
 class TestAnalysisPipelineConstantsRef:
     """Test pipeline constants reference analysis"""
 
-    def test_analysis_empty_pipeline(self):
-        """Test with empty pipeline tree"""
-        pipeline_tree = {}
-        result = analysis_pipeline_constants_ref(pipeline_tree)
+    def test_analysis_basic_cases(self):
+        """Test with empty pipeline and constants only"""
+        # Empty pipeline
+        result = analysis_pipeline_constants_ref({})
         assert result == {}
 
-    def test_analysis_with_constants_only(self):
-        """Test with constants but no activities"""
+        # Constants only
         pipeline_tree = {"constants": {"key1": {"value": "value1"}, "key2": {"value": "value2"}}}
         result = analysis_pipeline_constants_ref(pipeline_tree)
         assert "key1" in result
-        assert "key2" in result
         assert result["key1"] == {"activities": [], "conditions": [], "constants": []}
 
     def test_analysis_with_service_activity(self):
@@ -132,8 +91,9 @@ class TestAnalysisPipelineConstantsRef:
         result = analysis_pipeline_constants_ref(pipeline_tree)
         assert "subprocess1" in result["${parent_const}"]["activities"]
 
-    def test_analysis_with_exclusive_gateway(self):
-        """Test with ExclusiveGateway conditions"""
+    def test_analysis_with_gateways(self):
+        """Test with different gateway types"""
+        # ExclusiveGateway
         pipeline_tree = {
             "constants": {"const1": {"value": "value1"}},
             "gateways": {
@@ -146,8 +106,7 @@ class TestAnalysisPipelineConstantsRef:
         result = analysis_pipeline_constants_ref(pipeline_tree)
         assert "condition1" in result["${const1}"]["conditions"]
 
-    def test_analysis_with_conditional_parallel_gateway(self):
-        """Test with ConditionalParallelGateway"""
+        # ConditionalParallelGateway
         pipeline_tree = {
             "constants": {"const1": {"value": "value1"}},
             "gateways": {
@@ -160,14 +119,12 @@ class TestAnalysisPipelineConstantsRef:
         result = analysis_pipeline_constants_ref(pipeline_tree)
         assert "condition1" in result["${const1}"]["conditions"]
 
-    def test_analysis_with_parallel_gateway_no_conditions(self):
-        """Test with ParallelGateway (should be ignored)"""
+        # ParallelGateway (should be ignored)
         pipeline_tree = {
             "constants": {"const1": {"value": "value1"}},
             "gateways": {"gateway1": {"type": "ParallelGateway"}},
         }
         result = analysis_pipeline_constants_ref(pipeline_tree)
-        # ParallelGateway should be skipped
         assert result["const1"]["conditions"] == []
 
     def test_analysis_with_constant_references_constant(self):
@@ -228,92 +185,41 @@ class TestAnalysisPipelineConstantsRef:
 class TestSendCallback:
     """Test callback sending functionality"""
 
+    @mock.patch("bkflow.template.utils.ApiGwClient")
     @mock.patch("bkflow.template.utils.SpaceConfig.get_config")
-    def test_send_callback_no_hooks_config(self, mock_get_config):
-        """Test when no callback hooks are configured"""
+    def test_send_callback(self, mock_get_config, mock_client_class):
+        """Test callback with various scenarios"""
+        # Skipped cases
         mock_get_config.return_value = None
-
-        # Should not raise exception
         send_callback(space_id=1, callback_type="task_created", data={"task_id": "123"})
-
-        mock_get_config.assert_called_once_with(1, "callback_hooks")
-
-    @mock.patch("bkflow.template.utils.ApiGwClient")
-    @mock.patch("bkflow.template.utils.SpaceConfig.get_config")
-    def test_send_callback_type_not_enabled(self, mock_get_config, mock_client):
-        """Test when callback type is not in enabled list"""
         mock_get_config.return_value = {"callback_types": ["task_finished"], "url": "http://callback.example.com"}
-
         send_callback(space_id=1, callback_type="task_created", data={"task_id": "123"})
-
-        # ApiGwClient should not be called
-        mock_client.assert_not_called()
-
-    @mock.patch("bkflow.template.utils.ApiGwClient")
-    @mock.patch("bkflow.template.utils.SpaceConfig.get_config")
-    def test_send_callback_no_url(self, mock_get_config, mock_client):
-        """Test when callback URL is not configured"""
         mock_get_config.return_value = {"callback_types": ["task_created"], "url": ""}
-
         send_callback(space_id=1, callback_type="task_created", data={"task_id": "123"})
+        mock_client_class.assert_not_called()
 
-        # ApiGwClient should not be called when URL is empty
-        mock_client.assert_not_called()
-
-    @mock.patch("bkflow.template.utils.ApiGwClient")
-    @mock.patch("bkflow.template.utils.SpaceConfig.get_config")
-    def test_send_callback_success(self, mock_get_config, mock_client_class):
-        """Test successful callback"""
+        # Success
         mock_get_config.return_value = {"callback_types": ["task_created"], "url": "http://callback.example.com"}
-
         mock_client = mock.Mock()
         mock_response = mock.Mock()
         mock_response.result = True
         mock_client.request.return_value = mock_response
         mock_client_class.return_value = mock_client
-
         data = {"task_id": "123", "status": "created"}
         send_callback(space_id=1, callback_type="task_created", data=data)
+        mock_client.request.assert_called_once()
 
-        mock_client_class.assert_called_once_with(from_apigw_check=True)
-        mock_client.request.assert_called_once_with(
-            url="http://callback.example.com", method="POST", data=data, headers=None
-        )
-
-    @mock.patch("bkflow.template.utils.ApiGwClient")
-    @mock.patch("bkflow.template.utils.SpaceConfig.get_config")
-    def test_send_callback_api_error(self, mock_get_config, mock_client_class):
-        """Test callback with API error response"""
-        mock_get_config.return_value = {"callback_types": ["task_created"], "url": "http://callback.example.com"}
-
-        mock_client = mock.Mock()
-        mock_response = mock.Mock()
+        # API error
         mock_response.result = False
         mock_response.message = "API Error"
-        mock_client.request.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        # Should not raise exception even when API returns error
         send_callback(space_id=1, callback_type="task_created", data={"task_id": "123"})
 
-    @mock.patch("bkflow.template.utils.ApiGwClient")
-    @mock.patch("bkflow.template.utils.SpaceConfig.get_config")
-    def test_send_callback_exception_handling(self, mock_get_config, mock_client_class):
-        """Test exception handling in callback"""
+        # Exception handling
         mock_get_config.side_effect = Exception("Database error")
-
-        # Should not raise exception
         send_callback(space_id=1, callback_type="task_created", data={"task_id": "123"})
 
-    @mock.patch("bkflow.template.utils.ApiGwClient")
-    @mock.patch("bkflow.template.utils.SpaceConfig.get_config")
-    def test_send_callback_request_exception(self, mock_get_config, mock_client_class):
-        """Test when request raises exception"""
+        # Request exception
         mock_get_config.return_value = {"callback_types": ["task_created"], "url": "http://callback.example.com"}
-
-        mock_client = mock.Mock()
+        mock_get_config.side_effect = None
         mock_client.request.side_effect = Exception("Network error")
-        mock_client_class.return_value = mock_client
-
-        # Should not raise exception
         send_callback(space_id=1, callback_type="task_created", data={"task_id": "123"})

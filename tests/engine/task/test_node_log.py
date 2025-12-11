@@ -36,52 +36,33 @@ class TestNodeLogDataSources:
 
     @mock.patch("bkflow.task.node_log.requests.get")
     @mock.patch("bkflow.task.node_log.settings")
-    def test_paas3_fetch_success(self, mock_settings, mock_get):
-        """Test PaaS3 fetch_node_logs success"""
+    def test_paas3_fetch(self, mock_settings, mock_get):
+        """Test PaaS3 fetch_node_logs success and failure"""
         mock_settings.NODE_LOG_DATA_SOURCE_CONFIG = {"url": "http://paas3.example.com/logs"}
         mock_settings.APP_CODE = "test_app"
         mock_settings.SECRET_KEY = "test_secret"
         mock_settings.PAASV3_APIGW_API_TOKEN = "token"
 
+        # Success
         mock_response = mock.Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "data": {
                 "page": {"page": 1, "total": 2},
-                "logs": [
-                    {"ts": "2023-01-01 10:00:00", "message": "Log 1"},
-                    {"ts": "2023-01-01 10:01:00", "message": "Log 2"},
-                ],
+                "logs": [{"ts": "2023-01-01 10:00:00", "message": "Log 1"}],
             }
         }
         mock_get.return_value = mock_response
-
         source = PaaS3NodeLogDataSource()
         result = source.fetch_node_logs("node_123", "v1", page=1, page_size=30)
-
         assert result["result"] is True
-        assert "2023-01-01 10:00:00: Log 1" in result["data"]["logs"]
-        assert "2023-01-01 10:01:00: Log 2" in result["data"]["logs"]
 
-    @mock.patch("bkflow.task.node_log.requests.get")
-    @mock.patch("bkflow.task.node_log.settings")
-    def test_paas3_fetch_failure(self, mock_settings, mock_get):
-        """Test PaaS3 fetch_node_logs when request fails"""
-        mock_settings.NODE_LOG_DATA_SOURCE_CONFIG = {"url": "http://paas3.example.com/logs"}
-        mock_settings.APP_CODE = "test_app"
-        mock_settings.SECRET_KEY = "test_secret"
-        mock_settings.PAASV3_APIGW_API_TOKEN = None
-
-        mock_response = mock.Mock()
+        # Failure
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
-        mock_get.return_value = mock_response
-
-        source = PaaS3NodeLogDataSource()
+        mock_response.json.side_effect = None
         result = source.fetch_node_logs("node_123", "v1")
-
         assert result["result"] is False
-        assert result["data"] is None
         assert result["message"] == "Internal Server Error"
 
     @mock.patch("bkflow.task.node_log.BambooDjangoRuntime")

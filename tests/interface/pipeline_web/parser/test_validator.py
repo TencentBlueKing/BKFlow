@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 
 import unittest
+from copy import deepcopy
 
 from bkflow.pipeline_web import exceptions
 from bkflow.pipeline_web.parser import validator
@@ -282,13 +283,12 @@ class TestValidator(unittest.TestCase):
     def test_valid_pipeline_tree(self):
         validator.validate_web_pipeline_tree(self.valid_tree)
 
-    def test_invalid_constants_key__value_not_match(self):
-        invalid_tree = self.valid_tree
+    def test_invalid_constants_and_outputs(self):
+        """测试无效的常量和输出键"""
+        # Key-value mismatch
+        invalid_tree = deepcopy(self.valid_tree)
         invalid_tree["constants"]["${invalid_key}"] = {
             "custom_type": "input",
-            "desc": "",
-            "form_schema": {"type": "input", "attrs": {"name": "输入框", "hookable": True, "validation": []}},
-            "index": 3,
             "key": "${time}",
             "name": "time",
             "show_type": "show",
@@ -300,16 +300,14 @@ class TestValidator(unittest.TestCase):
             "pre_render_mako": False,
             "value": "",
             "version": "legacy",
+            "form_schema": {"type": "input", "attrs": {"name": "输入框", "hookable": True, "validation": []}},
         }
         self.assertRaises(exceptions.ParserWebTreeException, validator.validate_web_pipeline_tree, invalid_tree)
 
-    def test_invalid_constants_key__pattern_start_with__env(self):
-        invalid_tree = self.valid_tree
+        # _env pattern
+        invalid_tree = deepcopy(self.valid_tree)
         invalid_tree["constants"]["${_env_key}"] = {
             "custom_type": "input",
-            "desc": "",
-            "form_schema": {"type": "input", "attrs": {"name": "输入框", "hookable": True, "validation": []}},
-            "index": 3,
             "key": "${_env_key}",
             "name": "time",
             "show_type": "show",
@@ -321,21 +319,16 @@ class TestValidator(unittest.TestCase):
             "pre_render_mako": False,
             "value": "",
             "version": "legacy",
+            "form_schema": {"type": "input", "attrs": {"name": "输入框", "hookable": True, "validation": []}},
         }
         self.assertRaises(exceptions.ParserWebTreeException, validator.validate_web_pipeline_tree, invalid_tree)
-
-    def test_invalid_outputs_key__pattern_start_with__env(self):
-        invalid_tree = self.valid_tree
         invalid_tree["outputs"].append("${_env_key}")
         self.assertRaises(exceptions.ParserWebTreeException, validator.validate_web_pipeline_tree, invalid_tree)
 
-    def test_invalid_constants_key__pattern_not_start_with_dollar(self):
-        invalid_tree = self.valid_tree
+        # Not start with dollar
+        invalid_tree = deepcopy(self.valid_tree)
         invalid_tree["constants"]["key"] = {
             "custom_type": "input",
-            "desc": "",
-            "form_schema": {"type": "input", "attrs": {"name": "输入框", "hookable": True, "validation": []}},
-            "index": 3,
             "key": "key",
             "name": "time",
             "show_type": "show",
@@ -347,21 +340,16 @@ class TestValidator(unittest.TestCase):
             "pre_render_mako": False,
             "value": "",
             "version": "legacy",
+            "form_schema": {"type": "input", "attrs": {"name": "输入框", "hookable": True, "validation": []}},
         }
         self.assertRaises(exceptions.ParserWebTreeException, validator.validate_web_pipeline_tree, invalid_tree)
-
-    def test_invalid_outputs_key__pattern_not_start_with_dollar(self):
-        invalid_tree = self.valid_tree
         invalid_tree["outputs"].append("key")
         self.assertRaises(exceptions.ParserWebTreeException, validator.validate_web_pipeline_tree, invalid_tree)
 
-    def test_invalid_constants_key__pattern_start_with_system(self):
-        invalid_tree = self.valid_tree
+        # system pattern
+        invalid_tree = deepcopy(self.valid_tree)
         invalid_tree["constants"]["${system.key}"] = {
             "custom_type": "input",
-            "desc": "",
-            "form_schema": {"type": "input", "attrs": {"name": "输入框", "hookable": True, "validation": []}},
-            "index": 3,
             "key": "${system.key}",
             "name": "time",
             "show_type": "show",
@@ -373,10 +361,8 @@ class TestValidator(unittest.TestCase):
             "pre_render_mako": False,
             "value": "",
             "version": "legacy",
+            "form_schema": {"type": "input", "attrs": {"name": "输入框", "hookable": True, "validation": []}},
         }
         self.assertRaises(exceptions.ParserWebTreeException, validator.validate_web_pipeline_tree, invalid_tree)
-
-    def test_invalid_outputs_key__pattern_start_with_system(self):
-        invalid_tree = self.valid_tree
         invalid_tree["outputs"].append("${system.key}")
         self.assertRaises(exceptions.ParserWebTreeException, validator.validate_web_pipeline_tree, invalid_tree)

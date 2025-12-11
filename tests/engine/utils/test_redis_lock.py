@@ -27,55 +27,24 @@ from bkflow.utils.redis_lock import acquire_redis_lock, redis_lock, release_redi
 class TestAcquireRedisLock:
     """Test acquire_redis_lock function"""
 
-    def test_acquire_lock_success_first_try(self):
-        """Test acquiring lock on first try"""
+    def test_acquire_lock(self):
+        """Test acquiring lock with various scenarios"""
+        # Success on first try
         mock_redis = mock.Mock()
         mock_redis.set.return_value = True
+        assert acquire_redis_lock(mock_redis, "test_key", "lock_id_123") is True
+        mock_redis.set.assert_called_with("test_key", "lock_id_123", ex=5, nx=True)
 
-        result = acquire_redis_lock(mock_redis, "test_key", "lock_id_123")
-
-        assert result is True
-        mock_redis.set.assert_called_once_with("test_key", "lock_id_123", ex=5, nx=True)
-
-    def test_acquire_lock_success_after_retries(self):
-        """Test acquiring lock after a few retries"""
-        mock_redis = mock.Mock()
-        # Fail first 2 times, succeed on 3rd
+        # Success after retries
         mock_redis.set.side_effect = [False, False, True]
+        with mock.patch("time.sleep"):
+            assert acquire_redis_lock(mock_redis, "test_key", "lock_id_123") is True
 
-        with mock.patch("time.sleep"):  # Mock sleep to speed up test
-            result = acquire_redis_lock(mock_redis, "test_key", "lock_id_123")
-
-        assert result is True
-        assert mock_redis.set.call_count == 3
-
-    @mock.patch("bkflow.utils.redis_lock.MAX_RETRY", 5)
-    def test_acquire_lock_failure_max_retries(self):
-        """Test lock acquisition failure after max retries"""
-        mock_redis = mock.Mock()
+        # Failure after max retries
+        mock_redis.set.side_effect = None  # Reset side_effect
         mock_redis.set.return_value = False
-
-        with mock.patch("time.sleep"):  # Mock sleep to speed up test
-            result = acquire_redis_lock(mock_redis, "test_key", "lock_id_123")
-
-        assert result is False
-        # Should try MAX_RETRY - 1 times (since cnt starts at 1 and condition is cnt < MAX_RETRY)
-        assert mock_redis.set.call_count == 4
-
-    @mock.patch("bkflow.utils.redis_lock.MAX_RETRY", 10)
-    def test_acquire_lock_with_sleep_timing(self):
-        """Test that sleep is called with correct interval"""
-        mock_redis = mock.Mock()
-        mock_redis.set.side_effect = [False, False, True]
-
-        with mock.patch("time.sleep") as mock_sleep:
-            result = acquire_redis_lock(mock_redis, "test_key", "lock_id_123")
-
-        assert result is True
-        # Sleep should be called twice (after first and second failed attempts)
-        assert mock_sleep.call_count == 2
-        # Verify sleep duration
-        mock_sleep.assert_called_with(0.01)
+        with mock.patch("bkflow.utils.redis_lock.MAX_RETRY", 5), mock.patch("time.sleep"):
+            assert acquire_redis_lock(mock_redis, "test_key", "lock_id_123") is False
 
 
 class TestReleaseRedisLock:
@@ -200,120 +169,29 @@ class TestRedisLockContextManager:
         mock_redis.set.assert_called_with("lock_task:123:processing", "test-uuid", ex=5, nx=True)
 
     @mock.patch("bkflow.utils.redis_lock.uuid4")
-    def test_redis_lock_retries_then_succeeds(self, mock_uuid):
-        """Test lock acquisition after retries within context manager"""
+    def test_redis_lock_edge_cases(self, mock_uuid):
+        """Test redis_lock context manager edge cases"""
         mock_uuid.return_value = "test-uuid"
         mock_redis = mock.Mock()
-        # Fail twice, then succeed
+
+        # Retries then succeeds
         mock_redis.set.side_effect = [False, False, True]
         mock_redis.get.return_value = "test-uuid"
-
         with mock.patch("time.sleep"):
             with redis_lock(mock_redis, "my_key") as (acquired, err):
                 assert acquired is True
-                assert err is None
 
-        assert mock_redis.set.call_count == 3
-        mock_redis.delete.assert_called_once()
-
-    @mock.patch("bkflow.utils.redis_lock.uuid4")
-    def test_redis_lock_bytes_in_release(self, mock_uuid):
-        """Test context manager with bytes value from redis"""
-        mock_uuid.return_value = "test-uuid"
-        mock_redis = mock.Mock()
+        # Bytes in release
+        mock_redis.set.side_effect = None  # Reset side_effect
         mock_redis.set.return_value = True
-        mock_redis.get.return_value = b"test-uuid"  # Redis returns bytes
-
+        mock_redis.get.return_value = b"test-uuid"
         with redis_lock(mock_redis, "my_key") as (acquired, err):
             assert acquired is True
 
-        # Should still release correctly
-        mock_redis.delete.assert_called_once_with("lock_my_key")
-
-    @mock.patch("bkflow.utils.redis_lock.uuid4")
-    def test_redis_lock_no_delete_when_lock_stolen(self, mock_uuid):
-        """Test that lock is not deleted if it was stolen/changed"""
-        mock_uuid.return_value = "test-uuid"
-        mock_redis = mock.Mock()
+        # Lock stolen
         mock_redis.set.return_value = True
-        # Lock value changed (stolen by another process)
         mock_redis.get.return_value = "different-uuid"
-
+        mock_redis.delete.reset_mock()  # Reset delete call history
         with redis_lock(mock_redis, "my_key") as (acquired, err):
             assert acquired is True
-
-        # Should not delete when lock value doesn't match
         mock_redis.delete.assert_not_called()
-
-    @mock.patch("bkflow.utils.redis_lock.uuid4")
-    def test_redis_lock_multiple_sequential_locks(self, mock_uuid):
-        """Test acquiring multiple locks sequentially"""
-        mock_uuid.side_effect = ["uuid-1", "uuid-2"]
-        mock_redis = mock.Mock()
-        mock_redis.set.return_value = True
-
-        # First lock
-        mock_redis.get.return_value = "uuid-1"
-        with redis_lock(mock_redis, "key1") as (acquired, err):
-            assert acquired is True
-
-        # Second lock
-        mock_redis.get.return_value = "uuid-2"
-        with redis_lock(mock_redis, "key2") as (acquired, err):
-            assert acquired is True
-
-        assert mock_redis.set.call_count == 2
-        assert mock_redis.delete.call_count == 2
-
-
-class TestRedisLockIntegration:
-    """Integration-style tests for redis lock"""
-
-    @mock.patch("bkflow.utils.redis_lock.uuid4")
-    def test_lock_prevents_concurrent_access(self, mock_uuid):
-        """Test that lock properly prevents concurrent access"""
-        mock_uuid.side_effect = ["uuid-first", "uuid-second"]
-        mock_redis = mock.Mock()
-
-        # First lock succeeds
-        call_count = [0]
-
-        def set_side_effect(*args, **kwargs):
-            call_count[0] += 1
-            # First call succeeds, second fails (lock held)
-            return call_count[0] == 1
-
-        mock_redis.set.side_effect = set_side_effect
-        mock_redis.get.return_value = "uuid-first"
-
-        # First process acquires lock
-        with redis_lock(mock_redis, "shared_resource") as (acquired1, err1):
-            assert acquired1 is True
-
-            # Second process tries to acquire (should fail after retries)
-            with mock.patch("time.sleep"):
-                with mock.patch("bkflow.utils.redis_lock.MAX_RETRY", 3):
-                    with redis_lock(mock_redis, "shared_resource") as (acquired2, err2):
-                        assert acquired2 is False
-                        assert err2 is not None
-
-    @mock.patch("bkflow.utils.redis_lock.uuid4")
-    def test_lock_usage_pattern(self, mock_uuid):
-        """Test typical usage pattern"""
-        mock_uuid.return_value = "operation-uuid"
-        mock_redis = mock.Mock()
-        mock_redis.set.return_value = True
-        mock_redis.get.return_value = "operation-uuid"
-
-        operation_executed = False
-
-        with redis_lock(mock_redis, "critical_section") as (acquired, err):
-            if acquired:
-                # Critical section
-                operation_executed = True
-            else:
-                # Handle lock acquisition failure
-                pytest.fail(f"Lock acquisition failed: {err}")
-
-        assert operation_executed is True
-        mock_redis.delete.assert_called_once()

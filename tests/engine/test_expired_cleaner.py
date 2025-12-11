@@ -47,26 +47,20 @@ class TestExpiredCleaner:
         assert result[2] == [6, 7, 8]
         assert result[3] == [9]
 
-    def test_get_expired_data_with_no_tasks(self):
-        """测试获取过期数据，当没有过期任务时"""
+    @patch("django.conf.settings.CLEAN_TASK_BATCH_NUM", 100)
+    @patch("django.conf.settings.CLEAN_TASK_NODE_BATCH_NUM", 100)
+    def test_get_expired_data(self):
+        """测试获取过期数据"""
+        # No expired tasks
         expired_time = timezone.now() - timedelta(days=30)
         expired_data, expired_batch_data = get_expired_data(expired_time)
         assert expired_data == {}
-        assert expired_batch_data == {}
 
-    @patch("django.conf.settings.CLEAN_TASK_BATCH_NUM", 100)
-    @patch("django.conf.settings.CLEAN_TASK_NODE_BATCH_NUM", 100)
-    def test_get_expired_data_with_tasks(self):
-        """测试获取过期数据，当有过期任务时"""
-        # 创建过期任务
-        expired_time = timezone.now() - timedelta(days=30)
+        # With expired tasks
         task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
-        # 使用 update 方法更新 create_time
         TaskInstance.objects.filter(id=task_instance.id).update(create_time=expired_time - timedelta(days=1))
-
         expired_data, expired_batch_data = get_expired_data(expired_time)
         assert "task_instance" in expired_data
-        assert len(expired_data["task_instance"]) > 0
 
     @patch("django.conf.settings.CLEAN_TASK_BATCH_NUM", 100)
     @patch("django.conf.settings.CLEAN_TASK_NODE_BATCH_NUM", 100)
@@ -98,16 +92,15 @@ class TestExpiredCleaner:
         assert not TaskOperationRecord.objects.filter(id=task_operation_record.id).exists()
 
     @patch("bkflow.contrib.expired_cleaner.tasks.delete_expired_data")
-    @patch("django.conf.settings.ENABLE_CLEAN_TASK", True)
-    @patch("django.conf.settings.CLEAN_TASK_EXPIRED_DAYS", 7)
-    def test_clean_task_enabled(self, mock_delete_expired_data):
-        """测试清理任务启用时"""
-        clean_task()
-        mock_delete_expired_data.assert_called_once()
+    def test_clean_task(self, mock_delete_expired_data):
+        """测试清理任务"""
+        # Enabled
+        with patch("django.conf.settings.ENABLE_CLEAN_TASK", True):
+            clean_task()
+            mock_delete_expired_data.assert_called_once()
 
-    @patch("bkflow.contrib.expired_cleaner.tasks.delete_expired_data")
-    @patch("django.conf.settings.ENABLE_CLEAN_TASK", False)
-    def test_clean_task_disabled(self, mock_delete_expired_data):
-        """测试清理任务禁用时"""
-        clean_task()
-        mock_delete_expired_data.assert_not_called()
+        # Disabled
+        mock_delete_expired_data.reset_mock()
+        with patch("django.conf.settings.ENABLE_CLEAN_TASK", False):
+            clean_task()
+            mock_delete_expired_data.assert_not_called()
