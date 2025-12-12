@@ -1,11 +1,14 @@
 import re
-from rest_framework import serializers
+
 from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
+
 from .models import Label
 
 
 class LabelSerializer(serializers.ModelSerializer):
     """标签序列化器"""
+
     label_scope = serializers.ListField(
         child=serializers.ChoiceField(
             choices=Label.LABEL_SCOPE_CHOICES,
@@ -19,7 +22,6 @@ class LabelSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
         # 检查是否是创建场景 (instance 为 None)
         if self.instance is None:
             # 1. 必填字段设置
@@ -27,7 +29,7 @@ class LabelSerializer(serializers.ModelSerializer):
             for field_name in required_fields:
                 if field_name in self.fields:
                     self.fields[field_name].required = True
-            
+
             # 2. 可选字段设置
             optional_fields = ["description", "parent_id"]
             for field_name in optional_fields:
@@ -35,7 +37,7 @@ class LabelSerializer(serializers.ModelSerializer):
                     field = self.fields[field_name]
                     field.required = False
                     field.allow_null = True
-                    
+
                     # 只有字符串类型的字段才设置 allow_blank
                     if isinstance(field, (serializers.CharField)):
                         field.allow_blank = True
@@ -43,15 +45,15 @@ class LabelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Label
         fields = [
-            "id", 
-            "name", 
-            "creator", 
+            "id",
+            "name",
+            "creator",
             "updated_by",
-            "space_id", 
-            "color", 
-            "description", 
-            "created_at", 
-            "updated_at", 
+            "space_id",
+            "color",
+            "description",
+            "created_at",
+            "updated_at",
             "label_scope",
             "is_default",
             "has_children",
@@ -59,19 +61,18 @@ class LabelSerializer(serializers.ModelSerializer):
             "parent_id",
         ]
         read_only_fields = [
-            "id", 
-            "created_at", 
-            "updated_at", 
+            "id",
+            "created_at",
+            "updated_at",
             "is_default",
-            "creator", 
-            "updated_by", 
-            "has_children", 
+            "creator",
+            "updated_by",
+            "has_children",
             "full_path",
         ]
 
-
     def validate_color(self, value):
-        if not re.match(r'^#([0-9A-Fa-f]{6})$', value):
+        if not re.match(r"^#([0-9A-Fa-f]{6})$", value):
             raise serializers.ValidationError(_("颜色格式错误"))
         return value
 
@@ -80,7 +81,6 @@ class LabelSerializer(serializers.ModelSerializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError(_("标签名称不能为空"))
-        
         # 新增时：检查同一 space_id 下名称是否重复
         if self.instance is None:
             space_id = self.initial_data.get("space_id", -1)
@@ -96,6 +96,7 @@ class LabelSerializer(serializers.ModelSerializer):
 
 class LabelTreeSerializer(LabelSerializer):
     """嵌套树形序列化器（含子标签）"""
+
     children = serializers.SerializerMethodField(read_only=True, help_text="子标签列表")
     full_path = serializers.SerializerMethodField(read_only=True, help_text="完整路径")
 
@@ -110,3 +111,10 @@ class LabelTreeSerializer(LabelSerializer):
     def get_full_path(self, obj):
         """计算完整路径（后端计算，减少前端压力）"""
         return obj.full_path
+
+
+class LabelRefSerializer(serializers.Serializer):
+    """标签引用序列化器"""
+
+    space_id = serializers.IntegerField(required=True, help_text="空间ID")
+    label_ids = serializers.CharField(required=True, help_text="标签ID")

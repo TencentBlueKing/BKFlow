@@ -33,6 +33,7 @@ class CreateTaskSerializer(serializers.Serializer):
     description = serializers.CharField(help_text=_("任务描述"), required=False)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
     credentials = serializers.JSONField(help_text=_("任务凭证"), required=False, default={})
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), child=serializers.IntegerField(), required=False)
 
 
 class TaskMockDataSerializer(serializers.Serializer):
