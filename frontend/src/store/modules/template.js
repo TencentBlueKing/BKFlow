@@ -1204,10 +1204,15 @@ const template = {
     },
     // 获取模板预览数据
     gerTemplatePreviewData({}, data) {
-      const { templateId, selectedNodes } = data;
-      return axios.post(`/api/template/${templateId}/preview_task_tree/`, {
-        appoint_node_ids: selectedNodes,
-      }).then(response => response.data);
+      // appoint_node_ids: selectedNodes,
+      const { templateId, version} = data;
+      const requestData = {
+        is_all_nodes: true,
+      };
+      if (version !== undefined && version !== null) {
+        requestData.version = version;
+      }
+      return axios.post(`/api/template/${templateId}/preview_task_tree/`, requestData).then(response => response.data);
     },
     // 获取模板mock任务列表
     getTemplateMockTaskList({}, data) {
@@ -1215,6 +1220,34 @@ const template = {
     },
     getPreviewTaskTree({}, data) {
       return axios.post(`/api/template/${data.templateId}/preview_task_tree/`, data).then(response => response.data);
+    },
+    // 获取版本号
+    getRandomVersion({}, data) {
+      return axios.get(`/api/template/${data.templateId}/calculate_version/`, { params: data }).then(response => response.data);
+    },
+    // 发布模板
+    publishTemplate({}, data) {
+      const { templateId, version, desc, space_id } = data;
+      return axios.post(`/api/template/${templateId}/release_template/`, { version, desc, space_id }).then(response => response.data);
+    },
+    // 获取草稿版本模板数据
+    getDraftVersionData({}, data) {
+      return axios.get(`/api/template/${data.templateId}/get_draft_template/`, { params: data }).then(response => response.data);
+    },
+    // 删除版本快照数据
+    deleteVersionSnapshotData({}, data) {
+      // id为版本快照id template_id 限制不能删除最新或草稿版本
+      const { template_id, space_id, id } = data;
+      return axios.post(`/api/template/snapshot/${id}/delete_snapshot/`, { template_id, space_id }).then(response => response.data);
+    },
+    // 获取指定模板的所有快照信息
+    getTemplateVersionSnapshotList({}, data) {
+      return axios.get('/api/template/snapshot/', { params: data }).then(response => response.data);
+    },
+    // 回滚到指定版本
+    rollbackToVersion({}, data) {
+      const { templateId, space_id, version } = data;
+      return axios.post(`/api/template/${templateId}/rollback_template/`, { version, space_id }).then(response => response.data);
     },
   },
   getters: {

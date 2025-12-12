@@ -34,13 +34,24 @@
         :is-preview-mode="isPreviewMode"
         :exclude-node="excludeNode"
         :execute-scheme-saving="executeSchemeSaving"
+        :lasted-pipeline-tree="lastedPipelineTree"
+        :comp-version="compVersion"
+        :tpl-snapshot-id="tplSnapshotId"
+        :latested-version="latestedVersion"
+        :is-enable-version-manage="isEnableVersionManage"
+        :tpl-info-and-var-change="tplInfoAndVarChange"
         @jumpToTemplateMock="jumpToTemplateMock"
         @goBackViewMode="goBackViewMode"
         @goBackToTplEdit="goBackToTplEdit"
         @onClosePreview="onClosePreview"
         @onOpenExecuteScheme="onOpenExecuteScheme"
         @onChangePanel="onChangeSettingPanel"
-        @onSaveTemplate="onSaveTemplate" />
+        @onSaveTemplate="onSaveTemplate"
+        @viewAllVerison="onViewAllVerison"
+        @selectVersionChange="onSelectVersionChange"
+        @rollbackVersion="onRollbackVersion"
+        @publishTemplate="onPublishTemplate"
+        @editTemplate="onEditTemplate" />
       <template v-if="isEditProcessPage">
         <!-- 子流程更新提示 -->
         <SubflowUpdateTips
@@ -54,10 +65,10 @@
         <component
           :is="templateComponentName"
           ref="processCanvas"
-          :key="isViewMode"
+          :key="`${isViewMode}-${isChangeTplVersionTime}-${isNeedToProhibitEdit}`"
           class="canvas-comp-wrapper"
-          :editable="!isViewMode"
-          :show-palette="!isViewMode"
+          :editable="isViewMode ? false : !isNeedToProhibitEdit"
+          :show-palette="isViewMode ? false : !isNeedToProhibitEdit"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
           :template-id="templateId"
@@ -76,7 +87,7 @@
         <node-config
           v-if="isNodeConfigPanelShow"
           ref="nodeConfig"
-          :is-view-mode="isViewMode"
+          :is-view-mode="isViewMode || isNeedToProhibitEdit"
           :is-show="isNodeConfigPanelShow"
           :atom-list="atomList"
           :atom-type-list="atomTypeList"
@@ -86,15 +97,18 @@
           :back-to-variable-panel="backToVariablePanel"
           :is-not-exist-atom-or-version="isNotExistAtomOrVersion"
           :space-related-config="spaceRelatedConfig"
+          :is-enable-version-manage="isEnableVersionManage"
           @globalVariableUpdate="globalVariableUpdate"
           @updateNodeInfo="onUpdateNodeInfo"
           @templateDataChanged="templateDataChanged"
-          @close="closeConfigPanel" />
+          @close="closeConfigPanel"
+          @viewAllSubflowVerison="viewAllSubflowVerison"
+          @closeSubflowVersionPanel="closeSubflowVersionPanel" />
         <condition-edit
           v-if="isShowConditionEdit"
           ref="conditionEdit"
           :is-show="isShowConditionEdit"
-          :is-readonly="isViewMode"
+          :is-readonly="isViewMode || isNeedToProhibitEdit"
           :gateways="gateways"
           :condition-data="conditionData"
           :back-to-variable-panel="backToVariablePanel"
@@ -103,7 +117,7 @@
           @updateCanvasCondition="updateCanvasCondition"
           @close="onCloseConfigPanel" />
         <template-setting
-          :is-view-mode="isViewMode"
+          :is-readonly="isViewMode || isNeedToProhibitEdit"
           :project-info-loading="projectInfoLoading"
           :template-label-loading="templateLabelLoading"
           :template-labels="templateLabels"
@@ -119,6 +133,19 @@
           @useSnapshoot="onUseSnapshoot"
           @updateTemplateLabelList="getTemplateLabelList"
           @updateSnapshoot="onUpdateSnapshoot" />
+        <!-- :is-show="isShowVersionList" -->
+        <version-list
+          v-if="isShowVersionList"
+          ref="versionList"
+          :is-view-mode="isViewMode"
+          :sub-template-id="subTemplateId"
+          :tpl-snapshot-id="tplSnapshotId"
+          :space-id="spaceId"
+          :is-subflow-node-config="isSubflowNodeConfig"
+          @refreshVersionList="onRefreshVersionList"
+          @close="onCloseVersionListPanel"
+          @rollbackVersion="onRollbackVersion"
+          @editVersionListItem="onEditVersionListItem" />
       </div>
       <bk-dialog
         width="400"
@@ -206,6 +233,7 @@
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
   import StageCanvas from '@/components/canvas/StageCanvas/MainStageCanvas.vue';
+  import VersionList from './VersionList.vue';
   import bus from '@/utils/bus.js';
   import SubflowUpdateTips from './SubflowUpdateTips.vue';
   import { cloneDeepWith } from 'lodash';
@@ -223,6 +251,7 @@
       VerticalCanvas,
       ProcessCanvas,
       StageCanvas,
+      VersionList,
     },
     mixins: [permission],
     props: {
@@ -267,6 +296,7 @@
         isNodeConfigPanelShow: false, // 右侧模板是否展开
         isSelectorPanelShow: false, // 右侧子流程模板是否展开
         isLeaveDialogShow: false,
+        isShowVersionList: false, // 是否展开右侧版本列表
         activeSettingTab: '',
         allowLeave: false,
         leaveToPath: '',
@@ -330,6 +360,18 @@
         spaceRelatedConfig: {}, // 空间相关配置
         templateMocking: false,
         isSubflowNeedToUpdate: false,
+        isSubflowNodeConfig: false,
+        lastedPipelineTree: {},
+        subTemplateId: '',
+        tplSnapshotId: '', // 最新版本id
+        isChangeTplVersionTime: '',
+        latestedVersion: '', // 最新版本
+        isNeedToProhibitEdit: false,
+        isEnableVersionManage: false,
+        tplInfoAndVarChange: false, // 全局变量和基础信息发生变化
+        isAtPublish: false,
+        draftInfo: {},
+        isManualVersionChange: true,
       };
     },
     computed: {
@@ -455,7 +497,7 @@
       this.initType = this.type;
       this.initData();
     },
-    mounted() {
+    async mounted() {
       this.openSnapshootTimer();
       window.addEventListener('beforeunload', this.handleBeforeUnload, false);
       window.addEventListener('unload', this.handleUnload.bind(this), false);
@@ -488,6 +530,9 @@
         'getVariableCite',
         'loadUniformApiMeta',
         'loadSpaceRelatedConfig',
+        'getDraftVersionData',
+        'gerTemplatePreviewData',
+        'getTemplateVersionSnapshotList',
       ]),
       ...mapActions('task', [
         'loadSubflowConfig',
@@ -499,6 +544,10 @@
       ]),
       ...mapActions('project/', [
         'getProjectLabelsWithDefault',
+      ]),
+      ...mapActions('spaceConfig/', [
+        'getNotAuthSpaceConfig',
+        'checkSpaceConfig',
       ]),
       ...mapMutations('template/', [
         'initTemplateData',
@@ -534,6 +583,36 @@
         'loadTaskScheme',
         'saveTaskSchemList',
       ]),
+      async getDraftPipelineTree(isNeedRefresh = false) {
+        const draftTplData = await this.getDraftVersionData({
+            templateId: this.templateId,
+            common: this.common,
+            space_id: this.spaceId,
+        });
+        const { pipeline_tree: pipelineTree, ...draftInfo } = draftTplData.data;
+        if (isNeedRefresh) {
+          this.onRefreshVersionList(draftInfo);
+        }
+        this.lastedPipelineTree = pipelineTree;
+        this.compVersion = null;
+        this.setPipelineTree(draftTplData.data.pipeline_tree);
+        this.isChangeTplVersionTime = new Date().getTime();
+      },
+      // 判断是否开启版本管理
+      async checkoutSpace(spaceId) {
+        try {
+          const res = await this.getNotAuthSpaceConfig();
+          if (!res.data.flow_versioning || !spaceId) {
+            this.isEnableVersionManage = false;
+            return;
+          }
+          const { name } = res.data.flow_versioning;
+          const result = await this.checkSpaceConfig({ id: spaceId, name });
+          this.isEnableVersionManage = result.data.value === 'true';
+        } catch (error) {
+          this.isEnableVersionManage = false;
+        }
+      },
       // 轮询更新token
       pollingToken() {
         this.pollingTimer = setTimeout(async () => {
@@ -633,14 +712,33 @@
             common: this.common,
           };
           const templateData = await this.loadTemplateData(data);
+          await this.checkoutSpace(templateData.space_id);
+          this.lastedPipelineTree = tools.deepClone(templateData.pipeline_tree);
+          // 保存最新版本的流程树数据
           this.tplActions = templateData.auth;
           if (this.type === 'clone') {
             templateData.name = `${templateData.name.slice(0, STRING_LENGTH.TEMPLATE_NAME_MAX_LENGTH - 6)}_clone`;
           }
-          this.compVersion = templateData.version;
+          this.latestedVersion = templateData.version;
           this.tplSpaceId = templateData.space_id;
+          this.tplSnapshotId = templateData.snapshot_id;
           this.setTemplateData(templateData);
           this.setSpaceId(templateData.space_id);
+          if (this.$route.params.isVersionManageQuitMock) {
+            this.getDraftPipelineTree();
+            return;
+          }
+          if (this.isEnableVersionManage) {
+            const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId, space_id: this.spaceId });
+            const isHaveDraft = res.results.some(item => item.draft);
+            if (isHaveDraft) {
+              this.getDraftPipelineTree();
+              return;
+            }
+            this.compVersion = templateData.version;
+          } else {
+            this.compVersion = templateData.version;
+          }
         } catch (e) {
           if (e.status === 404) {
             this.$router.push({ name: 'notFoundPage' });
@@ -778,6 +876,28 @@
         }
         return false;
       },
+      // 处理保存后的页面跳转逻辑
+      handleSaveRedirect(templateId) {
+        // 如果开启版本管理，直接刷新草稿数据
+        if (this.isEnableVersionManage) {
+          this.getDraftPipelineTree();
+          return;
+        }
+        // 保存后需要切到查看模式(查看执行方案时不需要)
+        if (this.initType === 'view') {
+          // 从查看模式进入编辑，保存后返回上一页
+          this.$router.back();
+          this.initData();
+        } else {
+          // 从编辑模式保存，跳转到查看模式
+          this.$router.replace({
+            name: 'templatePanel',
+            params: { type: 'view' },
+            query: Object.assign({ templateId }, this.$route.query),
+          });
+          this.initType = 'view';
+        }
+      },
       /**
        * 保存流程模板
        */
@@ -821,6 +941,7 @@
             message: i18n.t('保存成功'),
             theme: 'success',
           });
+          this.tplInfoAndVarChange = false;
           this.isTemplateDataChanged = false;
           // 如果为克隆模式保存模板时需要保存执行方案
           if (this.type === 'clone' && !this.common) {
@@ -862,19 +983,11 @@
               query: Object.assign({}, this.$router.query),
             });
           } else if (this.createTaskSaving) {
+            // 保存并创建任务，跳转到任务创建页面
             this.goToTaskUrl(data.id);
-          } else { // 保存后需要切到查看模式(查看执行方案时不需要)
-            if (this.initType === 'view') {
-              this.$router.back();
-              this.initData();
-            } else {
-              this.$router.replace({
-                name: 'templatePanel',
-                params: { type: 'view' },
-                query: Object.assign({ templateId: data.id }, this.$route.query),
-              });
-              this.initType = 'view';
-            }
+          } else {
+            // 普通保存，处理页面跳转逻辑
+            this.handleSaveRedirect(data.id);
           }
         } catch (e) {
           console.log(e);
@@ -1028,8 +1141,11 @@
       /**
        * 设置流程模板为修改状态
        */
-      templateDataChanged() {
+      templateDataChanged(changeLocation = '') {
         this.isTemplateDataChanged = true;
+        if (['tabTemplateConfig', 'tabGlobalVariables'].includes(changeLocation)) {
+          this.tplInfoAndVarChange = true;
+        }
       },
       /**
        * 任务节点校验
@@ -1639,6 +1755,8 @@
                   name: 'templateMock',
                   params: {
                     templateId: this.templateId,
+                    version: this.compVersion,
+                    isEnableVersionManage: this.isEnableVersionManage,
                   },
                 });
               } catch (error) {
@@ -1653,6 +1771,8 @@
             name: 'templateMock',
             params: {
               templateId: this.templateId,
+              version: this.compVersion,
+              isEnableVersionManage: this.isEnableVersionManage,
             },
           });
         }
@@ -2105,6 +2225,73 @@
         } catch (error) {
           console.warn(error);
         }
+      },
+      // 查看全部版本
+      onViewAllVerison() {
+        this.isSubflowNodeConfig = false;
+        this.isShowVersionList = true;
+      },
+      async onSelectVersionChange(version, isDraftVersion, isLaterVersion, needToProhibitEdit) {
+        if (this.isManualVersionChange && isDraftVersion && !this.isAtPublish) {
+          this.isManualVersionChange = false;
+          try {
+            await this.getDraftPipelineTree();
+          } catch (e) {
+            console.error(e);
+          } finally {
+            this.isManualVersionChange = true;
+          }
+        } else if (version) {
+          const previewData = await this.gerTemplatePreviewData({
+            templateId: this.templateId,
+            version,
+          });
+          this.setPipelineTree(previewData.data.pipeline_tree);
+          this.isChangeTplVersionTime = new Date().getTime();
+          this.compVersion = version;
+        }
+        this.isAtPublish = false;
+        // this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
+        this.isNeedToProhibitEdit = needToProhibitEdit;
+      },
+      async onRollbackVersion() {
+        await this.getDraftPipelineTree();
+        this.onRefreshVersionList();
+      },
+      async onEditVersionListItem(value, isHaveDraftVersion) {
+        await this.getDraftPipelineTree(isHaveDraftVersion);
+      },
+      async onPublishTemplate() {
+        try {
+          this.isAtPublish = true;
+          await this.getTemplateData();
+          await this.onRefreshVersionList();
+        } catch (e) {
+          console.error(e);
+        } finally {
+          this.isAtPublish = false;
+        }
+      },
+      async onEditTemplate() {
+        if (this.isEnableVersionManage) {
+          await this.getDraftPipelineTree(true);
+        }
+      },
+      // 关闭版本列表侧滑
+      onCloseVersionListPanel() {
+        this.isShowVersionList = false;
+      },
+      onRefreshVersionList(draftInfo) {
+        this.$refs.templateHeader.getVersionList(draftInfo);
+      },
+      viewAllSubflowVerison(basicInfo) {
+        this.subTemplateId = basicInfo.tpl;
+        this.isSubflowNodeConfig = true;
+        this.isShowVersionList = true;
+      },
+      // 关闭子流程版本侧滑
+      closeSubflowVersionPanel() {
+        this.isShowVersionList = false;
       },
     },
     beforeRouteLeave(to, from, next) { // leave or reload page

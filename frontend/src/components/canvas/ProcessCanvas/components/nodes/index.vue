@@ -161,7 +161,6 @@
       transform: rotate(0);
     }
   }
-
   .custom-node {
     width: 100%;
     height: 100%;
@@ -172,6 +171,17 @@
   }
   :deep(.task-node),
   :deep(.subprocess-node) {
+    .node-status-block {
+      .stage-name {
+          padding: 0 4px;
+          width: 170px;
+          font-size: 12px;
+          color: #ffffff;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          overflow: hidden;
+      }
+    }
     .node-name {
       display: flex;
       align-items: center;
