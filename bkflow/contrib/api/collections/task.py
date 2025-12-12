@@ -59,6 +59,9 @@ class TaskComponentClient(BaseComponentClient):
     def task_list(self, data):
         return self._request(method="get", url=self._get_task_url("task/"), data=data)
 
+    def update_labels(self, task_id, data):
+        return self._request(method="post", url=self._get_task_url("task/{}/update_labels/".format(task_id)), data=data)
+
     def create_task(self, data):
         return self._request(method="post", url=self._get_task_url("task/"), data=data)
 

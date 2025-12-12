@@ -21,9 +21,10 @@ from copy import deepcopy
 
 from blueapps.account.decorators import login_exempt
 from django.db import transaction
+from django.db.models import Subquery, Q
 from django.utils.decorators import method_decorator
 from django.utils.translation import ugettext_lazy as _
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet
+from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
 from rest_framework.decorators import action
@@ -96,11 +97,13 @@ from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet, UserModelViewSet
+from bkflow.label.models import Label, TemplateLabelRelation
 
 logger = logging.getLogger("root")
 
 
 class TemplateFilterSet(FilterSet):
+    label = CharFilter(method='filter_by_labels')
     class Meta:
         model = Template
         fields = {
@@ -115,6 +118,30 @@ class TemplateFilterSet(FilterSet):
             "create_at": ["gte", "lte"],
             "update_at": ["gte", "lte"],
         }
+
+    def filter_by_labels(self, queryset, name, value):
+        """
+        根据逗号分隔的 label_id 字符串过滤任务。
+        URL Query Param 示例: ?label=1,2,3
+        """
+        label_ids = []
+        labels = value.split(',')
+        if labels:
+            # 构建一个 Q 对象，使用 OR (|) 逻辑组合多个模糊匹配条件
+            q_objects = Q()
+            for keyword in labels:
+                q_objects |= Q(name__icontains=keyword)
+            label_ids = list(Label.objects.filter(q_objects).values_list("id", flat=True))
+        label_ids = Label.objects.filter(name__in=value.split(',')).values_list('id', flat=True)
+
+        if not label_ids:
+            return queryset
+
+        ttemplate_ids_subquery = TemplateLabelRelation.objects.filter(
+            label_id__in=label_ids
+        ).values('template_id')
+
+        return queryset.filter(id__in=Subquery(ttemplate_ids_subquery))
 
 
 class AdminTemplateViewSet(AdminModelViewSet):
@@ -132,11 +159,14 @@ class AdminTemplateViewSet(AdminModelViewSet):
         serializer = self.get_serializer(page if page is not None else queryset, many=True)
         data = []
         has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
+        template_ids = [obj["id"] for obj in serializer.data]
+        templates_labels = TemplateLabelRelation.objects.fetch_objects_labels(template_ids)
         for template in serializer.data:
             if template["id"] in has_trigger_template_ids:
                 template["has_interval_trigger"] = True
             else:
                 template["has_interval_trigger"] = False
+            template["labels"] = templates_labels.get(template["id"], [])
             data.append(template)
         if page is not None:
             return self.get_paginated_response(data)
@@ -151,14 +181,24 @@ class AdminTemplateViewSet(AdminModelViewSet):
         pipeline_tree = build_default_pipeline_tree_with_space_id(space_id)
         # 涉及到两张表的创建，需要那个开启事物，确保两张表全部都创建成功
         with transaction.atomic():
+            validate_data = ser.data.copy()
+            label_ids = validate_data.pop("label_ids", [])
             username = request.user.username
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
             template = Template.objects.create(
-                **ser.data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
+                **validate_data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
             )
             snapshot.template_id = template.id
             snapshot.save(update_fields=["template_id"])
+            # 同步标签
+            TemplateLabelRelation.objects.set_labels(template.id, label_ids)
+
         return Response({"result": True, "data": template.to_json()})
+
+    
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
 
     @swagger_auto_schema(method="POST", operation_description="创建任务", request_body=CreateTaskSerializer)
     @action(methods=["POST"], detail=False, url_path="create_task/(?P<space_id>\\d+)")
@@ -314,7 +354,15 @@ class TemplateViewSet(UserModelViewSet):
 
     @record_operation(RecordType.template.name, TemplateOperationType.update.name, TemplateOperationSource.app.name)
     def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        labels = TemplateLabelRelation.objects.fetch_labels(instance.id)
+        data = deepcopy(serializer.data)
+        data["labels"] = labels
+        return Response(data)
 
     @action(methods=["POST"], detail=False)
     def analysis_constants_ref(self, request, *args, **kwargs):

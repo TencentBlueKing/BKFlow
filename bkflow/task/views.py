@@ -20,8 +20,9 @@ from functools import wraps
 
 from blueapps.account.decorators import login_exempt
 from django.conf import settings
+from django.db.models import Subquery
 from django.utils.decorators import method_decorator
-from django_filters import FilterSet
+from django_filters import FilterSet, CharFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins, status
@@ -50,6 +51,7 @@ from bkflow.task.models import (
     TaskInstance,
     TaskMockData,
     TaskOperationRecord,
+    TaskLabelRelation,
 )
 from bkflow.task.node_log import NodeLogDataSourceFactory
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
@@ -76,6 +78,7 @@ from bkflow.utils.views import SimpleGenericViewSet
 
 
 class TaskInstanceFilterSet(FilterSet):
+    label = CharFilter(method='filter_by_labels')
     class Meta:
         model = TaskInstance
         fields = {
@@ -95,6 +98,25 @@ class TaskInstanceFilterSet(FilterSet):
             "is_started": ["exact"],
             "is_finished": ["exact"],
         }
+
+    def filter_by_labels(self, queryset, name, value):
+        """
+        根据逗号分隔的 label_id 字符串过滤任务。
+        URL Query Param 示例: ?label=1,2,3
+        """
+        try:
+            label_ids = [int(lid) for lid in value.split(',')]
+        except ValueError:
+            return queryset.none()
+
+        if not label_ids:
+            return queryset
+
+        task_ids_subquery = TaskLabelRelation.objects.filter(
+            label_id__in=label_ids
+        ).values('task_id')
+
+        return queryset.filter(id__in=Subquery(task_ids_subquery))
 
 
 def validate_task_info(func):
@@ -147,6 +169,26 @@ class TaskInstanceViewSet(
         elif self.action == "retrieve":
             return RetrieveTaskInstanceSerializer
         return super().get_serializer_class()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+
+        serializer = self.get_serializer(page, many=True)
+        task_ids = [task["id"] for task in serializer.data]
+        tasks_labels  = TaskLabelRelation.objects.fetch_tasks_labels(task_ids)
+        for task in serializer.data:
+            task["labels"] = tasks_labels.get(task["id"], [])
+
+        return self.get_paginated_response(serializer.data)
+
+    @action(detail=True, methods=["post"], url_path="update_labels")
+    def update_labels(self, request, *args, **kwargs):
+        task_instance = self.get_object()
+        label_ids = request.data.get("label_ids", [])
+        TaskLabelRelation.objects.set_labels(task_instance.id, label_ids)
+        return Response(label_ids)
 
     @record_operation(RecordType.task.name, TaskOperationType.create.name, TaskOperationSource.api.name)
     def create(self, request, *args, **kwargs):

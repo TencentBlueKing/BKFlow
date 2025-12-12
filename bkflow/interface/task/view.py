@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from copy import deepcopy
 import logging
 
 from django.db.models import Q
@@ -40,6 +41,7 @@ from bkflow.interface.task.permissions import (
     TaskTokenPermission,
 )
 from bkflow.interface.task.utils import StageConstantHandler, StageJobStateHandler
+from bkflow.label.models import Label
 from bkflow.permission.models import TASK_PERMISSION_TYPE, Token
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
@@ -56,7 +58,42 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
     @action(methods=["GET"], detail=False, url_path="get_task_list/(?P<space_id>\\d+)")
     def get_task_list(self, request, space_id):
         client = TaskComponentClient(space_id=space_id)
-        result = client.task_list(data={**request.query_params, "space_id": space_id})
+        # 把标签名称转换为id进行搜索
+        query_params = deepcopy(request.query_params)
+        labels = request.query_params.getlist("label", [])
+
+        label_ids = []
+        if labels:
+            # 构建一个 Q 对象，使用 OR (|) 逻辑组合多个模糊匹配条件
+            q_objects = Q()
+            for keyword in labels:
+                q_objects |= Q(name__icontains=keyword)
+            label_ids = list(Label.objects.filter(q_objects).values_list("id", flat=True))
+
+        query_params["label"] = ",".join([str(label_id) for label_id in label_ids])
+        result = client.task_list(data={**query_params, "space_id": space_id})
+
+        label_ids = []
+        for item in result["data"]["results"]:
+            label_ids.extend(item["labels"])
+
+        labels_map = Label.objects.get_labels_map(set(label_ids))
+
+        for item in result["data"]["results"]:
+            item["labels"] = [labels_map.get(label_id) for label_id in item["labels"]]
+
+        return Response(result)
+
+    @action(methods=["POST"], detail=False, url_path="update_labels/(?P<space_id>\\d+)/(?P<pk>\\d+)")
+    def update_labels(self, request, space_id, pk=None):
+        """
+        更新特定任务（pk指定）的标签列表。
+        请求体期望格式：{"label_ids": [1, 2, 5]}
+        """
+        client = TaskComponentClient(space_id=space_id)
+        result = client.update_labels(pk, data={**request.data, "space_id": space_id})
+        labels_map = Label.objects.get_labels_map(set(result["data"]))
+        result["data"] = [labels_map.get(label_id) for label_id in result["data"]]
         return Response(result)
 
     @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
@@ -112,6 +149,10 @@ class TaskInterfaceViewSet(GenericViewSet):
     permission_classes = [
         AdminPermission | SpaceSuperuserPermission | TaskTokenPermission | TaskMockTokenPermission | ScopePermission
     ]
+
+    def list(self, request, *args, **kwargs):
+
+        return super().list(request, *args, **kwargs)
 
     @staticmethod
     def _inject_user_task_auth(request, data):
