@@ -17,8 +17,8 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import re
-import signal
 import sys
+import threading
 from io import StringIO
 from typing import Any, Dict
 
@@ -38,17 +38,16 @@ from pipeline.eri.runtime import BambooDjangoRuntime
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 
 try:
+    # RestrictedPython 8.1: 使用 safe_globals 包含所有必需的守卫函数
     from RestrictedPython import compile_restricted, safe_builtins
+    from RestrictedPython import safe_globals as rp_safe_globals
 
-    # RestrictedPython 8.1: guarded_iter_unpack 和 guarded_unpacking 已被移除
-    # 这些守卫函数可能已经内置到 safe_builtins 中，或者不再需要单独导入
-    guarded_iter_unpack = None
-    guarded_unpacking = None
+    HAS_RESTRICTED_PYTHON = True
 except ImportError:
     compile_restricted = None
     safe_builtins = None
-    guarded_iter_unpack = None
-    guarded_unpacking = None
+    rp_safe_globals = None
+    HAS_RESTRICTED_PYTHON = False
 
 __group_name__ = _("蓝鲸服务(BK)")
 
@@ -149,8 +148,40 @@ class TimeoutError(Exception):
     pass
 
 
+def execute_with_timeout(func, timeout_seconds, *args, **kwargs):
+    """在子线程中执行函数，支持超时控制"""
+    import queue
+
+    result_queue = queue.Queue()
+    exception_queue = queue.Queue()
+
+    def target():
+        try:
+            result = func(*args, **kwargs)
+            result_queue.put(result)
+        except Exception as e:
+            exception_queue.put(e)
+
+    thread = threading.Thread(target=target)
+    thread.daemon = True
+    thread.start()
+    thread.join(timeout_seconds)
+
+    if thread.is_alive():
+        return False, None, TimeoutError(f"执行超时（{timeout_seconds}秒）")
+
+    if not exception_queue.empty():
+        return False, None, exception_queue.get()
+
+    if result_queue.empty():
+        return False, None, Exception("执行完成但未返回结果")
+
+    return True, result_queue.get(), None
+
+
 def timeout_handler(signum, frame):
-    """超时信号处理（Unix系统）"""
+    """超时信号处理（Unix系统，仅在主线程中使用）"""
+    # 保留此函数以便在主线程中使用signal模块
     raise TimeoutError("代码执行超时")
 
 
@@ -218,20 +249,37 @@ class PythonCodeExecutor:
 
     def _create_safe_builtins(self) -> Dict[str, Any]:
         """创建安全的builtins"""
-        # 使用RestrictedPython提供的safe_builtins
-        restricted_builtins = safe_builtins.copy() if safe_builtins else {}
+        # RestrictedPython 8.1+: 使用 safe_globals 中的 __builtins__
+        # 它已经包含了部分守卫函数（如 _getattr_ 等）
+        if rp_safe_globals is not None and "__builtins__" in rp_safe_globals:
+            # 使用 RestrictedPython 提供的完整 builtins，已包含部分守卫函数
+            restricted_builtins = rp_safe_globals["__builtins__"].copy()
+        elif safe_builtins is not None:
+            # 降级方案：使用旧版本的 safe_builtins
+            restricted_builtins = safe_builtins.copy()
+        else:
+            restricted_builtins = {}
 
         # 添加允许的安全函数
         for func_name in SAFE_BUILTINS:
             if func_name in __builtins__:
                 restricted_builtins[func_name] = __builtins__[func_name]
 
-        # RestrictedPython 8.1: 检查 safe_builtins 中是否已包含守卫函数
-        # 如果没有，尝试从 safe_builtins 中获取，或者使用默认的守卫函数
-        if "_getiter_" not in restricted_builtins and guarded_iter_unpack is not None:
-            restricted_builtins["_getiter_"] = guarded_iter_unpack
-        if "_iter_unpack_" not in restricted_builtins and guarded_unpacking is not None:
-            restricted_builtins["_iter_unpack_"] = guarded_unpacking
+        # 添加 RestrictedPython 必需的守卫函数
+        # RestrictedPython 编译后的代码会调用这些守卫函数
+        # _getiter_: 用于 for 循环，实际上就是 iter()
+        if "_getiter_" not in restricted_builtins:
+            restricted_builtins["_getiter_"] = iter
+
+        # _iter_unpack_sequence_: 用于序列解包，如 for a, b in items
+        # 需要从 RestrictedPython.Guards 导入
+        try:
+            from RestrictedPython.Guards import guarded_iter_unpack_sequence
+
+            if "_iter_unpack_sequence_" not in restricted_builtins:
+                restricted_builtins["_iter_unpack_sequence_"] = guarded_iter_unpack_sequence
+        except ImportError:
+            pass
 
         safe_builtins_dict = {
             "__name__": "__main__",
@@ -241,13 +289,55 @@ class PythonCodeExecutor:
 
     def _create_safe_globals(self, context_vars: Dict[str, Any]) -> Dict[str, Any]:
         """创建安全的全局命名空间"""
-        # 导入json模块用于数据处理
+        # 导入安全的内置模块
+        import base64 as base64_module
+        import collections as collections_module
+        import copy as copy_module
+        import datetime as datetime_module
+        import decimal as decimal_module
+        import fractions as fractions_module
+        import functools as functools_module
+        import hashlib as hashlib_module
+        import hmac as hmac_module
+        import itertools as itertools_module
         import json as json_module
+        import math as math_module
+        import statistics as statistics_module
+        import string as string_module
+        import textwrap as textwrap_module
+        import uuid as uuid_module
+
+        # 导入存量的第三方模块
+        import jsonschema as jsonschema_module
 
         safe_globals_dict = {
             **self._create_safe_builtins(),
-            "json": json_module,
             "__builtins__": self._create_safe_builtins()["__builtins__"],
+            # 数据格式
+            "json_dumps": json_module.dumps,
+            "json_loads": json_module.loads,
+            "jsonschema_module": jsonschema_module,
+            # 数学与统计
+            "math": math_module,
+            "statistics": statistics_module,
+            "decimal": decimal_module,
+            "fractions": fractions_module,
+            # 日期时间
+            "datetime": datetime_module,
+            # 数据结构与迭代
+            "collections": collections_module,
+            "itertools": itertools_module,
+            "functools": functools_module,
+            # 字符串处理
+            "string": string_module,
+            "textwrap": textwrap_module,
+            # 编码与哈希
+            "base64": base64_module,
+            "hashlib": hashlib_module,
+            "hmac": hmac_module,
+            "uuid": uuid_module,
+            # 随机数和复制
+            "copy": copy_module,
         }
 
         # 注入工作流上下文变量
@@ -274,10 +364,6 @@ class PythonCodeExecutor:
         # 设置超时
         exec_timeout = timeout if timeout is not None else self.timeout
 
-        # 重定向标准输出
-        stdout_capture = StringIO()
-        stderr_capture = StringIO()
-
         try:
             # 编译代码
             byte_code = compile_restricted(code, filename="<inline>", mode="exec")
@@ -291,84 +377,81 @@ class PythonCodeExecutor:
             safe_globals = self._create_safe_globals({})
             safe_locals = {}
 
-            # 设置内存限制（仅Unix系统）
-            old_memory_limit = None
-            if HAS_RESOURCE:
-                try:
-                    # 保存当前内存限制
-                    old_memory_limit = resource.getrlimit(resource.RLIMIT_AS)
-                    # 设置新的内存限制
-                    success, error_msg = self._set_memory_limit(self.memory_limit_mb)
-                    if not success:
-                        self.logger.warning(f"无法设置内存限制: {error_msg}")
-                except Exception as e:
-                    self.logger.warning(f"设置内存限制时出错: {e}")
+            # 定义编译函数
+            def _compile_in_thread():
+                # 重定向标准输出
+                stdout_capture = StringIO()
+                stderr_capture = StringIO()
 
-            # 设置超时（仅Unix系统）
-            if hasattr(signal, "SIGALRM"):
-                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(exec_timeout)
-
-            try:
-                # 重定向输出
-                old_stdout = sys.stdout
-                old_stderr = sys.stderr
-                sys.stdout = stdout_capture
-                sys.stderr = stderr_capture
-
-                # 执行代码（定义main函数）
-                # RestrictedPython 8.1: byte_code 可能是 code 对象本身，也可能是包装对象
-                code_to_exec = byte_code.code if hasattr(byte_code, "code") else byte_code
-                exec(code_to_exec, safe_globals, safe_locals)
-
-                # 恢复输出
-                sys.stdout = old_stdout
-                sys.stderr = old_stderr
-
-                # 获取输出
-                stdout_output = stdout_capture.getvalue()
-                stderr_output = stderr_capture.getvalue()
-
-                # 查找main函数
-                if "main" not in safe_locals:
-                    return False, None, "代码中必须定义main函数"
-
-                main_func = safe_locals["main"]
-                if not callable(main_func):
-                    return False, None, "main必须是一个可调用的函数"
-
-                # 合并输出信息
-                output_info = ""
-                if stdout_output:
-                    output_info += f"标准输出:\n{stdout_output}\n"
-                if stderr_output:
-                    output_info += f"标准错误:\n{stderr_output}\n"
-
-                return True, main_func, output_info
-
-            except MemoryError:
-                return False, None, f"内存使用超出限制（{self.memory_limit_mb}MB）"
-            except TimeoutError:
-                return False, None, f"代码编译超时（{exec_timeout}秒）"
-            except Exception as e:
-                # 只返回错误消息，不包含调用栈信息（安全考虑）
-                return False, None, f"编译错误: {str(e)}"
-            finally:
-                # 恢复内存限制
-                if HAS_RESOURCE and "old_memory_limit" in locals() and old_memory_limit:
+                # 设置内存限制（仅Unix系统）
+                old_memory_limit = None
+                if HAS_RESOURCE:
                     try:
-                        resource.setrlimit(resource.RLIMIT_AS, old_memory_limit)
+                        # 保存当前内存限制
+                        old_memory_limit = resource.getrlimit(resource.RLIMIT_AS)
+                        # 设置新的内存限制
+                        success, error_msg = self._set_memory_limit(self.memory_limit_mb)
+                        if not success:
+                            self.logger.warning(f"无法设置内存限制: {error_msg}")
                     except Exception as e:
-                        self.logger.warning(f"恢复内存限制时出错: {e}")
-                # 恢复信号处理
-                if hasattr(signal, "SIGALRM"):
-                    signal.alarm(0)
-                    signal.signal(signal.SIGALRM, old_handler)
-                # 恢复输出
-                if "old_stdout" in locals():
+                        self.logger.warning(f"设置内存限制时出错: {e}")
+
+                try:
+                    # 重定向输出
+                    old_stdout = sys.stdout
+                    old_stderr = sys.stderr
+                    sys.stdout = stdout_capture
+                    sys.stderr = stderr_capture
+
+                    # 执行代码（定义main函数）
+                    # RestrictedPython 8.1: byte_code 可能是 code 对象本身，也可能是包装对象
+                    code_to_exec = byte_code.code if hasattr(byte_code, "code") else byte_code
+                    exec(code_to_exec, safe_globals, safe_locals)
+
+                    # 恢复输出
                     sys.stdout = old_stdout
-                if "old_stderr" in locals():
                     sys.stderr = old_stderr
+
+                    # 获取输出
+                    stdout_output = stdout_capture.getvalue()
+                    stderr_output = stderr_capture.getvalue()
+
+                    # 查找main函数
+                    if "main" not in safe_locals:
+                        raise ValueError("代码中必须定义main函数")
+
+                    main_func = safe_locals["main"]
+                    if not callable(main_func):
+                        raise ValueError("main必须是一个可调用的函数")
+
+                    # 合并输出信息
+                    output_info = ""
+                    if stdout_output:
+                        output_info += f"标准输出:\n{stdout_output}\n"
+                    if stderr_output:
+                        output_info += f"标准错误:\n{stderr_output}\n"
+
+                    return main_func, output_info
+
+                finally:
+                    # 恢复内存限制
+                    if HAS_RESOURCE and old_memory_limit:
+                        try:
+                            resource.setrlimit(resource.RLIMIT_AS, old_memory_limit)
+                        except Exception as e:
+                            self.logger.warning(f"恢复内存限制时出错: {e}")
+
+            # 使用线程超时控制执行编译
+            success, result, exception = execute_with_timeout(_compile_in_thread, exec_timeout)
+
+            if not success:
+                if isinstance(exception, TimeoutError):
+                    return False, None, f"代码编译超时（{exec_timeout}秒）"
+                else:
+                    return False, None, f"编译错误: {str(exception)}"
+
+            main_func, output_info = result
+            return True, main_func, output_info
 
         except Exception as e:
             return False, None, f"执行器错误: {str(e)}"
@@ -391,83 +474,78 @@ class PythonCodeExecutor:
         # 设置超时
         exec_timeout = timeout if timeout is not None else self.timeout
 
-        # 重定向标准输出
-        stdout_capture = StringIO()
-        stderr_capture = StringIO()
-
         try:
-            # 设置内存限制（仅Unix系统）
-            old_memory_limit = None
-            if HAS_RESOURCE:
-                try:
-                    # 保存当前内存限制
-                    old_memory_limit = resource.getrlimit(resource.RLIMIT_AS)
-                    # 设置新的内存限制
-                    success, error_msg = self._set_memory_limit(self.memory_limit_mb)
-                    if not success:
-                        self.logger.warning(f"无法设置内存限制: {error_msg}")
-                except Exception as e:
-                    self.logger.warning(f"设置内存限制时出错: {e}")
+            # 定义执行函数
+            def _execute_in_thread():
+                # 重定向标准输出
+                stdout_capture = StringIO()
+                stderr_capture = StringIO()
 
-            # 设置超时（仅Unix系统）
-            if hasattr(signal, "SIGALRM"):
-                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(exec_timeout)
-
-            try:
-                # 重定向输出
-                old_stdout = sys.stdout
-                old_stderr = sys.stderr
-                sys.stdout = stdout_capture
-                sys.stderr = stderr_capture
-
-                # 调用main函数
-                result = main_func(**input_args)
-
-                # 恢复输出
-                sys.stdout = old_stdout
-                sys.stderr = old_stderr
-
-                # 获取输出
-                stdout_output = stdout_capture.getvalue()
-                stderr_output = stderr_capture.getvalue()
-
-                # 验证返回值 - 不做类型限制，由用户自行决定
-                # if not isinstance(result, dict):
-                #     return False, None, "main函数必须返回一个字典"
-
-                # 合并输出信息
-                output_info = ""
-                if stdout_output:
-                    output_info += f"标准输出:\n{stdout_output}\n"
-                if stderr_output:
-                    output_info += f"标准错误:\n{stderr_output}\n"
-
-                return True, result, output_info
-
-            except MemoryError:
-                return False, None, f"内存使用超出限制（{self.memory_limit_mb}MB）"
-            except TimeoutError:
-                return False, None, f"main函数执行超时（{exec_timeout}秒）"
-            except Exception as e:
-                # 只返回错误消息，不包含调用栈信息（安全考虑）
-                return False, None, f"执行错误: {str(e)}"
-            finally:
-                # 恢复内存限制
-                if HAS_RESOURCE and old_memory_limit:
+                # 设置内存限制（仅Unix系统）
+                old_memory_limit = None
+                if HAS_RESOURCE:
                     try:
-                        resource.setrlimit(resource.RLIMIT_AS, old_memory_limit)
+                        # 保存当前内存限制
+                        old_memory_limit = resource.getrlimit(resource.RLIMIT_AS)
+                        # 设置新的内存限制
+                        success, error_msg = self._set_memory_limit(self.memory_limit_mb)
+                        if not success:
+                            self.logger.warning(f"无法设置内存限制: {error_msg}")
                     except Exception as e:
-                        self.logger.warning(f"恢复内存限制时出错: {e}")
-                # 恢复信号处理
-                if hasattr(signal, "SIGALRM"):
-                    signal.alarm(0)
-                    signal.signal(signal.SIGALRM, old_handler)
-                # 恢复输出
-                if "old_stdout" in locals():
+                        self.logger.warning(f"设置内存限制时出错: {e}")
+
+                try:
+                    # 重定向输出
+                    old_stdout = sys.stdout
+                    old_stderr = sys.stderr
+                    sys.stdout = stdout_capture
+                    sys.stderr = stderr_capture
+
+                    # 调用main函数
+                    result = main_func(**input_args)
+
+                    # 恢复输出
                     sys.stdout = old_stdout
-                if "old_stderr" in locals():
                     sys.stderr = old_stderr
+
+                    # 获取输出
+                    stdout_output = stdout_capture.getvalue()
+                    stderr_output = stderr_capture.getvalue()
+
+                    # 验证返回值 - 不做类型限制，由用户自行决定
+                    # if not isinstance(result, dict):
+                    #     raise ValueError("main函数必须返回一个字典")
+
+                    # 合并输出信息
+                    output_info = ""
+                    if stdout_output:
+                        output_info += f"标准输出:\n{stdout_output}\n"
+                    if stderr_output:
+                        output_info += f"标准错误:\n{stderr_output}\n"
+
+                    return result, output_info
+
+                finally:
+                    # 恢复内存限制
+                    if HAS_RESOURCE and old_memory_limit:
+                        try:
+                            resource.setrlimit(resource.RLIMIT_AS, old_memory_limit)
+                        except Exception as e:
+                            self.logger.warning(f"恢复内存限制时出错: {e}")
+
+            # 使用线程超时控制执行main函数
+            success, result, exception = execute_with_timeout(_execute_in_thread, exec_timeout)
+
+            if not success:
+                if isinstance(exception, MemoryError):
+                    return False, None, f"内存使用超出限制（{self.memory_limit_mb}MB）"
+                elif isinstance(exception, TimeoutError):
+                    return False, None, f"main函数执行超时（{exec_timeout}秒）"
+                else:
+                    return False, None, f"执行错误: {str(exception)}"
+
+            main_result, output_info = result
+            return True, main_result, output_info
 
         except Exception as e:
             return False, None, f"执行器错误: {str(e)}"
@@ -673,8 +751,11 @@ class PythonCodeComponent(Component):
     desc = _(
         "在受控环境中安全执行Python代码\n"
         "使用：定义main函数，通过输入变量配置映射工作流变量到main参数\n"
-        "限制：禁止导入危险模块(os/sys/subprocess等)和使用eval/exec等危险函数\n"
+        "限制：禁止导入危险模块(os/sys/subprocess等)和使用eval/exec等危险函数\n\n"
+        "支持内置模块：json_dumps, json_loads, math, statistics, decimal, fractions, datetime"
+        ", collections, itertools, functools, string, textwrap, base64, hashlib, hmac, uuid, copy\n"
+        "支持第三方模块：jsonschema\n\n"
         "示例：\n"
         "def main(arg1: str, arg2: str):\n"
-        '    return {"result": arg1 + arg2}'
+        '&nbsp;&nbsp;&nbsp;&nbsp;return {"result": arg1 + arg2}'
     )
