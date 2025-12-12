@@ -325,17 +325,18 @@
           :clearable="false"
           :placeholder="$t('请选择版本')"
           ext-cls="subflow-select"
-          :searchable="subVersionlistData.length>0">
+          :searchable="subVersionlistData.length>0"
+          @change="changeSubNodeVersion">
           <bk-option
             v-for="option in subVersionlistData"
             :id="option.version"
             :key="option.id"
             :name="option.version ?? '--'"
-            :disabled="true">
+            :disabled="!(option.version == formData.latestVersion || option.version == initVersion)">
             <div class="option-title">
-              <span>{{ option.version ? option.version : $t('草稿版本') }}</span>
+              <span>{{ option.version ? option.version : option.desc }}</span>
               <div
-                v-if="option.version === subVersionSelectValue"
+                v-if="option.version === formData.latestVersion"
                 class="latest-version">
                 <div class="text">
                   {{ $t('最新') }}
@@ -350,16 +351,9 @@
               </p>
             </div>
           </bk-option>
-          <div
-            v-if="subVersionlistData.length>0"
-            slot="extension"
-            class="bottom-view-btn"
-            @click="$emit('viewAllSubflowVerison', basicInfo)">
-            <i class="common-icon-box-top-right-corner" />
-            <span>{{ $t('查看全部版本') }}{{ subVersionSelectValue }}</span>
-          </div>
         </bk-select>
         <div
+          v-if="formData.latestVersion === formData.version "
           class="sub-latest-version">
           <div class="text">
             {{ $t('最新') }}
@@ -557,7 +551,7 @@
   // import BkUserSelector from '@blueking/user-selector'
   import { mapState, mapActions, mapMutations, mapGetters } from 'vuex';
   import { NAME_REG, STRING_LENGTH, INVALID_NAME_CHAR } from '@/constants/index.js';
-import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
+  import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
 
   export default {
     name: 'BasicInfo',
@@ -608,6 +602,7 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
         subflowLoading: false,
         version: this.basicInfo.version,
         formData: tools.deepClone(this.basicInfo),
+        initVersion: tools.deepClone(this.basicInfo.version),
         maxNodeExecuteTimeout: window.MAX_NODE_EXECUTE_TIMEOUT,
         schemeList: [],
         schemeListLoading: true,
@@ -748,6 +743,11 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
         immediate: true,
       },
     },
+    mounted() {
+      if (this.isSubflow) {
+        this.getSubVersionList();
+      }
+    },
     methods: {
       ...mapMutations('template/', [
         'setNodeBasicInfo',
@@ -759,6 +759,7 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
       ...mapActions('template/', [
         'getLabels',
         'getProcessOpenRetryAndTimeout',
+        'getTemplateVersionSnapshotList',
       ]),
       ...mapGetters('template/', [
         'getPipelineTree',

@@ -37,7 +37,7 @@
             <template slot-scope="{ row }">
               <div
                 class="table-version-id">
-                <span>{{ row.version || '--' }}</span>
+                <span>{{ row.version || row.desc || '--' }}</span>
                 <div
                   v-if="row.isLatestVersion"
                   class="latest-version version-distinguish-icon">
@@ -88,7 +88,7 @@
                 text
                 :disabled="isSubflowNodeConfig"
                 @click="rollbackToCurVersion(props.row)">
-                {{ $t('回滚到此版本') }}
+                {{ $t('恢复到此版本') }}
               </bk-button>
               <bk-button
                 theme="primary"
@@ -129,14 +129,14 @@
             type="exclamation"
             class="info-icon dialog-icon" />
           <div class="title-text">
-            {{ $t('确定回滚到此版本？') }}
+            {{ $t('确定恢复到此版本') }}
           </div>
         </div>
         <div class="version-text">
           <div>{{ $t('版本号:') + ' ' + curSelectVersion }}</div>
         </div>
       </div>
-      <div>{{ $t('回滚后，会将当前草稿态的内容恢复至选择的版本') }}</div>
+      <div>{{ $t('恢复后，会将当前草稿态的内容恢复至选择的版本') }}</div>
     </bk-dialog>
   </div>
 </template>
@@ -176,11 +176,6 @@
     data() {
       return {
         tableFileds: [
-            {
-                id: 'version',
-                label: i18n.t('版本号'),
-                width: 120,
-            },
             {
                 id: 'desc',
                 label: i18n.t('版本描述'),

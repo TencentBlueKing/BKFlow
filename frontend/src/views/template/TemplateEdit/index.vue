@@ -87,7 +87,7 @@
         <node-config
           v-if="isNodeConfigPanelShow"
           ref="nodeConfig"
-          :is-view-mode="isViewMode"
+          :is-view-mode="isViewMode || isNeedToProhibitEdit"
           :is-show="isNodeConfigPanelShow"
           :atom-list="atomList"
           :atom-type-list="atomTypeList"
@@ -101,12 +101,14 @@
           @globalVariableUpdate="globalVariableUpdate"
           @updateNodeInfo="onUpdateNodeInfo"
           @templateDataChanged="templateDataChanged"
-          @close="closeConfigPanel" />
+          @close="closeConfigPanel"
+          @viewAllSubflowVerison="viewAllSubflowVerison"
+          @closeSubflowVersionPanel="closeSubflowVersionPanel" />
         <condition-edit
           v-if="isShowConditionEdit"
           ref="conditionEdit"
           :is-show="isShowConditionEdit"
-          :is-readonly="isViewMode"
+          :is-readonly="isViewMode || isNeedToProhibitEdit"
           :gateways="gateways"
           :condition-data="conditionData"
           :back-to-variable-panel="backToVariablePanel"
@@ -115,7 +117,7 @@
           @updateCanvasCondition="updateCanvasCondition"
           @close="onCloseConfigPanel" />
         <template-setting
-          :is-view-mode="isViewMode"
+          :is-readonly="isViewMode || isNeedToProhibitEdit"
           :project-info-loading="projectInfoLoading"
           :template-label-loading="templateLabelLoading"
           :template-labels="templateLabels"
@@ -231,6 +233,7 @@
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
   import StageCanvas from '@/components/canvas/StageCanvas/MainStageCanvas.vue';
+  import VersionList from './VersionList.vue';
   import bus from '@/utils/bus.js';
   import SubflowUpdateTips from './SubflowUpdateTips.vue';
   import { cloneDeepWith } from 'lodash';
@@ -248,6 +251,7 @@
       VerticalCanvas,
       ProcessCanvas,
       StageCanvas,
+      VersionList,
     },
     mixins: [permission],
     props: {
@@ -292,6 +296,7 @@
         isNodeConfigPanelShow: false, // 右侧模板是否展开
         isSelectorPanelShow: false, // 右侧子流程模板是否展开
         isLeaveDialogShow: false,
+        isShowVersionList: false, // 是否展开右侧版本列表
         activeSettingTab: '',
         allowLeave: false,
         leaveToPath: '',
@@ -525,6 +530,9 @@
         'getVariableCite',
         'loadUniformApiMeta',
         'loadSpaceRelatedConfig',
+        'getDraftVersionData',
+        'gerTemplatePreviewData',
+        'getTemplateVersionSnapshotList',
       ]),
       ...mapActions('task', [
         'loadSubflowConfig',
@@ -713,6 +721,7 @@
           }
           this.latestedVersion = templateData.version;
           this.tplSpaceId = templateData.space_id;
+          this.tplSnapshotId = templateData.snapshot_id;
           this.setTemplateData(templateData);
           this.setSpaceId(templateData.space_id);
           if (this.$route.params.isVersionManageQuitMock) {
@@ -1746,6 +1755,8 @@
                   name: 'templateMock',
                   params: {
                     templateId: this.templateId,
+                    version: this.compVersion,
+                    isEnableVersionManage: this.isEnableVersionManage,
                   },
                 });
               } catch (error) {

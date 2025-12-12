@@ -39,8 +39,9 @@
         class="common-icon-edit"
         @click="$emit('onChangePanel', 'templateConfigTab')" />
       <VersionSelect
-        v-if="isEnableVersionManage"
+        v-if="isEnableVersionManage && (versionListData.length > 1 || (versionListData.length > 0 && !versionListData[0].draft))"
         ref="tplVersionSelect"
+        v-bkloading="{ isLoading: versionListLoading , zIndex: 100 }"
         :template-id="templateId"
         :is-subflow-node-config="false"
         :comp-version="compVersion"
@@ -104,7 +105,7 @@
             'task-btn',
           ]"
           :loading="templateSaving && !templateMocking"
-          :disabled="templateMocking || !hasEditPermission"
+          :disabled="isSaveButtonDisabled"
           data-test-id="templateEdit_form_saveCanvas"
           @click.stop="onSaveClick(false)">
           {{ $t('保存') }}
@@ -295,15 +296,18 @@
 </template>
 <script>
   import i18n from '@/config/i18n/index.js';
-  import { mapState, mapActions } from 'vuex';
+  import { mapState, mapActions, mapGetters  } from 'vuex';
   import permission from '@/mixins/permission.js';
+  import VersionSelect from './VersionSelect.vue';
   // import SelectProjectModal from '@/components/common/modal/SelectProjectModal.vue'
   import SETTING_TABS from './SettingTabs.js';
   import bus from '@/utils/bus.js';
+  import tools from '@/utils/tools.js';
 
   export default {
     name: 'TemplateHeader',
     components: {
+      VersionSelect,
       // SelectProjectModal,
     },
     mixins: [permission],

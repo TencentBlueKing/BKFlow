@@ -88,6 +88,14 @@
         type: String,
         default: '',
       },
+      version: {
+        type: [String, null],
+        default: '',
+      },
+      isEnableVersionManage: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -188,9 +196,11 @@
         'getTemplateMockScheme',
         'updateTplMockScheme',
         'loadSpaceRelatedConfig',
+        'getDraftVersionData',
       ]),
       ...mapMutations('template/', [
         'setTemplateData',
+        'setPipelineTree',
       ]),
       ...mapMutations([
         'setSpaceId',
