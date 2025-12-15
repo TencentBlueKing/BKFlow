@@ -61,8 +61,3 @@ jobs:
         sh scripts/run_interface_unit_test.sh
         echo "run engine unit test"
         sh scripts/run_engine_unit_test.sh
-
-    - name: Debug on failure
-      if: failure()
-      uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 30
