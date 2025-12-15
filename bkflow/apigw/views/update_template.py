@@ -27,13 +27,15 @@ from django.views.decorators.http import require_POST
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.exceptions import UpdateTemplateException
 from bkflow.apigw.serializers.template import UpdateTemplateSerializer
-from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
-from bkflow.contrib.operation_record.decorators import record_operation
+from bkflow.constants import TemplateOperationSource, TemplateOperationType
 from bkflow.exceptions import ValidationError
-from bkflow.template.models import Template, TemplateSnapshot
+from bkflow.space.configs import FlowVersioning
+from bkflow.space.models import SpaceConfig
+from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
 from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
+from bkflow.utils.version import bump_custom
 
 
 @login_exempt
@@ -41,12 +43,6 @@ from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
 @require_POST
 @check_jwt_and_space
 @return_json_response
-@record_operation(
-    RecordType.template.name,
-    TemplateOperationType.update.name,
-    TemplateOperationSource.api.name,
-    extra_info={"tag": "apigw"},
-)
 def update_template(request, space_id, template_id):
     data = json.loads(request.body)
 
@@ -59,6 +55,9 @@ def update_template(request, space_id, template_id):
 
     validated_data_dict = dict(ser.data)
 
+    auto_release = validated_data_dict.pop("auto_release", False)
+    version = validated_data_dict.pop("version", None)
+
     pipeline_tree = validated_data_dict.pop("pipeline_tree", None)
     if pipeline_tree:
         replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
@@ -70,11 +69,55 @@ def update_template(request, space_id, template_id):
         except Template.DoesNotExist:
             raise UpdateTemplateException(_(f"模板不存在，template_id:{template_id}"))
 
+        # 添加更新记录
+        TemplateOperationRecord.objects.create(
+            operate_source=TemplateOperationSource.api.name,
+            operate_type=TemplateOperationType.update.name,
+            instance_id=template.id,
+            operator=request.user.username,
+        )
+
         if pipeline_tree:
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
-            validated_data_dict["snapshot_id"] = snapshot.id
-            snapshot.template_id = template.id
-            snapshot.save(update_fields=["template_id"])
+            if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+                try:
+                    TemplateSnapshot.objects.get(template_id=template_id, draft=True)
+                    template_version = None
+                except TemplateSnapshot.DoesNotExist:
+                    template_version = template.version
+                # 更新草稿数据
+                template.update_draft_snapshot(pipeline_tree, request.user.username, template_version)
+
+                if auto_release:
+                    release_version = version or bump_custom(template.snapshot_version) or "1.0.0"
+                    if TemplateSnapshot.objects.filter(template_id=template.id, version=release_version).exists():
+                        raise UpdateTemplateException(_(f"版本号已存在: {version}"))
+                    try:
+                        bump_custom(release_version, template.snapshot_version)
+                    except Exception as e:
+                        raise UpdateTemplateException(_(f"版本号不符合规范: {str(e)}"))
+
+                    snapshot = template.release_template(
+                        {"version": release_version, "username": request.user.username}
+                    )
+                    template.snapshot_id = snapshot.id
+
+                    # 添加发布记录
+                    TemplateOperationRecord.objects.create(
+                        operate_source=TemplateOperationSource.api.name,
+                        operate_type=TemplateOperationType.release.name,
+                        instance_id=template.id,
+                        operator=request.user.username,
+                        extra_info={"version": release_version},
+                    )
+            else:
+                if not template.snapshot_version:
+                    current_version = "1.0.0"
+                else:
+                    current_version = template.snapshot_version
+                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, request.user.username, current_version)
+                validated_data_dict["snapshot_id"] = snapshot.id
+                snapshot.template_id = template.id
+                snapshot.save(update_fields=["template_id"])
 
         for key, value in validated_data_dict.items():
             setattr(template, key, value)

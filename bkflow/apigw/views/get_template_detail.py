@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,6 +16,8 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import copy
+
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
@@ -26,8 +27,11 @@ from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.template import TemplateDetailQuerySerializer
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
+from bkflow.space.configs import FlowVersioning
+from bkflow.space.models import SpaceConfig
 from bkflow.template.models import Template, TemplateMockData, TemplateMockScheme
 from bkflow.utils import err_code
+from bkflow.utils.pipeline import replace_subprocess_version
 
 
 @login_exempt
@@ -54,6 +58,7 @@ def get_template_detail(request, space_id, template_id):
         "data": template.to_json(),
         "code": err_code.SUCCESS.code,
     }
+    copy_pipeline_tree = copy.deepcopy(template.pipeline_tree)
 
     if params["with_mock_data"]:
         # 获取当前的 mock scheme
@@ -75,6 +80,10 @@ def get_template_detail(request, space_id, template_id):
                 pipeline_tree, appoint_node_ids
             )
             preview_data = preview_template_tree(pipeline_tree, exclude_task_nodes_id)
-            response["data"]["pipeline_tree"] = preview_data["pipeline_tree"]
+            copy_pipeline_tree = preview_data["pipeline_tree"]
 
+    if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+        copy_pipeline_tree = replace_subprocess_version(copy_pipeline_tree)
+
+    response["data"]["pipeline_tree"] = copy_pipeline_tree
     return response

@@ -38,6 +38,20 @@
         v-if="!isViewMode && isEditProcessPage"
         class="common-icon-edit"
         @click="$emit('onChangePanel', 'templateConfigTab')" />
+      <VersionSelect
+        v-if="isEnableVersionManage && (versionListData.length > 1 || (versionListData.length > 0 && !versionListData[0].draft))"
+        ref="tplVersionSelect"
+        v-bkloading="{ isLoading: versionListLoading , zIndex: 100 }"
+        :template-id="templateId"
+        :is-subflow-node-config="false"
+        :comp-version="compVersion"
+        :is-view-mode="isViewMode"
+        :tpl-snapshot-id="tplSnapshotId"
+        :version-list-data="versionListData"
+        :version-count="versionCount"
+        @viewAllVerison="$emit('viewAllVerison')"
+        @versionSelectChange="handleVersionSelectChange"
+        @rollbackVersion="handelRollBackVersion" />
       <!-- 一期不做 -->
       <!-- 执行方案图标 -->
       <!-- <span
@@ -51,7 +65,7 @@
       <div
         v-if="isEditProcessPage"
         class="button-area">
-        <div class="setting-tab-wrap">
+        <div :class="{ 'setting-tab-wrap': true, 'right-dividing-line': isNeedHaveDividingLine }">
           <span
             v-if="ifShowJumpToTaskList"
             :class="['setting-item']"
@@ -76,7 +90,7 @@
           </template>
         </div>
         <bk-button
-          v-if="isViewMode && !isProjectCommonTemp"
+          v-if="(isViewMode && !isProjectCommonTemp) && (isDraftVersion || (!isHaveDraft && isLaterVersion))"
           theme="primary"
           data-test-id="templateEdit_form_editCanvas"
           :disabled="!hasEditPermission"
@@ -84,14 +98,14 @@
           {{ $t('编辑') }}
         </bk-button>
         <bk-button
-          v-else-if="!isProjectCommonTemp"
+          v-else-if="!isProjectCommonTemp && (!isEnableVersionManage || isDraftVersion)"
           theme="primary"
           :class="[
             'save-canvas',
-            'task-btn'
+            'task-btn',
           ]"
           :loading="templateSaving && !templateMocking"
-          :disabled="templateMocking || !hasEditPermission"
+          :disabled="isSaveButtonDisabled"
           data-test-id="templateEdit_form_saveCanvas"
           @click.stop="onSaveClick(false)">
           {{ $t('保存') }}
@@ -108,13 +122,42 @@
           {{createTaskBtnText}}
         </bk-button> -->
         <bk-button
-          v-if="tplActions.includes('MOCK')&&!ifHidenMockBtn"
+          v-if="(tplActions.includes('MOCK')&&!ifHidenMockBtn) && ( !isEnableVersionManage || isDraftVersion)"
           :class="['task-btn']"
           data-test-id="templateEdit_form_mock"
           :loading="templateMocking"
           :disabled="templateSaving && !templateMocking"
           @click.stop="$emit('jumpToTemplateMock')">
           {{ $t('调试') }}
+        </bk-button>
+        <bk-button
+          v-if="(!isViewMode && !isProjectCommonTemp) && isEnableVersionManage && isDraftVersion"
+          theme="primary"
+          :class="[
+            'task-btn',
+            'send-btn'
+          ]"
+          :loading="templateSaving && !templateMocking"
+          :disabled="!hasEditPermission || isPipelineTreeChanged || tplInfoAndVarChange"
+          data-test-id="templateEdit_form_publishCanvas"
+          @click.stop="onPublishClick">
+          <div class="send-container">
+            <div class="icon-container">
+              <svg
+                class="bk-icon-publish-tpl"
+                style="fill: #fff;"
+                viewBox="0 0 64 64"
+                version="1.1"
+                xmlns="http://www.w3.org/2000/svg">
+                <g>
+                  <path
+                    fill="#fff"
+                    d="M57.06,8.16,6.56,26.73a2,2,0,0,0-.46,3.51l13.81,9.7L20,52.6A2,2,0,0,0,23.39,54l7-6.73,9.14,6.42a2,2,0,0,0,3-.88L59.6,10.79A2,2,0,0,0,57.06,8.16Zm-9.31,7.69L21.36,36.07l-9.84-6.91ZM24,47.92l0-5.15L27,45Zm.82-9.44,28-21.42L39.76,49Z" />
+                </g>
+              </svg>
+            </div>
+            <span> {{ $t('发布') }}</span>
+          </div>
         </bk-button>
         <bk-button
           v-if="isViewMode && ifShowCreateTaskBtn"
@@ -155,19 +198,116 @@
       @onConfirm="handleCreateTaskConfirm"
       @onCancel="handleCreateTaskCancel">
     </SelectProjectModal> -->
+
+    <!-- 回滚版本弹窗 -->
+    <bk-dialog
+      v-model="isShowRollbackDialog"
+      theme="primary"
+      width="480"
+      :mask-close="false"
+      footer-position="center"
+      @confirm="onRollbackVersionConfirm"
+      @cancel="isShowRollbackDialog = false">
+      <div class="rollback-dialog-content">
+        <div class="title">
+          <bk-icon
+            type="exclamation"
+            class="info-icon dialog-icon" />
+          <div class="title-text">
+            {{ $t('确定恢复到此版本？') }}
+          </div>
+        </div>
+        <div class="version-text">
+          <div>{{ $t('版本号:') + ' ' + curSelectVersion }}</div>
+        </div>
+      </div>
+      <div>{{ $t('恢复后，会将当前草稿态的内容恢复至选择的版本') }}</div>
+    </bk-dialog>
+    <!-- 发布弹窗 -->
+    <bk-dialog
+      v-model="isShowPublishDialog"
+      theme="primary"
+      width="480"
+      :mask-close="false"
+      header-position="left"
+      :title="$t('发布流程')"
+      footer-position="right">
+      <div class="publish-dialog-content">
+        <bk-form
+          ref="publishForm"
+          :label-width="200"
+          :model="formData"
+          :rules="publishFormRules"
+          form-type="vertical">
+          <bk-form-item
+            :label="$t('版本号')"
+            :required="true"
+            property="version">
+            <bk-input v-model="formData.version">
+              <template slot="prepend">
+                <div class="group-text">
+                  V
+                </div>
+              </template>
+            </bk-input>
+          </bk-form-item>
+          <bk-form-item
+            :label="$t('版本描述')"
+            property="desc">
+            <bk-input
+              v-model="formData.desc"
+              :placeholder="$t('请输入')"
+              :type="'textarea'"
+              :rows="3"
+              :maxlength="500" />
+          </bk-form-item>
+        </bk-form>
+      </div>
+      <template #footer>
+        <bk-button
+          theme="primary"
+          data-test-id="templateEdit_form_publishCanvas"
+          @click.stop="onPublishConfirm">
+          <div class="send-container">
+            <div class="icon-container">
+              <svg
+                class="bk-icon-publish-tpl"
+                style="fill: #fff;"
+                viewBox="0 0 64 64"
+                version="1.1"
+                xmlns="http://www.w3.org/2000/svg">
+                <g>
+                  <path
+                    fill="#fff"
+                    d="M57.06,8.16,6.56,26.73a2,2,0,0,0-.46,3.51l13.81,9.7L20,52.6A2,2,0,0,0,23.39,54l7-6.73,9.14,6.42a2,2,0,0,0,3-.88L59.6,10.79A2,2,0,0,0,57.06,8.16Zm-9.31,7.69L21.36,36.07l-9.84-6.91ZM24,47.92l0-5.15L27,45Zm.82-9.44,28-21.42L39.76,49Z" />
+                </g>
+              </svg>
+            </div>
+            <span> {{ $t('发布') }}</span>
+          </div>
+        </bk-button>
+        <bk-button
+          @click="isShowPublishDialog = false">
+          {{ $t('取消发布') }}
+        </bk-button>
+      </template>
+    </bk-dialog>
   </div>
 </template>
 <script>
   import i18n from '@/config/i18n/index.js';
-  import { mapState, mapActions } from 'vuex';
+  import { mapState, mapActions, mapGetters  } from 'vuex';
   import permission from '@/mixins/permission.js';
+  import VersionSelect from './VersionSelect.vue';
   // import SelectProjectModal from '@/components/common/modal/SelectProjectModal.vue'
   import SETTING_TABS from './SettingTabs.js';
   import bus from '@/utils/bus.js';
+  import tools from '@/utils/tools.js';
 
   export default {
     name: 'TemplateHeader',
     components: {
+      VersionSelect,
       // SelectProjectModal,
     },
     mixins: [permission],
@@ -215,6 +355,32 @@
           return [];
         },
       },
+      lastedPipelineTree: { // 最新版本的流程树
+        type: Object,
+        default() {
+          return {};
+        },
+      },
+      compVersion: {
+        type: String,
+        default: '',
+      },
+      tplSnapshotId: {
+        type: [Number, String],
+        default: '',
+      },
+      latestedVersion: {
+        type: String,
+        default: '',
+      },
+      isEnableVersionManage: {
+        type: Boolean,
+        default: false,
+      },
+      tplInfoAndVarChange: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -229,6 +395,21 @@
         commonTplCreateTaskPermLoading: false,
         selectedProject: {}, // 公共流程创建任务所选择的项目
         schemeInfo: null,
+        isShowRollbackDialog: false, // 是否显示回滚版本弹窗
+        isShowPublishDialog: false, // 是否显示发布弹窗
+        curSelectVersion: '',
+        formData: {
+          version: '',
+          desc: '',
+        },
+        publishFormRules: {
+          version: [{ required: true, message: i18n.t('请输入版本号'), trigger: 'blur' }],
+        },
+        keysToRemove: ['optional', 'error_ignorable', 'retryable', 'skippable', 'auto_retry', 'timeout_config'],
+        isHaveDraft: false,
+        versionListData: [],
+        versionListLoading: false,
+        versionCount: 0,
       };
     },
     computed: {
@@ -272,6 +453,15 @@
       isViewMode() {
         return this.type === 'view';
       },
+      isLaterVersion() {
+        return this.latestedVersion === this.curSelectVersion;
+      },
+      isDraftVersion() {
+        return this.curSelectVersion === null || this.curSelectVersion === '';
+      },
+      isNeedHaveDividingLine() { // 无按钮时不需要分隔线
+        return this.isViewMode && !this.isProjectCommonTemp && (this.isDraftVersion || (!this.isHaveDraft && this.isLaterVersion && !this.isEnableVersionManage));
+      },
       isProjectCommonTemp() {
         const { name } = this.$route;
         return name === 'projectCommonTemplatePanel';
@@ -287,6 +477,22 @@
        },
        ifShowJumpToTaskList() {
         return this.$route.query.ifShowJumpToTaskList === 'true';
+       },
+       isPipelineTreeChanged() {
+        const templateData = this.getLocalTemplateData();
+        const { activities, constants, end_event, flows, gateways, line, location, outputs, start_event  } = templateData;
+        const currentTemplateData = { activities, constants, end_event, flows, gateways, line, location, outputs, start_event };
+        const removeNoJudgePipelineTree = this.removeLocationTargetKeys(currentTemplateData);
+        return Object.keys(currentTemplateData).some((key) => {
+          const currentValue = removeNoJudgePipelineTree[key];
+          const lastValue = this.lastedPipelineTree[key];
+          return !tools.isDataEqual(currentValue, lastValue);
+        });
+       },
+       isSaveButtonDisabled() {
+        const baseDisabled = this.templateMocking || !this.hasEditPermission;
+        const versionManageDisabled = this.isEnableVersionManage && !this.tplInfoAndVarChange && (!this.isPipelineTreeChanged || !this.isDraftVersion);
+        return baseDisabled || versionManageDisabled;
        },
     },
     watch: {
@@ -311,6 +517,9 @@
           inputDom && inputDom.focus();
         });
       });
+      if (this.isEnableVersionManage) {
+        this.getVersionList();
+      }
       // 新建、克隆公共流程需要查询创建公共流程权限
       if (this.common) {
         await this.queryCreateCommonTplPerm();
@@ -322,6 +531,83 @@
       ...mapActions([
         'queryUserPermission',
       ]),
+      ...mapActions('template/', [
+        'getRandomVersion',
+        'publishTemplate',
+        'rollbackToVersion',
+        'getTemplateVersionSnapshotList',
+      ]),
+      ...mapGetters('template/', [
+        'getLocalTemplateData',
+      ]),
+      async getVersionList(draftInfo) {
+        this.versionListLoading = true;
+        const res = await this.getTemplateVersionSnapshotList({
+          template_id: this.templateId,
+          space_id: this.spaceId,
+          limit: 10,
+          offset: 0,
+        });
+        this.versionCount = res.count;
+        this.versionListData = res.results || [];
+        this.isHaveDraft = res.results?.some(item => item.draft) ?? false;
+        if (!this.isHaveDraft && draftInfo) {
+          this.versionListData.unshift(draftInfo);
+          this.isHaveDraft = true;
+        }
+        this.versionListLoading = false;
+      },
+      handleVersionSelectChange(selected) {
+        this.curSelectVersion = selected;
+        const curVerNeedToProhibitEdit = !(this.isDraftVersion || (!this.isHaveDraft && this.isLaterVersion));
+        this.$emit('selectVersionChange', selected, this.isDraftVersion, this.isLaterVersion, curVerNeedToProhibitEdit);
+      },
+      removeLocationTargetKeys(obj) {
+        obj.location.forEach((locationItem) => {
+          this.keysToRemove.forEach((key) => {
+            if (Object.prototype.hasOwnProperty.call(locationItem, key)) {
+              delete locationItem[key];
+            }
+          });
+        });
+        return obj;
+      },
+      handelRollBackVersion(rollback) {
+        this.curSelectVersion = rollback;
+        this.isShowRollbackDialog = true;
+      },
+      async onRollbackVersionConfirm() {
+        await this.rollbackToVersion({ templateId: this.$route.params.templateId, version: this.curSelectVersion, space_id: this.spaceId });
+        this.$emit('rollbackVersion');
+        this.isShowRollbackDialog = false;
+      },
+      // 发布
+      async onPublishClick() {
+        const res = await this.getRandomVersion({ templateId: this.templateId, space_id: this.spaceId });
+        this.formData.version = res.data.version || '';
+        this.isShowPublishDialog = true;
+      },
+      onPublishConfirm() {
+        this.$refs.publishForm.validate().then(async () => {
+          const res = await this.publishTemplate({ templateId: this.templateId, ...this.formData, space_id: this.spaceId });
+          if (!res.result) {
+            return;
+          }
+          this.$bkMessage({
+            message: i18n.t('发布成功'),
+            theme: 'success',
+          });
+          this.formData.desc = '';
+          this.isShowPublishDialog = false;
+          this.$emit('publishTemplate');
+          this.$router.replace({
+            name: 'templatePanel',
+            params: { type: 'view', templateId: this.$route.params.templateId },
+          });
+        }, (validator) => {
+          console.error(validator);
+        });
+      },
       // 编辑流程
       onEditClick() {
         // const curPermission = [...this.authActions, ...this.tplActions]
@@ -341,10 +627,11 @@
         //   return
         // }
         const { params, query, name } = this.$route;
+        this.$emit('editTemplate', params.type);
         this.$router.push({
           name,
           params: { ...params, type: 'edit' },
-          query,
+          query: Object.assign({}, query),
         });
       },
       /**
@@ -636,105 +923,171 @@
         float: right;
     }
 }
-    .template-header-wrapper {
-        display: flex;
-        justify-content: space-between;
-        padding: 0 20px 0 10px;
-        .header-left-area {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            .back-icon {
-                font-size: 28px;
-                color: #3a84ff;
-                cursor: pointer;
-            }
-            .title {
-                font-size: 14px;
-                color: #313238;
-            }
-        }
-        .header-right-area {
-            display: flex;
-            align-items: center;
-            height: 100%;
-        }
-        .template-name {
-            margin: 0 0 0 20px;
-            max-width: 300px;
-            font-size: 14px;
-            font-weight: normal;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: #63656e;
-        }
-        .execution-scheme-input {
-            width: 240px;
-        }
-        .execution-scheme-tip {
-            font-size: 12px;
-            color: #63656e;
-            margin-left: 12px;
-        }
-        .common-icon-edit {
-            margin-left: 10px;
-            font-size: 16px;
-            color: #979ba5;
-            cursor: pointer;
-            &:hover {
-                color: #3480ff;
-            }
-        }
-        .execute-scheme-icon {
-            margin-left: 20px;
-            font-size: 14px;
-            color: #979ba5;
-            cursor: pointer;
-            &:hover {
-                color: #3480ff;
-            }
-        }
-        .setting-tab-wrap {
-            display: inline-block;
-            margin-right: 20px;
-            padding-right: 24px;
-            height: 32px;
-            line-height: 32px;
-            border-right: 1px solid #dcdee5;
-            .jump-to-task-list-icon{
-              font-size: 20px;
+  .template-header-wrapper {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 20px 0 10px;
+      .header-left-area {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          .back-icon {
+              font-size: 28px;
+              color: #3a84ff;
+              cursor: pointer;
+          }
+          .title {
+              font-size: 14px;
+              color: #313238;
+          }
+      }
+      .header-right-area {
+          display: flex;
+          align-items: center;
+          height: 100%;
+      }
+      .template-name {
+          margin: 0 0 0 20px;
+          max-width: 300px;
+          font-size: 14px;
+          font-weight: normal;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #63656e;
+      }
+      .execution-scheme-input {
+          width: 240px;
+      }
+      .execution-scheme-tip {
+          font-size: 12px;
+          color: #63656e;
+          margin-left: 12px;
+      }
+      .common-icon-edit {
+          margin-left: 10px;
+          font-size: 16px;
+          color: #979ba5;
+          cursor: pointer;
+          &:hover {
+              color: #3480ff;
+          }
+      }
+      .execute-scheme-icon {
+          margin-left: 20px;
+          font-size: 14px;
+          color: #979ba5;
+          cursor: pointer;
+          &:hover {
+              color: #3480ff;
+          }
+      }
+      .setting-tab-wrap {
+          display: inline-block;
+          padding-right: 24px;
+          height: 32px;
+          line-height: 32px;
+          .jump-to-task-list-icon{
+            font-size: 20px;
+            position: relative;
+            top: 2px;
+            left: 6px;
+          }
+          .setting-item {
               position: relative;
-              top: 2px;
-              left: 6px;
-            }
-            .setting-item {
-                position: relative;
-                margin-right: 20px;
-                font-size: 16px;
-                color: #546a9e;
-                cursor: pointer;
-                &:hover,
-                &.active {
-                    color: #3a84ff;
-                }
-                &:last-child {
-                    margin-right: 0;
-                }
-                &.update::before {
-                    content: '';
-                    position: absolute;
-                    right: -6px;
-                    top: -6px;
-                    width: 8px;
-                    height: 8px;
-                    border-radius: 50%;
-                    background: #ff5757;
-                }
-            }
-        }
-        .task-btn {
-            margin-left: 10px;
-        }
+              margin-right: 20px;
+              font-size: 16px;
+              color: #546a9e;
+              cursor: pointer;
+              &:hover,
+              &.active {
+                  color: #3a84ff;
+              }
+              &:last-child {
+                  margin-right: 0;
+              }
+              &.update::before {
+                  content: '';
+                  position: absolute;
+                  right: -6px;
+                  top: -6px;
+                  width: 8px;
+                  height: 8px;
+                  border-radius: 50%;
+                  background: #ff5757;
+              }
+          }
+      }
+      .right-dividing-line{
+        border-right: 1px solid #dcdee5;
+        margin-right: 20px;
+      }
+      .task-btn {
+          margin-left: 10px;
+          .send-btn{
+            padding: 0 7px !important;
+          }
+      }
+  }
+  .send-container{
+    display: flex;
+    align-items: center;
+    .icon-container{
+      display: flex;
+      align-items: center;
+      padding-right: 4px;
     }
+  }
+  .bk-icon-publish-tpl{
+    width: 16px;
+    height: 16px;
+  }
+  ::v-deep .rollback-dialog-content{
+     .title{
+      display: flex;
+      align-items: center;
+      flex-direction: column;
+      .dialog-icon{
+        font-size: 26px !important;
+        border-radius: 50%;
+        width: 42px;
+        height: 42px;
+        line-height: 42px;
+      }
+      .info-icon{
+        background-color: #ffe8c3;
+        color: #ff9c01;
+      }
+      .title-text{
+        font-size: 20px;
+        color: #313238;
+        line-height: 32px;
+        margin-top: 19px;
+        margin-bottom: 16px;
+
+      }
+    }
+    .version-text{
+      padding: 12px 16px;
+      background: #F5F6FA;
+      border-radius: 2px;
+      color: #4D4F56;
+      margin-bottom: 13px;
+    }
+    .bk-dialog-wrapper .bk-dialog-footer {
+      padding: 4px 24px 28px 24px;
+      border-radius: 2px;
+    }
+  }
+  ::v-deep .publish-dialog-content{
+    .bk-form-control{
+      .group-box{
+        background: #FAFBFD;
+        border-radius: 2px 0 0 2px;
+      }
+      .group-text{
+        padding: 0 8px;
+      }
+    }
+  }
 </style>

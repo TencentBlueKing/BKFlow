@@ -782,8 +782,8 @@
           regValidate.args = '';
         }
         this.$set(this.renderConfig, 0, config);
-        this.$nextTick(() => {
-          this.$refs.renderForm.validate();
+        this.$nextTick(async () => {
+         this.$refs.renderForm.validate();
         });
       },
       /**
@@ -805,8 +805,8 @@
           const regValidate = config.attrs.validation.find(item => item.type === 'regex');
           regValidate.args = this.getInputDefaultValueValidation();
           this.$set(this.renderConfig, 0, config);
-          this.$nextTick(() => {
-            this.$refs.renderForm.validate();
+          this.$nextTick(async () => {
+            await this.$refs.renderForm.validate();
           });
         }
       },
@@ -902,7 +902,7 @@
               // 1.表单设置为隐藏
               // 2.表单设置为显示，但是默认值编辑后的当前值与已保存的值有差异，主要处理子流程勾选的变量如果有校验，但是不想修改值情况下无法保存的场景
               if (variable.show_type === 'hide' || !tools.isDataEqual(variable.value, this.renderData[tagCode])) {
-                formValid = this.$refs.renderForm.validate();
+                formValid = await this.$refs.renderForm.validate();
               }
             }
 

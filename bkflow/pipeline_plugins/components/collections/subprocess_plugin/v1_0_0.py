@@ -62,7 +62,7 @@ class SubprocessPluginService(BKFlowBaseService):
         else:
             version = subprocess.version
         interface_client = InterfaceModuleClient()
-        template = interface_client.get_subproc_data(template_id=template_id, data={"version": version})
+        template = interface_client.get_template_data(template_id=template_id, data={"version": version})
 
         # 检查API调用是否成功
         if not template.get("result"):
