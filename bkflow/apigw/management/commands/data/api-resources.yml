@@ -1893,6 +1893,30 @@ paths:
           userVerifiedRequired: false
         disabledStages: []
         descriptionEn: delete a template
+  /space/{space_id}/delete_task/:
+    post:
+      operationId: delete_task
+      description: 删除任务
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/delete_task/
+          matchSubpath: false
+          timeout: 0
+          upstreams: { }
+          transformHeaders: { }
+        authConfig:
+          userVerifiedRequired: false
+        disabledStages: [ ]
+        descriptionEn: delete task
   /space/{space_id}/create_credential/:
     post:
       operationId: create_credential
