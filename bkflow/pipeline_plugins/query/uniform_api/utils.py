@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -38,11 +37,12 @@ def check_resource_token(func: callable) -> callable:
     :param func: 被装饰的函数
     :return: 装饰后的函数
     """
+
     @wraps(func)
     def wrapper(request, *args, **kwargs):
+        from bkflow.permission.models import Token
         from bkflow.space.configs import SuperusersConfig
         from bkflow.space.models import SpaceConfig
-        from bkflow.permission.models import Token
 
         space_id = kwargs.get("space_id")
         space_superusers = SpaceConfig.get_config(space_id, SuperusersConfig.name)
@@ -54,7 +54,7 @@ def check_resource_token(func: callable) -> callable:
         if not request.token:
             raise ValidationError("不存在访问 token")
 
-        token = Token.objects.get_resource_token(request.token, kwargs)
+        token = Token.objects.get_resource_tokens(request.token, request.query_params)
         if not token.exists():
             if settings.ENABLE_DEBUG_LOG:
                 logger.error(f"token 不存在或有误: {request.token}")
@@ -131,7 +131,7 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
 
     def __init__(self, from_apigw_check=True, *args, **kwargs):
         self.from_apigw_check = from_apigw_check
-        super(UniformAPIClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def request(self, url: str, method: str, data=None, headers=None, *args, **kwargs) -> HttpRequestResult:
         """
