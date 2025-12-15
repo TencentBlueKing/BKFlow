@@ -58,7 +58,7 @@ DEFAULT_TIMEOUT = getattr(settings, "PYTHON_CODE_PLUGIN_TIMEOUT", 30)
 MAX_CODE_LENGTH = getattr(settings, "PYTHON_CODE_PLUGIN_MAX_LENGTH", 10240)
 
 # 默认最大内存限制（MB，仅Unix系统）
-DEFAULT_MEMORY_LIMIT_MB = getattr(settings, "PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB", 128)
+DEFAULT_MEMORY_LIMIT_MB = getattr(settings, "PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB", 256)
 
 # 允许的安全内置函数和模块
 SAFE_BUILTINS = {
@@ -189,8 +189,13 @@ class PythonCodeExecutor:
     """Python代码安全执行器"""
 
     def __init__(
-        self, timeout=DEFAULT_TIMEOUT, max_code_length=MAX_CODE_LENGTH, memory_limit_mb=DEFAULT_MEMORY_LIMIT_MB
+        self,
+        service,
+        timeout=DEFAULT_TIMEOUT,
+        max_code_length=MAX_CODE_LENGTH,
+        memory_limit_mb=DEFAULT_MEMORY_LIMIT_MB,
     ):
+        self.service = service
         self.timeout = timeout
         self.max_code_length = max_code_length
         self.memory_limit_mb = memory_limit_mb
@@ -392,9 +397,9 @@ class PythonCodeExecutor:
                         # 设置新的内存限制
                         success, error_msg = self._set_memory_limit(self.memory_limit_mb)
                         if not success:
-                            self.logger.warning(f"无法设置内存限制: {error_msg}")
+                            self.service.logger.warning(f"无法设置内存限制: {error_msg}")
                     except Exception as e:
-                        self.logger.warning(f"设置内存限制时出错: {e}")
+                        self.service.logger.warning(f"设置内存限制时出错: {e}")
 
                 try:
                     # 重定向输出
@@ -439,7 +444,7 @@ class PythonCodeExecutor:
                         try:
                             resource.setrlimit(resource.RLIMIT_AS, old_memory_limit)
                         except Exception as e:
-                            self.logger.warning(f"恢复内存限制时出错: {e}")
+                            self.service.logger.warning(f"恢复内存限制时出错: {e}")
 
             # 使用线程超时控制执行编译
             success, result, exception = execute_with_timeout(_compile_in_thread, exec_timeout)
@@ -490,9 +495,9 @@ class PythonCodeExecutor:
                         # 设置新的内存限制
                         success, error_msg = self._set_memory_limit(self.memory_limit_mb)
                         if not success:
-                            self.logger.warning(f"无法设置内存限制: {error_msg}")
+                            self.service.logger.warning(f"无法设置内存限制: {error_msg}")
                     except Exception as e:
-                        self.logger.warning(f"设置内存限制时出错: {e}")
+                        self.service.logger.warning(f"设置内存限制时出错: {e}")
 
                 try:
                     # 重定向输出
@@ -531,7 +536,7 @@ class PythonCodeExecutor:
                         try:
                             resource.setrlimit(resource.RLIMIT_AS, old_memory_limit)
                         except Exception as e:
-                            self.logger.warning(f"恢复内存限制时出错: {e}")
+                            self.service.logger.warning(f"恢复内存限制时出错: {e}")
 
             # 使用线程超时控制执行main函数
             success, result, exception = execute_with_timeout(_execute_in_thread, exec_timeout)
@@ -556,7 +561,7 @@ class PythonCodeService(BKFlowBaseService):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.executor = PythonCodeExecutor()
+        self.executor = PythonCodeExecutor(service=self)
 
     def inputs_format(self):
         return [
