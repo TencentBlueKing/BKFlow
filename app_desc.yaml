@@ -66,7 +66,7 @@ modules:
       web:
         command: bin/start_web.sh
         plan: 4C2G5R
-        replicas: 5
+        replicas: 2
       beat:
         command: celery -A blueapps.core.celery beat -l info
         plan: 4C1G5R
@@ -121,15 +121,15 @@ modules:
       er-e:
         command: celery -A blueapps.core.celery worker -P threads -Q er_execute_${BKFLOW_MODULE_CODE} -n er_e_worker@%h -c 100 -l info
         plan: 4C4G5R
-        replicas: 5
+        replicas: 2
       er-s:
         command: celery -A blueapps.core.celery worker -P threads -Q er_schedule_${BKFLOW_MODULE_CODE} -n er_s_worker@%h -c 100 -l info
         plan: 4C4G5R
-        replicas: 5
+        replicas: 2
       cworker:
         command: celery -A blueapps.core.celery worker -P threads -Q celery,pipeline_additional_task,pipeline_additional_task_priority,task_common_${BKFLOW_MODULE_CODE},task_callback_${BKFLOW_MODULE_CODE},node_auto_retry_${BKFLOW_MODULE_CODE},timeout_node_execute_${BKFLOW_MODULE_CODE},timeout_node_record_${BKFLOW_MODULE_CODE} -n common_worker@%h -c 10 -l info
         plan: 4C1G5R
-        replicas: 5
+        replicas: 2
       timeout:
         command: python manage.py node_timeout_process
         plan: 4C1G5R
@@ -137,7 +137,7 @@ modules:
       web:
         command: bin/start_web.sh
         plan: 4C2G5R
-        replicas: 5
+        replicas: 2
       beat:
         command: celery -A blueapps.core.celery beat -l info
         plan: 4C1G5R
