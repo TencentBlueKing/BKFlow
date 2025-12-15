@@ -33,7 +33,12 @@ from bkflow.task.models import (
     TaskInstance,
     TimeoutNodeConfig,
 )
-from bkflow.task.utils import ATOM_FAILED, TASK_FINISHED, redis_inst_check
+from bkflow.task.utils import (
+    ATOM_FAILED,
+    TASK_FINISHED,
+    process_task_from_queue,
+    redis_inst_check,
+)
 
 logger = logging.getLogger("root")
 
@@ -99,12 +104,14 @@ def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version,
             queue=f"task_common_{settings.BKFLOW_MODULE.code}",
             routing_key=f"task_common_{settings.BKFLOW_MODULE.code}",
         )
+        _process_task_from_queue(root_id)
     elif to_state == bamboo_engine_states.REVOKED and node_id == root_id:
         try:
             TaskInstance.objects.set_revoked(root_id)
         except Exception as e:
             logger.exception(f"TaskInstance set revoked error: {e}")
         _check_and_callback(root_id, task_success=False)
+        _process_task_from_queue(root_id)
     elif to_state == bamboo_engine_states.FINISHED and node_id == root_id:
         try:
             TaskInstance.objects.set_finished(root_id)
@@ -119,11 +126,27 @@ def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version,
             routing_key=f"task_common_{settings.BKFLOW_MODULE.code}",
         )
         _check_and_callback(root_id, task_success=True)
+        _process_task_from_queue(root_id)
 
     try:
         _node_timeout_info_update(settings.redis_inst, to_state, node_id, version)
     except Exception as e:
         logger.exception(f"node_timeout_info_update error: {e}")
+
+
+def _process_task_from_queue(root_id):
+    try:
+        template_id = TaskInstance.objects.get(instance_id=root_id).template_id
+        process_task_from_queue.apply_async(
+            kwargs={
+                "template_id": template_id,
+            },
+            queue=f"task_common_{settings.BKFLOW_MODULE.code}",
+            routing_key=f"task_common_{settings.BKFLOW_MODULE.code}",
+        )
+    except Exception as e:
+        logger.exception(f"TaskInstance get template_id error: {e}")
+        return
 
 
 def _check_and_callback(instance_id, *args, **kwargs):
@@ -143,7 +166,7 @@ def task_callback(task_id, retry_times=0, *args, **kwargs):
     task_relate = TaskFlowRelation.objects.filter(task_id=task_id).first()
     if not task_relate:
         return
-    tcb = TaskCallBacker(task_id, *args, **kwargs)
+    tcb = TaskCallBacker(task_id, task_relate, *args, **kwargs)
     if not tcb.check_record_existence():
         message = f"[task_callback] task_id {task_id} does not in TaskCallBackRecord."
         logger.error(message)

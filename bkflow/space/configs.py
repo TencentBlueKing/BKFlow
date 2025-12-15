@@ -438,6 +438,24 @@ class FlowVersioning(BaseSpaceConfig):
         return True
 
 
+# 流程并发控制
+class ConcurrencyControlConfig(BaseSpaceConfig):
+    name = "concurrency_control"
+    desc = _("流程并发控制")
+    default_value = 0
+    LEAST_NUMBER = 1
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if int(value) < cls.LEAST_NUMBER:
+            raise ValidationError(
+                f"[validate concurrency control error]: concurrency control only support {cls.LEAST_NUMBER}"
+            )
+
+        return True
+
+
 # 定义 SCHEMA_V1 对应的模型
 class SchemaV1Model(BaseModel):
     meta_apis: str

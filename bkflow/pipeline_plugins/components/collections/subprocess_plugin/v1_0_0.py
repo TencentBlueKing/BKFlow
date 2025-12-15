@@ -32,6 +32,7 @@ from bkflow.constants import (
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
+from bkflow.task.utils import push_task_to_queue
 
 
 class Subprocess(BaseModel):
@@ -143,7 +144,7 @@ class SubprocessPluginService(BKFlowBaseService):
         from bkflow.task.utils import extract_extra_info
 
         with transaction.atomic():
-            time_zone = timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai"
+            time_zone = timezone.pytz.timezone(settings.TIME_ZONE)
             time_stamp = datetime.datetime.now(tz=time_zone).strftime("%Y%m%d%H%M%S")
             create_task_data = {
                 "name": f"{subprocess.subprocess_name}_子流程_{time_stamp}",
@@ -190,7 +191,7 @@ class SubprocessPluginService(BKFlowBaseService):
             except TaskFlowRelation.DoesNotExist:
                 root_task_id = parent_task.id
 
-            relate_info = {"node_id": self.id, "node_version": self.version}
+            relate_info = {"node_id": self.id, "node_version": self.version, "parent_task_id": parent_task.id}
             TaskFlowRelation.objects.create(
                 task_id=task_instance.id,
                 parent_task_id=parent_task.id,
@@ -214,6 +215,7 @@ class SubprocessPluginService(BKFlowBaseService):
     def plugin_execute(self, data, parent_data):
         from bkflow.task.models import TaskInstance
         from bkflow.task.operations import TaskOperation
+        from bkflow.task.utils import task_concurrency_limit_reached
 
         parent_task_id = parent_data.get_one_of_inputs("task_id")
         try:
@@ -235,6 +237,10 @@ class SubprocessPluginService(BKFlowBaseService):
 
         # 设置输出并启动任务
         data.set_outputs("task_id", task_instance.id)
+
+        if task_concurrency_limit_reached(task_instance.space_id, task_instance.template_id):
+            push_task_to_queue(task_instance, "start")
+            return True
         task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
         operation_method = getattr(task_operation, "start", None)
         if operation_method is None:

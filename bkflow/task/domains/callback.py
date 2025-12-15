@@ -27,16 +27,17 @@ from django.core.exceptions import ValidationError
 from pipeline.eri.models import Schedule as DBSchedule
 from pipeline.eri.runtime import BambooDjangoRuntime
 
-from bkflow.task.models import TaskFlowRelation
+from bkflow.task.models import TaskInstance
+from bkflow.task.utils import push_task_to_queue, task_concurrency_limit_reached
 from bkflow.utils.redis_lock import redis_lock
 
 logger = logging.getLogger("root")
 
 
 class TaskCallBacker:
-    def __init__(self, task_id, *args, **kwargs):
+    def __init__(self, task_id, task_relate, *args, **kwargs):
         self.task_id = task_id
-        self.task_relate = TaskFlowRelation.objects.filter(task_id=self.task_id).first()
+        self.task_relate = task_relate
         self.extra_info = {"task_id": self.task_id, **self.task_relate.extra_info, **kwargs}
 
     def check_record_existence(self):
@@ -67,6 +68,13 @@ class TaskCallBacker:
                     # FAILED 状态需要转换为 READY 之后才能转换为 RUNNING
                     runtime.set_state(node_id=node_id, version=version, to_state=states.READY)
                     runtime.set_state(node_id=node_id, version=version, to_state=states.RUNNING)
+
+                parent_task_id = self.extra_info["parent_task_id"]
+                parent_task = TaskInstance.objects.filter(id=parent_task_id).first()
+
+                if task_concurrency_limit_reached(parent_task.space_id, parent_task.template_id, is_exemption=True):
+                    push_task_to_queue(parent_task, "callback")
+                    return True
 
                 bamboo_engine_api.callback(runtime=runtime, node_id=node_id, version=version, data=self.extra_info)
 

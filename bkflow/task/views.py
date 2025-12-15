@@ -68,6 +68,7 @@ from bkflow.task.serializers import (
     TaskOperationRecordSerializer,
     UpdatePeriodicTaskSerializer,
 )
+from bkflow.task.utils import push_task_to_queue, task_concurrency_limit_reached
 from bkflow.utils.handlers import handle_plain_log
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
@@ -194,6 +195,11 @@ class TaskInstanceViewSet(
             template_id=task_instance.template_id,
             executor=task_instance.executor,
         ):
+            if operation in ["start", "resume"] and task_concurrency_limit_reached(
+                task_instance.space_id, task_instance.template_id
+            ):
+                push_task_to_queue(task_instance, operation)
+                return Response({"result": True, "data": None, "message": "success"})
             task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
             operation_method = getattr(task_operation, operation, None)
             if operation_method is None:
@@ -222,12 +228,19 @@ class TaskInstanceViewSet(
         ):
             if task_instance.trigger_method == TaskTriggerMethod.subprocess.name and operation in ["skip", "retry"]:
                 task_instance.change_parent_task_node_state_to_running()
+            data = request.data
+            operator = data.pop("operator", request.user.username)
+            if operation in ["skip", "retry"] and task_concurrency_limit_reached(
+                task_instance.space_id, task_instance.template_id
+            ):
+                push_task_to_queue(task_instance, operation, node_id, data)
+                return Response({"result": True, "data": None, "message": "success"})
+
             node_operation = TaskNodeOperation(task_instance=task_instance, node_id=node_id)
             operation_method = getattr(node_operation, operation, None)
             if operation_method is None:
                 raise ValidationError("node operation not found")
-            data = request.data
-            operator = data.pop("operator", request.user.username)
+
             operation_result = operation_method(operator=operator, **data)
             return Response(dict(operation_result))
 
@@ -238,6 +251,8 @@ class TaskInstanceViewSet(
         task_instance = self.get_object()
         task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
         states = task_operation.get_task_states()
+        if task_instance.extra_info.get("is_waiting"):
+            states.data["state"] = "waiting"
         return Response(dict(states))
 
     @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
@@ -250,19 +265,19 @@ class TaskInstanceViewSet(
         space_id = ser.validated_data["space_id"]
         task_instances = TaskInstance.objects.filter(id__in=task_ids, space_id=space_id)
         task_operations = [
-            {"task_id": task_instance.id, "operation": TaskOperation(task_instance=task_instance).get_task_states()}
+            {"task": task_instance, "operation": TaskOperation(task_instance=task_instance).get_task_states()}
             for task_instance in task_instances
         ]
-        task_states = {
-            task_operation["task_id"]: {
-                "state": (
-                    task_operation["operation"].data.get("state")
-                    if task_operation["operation"].result is True
-                    else None
-                )
-            }
-            for task_operation in task_operations
-        }
+        task_states = {}
+        for task_operation in task_operations:
+            if task_operation["operation"].result is True:
+                state = task_operation["operation"].data.get("state")
+            elif task_operation["task"].extra_info.get("is_waiting"):
+                state = "waiting"
+            else:
+                state = None
+            task_states[task_operation["task"].id] = {"state": state}
+
         return Response(task_states)
 
     @swagger_auto_schema(methods=["get"], operation_description="获取任务 mock 数据")
