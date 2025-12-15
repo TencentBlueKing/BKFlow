@@ -114,7 +114,7 @@ export default {
           query: {
             activeTab: 'decisionTable',
             space_id: this.$route.query.space_id,
-            id: row.id
+            id: row.id,
           },
         };
       }
