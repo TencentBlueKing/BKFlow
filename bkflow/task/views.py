@@ -198,7 +198,10 @@ class TaskInstanceViewSet(
             if operation in ["start", "resume"] and task_concurrency_limit_reached(
                 task_instance.space_id, task_instance.template_id
             ):
-                push_task_to_queue(task_instance, operation)
+                try:
+                    push_task_to_queue(task_instance, operation)
+                except Exception as e:
+                    return Response({"result": False, "data": None, "message": str(e)})
                 return Response({"result": True, "data": None, "message": "success"})
             task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
             operation_method = getattr(task_operation, operation, None)
@@ -233,7 +236,10 @@ class TaskInstanceViewSet(
             if operation in ["skip", "retry"] and task_concurrency_limit_reached(
                 task_instance.space_id, task_instance.template_id
             ):
-                push_task_to_queue(task_instance, operation, node_id, data)
+                try:
+                    push_task_to_queue(task_instance, operation, node_id, data)
+                except Exception as e:
+                    return Response({"result": False, "data": None, "message": str(e)})
                 return Response({"result": True, "data": None, "message": "success"})
 
             node_operation = TaskNodeOperation(task_instance=task_instance, node_id=node_id)

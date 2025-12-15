@@ -16,11 +16,11 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-
-
+import json
 import logging
-import time
 from typing import Dict
+
+from django.conf import settings
 
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.utils.singleton import Singleton
@@ -32,20 +32,17 @@ class SpaceConfigManager(metaclass=Singleton):
     """空间配置管理器"""
 
     def __init__(self):
-        self._cache: Dict[str, Dict] = {}
-        self._cache_time: Dict[str, float] = {}
         self._cache_duration = 60
         self._interface_client = InterfaceModuleClient()
 
     def get_space_config(self, space_id: str, config_names: str) -> Dict:
         """获取空间配置，支持缓存"""
-        cache_key = f"{space_id}:{config_names}"
+        # cache_key = f"{space_id}:{config_names}"
+        cache_key = f"space_config:{space_id}:{config_names}"
 
-        current_time = time.time()
-        if cache_key in self._cache:
-            cache_time = self._cache_time.get(cache_key, 0)
-            if current_time - cache_time < self._cache_duration:
-                return self._cache[cache_key]
+        cached_data = settings.redis_inst.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
 
         try:
             space_infos_result = self._interface_client.get_space_infos(
@@ -55,9 +52,7 @@ class SpaceConfigManager(metaclass=Singleton):
             if space_infos_result.get("result"):
                 space_configs = space_infos_result.get("data", {}).get("configs", {})
 
-                self._cache[cache_key] = space_configs
-                self._cache_time[cache_key] = current_time
-
+                settings.redis_inst.setex(cache_key, self._cache_duration, json.dumps(space_configs))
                 return space_configs
             else:
                 logger.error(f"获取空间配置失败: space_id={space_id}, error={space_infos_result.get('message')}")

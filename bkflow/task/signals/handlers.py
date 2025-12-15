@@ -146,7 +146,6 @@ def _process_task_from_queue(root_id):
         )
     except Exception as e:
         logger.exception(f"TaskInstance get template_id error: {e}")
-        return
 
 
 def _check_and_callback(instance_id, *args, **kwargs):

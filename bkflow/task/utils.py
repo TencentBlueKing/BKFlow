@@ -176,20 +176,36 @@ def push_task_to_queue(task, operation, node_id=None, data=None):
     template_id = task.template_id
     redis_key = f"task_wait_{template_id}"
 
-    queue_size = settings.redis_inst.llen(redis_key)
-
-    if queue_size >= settings.TASK_QUEUE_MAX_SIZE:
-        logger.error(f"Task queue for template {template_id} is full (size: {queue_size}), cannot add more tasks")
-        return False
+    # 准备任务数据
     task_data = {"operation": operation, "task_id": task.id}
     if node_id:
         task_data.update({"node_id": node_id})
     if data:
         task_data.update({"node_data": data})
+    task_json = json.dumps(task_data)
 
-    with start_trace("push_task_to_queue", queue_len=queue_size, **task_data):
-        task_json = json.dumps(task_data)
-        settings.redis_inst.rpush(redis_key, task_json)
+    lua_script = """
+        local queue_key = KEYS[1]
+        local max_size = tonumber(ARGV[1])
+        local task_data = ARGV[2]
+
+        local current_size = redis.call('llen', queue_key)
+        if current_size >= max_size then
+            return -1  -- 队列已满
+        end
+
+        redis.call('rpush', queue_key, task_data)
+        return current_size + 1  -- 返回新队列大小
+    """
+
+    with start_trace("push_task_to_queue", operation=operation, task_id=task.id):
+        result = settings.redis_inst.eval(lua_script, 1, redis_key, settings.TASK_QUEUE_MAX_SIZE, task_json)
+
+        if result == -1:
+            logger.error(f"Task queue for template {template_id} is full, cannot add more tasks")
+            raise Exception(f"Task queue for template {template_id} is full, cannot add more tasks")
+
+        logger.info(f"Task {task.id} added to queue for template {template_id}, new queue size: {result}")
 
     task.extra_info.update({"is_waiting": True})
     task.save()

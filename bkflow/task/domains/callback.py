@@ -76,7 +76,10 @@ class TaskCallBacker:
                     task_concurrency_limit_reached(parent_task.space_id, parent_task.template_id, is_exemption=True)
                     and self.extra_info["task_success"] is True
                 ):
-                    push_task_to_queue(parent_task, "callback")
+                    try:
+                        push_task_to_queue(parent_task, "callback")
+                    except Exception as e:
+                        logger.exception(f"[TaskCallBacker _subprocess_callback] push task to queue error: {e}")
                     return True
 
                 bamboo_engine_api.callback(runtime=runtime, node_id=node_id, version=version, data=self.extra_info)

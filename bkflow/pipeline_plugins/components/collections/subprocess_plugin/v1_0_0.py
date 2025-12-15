@@ -239,7 +239,11 @@ class SubprocessPluginService(BKFlowBaseService):
         data.set_outputs("task_id", task_instance.id)
 
         if task_concurrency_limit_reached(task_instance.space_id, task_instance.template_id):
-            push_task_to_queue(task_instance, "start")
+            try:
+                push_task_to_queue(task_instance, "start")
+            except Exception as e:
+                data.set_outputs("ex_data", str(e))
+                return False
             return True
         task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
         operation_method = getattr(task_operation, "start", None)
