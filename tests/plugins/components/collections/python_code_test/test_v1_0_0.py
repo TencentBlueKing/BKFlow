@@ -253,7 +253,7 @@ NO_MAIN_FUNCTION_CASE = ComponentTestCase(
     name="no_main_function_case",
     inputs={"bk_python_code": NO_MAIN_FUNCTION_CODE, "bk_input_vars": {}},
     parent_data={},
-    execute_assertion=ExecuteAssertion(success=False, outputs={"ex_data": "代码中必须定义main函数"}),
+    execute_assertion=ExecuteAssertion(success=False, outputs={"ex_data": "编译错误: 代码中必须定义main函数"}),
     schedule_assertion=None,
     patchers=[],
 )
