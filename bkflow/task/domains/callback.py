@@ -72,7 +72,10 @@ class TaskCallBacker:
                 parent_task_id = self.extra_info["parent_task_id"]
                 parent_task = TaskInstance.objects.filter(id=parent_task_id).first()
 
-                if task_concurrency_limit_reached(parent_task.space_id, parent_task.template_id, is_exemption=True):
+                if (
+                    task_concurrency_limit_reached(parent_task.space_id, parent_task.template_id, is_exemption=True)
+                    and self.extra_info["task_success"] is True
+                ):
                     push_task_to_queue(parent_task, "callback")
                     return True
 

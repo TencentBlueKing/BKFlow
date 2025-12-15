@@ -141,8 +141,8 @@ def _process_task_from_queue(root_id):
             kwargs={
                 "template_id": template_id,
             },
-            queue=f"task_common_{settings.BKFLOW_MODULE.code}",
-            routing_key=f"task_common_{settings.BKFLOW_MODULE.code}",
+            queue=f"task_process_queue_{settings.BKFLOW_MODULE.code}",
+            routing_key=f"task_process_queue_{settings.BKFLOW_MODULE.code}",
         )
     except Exception as e:
         logger.exception(f"TaskInstance get template_id error: {e}")

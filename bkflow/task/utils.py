@@ -176,7 +176,6 @@ def push_task_to_queue(task, operation, node_id=None, data=None):
     template_id = task.template_id
     redis_key = f"task_wait_{template_id}"
 
-    # 检查队列大小限制（最大1000个任务）
     queue_size = settings.redis_inst.llen(redis_key)
 
     if queue_size >= settings.TASK_QUEUE_MAX_SIZE:
@@ -197,14 +196,14 @@ def push_task_to_queue(task, operation, node_id=None, data=None):
     return True
 
 
-@current_app.task(bind=True)
+@current_app.task()
 @redis_inst_check
 def process_task_from_queue(template_id):
     from bkflow.task.models import TaskInstance
     from bkflow.task.operations import TaskNodeOperation, TaskOperation
 
     redis_key = f"task_wait_{template_id}"
-    task_json = settings.redis_cli.lpop(redis_key)
+    task_json = settings.redis_inst.lpop(redis_key)
     if not task_json:
         return None
 
@@ -212,7 +211,7 @@ def process_task_from_queue(template_id):
     operation = task_data.get("operation")
     task_instance = TaskInstance.objects.get(id=task_data.get("task_id"))
 
-    for invoke_num in range(1, settings.TASK_QUEUE_MAX_SIZE + 1):
+    for invoke_num in range(1, settings.TASK_MAX_RETRY_FREQUENCY + 1):
         task_instance.extra_info.update({"is_waiting": False})
         try:
             if operation in ["start", "resume"]:
@@ -230,7 +229,7 @@ def process_task_from_queue(template_id):
             logger.error(f"Failed to process task {task_instance.id} from queue (attempt {invoke_num}): {e}")
             opera_error = e
 
-        if invoke_num == settings.TASK_QUEUE_MAX_SIZE and opera_error:
+        if invoke_num == settings.TASK_MAX_RETRY_FREQUENCY and opera_error:
             logger.error(f"Failed to process task {task_instance.id} kwargs {task_data} from queue")
             task_instance.extra_info.update({"operation_failed": opera_error})
 
