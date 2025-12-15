@@ -316,8 +316,8 @@
           console.warn(error);
         }
       },
-      validate() {
-        return this.isConfigLoading ? false : this.$refs.renderForm.validate();
+      async validate() {
+        return this.isConfigLoading ? false : await this.$refs.renderForm.validate();
       },
       judgeDataEqual() {
         const formValid = this.validate();
