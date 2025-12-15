@@ -1547,11 +1547,11 @@
 <style lang="scss" scoped>
 @import '../../../scss/mixins/scrollbar.scss';
 @import '../../../scss/config.scss';
-.parameter-details{
+.parameter-details {
     height: 100%;
     display: flex;
     flex-direction: column;
-    .nodeTree{
+    .nodeTree {
         border-right: 1px solid #DCDEE5;
     }
     .details-wrapper {
@@ -1616,33 +1616,33 @@
             :first-child {
                 margin: 2px 5px 0;
             }
-            .view-subflow{
+            .view-subflow {
               display: flex;
               align-items: center;
-              .dividing-line{
+              .dividing-line {
                 margin: 0 13px;
                 border-right: 1px solid #DCDEE5;
                 height: 14px;
               }
-              .icon-link-to-sub{
+              .icon-link-to-sub {
                 font-size: 12px !important;
                 margin-right: 6px;
                 margin-top: 2px;
                 cursor: pointer;
               }
-              .text-link-to-sub{
+              .text-link-to-sub {
                 cursor: pointer;
               }
             }
         }
     }
-    ::v-deep .bk-breadcrumb{
+    ::v-deep .bk-breadcrumb {
       display: flex;
       flex-wrap: wrap;
-      .bk-breadcrumb-item{
+      .bk-breadcrumb-item {
         display: flex;
         align-items: center;
-        .bk-select{
+        .bk-select {
           height: 22px;
           line-height: 22px !important;
           margin: 0 8px;
@@ -1650,39 +1650,39 @@
           width: 42px;
           font-size: 12px;
           border: none;
-          .bk-select-name{
+          .bk-select-name {
             height: 22px;
             color: #63656E !important;
             font-weight: normal;
           }
-          .bk-select-angle{
+          .bk-select-angle {
             top:0
           }
         }
         .bk-breadcrumb-separator {
            display: none !important;
         }
-        .separator{
+        .separator {
           margin: 0px;
           color: #313238;
         }
       }
-      .bk-breadcrumb-item-inner{
+      .bk-breadcrumb-item-inner {
         display: flex;
         align-items: center;
         color: #313238;
       }
-      .bk-breadcrumb-separator{
+      .bk-breadcrumb-separator {
         margin:0px;
         color: #313238;
       }
     }
-    .execute-body{
+    .execute-body {
       overflow-y: auto;
       @include scrollbar;
       height: 100%;
     }
-    ::v-deep .execute-info-tab .bk-tab-section{
+    ::v-deep .execute-info-tab .bk-tab-section {
         padding: 0;
     }
     // .scroll-area {
@@ -1783,7 +1783,7 @@
     }
 }
 
-.sub-process{
+.sub-process {
   position: relative;
   margin: 0 25px 8px 15px;
     .flow-option {

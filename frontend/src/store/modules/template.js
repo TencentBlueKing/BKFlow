@@ -1205,7 +1205,7 @@ const template = {
     // 获取模板预览数据
     gerTemplatePreviewData({}, data) {
       // appoint_node_ids: selectedNodes,
-      const { templateId, version} = data;
+      const { templateId, version } = data;
       const requestData = {
         is_all_nodes: true,
       };
