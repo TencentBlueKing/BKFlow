@@ -433,15 +433,16 @@ def _recursive_replace_id_without_subprocess(pipeline_data, subprocess_id=None):
 
 
 def replace_subprocess_version(pipeline_tree, flow_version_config) -> dict:
+    from bkflow.constants import TEMPLATE_MD5SUM_LENGTH
     from bkflow.template.models import TemplateSnapshot
 
     md5sum_list = []
     version_list = []
     for key, value in pipeline_tree["activities"].items():
         if value["type"] == "SubProcess":
-            if flow_version_config and len(value["version"]) == 32:
+            if flow_version_config and len(value["version"]) == TEMPLATE_MD5SUM_LENGTH:
                 md5sum_list.append(value["version"])
-            elif not flow_version_config and len(value["version"]) != 32:
+            elif not flow_version_config and len(value["version"]) != TEMPLATE_MD5SUM_LENGTH:
                 version_list.append(value["template_id"])
             else:
                 continue
@@ -458,9 +459,9 @@ def replace_subprocess_version(pipeline_tree, flow_version_config) -> dict:
 
     for key, value in pipeline_tree["activities"].items():
         if value["type"] == "SubProcess":
-            if flow_version_config and len(value["version"]) == 32:
+            if flow_version_config and len(value["version"]) == TEMPLATE_MD5SUM_LENGTH:
                 value["version"] = snapshot_map.get(value["version"], value["version"])
-            elif not flow_version_config and len(value["version"]) != 32:
+            elif not flow_version_config and len(value["version"]) != TEMPLATE_MD5SUM_LENGTH:
                 value["version"] = template_map.get(value["template_id"], {}).get(value["version"], value["version"])
             else:
                 continue

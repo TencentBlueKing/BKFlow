@@ -344,7 +344,7 @@ class TemplateVersionViewSet(
     filter_backends = [DjangoFilterBackend]
     filterset_class = TemplateSnapshotFilterSet
     pagination_class = BKFLOWNoMaxLimitPagination
-    MOCK_ABOVE_ACTIONS = ["create_mock_task"]
+    MOCK_ABOVE_ACTIONS = []
     permission_classes = [
         AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
     ]

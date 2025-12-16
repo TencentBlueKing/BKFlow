@@ -28,6 +28,7 @@ USER_NAME_MAX_LENGTH = 32
 ALL_SPACE = "*"
 WHITE_LIST = "white_list"
 BK_PLUGIN_SYNC_NUM = 100
+TEMPLATE_MD5SUM_LENGTH = 32
 
 formatted_key_pattern = re.compile(r"^\${(.*?)}$")
 
