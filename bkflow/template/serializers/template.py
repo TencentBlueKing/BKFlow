@@ -232,9 +232,11 @@ class TemplateSerializer(serializers.ModelSerializer):
         triggers = Trigger.objects.filter(template_id=instance.id)
         data["triggers"] = TriggerSerializer(triggers, many=True).data
         data["auth"] = self.get_current_user_auth(instance)
-        pipeline_tree = instance.pipeline_tree
-        if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
-            pipeline_tree = replace_subprocess_version(pipeline_tree)
+        pre_pipeline_tree = instance.pipeline_tree
+        flow_version_config = (
+            SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true"
+        )
+        pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
         data["pipeline_tree"] = pipeline_tree
         return data
 

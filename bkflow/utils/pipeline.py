@@ -432,22 +432,38 @@ def _recursive_replace_id_without_subprocess(pipeline_data, subprocess_id=None):
     return node_map
 
 
-def replace_subprocess_version(pipeline_tree: dict) -> dict:
+def replace_subprocess_version(pipeline_tree, flow_version_config) -> dict:
+    from bkflow.constants import TEMPLATE_MD5SUM_LENGTH
     from bkflow.template.models import TemplateSnapshot
 
     md5sum_list = []
+    version_list = []
     for key, value in pipeline_tree["activities"].items():
-        if value["type"] == "SubProcess" and len(value["version"]) == 32:
-            md5sum_list.append(value["version"])
+        if value["type"] == "SubProcess":
+            if flow_version_config and len(value["version"]) == TEMPLATE_MD5SUM_LENGTH:
+                md5sum_list.append(value["version"])
+            elif not flow_version_config and len(value["version"]) != TEMPLATE_MD5SUM_LENGTH:
+                version_list.append(value["template_id"])
+            else:
+                continue
 
     snapshot_map = {}
+    template_map = {}
     if md5sum_list:
         snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sum_list, draft=False).order_by("id")
         snapshot_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
+    if version_list:
+        templates = TemplateSnapshot.objects.filter(template_id__in=version_list, draft=False).order_by("id")
+        for template in templates:
+            template_map.setdefault(template.template_id, {})[template.version] = template.md5sum
 
     for key, value in pipeline_tree["activities"].items():
-        if value["type"] == "SubProcess" and len(value["version"]) == 32:
-            # 使用查询结果更新version，如果不存在则保持原样
-            value["version"] = snapshot_map.get(value["version"], value["version"])
+        if value["type"] == "SubProcess":
+            if flow_version_config and len(value["version"]) == TEMPLATE_MD5SUM_LENGTH:
+                value["version"] = snapshot_map.get(value["version"], value["version"])
+            elif not flow_version_config and len(value["version"]) != TEMPLATE_MD5SUM_LENGTH:
+                value["version"] = template_map.get(value["template_id"], {}).get(value["version"], value["version"])
+            else:
+                continue
 
     return pipeline_tree
