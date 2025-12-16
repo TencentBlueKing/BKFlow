@@ -223,9 +223,9 @@ class Template(CommonModel):
             snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sums_to_query, draft=False).order_by("id")
             md5_to_version_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
         if version_to_query:
-            snapshots = TemplateSnapshot.objects.filter(template_id__in=version_to_query, draft=False).order_by("id")
-            for template in snapshots:
-                version_to_snapshot_map.setdefault(template.template_id, {})[template.version] = template.md5sum
+            templates = TemplateSnapshot.objects.filter(template_id__in=version_to_query, draft=False).order_by("id")
+            for template in templates:
+                version_to_snapshot_map.setdefault(str(template.template_id), {})[template.version] = template.md5sum
 
         for item in subprocess_info:
             if self.validate_space("true") and len(item["version"]) == TEMPLATE_MD5SUM_LENGTH:
