@@ -119,7 +119,7 @@ def update_template(request, space_id, template_id):
                 if not template.snapshot_version:
                     current_version = "1.0.0"
                 else:
-                    current_version = template.snapshot_version
+                    current_version = bump_custom(template.snapshot_version)
                 snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, request.user.username, current_version)
                 validated_data_dict["snapshot_id"] = snapshot.id
                 snapshot.template_id = template.id
