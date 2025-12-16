@@ -225,7 +225,7 @@ class Template(CommonModel):
 
         for item in subprocess_info:
             if self.validate_space("true") and len(item["version"]) == 32:
-                version = md5_to_version_map.get(item["version"])
+                version = md5_to_version_map.get(item["version"], item["version"])
             elif not self.validate_space("true") and len(item["version"]) != 32:
                 version = version_to_snapshot_map.get(item["subprocess_template_id"], {}).get(item["version"])
             else:

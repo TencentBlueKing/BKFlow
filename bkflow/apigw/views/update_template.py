@@ -88,7 +88,13 @@ def update_template(request, space_id, template_id):
                 template.update_draft_snapshot(pipeline_tree, request.user.username, template_version)
 
                 if auto_release:
-                    release_version = version or bump_custom(template.snapshot_version) or "1.0.0"
+                    if version:
+                        release_version = version
+                    elif template.snapshot_version:
+                        release_version = bump_custom(template.snapshot_version)
+                    else:
+                        release_version = "1.0.0"
+
                     if TemplateSnapshot.objects.filter(template_id=template.id, version=release_version).exists():
                         raise UpdateTemplateException(_(f"版本号已存在: {version}"))
                     try:
