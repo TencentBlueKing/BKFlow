@@ -200,8 +200,8 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data["space_id"] = space_id
 
         pre_pipeline_tree = deepcopy(template.pipeline_tree)
-        if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-            pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree)
+        flow_version_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
+        pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
 
         PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes(pre_pipeline_tree)
         create_task_data["pipeline_tree"] = pre_pipeline_tree
@@ -344,6 +344,7 @@ class TemplateVersionViewSet(
     filter_backends = [DjangoFilterBackend]
     filterset_class = TemplateSnapshotFilterSet
     pagination_class = BKFLOWNoMaxLimitPagination
+    MOCK_ABOVE_ACTIONS = []
     permission_classes = [
         AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
     ]
@@ -519,8 +520,10 @@ class TemplateViewSet(UserModelViewSet):
                 logger.exception(message)
                 return Response(exception=True, data={"detail": str(e)})
 
-            if SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true":
-                pipeline_tree = replace_subprocess_version(pipeline_tree)
+            flow_version_config = (
+                SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true"
+            )
+            pipeline_tree = replace_subprocess_version(pipeline_tree, flow_version_config)
 
             if not serializer.validated_data["is_all_nodes"]:
                 exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
@@ -600,9 +603,10 @@ class TemplateViewSet(UserModelViewSet):
                 template_obj.pipeline_tree, request.user.username, template_obj.version
             )
         data = TemplateSnapshotSerializer(draft_snapshot).data
-        pipeline_tree = draft_snapshot.data
-        if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) == "true":
-            pipeline_tree = replace_subprocess_version(draft_snapshot.data)
+        flow_version_config = (
+            SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) == "true"
+        )
+        pipeline_tree = replace_subprocess_version(draft_snapshot.data, flow_version_config)
 
         data["pipeline_tree"] = pipeline_tree
         return Response(data=data)
@@ -675,8 +679,10 @@ class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, Simp
         pipeline_tree = template.get_pipeline_tree_by_version(version)
         pre_pipeline_tree = deepcopy(pipeline_tree)
         PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes(pre_pipeline_tree)
-        if SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true":
-            pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree)
+        flow_version_config = (
+            SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true"
+        )
+        pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
         subproc_data["pipeline_tree"] = pre_pipeline_tree
         return Response(subproc_data)
 

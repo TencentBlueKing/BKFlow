@@ -25,7 +25,11 @@ from django.utils.translation import ugettext_lazy as _
 from pipeline.core.constants import PE
 from pipeline.parser.utils import replace_all_id
 
-from bkflow.constants import TemplateOperationSource, TemplateOperationType
+from bkflow.constants import (
+    TEMPLATE_MD5SUM_LENGTH,
+    TemplateOperationSource,
+    TemplateOperationType,
+)
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.exceptions import APIResponseError, NotFoundError, ValidationError
@@ -204,18 +208,33 @@ class Template(CommonModel):
             )
         }
         md5sums_to_query = []
-        if self.validate_space("true"):
-            md5sums_to_query = [item["version"] for item in subprocess_info if len(item["version"]) == 32]
+        version_to_query = []
+        for item in subprocess_info:
+            if self.validate_space("true") and len(item["version"]) == TEMPLATE_MD5SUM_LENGTH:
+                md5sums_to_query.append(item["version"])
+            elif not self.validate_space("true") and len(item["version"]) != TEMPLATE_MD5SUM_LENGTH:
+                version_to_query.append(item["subprocess_template_id"])
+            else:
+                continue
 
         md5_to_version_map = {}
+        version_to_snapshot_map = {}
         if md5sums_to_query:
             snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sums_to_query, draft=False).order_by("id")
             md5_to_version_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
+        if version_to_query:
+            snapshots = TemplateSnapshot.objects.filter(template_id__in=version_to_query, draft=False).order_by("id")
+            for template in snapshots:
+                version_to_snapshot_map.setdefault(template.template_id, {})[template.version] = template.md5sum
 
         for item in subprocess_info:
-            if self.validate_space("true") and len(item["version"]) == 32:
-                version = md5_to_version_map.get(item["version"])
-                item["version"] = version
+            if self.validate_space("true") and len(item["version"]) == TEMPLATE_MD5SUM_LENGTH:
+                version = md5_to_version_map.get(item["version"], item["version"])
+            elif not self.validate_space("true") and len(item["version"]) != TEMPLATE_MD5SUM_LENGTH:
+                version = version_to_snapshot_map.get(item["subprocess_template_id"], {}).get(item["version"])
+            else:
+                version = item["version"]
+            item["version"] = version
             item["expired"] = (
                 False
                 if item["version"] is None
