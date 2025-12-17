@@ -28,6 +28,7 @@ USER_NAME_MAX_LENGTH = 32
 ALL_SPACE = "*"
 WHITE_LIST = "white_list"
 BK_PLUGIN_SYNC_NUM = 100
+TEMPLATE_MD5SUM_LENGTH = 32
 
 formatted_key_pattern = re.compile(r"^\${(.*?)}$")
 
@@ -80,6 +81,7 @@ class TemplateOperationType(Enum):
     create = _("创建")
     delete = _("删除")
     update = _("修改")
+    release = _("发布")
 
 
 class TaskTriggerMethod(Enum):

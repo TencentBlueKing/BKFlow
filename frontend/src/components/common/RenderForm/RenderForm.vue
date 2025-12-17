@@ -116,7 +116,7 @@
     computed: {
       option() {
         return Object.assign({}, DEFAUTL_OPTION, this.formOption);
-      }
+      },
     },
     watch: {
       scheme: {
@@ -130,7 +130,7 @@
           this.value = tools.deepClone(val);
         },
         deep: true,
-      }
+      },
     },
     created() {
       this.checkValue(this.scheme, this.value);
@@ -296,6 +296,9 @@
                 separator: ',',
               };
               break;
+            case 'field_mappings':
+              val = { arg1: '', arg2: '' };
+              break;
             default:
               val = '';
           }
@@ -316,7 +319,7 @@
             acc[cur] = val;
             return;
           }
-          if (!acc.hasOwnProperty(cur)) {
+          if (!Object.prototype.hasOwnProperty.call(acc, cur)) {
             acc[cur] = {};
           }
           return acc[cur];
@@ -388,14 +391,8 @@
        * @TODO: 改写为 promise 异步机制
        */
       validate() {
-        let isValid = true;
-        this.$children.forEach((childComp) => {
-          const singleItemValid = childComp.validate();
-          if (isValid) {
-            isValid = singleItemValid;
-          }
-        });
-        return isValid;
+        const promises = this.$children.map(child => Promise.resolve(child.validate()));
+        return Promise.all(promises).then(results => results.every(result => result === true));
       },
       /**
        * 表单参数重载

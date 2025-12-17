@@ -22,23 +22,11 @@
         resize="none"
         :placeholder="placeholder"
         @input="onInput" />
-      <transition>
-        <div
-          v-show="showVarList && isListOpen"
-          class="rf-select-list"
-          :style="{ top: selectListTop + 'px' }">
-          <ul class="rf-select-content">
-            <li
-              v-for="item in varList"
-              :key="item.key"
-              class="rf-select-item"
-              @click.stop="onSelectVal(item.key)">
-              <span class="var-key">{{ item.key }}</span>
-              <span class="var-name">{{ item.name }}</span>
-            </li>
-          </ul>
-        </div>
-      </transition>
+      <variable-list
+        :is-list-open="showVarList && isListOpen"
+        :var-list="varList"
+        :textarea-height="textareaHeight"
+        @select="onSelectVal" />
     </div>
     <span
       v-show="!validateInfo.valid"
@@ -50,6 +38,7 @@
   import dom from '@/utils/dom.js';
   import { getFormMixins } from '../formMixins.js';
   import { mapState } from 'vuex';
+  import VariableList from '../VariableList.vue';
 
   const VAR_REG = /\$.*$/;
 
@@ -79,6 +68,9 @@
   };
   export default {
     name: 'TagTextarea',
+    components: {
+      VariableList,
+    },
     mixins: [getFormMixins(attrs)],
     props: {
       constants: {
@@ -92,7 +84,7 @@
       return {
         isListOpen: false,
         varList: [],
-        textareaHeight: 40, // 默认高度
+        textareaHeight: 40, // 文本框高度
       };
     },
     computed: {
@@ -146,6 +138,9 @@
         this.updateTextareaHeight();
       },
     },
+    mounted() {
+      this.updateTextareaHeight();
+    },
     created() {
       window.addEventListener('click', this.handleListShow, false);
     },
@@ -177,7 +172,10 @@
         }
       },
       onInput(val) {
-        this.updateTextareaHeight();
+        // 先更新文本框高度
+        this.$nextTick(() => {
+          this.updateTextareaHeight();
+        });
         const matchResult = val.match(VAR_REG);
         if (matchResult && matchResult[0]) {
           const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&');
@@ -192,6 +190,17 @@
         const replacedValue = this.value.replace(VAR_REG, val);
         this.updateForm(replacedValue);
         this.isListOpen = false;
+      },
+      // 获取文本框的实际高度
+      updateTextareaHeight() {
+        this.$nextTick(() => {
+          if (this.$refs.tagTextarea && this.$refs.tagTextarea.$el) {
+            const textareaEl = this.$refs.tagTextarea.$el.querySelector('.el-textarea__inner');
+            if (textareaEl) {
+              this.textareaHeight = textareaEl.offsetHeight;
+            }
+          }
+        });
       },
     },
   };
@@ -208,41 +217,6 @@
     }
     .rf-form-wrapper {
         position: relative;
-        .rf-select-list {
-            position: absolute;
-            right: 0;
-            width: 100%;
-            background: #ffffff;
-            border-radius: 2px;
-            box-shadow: 0 0 8px 1px rgba(0, 0, 0, 0.1);
-            overflow-y: hidden;
-            z-index: 100;
-        }
-        .rf-select-content {
-            max-height: 100px;
-            overflow: auto;
-            @include scrollbar;
-        }
-        .rf-select-item {
-            padding: 0 10px;
-            line-height: 32px;
-            font-size: 12px;
-            cursor: pointer;
-            &:hover {
-                background: #eef6fe;
-                color: #3a84ff;
-            }
-            > span {
-                overflow: hidden;
-                white-space: nowrap;
-                text-overflow: ellipsis;
-            }
-            .var-name {
-                max-width: 250px;
-                color: #c4c6cc;
-                margin-left: 16px;
-            }
-        }
     }
 }
 .rf-view-textarea-value {

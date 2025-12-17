@@ -43,15 +43,15 @@ jobs:
         echo "Creating database..."
         mysql -h"127.0.0.1" -P"3306" -u"test_user" -p"$USER_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
         cat << EOF > local_settings.py
-        # -*- coding: utf-8 -*-  
-        
+        # -*- coding: utf-8 -*-
+
         DATABASES = {
             "default": {
-                "ENGINE": "django.db.backends.mysql", 
+                "ENGINE": "django.db.backends.mysql",
                 "NAME": "test",
                 "USER": "test_user",
                 "PASSWORD": "$USER_PASSWORD",
-                "HOST": "127.0.0.1", 
+                "HOST": "127.0.0.1",
                 "PORT": "3306",
             }
         }

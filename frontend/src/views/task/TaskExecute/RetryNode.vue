@@ -248,7 +248,7 @@
       async onRetryTask() {
         let formvalid = true;
         if (this.$refs.renderForm) {
-          formvalid = this.$refs.renderForm.validate();
+          formvalid = await this.$refs.renderForm.validate();
         }
         if (!formvalid || this.retrying) return false;
 

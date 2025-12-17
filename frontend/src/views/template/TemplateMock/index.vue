@@ -242,7 +242,7 @@
             const draftTplData = await this.getDraftVersionData({
               templateId: this.templateId,
               common: this.common,
-              space_id: this.spaceId
+              space_id: this.spaceId,
             });
             await this.setPipelineTree(draftTplData.data.pipeline_tree);
           }

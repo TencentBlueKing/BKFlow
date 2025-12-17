@@ -26,6 +26,7 @@ from bkflow.template.views.template import (
     TemplateMockDataViewSet,
     TemplateMockSchemeViewSet,
     TemplateMockTaskViewSet,
+    TemplateVersionViewSet,
     TemplateViewSet,
 )
 from bkflow.template.views.variable import VariableViewSet
@@ -36,6 +37,7 @@ router.register(r"^admin", AdminTemplateViewSet, basename="admin_template")
 router.register(r"^template_mock_data", TemplateMockDataViewSet, basename="template_mock_data")
 router.register(r"^template_mock_scheme", TemplateMockSchemeViewSet, basename="template_mock_scheme")
 router.register(r"^template_mock_task", TemplateMockTaskViewSet, basename="template_mock_task")
+router.register(r"^snapshot", TemplateVersionViewSet, basename="template_snapshot")
 router.register(r"", TemplateViewSet, basename="template")
 router.register(r"^internal", TemplateInternalViewSet, basename="template_id")
 

@@ -562,9 +562,9 @@
         this.hookingVarForm = '';
         this.reuseableVarList = [];
       },
-      validate() {
+      async validate() {
         if (this.$refs.inputParamsForm) {
-          return this.$refs.inputParamsForm.validate();
+          return await this.$refs.inputParamsForm.validate();
         }
         return true;
       },

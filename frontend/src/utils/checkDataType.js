@@ -127,6 +127,12 @@ export const getDefaultValueFormat = (scheme) => {
         },
       };
       break;
+    case 'field_mappings':
+      valueFormat = {
+        type: ['Array', 'Object'],
+        value: {},
+      };
+      break;
     default:
       valueFormat = {
         type: 'String',
