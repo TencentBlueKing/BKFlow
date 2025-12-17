@@ -512,9 +512,15 @@ class TemplateViewSet(UserModelViewSet):
 
         try:
             appoint_node_ids = serializer.validated_data["appoint_node_ids"]
+            is_draft = serializer.validated_data["is_draft"]
             version = serializer.validated_data.get("version")
             try:
-                pipeline_tree = template.get_pipeline_tree_by_version(version)
+                if is_draft:
+                    pipeline_tree = TemplateSnapshot.objects.get(
+                        template_id=template.id, is_deleted=False, draft=True
+                    ).data
+                else:
+                    pipeline_tree = template.get_pipeline_tree_by_version(version)
             except Exception as e:
                 message = f"[preview task tree] error: {e}"
                 logger.exception(message)
