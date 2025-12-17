@@ -1205,9 +1205,11 @@ const template = {
     // 获取模板预览数据
     gerTemplatePreviewData({}, data) {
       // appoint_node_ids: selectedNodes,
-      const { templateId, version } = data;
+      // is_all_nodes: true,
+      const { templateId, version, selectedNodes, is_draft} = data;
       const requestData = {
-        is_all_nodes: true,
+        appoint_node_ids: selectedNodes || [],
+        is_draft
       };
       if (version !== undefined && version !== null) {
         requestData.version = version;

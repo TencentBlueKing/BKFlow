@@ -324,6 +324,7 @@ class PreviewTaskTreeSerializer(serializers.Serializer):
     )
     is_all_nodes = serializers.BooleanField(required=False, default=False, help_text=_("preview是否需要过滤节点"))
     version = serializers.CharField(help_text=_("版本号"), required=False)
+    is_draft = serializers.BooleanField(help_text=_("是否为草稿"), required=False, default=False)
 
 
 class TemplateCopySerializer(serializers.Serializer):
