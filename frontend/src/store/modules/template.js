@@ -1208,7 +1208,7 @@ const template = {
       // is_all_nodes: true,
       const { templateId, version, selectedNodes, is_draft} = data;
       const requestData = {
-        appoint_node_ids: selectedNodes,
+        appoint_node_ids: selectedNodes || [],
         is_draft
       };
       if (version !== undefined && version !== null) {

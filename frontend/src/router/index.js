@@ -66,7 +66,7 @@ const routes = [
         props: route => ({
           templateId: route.params.templateId,
           step: route.params.step,
-          version: route.params.version,
+          version: route.params?.version,
           isEnableVersionManage: route.params.isEnableVersionManage === 'true' || route.params.isEnableVersionManage === true,
         }),
         meta: { project: true },
