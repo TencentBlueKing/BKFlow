@@ -44,7 +44,9 @@ logger = logging.getLogger("root")
 
 
 class TemplateManager(models.Manager):
-    def copy_template(self, template_id, space_id, operator, name=None, desc=None, copy_subprocess=False, version=None):
+    def copy_template(
+        self, template_id, space_id, operator, name=None, desc=None, copy_subprocess=False, version=None, is_draft=True
+    ):
         """
         复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
         暂不支持拷贝带决策表插件的流程
@@ -56,7 +58,12 @@ class TemplateManager(models.Manager):
             if node["type"] == "SubProcess":
                 if copy_subprocess:
                     new_sub_template = self.copy_template(
-                        node["template_id"], space_id, operator, copy_subprocess=True, version=node["version"]
+                        node["template_id"],
+                        space_id,
+                        operator,
+                        copy_subprocess=True,
+                        version=node["version"],
+                        is_draft=False,
                     )
                     node["template_id"] = new_sub_template.id
                     node["version"] = new_sub_template.version
@@ -75,7 +82,7 @@ class TemplateManager(models.Manager):
         # 拷贝流程并替换节点 避免 id 重叠
         with transaction.atomic():
             # 开启事务 确保都创建成功
-            if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+            if is_draft and SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
                 copyed_snapshot = TemplateSnapshot.create_draft_snapshot(copyed_pipeline_tree, operator)
             else:
                 copyed_snapshot = TemplateSnapshot.create_snapshot(copyed_pipeline_tree, operator, "1.0.0")
