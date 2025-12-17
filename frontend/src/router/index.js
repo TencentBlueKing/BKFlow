@@ -59,7 +59,7 @@ const routes = [
         meta: { project: true },
       },
       {
-        path: 'mock/:step?/:templateId/',
+        path: 'mock/:step?/:isEnableVersionManage?/:templateId/',
         component: TemplateMock,
         name: 'templateMock',
         pathToRegexpOptions: { strict: true },
@@ -67,7 +67,7 @@ const routes = [
           templateId: route.params.templateId,
           step: route.params.step,
           version: route.params.version,
-          isEnableVersionManage: route.params.isEnableVersionManage,
+          isEnableVersionManage: route.params.isEnableVersionManage === 'true' || route.params.isEnableVersionManage === true,
         }),
         meta: { project: true },
       },

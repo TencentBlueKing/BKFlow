@@ -176,6 +176,7 @@
           const resp = await this.gerTemplatePreviewData({
             templateId: this.templateId,
             selectedNodes: this.selectedNodes,
+            is_draft: this.$route.params.isEnableVersionManage === 'true' || this.$route.params.isEnableVersionManage === true,
           });
           const {
             constants_not_referred: unReferencedConstants,

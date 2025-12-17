@@ -469,6 +469,7 @@
           params: {
             templateId: this.templateId,
             step: 'execute',
+            isEnableVersionManage: this.isEnableVersionManage,
           },
         };
 
