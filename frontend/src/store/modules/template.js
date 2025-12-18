@@ -1204,13 +1204,18 @@ const template = {
     },
     // 获取模板预览数据
     gerTemplatePreviewData({}, data) {
-      // appoint_node_ids: selectedNodes,
-      // is_all_nodes: true,
-      const { templateId, version, selectedNodes, is_draft} = data;
-      const requestData = {
-        appoint_node_ids: selectedNodes || [],
-        is_draft
-      };
+      const { templateId, version, selectedNodes, is_draft, isInMock = false } = data;
+      let requestData = {};
+      if (isInMock) {
+        requestData = {
+          appoint_node_ids: selectedNodes || [],
+          is_draft,
+        };
+      } else {
+        requestData = {
+          is_all_nodes: true,
+        };
+      }
       if (version !== undefined && version !== null) {
         requestData.version = version;
       }
