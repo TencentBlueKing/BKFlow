@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -43,5 +42,5 @@ from bkflow.utils import err_code
     extra_info={"tag": "apigw"},
 )
 def delete_template(request, space_id, template_id):
-    count, _ = Template.objects.filter(space_id=space_id, id=template_id).delete()
+    count, _ = Template.objects.filter(space_id=space_id, id=template_id).update(is_deleted=True)
     return {"result": True, "data": {"count": count}, "code": err_code.SUCCESS.code}

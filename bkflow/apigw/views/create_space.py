@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -61,8 +60,10 @@ def create_space(request):
         space = Space.objects.create(
             **ser.validated_data, create_type=SpaceCreateType.API.value, creator=username, updated_by=username
         )
+        default_config = {"superusers": [request.user.username], "flow_versioning": "true"}
         if config:
-            SpaceConfig.objects.batch_update(space_id=space.id, configs=config)
+            default_config.update(config)
+        SpaceConfig.objects.batch_update(space_id=space.id, configs=default_config)
 
     space_config_presentation = get_space_config_presentation(space.id)
     resp = {"space": space.to_json(), "config": space_config_presentation}
