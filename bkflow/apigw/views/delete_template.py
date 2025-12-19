@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -24,8 +23,6 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
-from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.template.models import Template
 from bkflow.utils import err_code
 
@@ -36,12 +33,6 @@ from bkflow.utils import err_code
 @apigw_require
 @check_jwt_and_space
 @return_json_response
-@record_operation(
-    RecordType.template.name,
-    TemplateOperationType.delete.name,
-    TemplateOperationSource.api.name,
-    extra_info={"tag": "apigw"},
-)
 def delete_template(request, space_id, template_id):
-    count, _ = Template.objects.filter(space_id=space_id, id=template_id).delete()
-    return {"result": True, "data": {"count": count}, "code": err_code.SUCCESS.code}
+    Template.objects.filter(space_id=space_id, id=template_id).update(is_deleted=True)
+    return {"result": True, "data": {}, "code": err_code.SUCCESS.code}
