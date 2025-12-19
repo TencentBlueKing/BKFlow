@@ -76,7 +76,10 @@ export default {
     ]),
     async loadCredentialList() {
       this.listLoading = true;
-      const res = await this.getCredentialList({ space_id: this.spaceId, ...this.scopeInfo });
+      const res = await this.getCredentialList({
+        space_id: this.spaceId,
+        ...this.scopeInfo,
+        template_id: this.$route.params.templateId });
       this.list = res.data.results || [];
       this.listLoading = false;
     },
