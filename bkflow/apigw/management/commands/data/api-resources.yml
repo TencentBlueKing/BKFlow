@@ -250,7 +250,7 @@ paths:
                     description: 实例ID
                   template_id:
                     type: integer
-                    nullable: true
+                    x-nullable: true
                     description: 模板ID
                   name:
                     type: string
@@ -296,7 +296,7 @@ paths:
                     description: 执行快照ID
                   tree_info_id:
                     type: integer
-                    nullable: true
+                    x-nullable: true
                     description: 任务拓扑信息ID
                   extra_info:
                     type: object
@@ -804,11 +804,11 @@ paths:
                     description: 总数
                   next:
                     type: string
-                    nullable: true
+                    x-nullable: true
                     description: 下一页链接
                   previous:
                     type: string
-                    nullable: true
+                    x-nullable: true
                     description: 上一页链接
                   results:
                     type: array
@@ -1276,7 +1276,7 @@ paths:
                 description: true/false 操作是否成功
               data:
                 type: object
-                nullable: true
+                x-nullable: true
                 description: 返回数据
               message:
                 type: string
@@ -1489,7 +1489,7 @@ paths:
                       description: 是否为默认 Mock 数据
                     extra_info:
                       type: object
-                      nullable: true
+                      x-nullable: true
                       description: 额外信息
                       additionalProperties: true
                     operator:
