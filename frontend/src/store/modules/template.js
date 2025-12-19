@@ -1215,7 +1215,7 @@ const template = {
     },
     // 获取凭证列表
     getCredentialList({}, data) {
-      return axios.get(`/api/space/admin/credential_config/`, {params: data }).then(response => response.data);
+      return axios.get(`/api/template/${data.template_id}/credentials/`, {params: data }).then(response => response.data);
     },
   },
   getters: {
