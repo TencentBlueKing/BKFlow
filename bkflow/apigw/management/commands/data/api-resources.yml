@@ -2157,6 +2157,52 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+  /sdk/bk_plugin/:
+    get:
+      operationId: sdk_get_bk_plugin
+      description: 获取第三方插件列表
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/bk_plugin/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/plugin_service/app_detail/:
+    get:
+      operationId: sdk_get_plugin_service_app_detail
+      description: 获取插件服务App详情
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/plugin_service/app_detail/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
   /sdk/plugin_service/meta/:
     get:
       operationId: sdk_get_plugin_service_meta

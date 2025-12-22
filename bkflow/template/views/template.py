@@ -335,7 +335,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
 
 
 class TemplateVersionViewSet(
-    BKFLOWCommonMixin,
+    SimpleGenericViewSet,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
 ):
@@ -362,11 +362,14 @@ class TemplateVersionViewSet(
     @action(methods=["POST"], detail=True, url_path="delete_snapshot")
     def delete_snapshot(self, request, *args, **kwargs):
         instance = self.get_object()
-        template_id = request.data.get("template_id")
-        if not template_id:
-            return Response({"detail": "template_id 参数不能为空"}, status=400)
+        try:
+            template_obj = Template.objects.get(id=instance.template_id)
+        except Template.DoesNotExist:
+            return Response({"detail": "快照所属流程不存在"}, status=400)
 
-        if instance.draft or Template.objects.get(id=template_id).snapshot_id == instance.id:
+        if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"detail": "版本管理功能未开启，无法删除版本快照"})
+        if instance.draft or template_obj.snapshot_id == instance.id:
             return Response({"detail": "草稿或最新版本无法删除"})
         referencing_templates = TemplateReference.objects.filter(
             subprocess_template_id=instance.template_id, version=instance.version
@@ -602,6 +605,8 @@ class TemplateViewSet(UserModelViewSet):
     @action(methods=["GET"], detail=True, url_path="get_draft_template")
     def get_draft_template(self, request, *args, **kwargs):
         template_obj = self.get_object()
+        if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"message": "当前空间未开启版本管理, 无法获取草稿"})
         try:
             draft_snapshot = TemplateSnapshot.objects.get(template_id=template_obj.id, draft=True)
         except TemplateSnapshot.DoesNotExist:
@@ -631,6 +636,8 @@ class TemplateViewSet(UserModelViewSet):
     @action(methods=["POST"], detail=True, url_path="release_template")
     def release_template(self, request, *args, **kwargs):
         instance = self.get_object()
+        if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"detail": "当前空间未开启版本管理，无法发布模板"})
         ser = TemplateReleaseSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         new_version = ser.validated_data["version"]
@@ -656,11 +663,13 @@ class TemplateViewSet(UserModelViewSet):
             extra_info={"version": new_version},
         )
 
-        return Response(data={"template_id": instance.id})
+        return Response(data=self.get_serializer(instance).data)
 
     @action(methods=["POST"], detail=True, url_path="rollback_template")
     def rollback_template(self, request, *args, **kwargs):
         instance = self.get_object()
+        if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"detail": "当前空间未开启版本管理，无法回滚模板"})
         version = request.data.get("version")
         if not version:
             return Response({"detail": "version 参数不能为空"})
