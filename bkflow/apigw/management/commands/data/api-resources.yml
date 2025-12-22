@@ -2686,7 +2686,7 @@ paths:
           resourcePermissionRequired: true
         disabledStages: []
   /sdk/template/snapshot/list_snapshot/:
-    post:
+    get:
       operationId: sdk_list_snapshot
       description: 获取流程快照列表
       tags: [ ]
@@ -2699,7 +2699,7 @@ paths:
         matchSubpath: false
         backend:
           name: sdk
-          method: post
+          method: get
           path: /{env.api_sub_path}api/template/snapshot/
           matchSubpath: false
           timeout: 0

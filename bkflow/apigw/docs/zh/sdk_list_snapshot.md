@@ -28,7 +28,7 @@
 ### 请求参数示例
 
 ```
-POST /sdk/template/snapshot/list_snapshot/
+GET /sdk/template/snapshot/list_snapshot/
 ```
 
 ### 返回结果示例
