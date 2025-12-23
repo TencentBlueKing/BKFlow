@@ -189,7 +189,7 @@ export default {
           limit: 10,
           offset: (this.currentPage - 1) * 10,
       });
-      this.listData = this.listData.concat(res.results || []);
+      this.listData = this.listData.concat(res.data.results || []);
       this.bottomLoadingOptions.isLoading = false;
     },
     viewAllVerison() {

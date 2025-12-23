@@ -730,7 +730,7 @@
           }
           if (this.isEnableVersionManage) {
             const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId, space_id: this.spaceId });
-            const isHaveDraft = res.results.some(item => item.draft);
+            const isHaveDraft = res.data.results?.some(item => item.draft) ?? false;
             if (isHaveDraft) {
               this.getDraftPipelineTree();
               return;

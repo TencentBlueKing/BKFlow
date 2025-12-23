@@ -263,7 +263,7 @@
           };
           const requestData = Object.assign(alsoNeedData, data);
           const res = await this.getTemplateVersionSnapshotList(requestData);
-          this.versionList = res.results;
+          this.versionList = res.data.results;
           const curJudgeId = this.isSubflowNodeConfig ? this.subTemplateId : this.tplSnapshotId;
           this.versionList.forEach((item) => {
             if (item.id === curJudgeId) {
@@ -272,7 +272,7 @@
               item.isLatestVersion = false;
             }
           });
-          this.pagination.count = res.count;
+          this.pagination.count = res.data.count;
         } catch (error) {
           this.versionList = [];
           this.pagination.count = 0;
