@@ -22,6 +22,7 @@ import logging
 from functools import wraps
 
 from bamboo_engine import states as bamboo_engine_states
+from celery import current_app
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pipeline.core import constants as pipeline_constants
@@ -30,6 +31,8 @@ from redis.client import Redis
 
 from bkflow.utils.dates import format_datetime
 from bkflow.utils.message import send_message
+from bkflow.utils.space import space_config_manager
+from bkflow.utils.trace import start_trace
 
 logger = logging.getLogger("root")
 
@@ -166,3 +169,126 @@ def extract_extra_info(constants, keys=None):
     for key in list(constants.keys()) if not keys else keys:
         extra_info.update({key: {"name": constants[key]["name"], "value": constants[key]["value"]}})
     return json.dumps(extra_info, ensure_ascii=False)
+
+
+@redis_inst_check
+def push_task_to_queue(task, operation, node_id=None, data=None):
+    template_id = task.template_id
+    redis_key = f"task_wait_{template_id}"
+
+    # 准备任务数据
+    task_data = {"operation": operation, "task_id": task.id}
+    if node_id:
+        task_data.update({"node_id": node_id})
+    if data:
+        task_data.update({"node_data": data})
+    task_json = json.dumps(task_data)
+
+    lua_script = """
+        local queue_key = KEYS[1]
+        local max_size = tonumber(ARGV[1])
+        local task_data = ARGV[2]
+
+        local current_size = redis.call('llen', queue_key)
+        if current_size >= max_size then
+            return -1  -- 队列已满
+        end
+
+        redis.call('rpush', queue_key, task_data)
+        return current_size + 1  -- 返回新队列大小
+    """
+
+    with start_trace("push_task_to_queue", operation=operation, task_id=task.id):
+        result = settings.redis_inst.eval(lua_script, 1, redis_key, settings.TASK_QUEUE_MAX_SIZE, task_json)
+
+        if result == -1:
+            logger.error(f"Task queue for template {template_id} is full, cannot add more tasks")
+            raise Exception(f"Task queue for template {template_id} is full, cannot add more tasks")
+
+        logger.info(f"Task {task.id} added to queue for template {template_id}, new queue size: {result}")
+
+    task.extra_info.update({"is_waiting": True})
+    task.save()
+    return True
+
+
+@current_app.task()
+@redis_inst_check
+def process_task_from_queue(template_id):
+    from bkflow.task.models import TaskInstance
+    from bkflow.task.operations import TaskNodeOperation, TaskOperation
+
+    redis_key = f"task_wait_{template_id}"
+    task_json = settings.redis_inst.lpop(redis_key)
+    if not task_json:
+        return None
+
+    task_data = json.loads(task_json)
+    operation = task_data.get("operation")
+    task_instance = TaskInstance.objects.get(id=task_data.get("task_id"))
+
+    for invoke_num in range(1, settings.TASK_MAX_RETRY_FREQUENCY + 1):
+        task_instance.extra_info.update({"is_waiting": False})
+        try:
+            if operation in ["start", "resume"]:
+                task_operation = TaskOperation(task_instance, settings.BKFLOW_MODULE.code)
+                operation_method = getattr(task_operation, operation, None)
+            else:
+                node_operation = TaskNodeOperation(task_instance, task_data.get("node_id"))
+                operation_method = getattr(node_operation, operation, None)
+
+            operation_result = operation_method(operator=operation, **task_data.get("node_data", {}))
+            if operation_result.result:
+                break
+            opera_error = operation_result.message
+        except Exception as e:
+            logger.error(f"Failed to process task {task_instance.id} from queue (attempt {invoke_num}): {e}")
+            opera_error = e
+
+        if invoke_num == settings.TASK_MAX_RETRY_FREQUENCY and opera_error:
+            logger.error(f"Failed to process task {task_instance.id} kwargs {task_data} from queue")
+            task_instance.extra_info.update({"operation_failed": opera_error})
+
+    task_instance.save()
+    return task_instance
+
+
+def get_running_task_count(space_id, template_id):
+    """统计当前正在执行的任务数量"""
+    from bkflow.task.models import TaskInstance
+    from bkflow.task.operations import TaskOperation
+
+    task_instances = TaskInstance.objects.filter(
+        space_id=space_id, template_id=template_id, is_deleted=False, is_started=True, is_finished=False
+    )
+
+    task_operations = [
+        {"task_id": task_instance.id, "operation": TaskOperation(task_instance=task_instance).get_task_states()}
+        for task_instance in task_instances
+    ]
+
+    task_count = 0
+    for task_operation in task_operations:
+        if task_operation["operation"].result is False:
+            continue
+        if task_operation["operation"].data.get("state") == "RUNNING":
+            task_count += 1
+
+    return task_count
+
+
+def task_concurrency_limit_reached(space_id, template_id, is_exemption=False):
+    """判断是否超出并发限制"""
+    concurrency_control = space_config_manager.get_concurrency_control(space_id)
+    if not concurrency_control:
+        return False
+
+    redis_key = f"task_wait_{template_id}"
+    queue_size = settings.redis_inst.llen(redis_key)
+    if queue_size != 0:
+        return True
+
+    running_count = get_running_task_count(space_id, template_id)
+    if is_exemption:
+        return running_count > concurrency_control
+    return running_count >= concurrency_control

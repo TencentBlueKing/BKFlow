@@ -330,8 +330,7 @@ class TaskInstance(models.Model):
             runtime.set_execution_data_outputs(parent_node_id, data_outputs)
 
             # 仅当父流程的节点状态为失败时，才需要唤醒父流程的节点
-            parent_task_id = TaskFlowRelation.objects.filter(task_id=self.id).first().parent_task_id
-            parent_task = TaskInstance.objects.get(id=parent_task_id)
+            parent_task = TaskInstance.objects.get(id=record.parent_task_id)
             parent_task.change_parent_task_node_state_to_running()
 
 

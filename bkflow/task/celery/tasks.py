@@ -40,7 +40,13 @@ from bkflow.task.models import (
 from bkflow.task.node_timeout import node_timeout_handler
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
 from bkflow.task.serializers import CreateTaskInstanceSerializer
-from bkflow.task.utils import ATOM_FAILED, redis_inst_check, send_task_instance_message
+from bkflow.task.utils import (
+    ATOM_FAILED,
+    push_task_to_queue,
+    redis_inst_check,
+    send_task_instance_message,
+    task_concurrency_limit_reached,
+)
 
 logger = logging.getLogger("celery")
 
@@ -198,6 +204,13 @@ def bkflow_periodic_task_start(*args, **kwargs):
                 },
             }
         )
+
+        if task_concurrency_limit_reached(task_instance.space_id, task_instance.template_id):
+            try:
+                push_task_to_queue(task_instance, "start")
+            except Exception as e:
+                logger.exception(f"[bkflow_periodic_task_start] push task to queue failed: {e}")
+            return
 
         task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
         operation_method = getattr(task_operation, "start")
