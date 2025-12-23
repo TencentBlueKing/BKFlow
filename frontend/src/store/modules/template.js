@@ -361,7 +361,6 @@ const template = {
         scope_value,
       };
       state.triggers = triggers;
-
       state.canvas_mode = pipelineData.canvas_mode;
       this.commit('template/setPipelineTree', pipelineData);
     },
@@ -1255,6 +1254,10 @@ const template = {
     rollbackToVersion({}, data) {
       const { templateId, space_id, version } = data;
       return axios.post(`/api/template/${templateId}/rollback_template/`, { version, space_id }).then(response => response.data);
+    },
+    // 获取凭证列表
+    getCredentialList({}, data) {
+      return axios.get(`/api/template/${data.template_id}/credentials/`, {params: data }).then(response => response.data);
     },
   },
   getters: {
