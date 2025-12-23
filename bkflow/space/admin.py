@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -43,4 +42,12 @@ class CredentialAdmin(admin.ModelAdmin):
     list_display = ("id", "space_id", "name", "desc", "type", "content")
     search_fields = ("space_id", "name", "type")
     list_filter = ("space_id",)
+    ordering = ["-id"]
+
+
+@admin.register(models.CredentialScope)
+class CredentialScopeAdmin(admin.ModelAdmin):
+    list_display = ("id", "credential_id", "scope_type", "scope_value")
+    search_fields = ("credential_id", "scope_type", "scope_value")
+    list_filter = ("credential_id", "scope_type", "scope_value")
     ordering = ["-id"]
