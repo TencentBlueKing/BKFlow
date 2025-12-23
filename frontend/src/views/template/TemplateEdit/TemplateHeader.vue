@@ -542,20 +542,25 @@
       ]),
       async getVersionList(draftInfo) {
         this.versionListLoading = true;
-        const res = await this.getTemplateVersionSnapshotList({
-          template_id: this.templateId,
-          space_id: this.spaceId,
-          limit: 10,
-          offset: 0,
-        });
-        this.versionCount = res.count;
-        this.versionListData = res.results || [];
-        this.isHaveDraft = res.results?.some(item => item.draft) ?? false;
-        if (!this.isHaveDraft && draftInfo) {
-          this.versionListData.unshift(draftInfo);
-          this.isHaveDraft = true;
+        try {
+          const res = await this.getTemplateVersionSnapshotList({
+            template_id: this.templateId,
+            space_id: this.spaceId,
+            limit: 10,
+            offset: 0,
+          });
+          this.versionCount = res.data.count;
+          this.versionListData = res.data.results || [];
+          this.isHaveDraft = res.data.results?.some(item => item.draft) ?? false;
+          if (!this.isHaveDraft && draftInfo) {
+            this.versionListData.unshift(draftInfo);
+            this.isHaveDraft = true;
+          }
+        } catch (e) {
+          console.log(e);
+        } finally {
+          this.versionListLoading = false;
         }
-        this.versionListLoading = false;
       },
       handleVersionSelectChange(selected) {
         this.curSelectVersion = selected;
