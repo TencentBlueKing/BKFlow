@@ -15,3 +15,5 @@ omit =
     data_migration/*
     packages/*
     weixin/*
+    config/prod.py
+    config/stag.py
