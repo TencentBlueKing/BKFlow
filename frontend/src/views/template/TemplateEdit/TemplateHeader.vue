@@ -548,9 +548,9 @@
           limit: 10,
           offset: 0,
         });
-        this.versionCount = res.count;
-        this.versionListData = res.results || [];
-        this.isHaveDraft = res.results?.some(item => item.draft) ?? false;
+        this.versionCount = res.data.count;
+        this.versionListData = res.data.results || [];
+        this.isHaveDraft = res.data.results?.some(item => item.draft) ?? false;
         if (!this.isHaveDraft && draftInfo) {
           this.versionListData.unshift(draftInfo);
           this.isHaveDraft = true;
