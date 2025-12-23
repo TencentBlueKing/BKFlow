@@ -1031,6 +1031,23 @@ const en = {
   参数名不能为空: 'Parameter name cannot be empty',
   参数名不能重复: 'Parameter name cannot be duplicated',
   '请输入值或 $ 选择变量': 'Enter value or $ to select variable',
+  labelReference: '{0} template is being referenced，{1} task is being referenced',
+  '搜索标签名称、标签范围、系统默认标签': 'Search Label Name, Label Scope, System Default Label',
+  新增标签: 'Add Label',
+  标签名称: 'Label Name',
+  标签描述: 'Label Description',
+  标签范围: 'Label Scope',
+  标签引用: 'Label Reference',
+  系统默认标签: 'System Default Label',
+  是: 'Yes',
+  否: 'No',
+  任务: 'Task',
+  流程: 'Template',
+  '确认删除该标签？': 'Confirm delete this label?',
+  关联的流程将同时移出本标签: 'The associated process will also be removed from this label',
+  '标签删除成功！': 'Label deleted successfully!',
+  编辑标签: 'Edit Label',
+  标签颜色: 'Label Color',
 };
 
 export default en;
