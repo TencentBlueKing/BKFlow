@@ -2159,7 +2159,7 @@ paths:
         disabledStages: []
   /sdk/bk_plugin/:
     get:
-      operationId: sdk_get_bk_plugin
+      operationId: sdk_get_bk_plugin_list
       description: 获取第三方插件列表
       tags: []
       responses:

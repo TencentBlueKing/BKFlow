@@ -15,12 +15,14 @@
 
 ### 接口参数
 
-| 字段           | 类型     | 必选 | 描述     |
-|--------------|--------|----|--------|
-| space_id     | int    | 否  | 空间ID   |
-| tag          | int    | 否  | 插件分类id |
-| manager      | string | 否  | 管理员    |
-| search_term  | string | 否  | 搜索关键字  |
+| 字段          | 类型     | 必选 | 描述     |
+|-------------|--------|----|--------|
+| code        | string | 否  | 插件编码   |
+| name        | string | 否  | 插件名称   |
+| space_id    | int    | 否  | 空间ID   |
+| tag         | int    | 否  | 插件分类id |
+| manager     | string | 否  | 管理员    |
+| search_term | string | 否  | 搜索关键字  |
 
 ### 请求参数示例
 
