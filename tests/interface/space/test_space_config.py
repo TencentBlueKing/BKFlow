@@ -21,7 +21,6 @@ import pytest
 
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import (
-    ApiGatewayCredentialConfig,
     BaseSpaceConfig,
     CallbackHooksConfig,
     CanvasModeConfig,
@@ -135,17 +134,6 @@ class TestSpaceConfigHandler:
         assert SpaceConfigHandler.validate(name="gateway_expression", value="FEEL")
         with pytest.raises(ValidationError):
             config_cls.validate("a")
-
-    def test_api_gateway_credential_name(self):
-        config_cls = SpaceConfigHandler.get_config("api_gateway_credential_name")
-        assert config_cls == ApiGatewayCredentialConfig
-        assert config_cls.default_value is None
-        assert config_cls.value_type == SpaceConfigValueType.TEXT.value
-
-        credential_in_string = "Test credential name"
-        credential_in_dict = {"default": "test credential name"}
-        assert config_cls.validate(credential_in_string)
-        assert config_cls.validate(credential_in_dict)
 
     def test_space_plugin_config(self):
         config_cls = SpaceConfigHandler.get_config("space_plugin_config")
