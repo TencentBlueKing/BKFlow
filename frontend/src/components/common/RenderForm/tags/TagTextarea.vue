@@ -117,6 +117,10 @@
           this.updateForm(val);
         },
       },
+      // 动态计算下拉列表的位置，基于文本框的实际高度
+      selectListTop() {
+        return this.textareaHeight + 2;
+      },
     },
     watch: {
       formMode() {
@@ -140,10 +144,24 @@
     created() {
       window.addEventListener('click', this.handleListShow, false);
     },
+    mounted() {
+      this.updateTextareaHeight();
+    },
     beforeDestroy() {
       window.removeEventListener('click', this.handleListShow, false);
     },
     methods: {
+      // 获取文本框的实际高度
+      updateTextareaHeight() {
+        this.$nextTick(() => {
+          if (this.$refs.tagTextarea && this.$refs.tagTextarea.$el) {
+            const textareaEl = this.$refs.tagTextarea.$el.querySelector('.el-textarea__inner');
+            if (textareaEl) {
+              this.textareaHeight = textareaEl.offsetHeight;
+            }
+          }
+        });
+      },
       handleListShow(e) {
         if (!this.isListOpen) {
           return;

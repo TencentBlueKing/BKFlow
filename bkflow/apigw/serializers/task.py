@@ -130,3 +130,15 @@ class OperateTaskNodeSerializer(serializers.Serializer):
 class GetTaskNodeDetailSerializer(serializers.Serializer):
     loop = serializers.IntegerField(help_text=_("循环次数"), required=False)
     component_code = serializers.CharField(help_text=_("组件code"), max_length=128, required=False)
+
+
+class BatchTaskSerializer(serializers.Serializer):
+    is_full = serializers.BooleanField(required=False, default=False)
+    is_mock = serializers.BooleanField(required=False)
+    task_ids = serializers.ListField(required=False, child=serializers.IntegerField(), default=[])
+
+    def validate(self, attrs):
+        if attrs.get("is_full") and "is_mock" not in attrs:
+            raise serializers.ValidationError("is_mock must exist when delete all tasks")
+
+        return attrs

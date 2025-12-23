@@ -152,7 +152,8 @@ class SpaceViewSet(AdminModelViewSet):
         response = super().create(request, *args, **kwargs)
         if response.status_code == status.HTTP_201_CREATED:
             SpaceConfig.objects.batch_update(
-                space_id=response.data.get("id"), configs={"superusers": [request.user.username]}
+                space_id=response.data.get("id"),
+                configs={"superusers": [request.user.username], "flow_versioning": "true"},
             )
         return response
 

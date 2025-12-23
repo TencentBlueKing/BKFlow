@@ -207,6 +207,13 @@
         pageType: 'decisionList', // 页面类型，在mixins中分页表格头显示使用
       };
     },
+    mounted() {
+      const { id, activeTab } = this.$route.query;
+      if (id && activeTab === 'decisionTable') {
+        this.requestData.id = this.$route.query.id;
+      }
+      this.getDecisionList();
+    },
     methods: {
       ...mapActions('decisionTable/', [
         'loadDecisionList',

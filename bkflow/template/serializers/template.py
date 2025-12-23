@@ -38,7 +38,7 @@ from bkflow.constants import (
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
-from bkflow.space.configs import TemplateTriggerConfig
+from bkflow.space.configs import FlowVersioning, TemplateTriggerConfig
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
     Template,
@@ -50,6 +50,8 @@ from bkflow.template.models import (
 )
 from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.template.utils import send_callback
+from bkflow.utils.pipeline import replace_subprocess_version
+from bkflow.utils.version import bump_custom
 
 logger = logging.getLogger("root")
 
@@ -145,7 +147,11 @@ class TemplateSerializer(serializers.ModelSerializer):
     @transaction.atomic()
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
-        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+        username = self.context["request"].user.username
+        if SpaceConfig.get_config(space_id=validated_data["space_id"], config_name=FlowVersioning.name) == "true":
+            snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+        else:
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
         validated_data["snapshot_id"] = snapshot.id
         template = super().create(validated_data)
 
@@ -191,10 +197,18 @@ class TemplateSerializer(serializers.ModelSerializer):
             logger.exception("TemplateSerializer update error, err = {}".format(e))
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
         pre_pipeline_tree = instance.pipeline_tree
-        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
-        instance.snapshot_id = snapshot.id
-        snapshot.template_id = instance.id
-        snapshot.save(update_fields=["template_id"])
+        username = self.context["request"].user.username
+        if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
+            instance.update_draft_snapshot(pipeline_tree, username)
+        else:
+            if instance.snapshot_version is None:
+                current_version = "1.0.0"
+            else:
+                current_version = bump_custom(instance.snapshot_version)
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, current_version)
+            instance.snapshot_id = snapshot.id
+            snapshot.template_id = instance.id
+            snapshot.save(update_fields=["template_id"])
         instance = super().update(instance, validated_data)
         self._sync_template_lables(instance.id, template_labels)
         # 批量修改流程绑定的触发器:
@@ -237,6 +251,12 @@ class TemplateSerializer(serializers.ModelSerializer):
         triggers = Trigger.objects.filter(template_id=instance.id)
         data["triggers"] = TriggerSerializer(triggers, many=True).data
         data["auth"] = self.get_current_user_auth(instance)
+        pre_pipeline_tree = instance.pipeline_tree
+        flow_version_config = (
+            SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true"
+        )
+        pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
+        data["pipeline_tree"] = pipeline_tree
         return data
 
     class Meta:
@@ -253,7 +273,7 @@ class DrawPipelineSerializer(serializers.Serializer):
 class TemplateOperationRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = TemplateOperationRecord
-        fields = "__all__"
+        exclude = ["extra_info"]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -261,6 +281,8 @@ class TemplateOperationRecordSerializer(serializers.ModelSerializer):
         data["operate_source_name"] = (
             TemplateOperationSource[instance.operate_source].value if instance.operate_source else ""
         )
+        if instance.operate_type == TemplateOperationType.release.name:
+            data["version"] = instance.extra_info.get("version")
         return data
 
 
@@ -321,6 +343,7 @@ class PreviewTaskTreeSerializer(serializers.Serializer):
     )
     is_all_nodes = serializers.BooleanField(required=False, default=False, help_text=_("preview是否需要过滤节点"))
     version = serializers.CharField(help_text=_("版本号"), required=False)
+    is_draft = serializers.BooleanField(help_text=_("是否为草稿"), required=False, default=False)
 
 
 class TemplateCopySerializer(serializers.Serializer):
@@ -329,3 +352,28 @@ class TemplateCopySerializer(serializers.Serializer):
     desc = serializers.CharField(help_text=_("描述"), max_length=256, required=False, allow_blank=True)
     space_id = serializers.IntegerField(help_text=_("空间ID"), required=True)
     copy_subprocess = serializers.BooleanField(help_text=_("是否复制子流程"), required=False, default=False)
+
+
+class TemplateReleaseSerializer(serializers.Serializer):
+    version = serializers.CharField(help_text=_("版本号"), required=True)
+    desc = serializers.CharField(help_text=_("描述"), required=False, allow_blank=True)
+
+
+class TemplateSnapshotSerializer(serializers.ModelSerializer):
+    create_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
+    update_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
+
+    class Meta:
+        model = TemplateSnapshot
+        fields = [
+            "id",
+            "create_time",
+            "update_time",
+            "version",
+            "template_id",
+            "desc",
+            "draft",
+            "creator",
+            "operator",
+            "md5sum",
+        ]

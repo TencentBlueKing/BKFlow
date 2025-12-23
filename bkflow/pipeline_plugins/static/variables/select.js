@@ -16,7 +16,6 @@
                             hookable: true,
                             items: [{name: gettext("自定义"), value: "0"}, {name: gettext("远程数据源"), value: "1"}],
                             value: "0",
-                            hidden: true,
                             validation: [
                                 {
                                     type: "required"
@@ -30,7 +29,7 @@
                         attrs: {
                             name: gettext("选项"),
                             hookable: true,
-                            placeholder: gettext('请输入数据源信息，自定义数据源格式为 [{"text": "", "value": ""}...]'),
+                            placeholder: gettext('请输入数据源信息，自定义数据源格式为 [{"text": "", "value": ""}...]，若是远程数据源则填写返回该格式数据的 URL'),
                             validation: [
                                 {
                                     type: "required"
@@ -74,10 +73,10 @@
                 let remote_url = "";
                 let items = [];
                 let placeholder = '';
-                // if (metaConfig.datasource === "1") {
-                //     remote_url = $.context.get('site_url') + 'api/plugin_query/variable_select_source_data_proxy/?url=' + metaConfig.items_text;
-                //     remote = true;
-                // }
+                if (metaConfig.datasource === "1") {
+                    remote_url = $.context.get('site_url') + 'api/plugin_query/variable_select_source_data_proxy/?url=' + metaConfig.items_text;
+                    remote = true;
+                }
                 if (metaConfig.datasource === "0") {
                     try {
                         items = JSON.parse(metaConfig.items_text);
@@ -94,16 +93,16 @@
                 let multiple = false;
                 let default_val = metaConfig.default || '';
 
-                // if (metaConfig.type === "1") {
-                //     multiple = true;
-                //     default_val = [];
-                //     if (metaConfig.default) {
-                //         let vals = metaConfig.default.split(',');
-                //         for (let i in vals) {
-                //             default_val.push(vals[i].trim());
-                //         }
-                //     }
-                // }
+                if (metaConfig.type === "1") {
+                    multiple = true;
+                    default_val = [];
+                    if (metaConfig.default) {
+                        let vals = metaConfig.default.split(',');
+                        for (let i in vals) {
+                            default_val.push(vals[i].trim());
+                        }
+                    }
+                }
                 return {
                     tag_code: this.tag_code,
                     type: "select",

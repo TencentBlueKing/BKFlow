@@ -66,10 +66,10 @@
             class="subflow_update">
             <bk-popover
               placement="top"
-              :disabled="props.row.subprocess_info.length <= 0"
+              :disabled="!props.row.subprocess_info || props.row.subprocess_info.length <= 0"
               ext-cls="subflow-popover">
               <span
-                v-if="props.row.subprocess_info.length>0"
+                v-if="props.row.subprocess_info && props.row.subprocess_info.length > 0"
                 class="blue-text">
                 {{ props.row.subprocess_info.length }}
               </span>
@@ -85,15 +85,15 @@
               <!-- 立即更新 -->
               </bk-button>
               <div
-                v-if="props.row.subprocess_info.length>0"
+                v-if="props.row.subprocess_info && props.row.subprocess_info.length > 0"
                 slot="content">
                 <ul
                   v-for="sub in props.row.subprocess_info"
                   :key="sub.subprocess_node_id"
                   class="subflow-list">
-                  <li>
+                  <li v-if="typeof sub === 'object' && sub !== null">
                     <div class="text-name">
-                      {{ sub.subprocess_template_name }}
+                      {{ sub.subprocess_template_name || '--' }}
                     </div>
                     <div
                       v-if="sub.expired"
@@ -218,37 +218,20 @@
             {{ $t('删除失败') }}
           </div>
         </div>
-        <div v-if="referencedProcessList.length > 0">
-          <div>{{ $t('当前流程被以下流程引用:') }}</div>
-          <div
-            v-for="subflowList in referencedProcessList"
-            :key="subflowList[0]">
-            <bk-table
-              :data="subflowList[1].referenced"
-              ext-cls="referenced-process-table"
-              :max-height="197"
-              :dark-header="true"
-              :stripe="true">
-              <bk-table-column
-                :render-header="(h) => renderReferendLabelHeader(h,subflowList)">
-                <template slot-scope="props">
-                  <div class="reference-list">
-                    <span>{{ props.row.root_template_name }}</span>
-                    <router-link
-                      :to="{
-                        name: 'templatePanel',
-                        params: {
-                          templateId: props.row.root_template_id,
-                          type: 'view'
-                        }
-                      }">
-                      <i class="common-icon-box-top-right-corner icon-view-sub" />
-                    </router-link>
-                  </div>
-                </template>
-              </bk-table-column>
-            </bk-table>
-          </div>
+        <div class="reference-list-wrapper">
+          <reference-list
+            v-if="referencedProcessList.length > 0"
+            :reference-list="referencedProcessList"
+            :title="$t('当前流程被以下流程引用:')"
+            reference-type="process"
+            :render-header-method="renderReferendLabelHeader" />
+          <reference-list
+            v-if="decisionReferencedList.length > 0"
+            :reference-list="decisionReferencedList"
+            :title="$t('当前流程被以下决策表引用:')"
+            title-class="decision-reference-list"
+            reference-type="decision"
+            :render-header-method="renderDecisonLabelHeader" />
         </div>
       </div>
     </bk-dialog>
@@ -259,6 +242,7 @@
   import { mapActions, mapMutations } from 'vuex';
   import CancelRequest from '@/api/cancelRequest.js';
   import NoData from '@/components/common/base/NoData.vue';
+  import ReferenceList from './ReferenceList.vue';
   import moment from 'moment-timezone';
   import tableHeader from '@/mixins/tableHeader.js';
   import tableCommon from '../mixins/tableCommon.js';
@@ -360,6 +344,7 @@
     name: 'TemplateList',
     components: {
       NoData,
+      ReferenceList,
       TableOperate,
       CreateTemplateDialog,
       CreateTaskSideslider,
@@ -389,6 +374,7 @@
         isSelectCopySubflow: false,
         copyTemplateId: null,
         referencedProcessList: [], // 引用的流程列表
+        decisionReferencedList: [], // 流程被决策表引用的决策表列表
       };
     },
     computed: {
@@ -426,6 +412,23 @@
           h('span', i18n.t('包含 x 个流程', {
             num: value[1].referenced.length,
           })),
+        ]);
+      },
+      renderDecisonLabelHeader(h, value) {
+        return h('div', [
+          h('span', i18n.t('流程')),
+          h(
+'bk-popover',
+            {
+              props: {
+                content: value[1].template_name,
+              },
+            },
+            [
+              h('span', ` (${value[0]}) `),
+            ]
+          ),
+          h('span', i18n.t('被以下决策表引用')),
         ]);
       },
       async getTemplateList() {
@@ -603,6 +606,7 @@
       },
       async batchDeleteConfirm() {
         this.referencedProcessList = [];
+        this.decisionReferencedList = [];
         const data = {
           space_id: this.spaceId,
           is_full: this.pagination.count === this.selectedTpls.length,
@@ -622,13 +626,24 @@
           if (res.data.sub_root_map) {
             this.referencedProcessList = Object.entries(res.data.sub_root_map);
           }
+          if (res.data.decision_detail) {
+            this.decisionReferencedList = Object.entries(res.data.decision_detail);
+          }
           this.isShowDelDialog = true;
           return;
         }
         return Promise.resolve();
       },
       getSubflowUpdateCount(subflowList) {
-        return subflowList.filter(sub => sub.expired).length;
+        if (!subflowList || !Array.isArray(subflowList)) {
+          return 0;
+        }
+        try {
+          return subflowList.filter(subItem => typeof subItem === 'object' && subItem !== null && subItem.expired).length;
+        } catch (e) {
+          console.error(e);
+          return 0;
+        }
       },
       onCopyTemplate(template) {
         this.isShowCopyDialog = true;
@@ -675,6 +690,7 @@
       },
       async onDeleteConfirm(template) {
         this.referencedProcessList = [];
+        this.decisionReferencedList = [];
         if (this.deleting) return;
         this.deleting = true;
         try {
@@ -686,6 +702,9 @@
           if (resp.result === false) {
             if (resp.data.sub_root_map) {
                 this.referencedProcessList = Object.entries(resp.data.sub_root_map);
+            }
+            if (resp.data.decision_detail) {
+              this.decisionReferencedList = Object.entries(resp.data.decision_detail);
             }
             this.isShowDelDialog = true;
             return;
@@ -796,6 +815,10 @@
 
       }
     }
+    .reference-list-wrapper{
+      max-height: 350px;
+      overflow: auto;
+    }
     .mock-text{
       padding: 12px 16px;
       background: #F5F6FA;
@@ -807,6 +830,13 @@
   ::v-deep .del-dialog{
     .bk-dialog-body{
       padding-bottom: 38px;
+    }
+    .tpl-error-message{
+      display: flex;
+      justify-content: center;
+      padding: 12px 16px;
+      background: #F5F6FA;
+      border-radius: 2px;
     }
   }
 

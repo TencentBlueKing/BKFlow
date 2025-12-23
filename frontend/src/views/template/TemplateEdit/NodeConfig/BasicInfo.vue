@@ -311,6 +311,56 @@
           @change="updateData" />
       </bk-form-item>
       <bk-form-item
+        v-if="isEnableVersionManage"
+        :label="$t('版本号')"
+        :required="true"
+        property="version">
+        <bk-select
+          ref="versionSelect"
+          v-model="subVersionSelectValue"
+          :disabled="isViewMode"
+          ext-popover-cls="select-sub-version-popover-custom"
+          :popover-min-width="577"
+          :popover-width="577"
+          :clearable="false"
+          :placeholder="$t('请选择版本')"
+          ext-cls="subflow-select"
+          :searchable="subVersionlistData.length>0"
+          @change="changeSubNodeVersion">
+          <bk-option
+            v-for="option in subVersionlistData"
+            :id="option.version"
+            :key="option.id"
+            :name="option.version ?? '--'"
+            :disabled="!(option.version == formData.latestVersion || option.version == initVersion)">
+            <div class="option-title">
+              <span>{{ option.version ? option.version : option.desc }}</span>
+              <div
+                v-if="option.version === formData.latestVersion"
+                class="latest-version">
+                <div class="text">
+                  {{ $t('最新') }}
+                </div>
+              </div>
+            </div>
+            <div class="version-desc">
+              <p
+                v-bk-overflow-tips
+                class="version-desc-text">
+                {{ option.desc }}
+              </p>
+            </div>
+          </bk-option>
+        </bk-select>
+        <div
+          v-if="formData.latestVersion === formData.version "
+          class="sub-latest-version">
+          <div class="text">
+            {{ $t('最新') }}
+          </div>
+        </div>
+      </bk-form-item>
+      <bk-form-item
         :label="$t('步骤名称')"
         property="stageName">
         <bk-input
@@ -501,7 +551,7 @@
   // import BkUserSelector from '@blueking/user-selector'
   import { mapState, mapActions, mapMutations, mapGetters } from 'vuex';
   import { NAME_REG, STRING_LENGTH, INVALID_NAME_CHAR } from '@/constants/index.js';
-import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
+  import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
 
   export default {
     name: 'BasicInfo',
@@ -539,6 +589,11 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
       },
       isViewMode: Boolean,
       isApiPlugin: Boolean,
+      isEnableVersionManage: Boolean,
+      spaceId: {
+        type: [String, Number],
+        default: '',
+      },
     },
     data() {
       return {
@@ -547,6 +602,7 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
         subflowLoading: false,
         version: this.basicInfo.version,
         formData: tools.deepClone(this.basicInfo),
+        initVersion: tools.deepClone(this.basicInfo.version),
         maxNodeExecuteTimeout: window.MAX_NODE_EXECUTE_TIMEOUT,
         schemeList: [],
         schemeListLoading: true,
@@ -638,6 +694,9 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
           placement: 'top-start',
         },
         userApi: `${window.MEMBER_SELECTOR_DATA_HOST}/api/c/compapi/v2/usermanage/fs_list_users/`,
+        subflowVersion: '',
+        subVersionSelectValue: '',
+        subVersionlistData: [],
       };
     },
     computed: {
@@ -671,6 +730,7 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
       basicInfo: {
         handler(val) {
           this.formData = tools.deepClone(val);
+          this.subVersionSelectValue = this.basicInfo.version;
           // 如果有执行方案，默认选中<不使用执行方案>
           if (this.schemeList.length && !this.formData.schemeIdList.length) {
             this.formData.schemeIdList = [0];
@@ -683,6 +743,11 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
         immediate: true,
       },
     },
+    mounted() {
+      if (this.isSubflow) {
+        this.getSubVersionList();
+      }
+    },
     methods: {
       ...mapMutations('template/', [
         'setNodeBasicInfo',
@@ -694,10 +759,19 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
       ...mapActions('template/', [
         'getLabels',
         'getProcessOpenRetryAndTimeout',
+        'getTemplateVersionSnapshotList',
       ]),
       ...mapGetters('template/', [
         'getPipelineTree',
       ]),
+      // 修改子流程版本
+      changeSubNodeVersion(val) {
+        this.$emit('changeSubNodeVersion', { id: this.formData.tpl, version: val });
+      },
+      async getSubVersionList() {
+        const res = await this.getTemplateVersionSnapshotList({ template_id: this.formData.tpl, space_id: this.spaceId });
+        this.subVersionlistData = res.results.filter(item => item.version);
+      },
       // 加载子流程详情，拿到最新版本子流程的version字段
       async getSubflowDetail() {
         this.subflowLoading = true;
@@ -1134,4 +1208,51 @@ import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExtern
             margin-top: 10px;
         }
     }
+    .select-sub-version-popover-custom{
+    .bk-options-wrapper{
+        max-height: 261px !important;
+    }
+    .option-title{
+       display: flex;
+       align-items: center;
+    }
+    .latest-version{
+        font-size: 10px;
+        color: #14A568;
+        line-height: 16px;
+        background: #E4FAF0;
+        border: 1px solid #A5E0C6;
+        border-radius: 2px;
+        margin-left: 15px;
+        .text{
+            padding: 0px 4px;
+        }
+    }
+    .bottom-view-btn{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px 0;
+      cursor: pointer;
+      .common-icon-box-top-right-corner{
+        margin-right: 8px;
+        margin-top: 3px;
+      }
+    }
+}
+.sub-latest-version{
+  position: absolute;
+  left: 40px;
+  top: 7px;
+  font-size: 10px;
+  color: #14A568;
+  line-height: 16px;
+  background: #E4FAF0;
+  border: 1px solid #A5E0C6;
+  border-radius: 2px;
+  margin-left: 8px;
+  .text{
+      padding: 0px 4px;
+  }
+}
 </style>
