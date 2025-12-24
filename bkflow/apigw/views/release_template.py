@@ -44,7 +44,7 @@ logger = logging.getLogger("root")
 @apigw_require
 @check_jwt_and_space
 @return_json_response
-def front_release_template(request, space_id, template_id):
+def release_template(request, space_id, template_id):
     data = json.loads(request.body)
     try:
         instance = Template.objects.get(id=template_id, space_id=space_id)

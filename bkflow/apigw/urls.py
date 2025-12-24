@@ -36,7 +36,6 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.create_template import create_template
     from bkflow.apigw.views.delete_task import delete_task
     from bkflow.apigw.views.delete_template import delete_template
-    from bkflow.apigw.views.front_release_template import front_release_template
     from bkflow.apigw.views.get_space_configs import get_space_configs
     from bkflow.apigw.views.get_task_detail import get_task_detail
     from bkflow.apigw.views.get_task_list import get_task_list
@@ -51,6 +50,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     )
     from bkflow.apigw.views.operate_task import operate_task
     from bkflow.apigw.views.operate_task_node import operate_task_node
+    from bkflow.apigw.views.release_template import release_template
     from bkflow.apigw.views.renew_space_config import renew_space_config
     from bkflow.apigw.views.revoke_token import revoke_token
     from bkflow.apigw.views.update_template import update_template
@@ -89,5 +89,5 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/operate_task/(?P<operation>\w+)/$", operate_task),
         url(r"^space/(?P<space_id>\d+)/apply_webhook_configs/$", apply_webhook_configs),
         url(r"^space/(?P<space_id>\d+)/delete_task/$", delete_task),
-        url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/front_release_template/$", front_release_template),
+        url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/release_template/$", release_template),
     ]
