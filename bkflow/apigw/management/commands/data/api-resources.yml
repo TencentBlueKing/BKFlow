@@ -2159,7 +2159,7 @@ paths:
         disabledStages: []
   /sdk/bk_plugin/:
     get:
-      operationId: sdk_get_bk_plugin
+      operationId: sdk_get_bk_plugin_list
       description: 获取第三方插件列表
       tags: []
       responses:
@@ -2728,6 +2728,29 @@ paths:
           timeout: 0
         authConfig:
           userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/space/{space_id}/template/{template_id}/release_template/:
+    post:
+      operationId: sdk_waived_login_release_template
+      description: 免登录发布流程
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/template/{template_id}/release_template/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: false
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
