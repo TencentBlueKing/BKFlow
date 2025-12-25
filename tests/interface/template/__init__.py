@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,32 +16,3 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-
-
-from ..base import ComponentAPI
-
-
-class CollectionsMonitor(object):
-    """Collections of Monitor APIS"""
-
-    def __init__(self, client):
-        self.client = client
-
-        self.query_strategy = ComponentAPI(
-            client=self.client,
-            method="POST",
-            path="/api/c/compapi/v2/monitor_v3/search_alarm_strategy/",
-            description="查询策略",
-        )
-        self.create_shield = ComponentAPI(
-            client=self.client,
-            method="POST",
-            path="/api/c/compapi/v2/monitor_v3/add_shield/",
-            description="创建告警屏蔽",
-        )
-        self.disable_shield = ComponentAPI(
-            client=self.client,
-            method="POST",
-            path="/api/c/compapi/v2/monitor_v3/disable_shield/",
-            description="解除告警屏蔽",
-        )

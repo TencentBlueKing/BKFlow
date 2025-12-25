@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,27 +16,3 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-
-
-from ..base import ComponentAPI
-
-
-class CollectionsUserManage(object):
-    """Collections of SOPS APIS"""
-
-    def __init__(self, client):
-        self.client = client
-
-        self.retrieve_user = ComponentAPI(
-            client=self.client,
-            method="GET",
-            path="/api/c/compapi{bk_api_ver}/usermanage/retrieve_user/",
-            description="查询用户具体详情",
-        )
-
-        self.list_users = ComponentAPI(
-            client=self.client,
-            method="GET",
-            path="/api/c/compapi{bk_api_ver}/usermanage/list_users/",
-            description="获取用户列表",
-        )
