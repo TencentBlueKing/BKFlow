@@ -1414,7 +1414,7 @@
               if (subflowNodeParent && subflowNodeParent.taskId) { // 已经执行
                 const resp = await this.getTaskInstanceData(subflowNodeParent.taskId);
                 this.currentSubflowTaskId = subflowNodeParent.taskId;
-                console.log('SideDrawerExecuteInfo.vue1413', this.currentSubflowTaskId, this.subCanvasData);
+                this.subflowTaskId = subflowNodeParent.taskId;
                 this.subCanvsLocationCollection = [...resp.pipeline_tree.location, ...this.subCanvsLocationCollection];
                 this.subCanvsActivityCollection = Object.assign({}, resp.pipeline_tree.activities);
                 this.setSubActivities(this.subCanvsActivityCollection);
