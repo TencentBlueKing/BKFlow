@@ -195,3 +195,24 @@ modules:
       - <<: *ENV_BKAPP_USE_PLUGIN_SERVICE
       - <<: *DEFAULT_CALLBACK_KEY
     processes: *default_engine_processes
+  bkfara-engine:
+    language: Python
+    scripts:
+      pre_release_hook: bin/pre_release.sh
+    env_variables:
+      - key: BKFLOW_MODULE_TYPE
+        value: engine
+        description: 模块类型
+      - key: BKFLOW_MODULE_CODE
+        value: bkfara_engine
+        description: 空间编码
+      - key: GUNICORN_WORKER_NUM
+        value: 2
+        description: GunicornWorker数量
+      - key: GUNICORN_THREAD_NUM
+        value: 10
+        description: GunicornThread数量
+      - <<: *ENV_BK_APIGW_NETLOC_PATTERN
+      - <<: *ENV_BKAPP_USE_PLUGIN_SERVICE
+      - <<: *DEFAULT_CALLBACK_KEY
+    processes: *default_engine_processes
