@@ -59,6 +59,16 @@ class BaseTokenPermission(permissions.BasePermission):
             token=token,
         )
 
+    def has_mock_permission(self, username, space_id, resource_id, token):
+        return Token.verify(
+            space_id,
+            username,
+            resource_type=self.get_resource_type(),
+            resource_id=resource_id,
+            permission_type=PermissionType.MOCK.value,
+            token=token,
+        )
+
 
 class BaseMockTokenPermission(BaseTokenPermission):
     def get_resource_type(self):
@@ -73,6 +83,16 @@ class BaseMockTokenPermission(BaseTokenPermission):
             space_id,
             username,
             resource_type=self.get_resource_type(),
+            resource_id=resource_id,
+            permission_type=PermissionType.MOCK.value,
+            token=token,
+        )
+
+    def has_scope_mock_permission(self, username, space_id, resource_id, token):
+        return Token.verify(
+            space_id,
+            username,
+            resource_type="SCOPE",
             resource_id=resource_id,
             permission_type=PermissionType.MOCK.value,
             token=token,
