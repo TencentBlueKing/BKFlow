@@ -76,7 +76,7 @@ class ScopePermission(BaseTokenPermission):
             return False
 
         if view.action in view.MOCK_ABOVE_ACTIONS:
-            return False
+            return self.has_mock_permission(request.user.username, None, task_id, request.token)
 
         has_operate_permission = self.has_operate_permission(request.user.username, None, task_id, request.token)
 
