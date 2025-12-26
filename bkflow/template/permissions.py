@@ -50,12 +50,13 @@ class ScopePermission(BaseTokenPermission):
             return False
 
     def has_object_permission(self, request, view, obj):
+        has_mock_permission = self.has_mock_permission(request.user.username, obj.space_id, obj.id, request.token)
         if view.action in view.MOCK_ABOVE_ACTIONS:
-            return False
+            return has_mock_permission
 
         has_edit_permission = self.has_edit_permission(request.user.username, obj.space_id, obj.id, request.token)
         if view.action in view.EDIT_ABOVE_ACTIONS:
-            return has_edit_permission
+            return has_edit_permission or has_mock_permission
 
         has_view_permission = self.has_view_permission(request.user.username, obj.space_id, obj.id, request.token)
         has_operate_permission = False
@@ -91,6 +92,9 @@ class TemplateRelatedResourcePermission(BaseMockTokenPermission):
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
         action_perm = self.get_action_perm(view)
-        return getattr(self, f"has_{action_perm}_permission")(
+        template_permission = getattr(self, f"has_{action_perm}_permission")(
             request.user.username, space_id, template_id, request.token
         )
+        if not template_permission:
+            return self.has_scope_mock_permission(request.user.username, space_id, template_id, request.token)
+        return True
