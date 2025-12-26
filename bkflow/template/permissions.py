@@ -97,4 +97,4 @@ class TemplateRelatedResourcePermission(BaseMockTokenPermission):
         )
         if not template_permission:
             return self.has_scope_mock_permission(request.user.username, space_id, template_id, request.token)
-        return True
+        return template_permission
