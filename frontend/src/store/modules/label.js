@@ -11,7 +11,7 @@
 */
 import axios from 'axios';
 
-const label = {
+export default  {
   namespaced: true,
   actions: {
     // 获取标签列表 二级标签传入parent_id
@@ -30,4 +30,3 @@ const label = {
   },
 };
 
-export default label;

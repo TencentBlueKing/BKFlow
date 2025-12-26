@@ -1,0 +1,307 @@
+<template>
+  <div>
+    <bk-popover
+      ref="labelPopover"
+      theme="light"
+      placement="bottom-start"
+      :is-show="true"
+      trigger="manual"
+      width="350"
+      class="label-popover"
+      ext-cls="label-cascade-popover"
+      :arrow="false"
+      :on-hide="hide">
+      <div @click="isVisible(true)">
+        <slot
+          name="trigger"
+          :list="selectLabel"
+          :is-show="isShow" />
+      </div>
+      <template #content>
+        <bk-input class="search-input">
+          <template #prefix>
+            <span class="input-icon">
+              <search />
+            </span>
+          </template>
+        </bk-input>
+        <div class="cascade-content">
+          <div class="first-label">
+            <ul class="label-list">
+              <li
+                v-for="label in labelList"
+                :key="label.id"
+                :class="[
+                  'label-item',
+                  { active: label.id === foucsId },
+                ]"
+                @click="handleClickFirstLabel(label)">
+                <bk-checkbox
+                  :value="cascadeValue.includes(label.id)"
+                  @change="handleCheckChange(label, $event)">
+                  {{ label.name }}
+                </bk-checkbox>
+                <bk-icon
+                  v-if="label.has_children"
+                  type="angle-right"
+                  class="angle-icon" />
+              </li>
+            </ul>
+          </div>
+          <div
+            v-if="secondLabelList.length"
+            class="second-label">
+            <ul class="label-list">
+              <li
+                v-for="label in secondLabelList"
+                :key="label.id"
+                class="label-item">
+                <bk-checkbox
+                  :value="cascadeValue.includes(label.id)"
+                  @change="handleCheckChange(label, $event)">
+                  {{ label.name }}
+                </bk-checkbox>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="label-select-extension">
+          <div
+            v-cursor="{
+              active: !hasPermission(
+                ['project_edit'],
+                authActions
+              ),
+            }"
+            class="add-label"
+            data-test-id="tabTemplateConfig_form_editLabel"
+            @click="onCreateLabel">
+            <i class="bk-icon icon-plus-circle" />
+            <span>{{ $t("新建标签") }}</span>
+          </div>
+          <div
+            v-cursor="{
+              active: !hasPermission(
+                ['project_view'],
+                authActions
+              ),
+            }"
+            class="label-manage"
+            data-test-id="tabTemplateConfig_form_LabelManage"
+            @click="onManageLabel">
+            <i class="common-icon-label" />
+            <span>{{ $t("标签管理") }}</span>
+          </div>
+          <div
+            class="refresh-label"
+            data-test-id="process_list__refreshLabel"
+            @click="getLabelList">
+            <i class="bk-icon icon-right-turn-line" />
+          </div>
+        </div>
+      </template>
+    </bk-popover>
+    <CreateLabelDialog
+      :is-show="isShowCreate"
+      :scope="scope"
+      @close="isShowCreate = false"
+      @updateList="getLabelList" />
+  </div>
+</template>
+
+<script>
+import { mapActions, mapState } from 'vuex';
+import permission from '@/mixins/permission.js';
+import CreateLabelDialog from '../labelManage/CreateLabelDialog.vue';
+export default {
+    name: 'LabelCascade',
+    components: {
+        CreateLabelDialog,
+    },
+    mixins: [permission],
+    props: {
+        value: {
+            type: Array,
+            default: () => [],
+        },
+        scope: {
+            type: String,
+            default: '',
+        },
+    },
+    data() {
+        return {
+            showCreateLabelDialog: false,
+            labelList: [],
+            selectLabel: [],
+            cascadeValue: [],
+            isShow: false,
+            secondLabelList: [],
+            foucsId: 0,
+            loading: false,
+            isInitialized: false,
+            isShowCreate: false,
+        };
+    },
+    computed: {
+        ...mapState({
+            spaceId: state => state.spaceId,
+        }),
+        ...mapState('project', {
+            projectId: state => state.project_id,
+            projectName: state => state.projectName,
+            authActions: state => state.authActions,
+        }),
+    },
+    watch: {
+        value: {
+            handler(val) {
+                this.selectLabel = val;
+                this.cascadeValue = val.map(item => item.id);
+            },
+            immediate: true,
+        },
+    },
+    methods: {
+        ...mapActions('label', ['loadLabelList', 'deleteLabel']),
+        async getLabelList(parentId = null) {
+            try {
+                const params = {
+                    space_id: this.spaceId,
+                    parent_id: parentId,
+                    limit: 1000,
+                    offset: 0,
+                };
+                const resp = await this.loadLabelList(params);
+                if (parentId) {
+                    this.labelList.find(label => label.id === parentId).children = resp.data.results;
+                    this.secondLabelList = resp.data.results;
+                    return;
+                }
+                this.labelList = resp.data.results;
+            } catch (e) {
+                console.error(e);
+            } finally {
+                this.listLoading = false;
+            }
+        },
+        getPopoverInstance() {
+            return this.$refs.labelPopover.instance;
+        },
+        isVisible(val) {
+            const popover = this.getPopoverInstance();
+            if (val) {
+                popover.show();
+                this.isShow = true;
+                if (this.isInitialized) return;
+                this.getLabelList();
+                this.isInitialized = true;
+            } else {
+                popover.hide();
+                this.isShow = false;
+            }
+        },
+        handleClickFirstLabel(label) {
+            this.foucsId = label.id;
+            if (!label.has_children) {
+                this.secondLabelList = [];
+            } else {
+                if (label.children) {
+                    this.secondLabelList = label.children;
+                } else {
+                    this.getLabelList(label.id);
+                }
+            }
+        },
+        handleCheckChange(label, checked) {
+            if (checked) {
+                this.selectLabel.push({
+                    id: label.id,
+                    name: label.name,
+                    color: label.color,
+                    full_path: label.full_path,
+                });
+            } else {
+                this.selectLabel = this.selectLabel.filter(item => item.id !== label.id);
+            }
+            this.$emit('change', this.selectLabel);
+        },
+        hide() {
+            this.isShow = false;
+        },
+        onCreateLabel() {
+            this.isShowCreate = true;
+        },
+        onManageLabel() {
+            const { href } = this.$router.resolve({
+                name: 'projectConfig',
+                params: { id: this.projectId },
+                query: { activeTab: 'labelManage', space_id: this.spaceId },
+            });
+            window.open(href, '_blank');
+        },
+    },
+};
+</script>
+
+<style lang="scss" scoped>
+.search-input {
+    height: 32px;
+    :deep(.bk-form-input) {
+        border: none;
+    }
+}
+.label-popover {
+    width: 100%;
+}
+.cascade-content {
+    display: flex;
+    height: 205px;
+    overflow: auto;
+    border: 1px solid #dcdee5;
+    border-left: none;
+    border-right: none;
+    .first-label {
+        border-right: 1px solid #dcdee5;
+        width: 50%;
+    }
+    .second-label {
+        width: 50%;
+    }
+    .label-list {
+        padding-top: 9px;
+        .label-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px;
+            height: 32px;
+            width: 100%;
+            cursor: pointer;
+            .angle-icon {
+                font-size: 16px !important;
+                color: #c4c6cc;
+            }
+            &:hover {
+                background-color: #f5f7fa;
+            }
+            &.active {
+                color: #3a84ff;
+                background: #e1ecff;
+                :deep(.bk-checkbox-text) {
+                    color: #3a84ff;
+                }
+            }
+        }
+    }
+}
+</style>
+
+<style lang="scss">
+.label-cascade-popover {
+    .tippy-tooltip {
+        border: 1px solid #dcdee5;
+        padding: 4px 0 0 0;
+    }
+}
+</style>

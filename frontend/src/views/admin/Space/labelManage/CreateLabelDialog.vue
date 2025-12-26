@@ -41,6 +41,7 @@
           :maxlength="500" />
       </bk-form-item>
       <bk-form-item
+        v-if="!scope"
         :label="$t('标签范围')"
         :required="true"
         :property="'label_scope'">
@@ -92,6 +93,10 @@ export default {
             type: Object,
             default: () => ({}),
         },
+        scope: {
+            type: String,
+            default: '',
+        },
     },
     data() {
         return {
@@ -137,7 +142,7 @@ export default {
                         name: '',
                         color: '#1C9574',
                         description: '',
-                        label_scope: ['task', 'template'],
+                        label_scope: this.scope ? [this.scope] : ['task', 'template'],
                     };
                 } else {
                     if (this.isEdit) {

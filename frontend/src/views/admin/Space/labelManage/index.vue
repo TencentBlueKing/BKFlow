@@ -158,7 +158,7 @@
 
 <script>
 import { LABEL_SCOPE } from '../../../../constants/index.js';
-import { mapActions, mapState } from 'vuex';
+import { mapActions } from 'vuex';
 import TableOperate from '../common/TableOperate.vue';
 import tableHeader from '@/mixins/tableHeader.js';
 import tableCommon from '../mixins/tableCommon.js';
@@ -200,11 +200,6 @@ export default {
             isEdit: false,
             deleting: false,
         };
-    },
-    computed: {
-        ...mapState({
-            spaceId: state => state.spaceId,
-        }),
     },
     mounted() {
         this.getLabelList();
