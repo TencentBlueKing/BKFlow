@@ -11,19 +11,20 @@
 
 #### 接口参数
 
-| 字段                 | 类型     | 必选 | 描述               |
-|--------------------|--------|----|------------------|
-| name               | string | 是  | 模板名称             |
-| creator            | string | 否  | 创建人              |
-| source_template_id | int    | 否  | 来源的模板ID(用于复制并新建) |
-| notify_config      | json   | 否  | 模板描述             |
-| desc               | string | 否  | 空间描述             |
-| scope_type         | string | 否  | 模板范围类型           |
-| scope_value        | string | 否  | 模板范围值            |
-| source             | string | 否  | 模板来源(空间接入方自定义字段) |
-| version            | string | 否  | 模板版本(空间接入方自定义字段) |
-| extra_info         | string | 否  | 模板额外信息           |
-| pipeline_tree      | string | 否  | 模板信息             |
+| 字段                   | 类型       | 必选  | 描述               |
+|----------------------|----------|-----|------------------|
+| name                 | string   | 是   | 模板名称             |
+| creator              | string   | 否   | 创建人              |
+| source_template_id   | int      | 否   | 来源的模板ID(用于复制并新建) |
+| notify_config        | json     | 否   | 模板描述             |
+| desc                 | string   | 否   | 空间描述             |
+| scope_type           | string   | 否   | 模板范围类型           |
+| scope_value          | string   | 否   | 模板范围值            |
+| source               | string   | 否   | 模板来源(空间接入方自定义字段) |
+| version              | string   | 否   | 模板版本(空间接入方自定义字段) |
+| extra_info           | string   | 否   | 模板额外信息           |
+| pipeline_tree        | string   | 否   | 模板信息             |
+| auto_release         | bool     | 否   | 是否自动发布           |
 
 当存在 source_template_id, 创建模板的pipeline_tree 将使用source_template_id对应流程的pipeline_tree。
 达到基于某个模板新建模板的效果。当前只允许指定同一个空间下的模板。

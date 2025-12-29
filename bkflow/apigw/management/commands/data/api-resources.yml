@@ -250,7 +250,7 @@ paths:
                     description: 实例ID
                   template_id:
                     type: integer
-                    nullable: true
+                    x-nullable: true
                     description: 模板ID
                   name:
                     type: string
@@ -296,7 +296,7 @@ paths:
                     description: 执行快照ID
                   tree_info_id:
                     type: integer
-                    nullable: true
+                    x-nullable: true
                     description: 任务拓扑信息ID
                   extra_info:
                     type: object
@@ -804,11 +804,11 @@ paths:
                     description: 总数
                   next:
                     type: string
-                    nullable: true
+                    x-nullable: true
                     description: 下一页链接
                   previous:
                     type: string
-                    nullable: true
+                    x-nullable: true
                     description: 上一页链接
                   results:
                     type: array
@@ -1276,7 +1276,7 @@ paths:
                 description: true/false 操作是否成功
               data:
                 type: object
-                nullable: true
+                x-nullable: true
                 description: 返回数据
               message:
                 type: string
@@ -1489,7 +1489,7 @@ paths:
                       description: 是否为默认 Mock 数据
                     extra_info:
                       type: object
-                      nullable: true
+                      x-nullable: true
                       description: 额外信息
                       additionalProperties: true
                     operator:
@@ -2157,6 +2157,52 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+  /sdk/bk_plugin/:
+    get:
+      operationId: sdk_get_bk_plugin_list
+      description: 获取第三方插件列表
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/bk_plugin/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/plugin_service/app_detail/:
+    get:
+      operationId: sdk_get_plugin_service_app_detail
+      description: 获取插件服务App详情
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/plugin_service/app_detail/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
   /sdk/plugin_service/meta/:
     get:
       operationId: sdk_get_plugin_service_meta
@@ -2521,6 +2567,190 @@ paths:
           timeout: 0
         authConfig:
           userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/template/{template_id}/get_draft_template/:
+    get:
+      operationId: sdk_get_draft_template
+      description: 获取流程草稿版本
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/template/{template_id}/get_draft_template/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/template/{template_id}/calculate_version/:
+    get:
+      operationId: sdk_calculate_version
+      description: 计算流程版本
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/template/{template_id}/calculate_version/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/template/{template_id}/release_template/:
+    post:
+      operationId: sdk_release_template
+      description: 发布流程
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/{template_id}/release_template/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/template/{template_id}/rollback_template/:
+    post:
+      operationId: sdk_rollback_template
+      description: 回滚流程
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/{template_id}/rollback_template/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/template/{template_id}/preview_task_tree/:
+    post:
+      operationId: sdk_preview_task_tree
+      description: 预览流程树
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/{template_id}/preview_task_tree/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/template/snapshot/list_snapshot/:
+    get:
+      operationId: sdk_list_snapshot
+      description: 获取流程快照列表
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/template/snapshot/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /sdk/template/snapshot/{snapshot_id}/delete_snapshot/:
+    post:
+      operationId: sdk_delete_snapshot
+      description: 删除快照
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/snapshot/{snapshot_id}/delete_snapshot/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+  /space/{space_id}/template/{template_id}/release_template/:
+    post:
+      operationId: release_template
+      description: 免登录发布流程
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/template/{template_id}/release_template/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: false
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
