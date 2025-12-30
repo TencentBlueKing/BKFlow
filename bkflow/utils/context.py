@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -43,12 +42,19 @@ class TaskContext:
         tz = timezone.pytz.timezone(settings.TIME_ZONE)
         self.task_start_time = datetime.datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
 
+        # 从extra_info中提取custom_context，使其可以通过parent_data.inputs访问
+        extra_info = getattr(taskflow, "extra_info", {}) or {}
+        custom_context = extra_info.get("custom_context", {}) or {}
+        # 将custom_context中的字段添加到TaskContext的属性中，使其可以通过parent_data.inputs访问
+        for key, value in custom_context.items():
+            setattr(self, key, value)
+
     def context(self):
         return {"${%s}" % TaskContext.prefix: {"type": "plain", "is_param": True, "value": self}}
 
     @classmethod
     def to_flat_key(cls, key):
-        return "${%s.%s}" % (cls.prefix, key)
+        return "${{{}.{}}}".format(cls.prefix, key)
 
     @classmethod
     def flat_details(cls):

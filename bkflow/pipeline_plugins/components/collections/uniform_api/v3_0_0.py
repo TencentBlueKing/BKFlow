@@ -175,7 +175,7 @@ class UniformAPIService(BKFlowBaseService):
         except Exception:
             url_domain = ""
 
-        for api_key, api_model in validated_config.api.items():
+        for __, api_model in validated_config.api.items():
             if hasattr(api_model, "meta_apis") and api_model.meta_apis:
                 try:
                     meta_domain = urlparse(api_model.meta_apis).netloc
@@ -229,7 +229,7 @@ class UniformAPIService(BKFlowBaseService):
                     api_gateway_credential_name = api_gateway_credential_name_config["default"]
 
             # 从parent_data.inputs的_credentials中获取凭证
-            credentials = parent_data.inputs.get("_credentials", {})
+            credentials = parent_data.inputs.get("credentials", {})
 
             # 如果用户传入的凭证key与api_gateway_credential_name相同，则使用用户传入的凭证
             if api_gateway_credential_name and api_gateway_credential_name in credentials:
@@ -239,18 +239,18 @@ class UniformAPIService(BKFlowBaseService):
                 if isinstance(credential_dict, dict):
                     app_code = credential_dict.get("bk_app_code")
                     app_secret = credential_dict.get("bk_app_secret")
-                    self.logger.info(f"using user-provided credential: {api_gateway_credential_name}")
+                    self.logger.info(f"[uniform_api] using user-provided credential: {api_gateway_credential_name}")
                 else:
-                    self.logger.warning(f"Credential {api_gateway_credential_name} is not a valid dict")
+                    self.logger.warning(f"[uniform_api] Credential {api_gateway_credential_name} is not a valid dict")
         except Exception as e:
-            self.logger.warning(f"Failed to get api_gateway_credential_name config: {e}")
+            self.logger.warning(f"[uniform_api] Failed to get api_gateway_credential_name config: {e}")
 
         # 如果用户没有提供凭证或解析失败，使用原来的逻辑
         if not app_code or not app_secret:
             credential_data = space_configs.get("credential")
             if credential_data:
                 app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
-                self.logger.info(f"using credential config app_code: {app_code}")
+                self.logger.info(f"[uniform_api] using credential config app_code: {app_code}")
             elif settings.USE_BKFLOW_CREDENTIAL:
                 self.logger.info("using bkflow credential")
                 app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
@@ -389,6 +389,8 @@ class UniformAPIService(BKFlowBaseService):
             # 合并headers，配置的headers优先级更高
             headers.update(rendered_headers)
             self.logger.info(handle_plain_log(f"[uniform_api] merged custom headers: {rendered_headers}"))
+        else:
+            self.logger.info(handle_plain_log(f"[uniform_api] no headers config found for url: {url}"))
 
         try:
             self.logger.info(handle_plain_log(f"[uniform_api] request url: {url}, method: {method}, data: {api_data}"))
