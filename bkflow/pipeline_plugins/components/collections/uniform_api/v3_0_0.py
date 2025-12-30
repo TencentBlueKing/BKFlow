@@ -17,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import copy
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import jmespath
 from django.conf import settings
@@ -113,6 +113,73 @@ class UniformAPIService(BKFlowBaseService):
         }
         return operator, space_id, extra_data
 
+    def _extract_error_message(self, request_result: HttpRequestResult) -> str:
+        """提取错误信息，优先从JSON响应的message字段获取"""
+        if request_result.json_resp and isinstance(request_result.json_resp, dict):
+            return request_result.json_resp.get("message") or request_result.message
+        return request_result.message or f"HTTP status code: {request_result.resp.status_code}"
+
+    def _handle_error_response(
+        self, data, request_result: HttpRequestResult, error_prefix: str = "[uniform_api error]"
+    ) -> bool:
+        """处理错误响应，设置错误信息并返回False"""
+        error_message = self._extract_error_message(request_result)
+        message = handle_plain_log(
+            "{} HTTP status code: {}, message: {}".format(error_prefix, request_result.resp.status_code, error_message)
+        )
+        self.logger.error(message)
+        data.outputs.ex_data = message
+        return False
+
+    def _check_response_success(
+        self, request_result: HttpRequestResult, enable_standard_response: bool
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        检查响应是否成功
+        返回: (is_success, error_reason)
+        """
+        if enable_standard_response:
+            # 标准响应模式：使用HTTP状态码判断
+            if 200 <= request_result.resp.status_code < 300:
+                return True, None
+            else:
+                return False, f"HTTP status code indicates failure: {request_result.resp.status_code}"
+        else:
+            # 非标准模式：检查JSON响应和result字段
+            if not request_result.json_resp:
+                return False, "get json response data failed"
+            if request_result.result is False:
+                return False, "response result is False"
+            return True, None
+
+    def _extract_response_data(
+        self, request_result: HttpRequestResult, enable_standard_response: bool, log_prefix: str = "[uniform_api]"
+    ) -> Tuple[Union[dict, list, str], bool]:
+        """
+        提取响应数据
+        返回: (response_data, is_json)
+        """
+        if enable_standard_response:
+            # 标准响应模式：优先使用JSON，否则使用原始body
+            if request_result.json_resp is not None:
+                self.logger.info(handle_plain_log(f"{log_prefix} response: {request_result.json_resp}"))
+                return request_result.json_resp, True
+            else:
+                # 如果响应不是JSON格式，将body的原始数据作为字符串返回
+                raw_body = request_result.resp.text if request_result.resp else ""
+                self.logger.warning(
+                    handle_plain_log(
+                        "{} warning: response is not valid JSON, using raw body as string: {}".format(
+                            log_prefix, raw_body[:200] if len(raw_body) > 200 else raw_body
+                        )
+                    )
+                )
+                return raw_body, False
+        else:
+            # 非标准模式：必须使用JSON响应
+            self.logger.info(handle_plain_log(f"{log_prefix} response: {request_result.json_resp}"))
+            return request_result.json_resp, True
+
     def _dispatch_schedule_trigger(self, data, parent_data, callback_data=None):
         operator, space_id, extra_data = self._load_parent_data(parent_data)
         api_data = copy.deepcopy(data.inputs)
@@ -186,24 +253,28 @@ class UniformAPIService(BKFlowBaseService):
             return False
 
         data.outputs.status_code = request_result.resp.status_code
-        if not request_result.json_resp:
-            message = handle_plain_log(
-                "[uniform_api error] get json response data failed: {}".format(request_result.message)
-            )
-            self.logger.error(message)
-            data.outputs.ex_data = message
-            return False
 
-        if request_result.result is False:
-            message = handle_plain_log(
-                "[uniform_api error] response result is False: {}".format(request_result.message)
-            )
-            self.logger.error(message)
-            data.outputs.ex_data = message
-            return False
+        # 检查响应是否成功
+        enable_standard_response = validated_config.enable_standard_response
+        is_success, error_reason = self._check_response_success(request_result, enable_standard_response)
 
-        self.logger.info(handle_plain_log(f"[uniform_api] response: {request_result.json_resp}"))
-        resp_data = request_result.json_resp
+        if not is_success:
+            # 处理错误响应
+            return self._handle_error_response(data, request_result, "[uniform_api error]")
+
+        # 提取响应数据
+        resp_data, is_json = self._extract_response_data(request_result, enable_standard_response)
+
+        # 如果后续需要使用JSON数据（resp_data_path、polling、callback），需要确保有JSON响应
+        if resp_data_path or polling or callback:
+            if not is_json:
+                message = handle_plain_log(
+                    "[uniform_api error] JSON response is required for resp_data_path/polling/callback, "
+                    "but response is not valid JSON: {}".format(request_result.message)
+                )
+                self.logger.error(message)
+                data.outputs.ex_data = message
+                return False
         if resp_data_path:
             try:
                 resp_data = request_result.extract_json_resp_with_jmespath(resp_data_path)
@@ -272,6 +343,8 @@ class UniformAPIService(BKFlowBaseService):
             return False
 
         space_configs = space_infos_result.get("data", {}).get("configs", {})
+        uniform_api_config = space_configs.get("uniform_api", {})
+        validated_config = UniformAPIConfigHandler(uniform_api_config).handle()
         credential_data = space_configs.get("credential")
         if credential_data:
             app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
@@ -316,6 +389,8 @@ class UniformAPIService(BKFlowBaseService):
             return False
 
         data.outputs.status_code = request_result.resp.status_code
+
+        # 轮询模式需要JSON响应来进行状态判断
         if not request_result.json_resp:
             message = handle_plain_log(
                 "[uniform_api polling error] get json response data failed: {}".format(request_result.message)
@@ -324,14 +399,15 @@ class UniformAPIService(BKFlowBaseService):
             data.outputs.ex_data = message
             return False
 
-        if request_result.result is False:
-            message = handle_plain_log(
-                "[uniform_api polling error] response result is False: {}".format(request_result.message)
-            )
-            self.logger.error(message)
-            data.outputs.ex_data = message
-            return False
+        # 检查响应是否成功
+        enable_standard_response = validated_config.enable_standard_response
+        is_success, error_reason = self._check_response_success(request_result, enable_standard_response)
 
+        if not is_success:
+            # 处理错误响应
+            return self._handle_error_response(data, request_result, "[uniform_api polling error]")
+
+        # 记录响应日志
         self.logger.info(handle_plain_log(f"[uniform_api polling] response: {request_result.json_resp}"))
 
         # 按照优先级进行判断：成功 > 失败 > 执行中
@@ -401,4 +477,4 @@ class UniformAPIComponent(Component):
     code = "uniform_api"
     bound_service = UniformAPIService
     desc = _("用于调用符合接口协议的统一API")
-    version = "v2.0.0"
+    version = "v3.0.0"

@@ -459,6 +459,7 @@ class ApiModel(BaseModel):
 class CommonModel(BaseModel):
     exclude_none_fields: Optional[str] = None
     enable_api_parameter_conversion: Optional[str] = None
+    enable_standard_response: Optional[str] = None
 
 
 class SchemaV2Model(BaseModel):
