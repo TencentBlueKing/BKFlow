@@ -16,6 +16,10 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import base64
+import binascii
+import json
+
 from django.utils.translation import ugettext_lazy as _
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
@@ -32,6 +36,43 @@ class CreateTaskSerializer(serializers.Serializer):
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     description = serializers.CharField(help_text=_("任务描述"), required=False)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    credentials = serializers.DictField(
+        help_text=_("凭证字典，key为凭证的key，value为base64 encode的json序列化的字典"),
+        required=False,
+        default={},
+    )
+
+    def validate_credentials(self, value):
+        """验证并反序列化credentials中的base64编码的json字符串"""
+        if not value:
+            return {}
+
+        decoded_credentials = {}
+        for cred_key, cred_value in value.items():
+            if not isinstance(cred_value, str):
+                raise serializers.ValidationError(_("凭证 {key} 的值必须是base64编码的json字符串").format(key=cred_key))
+
+            try:
+                # 解码base64
+                credential_json = base64.b64decode(cred_value).decode("utf-8")
+                # 解析json
+                credential_dict = json.loads(credential_json)
+
+                # 验证是否为字典类型
+                if not isinstance(credential_dict, dict):
+                    raise serializers.ValidationError(_("凭证 {key} 解码后的内容必须是json对象").format(key=cred_key))
+
+                decoded_credentials[cred_key] = credential_dict
+            except binascii.Error:
+                raise serializers.ValidationError(_("凭证 {key} 的值不是有效的base64编码").format(key=cred_key))
+            except json.JSONDecodeError as e:
+                raise serializers.ValidationError(
+                    _("凭证 {key} 解码后的内容不是有效的json格式: {error}").format(key=cred_key, error=str(e))
+                )
+            except UnicodeDecodeError:
+                raise serializers.ValidationError(_("凭证 {key} 解码后的内容不是有效的UTF-8编码").format(key=cred_key))
+
+        return decoded_credentials
 
 
 class TaskMockDataSerializer(serializers.Serializer):
