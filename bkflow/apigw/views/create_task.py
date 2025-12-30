@@ -68,6 +68,13 @@ def create_task(request, space_id):
         {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
     )
 
+    # 将credentials放入constants中，以便通过parent_data.inputs获取
+    credentials = ser.data.get("credentials", {})
+    if credentials:
+        constants = create_task_data.setdefault("constants", {})
+        # credentials统一放到constants的_credentials键下
+        constants["_credentials"] = credentials
+
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)
 

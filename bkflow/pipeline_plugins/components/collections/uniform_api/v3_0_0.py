@@ -113,6 +113,152 @@ class UniformAPIService(BKFlowBaseService):
         }
         return operator, space_id, extra_data
 
+    def _render_headers(self, headers_config: dict, operator: str, parent_data) -> dict:
+        """渲染headers配置中的变量
+
+        支持的变量格式：
+        - ${_system.operator}: 操作人
+        - ${_system.task_id}: 任务ID
+        - ${_system.task_name}: 任务名称
+        - ${_system.space_id}: 空间ID
+        - ${_system.scope_type}: 作用域类型
+        - ${_system.scope_value}: 作用域值
+
+        :param headers_config: headers配置字典
+        :param operator: 操作人
+        :param parent_data: 父数据
+        :return: 渲染后的headers字典
+        """
+        if not headers_config:
+            return {}
+
+        # 构建变量映射表
+        variable_map = {
+            "${_system.operator}": operator,
+            "${_system.task_id}": str(parent_data.get_one_of_inputs("task_id", "")),
+            "${_system.task_name}": parent_data.get_one_of_inputs("task_name", ""),
+            "${_system.space_id}": str(parent_data.get_one_of_inputs("task_space_id", "")),
+            "${_system.scope_type}": parent_data.get_one_of_inputs("task_scope_type", ""),
+            "${_system.scope_value}": parent_data.get_one_of_inputs("task_scope_value", ""),
+        }
+
+        rendered_headers = {}
+        for key, value in headers_config.items():
+            if isinstance(value, str):
+                # 替换所有支持的变量
+                rendered_value = value
+                for var_name, var_value in variable_map.items():
+                    if var_name in rendered_value:
+                        rendered_value = rendered_value.replace(var_name, var_value)
+                rendered_headers[key] = rendered_value
+            else:
+                rendered_headers[key] = value
+
+        return rendered_headers
+
+    def _get_api_config_by_url(self, validated_config, url: str) -> Optional[dict]:
+        """根据URL匹配对应的API配置
+
+        :param validated_config: 验证后的配置对象
+        :param url: API请求URL
+        :return: 匹配的API配置，如果没有匹配则返回None
+        """
+        if not hasattr(validated_config, "api") or not validated_config.api:
+            return None
+
+        # 尝试通过URL匹配meta_apis来确定使用的API key
+        # 提取URL的域名部分进行匹配
+        try:
+            from urllib.parse import urlparse
+
+            url_domain = urlparse(url).netloc
+        except Exception:
+            url_domain = ""
+
+        for api_key, api_model in validated_config.api.items():
+            if hasattr(api_model, "meta_apis") and api_model.meta_apis:
+                try:
+                    meta_domain = urlparse(api_model.meta_apis).netloc
+                    # 如果URL的域名与meta_apis的域名相同，则认为匹配
+                    if url_domain and meta_domain and url_domain == meta_domain:
+                        return api_model
+                except Exception:
+                    # 如果解析失败，使用简单的包含匹配
+                    if api_model.meta_apis in url:
+                        return api_model
+
+        # 如果只有一个API配置，直接返回
+        if len(validated_config.api) == 1:
+            return list(validated_config.api.values())[0]
+
+        # 如果无法匹配，返回第一个（默认行为）
+        if validated_config.api:
+            return list(validated_config.api.values())[0]
+
+        return None
+
+    def _get_credential(
+        self, space_id: int, scope_type: Optional[str], scope_id: Optional[str], parent_data, space_configs: dict
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """获取凭证信息，优先使用用户传入的凭证，否则使用空间配置或默认凭证
+
+        :param space_id: 空间ID
+        :param scope_type: 范围类型
+        :param scope_id: 范围ID
+        :param parent_data: 父任务数据
+        :param space_configs: 空间配置字典（从space_infos_result中获取）
+        :return: (app_code, app_secret) 元组，如果获取失败返回 (None, None)
+        """
+        app_code = None
+        app_secret = None
+
+        try:
+            # 从space_configs中获取api_gateway_credential_name配置
+            api_gateway_credential_name_config = space_configs.get("api_gateway_credential_name")
+
+            # 处理api_gateway_credential_name配置（可能是字符串或字典）
+            api_gateway_credential_name = None
+            if isinstance(api_gateway_credential_name_config, str):
+                api_gateway_credential_name = api_gateway_credential_name_config
+            elif isinstance(api_gateway_credential_name_config, dict):
+                # 如果是字典，根据scope获取对应的凭证名称
+                scope = f"{scope_type}_{scope_id}" if scope_type and scope_id else None
+                if scope and scope in api_gateway_credential_name_config:
+                    api_gateway_credential_name = api_gateway_credential_name_config[scope]
+                elif "default" in api_gateway_credential_name_config:
+                    api_gateway_credential_name = api_gateway_credential_name_config["default"]
+
+            # 从parent_data.inputs的_credentials中获取凭证
+            credentials = parent_data.inputs.get("_credentials", {})
+
+            # 如果用户传入的凭证key与api_gateway_credential_name相同，则使用用户传入的凭证
+            if api_gateway_credential_name and api_gateway_credential_name in credentials:
+                # credentials已经在CreateTaskSerializer中反序列化，直接使用字典
+                credential_dict = credentials[api_gateway_credential_name]
+
+                if isinstance(credential_dict, dict):
+                    app_code = credential_dict.get("bk_app_code")
+                    app_secret = credential_dict.get("bk_app_secret")
+                    self.logger.info(f"using user-provided credential: {api_gateway_credential_name}")
+                else:
+                    self.logger.warning(f"Credential {api_gateway_credential_name} is not a valid dict")
+        except Exception as e:
+            self.logger.warning(f"Failed to get api_gateway_credential_name config: {e}")
+
+        # 如果用户没有提供凭证或解析失败，使用原来的逻辑
+        if not app_code or not app_secret:
+            credential_data = space_configs.get("credential")
+            if credential_data:
+                app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
+                self.logger.info(f"using credential config app_code: {app_code}")
+            elif settings.USE_BKFLOW_CREDENTIAL:
+                self.logger.info("using bkflow credential")
+                app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
+            else:
+                return None, None
+
+        return app_code, app_secret
+
     def _extract_error_message(self, request_result: HttpRequestResult) -> str:
         """提取错误信息，优先从JSON响应的message字段获取"""
         if request_result.json_resp and isinstance(request_result.json_resp, dict):
@@ -194,7 +340,10 @@ class UniformAPIService(BKFlowBaseService):
         scope_type, scope_id = parent_data.get_one_of_inputs("task_scope_type"), parent_data.get_one_of_inputs(
             "task_scope_value"
         )
-        space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
+        space_infos_params = {
+            "space_id": space_id,
+            "config_names": "uniform_api,credential,api_gateway_credential_name",
+        }
         if scope_type and scope_id:
             space_infos_params["scope"] = f"{scope_type}_{scope_id}"
         self.logger.info(f"get_space_info params: {space_infos_params}")
@@ -223,20 +372,24 @@ class UniformAPIService(BKFlowBaseService):
             # 启动参数转换
             api_data = convert_dict_value(api_data)
 
-        credential_data = space_configs.get("credential")
-        if credential_data:
-            app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
-            self.logger.info(f"using credential config app_code: {app_code}")
-        elif settings.USE_BKFLOW_CREDENTIAL:
-            self.logger.info("using bkflow credential")
-            app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
-        else:
+        # 获取凭证信息
+        app_code, app_secret = self._get_credential(space_id, scope_type, scope_id, parent_data, space_configs)
+        if not app_code or not app_secret:
             message = "不存在调用凭证"
             self.logger.error(message)
             data.outputs.ex_data = message
             return False
         client = UniformAPIClient()
         headers = client.gen_default_apigw_header(app_code=app_code, app_secret=app_secret, username=operator)
+
+        # 获取并合并配置的headers
+        api_config = self._get_api_config_by_url(validated_config, url)
+        if api_config and hasattr(api_config, "headers") and api_config.headers:
+            rendered_headers = self._render_headers(api_config.headers, operator, parent_data)
+            # 合并headers，配置的headers优先级更高
+            headers.update(rendered_headers)
+            self.logger.info(handle_plain_log(f"[uniform_api] merged custom headers: {rendered_headers}"))
+
         try:
             self.logger.info(handle_plain_log(f"[uniform_api] request url: {url}, method: {method}, data: {api_data}"))
             request_result: HttpRequestResult = client.request(
@@ -329,7 +482,10 @@ class UniformAPIService(BKFlowBaseService):
         scope_type, scope_id = parent_data.get_one_of_inputs("task_scope_type"), parent_data.get_one_of_inputs(
             "task_scope_value"
         )
-        space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
+        space_infos_params = {
+            "space_id": space_id,
+            "config_names": "uniform_api,credential,api_gateway_credential_name",
+        }
         if scope_type and scope_id:
             space_infos_params["scope"] = f"{scope_type}_{scope_id}"
         self.logger.info(f"get_space_info params: {space_infos_params}")
@@ -345,14 +501,10 @@ class UniformAPIService(BKFlowBaseService):
         space_configs = space_infos_result.get("data", {}).get("configs", {})
         uniform_api_config = space_configs.get("uniform_api", {})
         validated_config = UniformAPIConfigHandler(uniform_api_config).handle()
-        credential_data = space_configs.get("credential")
-        if credential_data:
-            app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
-            self.logger.info(f"using credential config app_code: {app_code}")
-        elif settings.USE_BKFLOW_CREDENTIAL:
-            self.logger.info("using bkflow credential")
-            app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
-        else:
+
+        # 获取凭证信息
+        app_code, app_secret = self._get_credential(space_id, scope_type, scope_id, parent_data, space_configs)
+        if not app_code or not app_secret:
             message = "不存在调用凭证"
             self.logger.error(message)
             data.outputs.ex_data = message
@@ -360,6 +512,15 @@ class UniformAPIService(BKFlowBaseService):
 
         client = UniformAPIClient()
         headers = client.gen_default_apigw_header(app_code=app_code, app_secret=app_secret, username=operator)
+
+        # 获取并合并配置的headers
+        api_config = self._get_api_config_by_url(validated_config, polling_config.url)
+        if api_config and hasattr(api_config, "headers") and api_config.headers:
+            rendered_headers = self._render_headers(api_config.headers, operator, parent_data)
+            # 合并headers，配置的headers优先级更高
+            headers.update(rendered_headers)
+            self.logger.info(handle_plain_log(f"[uniform_api polling] merged custom headers: {rendered_headers}"))
+
         trigger_data = data.get_one_of_outputs("trigger_data", {})
         task_tag_value = jmespath.search(polling_config.task_tag_key, trigger_data)
         if task_tag_value is None:
