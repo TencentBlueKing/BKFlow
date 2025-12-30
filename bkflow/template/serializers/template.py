@@ -336,6 +336,7 @@ class TemplateCopySerializer(serializers.Serializer):
 
 
 class TemplateReleaseSerializer(serializers.Serializer):
+    force = serializers.BooleanField(help_text=_("是否强制发布"), required=False, default=False)
     version = serializers.CharField(help_text=_("版本号"), required=True)
     desc = serializers.CharField(help_text=_("描述"), required=False, allow_blank=True)
 

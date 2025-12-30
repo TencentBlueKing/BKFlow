@@ -306,13 +306,21 @@ class Template(CommonModel):
             template_snapshot.desc = data.get("desc")
             template_snapshot.operator = data["username"]
             template_snapshot.save()
-            return template_snapshot
+
         except TemplateSnapshot.DoesNotExist:
-            logger.warning(f"未找到模板（ID: {self.id}）的草稿快照（draft=True）")
-            raise ValidationError(f"该模板{self.id}没有草稿版本")
+            if data.get("force", False):
+                template_snapshot = TemplateSnapshot.create_snapshot(
+                    self.pipeline_tree, data["username"], version, data.get("desc")
+                )
+                template_snapshot.template_id = self.id
+                template_snapshot.save()
+            else:
+                logger.warning(f"未找到模板（ID: {self.id}）的草稿快照（draft=True）")
+                raise ValidationError(f"该模板{self.id}没有草稿版本")
         except Exception as e:
             logger.error(f"发布模板草稿时发生错误（template_id={self.id}）: {e}", exc_info=True)
             raise ValidationError("发布模板失败，请稍后重试")
+        return template_snapshot
 
 
 class TemplateSnapshot(CommonSnapshot):
@@ -335,7 +343,7 @@ class TemplateSnapshot(CommonSnapshot):
         ordering = ["-id"]
 
     @classmethod
-    def create_snapshot(cls, pipeline_tree, username, version):
+    def create_snapshot(cls, pipeline_tree, username, version, desc=None):
         data = {
             "data": pipeline_tree,
             "md5sum": compute_pipeline_md5(pipeline_tree),
@@ -343,6 +351,8 @@ class TemplateSnapshot(CommonSnapshot):
             "operator": username,
             "version": version,
         }
+        if desc:
+            data["desc"] = desc
         return cls.objects.create(**data)
 
     @classmethod
