@@ -69,18 +69,21 @@ def get_api_list(limit, offset, scope_type, scope_value, category, request=None)
             "name": "获取用户信息",
             "category": "basic_tools",
             "meta_url": _build_api_url(request, f"{base_path}?api_id=get_user_info"),
+            "version": "v3.0.0",
         },
         {
             "id": "create_task",
             "name": "创建任务",
             "category": "basic_tools",
             "meta_url": _build_api_url(request, f"{base_path}?api_id=create_task"),
+            "version": "v3.0.0",
         },
         {
             "id": "process_data",
             "name": "处理数据",
             "category": "data_processing",
             "meta_url": _build_api_url(request, f"{base_path}?api_id=process_data"),
+            "version": "v2.0.0",
         },
     ]
 
