@@ -234,6 +234,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "apigw_manager.apigw",
         "bkflow.pipeline_plugins",
         "bkflow.admin",
+        "bkflow.api_plugin_demo",
         "plugin_service",
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
