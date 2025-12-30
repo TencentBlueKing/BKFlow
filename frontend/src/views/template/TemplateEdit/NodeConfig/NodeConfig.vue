@@ -597,9 +597,7 @@
           }
           // api插件输入输出
           if (this.isApiPlugin && this.basicInfo.metaUrl) {
-            // 统一api基础配置
-            await this.loadAtomConfig({ atom: plugin, version, space_id: this.spaceId });
-            // api插件配置
+            // 先获取api插件配置，以获取正确的version
             const resp = await this.loadUniformApiMeta({
               templateId: this.$route.params.templateId,
               spaceId: this.spaceId,
@@ -607,9 +605,11 @@
               ...this.scopeInfo,
             });
             if (!resp.result) return;
-            // 输出参数
             // 如果meta API返回了version字段，使用它；否则使用当前basicInfo中的version
             const apiVersion = resp.data.version || version;
+            // 使用meta API返回的version加载统一api基础配置
+            await this.loadAtomConfig({ atom: plugin, version: apiVersion, space_id: this.spaceId });
+            // 输出参数
             const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
             this.uniformOutputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs];
