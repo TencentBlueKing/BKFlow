@@ -552,6 +552,7 @@ class TemplateViewSet(UserModelViewSet):
         mock_data = TemplateMockDataSerializer(instance=mock_data_instances, many=True)
         data["mock_data"] = mock_data.data
         data["version"] = template.version
+        data["name"] = template.name
         data["outputs"] = template.outputs(version)
         return Response(data)
 

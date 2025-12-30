@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -30,7 +29,7 @@ class APIGWUserModelBackend(UserModelBackend):
         user, _ = self.user_model.objects.get_or_create(username=username)
         return user
 
-    def authenticate(self, request, api_name, bk_username, verified, **credentials):
+    def authenticate(self, request, gateway_name, bk_username, verified, **credentials):
         if not verified:
             return self.make_anonymous_user(bk_username=bk_username)
         return self.make_user(bk_username)
