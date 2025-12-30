@@ -69,18 +69,21 @@ def get_api_list(limit, offset, scope_type, scope_value, category, request=None)
             "name": "获取用户信息",
             "category": "basic_tools",
             "meta_url": _build_api_url(request, f"{base_path}?api_id=get_user_info"),
+            "version": "v3.0.0",
         },
         {
             "id": "create_task",
             "name": "创建任务",
             "category": "basic_tools",
             "meta_url": _build_api_url(request, f"{base_path}?api_id=create_task"),
+            "version": "v3.0.0",
         },
         {
             "id": "process_data",
             "name": "处理数据",
             "category": "data_processing",
             "meta_url": _build_api_url(request, f"{base_path}?api_id=process_data"),
+            "version": "v2.0.0",
         },
     ]
 
@@ -100,6 +103,7 @@ def get_api_list(limit, offset, scope_type, scope_value, category, request=None)
             "id": api["id"],
             "name": api["name"],
             "meta_url": api["meta_url"],
+            "version": api["version"],
         }
         for api in paginated_apis
     ]
@@ -122,7 +126,8 @@ def get_api_detail(api_id, request=None):
         return {
             "id": "get_user_info",
             "name": "获取用户信息",
-            "url": _build_api_url(request, "/api/api_plugin_demo/execute/get_user_info/"),
+            "version": "v3.0.0",  # 指定使用的uniform_api插件版本
+            "url": _build_api_url(request, "/stage/api_plugin_demo/execute/get_user_info/"),
             "methods": ["GET"],
             "inputs": [
                 {
@@ -169,7 +174,8 @@ def get_api_detail(api_id, request=None):
         return {
             "id": "create_task",
             "name": "创建任务",
-            "url": _build_api_url(request, "/api/api_plugin_demo/execute/create_task/"),
+            "version": "v3.0.0",  # 指定使用的uniform_api插件版本
+            "url": _build_api_url(request, "/stage/api_plugin_demo/execute/create_task/"),
             "methods": ["POST"],
             "inputs": [
                 {
@@ -238,7 +244,8 @@ def get_api_detail(api_id, request=None):
         return {
             "id": "process_data",
             "name": "处理数据",
-            "url": _build_api_url(request, "/api/api_plugin_demo/execute/process_data/"),
+            "version": "v2.0.0",  # 指定使用的uniform_api插件版本（示例：使用v2.0.0版本）
+            "url": _build_api_url(request, "/stage/api_plugin_demo/execute/process_data/"),
             "methods": ["POST"],
             "inputs": [
                 {

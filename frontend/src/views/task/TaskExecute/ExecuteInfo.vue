@@ -1074,12 +1074,11 @@
           this.isRenderOutputForm = true;
         } else {
           try {
-            const res = await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
             // api插件输入输出
             if (this.pluginCode === 'uniform_api') {
               const { api_meta: apiMeta } = this.nodeActivity.component || {};
               if (!apiMeta) return;
-              // api插件配置
+              // 先获取api插件配置，以获取正确的version
               const resp = await this.loadUniformApiMeta({
                 taskId: this.taskId,
                 spaceId: this.spaceId,
@@ -1087,13 +1086,18 @@
                 ...this.scopeInfo,
               });
               if (!resp.result) return;
+              // 如果meta API返回了version字段，使用它；否则使用传入的version
+              const apiVersion = resp.data.version || version;
+              // 使用meta API返回的version加载统一api基础配置
+              const res = await this.loadAtomConfig({ atom: type, version: apiVersion, space_id: this.spaceId });
               // 输出参数
-              const storeOutputs = this.pluginOutput.uniform_api[version];
+              const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
               const outputs = resp.data.outputs || [];
               this.outputs = [...storeOutputs, ...outputs];
               this.renderConfig = jsonFormSchema(resp.data, { disabled: this.isViewMode });
               return;
             }
+            const res = await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
             // 第三方插件节点拼接输出参数
             if (this.isThirdPartyNode) {
               const resp = await this.loadPluginServiceDetail({
