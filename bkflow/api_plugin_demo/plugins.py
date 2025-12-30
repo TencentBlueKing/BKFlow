@@ -62,7 +62,7 @@ def get_api_list(limit, offset, scope_type, scope_value, category, request=None)
     :return: API列表数据
     """
     # 定义所有可用的API
-    base_path = "/api/api_plugin_demo/detail_meta/"
+    base_path = "/stage/api_plugin_demo/detail_meta/"
     all_apis = [
         {
             "id": "get_user_info",
