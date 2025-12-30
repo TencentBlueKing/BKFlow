@@ -349,11 +349,8 @@
     mounted() {
       $.context.exec_env = 'NODE_EXEC_DETAIL';
       this.initData();
-      if (this.nodeActivity?.component?.data?.subprocess) {
-        this.getTemplateData();
-      } else if (this.nodeActivity.type === 'SubProcess') {
+      if (this.nodeActivity.type === 'SubProcess') {
         this.isTemSubflowNode = true;
-        this.getTemplateData();
       }
     },
     beforeDestroy() {
@@ -472,6 +469,7 @@
           };
           params.project_id = this.project_id;
           const resp = await this.loadSubflowConfig(params);
+          this.templateName = resp.data.name;
           // 子流程的输入参数包括流程引用的变量、自定义变量和未被引用的变量
           this.subflowForms = {
             ...resp.data.pipeline_tree.constants,
@@ -766,15 +764,6 @@
       },
       getRowClassName({ row }) {
         return row.status || '';
-      },
-      async getTemplateData() {
-        const { template_id: templateId } = this.componentValue;
-        const data = {
-          templateId,
-          common: false,
-        };
-        const templateData = await this.loadTemplateData(data);
-        this.templateName = templateData.name;
       },
       onSkipSubTemplate() {
         const { href } = this.$router.resolve({
