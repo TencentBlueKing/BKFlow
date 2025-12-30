@@ -103,6 +103,7 @@ def get_api_list(limit, offset, scope_type, scope_value, category, request=None)
             "id": api["id"],
             "name": api["name"],
             "meta_url": api["meta_url"],
+            "version": api["version"],
         }
         for api in paginated_apis
     ]
