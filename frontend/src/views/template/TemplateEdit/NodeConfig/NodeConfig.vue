@@ -597,9 +597,7 @@
           }
           // api插件输入输出
           if (this.isApiPlugin && this.basicInfo.metaUrl) {
-            // 统一api基础配置
-            await this.loadAtomConfig({ atom: plugin, version, space_id: this.spaceId });
-            // api插件配置
+            // 先获取api插件配置，以获取正确的version
             const resp = await this.loadUniformApiMeta({
               templateId: this.$route.params.templateId,
               spaceId: this.spaceId,
@@ -607,8 +605,12 @@
               ...this.scopeInfo,
             });
             if (!resp.result) return;
+            // 如果meta API返回了version字段，使用它；否则使用当前basicInfo中的version
+            const apiVersion = resp.data.version || version;
+            // 使用meta API返回的version加载统一api基础配置
+            await this.loadAtomConfig({ atom: plugin, version: apiVersion, space_id: this.spaceId });
             // 输出参数
-            const storeOutputs = this.pluginOutput.uniform_api[version];
+            const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
             this.uniformOutputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs];
             const { url, methods, response_data_path: respDataPath, polling, callback } = resp.data;
@@ -621,6 +623,7 @@
               respDataPath,
               polling,
               callback,
+              version: apiVersion, // 更新version到basicInfo
             });
             this.apiInputs = resp.data.inputs;
             return jsonFormSchema(resp.data, { disabled: this.isViewMode });
@@ -1085,9 +1088,13 @@
           const descList = desc.split('\n');
           desc = descList.join('<br>');
         }
+        // 对于API插件，优先使用basicInfo中已存储的version（可能来自meta API返回），否则使用默认值
+        const apiPluginVersion = this.isApiPlugin && this.basicInfo.version
+          ? this.basicInfo.version
+          : (this.isApiPlugin ? 'V2.0.0' : null);
         const config = {
           plugin: code,
-          version: this.isApiPlugin ? 'V2.0.0' : list[list.length - 1].version,
+          version: apiPluginVersion || (this.isApiPlugin ? 'V2.0.0' : list[list.length - 1].version),
           name: this.isThirdParty ? name : `${groupName}-${name}`,
           nodeName: name,
           stageName: '',
@@ -1568,7 +1575,8 @@
                 name: groupName,
               },
             };
-            component.version = 'v2.0.0';
+            // 使用basicInfo中的version（可能来自meta API返回），否则使用默认值
+            component.version = this.basicInfo.version || 'v2.0.0';
           }
           config = Object.assign({}, this.nodeConfig, {
             component,

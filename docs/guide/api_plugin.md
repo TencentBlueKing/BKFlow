@@ -16,7 +16,7 @@ API 插件可以帮助接入系统开发者在 BKFlow 上实现自己的业务�
 1. category api：用于获取接口分类信息
 2. list meta api：用于获取接口列表数据
 3. detail meta api：用于获取接口详情的元数据
-  
+
 category api 和 list meta api 用于获取接口列表，每个具体的接口可以映射成一个插件。
 
 detail meta api 用于获取具体接口的元数据，通过插件表单。
@@ -25,11 +25,11 @@ detail meta api 用于获取具体接口的元数据，通过插件表单。
 
 当用户打开插件的配置面版时，交互顺序如下:
 ``` mermaid
-sequenceDiagram 
+sequenceDiagram
     actor user1
     participant b as BKFlow
     participant a as META APIS
-    
+
     user1->>+b: open the config panel of uniform api plugin
     b->>+a: call category api
     a->>-b: return category list
@@ -42,7 +42,7 @@ sequenceDiagram
     b->>+a: call detail meta api with selected api
     a->>-b: return api detail meta
     b->>-user1: render the form with api detail meta
-    
+
     Note over user1, a: A user configs uniform api plugin
 ```
 
@@ -294,6 +294,101 @@ sequenceDiagram
 }
 ```
 
+## API 插件配置说明
+
+### enable_standard_response 配置
+
+`enable_standard_response` 配置用于控制 API 插件对响应格式的判断方式。该配置在空间配置的 `uniform_api` 配置中的 `common` 部分设置。
+
+**配置位置：**
+在空间配置的 `uniform_api` 配置中，通过 `common.enable_standard_response` 字段设置。
+
+**配置值：**
+- `true` 或 `"true"`：启用标准响应模式
+- `false` 或 `"false"`：使用非标准响应模式（默认）
+
+**标准响应模式（enable_standard_response = true）：**
+- 使用 HTTP 状态码判断请求是否成功
+- HTTP 状态码在 200-299 范围内视为成功
+- 响应数据可以是 JSON 格式或非 JSON 格式
+- 如果响应是 JSON 格式，直接返回 JSON 数据
+- 如果响应不是 JSON 格式，返回原始响应体（字符串）
+
+**非标准响应模式（enable_standard_response = false）：**
+- 使用 JSON 响应的 `result` 字段判断请求是否成功
+- 响应必须是有效的 JSON 格式
+- `result` 字段为 `true` 时视为成功，`false` 时视为失败
+- 响应数据从 JSON 响应中提取
+
+**配置示例：**
+```json
+{
+  "api": {
+    "default": {
+      "meta_apis": "https://example.com/api/meta",
+      "api_categories": "https://example.com/api/categories",
+      "display_name": "示例API"
+    }
+  },
+  "common": {
+    "enable_standard_response": "true"
+  }
+}
+```
+
+### headers 配置
+
+`headers` 配置用于为 API 插件添加自定义 HTTP 请求头。该配置在空间配置的 `uniform_api` 配置中的每个 API 配置项下设置。
+
+**配置位置：**
+在空间配置的 `uniform_api` 配置中，通过 `api.{api_key}.headers` 字段设置。
+
+**配置格式：**
+`headers` 是一个字典类型，key 为 HTTP 头名称，value 为 HTTP 头值。value 支持变量替换。
+
+**支持的变量：**
+在 headers 配置中，可以使用以下变量，系统会在请求时自动替换：
+- `${_system.operator}`：操作人（创建任务的用户）
+- `${_system.task_id}`：任务ID
+- `${_system.task_name}`：任务名称
+- `${_system.space_id}`：空间ID
+- `${_system.scope_type}`：作用域类型
+- `${_system.scope_value}`：作用域值
+
+**变量替换规则：**
+- 变量可以在 header value 的任意位置使用
+- 如果 header value 中包含多个变量，所有变量都会被替换
+- 如果变量不存在，将使用空字符串替换
+
+**headers 合并规则：**
+- 系统会先生成默认的 API 网关认证 headers（包含 `bk_app_code`、`bk_app_secret` 等）
+- 然后合并配置的 headers，配置的 headers 优先级更高，会覆盖同名的默认 headers
+- 如果配置的 headers 中某个 key 在默认 headers 中不存在，则添加该 header
+
+**配置示例：**
+```json
+{
+  "api": {
+    "default": {
+      "meta_apis": "https://example.com/api/meta",
+      "api_categories": "https://example.com/api/categories",
+      "display_name": "示例API",
+      "headers": {
+        "X-Custom-Header": "custom_value",
+        "X-Operator": "${_system.operator}",
+        "X-Task-Id": "${_system.task_id}",
+        "X-Space-Id": "${_system.space_id}"
+      }
+    }
+  }
+}
+```
+
+**注意事项：**
+- headers 配置会应用到该 API 配置下的所有接口调用（包括触发接口和轮询接口）
+- 如果配置了多个 API（通过不同的 api_key），每个 API 可以配置不同的 headers
+- 系统会根据请求的 URL 域名匹配对应的 API 配置，如果无法匹配，则使用第一个 API 配置或默认配置
+
 ## 让 API 插件支持请求后轮询
 
 **背景**
@@ -307,17 +402,17 @@ sequenceDiagram
 这里以一个接入方 (Access Platform) 提供 API 接口并调用 Job 平台任务为例：
 
 ``` mermaid
-sequenceDiagram 
+sequenceDiagram
     participant a as BKFlow
     participant b as Access Platform
     participant c as Job
-    
+
     Note over a, c: request API to trigger job task execution
     a->>b: trigger a task (request url in meta api)
     b->>c: create and start a task in job
     c->>b: task_tag
     b->>a: task_tag
-    
+
     Note over a, c: request polling API for task status
     a->>b: request polling url with task_tag
     b->>c: request job task status with task_tag
@@ -377,15 +472,15 @@ sequenceDiagram
 这里以一个接入方 (Access Platform) 提供 API 接口并调用 Job 平台任务为例：
 
 ``` mermaid
-sequenceDiagram 
+sequenceDiagram
     participant a as BKFlow
     participant b as Access Platform
     participant c as Job
-    
+
     Note over a, c: request API to trigger job task execution
     a->>b: trigger a task (request url in meta api) with node_id
     b->>c: create and start a task in job
-    
+
     Note over a, c: callback when job finished
     c->>b: job task finished callback
     b->>a: node_callback with node_id and data
