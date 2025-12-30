@@ -152,11 +152,19 @@ def execute_get_user_info(request):
             }
         )
 
+    # 获取请求的header信息
+    headers = {}
+    for key, value in request.headers.items():
+        # 过滤掉一些敏感或内部header
+        if key.lower() not in ["cookie", "authorization", "x-csrftoken"]:
+            headers[key] = value
+
     # 模拟返回用户信息
     user_data = {
         "user_id": f"user_{username}_001",
         "username": username,
         "email": f"{username}@example.com",
+        "request_headers": headers,  # 返回请求的header信息
     }
 
     if include_details:

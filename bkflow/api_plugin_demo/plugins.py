@@ -166,6 +166,12 @@ def get_api_detail(api_id, request=None):
                     "desc": "用户邮箱地址",
                     "type": "string",
                 },
+                {
+                    "key": "request_headers",
+                    "name": "请求Header信息",
+                    "desc": "当前请求的Header信息（已过滤敏感信息）",
+                    "type": "object",
+                },
             ],
         }
 
