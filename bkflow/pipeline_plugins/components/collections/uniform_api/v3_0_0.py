@@ -373,7 +373,7 @@ class UniformAPIService(BKFlowBaseService):
             api_data = convert_dict_value(api_data)
 
         # 获取凭证信息
-        self.logger.info(f"[debug credentials] =====>{parent_data}")
+        self.logger.info(f"[debug credentials] =====>{data}")
         app_code, app_secret = self._get_credential(space_id, scope_type, scope_id, parent_data, space_configs)
         if not app_code or not app_secret:
             message = "不存在调用凭证"
