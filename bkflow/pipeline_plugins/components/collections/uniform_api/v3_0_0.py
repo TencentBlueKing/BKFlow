@@ -239,18 +239,18 @@ class UniformAPIService(BKFlowBaseService):
                 if isinstance(credential_dict, dict):
                     app_code = credential_dict.get("bk_app_code")
                     app_secret = credential_dict.get("bk_app_secret")
-                    self.logger.info(f"using user-provided credential: {api_gateway_credential_name}")
+                    self.logger.info(f"[uniform_api] using user-provided credential: {api_gateway_credential_name}")
                 else:
-                    self.logger.warning(f"Credential {api_gateway_credential_name} is not a valid dict")
+                    self.logger.warning(f"[uniform_api] Credential {api_gateway_credential_name} is not a valid dict")
         except Exception as e:
-            self.logger.warning(f"Failed to get api_gateway_credential_name config: {e}")
+            self.logger.warning(f"[uniform_api] Failed to get api_gateway_credential_name config: {e}")
 
         # 如果用户没有提供凭证或解析失败，使用原来的逻辑
         if not app_code or not app_secret:
             credential_data = space_configs.get("credential")
             if credential_data:
                 app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
-                self.logger.info(f"using credential config app_code: {app_code}")
+                self.logger.info(f"[uniform_api] using credential config app_code: {app_code}")
             elif settings.USE_BKFLOW_CREDENTIAL:
                 self.logger.info("using bkflow credential")
                 app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
@@ -373,6 +373,7 @@ class UniformAPIService(BKFlowBaseService):
             api_data = convert_dict_value(api_data)
 
         # 获取凭证信息
+        self.logger.info(f"[debug credentials] =====>{parent_data}")
         app_code, app_secret = self._get_credential(space_id, scope_type, scope_id, parent_data, space_configs)
         if not app_code or not app_secret:
             message = "不存在调用凭证"
