@@ -175,7 +175,7 @@ class UniformAPIService(BKFlowBaseService):
         except Exception:
             url_domain = ""
 
-        for api_key, api_model in validated_config.api.items():
+        for __, api_model in validated_config.api.items():
             if hasattr(api_model, "meta_apis") and api_model.meta_apis:
                 try:
                     meta_domain = urlparse(api_model.meta_apis).netloc
@@ -389,6 +389,8 @@ class UniformAPIService(BKFlowBaseService):
             # 合并headers，配置的headers优先级更高
             headers.update(rendered_headers)
             self.logger.info(handle_plain_log(f"[uniform_api] merged custom headers: {rendered_headers}"))
+        else:
+            self.logger.info(handle_plain_log(f"[uniform_api] no headers config found for url: {url}"))
 
         try:
             self.logger.info(handle_plain_log(f"[uniform_api] request url: {url}, method: {method}, data: {api_data}"))
