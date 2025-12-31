@@ -1,6 +1,6 @@
 <template>
   <stageCanvas
-    v-if="templateId || instanceId"
+    v-if="templateId||instanceId"
     ref="subProcessCanvas"
     :editable="editable"
     :is-execute="isStageCanvasTaskExecute"
@@ -21,132 +21,132 @@
     @handleNode="handleNode"
     @handleOperateNode="handleOperateNode" />
 </template>
-<script lang="js">
-import stageCanvas from './index.vue';
-import axios from 'axios';
-export default {
-  name: 'SubStageCanvas',
-  components: {
-    stageCanvas,
-  },
-  props: {
-    editable: {
-      type: Boolean,
-      default: false,
+  <script lang="js">
+  import stageCanvas from './index.vue';
+  import axios from 'axios';
+   export default {
+    name: 'SubStageCanvas',
+    components: {
+      stageCanvas,
     },
-    isExecute: {
-      type: Boolean,
-      default: false,
+    props: {
+      editable: {
+        type: Boolean,
+        default: false,
+      },
+      isExecute: {
+        type: Boolean,
+        default: false,
+      },
+      templateId: {
+          type: [Number, String],
+          default: '',
+        },
+      instanceId: {
+          type: [Number, String],
+          default: '',
+        },
+      spaceId: {
+        type: [Number, String],
+        default: '',
+      },
+      overallState: {
+        type: String,
+        default: '',
+      },
+      pipelineTree: {
+        type: Object,
+        default: () => ({}),
+      },
+      isStageCanvasTaskExecute: {
+        type: Boolean,
+        default: false,
+      },
+      activeNodeId: {
+        type: String,
+        default: null,
+      },
     },
-    templateId: {
-      type: [Number, String],
-      default: '',
-    },
-    instanceId: {
-      type: [Number, String],
-      default: '',
-    },
-    spaceId: {
-      type: [Number, String],
-      default: '',
-    },
-    overallState: {
-      type: String,
-      default: '',
-    },
-    pipelineTree: {
-      type: Object,
-      default: () => ({}),
-    },
-    isStageCanvasTaskExecute: {
-      type: Boolean,
-      default: false,
-    },
-    activeNodeId: {
-      type: String,
-      default: null,
-    },
-  },
-  data() {
-    return {
+    data() {
+      return {
 
-      loadedTemplate: false,
-      pluginsDetail: { component: {}, uniform_api: {}, blueking: {} },
-    };
-  },
-  computed: {
-    stageCanvasData() {
-      return this.pipelineTree.stage_canvas_data || [];
+        loadedTemplate: false,
+        pluginsDetail: { component: {}, uniform_api: {}, blueking: {} },
+      };
     },
-    activities() {
-      return this.pipelineTree.activities || {};
+    computed: {
+      stageCanvasData() {
+        return this.pipelineTree.stage_canvas_data || [];
+      },
+      activities() {
+        return this.pipelineTree.activities || {};
+      },
+      activeNode() {
+        if (this.activeNodeId) {
+          return this.activities[this.activeNodeId];
+        }
+        return null;
+      },
     },
-    activeNode() {
-      if (this.activeNodeId) {
-        return this.activities[this.activeNodeId];
-      }
-      return null;
+    watch: {
+       async templateId() {
+        if (!this.instanceId) {
+          const res = await this.getTemplateDetail();
+          this.updatePipelineTree(res.data.data.pipeline_tree);
+          this.loadedTemplate = true;
+          this.$refs.subProcessCanvas.refresh();
+        } else {
+          this.$refs.subProcessCanvas.refreshPluginIcon();
+        }
+      },
+      async instanceId() {
+        if (this.instanceId) {
+          this?.setRefreshTaskStageCanvasData();
+        }
+      },
     },
-  },
-  watch: {
-    async templateId() {
-      if (!this.instanceId) {
-        const res = await this.getTemplateDetail();
-        console.log('SubStageCanvas.vue_Line:95', res.data.data.pipeline_tree);
-        this.updatePipelineTree(res.data.data.pipeline_tree);
-        this.loadedTemplate = true;
-        this.$refs.subProcessCanvas.refresh();
-      } else {
-        this.$refs.subProcessCanvas.refreshPluginIcon();
-      }
+    methods: {
+      updatePipelineTree(val) {
+        Object.assign(this.pipelineTree, val);
+      },
+      updateStageCanvasData(val) {
+        this.stageCanvasData = val;
+      },
+      setPluginsDetail(value) {
+        Object.assign(this.pluginsDetail, value);
+      },
+      openStepNodeEdit(id) {
+        this.$emit('onShowNodeConfig', id);
+      },
+      onUpdateNodeInfo() {
+        // 外部依赖不能删
+      },
+      setActiveItem() {
+        // this.activeNode = node;
+      },
+      cancelJobAndStageEidtSld() {
+        this.setActiveItem(null);
+      },
+      hadEditedJobAndStage() {
+        this.refresh();
+      },
+      handleNode() {
+        // this.$emit('onShowNodeConfig', node.id);
+      },
+      handleOperateNode(type, node) {
+        this.$emit('onSubflowNodeClick', node.id);
+      },
+      setRefreshTaskStageCanvasData() {
+        this.$refs.subProcessCanvas?.setRefreshTaskStageCanvasData();
+      },
+      async getTemplateDetail() {
+        return await axios.post(`/api/template/${this.templateId}/preview_task_tree/`, {
+          is_all_nodes: true,
+          templateId: this.templateId,
+        });
+      },
     },
-    async instanceId() {
-      if (this.instanceId) {
-        this?.setRefreshTaskStageCanvasData();
-      }
-    },
-  },
-  methods: {
-    updatePipelineTree(val) {
-      Object.assign(this.pipelineTree, val);
-    },
-    updateStageCanvasData(val) {
-      this.stageCanvasData = val;
-    },
-    setPluginsDetail(value) {
-      Object.assign(this.pluginsDetail, value);
-    },
-    openStepNodeEdit(id) {
-      this.$emit('onShowNodeConfig', id);
-    },
-    onUpdateNodeInfo() {
-      // 外部依赖不能删
-    },
-    setActiveItem() {
-      // this.activeNode = node;
-    },
-    cancelJobAndStageEidtSld() {
-      this.setActiveItem(null);
-    },
-    hadEditedJobAndStage() {
-      this.refresh();
-    },
-    handleNode() {
-      // this.$emit('onShowNodeConfig', node.id);
-    },
-    handleOperateNode(type, node) {
-      this.$emit('onSubflowNodeClick', node.id);
-    },
-    setRefreshTaskStageCanvasData() {
-      this.$refs.subProcessCanvas?.setRefreshTaskStageCanvasData();
-    },
-    async getTemplateDetail() {
-      return await axios.post(`/api/template/${this.templateId}/preview_task_tree/`, {
-        is_all_nodes: true,
-        templateId: this.templateId,
-      });
-    },
-  },
-};
-</script>
-<style lang="scss" scoped></style>
+   };
+  </script>
+  <style lang="scss" scoped>
+  </style>
