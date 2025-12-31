@@ -20,9 +20,9 @@ from functools import wraps
 
 from blueapps.account.decorators import login_exempt
 from django.conf import settings
-from django.db.models import Subquery
+from django.db.models import Count, Subquery
 from django.utils.decorators import method_decorator
-from django_filters import FilterSet, CharFilter
+from django_filters import CharFilter, FilterSet
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins, status
@@ -49,6 +49,7 @@ from bkflow.task.models import (
     EngineSpaceConfigValueType,
     PeriodicTask,
     TaskInstance,
+    TaskLabelRelation,
     TaskMockData,
     TaskOperationRecord,
     TaskLabelRelation,
@@ -62,6 +63,7 @@ from bkflow.task.serializers import (
     EngineSpaceConfigSerializer,
     GetEngineSpaceConfigSerializer,
     GetTaskOperationRecordSerializer,
+    LabelRefSerializer,
     NodeSnapshotQuerySerializer,
     NodeSnapshotResponseSerializer,
     PeriodicTaskSerializer,
@@ -78,7 +80,8 @@ from bkflow.utils.views import SimpleGenericViewSet
 
 
 class TaskInstanceFilterSet(FilterSet):
-    label = CharFilter(method='filter_by_labels')
+    label = CharFilter(method="filter_by_labels")
+
     class Meta:
         model = TaskInstance
         fields = {
@@ -105,16 +108,14 @@ class TaskInstanceFilterSet(FilterSet):
         URL Query Param 示例: ?label=1,2,3
         """
         try:
-            label_ids = [int(lid) for lid in value.split(',')]
+            label_ids = [int(lid) for lid in value.split(",")]
         except ValueError:
             return queryset.none()
 
         if not label_ids:
             return queryset
 
-        task_ids_subquery = TaskLabelRelation.objects.filter(
-            label_id__in=label_ids
-        ).values('task_id')
+        task_ids_subquery = TaskLabelRelation.objects.filter(label_id__in=label_ids).values("task_id")
 
         return queryset.filter(id__in=Subquery(task_ids_subquery))
 
@@ -190,11 +191,30 @@ class TaskInstanceViewSet(
         TaskLabelRelation.objects.set_labels(task_instance.id, label_ids)
         return Response(label_ids)
 
+    @action(detail=False, methods=["get"], serializer_class=LabelRefSerializer)
+    def get_task_label_ref_count(self, request, *args, **kwargs):
+        """获取标签引用数量"""
+        ser = LabelRefSerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        validated_params = ser.validated_data
+        label_ids = validated_params["label_ids"].split(",")
+        queryset = (
+            TaskLabelRelation.objects.filter(label_id__in=label_ids).values("label_id").annotate(count=Count("id"))
+        )
+        label_template_count_map = {item["label_id"]: item["count"] for item in queryset}
+        result = {}
+        for label_id in label_ids:
+            result[label_id] = label_template_count_map.get(int(label_id), 0)
+
+        return Response(result)
+
     @record_operation(RecordType.task.name, TaskOperationType.create.name, TaskOperationSource.api.name)
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        label_ids = serializer.validated_data.pop("label_ids", [])
         instance = TaskInstance.objects.create_instance(**serializer.validated_data)
+        TaskLabelRelation.objects.set_labels(instance.id, label_ids)
         new_serializer = TaskInstanceSerializer(instance)
         headers = self.get_success_headers(new_serializer.data)
         response_data = new_serializer.data

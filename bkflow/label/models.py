@@ -1,7 +1,7 @@
 from collections import defaultdict
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
-from django.core.exceptions import ValidationError
 
 
 class LabelManager(models.Manager):
@@ -18,7 +18,7 @@ class LabelManager(models.Manager):
         # filters = Q(parent_id__isnull=True) | Q(parent_id=-1)
         if label_scope:
             filters["label_scope__contains"] = label_scope
-        return self.filter(** filters).order_by("name")
+        return self.filter(**filters).order_by("name")
 
     def get_sub_labels(self, parent_id, recursive=False):
         """
@@ -30,7 +30,7 @@ class LabelManager(models.Manager):
         if not recursive:
             # 非递归：直接过滤parent_id等于目标ID
             return self.filter(parent_id=parent_id).order_by("name")
-        
+
         # 递归查询：手动遍历子标签，累计所有子孙
         sub_labels = list(self.filter(parent_id=parent_id).order_by("name"))
         for label in sub_labels:
@@ -55,14 +55,10 @@ class LabelManager(models.Manager):
         labels = Label.objects.filter(id__in=label_ids)
         labels_map = {}
         for label in labels:
-            label_dict = {
-                "id": label.id,
-                "name": label.name,
-                "color": label.color,
-                "full_path": label.full_path
-            }
+            label_dict = {"id": label.id, "name": label.name, "color": label.color, "full_path": label.full_path}
             labels_map[label.id] = label_dict
         return labels_map
+
 
 class Label(models.Model):
     LABEL_SCOPE_CHOICES = (
@@ -79,17 +75,13 @@ class Label(models.Model):
     is_default = models.BooleanField(_("默认标签"), default=False, help_text="是否是默认标签")
     color = models.CharField(_("标签颜色"), max_length=7, default="#dcffe2", help_text="标签颜色值（如#ffffff）")
     description = models.CharField(_("标签描述"), max_length=255, blank=True, null=True, help_text="标签描述")
-    label_scope = models.JSONField(verbose_name=_("标签范围"), default="template", help_text="标签范围（支持多选，如['task', 'common']）")
-    
-    # 核心修改：用IntegerField存储父标签ID，替代外键
-    parent_id = models.IntegerField(
-        _("父标签ID"), 
-        null=True, 
-        blank=True, 
-        default=None, 
-        help_text="父标签ID（根标签填null或留空）"
+    label_scope = models.JSONField(
+        verbose_name=_("标签范围"), default="template", help_text="标签范围（支持多选，如['task', 'common']）"
     )
-    
+
+    # 核心修改：用IntegerField存储父标签ID，替代外键
+    parent_id = models.IntegerField(_("父标签ID"), null=True, blank=True, default=None, help_text="父标签ID（根标签填null或留空）")
+
     created_at = models.DateTimeField(_("创建时间"), auto_now_add=True)
     updated_at = models.DateTimeField(_("更新时间"), auto_now=True)
 
@@ -126,7 +118,6 @@ class Label(models.Model):
                 raise ValidationError(_("父标签不存在（父ID：{}）".format(self.parent_id)))
             if self.space_id != parent_label.space_id:
                 raise ValidationError(_("子标签的空间ID必须与父标签一致"))
-        
         # 2. 禁止循环引用（如A→B→C→A）
         if self.parent_id:
             current_parent_id = self.parent_id
@@ -165,6 +156,7 @@ class Label(models.Model):
         """获取所有子标签（手动过滤parent_id）"""
         return Label.objects.get_sub_labels(parent_id=self.id, recursive=recursive)
 
+
 class BaseLabelRelationManager(models.Manager):
     """
     通用的标签关系管理器
@@ -180,33 +172,27 @@ class BaseLabelRelationManager(models.Manager):
         """
         # 1. 构造查询参数，例如: {"template_id": 1} 或 {"task_id": 1}
         filter_kwargs = {self.fk_field: obj_id}
-        
+
         # 2. 获取已有标签
         existing_labels = self.filter(**filter_kwargs).values_list("label_id", flat=True)
-        
+
         # 3. 计算差异
         existing_set = set(existing_labels)
         new_set = set(label_ids)
-        
+
         add_ids = list(new_set - existing_set)
         remove_ids = list(existing_set - new_set)
-        
+
         # 4. 执行删除
         if remove_ids:
             # 构造删除查询: template_id=1, label_id__in=[...]
-            delete_kwargs = {
-                self.fk_field: obj_id, 
-                "label_id__in": remove_ids
-            }
+            delete_kwargs = {self.fk_field: obj_id, "label_id__in": remove_ids}
             self.filter(**delete_kwargs).delete()
-            
+
         # 5. 执行批量添加
         if add_ids:
             # 动态创建模型实例: TaskLabelRelation(task_id=1, label_id=xx)
-            new_relations = [
-                self.model(**{self.fk_field: obj_id, "label_id": label_id})
-                for label_id in add_ids
-            ]
+            new_relations = [self.model(**{self.fk_field: obj_id, "label_id": label_id}) for label_id in add_ids]
             self.bulk_create(new_relations)
 
     def fetch_labels(self, obj_id):
@@ -215,20 +201,18 @@ class BaseLabelRelationManager(models.Manager):
         """
         filter_kwargs = {self.fk_field: obj_id}
         label_ids = self.filter(**filter_kwargs).distinct().values_list("label_id", flat=True)
-        
         labels = Label.objects.filter(id__in=label_ids)
-        
         labels_list_of_dicts = []
-        
+
         for label in labels:
             label_dict = {
                 "id": label.id,
                 "name": label.name,
                 "color": label.color,
             }
-            label_dict["full_path"] = label.full_path 
+            label_dict["full_path"] = label.full_path
             labels_list_of_dicts.append(label_dict)
-            
+
         return labels_list_of_dicts
 
     def fetch_objects_labels(self, obj_ids, label_fields=("name", "color")):
@@ -238,24 +222,20 @@ class BaseLabelRelationManager(models.Manager):
         """
         # 1. 构造 __in 查询，例如 template_id__in=[1,2,3]
         filter_kwargs = {f"{self.fk_field}__in": obj_ids}
-        
         # 2. 获取所有关系
         relations = self.filter(**filter_kwargs).values(self.fk_field, "label_id")
-        
         if not relations:
             return {}
-
         # 3. 提取标签详情
         label_ids = {rel["label_id"] for rel in relations}
         labels_map = {
             label.id: {
                 "id": label.id,
                 **{field: getattr(label, field) for field in label_fields},
-                "full_path": label.full_path 
+                "full_path": label.full_path,
             }
             for label in Label.objects.filter(id__in=label_ids)
         }
-        
         # 4. 组装结果
         result = defaultdict(list)
         for rel in relations:
@@ -263,7 +243,6 @@ class BaseLabelRelationManager(models.Manager):
             lid = rel["label_id"]
             if lid in labels_map:
                 result[oid].append(labels_map[lid])
-        
         return dict(result)
 
 

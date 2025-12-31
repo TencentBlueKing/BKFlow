@@ -377,3 +377,6 @@ class TemplateSnapshotSerializer(serializers.ModelSerializer):
             "operator",
             "md5sum",
         ]
+
+class TemplateUpdateLabelSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), required=True, child=serializers.IntegerField())

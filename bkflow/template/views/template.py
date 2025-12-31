@@ -100,6 +100,7 @@ from bkflow.template.serializers.template import (
     TemplateReleaseSerializer,
     TemplateSerializer,
     TemplateSnapshotSerializer,
+    TemplateUpdateLabelSerializer,
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
@@ -475,6 +476,14 @@ class TemplateViewSet(UserModelViewSet):
         data = deepcopy(serializer.data)
         data["labels"] = labels
         return Response(data)
+
+    @swagger_auto_schema(method="POST", operation_description="更新标签", request_body=TemplateUpdateLabelSerializer)
+    @action(detail=True, methods=["post"], url_path="update_labels")
+    def update_labels(self, request, *args, **kwargs):
+        task_instance = self.get_object()
+        label_ids = request.data.get("label_ids", [])
+        TemplateLabelRelation.objects.set_labels(task_instance.id, label_ids)
+        return Response(label_ids)
 
     @action(methods=["POST"], detail=False)
     def analysis_constants_ref(self, request, *args, **kwargs):
