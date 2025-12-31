@@ -140,7 +140,10 @@
         this.$refs.subProcessCanvas?.setRefreshTaskStageCanvasData();
       },
       async getTemplateDetail() {
-        return await axios.get(`/api/template/${this.templateId}/`);
+        return await axios.post(`/api/template/${this.templateId}/preview_task_tree/`, {
+          is_all_nodes: true,
+          templateId: this.templateId,
+        });
       },
     },
    };
