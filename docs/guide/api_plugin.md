@@ -70,6 +70,15 @@ sequenceDiagram
 
 1. 输入：GET方法，分页参数采用limit + offset的协议，需要支持根据 scope_type、scope_value 和 分类进行过滤，形如：list_mata_api/?limit=50&offset=0&scope_type=xx&scope_value=xxx&category=xxx。
 2. 输出：接口返回标准三段结构，result为True时展示接口列表，False时展示错误提示
+
+**apis 数组中每个对象支持的字段：**
+- `id`（必填）：API 的唯一标识
+- `name`（必填）：API 的名称
+- `meta_url`（必填）：拉取 API 详细信息的 URL
+- `version`（可选）：指定使用的uniform_api插件版本
+  - 默认值为 `"v2.0.0"`，如果不指定version字段，系统会使用v2.0.0版本
+  - 如需使用新特性（如 `enable_standard_response` 配置和 `headers` 配置），需要指定 `"v3.0.0"`
+  - 支持的版本值：`"v2.0.0"`、`"v3.0.0"`
 ``` json
 {
     "result": true,
@@ -80,7 +89,8 @@ sequenceDiagram
             {
                 "id": "api1",
                 "name": "API1",
-                "meta_url": "xxxx" // 拉取 api 信息的 url
+                "meta_url": "xxxx", // 拉取 api 信息的 url
+                "version": "v3.0.0" // 可选，指定使用的uniform_api插件版本，默认为 "v2.0.0"，如需使用新特性（enable_standard_response、headers配置）需指定 "v3.0.0"
             }
         ]
     }
@@ -296,9 +306,13 @@ sequenceDiagram
 
 ## API 插件配置说明
 
+**版本要求：** 以下配置项（`enable_standard_response` 和 `headers`）需要在使用 uniform_api 插件时指定 `version` 字段为 `"v3.0.0"` 才能生效。如果未指定 `version` 字段或指定为 `"v2.0.0"`，这些配置将不会生效。
+
 ### enable_standard_response 配置
 
 `enable_standard_response` 配置用于控制 API 插件对响应格式的判断方式。该配置在空间配置的 `uniform_api` 配置中的 `common` 部分设置。
+
+**版本要求：** 此配置仅在 `version` 字段为 `"v3.0.0"` 时生效。
 
 **配置位置：**
 在空间配置的 `uniform_api` 配置中，通过 `common.enable_standard_response` 字段设置。
@@ -339,6 +353,8 @@ sequenceDiagram
 ### headers 配置
 
 `headers` 配置用于为 API 插件添加自定义 HTTP 请求头。该配置在空间配置的 `uniform_api` 配置中的每个 API 配置项下设置。
+
+**版本要求：** 此配置仅在 `version` 字段为 `"v3.0.0"` 时生效。
 
 **配置位置：**
 在空间配置的 `uniform_api` 配置中，通过 `api.{api_key}.headers` 字段设置。
@@ -438,25 +454,56 @@ sequenceDiagram
     "polling": {
         "url": "{{polling_url}}",  // 状态的轮询接口，必须接收 get 方法，需要接收参数 task_tag，形如 url/?task_tag={task_tag_key}
         "task_tag_key": "task_tag",  // {{api_url}} API 响应中可以用来作为任务标识的字段，执行过程中会用对应字段的值填入后进行请求，如果响应存在多级字段，可以通过 `.` 进行拼接，如 data.task_tag
-        "success_tag": {"key": "status", "value": "success"},  // polling_url 响应中用于识别状态成功的 key 和 value（value 只支持字符串和数字类型)
-        "fail_tag": {"key": "status", "value": "fail"},  // polling_url 响应中用于识别状态失败的 key 和 value（value 只支持字符串和数字类型)
-        "running_tag": {"key": "status", "value": "running"}  // polling_url 响应中用于识别状态运行中的 key 和 value（value 只支持字符串和数字类型)
+        "success_tag": {
+            "key": "status",  // polling_url 响应中用于识别状态成功的字段路径（支持 jmespath 语法）
+            "value": "success",  // 状态成功的值（只支持字符串和数字类型）
+            "data_key": "data.result"  // 可选，成功时从响应中提取输出数据的字段路径（支持 jmespath 语法），提取的数据会设置到节点的 data 输出中
+        },
+        "fail_tag": {
+            "key": "status",  // polling_url 响应中用于识别状态失败的字段路径（支持 jmespath 语法）
+            "value": "fail",  // 状态失败的值（只支持字符串和数字类型）
+            "msg_key": "error.message"  // 可选，失败时从响应中提取错误消息的字段路径（支持 jmespath 语法），提取的消息会设置到节点的 ex_data 输出中
+        },
+        "running_tag": {
+            "key": "status",  // polling_url 响应中用于识别状态运行中的字段路径（支持 jmespath 语法）
+            "value": "running"  // 状态运行中的值（只支持字符串和数字类型）
+        }
     },
     ...
 }
 
-// 从轮询返回具体的 task 相关信息时 通过 result 字段标明响应是否成功
 // {{api_url}} api response
 {
    "result": true,
    "task_tag": 1234
 }
 
-// {{polling_url}} api response
+// {{polling_url}} api response - 成功状态示例
 {
     "result": true,
     "status": "success",
+    "data": {
+        "result": {
+            "job_id": 5678,
+            "output": "任务执行成功",
+            "logs": ["log1", "log2"]
+        }
+    }
 }
+// 当轮询返回上述响应时，如果配置了 success_tag.data_key 为 "data.result"，
+// 则节点的 data 输出会被设置为：{"job_id": 5678, "output": "任务执行成功", "logs": ["log1", "log2"]}
+
+// {{polling_url}} api response - 失败状态示例
+{
+    "result": true,
+    "status": "fail",
+    "error": {
+        "message": "任务执行失败：资源不足"
+    }
+}
+// 当轮询返回上述响应时，如果配置了 fail_tag.msg_key 为 "error.message"，
+// 则节点的 ex_data 输出会被设置为："任务执行失败：资源不足"
+// 如果没有配置 msg_key，则使用默认错误消息
 ```
 
 ## 让 API 插件支持请求后回调
@@ -502,17 +549,60 @@ sequenceDiagram
       "url": "{{api_url}}",  // 触发任务的 url
       "methods": ["POST"],
       "callback": {
-          "success_tag": {"key": "status", "value": "success"},  // callback_url 响应中用于识别状态成功的 key 和 value（value 只支持字符串和数字类型)
-          "fail_tag": {"key": "status", "value": "fail"},  // callback_url 响应中用于识别状态失败的 key 和 value（value 只支持字符串和数字类型)
+          "success_tag": {
+              "key": "status",  // callback 数据中用于识别状态成功的字段路径（支持 jmespath 语法）
+              "value": "success",  // 状态成功的值（只支持字符串和数字类型）
+              "data_key": "result.data"  // 可选，成功时从回调数据中提取输出数据的字段路径（支持 jmespath 语法），提取的数据会设置到节点的 data 输出中
+          },
+          "fail_tag": {
+              "key": "status",  // callback 数据中用于识别状态失败的字段路径（支持 jmespath 语法）
+              "value": "fail",  // 状态失败的值（只支持字符串和数字类型）
+              "msg_key": "error.message"  // 可选，失败时从回调数据中提取错误消息的字段路径（支持 jmespath 语法），提取的消息会设置到节点的 ex_data 输出中
+          }
       },
       ...
   },
   "message": ""
 }
 
-// callback request data
+// callback request data - 成功状态示例
 {
     "status": "success",
+    "result": {
+        "data": {
+            "job_id": 5678,
+            "output": "任务执行成功",
+            "logs": ["log1", "log2"]
+        }
+    }
 }
+// 当回调数据为上述内容时，如果配置了 success_tag.data_key 为 "result.data"，
+// 则节点的 data 输出会被设置为：{"job_id": 5678, "output": "任务执行成功", "logs": ["log1", "log2"]}
 
+// callback request data - 失败状态示例
+{
+    "status": "fail",
+    "error": {
+        "message": "任务执行失败：资源不足"
+    }
+}
+// 当回调数据为上述内容时，如果配置了 fail_tag.msg_key 为 "error.message"，
+// 则节点的 ex_data 输出会被设置为："任务执行失败：资源不足"
+// 如果没有配置 msg_key，则使用默认错误消息
 ```
+
+**数据同步说明：**
+
+1. **轮询模式数据同步**：
+   - 当轮询接口返回成功状态时，如果配置了 `success_tag.data_key`，系统会使用 jmespath 从响应中提取数据并设置到节点的 `data` 输出中
+   - 当轮询接口返回失败状态时，如果配置了 `fail_tag.msg_key`，系统会使用 jmespath 从响应中提取错误消息并设置到节点的 `ex_data` 输出中；如果没有配置 `msg_key`，则使用默认的错误消息
+
+2. **回调模式数据同步**：
+   - 当回调数据表示成功状态时，如果配置了 `success_tag.data_key`，系统会使用 jmespath 从回调数据中提取数据并设置到节点的 `data` 输出中
+   - 当回调数据表示失败状态时，如果配置了 `fail_tag.msg_key`，系统会使用 jmespath 从回调数据中提取错误消息并设置到节点的 `ex_data` 输出中；如果没有配置 `msg_key`，则使用默认的错误消息
+
+3. **jmespath 语法支持**：
+   - `data_key` 和 `msg_key` 都支持 jmespath 语法，可以提取嵌套字段
+   - 例如：`"data.result"` 可以提取 `{"data": {"result": "value"}}` 中的 `"value"`
+   - 例如：`"items[0].name"` 可以提取数组第一个元素的 name 字段
+
