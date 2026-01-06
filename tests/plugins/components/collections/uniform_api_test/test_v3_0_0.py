@@ -38,6 +38,9 @@ class UniformAPIComponentTest(TestCase, ComponentTestMixin):
             STANDARD_RESPONSE_POLLING_FAILURE_CASE,
             NON_STANDARD_RESPONSE_SUCCESS_CASE,
             NON_STANDARD_RESPONSE_FAILURE_CASE,
+            CREDENTIAL_KEY_USER_PROVIDED_CASE,
+            CREDENTIAL_KEY_SPACE_CONFIG_CASE,
+            API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CASE,
         ]
 
 
@@ -343,6 +346,155 @@ NON_STANDARD_RESPONSE_FAILURE_CASE = ComponentTestCase(
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.UniformAPIClient",
             return_value=NON_STANDARD_RESPONSE_FAILURE_CLIENT,
+        ),
+    ],
+)
+
+# 凭证选择测试用例
+CREDENTIAL_KEY_USER_PROVIDED_SPACE_CONFIG = {
+    "result": True,
+    "message": "success",
+    "data": {
+        "configs": {
+            "uniform_api": {"enable_standard_response": True},
+            "credential": {"bk_app_code": "space_app", "bk_app_secret": "space_secret"},
+        }
+    },
+}
+
+CREDENTIAL_KEY_USER_PROVIDED_API_RESPONSE = MockAPIResponse(
+    status_code=200, json_resp={"data": {"task_id": "12345"}}, message="success", result=True
+)
+
+CREDENTIAL_KEY_USER_PROVIDED_CLIENT = MagicMock()
+CREDENTIAL_KEY_USER_PROVIDED_CLIENT.get_space_infos = MagicMock(return_value=CREDENTIAL_KEY_USER_PROVIDED_SPACE_CONFIG)
+CREDENTIAL_KEY_USER_PROVIDED_CLIENT.gen_default_apigw_header = MagicMock(
+    return_value={"X-Bkapi-Authorization": "mock_token"}
+)
+CREDENTIAL_KEY_USER_PROVIDED_CLIENT.request = MagicMock(return_value=CREDENTIAL_KEY_USER_PROVIDED_API_RESPONSE)
+
+CREDENTIAL_KEY_USER_PROVIDED_CASE = ComponentTestCase(
+    name="credential_key_user_provided_case",
+    inputs={
+        **API_INPUT_DATA,
+        "uniform_api_credential_key": "custom_credential",
+    },
+    parent_data={
+        **TEST_PARENT_DATA,
+        "credentials": {
+            "custom_credential": {
+                "bk_app_code": "user_app_code",
+                "bk_app_secret": "user_app_secret",
+            }
+        },
+    },
+    execute_assertion=ExecuteAssertion(
+        success=True, outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}}
+    ),
+    schedule_assertion=None,
+    patchers=[
+        Patcher(
+            target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
+            return_value=CREDENTIAL_KEY_USER_PROVIDED_CLIENT,
+        ),
+        Patcher(
+            target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.UniformAPIClient",
+            return_value=CREDENTIAL_KEY_USER_PROVIDED_CLIENT,
+        ),
+    ],
+)
+
+# credential_key 匹配空间配置的 api_gateway_credential_name
+CREDENTIAL_KEY_SPACE_CONFIG_SPACE_CONFIG = {
+    "result": True,
+    "message": "success",
+    "data": {
+        "configs": {
+            "uniform_api": {"enable_standard_response": True},
+            "api_gateway_credential_name": "custom_credential",
+            "credential": {"bk_app_code": "space_app", "bk_app_secret": "space_secret"},
+        }
+    },
+}
+
+CREDENTIAL_KEY_SPACE_CONFIG_CLIENT = MagicMock()
+CREDENTIAL_KEY_SPACE_CONFIG_CLIENT.get_space_infos = MagicMock(return_value=CREDENTIAL_KEY_SPACE_CONFIG_SPACE_CONFIG)
+CREDENTIAL_KEY_SPACE_CONFIG_CLIENT.gen_default_apigw_header = MagicMock(
+    return_value={"X-Bkapi-Authorization": "mock_token"}
+)
+CREDENTIAL_KEY_SPACE_CONFIG_CLIENT.request = MagicMock(return_value=CREDENTIAL_KEY_USER_PROVIDED_API_RESPONSE)
+
+CREDENTIAL_KEY_SPACE_CONFIG_CASE = ComponentTestCase(
+    name="credential_key_space_config_case",
+    inputs={
+        **API_INPUT_DATA,
+        "uniform_api_credential_key": "custom_credential",
+    },
+    parent_data={**TEST_PARENT_DATA},
+    execute_assertion=ExecuteAssertion(
+        success=True, outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}}
+    ),
+    schedule_assertion=None,
+    patchers=[
+        Patcher(
+            target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
+            return_value=CREDENTIAL_KEY_SPACE_CONFIG_CLIENT,
+        ),
+        Patcher(
+            target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.UniformAPIClient",
+            return_value=CREDENTIAL_KEY_SPACE_CONFIG_CLIENT,
+        ),
+    ],
+)
+
+# 没有 credential_key，但 api_gateway_credential_name 在用户 credentials 中
+API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_SPACE_CONFIG = {
+    "result": True,
+    "message": "success",
+    "data": {
+        "configs": {
+            "uniform_api": {"enable_standard_response": True},
+            "api_gateway_credential_name": "default_credential",
+            "credential": {"bk_app_code": "space_app", "bk_app_secret": "space_secret"},
+        }
+    },
+}
+
+API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CLIENT = MagicMock()
+API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CLIENT.get_space_infos = MagicMock(
+    return_value=API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_SPACE_CONFIG
+)
+API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CLIENT.gen_default_apigw_header = MagicMock(
+    return_value={"X-Bkapi-Authorization": "mock_token"}
+)
+API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CLIENT.request = MagicMock(
+    return_value=CREDENTIAL_KEY_USER_PROVIDED_API_RESPONSE
+)
+
+API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CASE = ComponentTestCase(
+    name="api_gateway_credential_name_user_provided_case",
+    inputs={**API_INPUT_DATA},
+    parent_data={
+        **TEST_PARENT_DATA,
+        "credentials": {
+            "default_credential": {
+                "bk_app_code": "user_app_code",
+                "bk_app_secret": "user_app_secret",
+            }
+        },
+    },
+    execute_assertion=ExecuteAssertion(
+        success=True, outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}}
+    ),
+    schedule_assertion=None,
+    patchers=[
+        Patcher(
+            target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
+            return_value=API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CLIENT,
+        ),
+        Patcher(
+            target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.UniformAPIClient",
+            return_value=API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CLIENT,
         ),
     ],
 )

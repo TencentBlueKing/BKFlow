@@ -85,6 +85,13 @@ def get_api_list(limit, offset, scope_type, scope_value, category, request=None)
             "meta_url": _build_api_url(request, f"{base_path}?api_id=process_data"),
             "version": "v2.0.0",
         },
+        {
+            "id": "api_with_credential",
+            "name": "使用自定义凭证的API",
+            "category": "basic_tools",
+            "meta_url": _build_api_url(request, f"{base_path}?api_id=api_with_credential"),
+            "version": "v3.0.0",
+        },
     ]
 
     # 根据分类过滤
@@ -316,6 +323,67 @@ def get_api_detail(api_id, request=None):
                     "name": "处理数量",
                     "desc": "已处理的数据项数量",
                     "type": "int",
+                },
+            ],
+        }
+
+    # API插件4: 使用自定义凭证的API (演示credential_key功能)
+    elif api_id == "api_with_credential":
+        return {
+            "id": "api_with_credential",
+            "name": "使用自定义凭证的API",
+            "version": "v3.0.0",  # 必须使用v3.0.0版本才支持credential_key
+            "url": _build_api_url(request, "/stage/api_plugin_demo/execute/api_with_credential/"),
+            "methods": ["POST"],
+            "credential_key": "custom_app_credential",  # 声明使用 custom_app_credential 凭证
+            "inputs": [
+                {
+                    "key": "resource_id",
+                    "name": "资源ID",
+                    "desc": "要操作的资源ID",
+                    "required": True,
+                    "type": "string",
+                    "form_type": "input",
+                },
+                {
+                    "key": "action",
+                    "name": "操作类型",
+                    "desc": "要执行的操作",
+                    "required": True,
+                    "type": "string",
+                    "form_type": "select",
+                    "options": [
+                        {"text": "创建", "value": "create"},
+                        {"text": "更新", "value": "update"},
+                        {"text": "删除", "value": "delete"},
+                    ],
+                    "default": "create",
+                },
+            ],
+            "outputs": [
+                {
+                    "key": "resource_id",
+                    "name": "资源ID",
+                    "desc": "操作的资源ID",
+                    "type": "string",
+                },
+                {
+                    "key": "action",
+                    "name": "操作类型",
+                    "desc": "执行的操作",
+                    "type": "string",
+                },
+                {
+                    "key": "status",
+                    "name": "状态",
+                    "desc": "操作状态",
+                    "type": "string",
+                },
+                {
+                    "key": "message",
+                    "name": "消息",
+                    "desc": "操作结果消息",
+                    "type": "string",
                 },
             ],
         }

@@ -31,6 +31,13 @@ from bkflow.pipeline_plugins.components.collections.base import (
     BKFlowBaseService,
     StepIntervalGenerator,
 )
+from bkflow.pipeline_plugins.components.collections.uniform_api.credential_handlers import (
+    ApiGatewayCredentialNameUserProvidedHandler,
+    CredentialKeySpaceConfigHandler,
+    CredentialKeyUserProvidedHandler,
+    DefaultCredentialHandler,
+    SpaceCredentialHandler,
+)
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_plugins.utils import convert_dict_value
 from bkflow.space.configs import UniformAPIConfigHandler
@@ -198,66 +205,55 @@ class UniformAPIService(BKFlowBaseService):
         return None
 
     def _get_credential(
-        self, space_id: int, scope_type: Optional[str], scope_id: Optional[str], parent_data, space_configs: dict
+        self,
+        scope_type: Optional[str],
+        scope_id: Optional[str],
+        parent_data,
+        space_configs: dict,
+        credential_key: Optional[str] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         """获取凭证信息，优先使用用户传入的凭证，否则使用空间配置或默认凭证
 
-        :param space_id: 空间ID
         :param scope_type: 范围类型
         :param scope_id: 范围ID
         :param parent_data: 父任务数据
         :param space_configs: 空间配置字典（从space_infos_result中获取）
+        :param credential_key: 凭证key
         :return: (app_code, app_secret) 元组，如果获取失败返回 (None, None)
         """
-        app_code = None
-        app_secret = None
+        # 按优先级顺序定义凭证处理器
+        handlers = [
+            CredentialKeyUserProvidedHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+            CredentialKeySpaceConfigHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+            ApiGatewayCredentialNameUserProvidedHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+            SpaceCredentialHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+            DefaultCredentialHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+        ]
 
-        try:
-            # 从space_configs中获取api_gateway_credential_name配置
-            api_gateway_credential_name_config = space_configs.get("api_gateway_credential_name")
+        # 按优先级顺序尝试各个处理器
+        for handler in handlers:
+            try:
+                if handler.can_handle(credential_key):
+                    app_code, app_secret = handler.get_credential(credential_key)
+                    if app_code and app_secret:
+                        return app_code, app_secret
+            except Exception as e:
+                self.logger.warning(f"[uniform_api] Handler {handler.get_name()} failed: {e}")
+                continue
 
-            # 处理api_gateway_credential_name配置（可能是字符串或字典）
-            api_gateway_credential_name = None
-            if isinstance(api_gateway_credential_name_config, str):
-                api_gateway_credential_name = api_gateway_credential_name_config
-            elif isinstance(api_gateway_credential_name_config, dict):
-                # 如果是字典，根据scope获取对应的凭证名称
-                scope = f"{scope_type}_{scope_id}" if scope_type and scope_id else None
-                if scope and scope in api_gateway_credential_name_config:
-                    api_gateway_credential_name = api_gateway_credential_name_config[scope]
-                elif "default" in api_gateway_credential_name_config:
-                    api_gateway_credential_name = api_gateway_credential_name_config["default"]
+        # 如果 credential_key 存在但所有处理器都失败，记录警告
+        if credential_key:
+            # 创建一个临时处理器来获取 api_gateway_credential_name（用于日志）
+            temp_handler = CredentialKeyUserProvidedHandler(
+                self.logger, scope_type, scope_id, parent_data, space_configs
+            )
+            api_gateway_credential_name = temp_handler._get_api_gateway_credential_name()
+            self.logger.warning(
+                f"[uniform_api] credential_key {credential_key} not found in credentials and "
+                f"does not match api_gateway_credential_name {api_gateway_credential_name}"
+            )
 
-            # 从parent_data.inputs的_credentials中获取凭证
-            credentials = parent_data.inputs.get("credentials", {})
-
-            # 如果用户传入的凭证key与api_gateway_credential_name相同，则使用用户传入的凭证
-            if api_gateway_credential_name and api_gateway_credential_name in credentials:
-                # credentials已经在CreateTaskSerializer中反序列化，直接使用字典
-                credential_dict = credentials[api_gateway_credential_name]
-
-                if isinstance(credential_dict, dict):
-                    app_code = credential_dict.get("bk_app_code")
-                    app_secret = credential_dict.get("bk_app_secret")
-                    self.logger.info(f"[uniform_api] using user-provided credential: {api_gateway_credential_name}")
-                else:
-                    self.logger.warning(f"[uniform_api] Credential {api_gateway_credential_name} is not a valid dict")
-        except Exception as e:
-            self.logger.warning(f"[uniform_api] Failed to get api_gateway_credential_name config: {e}")
-
-        # 如果用户没有提供凭证或解析失败，使用原来的逻辑
-        if not app_code or not app_secret:
-            credential_data = space_configs.get("credential")
-            if credential_data:
-                app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
-                self.logger.info(f"[uniform_api] using credential config app_code: {app_code}")
-            elif settings.USE_BKFLOW_CREDENTIAL:
-                self.logger.info("using bkflow credential")
-                app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
-            else:
-                return None, None
-
-        return app_code, app_secret
+        return None, None
 
     def _extract_error_message(self, request_result: HttpRequestResult) -> str:
         """提取错误信息，优先从JSON响应的message字段获取"""
@@ -334,6 +330,7 @@ class UniformAPIService(BKFlowBaseService):
         polling = api_data.pop("uniform_api_plugin_polling", None)
         callback = api_data.pop("uniform_api_plugin_callback", None)
         method = api_data.pop("uniform_api_plugin_method")
+        credential_key = api_data.pop("uniform_api_credential_key", None)
         resp_data_path: str = api_data.pop("response_data_path", None)
         # 获取空间相关配置信息
         interface_client = InterfaceModuleClient()
@@ -373,7 +370,7 @@ class UniformAPIService(BKFlowBaseService):
             api_data = convert_dict_value(api_data)
 
         # 获取凭证信息
-        app_code, app_secret = self._get_credential(space_id, scope_type, scope_id, parent_data, space_configs)
+        app_code, app_secret = self._get_credential(scope_type, scope_id, parent_data, space_configs, credential_key)
         if not app_code or not app_secret:
             message = "不存在调用凭证"
             self.logger.error(message)
@@ -505,7 +502,8 @@ class UniformAPIService(BKFlowBaseService):
         validated_config = UniformAPIConfigHandler(uniform_api_config).handle()
 
         # 获取凭证信息
-        app_code, app_secret = self._get_credential(space_id, scope_type, scope_id, parent_data, space_configs)
+        credential_key = data.get_one_of_inputs("uniform_api_credential_key", None)
+        app_code, app_secret = self._get_credential(scope_type, scope_id, parent_data, space_configs, credential_key)
         if not app_code or not app_secret:
             message = "不存在调用凭证"
             self.logger.error(message)

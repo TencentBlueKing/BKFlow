@@ -1507,7 +1507,7 @@
                     meta_url: apiMeta.meta_url,
                     ...this.scopeInfo,
                   });
-                  const { url, methods, version } = resp.data;
+                  const { url, methods, version, credential_key } = resp.data;
                   const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中
                   location.data = {
                     uniform_api_plugin_method: {
@@ -1519,6 +1519,13 @@
                       value: url,
                     },
                   };
+                  // 如果detail meta返回了credential_key，将其组装为uniform_api_credential_key
+                  if (credential_key) {
+                    location.data.uniform_api_credential_key = {
+                      hook: false,
+                      value: credential_key,
+                    };
+                  }
                   // 使用meta API返回的version，如果没有则使用默认值
                   location.version = version || 'v2.0.0';
                   location.api_meta = apiMeta;
