@@ -27,4 +27,5 @@ urlpatterns = [
     url(r"^execute/get_user_info/$", views.execute_get_user_info, name="execute_get_user_info"),
     url(r"^execute/create_task/$", views.execute_create_task, name="execute_create_task"),
     url(r"^execute/process_data/$", views.execute_process_data, name="execute_process_data"),
+    url(r"^execute/api_with_credential/$", views.execute_api_with_credential, name="execute_api_with_credential"),
 ]
