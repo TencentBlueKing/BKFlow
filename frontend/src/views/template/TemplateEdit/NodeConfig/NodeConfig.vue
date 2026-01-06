@@ -613,7 +613,7 @@
             const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
             this.uniformOutputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs];
-            const { url, methods, response_data_path: respDataPath, polling, callback } = resp.data;
+            const { url, methods, response_data_path: respDataPath, polling, callback, credential_key } = resp.data;
             const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中
             this.updateBasicInfo({
               method,
@@ -623,6 +623,7 @@
               respDataPath,
               polling,
               callback,
+              credentialKey: credential_key, // 保存credential_key到basicInfo
               version: apiVersion, // 更新version到basicInfo
             });
             this.apiInputs = resp.data.inputs;
@@ -865,6 +866,8 @@
           if (component.code === 'uniform_api' &&  component.api_meta) { // 新版api插件中component包含api_meta字段
             const { id, name, api_key: apiKey, meta_url, category = {} } = component.api_meta;
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
+            // 从节点数据中读取uniform_api_credential_key（如果存在）
+            const credentialKey = component.data.uniform_api_credential_key?.value;
             Object.assign(data, {
               plugin: 'uniform_api',
               name: `${category.name}-${name}`,
@@ -875,6 +878,7 @@
               apiKey,
               metaUrl: meta_url,
               realMetaUrl,
+              credentialKey, // 保存credential_key到basicInfo，以便后续使用
               methodList: [],
             });
           }
@@ -1640,6 +1644,13 @@
             data.response_data_path = {
               hook: false,
               value: this.basicInfo.respDataPath,
+            };
+          }
+          // 如果detail meta返回了credential_key，将其组装为uniform_api_credential_key
+          if (this.basicInfo.credentialKey) {
+            data.uniform_api_credential_key = {
+              hook: false,
+              value: this.basicInfo.credentialKey,
             };
           }
         }
