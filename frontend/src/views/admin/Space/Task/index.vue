@@ -30,7 +30,7 @@
         :prop="item.id"
         :render-header="renderTableHeader"
         :width="item.width"
-        show-overflow-tooltip
+        :show-overflow-tooltip="item.id !== 'label'"
         :min-width="item.min_width">
         <template slot-scope="props">
           <div v-if="item.id === 'name'">
@@ -48,6 +48,43 @@
               }">
               {{ props.row.name }}
             </router-link>
+          </div>
+          <div v-else-if="item.id === 'label'">
+            <label-cascade
+              :value="props.row.labels"
+              scope="template"
+              @change="onSelectedLabel($event, props.row)"
+              @confirm="onConfirmEditLabel(props.row)">
+              <template #trigger="{ list, isShow }">
+                <div
+                  v-if="isShow"
+                  class="edit-label-cell">
+                  <div class="label-list">
+                    <span
+                      v-for="label in list"
+                      :key="label.id"
+                      class="label-item"
+                      :style="{
+                        'background-color': label.color,
+                      }">
+                      {{ label.full_path }}
+                      <bk-icon
+                        class="delete-icon"
+                        type="close"
+                        @mousedown.native.stop.prevent="
+                          onDeleteLabel(
+                            props.row,
+                            label
+                          )
+                        " />
+                    </span>
+                  </div>
+                </div>
+                <LabelCell
+                  v-else
+                  :tags="list" />
+              </template>
+            </label-cascade>
           </div>
           <div
             v-else-if="item.id === 'state'"
@@ -105,6 +142,8 @@
   import tableCommon from '../mixins/tableCommon.js';
   import TableOperate from '../common/TableOperate.vue';
   import i18n from '@/config/i18n/index.js';
+  import LabelCascade from '../common/LabelCascade.vue';
+  import LabelCell from '../Template/label-cell.vue';
 
   const TABLE_FIELDS = [
     {
@@ -128,6 +167,11 @@
       label: i18n.t('任务名称'),
       disabled: true,
       min_width: 200,
+    },
+    {
+      id: 'label',
+      label: i18n.t('标签'),
+      width: 272,
     },
     {
       id: 'template_id',
@@ -217,6 +261,8 @@
     components: {
       NoData,
       TableOperate,
+      LabelCascade,
+      LabelCell,
     },
     mixins: [tableHeader, tableCommon],
     data() {
@@ -224,7 +270,7 @@
         taskList: [],
         deleting: false,
         tableFields: TABLE_FIELDS,
-        defaultSelected: ['id', 'name', 'creator_time', 'creator', 'executor', 'state', 'start_time', 'finish_time'],
+        defaultSelected: ['id', 'name', 'label', 'creator_time', 'creator', 'executor', 'state', 'start_time', 'finish_time'],
         setting: {
           fieldList: TABLE_FIELDS,
           selectedFields: [],
@@ -245,6 +291,7 @@
       ...mapActions('taskList/', [
         'loadTaskList',
         'deleteTask',
+        'updateTaskLabel',
       ]),
       ...mapActions('task/', [
         'getTaskStatus',
@@ -433,6 +480,24 @@
           query: { type: this.$route.query.activeTab },
         });
       },
+      onSelectedLabel(label, item) {
+        console.log(label, item);
+      },
+      onDeleteLabel(row, label) {
+        if (!row || !label) return;
+        const nextLabels = row.labels.filter(item => item.id !== label.id);
+        this.$set(row, 'labels', nextLabels);
+        this.onSelectedLabel(nextLabels, row);
+      },
+      async onConfirmEditLabel(task) {
+        const data = {
+					space_id: this.spaceId,
+					task_id: task.id,
+					label_ids: task.labels.map(item => item.id),
+        };
+        await  this.updateTaskLabel(data);
+        this.getTaskList();
+      },
     },
   };
 </script>
@@ -447,5 +512,39 @@
   }
   ::v-deep .bk-table-empty-text {
     width: 100%;
+  }
+  .cascade-trigger {
+      height: 32px;
+      width: 242px;
+  }
+  .edit-label-cell {
+      width: 242px;
+      border: 1px solid #3a84ff;
+      padding: 6px 16px;
+      max-height: 120px;
+      min-height: 20px;
+      overflow: auto;
+      .label-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          height: 100%;
+          overflow: auto;
+          .label-item {
+              height: 16px;
+              line-height: 16px;
+              font-size: 10px;
+              display: flex;
+              align-items: center;
+              padding: 0 6px;
+              border-radius: 11px;
+              color: #ffffff;
+              .delete-icon {
+                  font-size: 16px !important;
+                  margin-left: 5px;
+                  cursor: pointer;
+              }
+          }
+      }
   }
 </style>

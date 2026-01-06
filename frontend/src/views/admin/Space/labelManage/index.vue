@@ -41,7 +41,7 @@
             </bk-table-column>
             <bk-table-column
               :label="$t('标签描述')"
-              props="row.description" />
+              prop="description" />
             <bk-table-column :label="$t('标签范围')">
               <template slot-scope="{ row }">
                 <bk-tag
@@ -102,7 +102,7 @@
       </bk-table-column>
       <bk-table-column
         :label="$t('标签描述')"
-        props="row.description" />
+        prop="description" />
       <bk-table-column :label="$t('标签范围')">
         <template slot-scope="{ row }">
           <bk-tag
@@ -113,12 +113,14 @@
         </template>
       </bk-table-column>
       <bk-table-column :label="$t('标签引用')">
-        <i18n
-          tag="div"
-          path="labelReference">
-          <span class="highlight">{{ 1 }}</span>
-          <span class="highlight">{{ 2 }}</span>
-        </i18n>
+        <template slot-scope="{ row }">
+          <i18n
+            tag="div"
+            path="labelReference">
+            <span class="highlight">{{ row.reference.template_count }}</span>
+            <span class="highlight">{{ row.reference.task_count }}</span>
+          </i18n>
+        </template>
       </bk-table-column>
       <bk-table-column :label="$t('系统默认标签')">
         <template slot-scope="{ row }">
@@ -205,42 +207,69 @@ export default {
         this.getLabelList();
     },
     methods: {
-        ...mapActions('label', ['loadLabelList', 'deleteLabel']),
+        ...mapActions('label', [
+            'loadLabelList',
+            'deleteLabel',
+            'loadLabelReference',
+        ]),
         async getLabelList(parentId = null) {
+            const isExpand = Boolean(parentId);
+
+            const params = {
+                space_id: this.spaceId,
+                parent_id: parentId,
+                limit: isExpand ? 1000 : this.pagination.limit,
+                offset: isExpand
+                    ? 0
+                    : (this.pagination.current - 1) * this.pagination.limit,
+            };
             try {
-                if (parentId) {
-                    this.expandListLoading = true;
-                } else {
-                    this.listLoading = true;
+                isExpand
+                    ? (this.expandListLoading = true)
+                    : (this.listLoading = true);
+
+                // 1. 获取标签列表
+                const { data } = await this.loadLabelList(params);
+                const list = data?.results || [];
+
+                // 2. 获取引用数据
+                let referenceMap = {};
+                if (list.length) {
+                    const refResp = await this.loadLabelReference({
+                        space_id: this.spaceId,
+                        label_ids: list.map(item => item.id).join(','),
+                    });
+                    referenceMap = refResp?.data || {};
                 }
-                const params = {
-                    space_id: 3,
-                    parent_id: parentId,
-                    limit: this.pagination.limit,
-                    offset:
-                        (this.pagination.current - 1) * this.pagination.limit,
+
+                // 3. 绑定 reference
+                const bindReference = (labels) => {
+                    labels.forEach((label) => {
+                        label.reference = referenceMap[label.id];
+                    });
                 };
-                const resp = await this.loadLabelList(params);
-                if (parentId) {
-                    this.expandListLoading = true;
-                    this.labelList.find(label => label.id === parentId).children = resp.data.results;
+
+                if (isExpand) {
+                    const parentLabel = this.labelList.find(label => label.id === parentId);
+                    if (!parentLabel) return;
+
+                    parentLabel.children = list;
+                    bindReference(parentLabel.children);
                 } else {
-                    this.labelList = resp.data.results;
-                    this.pagination.count = resp.data.count;
-                    const totalPage = Math.ceil(this.pagination.count / this.pagination.limit);
-                    if (!totalPage) {
-                        this.totalPage = 1;
-                    } else {
-                        this.totalPage = totalPage;
-                    }
+                    this.labelList = list;
+                    bindReference(this.labelList);
+
+                    this.pagination.count = data?.count || 0;
+                    this.totalPage = Math.ceil(this.pagination.count / this.pagination.limit);
                 }
-            } catch (e) {
-                console.error(e);
+            } catch (error) {
+                console.error(error);
             } finally {
                 this.listLoading = false;
                 this.expandListLoading = false;
             }
         },
+
         onEditLabel(label) {
             this.editLabel = label;
             this.isEdit = true;

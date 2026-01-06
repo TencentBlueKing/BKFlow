@@ -25,7 +25,9 @@
             </span>
           </template>
         </bk-input>
-        <div class="cascade-content">
+        <div
+          v-bkloading="{ isLoading: loading, zIndex: 102 }"
+          class="cascade-content">
           <div class="first-label">
             <ul class="label-list">
               <li
@@ -67,12 +69,6 @@
         </div>
         <div class="label-select-extension">
           <div
-            v-cursor="{
-              active: !hasPermission(
-                ['project_edit'],
-                authActions
-              ),
-            }"
             class="add-label"
             data-test-id="tabTemplateConfig_form_editLabel"
             @click="onCreateLabel">
@@ -80,12 +76,6 @@
             <span>{{ $t("新建标签") }}</span>
           </div>
           <div
-            v-cursor="{
-              active: !hasPermission(
-                ['project_view'],
-                authActions
-              ),
-            }"
             class="label-manage"
             data-test-id="tabTemplateConfig_form_LabelManage"
             @click="onManageLabel">
@@ -166,6 +156,7 @@ export default {
         ...mapActions('label', ['loadLabelList', 'deleteLabel']),
         async getLabelList(parentId = null) {
             try {
+                this.loading = true;
                 const params = {
                     space_id: this.spaceId,
                     parent_id: parentId,
@@ -182,7 +173,7 @@ export default {
             } catch (e) {
                 console.error(e);
             } finally {
-                this.listLoading = false;
+                this.loading = false;
             }
         },
         getPopoverInstance() {
@@ -228,6 +219,7 @@ export default {
         },
         hide() {
             this.isShow = false;
+            this.$emit('confirm');
         },
         onCreateLabel() {
             this.isShowCreate = true;
@@ -293,6 +285,50 @@ export default {
                 }
             }
         }
+    }
+}
+.label-select-extension {
+    height: 40px;
+    display: flex;
+    text-align: center;
+    line-height: 40px;
+    cursor: pointer;
+    .add-label {
+        width: 50%;
+    }
+    .label-manage {
+        flex: 1;
+    }
+    .add-label,
+    .label-manage {
+        position: relative;
+        &:hover {
+            background: #f0f1f5;
+        }
+        &::after {
+            content: "";
+            position: absolute;
+            width: 1px;
+            height: 16px;
+            display: block;
+            right: -1px;
+            top: 12px;
+            background: #dcdee5;
+        }
+    }
+    .refresh-label {
+        padding: 0 16px;
+        &:hover {
+            background: #f0f1f5;
+        }
+    }
+    & .common-icon-label,
+    & .icon-plus-circle {
+        font-size: 14px;
+        color: #979ba5;
+    }
+    & > span {
+        font-size: 12px;
     }
 }
 </style>

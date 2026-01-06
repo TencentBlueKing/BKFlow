@@ -27,6 +27,10 @@ export default  {
     deleteLabel({}, id) {
       return axios.delete(`/api/label/${id}/`).then(response => response.data);
     },
+    // 获取标签引用参数
+    loadLabelReference({}, params) {
+      return axios.get('/api/label/get_label_ref_count/', { params }).then(response => response.data);
+    },
   },
 };
 

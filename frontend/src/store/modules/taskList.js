@@ -34,6 +34,9 @@ const taskList = {
     deleteTask({}, data) {
       return axios.post('/task_admin/batch_delete_tasks/', data).then(response => response.data);
     },
+    updateTaskLabel({}, data) {
+      return axios.post(`/task_admin/update_labels/${data.space_id}/${data.task_id}/`, { label_ids: data.label_ids }).then(response => response.data);
+    },
   },
 };
 

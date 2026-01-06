@@ -197,7 +197,7 @@ export default {
         },
         handleDeleteLabel(val) {
             this.selectedLabels = this.selectedLabels.filter(item => item.id !== val);
-            this.templateFormData.label_ids =                this.templateFormData.label_ids.filter(item => item !== val);
+            this.templateFormData.label_ids = this.templateFormData.label_ids.filter(item => item !== val);
         },
     },
 };
