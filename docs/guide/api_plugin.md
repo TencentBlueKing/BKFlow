@@ -113,6 +113,7 @@ sequenceDiagram
     "methods": [
       "GET"
     ],
+    "credential_key": "my_credential",  // 可选，声明当前API插件使用的凭证key
     "inputs": [
       {
         "key": "xxx",
@@ -136,6 +137,49 @@ sequenceDiagram
   }
 }
 ```
+
+**credential_key 字段说明：**
+
+`credential_key` 字段用于声明当前 API 插件使用的凭证标识。该字段为可选字段，如果未指定，系统将使用默认的凭证选择逻辑。
+
+**凭证选择优先级：**
+
+1. **如果声明了 `credential_key`：**
+   - 优先从用户创建任务时传入的 `credentials` 字典中查找对应的凭证（key 为 `credential_key` 的值）
+   - 如果用户未传入该凭证，且 `credential_key` 与空间配置中的 `api_gateway_credential_name` 相同，则使用空间配置的凭证
+   - 如果以上都不满足，则回退到使用空间配置的 `credential` 或默认凭证
+
+2. **如果未声明 `credential_key`：**
+   - 使用原有的凭证选择逻辑（优先使用 `api_gateway_credential_name` 对应的凭证，然后使用空间配置的 `credential` 或默认凭证）
+
+**使用示例：**
+
+``` json
+{
+  "result": true,
+  "message": "",
+  "data": {
+    "id": "api_with_custom_credential",
+    "name": "使用自定义凭证的API",
+    "url": "https://example.com/api/endpoint",
+    "methods": ["POST"],
+    "credential_key": "custom_app_credential",  // 声明使用 custom_app_credential 凭证
+    "inputs": [
+      {
+        "key": "param1",
+        "name": "参数1",
+        "required": true,
+        "type": "string"
+      }
+    ],
+    "outputs": []
+  }
+}
+```
+
+**注意事项：**
+- `credential_key` 字段仅在使用 `uniform_api` 插件版本 `v3.0.0` 时生效
+- 用户创建任务时，可以通过 `credentials` 参数传入对应的凭证，格式参考 [create_task API 文档](../apigw/docs/zh/create_task.md)
 - 基于inputs和outputs字段，动态进行表单生成
 	- 字段类型(type)与表单类型映射关系：
 		- string -> 输入框

@@ -295,3 +295,48 @@ def execute_process_data(request):
             },
         }
     )
+
+
+@api_view(["POST"])
+def execute_api_with_credential(request):
+    """
+    执行API插件4: 使用自定义凭证的API
+    这是一个演示credential_key功能的示例
+    """
+    resource_id = request.data.get("resource_id", "")
+    action = request.data.get("action", "create")
+
+    if not resource_id:
+        return Response(
+            {
+                "result": False,
+                "message": "resource_id parameter is required",
+                "data": {},
+            }
+        )
+
+    # 模拟操作结果
+    status_map = {
+        "create": "created",
+        "update": "updated",
+        "delete": "deleted",
+    }
+
+    message_map = {
+        "create": "资源创建成功",
+        "update": "资源更新成功",
+        "delete": "资源删除成功",
+    }
+
+    return Response(
+        {
+            "result": True,
+            "message": "",
+            "data": {
+                "resource_id": resource_id,
+                "action": action,
+                "status": status_map.get(action, "unknown"),
+                "message": message_map.get(action, "操作完成"),
+            },
+        }
+    )
