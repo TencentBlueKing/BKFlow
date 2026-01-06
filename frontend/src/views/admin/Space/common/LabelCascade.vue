@@ -101,14 +101,12 @@
 
 <script>
 import { mapActions, mapState } from 'vuex';
-import permission from '@/mixins/permission.js';
 import CreateLabelDialog from '../labelManage/CreateLabelDialog.vue';
 export default {
     name: 'LabelCascade',
     components: {
         CreateLabelDialog,
     },
-    mixins: [permission],
     props: {
         value: {
             type: Array,
@@ -146,7 +144,7 @@ export default {
     watch: {
         value: {
             handler(val) {
-                this.selectLabel = val;
+                this.selectLabel = [...val];
                 this.cascadeValue = val.map(item => item.id);
             },
             immediate: true,
@@ -215,7 +213,6 @@ export default {
             } else {
                 this.selectLabel = this.selectLabel.filter(item => item.id !== label.id);
             }
-            this.$emit('change', this.selectLabel);
         },
         hide() {
             this.isShow = false;

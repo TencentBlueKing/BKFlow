@@ -117,8 +117,12 @@
           <i18n
             tag="div"
             path="labelReference">
-            <span class="highlight">{{ row.reference.template_count }}</span>
-            <span class="highlight">{{ row.reference.task_count }}</span>
+            <span class="highlight">{{
+              row.reference.template_count
+            }}</span>
+            <span class="highlight">{{
+              row.reference.task_count
+            }}</span>
           </i18n>
         </template>
       </bk-table-column>

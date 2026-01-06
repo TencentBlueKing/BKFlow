@@ -71,7 +71,6 @@
             <label-cascade
               :value="props.row.labels"
               scope="template"
-              @change="onSelectedLabel($event, props.row)"
               @confirm="onConfirmEditLabel(props.row)">
               <template #trigger="{ list, isShow }">
                 <div
@@ -491,6 +490,7 @@ export default {
             'loadTemplateList',
             'deleteTemplate',
             'copyTemplate',
+            'updateTemplateLabel',
         ]),
         ...mapActions('task/', ['createTask']),
         ...mapMutations('template/', ['setSpaceId']),
@@ -831,19 +831,18 @@ export default {
                 this.deleting = false;
             }
         },
-        onSelectedLabel(label, item) {
-            console.log(label, item);
-        },
         onDeleteLabel(row, label) {
             if (!row || !label) return;
-
             const nextLabels = row.labels.filter(item => item.id !== label.id);
-
             this.$set(row, 'labels', nextLabels);
-            this.onSelectedLabel(nextLabels, row);
         },
-        onConfirmEditLabel(template) {
-            console.log(template);
+        async onConfirmEditLabel(template) {
+            const data = {
+                template_id: template.id,
+                label_ids: template.labels.map(item => item.id),
+            };
+            await this.updateTemplateLabel(data);
+            this.getTemplateList();
         },
     },
 };

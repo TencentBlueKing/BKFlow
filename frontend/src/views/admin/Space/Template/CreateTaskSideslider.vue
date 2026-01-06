@@ -90,9 +90,8 @@
           :required="true"
           :property="'labels'">
           <label-cascade
-            :value="selectedLabels"
-            scope="template"
-            @change="handleSelected">
+            :value="taskFormData.labels"
+            scope="template">
             <template #trigger="{ list, isShow }">
               <div
                 :class="['cascade-trigger', { focus: isShow }]">
@@ -224,6 +223,7 @@ export default {
                     name: `${this.row.name}_${moment().format('YYYYMMDDHHmmss')}`,
                     creator: this.username,
                     constants: '',
+                    labels: this.row.labels,
                 };
                 const resp = await this.getPreviewTaskTree({
                     templateId: this.row.id,
@@ -243,7 +243,7 @@ export default {
         async createTaskConfirm() {
             try {
                 const isFormValid = await this.$refs.createTaskForm.validate();
-                const isParamsValid = this.taskFormData.mode === 'json'
+                const isParamsValid =                    this.taskFormData.mode === 'json'
                         ? this.isJsonConstantsValid
                         : this.$refs.taskParamEdit.validate();
 
