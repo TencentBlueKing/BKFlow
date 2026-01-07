@@ -30,7 +30,7 @@ from bkflow.template.models import TemplateMockData
 from bkflow.utils.strings import standardize_pipeline_node_name
 
 
-class CredentialsValidationMixin:
+class CredentialsValidationMixin(serializers.Serializer):
     """凭证验证 Mixin，提供 credentials 字段和验证逻辑"""
 
     credentials = serializers.DictField(
