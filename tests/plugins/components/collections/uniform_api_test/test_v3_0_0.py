@@ -460,7 +460,7 @@ CREDENTIAL_KEY_USER_PROVIDED_CASE = ComponentTestCase(
     name="credential_key_user_provided_case",
     inputs={
         **API_INPUT_DATA,
-        "uniform_api_credential_key": "custom_credential",
+        "uniform_api_plugin_credential_key": "custom_credential",
     },
     parent_data={
         **TEST_PARENT_DATA,
@@ -523,7 +523,7 @@ CREDENTIAL_KEY_SPACE_CONFIG_CASE = ComponentTestCase(
     name="credential_key_space_config_case",
     inputs={
         **API_INPUT_DATA,
-        "uniform_api_credential_key": "custom_credential",
+        "uniform_api_plugin_credential_key": "custom_credential",
     },
     parent_data={**TEST_PARENT_DATA},
     execute_assertion=ExecuteAssertion(success=True, outputs={}),

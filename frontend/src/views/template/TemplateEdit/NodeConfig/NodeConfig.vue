@@ -866,8 +866,8 @@
           if (component.code === 'uniform_api' &&  component.api_meta) { // 新版api插件中component包含api_meta字段
             const { id, name, api_key: apiKey, meta_url, category = {} } = component.api_meta;
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
-            // 从节点数据中读取uniform_api_credential_key（如果存在）
-            const credentialKey = component.data.uniform_api_credential_key?.value;
+            // 从节点数据中读取uniform_api_plugin_credential_key（如果存在）
+            const credentialKey = component.data.uniform_api_plugin_credential_key?.value;
             Object.assign(data, {
               plugin: 'uniform_api',
               name: `${category.name}-${name}`,
@@ -1646,9 +1646,9 @@
               value: this.basicInfo.respDataPath,
             };
           }
-          // 如果detail meta返回了credential_key，将其组装为uniform_api_credential_key
+          // 如果detail meta返回了credential_key，将其组装为uniform_api_plugin_credential_key
           if (this.basicInfo.credentialKey) {
-            data.uniform_api_credential_key = {
+            data.uniform_api_plugin_credential_key = {
               hook: false,
               value: this.basicInfo.credentialKey,
             };
