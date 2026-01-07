@@ -319,6 +319,9 @@
         $.ajax({
           url: remote_url,
           method: 'GET',
+          xhrFields: {
+              withCredentials: true
+          },
           success (res) {
             const data = self.remote_data_init(res) || []
 
