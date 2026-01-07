@@ -24,6 +24,12 @@ from bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0 import (
     UniformAPIComponent,
 )
 
+# Mock settings patcher for API request timeout
+SETTINGS_PATCHER = Patcher(
+    target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.settings",
+    return_value=MagicMock(BKAPP_API_PLUGIN_REQUEST_TIMEOUT=30),
+)
+
 
 class UniformAPIComponentTest(TestCase, ComponentTestMixin):
     def component_cls(self):
@@ -56,7 +62,7 @@ API_POLLING_INPUT_DATA = {
     "uniform_api_plugin_polling": {
         "url": "http://example.com/polling",
         "task_tag_key": "task_id",
-        "success_tag": {"key": "status", "value": "success"},
+        "success_tag": {"key": "status", "value": "success", "data_key": "data.result"},
         "fail_tag": {"key": "status", "value": "failed"},
         "running_tag": {"key": "status", "value": "running"},
     },
@@ -92,7 +98,16 @@ STANDARD_RESPONSE_SPACE_CONFIG = {
     "message": "success",
     "data": {
         "configs": {
-            "uniform_api": {"enable_standard_response": True},
+            "uniform_api": {
+                "api": {
+                    "default": {
+                        "meta_apis": "http://example.com/meta_apis",
+                        "api_categories": "http://example.com/api_categories",
+                        "display_name": "默认API",
+                    }
+                },
+                "common": {"enable_standard_response": True},
+            },
             "credential": {"bk_app_code": "mock_app_code", "bk_app_secret": "mock_app_secret"},
         }
     },
@@ -116,8 +131,13 @@ STANDARD_RESPONSE_SUCCESS_CASE = ComponentTestCase(
     execute_assertion=ExecuteAssertion(
         success=True, outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}}
     ),
-    schedule_assertion=None,
+    schedule_assertion=ScheduleAssertion(
+        success=True,
+        outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}},
+        schedule_finished=True,
+    ),
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=STANDARD_RESPONSE_SUCCESS_CLIENT,
@@ -154,6 +174,7 @@ STANDARD_RESPONSE_FAILURE_CASE = ComponentTestCase(
     ),
     schedule_assertion=None,
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=STANDARD_RESPONSE_FAILURE_CLIENT,
@@ -182,8 +203,13 @@ STANDARD_RESPONSE_NON_JSON_CASE = ComponentTestCase(
     inputs={**API_INPUT_DATA},
     parent_data={**TEST_PARENT_DATA},
     execute_assertion=ExecuteAssertion(success=True, outputs={"status_code": 200, "data": "plain text response"}),
-    schedule_assertion=None,
+    schedule_assertion=ScheduleAssertion(
+        success=True,
+        outputs={"status_code": 200, "data": "plain text response"},
+        schedule_finished=True,
+    ),
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=STANDARD_RESPONSE_NON_JSON_CLIENT,
@@ -196,7 +222,12 @@ STANDARD_RESPONSE_NON_JSON_CASE = ComponentTestCase(
 )
 
 # 标准响应模式 - 轮询成功
-STANDARD_RESPONSE_POLLING_SUCCESS_API_RESPONSE = MockAPIResponse(
+# 触发API返回任务标识
+STANDARD_RESPONSE_POLLING_TRIGGER_RESPONSE = MockAPIResponse(
+    status_code=200, json_resp={"task_id": "12345", "message": "Task started"}, message="success", result=True
+)
+# 轮询API返回成功状态
+STANDARD_RESPONSE_POLLING_SUCCESS_RESPONSE = MockAPIResponse(
     status_code=200, json_resp={"status": "success", "data": {"result": "completed"}}, message="success", result=True
 )
 
@@ -205,20 +236,35 @@ STANDARD_RESPONSE_POLLING_SUCCESS_CLIENT.get_space_infos = MagicMock(return_valu
 STANDARD_RESPONSE_POLLING_SUCCESS_CLIENT.gen_default_apigw_header = MagicMock(
     return_value={"X-Bkapi-Authorization": "mock_token"}
 )
+# 使用 side_effect 返回不同的响应：第一次触发返回 task_id，第二次轮询返回成功状态
 STANDARD_RESPONSE_POLLING_SUCCESS_CLIENT.request = MagicMock(
-    return_value=STANDARD_RESPONSE_POLLING_SUCCESS_API_RESPONSE
+    side_effect=[STANDARD_RESPONSE_POLLING_TRIGGER_RESPONSE, STANDARD_RESPONSE_POLLING_SUCCESS_RESPONSE]
 )
 
 STANDARD_RESPONSE_POLLING_SUCCESS_CASE = ComponentTestCase(
     name="standard_response_polling_success_case",
-    inputs={**API_POLLING_INPUT_DATA, "need_polling": True, "trigger_data": {"task_id": "12345"}},
+    inputs={**API_POLLING_INPUT_DATA},
     parent_data={**TEST_PARENT_DATA},
-    execute_assertion=ExecuteAssertion(success=False),
+    execute_assertion=ExecuteAssertion(
+        success=True,
+        outputs={
+            "status_code": 200,
+            "need_polling": True,
+            "trigger_data": {"task_id": "12345", "message": "Task started"},
+        },
+    ),
     schedule_assertion=ScheduleAssertion(
         success=True,
-        outputs={"status_code": 200, "data": {"result": "completed"}},
+        outputs={
+            "status_code": 200,
+            "need_polling": True,
+            "trigger_data": {"task_id": "12345", "message": "Task started"},
+            "data": "completed",
+        },
+        schedule_finished=True,
     ),
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=STANDARD_RESPONSE_POLLING_SUCCESS_CLIENT,
@@ -246,9 +292,15 @@ STANDARD_RESPONSE_POLLING_FAILURE_CLIENT.request = MagicMock(
 
 STANDARD_RESPONSE_POLLING_FAILURE_CASE = ComponentTestCase(
     name="standard_response_polling_failure_case",
-    inputs={**API_POLLING_INPUT_DATA, "need_polling": True, "trigger_data": {"task_id": "12345"}},
+    inputs={**API_POLLING_INPUT_DATA},
     parent_data={**TEST_PARENT_DATA},
-    execute_assertion=ExecuteAssertion(success=False),
+    execute_assertion=ExecuteAssertion(
+        success=False,
+        outputs={
+            "status_code": 500,
+            "ex_data": "[uniform_api error] HTTP status code: 500, message: Internal Server Error",
+        },
+    ),
     schedule_assertion=ScheduleAssertion(
         success=False,
         outputs={
@@ -257,6 +309,7 @@ STANDARD_RESPONSE_POLLING_FAILURE_CASE = ComponentTestCase(
         },
     ),
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=STANDARD_RESPONSE_POLLING_FAILURE_CLIENT,
@@ -274,7 +327,15 @@ NON_STANDARD_RESPONSE_SPACE_CONFIG = {
     "message": "success",
     "data": {
         "configs": {
-            "uniform_api": {},
+            "uniform_api": {
+                "api": {
+                    "default": {
+                        "meta_apis": "http://example.com/meta_apis",
+                        "api_categories": "http://example.com/api_categories",
+                        "display_name": "默认API",
+                    }
+                },
+            },
             "credential": {"bk_app_code": "mock_app_code", "bk_app_secret": "mock_app_secret"},
         }
     },
@@ -298,8 +359,13 @@ NON_STANDARD_RESPONSE_SUCCESS_CASE = ComponentTestCase(
     execute_assertion=ExecuteAssertion(
         success=True, outputs={"status_code": 200, "data": {"result": True, "data": {"task_id": "12345"}}}
     ),
-    schedule_assertion=None,
+    schedule_assertion=ScheduleAssertion(
+        success=True,
+        outputs={"status_code": 200, "data": {"result": True, "data": {"task_id": "12345"}}},
+        schedule_finished=True,
+    ),
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=NON_STANDARD_RESPONSE_SUCCESS_CLIENT,
@@ -339,6 +405,7 @@ NON_STANDARD_RESPONSE_FAILURE_CASE = ComponentTestCase(
     ),
     schedule_assertion=None,
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=NON_STANDARD_RESPONSE_FAILURE_CLIENT,
@@ -356,7 +423,16 @@ CREDENTIAL_KEY_USER_PROVIDED_SPACE_CONFIG = {
     "message": "success",
     "data": {
         "configs": {
-            "uniform_api": {"enable_standard_response": True},
+            "uniform_api": {
+                "api": {
+                    "default": {
+                        "meta_apis": "http://example.com/meta_apis",
+                        "api_categories": "http://example.com/api_categories",
+                        "display_name": "默认API",
+                    }
+                },
+                "common": {"enable_standard_response": True},
+            },
             "credential": {"bk_app_code": "space_app", "bk_app_secret": "space_secret"},
         }
     },
@@ -391,8 +467,13 @@ CREDENTIAL_KEY_USER_PROVIDED_CASE = ComponentTestCase(
     execute_assertion=ExecuteAssertion(
         success=True, outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}}
     ),
-    schedule_assertion=None,
+    schedule_assertion=ScheduleAssertion(
+        success=True,
+        outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}},
+        schedule_finished=True,
+    ),
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=CREDENTIAL_KEY_USER_PROVIDED_CLIENT,
@@ -410,7 +491,16 @@ CREDENTIAL_KEY_SPACE_CONFIG_SPACE_CONFIG = {
     "message": "success",
     "data": {
         "configs": {
-            "uniform_api": {"enable_standard_response": True},
+            "uniform_api": {
+                "api": {
+                    "default": {
+                        "meta_apis": "http://example.com/meta_apis",
+                        "api_categories": "http://example.com/api_categories",
+                        "display_name": "默认API",
+                    }
+                },
+                "common": {"enable_standard_response": True},
+            },
             "api_gateway_credential_name": "custom_credential",
             "credential": {"bk_app_code": "space_app", "bk_app_secret": "space_secret"},
         }
@@ -434,8 +524,13 @@ CREDENTIAL_KEY_SPACE_CONFIG_CASE = ComponentTestCase(
     execute_assertion=ExecuteAssertion(
         success=True, outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}}
     ),
-    schedule_assertion=None,
+    schedule_assertion=ScheduleAssertion(
+        success=True,
+        outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}},
+        schedule_finished=True,
+    ),
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=CREDENTIAL_KEY_SPACE_CONFIG_CLIENT,
@@ -453,7 +548,16 @@ API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_SPACE_CONFIG = {
     "message": "success",
     "data": {
         "configs": {
-            "uniform_api": {"enable_standard_response": True},
+            "uniform_api": {
+                "api": {
+                    "default": {
+                        "meta_apis": "http://example.com/meta_apis",
+                        "api_categories": "http://example.com/api_categories",
+                        "display_name": "默认API",
+                    }
+                },
+                "common": {"enable_standard_response": True},
+            },
             "api_gateway_credential_name": "default_credential",
             "credential": {"bk_app_code": "space_app", "bk_app_secret": "space_secret"},
         }
@@ -486,8 +590,13 @@ API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CASE = ComponentTestCase(
     execute_assertion=ExecuteAssertion(
         success=True, outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}}
     ),
-    schedule_assertion=None,
+    schedule_assertion=ScheduleAssertion(
+        success=True,
+        outputs={"status_code": 200, "data": {"data": {"task_id": "12345"}}},
+        schedule_finished=True,
+    ),
     patchers=[
+        SETTINGS_PATCHER,
         Patcher(
             target="bkflow.pipeline_plugins.components.collections.uniform_api.v3_0_0.InterfaceModuleClient",
             return_value=API_GATEWAY_CREDENTIAL_NAME_USER_PROVIDED_CLIENT,
