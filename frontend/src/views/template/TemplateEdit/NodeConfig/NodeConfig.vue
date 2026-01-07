@@ -605,8 +605,8 @@
               ...this.scopeInfo,
             });
             if (!resp.result) return;
-            // 如果meta API返回了version字段，使用它；否则使用当前basicInfo中的version
-            const apiVersion = resp.data.version || version;
+            // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
+            const apiVersion = resp.data.version || 'v2.0.0';
             // 使用meta API返回的version加载统一api基础配置
             await this.loadAtomConfig({ atom: plugin, version: apiVersion, space_id: this.spaceId });
             // 输出参数
