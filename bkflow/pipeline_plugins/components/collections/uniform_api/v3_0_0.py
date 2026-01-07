@@ -330,7 +330,7 @@ class UniformAPIService(BKFlowBaseService):
         polling = api_data.pop("uniform_api_plugin_polling", None)
         callback = api_data.pop("uniform_api_plugin_callback", None)
         method = api_data.pop("uniform_api_plugin_method")
-        credential_key = api_data.pop("uniform_api_credential_key", None)
+        credential_key = api_data.pop("uniform_api_plugin_credential_key", None)
         resp_data_path: str = api_data.pop("response_data_path", None)
         # 获取空间相关配置信息
         interface_client = InterfaceModuleClient()
@@ -502,7 +502,7 @@ class UniformAPIService(BKFlowBaseService):
         validated_config = UniformAPIConfigHandler(uniform_api_config).handle()
 
         # 获取凭证信息
-        credential_key = data.get_one_of_inputs("uniform_api_credential_key", None)
+        credential_key = data.get_one_of_inputs("uniform_api_plugin_credential_key", None)
         app_code, app_secret = self._get_credential(scope_type, scope_id, parent_data, space_configs, credential_key)
         if not app_code or not app_secret:
             message = "不存在调用凭证"
