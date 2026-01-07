@@ -22,6 +22,7 @@ class TestTaskContext:
         mock_taskflow.id = 456
         mock_taskflow.name = "Test Task"
         mock_taskflow.create_method = "API"
+        mock_taskflow.extra_info = {}
         context = TaskContext(mock_taskflow)
         assert context.task_space_id == 123
         assert context.is_mock is False
