@@ -405,7 +405,7 @@ INSTALLED_APPS += ("blueapps.opentelemetry.instrument_app",)
 INSTALLED_APPS += ("corsheaders",)
 if "corsheaders.middleware.CorsMiddleware" not in MIDDLEWARE:
     MIDDLEWARE = ("corsheaders.middleware.CorsMiddleware",) + MIDDLEWARE
-CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = ["GET", "OPTIONS"]
 # 允许 static、openapi 路径跨域访问

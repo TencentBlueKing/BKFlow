@@ -30,12 +30,9 @@ from bkflow.template.models import TemplateMockData
 from bkflow.utils.strings import standardize_pipeline_node_name
 
 
-class CreateTaskSerializer(serializers.Serializer):
-    template_id = serializers.IntegerField(help_text=_("模版ID"))
-    name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
-    creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
-    description = serializers.CharField(help_text=_("任务描述"), required=False)
-    constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+class CredentialsValidationMixin:
+    """凭证验证 Mixin，提供 credentials 字段和验证逻辑"""
+
     credentials = serializers.DictField(
         help_text=_("凭证字典，key为凭证的key，value为base64 encode的json序列化的字典"),
         required=False,
@@ -75,6 +72,14 @@ class CreateTaskSerializer(serializers.Serializer):
         return decoded_credentials
 
 
+class CreateTaskSerializer(CredentialsValidationMixin, serializers.Serializer):
+    template_id = serializers.IntegerField(help_text=_("模版ID"))
+    name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
+    creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
+    description = serializers.CharField(help_text=_("任务描述"), required=False)
+    constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+
+
 class TaskMockDataSerializer(serializers.Serializer):
     nodes = serializers.ListSerializer(help_text=_("要 Mock 执行的节点 ID 列表"), child=serializers.CharField(), default=[])
     outputs = serializers.JSONField(help_text=_('节点 Mock 输出, 形如{"node_id": {"output1": "output_value1"}}'), default={})
@@ -83,7 +88,7 @@ class TaskMockDataSerializer(serializers.Serializer):
     )
 
 
-class CreateMockTaskBaseSerializer(serializers.Serializer):
+class CreateMockTaskBaseSerializer(CredentialsValidationMixin, serializers.Serializer):
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=True)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     mock_data = TaskMockDataSerializer(help_text=_("Mock 数据"), default=TaskMockDataSerializer())
