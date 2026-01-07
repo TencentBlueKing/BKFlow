@@ -16,11 +16,15 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from blueapps.account.decorators import login_exempt
 from blueapps.utils import get_client_by_request
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
 
+@login_exempt
+@csrf_exempt
 @require_GET
 def get_msg_types(request):
     """

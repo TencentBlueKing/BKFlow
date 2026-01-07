@@ -14,14 +14,59 @@
 | 字段          | 类型     | 必选 | 描述                                                                                                                                                              |
 |-------------|--------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | template_id | int    | 是  | 模板id                                                                                                                                                            |
-| name        | string | 否  | 任务名                                                                                                                                                             |
+| name        | string | 是  | 任务名                                                                                                                                                             |
 | creator     | string | 是  | 创建者                                                                                                                                                             |
 | description | string | 否  | 描述                                                                                                                                                              |
 | constants   | dict   | 否  | 任务启动参数                                                                                                                                                          |
+| credentials | dict   | 否  | 凭证字典，用于传递API调用所需的凭证信息，详见下方说明                                                                                                                              |
 | mock_data   | dict   | 否  | mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock 执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs 没有传参，则会自动将创建任务时对应的 mock 数据 作为 outputs） |
+
+### credentials 参数说明
+
+`credentials` 参数用于在创建任务时传递 API 调用所需的凭证信息。该参数是一个字典类型，字典的 key 为凭证的标识名称，value 为 base64 编码的 JSON 字符串。
+
+**凭证格式要求：**
+- key：凭证的标识名称
+- value：base64 编码的 JSON 字符串，解码后必须是一个包含 `bk_app_code` 和 `bk_app_secret` 字段的字典对象
+
+**对于API插件凭证使用优先级：**
+1. 如果任务创建时传入了 `credentials` 参数，且凭证 key 与空间配置中的 `api_gateway_credential_name` 匹配，则优先使用用户传入的凭证
+2. 如果用户未提供凭证或凭证 key 不匹配，则使用空间配置中的 `credential` 配置
+
+**凭证示例：**
+```json
+{
+    "credentials": {
+        "my_credential": "eyJia19hcHBfY29kZSI6ICJteV9hcHAiLCAiYmtfYXBwX3NlY3JldCI6ICJteV9zZWNyZXQifQ=="
+    }
+}
+```
+
+其中，base64 解码后的内容为：
+```json
+{
+    "bk_app_code": "my_app",
+    "bk_app_secret": "my_secret"
+}
+```
+
+**注意事项：**
+- 凭证信息会被存储在任务的 `extra_info.custom_context.credentials` 中，供流程执行时使用
+- 凭证信息仅用于统一 API 插件（uniform_api）的 API 调用认证
+- 如果空间配置中设置了 `api_gateway_credential_name` 为字典格式（支持按 scope 配置不同凭证），系统会根据任务的 scope_type 和 scope_value 匹配对应的凭证名称
+
+### pipeline_tree 版本说明
+
+创建 mock 任务时，系统会自动选择使用的流程版本：
+
+1. **优先使用草稿版本**：如果当前模板存在草稿版本的流程（`draft=True`），则使用草稿版本的 `pipeline_tree` 创建调试任务
+2. **使用最新发布版本**：如果当前模板没有草稿版本，则使用最新发布版本的 `pipeline_tree` 创建调试任务
+
+这样可以确保在调试时优先使用最新的未发布修改，如果没有草稿版本则使用已发布的稳定版本。
 
 ### 请求参数示例
 
+基础请求参数示例：
 ```json
 {
     "bk_app_code": "xxxx",
@@ -30,6 +75,34 @@
     "name": "空间名",
     "template_id": 4,
     "creator": "创建者",
+    "mock_data": {
+        "nodes": [
+            "nd7927122ef6310eb309c2c8d3f70c23"
+        ],
+        "outputs": {
+            "nd7927122ef6310eb309c2c8d3f70c23": {
+                "callback_data": "abc"
+            }
+        },
+        "mock_data_ids": {
+            "nd7927122ef6310eb309c2c8d3f70c23": 1
+        }
+    }
+}
+```
+
+带凭证的请求参数示例：
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "bk_username or bk_token": "xxxx",
+    "name": "空间名",
+    "template_id": 4,
+    "creator": "创建者",
+    "credentials": {
+        "my_credential": "eyJia19hcHBfY29kZSI6ICJteV9hcHAiLCAiYmtfYXBwX3NlY3JldCI6ICJteV9zZWNyZXQifQ=="
+    },
     "mock_data": {
         "nodes": [
             "nd7927122ef6310eb309c2c8d3f70c23"

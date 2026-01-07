@@ -1519,9 +1519,9 @@
                       value: url,
                     },
                   };
-                  // 如果detail meta返回了credential_key，将其组装为uniform_api_credential_key
+                  // 如果detail meta返回了credential_key，将其组装为uniform_api_plugin_credential_key
                   if (credential_key) {
-                    location.data.uniform_api_credential_key = {
+                    location.data.uniform_api_plugin_credential_key = {
                       hook: false,
                       value: credential_key,
                     };
