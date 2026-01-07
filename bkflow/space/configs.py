@@ -232,6 +232,7 @@ class SpaceEngineConfig(BaseSpaceConfig):
             jsonschema.validate(instance=value, schema=cls.SCHEMA)
         except jsonschema.ValidationError as e:
             raise ValidationError(f"Configuration validation error: {str(e)} excepted: {cls.example}")
+        return True
 
 
 class CallbackHooksConfig(BaseSpaceConfig):
