@@ -80,6 +80,15 @@ class CreateTaskSerializer(CredentialsValidationMixin, serializers.Serializer):
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
 
 
+class CreateTaskByAppSerializer(serializers.Serializer):
+    """创建任务序列化器（用于基于 bk_app_code 的接口，creator 从网关认证用户获取）"""
+
+    template_id = serializers.IntegerField(help_text=_("模版ID"))
+    name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
+    description = serializers.CharField(help_text=_("任务描述"), required=False)
+    constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+
+
 class TaskMockDataSerializer(serializers.Serializer):
     nodes = serializers.ListSerializer(help_text=_("要 Mock 执行的节点 ID 列表"), child=serializers.CharField(), default=[])
     outputs = serializers.JSONField(help_text=_('节点 Mock 输出, 形如{"node_id": {"output1": "output_value1"}}'), default={})

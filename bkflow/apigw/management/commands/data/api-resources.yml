@@ -2754,3 +2754,365 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+  /template/{template_id}/get_template_detail_by_app/:
+    get:
+      operationId: get_template_detail_by_app
+      description: 通过 bk_app_code 权限校验获取流程详情
+      tags: []
+      responses:
+        '200':
+          description: ''
+          schema:
+            type: object
+            properties:
+              result:
+                type: boolean
+                description: true/false 查询成功与否
+              data:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: 流程 ID
+                  space_id:
+                    type: integer
+                    description: 流程对应的空间 ID
+                  name:
+                    type: string
+                    description: 流程名称
+                  desc:
+                    type: string
+                    description: 流程描述
+                  notify_config:
+                    type: object
+                    description: 流程通知配置
+                    additionalProperties: true
+                  scope_type:
+                    type: string
+                    description: 流程所属领域类型
+                  scope_value:
+                    type: string
+                    description: 流程所属领域值
+                  bk_app_code:
+                    type: string
+                    description: 绑定的蓝鲸应用编码
+                  pipeline_tree:
+                    type: object
+                    description: 流程树
+                    additionalProperties: true
+                  source:
+                    type: string
+                    description: 流程来源
+                  version:
+                    type: string
+                    description: 流程版本号
+                  is_enabled:
+                    type: boolean
+                    description: 是否启用
+                  extra_info:
+                    type: object
+                    description: 额外信息
+                    additionalProperties: true
+                  creator:
+                    type: string
+                    description: 流程创建人
+                  create_at:
+                    type: string
+                    description: 创建时间
+                  updated_by:
+                    type: string
+                    description: 流程更新人
+                  update_at:
+                    type: string
+                    description: 更新时间
+                description: result=true 时返回数据
+              message:
+                type: string
+                description: result=false 时错误信息
+              code:
+                type: integer
+                description: 错误码
+              trace_id:
+                type: string
+                description: open telemetry trace_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}apigw/template/{template_id}/get_template_detail_by_app/
+          matchSubpath: false
+          timeout: 0
+          upstreams: {}
+          transformHeaders: {}
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: false
+        disabledStages: []
+        descriptionEn: Get template detail by bk_app_code authentication
+  /template/{template_id}/create_task_by_app/:
+    post:
+      operationId: create_task_by_app
+      description: 通过 bk_app_code 权限校验创建任务
+      tags: []
+      responses:
+        '200':
+          description: ''
+          schema:
+            type: object
+            properties:
+              result:
+                type: boolean
+                description: true/false 操作是否成功
+              data:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: 任务ID
+                  space_id:
+                    type: integer
+                    description: 空间ID
+                  scope_type:
+                    type: string
+                    description: 任务范围类型
+                  scope_value:
+                    type: string
+                    description: 任务范围值
+                  instance_id:
+                    type: string
+                    description: 实例ID
+                  template_id:
+                    type: integer
+                    description: 模板ID
+                  name:
+                    type: string
+                    description: 任务名称
+                  creator:
+                    type: string
+                    description: 创建者
+                  create_time:
+                    type: string
+                    description: 创建时间
+                  executor:
+                    type: string
+                    description: 执行者
+                  start_time:
+                    type: string
+                    description: 开始时间
+                  finish_time:
+                    type: string
+                    description: 结束时间
+                  description:
+                    type: string
+                    description: 描述
+                  is_started:
+                    type: boolean
+                    description: 是否已开始
+                  is_finished:
+                    type: boolean
+                    description: 是否已结束
+                  is_revoked:
+                    type: boolean
+                    description: 是否已撤销
+                  is_deleted:
+                    type: boolean
+                    description: 是否已删除
+                  is_expired:
+                    type: boolean
+                    description: 是否已过期
+                  snapshot_id:
+                    type: integer
+                    description: 快照ID
+                  execution_snapshot_id:
+                    type: integer
+                    description: 执行快照ID
+                  tree_info_id:
+                    type: integer
+                    description: 任务拓扑信息ID
+                  extra_info:
+                    type: object
+                    description: 任务额外信息
+                    additionalProperties: true
+                description: result=true 时成功数据
+              message:
+                type: string
+                description: result=false 时错误信息
+              code:
+                type: integer
+                description: 错误码
+              trace_id:
+                type: string
+                description: open telemetry trace_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}apigw/template/{template_id}/create_task_by_app/
+          matchSubpath: false
+          timeout: 0
+          upstreams: {}
+          transformHeaders: {}
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: false
+        disabledStages: []
+        descriptionEn: Create task by bk_app_code authentication
+      parameters:
+      - name: body
+        in: body
+        description: ''
+        required: false
+        schema:
+          type: object
+          properties:
+            name:
+              type: string
+              description: 任务名称
+            description:
+              type: string
+              description: 任务描述
+            constants:
+              type: object
+              description: 任务启动参数，key为变量KEY（${key}格式），value为变量值
+              additionalProperties: true
+  /task/{task_id}/operate_task_by_app/{operation}/:
+    post:
+      operationId: operate_task_by_app
+      description: 通过 bk_app_code 权限校验执行任务操作
+      tags: []
+      responses:
+        '200':
+          description: ''
+          schema:
+            type: object
+            properties:
+              result:
+                type: boolean
+                description: true/false 操作是否成功
+              data:
+                type: object
+                x-nullable: true
+                description: 返回数据
+              message:
+                type: string
+                description: result=false 时错误信息
+              code:
+                type: integer
+                description: 错误码
+              trace_id:
+                type: string
+                description: open telemetry trace_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: post
+          path: /{env.api_sub_path}apigw/task/{task_id}/operate_task_by_app/{operation}/
+          matchSubpath: false
+          timeout: 0
+          upstreams: {}
+          transformHeaders: {}
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: false
+        disabledStages: []
+        descriptionEn: Operate task by bk_app_code authentication
+  /task/{task_id}/get_task_states_by_app/:
+    get:
+      operationId: get_task_states_by_app
+      description: 通过 bk_app_code 权限校验获取任务状态
+      tags: []
+      responses:
+        '200':
+          description: ''
+          schema:
+            type: object
+            properties:
+              result:
+                type: boolean
+                description: true/false 查询成功与否
+              data:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: 任务实例ID
+                  state:
+                    type: string
+                    description: 任务状态，CREATED：未执行，RUNNING：执行中，FAILED：失败，SUSPENDED：暂停，REVOKED：已终止，FINISHED：已完成
+                  root_id:
+                    type: string
+                    description: 根任务ID
+                  parent_id:
+                    type: string
+                    description: 父任务ID
+                  version:
+                    type: string
+                    description: 任务版本
+                  loop:
+                    type: integer
+                    description: 任务循环次数
+                  retry:
+                    type: integer
+                    description: 任务重试次数
+                  skip:
+                    type: boolean
+                    description: 任务是否跳过
+                  error_ignorable:
+                    type: boolean
+                    description: 任务是否忽略错误
+                  error_ignored:
+                    type: boolean
+                    description: 任务是否忽略错误
+                  children:
+                    type: object
+                    description: 节点状态列表
+                    additionalProperties: true
+                  elapsed_time:
+                    type: integer
+                    description: 任务耗时，单位：秒
+                  start_time:
+                    type: string
+                    description: 任务开始时间
+                  finish_time:
+                    type: string
+                    description: 任务结束时间
+                description: result=true 时返回数据
+              message:
+                type: string
+                description: result=false 时错误信息
+              code:
+                type: integer
+                description: 错误码
+              trace_id:
+                type: string
+                description: open telemetry trace_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          type: HTTP
+          method: get
+          path: /{env.api_sub_path}apigw/task/{task_id}/get_task_states_by_app/
+          matchSubpath: false
+          timeout: 0
+          upstreams: {}
+          transformHeaders: {}
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: false
+        disabledStages: []
+        descriptionEn: Get task states by bk_app_code authentication

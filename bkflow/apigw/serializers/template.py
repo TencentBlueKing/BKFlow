@@ -42,10 +42,17 @@ class CreateTemplateSerializer(serializers.Serializer):
     scope_type = serializers.CharField(help_text=_("流程范围类型"), max_length=128, required=False)
     scope_value = serializers.CharField(help_text=_("流程范围值"), max_length=128, required=False)
     source = serializers.CharField(help_text=_("来源"), max_length=32, required=False)
+    bind_app_code = serializers.CharField(
+        help_text=_("绑定的应用编码"), max_length=128, required=False, allow_null=True, allow_blank=True
+    )
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
 
     def validate(self, attrs):
+        # 将 bind_app_code 映射到 bk_app_code 字段（models 中的字段名）
+        if "bind_app_code" in attrs:
+            attrs["bk_app_code"] = attrs.pop("bind_app_code")
+
         scope_type = attrs.get("scope_type")
         scope_value = attrs.get("scope_value")
 
