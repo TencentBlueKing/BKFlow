@@ -117,7 +117,6 @@
           @modifyTemplateData="modifyTemplateData"
           @createSnapshoot="onCreateSnapshoot"
           @useSnapshoot="onUseSnapshoot"
-          @updateTemplateLabelList="getTemplateLabelList"
           @updateSnapshoot="onUpdateSnapshoot" />
       </div>
       <bk-dialog
@@ -633,6 +632,7 @@
             common: this.common,
           };
           const templateData = await this.loadTemplateData(data);
+          console.log(templateData, 'templateData');
           this.tplActions = templateData.auth;
           if (this.type === 'clone') {
             templateData.name = `${templateData.name.slice(0, STRING_LENGTH.TEMPLATE_NAME_MAX_LENGTH - 6)}_clone`;
@@ -736,17 +736,17 @@
       /**
        * 加载模板标签列表
        */
-      async getTemplateLabelList() {
-        try {
-          this.templateLabelLoading = true;
-          const res = await this.getProjectLabelsWithDefault(this.projectId);
-          this.templateLabels = res.data;
-        } catch (e) {
-          console.log(e);
-        } finally {
-          this.templateLabelLoading = false;
-        }
-      },
+    //   async getTemplateLabelList() {
+    //     try {
+    //       this.templateLabelLoading = true;
+    //       const res = await this.getProjectLabelsWithDefault(this.projectId);
+    //       this.templateLabels = res.data;
+    //     } catch (e) {
+    //       console.log(e);
+    //     } finally {
+    //       this.templateLabelLoading = false;
+    //     }
+    //   },
       checkDirtyData() {
         const ins = new DealVarDirtyData(this.constants);
         const illegalKeys = ins.checkKeys();

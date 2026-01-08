@@ -60,7 +60,7 @@
             <label-cascade
               :value="props.row.labels"
               scope="template"
-              @confirm="onConfirmEditLabel(props.row)">
+              @confirm="onConfirmEditLabel(props.row, $event)">
               <template #trigger="{ list, isShow }">
                 <div
                   v-if="isShow"
@@ -510,14 +510,14 @@ export default {
         },
         onDeleteLabel(row, label) {
             if (!row || !label) return;
-            const nextLabels = row.labels.filter(item => item.id !== label.id);
-            this.$set(row, 'labels', nextLabels);
+            const filterLabel = row.labels.filter(item => item.id !== label.id);
+            this.$set(row, 'labels', filterLabel);
         },
-        async onConfirmEditLabel(task) {
+        async onConfirmEditLabel(task, labels) {
             const data = {
                 space_id: this.spaceId,
                 task_id: task.id,
-                label_ids: task.labels.map(item => item.id),
+                label_ids: labels.map(item => item.id),
             };
             await this.updateTaskLabel(data);
             this.getTaskList();

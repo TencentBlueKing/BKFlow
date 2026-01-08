@@ -1383,7 +1383,7 @@
           this.isReadyStatus = ['RUNNING', 'SUSPENDED', 'FINISHED', 'FAILED'].indexOf(respData.state) > -1;
 
           respData = await this.setFillRecordField(respData);
-          if (!isChangeExecuteLoop){
+          if (!isChangeExecuteLoop) {
             this.loop = respData.loop;
             this.theExecuteTime = respData.loop;
           }

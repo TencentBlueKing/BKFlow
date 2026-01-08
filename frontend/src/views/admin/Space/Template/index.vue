@@ -55,23 +55,18 @@
         :min-width="item.min_width">
         <template slot-scope="props">
           <div v-if="item.id === 'name'">
-            <router-link
-              class="template-name"
-              :to="{
-                name: 'templatePanel',
-                params: {
-                  templateId: props.row.id,
-                  type: 'view',
-                },
-              }">
+            <bk-button
+              theme="primary"
+              text
+              @click="onNameClick(props.row)">
               {{ props.row.name }}
-            </router-link>
+            </bk-button>
           </div>
           <div v-else-if="item.id === 'label'">
             <label-cascade
               :value="props.row.labels"
               scope="template"
-              @confirm="onConfirmEditLabel(props.row)">
+              @confirm="onConfirmEditLabel(props.row, $event)">
               <template #trigger="{ list, isShow }">
                 <div
                   v-if="isShow"
@@ -493,7 +488,7 @@ export default {
             'updateTemplateLabel',
         ]),
         ...mapActions('task/', ['createTask']),
-        ...mapMutations('template/', ['setSpaceId']),
+        ...mapMutations('template/', ['setSpaceId', 'setTemplateLabel']),
         renderReferendLabelHeader(h, value) {
             return h('div', [
                 h('span', i18n.t('流程')),
@@ -832,17 +827,26 @@ export default {
             }
         },
         onDeleteLabel(row, label) {
-            if (!row || !label) return;
-            const nextLabels = row.labels.filter(item => item.id !== label.id);
-            this.$set(row, 'labels', nextLabels);
+            const filterLabel = row.labels.filter(item => item.id !== label.id);
+            this.$set(row, 'labels', filterLabel);
         },
-        async onConfirmEditLabel(template) {
+        async onConfirmEditLabel(template, labels) {
             const data = {
                 template_id: template.id,
-                label_ids: template.labels.map(item => item.id),
+                label_ids: labels.map(item => item.id),
             };
             await this.updateTemplateLabel(data);
             this.getTemplateList();
+        },
+        onNameClick(row) {
+            this.setTemplateLabel(row.labels);
+            this.$router.push({
+                name: 'templatePanel',
+                params: {
+                    templateId: row.id,
+                    type: 'view',
+                },
+            });
         },
     },
 };

@@ -14,7 +14,7 @@
       <div @click="isVisible(true)">
         <slot
           name="trigger"
-          :list="selectLabel"
+          :list="selectLabelList"
           :is-show="isShow" />
       </div>
       <template #content>
@@ -39,7 +39,7 @@
                 ]"
                 @click="handleClickFirstLabel(label)">
                 <bk-checkbox
-                  :value="cascadeValue.includes(label.id)"
+                  :value="labelIds.includes(label.id)"
                   @change="handleCheckChange(label, $event)">
                   {{ label.name }}
                 </bk-checkbox>
@@ -59,7 +59,7 @@
                 :key="label.id"
                 class="label-item">
                 <bk-checkbox
-                  :value="cascadeValue.includes(label.id)"
+                  :value="labelIds.includes(label.id)"
                   @change="handleCheckChange(label, $event)">
                   {{ label.name }}
                 </bk-checkbox>
@@ -121,8 +121,8 @@ export default {
         return {
             showCreateLabelDialog: false,
             labelList: [],
-            selectLabel: [],
-            cascadeValue: [],
+            selectLabelList: [],
+            labelIds: [],
             isShow: false,
             secondLabelList: [],
             foucsId: 0,
@@ -144,8 +144,8 @@ export default {
     watch: {
         value: {
             handler(val) {
-                this.selectLabel = [...val];
-                this.cascadeValue = val.map(item => item.id);
+                this.selectLabelList = [...val];
+                this.labelIds = val.map(item => item.id);
             },
             immediate: true,
         },
@@ -204,19 +204,19 @@ export default {
         },
         handleCheckChange(label, checked) {
             if (checked) {
-                this.selectLabel.push({
+                this.selectLabelList.push({
                     id: label.id,
                     name: label.name,
                     color: label.color,
                     full_path: label.full_path,
                 });
             } else {
-                this.selectLabel = this.selectLabel.filter(item => item.id !== label.id);
+                this.selectLabelList = this.selectLabelList.filter(item => item.id !== label.id);
             }
         },
         hide() {
             this.isShow = false;
-            this.$emit('confirm');
+            this.$emit('confirm', this.selectLabelList);
         },
         onCreateLabel() {
             this.isShowCreate = true;
@@ -331,6 +331,9 @@ export default {
 </style>
 
 <style lang="scss">
+.bk-tooltip-ref {
+    width: 100%;
+}
 .label-cascade-popover {
     .tippy-tooltip {
         border: 1px solid #dcdee5;

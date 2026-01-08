@@ -91,7 +91,8 @@
           :property="'labels'">
           <label-cascade
             :value="taskFormData.labels"
-            scope="template">
+            scope="template"
+            @confirm="handleSelected">
             <template #trigger="{ list, isShow }">
               <div
                 :class="['cascade-trigger', { focus: isShow }]">
@@ -179,7 +180,6 @@ export default {
             stringLength: STRING_LENGTH,
             createLoading: false,
             unReferencedConstants: {},
-            selectedLabels: [],
         };
     },
     computed: {
@@ -243,7 +243,7 @@ export default {
         async createTaskConfirm() {
             try {
                 const isFormValid = await this.$refs.createTaskForm.validate();
-                const isParamsValid =                    this.taskFormData.mode === 'json'
+                const isParamsValid = this.taskFormData.mode === 'json'
                         ? this.isJsonConstantsValid
                         : this.$refs.taskParamEdit.validate();
 
@@ -257,6 +257,7 @@ export default {
                     spaceId: this.spaceId,
                     params: {
                         ...this.taskFormData,
+                        label_ids: this.taskFormData.labels.map(label => label.id),
                         constants: this.getParameterConstants(),
                     },
                 });
@@ -299,12 +300,10 @@ export default {
             this.$emit('close');
         },
         handleSelected(val) {
-            this.selectedLabels = val;
-            this.taskFormData.label_ids = val.map(item => item.id);
+            this.taskFormData.labels = val;
         },
         handleDeleteLabel(val) {
-            this.selectedLabels = this.selectedLabels.filter(item => item.id !== val);
-            this.taskFormData.label_ids = this.taskFormData.label_ids.filter(item => item !== val);
+            this.taskFormData.labels = this.taskFormData.labels.filter(item => item.id !== val.id);
         },
     },
 };
