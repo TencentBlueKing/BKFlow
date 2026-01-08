@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,9 +21,12 @@ from functools import wraps
 
 from django.conf import settings
 from django.http import JsonResponse
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from bkflow.space.models import Space
+from bkflow.task.models import TaskInstance
+from bkflow.template.models import Template
 from bkflow.utils import err_code
 from bkflow.utils.drf_error_handler import format_drf_serializers_exception
 
@@ -91,7 +93,7 @@ def check_jwt_and_space(view_func):
                     status=403,
                     data={
                         "result": False,
-                        "message": "space does not exist. space_id={}".format(space_id),
+                        "message": _("空间不存在，space_id={}").format(space_id),
                     },
                 )
             if space.app_code != request.app.bk_app_code:
@@ -99,10 +101,160 @@ def check_jwt_and_space(view_func):
                     status=403,
                     data={
                         "result": False,
-                        "message": "The current application does not have permission to operate this space，"
-                        "app={}".format(request.app.bk_app_code),
+                        "message": _("当前应用无权操作此空间，app={}").format(request.app.bk_app_code),
                     },
                 )
+
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view
+
+
+def check_template_bk_app_code(view_func):
+    """
+    检查请求的 bk_app_code 是否与模板绑定的 bk_app_code 一致
+    用于基于 bk_app_code 的流程权限控制
+    @param view_func:
+    @return:
+    """
+
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        exempt = getattr(settings, "BK_APIGW_REQUIRE_EXEMPT", False)
+        if exempt:
+            return view_func(request, *args, **kwargs)
+
+        template_id = request.resolver_match.kwargs.get("template_id")
+        if template_id is None:
+            return JsonResponse(
+                status=400,
+                data={
+                    "result": False,
+                    "message": _("template_id 是必填参数"),
+                },
+            )
+
+        template = Template.objects.filter(id=template_id, is_deleted=False).first()
+        if template is None:
+            return JsonResponse(
+                status=404,
+                data={
+                    "result": False,
+                    "message": _("模板不存在，template_id={}").format(template_id),
+                },
+            )
+
+        # 检查模板是否绑定了 bk_app_code
+        if not template.bk_app_code:
+            return JsonResponse(
+                status=403,
+                data={
+                    "result": False,
+                    "message": _("模板未绑定任何 bk_app_code，template_id={}").format(template_id),
+                },
+            )
+
+        # 检查请求的 bk_app_code 是否与模板绑定的 bk_app_code 一致
+        request_app_code = request.app.bk_app_code
+        if template.bk_app_code != request_app_code:
+            return JsonResponse(
+                status=403,
+                data={
+                    "result": False,
+                    "message": _("当前应用无权操作此模板，app={}，模板绑定的 app={}").format(request_app_code, template.bk_app_code),
+                },
+            )
+
+        # 将 template 和 space_id 挂载到 request 上，方便后续使用
+        request.template = template
+        request.space_id = template.space_id
+
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view
+
+
+def check_task_bk_app_code(view_func):
+    """
+    检查请求的 bk_app_code 是否与任务所属模板绑定的 bk_app_code 一致
+    用于基于 bk_app_code 的任务权限控制
+    @param view_func:
+    @return:
+    """
+
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        exempt = getattr(settings, "BK_APIGW_REQUIRE_EXEMPT", False)
+        if exempt:
+            return view_func(request, *args, **kwargs)
+
+        task_id = request.resolver_match.kwargs.get("task_id")
+        if task_id is None:
+            return JsonResponse(
+                status=400,
+                data={
+                    "result": False,
+                    "message": _("task_id 是必填参数"),
+                },
+            )
+
+        task = TaskInstance.objects.filter(id=task_id, is_deleted=False).first()
+        if task is None:
+            return JsonResponse(
+                status=404,
+                data={
+                    "result": False,
+                    "message": _("任务不存在，task_id={}").format(task_id),
+                },
+            )
+
+        # 获取任务关联的模板
+        if not task.template_id:
+            return JsonResponse(
+                status=403,
+                data={
+                    "result": False,
+                    "message": _("任务未关联任何模板，task_id={}").format(task_id),
+                },
+            )
+
+        template = Template.objects.filter(id=task.template_id, is_deleted=False).first()
+        if template is None:
+            return JsonResponse(
+                status=404,
+                data={
+                    "result": False,
+                    "message": _("任务关联的模板不存在，task_id={}，template_id={}").format(task_id, task.template_id),
+                },
+            )
+
+        # 检查模板是否绑定了 bk_app_code
+        if not template.bk_app_code:
+            return JsonResponse(
+                status=403,
+                data={
+                    "result": False,
+                    "message": _("任务关联的模板未绑定任何 bk_app_code，task_id={}，template_id={}").format(
+                        task_id, task.template_id
+                    ),
+                },
+            )
+
+        # 检查请求的 bk_app_code 是否与模板绑定的 bk_app_code 一致
+        request_app_code = request.app.bk_app_code
+        if template.bk_app_code != request_app_code:
+            return JsonResponse(
+                status=403,
+                data={
+                    "result": False,
+                    "message": _("当前应用无权操作此任务，app={}，模板绑定的 app={}").format(request_app_code, template.bk_app_code),
+                },
+            )
+
+        # 将 task, template 和 space_id 挂载到 request 上，方便后续使用
+        request.task = task
+        request.template = template
+        request.space_id = task.space_id
 
         return view_func(request, *args, **kwargs)
 

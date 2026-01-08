@@ -113,6 +113,7 @@ class Template(CommonModel):
     scope_value = models.CharField(_("流程范围"), max_length=128, null=True, blank=True)
     source = models.CharField(_("来源"), max_length=32, null=True, blank=True, help_text=_("第三方系统对应的资源ID"))
     is_enabled = models.BooleanField(_("是否启用"), default=True)
+    bk_app_code = models.CharField(_("应用编码"), max_length=128, null=True, blank=True)
     extra_info = models.JSONField(_("额外的扩展信息"), default=dict)
 
     objects = TemplateManager()
@@ -134,6 +135,7 @@ class Template(CommonModel):
             "source": self.source,
             "version": self.version,
             "is_enabled": self.is_enabled,
+            "bk_app_code": self.bk_app_code,
             "extra_info": self.extra_info,
             "creator": self.creator,
             "create_at": self.create_at,

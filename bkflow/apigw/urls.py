@@ -30,6 +30,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.create_mock_task import create_mock_task
     from bkflow.apigw.views.create_space import create_space
     from bkflow.apigw.views.create_task import create_task
+    from bkflow.apigw.views.create_task_by_app import create_task_by_app
     from bkflow.apigw.views.create_task_without_template import (
         create_task_without_template,
     )
@@ -41,14 +42,17 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.get_task_list import get_task_list
     from bkflow.apigw.views.get_task_node_detail import get_task_node_detail
     from bkflow.apigw.views.get_task_states import get_task_states
+    from bkflow.apigw.views.get_task_states_by_app import get_task_states_by_app
     from bkflow.apigw.views.get_tasks_states import get_tasks_states
     from bkflow.apigw.views.get_template_detail import get_template_detail
+    from bkflow.apigw.views.get_template_detail_by_app import get_template_detail_by_app
     from bkflow.apigw.views.get_template_list import get_template_list
     from bkflow.apigw.views.get_template_mock_data import get_template_mock_data
     from bkflow.apigw.views.grant_apigw_permissions_to_app import (
         grant_apigw_permissions_to_app,
     )
     from bkflow.apigw.views.operate_task import operate_task
+    from bkflow.apigw.views.operate_task_by_app import operate_task_by_app
     from bkflow.apigw.views.operate_task_node import operate_task_node
     from bkflow.apigw.views.release_template import release_template
     from bkflow.apigw.views.renew_space_config import renew_space_config
@@ -90,4 +94,9 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/apply_webhook_configs/$", apply_webhook_configs),
         url(r"^space/(?P<space_id>\d+)/delete_task/$", delete_task),
         url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/release_template/$", release_template),
+        # 基于 bk_app_code 权限控制的接口
+        url(r"^template/(?P<template_id>\d+)/get_template_detail_by_app/$", get_template_detail_by_app),
+        url(r"^template/(?P<template_id>\d+)/create_task_by_app/$", create_task_by_app),
+        url(r"^task/(?P<task_id>\d+)/operate_task_by_app/(?P<operation>\w+)/$", operate_task_by_app),
+        url(r"^task/(?P<task_id>\d+)/get_task_states_by_app/$", get_task_states_by_app),
     ]
