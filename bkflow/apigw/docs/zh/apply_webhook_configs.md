@@ -45,6 +45,38 @@
 }
 ```
 
+### 携带额外参数示例
+```json
+{
+     "webhooks": [
+          {
+               "code": "webhook1",
+               "name": "webhook1",
+               "endpoint": "http://webhook1.com",
+               "events": ["template_update","template_create"],
+               "extra_info": {
+                    "authorization": {
+                         "type": "basic",
+                         "username": "123",
+                         "password": "123",
+                         "token": "123"
+                    },
+                    "headers": [
+                         {
+                              "key": "Content-Type",
+                              "value": "application/json",
+                              "doc": ""
+                         }
+                    ],
+                    "timeout": 10,
+                    "retry_times": 2,
+                    "interval": 60
+               }
+          }
+     ]
+}
+```
+
 ### 返回结果示例
 
 ```json
