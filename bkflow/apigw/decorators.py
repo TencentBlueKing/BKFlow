@@ -24,8 +24,8 @@ from django.http import JsonResponse
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
+from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.space.models import Space
-from bkflow.task.models import TaskInstance
 from bkflow.template.models import Template
 from bkflow.utils import err_code
 from bkflow.utils.drf_error_handler import format_drf_serializers_exception
@@ -198,8 +198,21 @@ def check_task_bk_app_code(view_func):
                 },
             )
 
-        task = TaskInstance.objects.filter(id=task_id, is_deleted=False).first()
-        if task is None:
+        # 通过 TaskComponentClient 获取任务详情（使用默认的 space_id=0 配置）
+        try:
+            client = TaskComponentClient(space_id=0)
+            task_result = client.get_task_detail(task_id)
+        except Exception as e:
+            logger.exception(f"[check_task_bk_app_code] get task detail error: {e}")
+            return JsonResponse(
+                status=500,
+                data={
+                    "result": False,
+                    "message": _("获取任务详情失败，task_id={}").format(task_id),
+                },
+            )
+
+        if not task_result.get("result"):
             return JsonResponse(
                 status=404,
                 data={
@@ -208,8 +221,12 @@ def check_task_bk_app_code(view_func):
                 },
             )
 
+        task_data = task_result.get("data", {})
+        task_template_id = task_data.get("template_id")
+        task_space_id = task_data.get("space_id")
+
         # 获取任务关联的模板
-        if not task.template_id:
+        if not task_template_id:
             return JsonResponse(
                 status=403,
                 data={
@@ -218,13 +235,13 @@ def check_task_bk_app_code(view_func):
                 },
             )
 
-        template = Template.objects.filter(id=task.template_id, is_deleted=False).first()
+        template = Template.objects.filter(id=task_template_id, is_deleted=False).first()
         if template is None:
             return JsonResponse(
                 status=404,
                 data={
                     "result": False,
-                    "message": _("任务关联的模板不存在，task_id={}，template_id={}").format(task_id, task.template_id),
+                    "message": _("任务关联的模板不存在，task_id={}，template_id={}").format(task_id, task_template_id),
                 },
             )
 
@@ -235,7 +252,7 @@ def check_task_bk_app_code(view_func):
                 data={
                     "result": False,
                     "message": _("任务关联的模板未绑定任何 bk_app_code，task_id={}，template_id={}").format(
-                        task_id, task.template_id
+                        task_id, task_template_id
                     ),
                 },
             )
@@ -251,10 +268,10 @@ def check_task_bk_app_code(view_func):
                 },
             )
 
-        # 将 task, template 和 space_id 挂载到 request 上，方便后续使用
-        request.task = task
+        # 将 task_data, template 和 space_id 挂载到 request 上，方便后续使用
+        request.task_data = task_data
         request.template = template
-        request.space_id = task.space_id
+        request.space_id = task_space_id
 
         return view_func(request, *args, **kwargs)
 
