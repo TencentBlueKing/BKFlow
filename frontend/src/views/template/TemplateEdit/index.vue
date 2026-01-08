@@ -1507,7 +1507,7 @@
                     meta_url: apiMeta.meta_url,
                     ...this.scopeInfo,
                   });
-                  const { url, methods } = resp.data;
+                  const { url, methods, version, credential_key: credentialKey } = resp.data;
                   const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中
                   location.data = {
                     uniform_api_plugin_method: {
@@ -1519,7 +1519,15 @@
                       value: url,
                     },
                   };
-                  location.version = 'v2.0.0';
+                  // 如果detail meta返回了credential_key，将其组装为uniform_api_plugin_credential_key
+                  if (credentialKey) {
+                    location.data.uniform_api_plugin_credential_key = {
+                      hook: false,
+                      value: credentialKey,
+                    };
+                  }
+                  // 使用meta API返回的version，如果没有则使用默认值
+                  location.version = version || 'v2.0.0';
                   location.api_meta = apiMeta;
                 } else if (location.atomId === 'remote_plugin') {
                   const resp = await this.loadPluginServiceMeta({ plugin_code: location.name });
