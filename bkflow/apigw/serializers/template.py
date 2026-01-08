@@ -42,6 +42,9 @@ class CreateTemplateSerializer(serializers.Serializer):
     scope_type = serializers.CharField(help_text=_("流程范围类型"), max_length=128, required=False)
     scope_value = serializers.CharField(help_text=_("流程范围值"), max_length=128, required=False)
     source = serializers.CharField(help_text=_("来源"), max_length=32, required=False)
+    bk_app_code = serializers.CharField(
+        help_text=_("应用编码"), max_length=128, required=False, allow_null=True, allow_blank=True
+    )
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
 
@@ -103,6 +106,9 @@ class UpdateTemplateSerializer(serializers.Serializer):
     scope_type = serializers.CharField(help_text=_("流程范围类型"), max_length=128, required=False)
     scope_value = serializers.CharField(help_text=_("流程范围值"), max_length=128, required=False)
     source = serializers.CharField(help_text=_("来源"), max_length=32, required=False)
+    bk_app_code = serializers.CharField(
+        help_text=_("应用编码"), max_length=128, required=False, allow_null=True, allow_blank=True
+    )
     version = serializers.CharField(help_text=_("版本号"), max_length=32, required=False)
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
