@@ -1109,7 +1109,7 @@
               // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
               const apiVersion = resp.data.version || 'v2.0.0';
               // 使用meta API返回的version加载统一api基础配置
-              const res = await this.loadAtomConfig({ atom: type, version: apiVersion, space_id: this.spaceId });
+              await this.loadAtomConfig({ atom: type, version: apiVersion, space_id: this.spaceId });
               // 输出参数
               const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
               const outputs = resp.data.outputs || [];

@@ -1093,9 +1093,10 @@
           desc = descList.join('<br>');
         }
         // 对于API插件，优先使用basicInfo中已存储的version（可能来自meta API返回），否则使用默认值
-        const apiPluginVersion = this.isApiPlugin && this.basicInfo.version
-          ? this.basicInfo.version
-          : (this.isApiPlugin ? 'V2.0.0' : null);
+        let apiPluginVersion = null;
+        if (this.isApiPlugin) {
+          apiPluginVersion = this.basicInfo.version || 'V2.0.0';
+        }
         const config = {
           plugin: code,
           version: apiPluginVersion || (this.isApiPlugin ? 'V2.0.0' : list[list.length - 1].version),
