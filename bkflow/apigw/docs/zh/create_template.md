@@ -22,6 +22,7 @@
 | scope_value          | string   | 否   | 模板范围值            |
 | source               | string   | 否   | 模板来源(空间接入方自定义字段) |
 | version              | string   | 否   | 模板版本(空间接入方自定义字段) |
+| bind_app_code        | string   | 否   | 绑定的应用编码，用于基于应用的权限控制 |
 | extra_info           | string   | 否   | 模板额外信息           |
 | pipeline_tree        | string   | 否   | 模板信息             |
 | auto_release         | bool     | 否   | 是否自动发布           |

@@ -81,7 +81,7 @@ class RemotePluginService(BKFlowBaseService):
         plugin_context = {
             key: parent_data.inputs[key]
             for key in detail_result["data"]["context_inputs"]["properties"].keys()
-            if key in parent_data.inputs
+            if key in parent_data.inputs and key != "_credentials"
         }
 
         # 处理回调的情况

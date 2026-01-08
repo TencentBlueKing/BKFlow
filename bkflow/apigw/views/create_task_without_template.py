@@ -50,6 +50,12 @@ def create_task_without_template(request, space_id):
     notify_config = create_task_data.pop("notify_config", {}) or DEFAULT_NOTIFY_CONFIG
     create_task_data.setdefault("extra_info", {}).update({"notify_config": notify_config})
 
+    # 将credentials放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
+    # custom_context用于统一管理自定义上下文数据
+    credentials = ser.data.get("credentials", {})
+    if credentials:
+        create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})["credentials"] = credentials
+
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)
     return result

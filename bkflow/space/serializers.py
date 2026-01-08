@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -74,6 +73,7 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
         except ValidationError as e:
             logger.exception(f"[validate_configs] error: {e}")
             raise serializers.ValidationError(e.message)
+        return configs
 
 
 class CredentialSerializer(serializers.ModelSerializer):
@@ -81,7 +81,7 @@ class CredentialSerializer(serializers.ModelSerializer):
     update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
 
     def to_representation(self, instance):
-        data = super(CredentialSerializer, self).to_representation(instance)
+        data = super().to_representation(instance)
         credential = CredentialDispatcher(credential_type=instance.type, data=instance.content)
         if credential:
             data["content"] = credential.display_value()

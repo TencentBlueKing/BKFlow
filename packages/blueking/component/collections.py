@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,34 +17,9 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
-from .apis.bk_login import CollectionsBkLogin
-from .apis.bk_paas import CollectionsBkPaas
-from .apis.cc import CollectionsCC
 from .apis.cmsi import CollectionsCMSI
-from .apis.esb import CollectionsEsb
-from .apis.gse import CollectionsGSE
-from .apis.itsm import CollectionsItsm
-from .apis.job import CollectionsJOB
-from .apis.jobv3 import CollectionsJOBV3
-from .apis.monitor import CollectionsMonitor
-from .apis.nodeman import CollectionsNodeMan
-from .apis.sops import CollectionsSOPS
-from .apis.usermanage import CollectionsUserManage
 
 # Available components
 AVAILABLE_COLLECTIONS = {
-    "bk_login": CollectionsBkLogin,
-    "bk_paas": CollectionsBkPaas,
-    "cc": CollectionsCC,
     "cmsi": CollectionsCMSI,
-    "gse": CollectionsGSE,
-    "job": CollectionsJOB,
-    "jobv3": CollectionsJOBV3,
-    "sops": CollectionsSOPS,
-    "esb": CollectionsEsb,
-    "usermanage": CollectionsUserManage,
-    "nodeman": CollectionsNodeMan,
-    "itsm": CollectionsItsm,
-    "monitor": CollectionsMonitor,
 }

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,7 +22,6 @@ from django.urls import include
 from .itsm.itsm import itsm_approve
 from .views import (
     callback,
-    get_msg_types,
     home,
     is_admin_or_current_space_superuser,
     is_admin_or_space_superuser,
@@ -36,7 +34,7 @@ urlpatterns = [
     url(r"^is_admin_user/$", is_admin_or_space_superuser),
     url(r"^is_current_space_admin/$", is_admin_or_current_space_superuser),
     url(r"^callback/(?P<token>.+)/$", callback),
-    url(r"^get_msg_types/$", get_msg_types),
     url(r"^itsm_approve/$", itsm_approve),
+    url(r"^openapi/", include("bkflow.interface.openapi.urls")),
     url(r"", include("bkflow.interface.task.urls")),
 ]

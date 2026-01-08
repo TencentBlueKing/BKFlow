@@ -104,6 +104,7 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
             "id": {"type": "string"},
             "name": {"type": "string"},
             "desc": {"type": "string"},
+            "version": {"type": "string"},  # 可选：指定使用的uniform_api插件版本，如 "v2.0.0", "v3.0.0"
             "url": {"type": "string"},
             "methods": {
                 "type": "array",

@@ -202,7 +202,7 @@ const store = new Vuex.Store({
       });
     },
     getNotifyTypes() {
-      return axios.get('get_msg_types/').then(response => response.data);
+      return axios.get('openapi/get_msg_types/').then(response => response.data);
     },
     getNotifyGroup(params) {
       return axios.get('api/v3/staff_group/', { params }).then(response => response.data);

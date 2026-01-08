@@ -349,11 +349,8 @@
     mounted() {
       $.context.exec_env = 'NODE_EXEC_DETAIL';
       this.initData();
-      if (this.nodeActivity?.component?.data?.subprocess) {
-        this.getTemplateData();
-      } else if (this.nodeActivity.type === 'SubProcess') {
+      if (this.nodeActivity.type === 'SubProcess') {
         this.isTemSubflowNode = true;
-        this.getTemplateData();
       }
     },
     beforeDestroy() {
@@ -472,6 +469,7 @@
           };
           params.project_id = this.project_id;
           const resp = await this.loadSubflowConfig(params);
+          this.templateName = resp.data.name;
           // 子流程的输入参数包括流程引用的变量、自定义变量和未被引用的变量
           this.subflowForms = {
             ...resp.data.pipeline_tree.constants,
@@ -613,8 +611,10 @@
               ...this.scopeInfo,
             });
             if (!resp.result) return;
+            // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
+            const apiVersion = resp.data.version || 'v2.0.0';
             // 输出参数
-            const storeOutputs = this.pluginOutput.uniform_api[version];
+            const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
             const outputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs, ...outputs];
             const renderConfig = jsonFormSchema(resp.data, { disabled: true });
@@ -766,15 +766,6 @@
       },
       getRowClassName({ row }) {
         return row.status || '';
-      },
-      async getTemplateData() {
-        const { template_id: templateId } = this.componentValue;
-        const data = {
-          templateId,
-          common: false,
-        };
-        const templateData = await this.loadTemplateData(data);
-        this.templateName = templateData.name;
       },
       onSkipSubTemplate() {
         const { href } = this.$router.resolve({

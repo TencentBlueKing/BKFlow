@@ -175,7 +175,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             else:
                 snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
             template = Template.objects.create(
-                **ser.data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
+                **ser.validated_data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
             )
             snapshot.template_id = template.id
             snapshot.save(update_fields=["template_id"])
@@ -552,6 +552,7 @@ class TemplateViewSet(UserModelViewSet):
         mock_data = TemplateMockDataSerializer(instance=mock_data_instances, many=True)
         data["mock_data"] = mock_data.data
         data["version"] = template.version
+        data["name"] = template.name
         data["outputs"] = template.outputs(version)
         return Response(data)
 
