@@ -30,7 +30,6 @@ from bkflow.apigw.serializers.task import CreateTaskSerializer
 from bkflow.constants import TaskTriggerMethod, WebhookEventType, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
-from bkflow.space.credential.resolver import resolve_credentials
 from bkflow.template.models import Template
 from bkflow.utils.trace import CallFrom, trace_view
 
@@ -69,12 +68,11 @@ def create_task(request, space_id):
         {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
     )
 
-    # 处理凭证：解析并验证凭证，然后合并到pipeline_tree
-    credentials = create_task_data.get("credentials", {})
+    # 将credentials放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
+    # custom_context用于统一管理自定义上下文数据
+    credentials = ser.data.get("credentials", {})
     if credentials:
-        resolved_credentials = resolve_credentials(credentials, space_id, template.scope_type, template.scope_value)
-        # 将解析后的凭证合并到pipeline_tree
-        create_task_data["pipeline_tree"].setdefault("credentials", {}).update(resolved_credentials)
+        create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})["credentials"] = credentials
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)

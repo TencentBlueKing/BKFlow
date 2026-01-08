@@ -17,7 +17,7 @@
             methods: {
                 _tag_init: function () {
                     let self = this;
-                    let url = $.context.get('site_url') + 'get_msg_types/';
+                    let url = $.context.get('site_url') + 'openapi/get_msg_types/';
                     $.ajax({
                         url: url,
                         type: 'GET',

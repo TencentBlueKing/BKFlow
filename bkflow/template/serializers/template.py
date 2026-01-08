@@ -355,6 +355,7 @@ class TemplateCopySerializer(serializers.Serializer):
 
 
 class TemplateReleaseSerializer(serializers.Serializer):
+    force = serializers.BooleanField(help_text=_("是否强制发布"), required=False, default=False)
     version = serializers.CharField(help_text=_("版本号"), required=True)
     desc = serializers.CharField(help_text=_("描述"), required=False, allow_blank=True)
 
@@ -377,6 +378,7 @@ class TemplateSnapshotSerializer(serializers.ModelSerializer):
             "operator",
             "md5sum",
         ]
+
 
 class TemplateUpdateLabelSerializer(serializers.Serializer):
     label_ids = serializers.ListField(help_text=_("标签ID列表"), required=True, child=serializers.IntegerField())

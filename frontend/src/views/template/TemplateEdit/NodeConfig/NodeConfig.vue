@@ -624,9 +624,7 @@
           }
           // api插件输入输出
           if (this.isApiPlugin && this.basicInfo.metaUrl) {
-            // 统一api基础配置
-            await this.loadAtomConfig({ atom: plugin, version, space_id: this.spaceId });
-            // api插件配置
+            // 先获取api插件配置，以获取正确的version
             const resp = await this.loadUniformApiMeta({
               templateId: this.$route.params.templateId,
               spaceId: this.spaceId,
@@ -634,11 +632,15 @@
               ...this.scopeInfo,
             });
             if (!resp.result) return;
+            // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
+            const apiVersion = resp.data.version || 'v2.0.0';
+            // 使用meta API返回的version加载统一api基础配置
+            await this.loadAtomConfig({ atom: plugin, version: apiVersion, space_id: this.spaceId });
             // 输出参数
-            const storeOutputs = this.pluginOutput.uniform_api[version];
+            const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
             this.uniformOutputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs];
-            const { url, methods, response_data_path: respDataPath, polling, callback } = resp.data;
+            const { url, methods, response_data_path: respDataPath, polling, callback, credential_key } = resp.data;
             const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中
             this.updateBasicInfo({
               method,
@@ -648,6 +650,8 @@
               respDataPath,
               polling,
               callback,
+              credentialKey: credential_key, // 保存credential_key到basicInfo
+              version: apiVersion, // 更新version到basicInfo
             });
             this.apiInputs = resp.data.inputs;
             return jsonFormSchema(resp.data, { disabled: this.isViewMode });
@@ -908,6 +912,8 @@
           if (component.code === 'uniform_api' &&  component.api_meta) { // 新版api插件中component包含api_meta字段
             const { id, name, api_key: apiKey, meta_url, category = {} } = component.api_meta;
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
+            // 从节点数据中读取uniform_api_plugin_credential_key（如果存在）
+            const credentialKey = component.data.uniform_api_plugin_credential_key?.value;
             Object.assign(data, {
               plugin: 'uniform_api',
               name: `${category.name}-${name}`,
@@ -918,6 +924,7 @@
               apiKey,
               metaUrl: meta_url,
               realMetaUrl,
+              credentialKey, // 保存credential_key到basicInfo，以便后续使用
               methodList: [],
             });
           }
@@ -1131,9 +1138,14 @@
           const descList = desc.split('\n');
           desc = descList.join('<br>');
         }
+        // 对于API插件，优先使用basicInfo中已存储的version（可能来自meta API返回），否则使用默认值
+        let apiPluginVersion = null;
+        if (this.isApiPlugin) {
+          apiPluginVersion = this.basicInfo.version || 'V2.0.0';
+        }
         const config = {
           plugin: code,
-          version: this.isApiPlugin ? 'V2.0.0' : list[list.length - 1].version,
+          version: apiPluginVersion || (this.isApiPlugin ? 'V2.0.0' : list[list.length - 1].version),
           name: this.isThirdParty ? name : `${groupName}-${name}`,
           nodeName: name,
           stageName: '',
@@ -1626,7 +1638,8 @@
                 name: groupName,
               },
             };
-            component.version = 'v2.0.0';
+            // 使用basicInfo中的version（可能来自meta API返回），否则使用默认值
+            component.version = this.basicInfo.version || 'v2.0.0';
           }
           config = Object.assign({}, this.nodeConfig, {
             component,
@@ -1690,6 +1703,13 @@
             data.response_data_path = {
               hook: false,
               value: this.basicInfo.respDataPath,
+            };
+          }
+          // 如果detail meta返回了credential_key，将其组装为uniform_api_plugin_credential_key
+          if (this.basicInfo.credentialKey) {
+            data.uniform_api_plugin_credential_key = {
+              hook: false,
+              value: this.basicInfo.credentialKey,
             };
           }
         }

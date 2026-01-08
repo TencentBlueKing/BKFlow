@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -259,7 +258,7 @@ class UniformAPIService(BKFlowBaseService):
         scope_type, scope_id = parent_data.get_one_of_inputs("task_scope_type"), parent_data.get_one_of_inputs(
             "task_scope_value"
         )
-        space_infos_params = {"space_id": space_id, "config_names": "credential"}
+        space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
         if scope_type and scope_id:
             space_infos_params["scope"] = f"{scope_type}_{scope_id}"
         self.logger.info(f"get_space_info params: {space_infos_params}")
