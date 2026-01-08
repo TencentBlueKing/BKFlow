@@ -23,39 +23,34 @@ from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.serializers.task import CreateTaskWithoutTemplateSerializer
-from bkflow.constants import TaskTriggerMethod
+from bkflow.apigw.decorators import check_task_bk_app_code, return_json_response
+from bkflow.apigw.serializers.task import OperateTaskSerializer
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 
 
 @login_exempt
 @csrf_exempt
 @require_POST
 @apigw_require
-@check_jwt_and_space
+@check_task_bk_app_code
 @return_json_response
-def create_task_without_template(request, space_id):
+def operate_task_by_app(request, task_id, operation):
+    """
+    通过 bk_app_code 权限校验执行任务操作
+    请求方的 bk_app_code 需要与任务所属模板绑定的 bk_app_code 一致
+    """
     data = json.loads(request.body)
-    ser = CreateTaskWithoutTemplateSerializer(data=data)
+    ser = OperateTaskSerializer(data=data)
     ser.is_valid(raise_exception=True)
 
-    create_task_data = dict(ser.validated_data)
-    create_task_data["space_id"] = space_id
-    create_task_data["trigger_method"] = TaskTriggerMethod.api.name
-    DEFAULT_NOTIFY_CONFIG = {
-        "notify_type": {"fail": [], "success": []},
-        "notify_receivers": {"more_receiver": "", "receiver_group": []},
-    }
-    notify_config = create_task_data.pop("notify_config", {}) or DEFAULT_NOTIFY_CONFIG
-    create_task_data.setdefault("extra_info", {}).update({"notify_config": notify_config})
+    # space_id 已经在装饰器中挂载到 request 上
+    space_id = request.space_id
 
-    # 将credentials放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
-    # custom_context用于统一管理自定义上下文数据
-    credentials = ser.data.get("credentials", {})
-    if credentials:
-        create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})["credentials"] = credentials
-
-    client = TaskComponentClient(space_id=space_id)
-    result = client.create_task(create_task_data)
-    return result
+    with start_trace(
+        "operate_task_interface", True, space_id=space_id, task_id=task_id, call_from=CallFrom.APIGW.value
+    ):
+        append_attributes({"operation": operation})
+        client = TaskComponentClient(space_id=space_id)
+        result = client.operate_task(task_id, operation, data=ser.data)
+        return result
