@@ -36,13 +36,13 @@ from bkflow.utils import err_code
 @return_json_response
 def delete_template(request, space_id, template_id):
     failed_data = {}
-    decision_templates = DecisionTable.objects.filter(template_id=template_id, is_deleted=False)
+    decision_templates = DecisionTable.objects.filter(space_id=space_id, template_id=template_id, is_deleted=False)
     template_references = TemplateReference.objects.filter(subprocess_template_id=template_id)
 
     if decision_templates.exists():
         failed_data["decision_templates"] = list(decision_templates.values_list("id", flat=True))
     if template_references.exists():
-        failed_data["parent_templates"] = list(template_references.values_list("id", flat=True))
+        failed_data["parent_templates"] = list(template_references.values_list("root_template_id", flat=True))
     # 如果存在任何引用，返回错误信息
     if failed_data:
         return {"result": False, "data": failed_data, "code": err_code.VALIDATION_ERROR.code, "message": "模板被引用，无法删除"}
