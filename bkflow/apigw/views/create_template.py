@@ -64,7 +64,7 @@ def create_template(request, space_id):
     ser = CreateTemplateApigwSerializer(data=data, context={"space_id": int(space_id), "request": request})
     ser.is_valid(raise_exception=True)
 
-    validate_data = dict(ser.data)
+    validate_data = dict(ser.validated_data)
     auto_release = validate_data.pop("auto_release", False)
 
     source_template_id = validate_data.pop("source_template_id", None)
