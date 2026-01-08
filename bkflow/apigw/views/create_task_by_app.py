@@ -25,7 +25,7 @@ from django.views.decorators.http import require_POST
 from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.decorators import check_template_bk_app_code, return_json_response
-from bkflow.apigw.serializers.task import CreateTaskSerializer
+from bkflow.apigw.serializers.task import CreateTaskByAppSerializer
 from bkflow.constants import TaskTriggerMethod, WebhookEventType, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.utils.trace import CallFrom, trace_view
@@ -42,11 +42,12 @@ def create_task_by_app(request, template_id):
     """
     通过 bk_app_code 权限校验创建任务
     请求方的 bk_app_code 需要与模板绑定的 bk_app_code 一致
+    创建者从网关认证的用户信息中获取
     """
     data = json.loads(request.body)
     # 使用装饰器中的 template_id
     data["template_id"] = int(template_id)
-    ser = CreateTaskSerializer(data=data)
+    ser = CreateTaskByAppSerializer(data=data)
     ser.is_valid(raise_exception=True)
 
     # template 和 space_id 已经在装饰器中挂载到 request 上
@@ -54,6 +55,8 @@ def create_task_by_app(request, template_id):
     space_id = request.space_id
 
     create_task_data = dict(ser.data)
+    # 从网关认证的用户信息中获取创建者
+    create_task_data["creator"] = request.user.username
     create_task_data["scope_type"] = template.scope_type
     create_task_data["scope_value"] = template.scope_value
     create_task_data["space_id"] = space_id

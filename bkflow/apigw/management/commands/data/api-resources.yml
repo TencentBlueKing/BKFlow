@@ -2836,8 +2836,8 @@ paths:
                 type: string
                 description: open telemetry trace_id
       x-bk-apigateway-resource:
-        isPublic: false
-        allowApplyPermission: false
+        isPublic: true
+        allowApplyPermission: true
         matchSubpath: false
         backend:
           type: HTTP
@@ -2848,7 +2848,7 @@ paths:
           upstreams: {}
           transformHeaders: {}
         authConfig:
-          userVerifiedRequired: false
+          userVerifiedRequired: true
           appVerifiedRequired: true
           resourcePermissionRequired: false
         disabledStages: []
@@ -2948,8 +2948,8 @@ paths:
                 type: string
                 description: open telemetry trace_id
       x-bk-apigateway-resource:
-        isPublic: false
-        allowApplyPermission: false
+        isPublic: true
+        allowApplyPermission: true
         matchSubpath: false
         backend:
           type: HTTP
@@ -2960,7 +2960,7 @@ paths:
           upstreams: {}
           transformHeaders: {}
         authConfig:
-          userVerifiedRequired: false
+          userVerifiedRequired: true
           appVerifiedRequired: true
           resourcePermissionRequired: false
         disabledStages: []
@@ -2969,18 +2969,13 @@ paths:
       - name: body
         in: body
         description: ''
-        required: true
+        required: false
         schema:
           type: object
-          required:
-          - creator
           properties:
             name:
               type: string
               description: 任务名称
-            creator:
-              type: string
-              description: 创建者
             description:
               type: string
               description: 任务描述
@@ -3016,8 +3011,8 @@ paths:
                 type: string
                 description: open telemetry trace_id
       x-bk-apigateway-resource:
-        isPublic: false
-        allowApplyPermission: false
+        isPublic: true
+        allowApplyPermission: true
         matchSubpath: false
         backend:
           type: HTTP
@@ -3028,24 +3023,11 @@ paths:
           upstreams: {}
           transformHeaders: {}
         authConfig:
-          userVerifiedRequired: false
+          userVerifiedRequired: true
           appVerifiedRequired: true
           resourcePermissionRequired: false
         disabledStages: []
         descriptionEn: Operate task by bk_app_code authentication
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - operator
-          properties:
-            operator:
-              type: string
-              description: 操作人
   /task/{task_id}/get_task_states_by_app/:
     get:
       operationId: get_task_states_by_app
@@ -3117,8 +3099,8 @@ paths:
                 type: string
                 description: open telemetry trace_id
       x-bk-apigateway-resource:
-        isPublic: false
-        allowApplyPermission: false
+        isPublic: true
+        allowApplyPermission: true
         matchSubpath: false
         backend:
           type: HTTP
@@ -3129,7 +3111,7 @@ paths:
           upstreams: {}
           transformHeaders: {}
         authConfig:
-          userVerifiedRequired: false
+          userVerifiedRequired: true
           appVerifiedRequired: true
           resourcePermissionRequired: false
         disabledStages: []

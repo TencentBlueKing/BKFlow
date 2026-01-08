@@ -4,17 +4,14 @@
 
 此接口用于对绑定了 bk_app_code 的流程创建的任务进行操作，请求方的 bk_app_code 需要与任务所属模板绑定的 bk_app_code 一致才能操作任务。
 
+**注意：此接口需要用户认证，操作人信息将从网关认证的用户信息中自动获取，无需传入 operator 参数。**
+
 ### 输入通用参数说明
 |   参数名称   |    参数类型  |  必须  |     参数说明     |
 | ------------ | ------------ | ------ | ---------------- |
 | bk_app_code   | string | 是 | 应用ID(app id)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取 |
 | bk_app_secret | string | 是 | 安全秘钥(app secret)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取 |
-
-
-#### 接口参数
-| 字段  | 类型  | 必选  | 描述  |
-| --- | --- | --- | --- |
-|  operator   |  string   |  是  |  操作人 |
+| bk_username   | string | 是 | 用户名，用于用户认证 |
 
 
 路径参数:
@@ -28,14 +25,14 @@
 
 - 任务必须是由绑定了 bk_app_code 的流程模板创建
 - 请求方的 bk_app_code 必须与任务所属模板绑定的 bk_app_code 一致
+- 需要用户认证，操作人将使用网关认证的用户
 
 ### 请求参数示例
 ```json
 {
     "bk_app_code": "xxxx",
     "bk_app_secret": "xxxx",
-    "bk_username or bk_token": "xxxx",
-    "operator": "操作人"
+    "bk_username": "xxxx"
 }
 ```
 
