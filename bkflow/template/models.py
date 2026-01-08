@@ -145,8 +145,8 @@ class Template(CommonModel):
         return result
 
     @classmethod
-    def exists(cls, template_id):
-        return cls.objects.filter(id=template_id).exists()
+    def exists(cls, template_id, space_id):
+        return cls.objects.filter(id=template_id, space_id=space_id).exists()
 
     @property
     def snapshot(self):

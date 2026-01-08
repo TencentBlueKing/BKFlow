@@ -74,7 +74,7 @@ def update_template(request, space_id, template_id):
             operate_source=TemplateOperationSource.api.name,
             operate_type=TemplateOperationType.update.name,
             instance_id=template.id,
-            operator=request.user.username,
+            operator=validated_data_dict["updated_by"],
         )
 
         if pipeline_tree:
@@ -85,7 +85,7 @@ def update_template(request, space_id, template_id):
                 except TemplateSnapshot.DoesNotExist:
                     template_version = template.version
                 # 更新草稿数据
-                template.update_draft_snapshot(pipeline_tree, request.user.username, template_version)
+                template.update_draft_snapshot(pipeline_tree, validated_data_dict["updated_by"], template_version)
 
                 if auto_release:
                     if version:
@@ -103,7 +103,7 @@ def update_template(request, space_id, template_id):
                         raise UpdateTemplateException(_(f"版本号不符合规范: {str(e)}"))
 
                     snapshot = template.release_template(
-                        {"version": release_version, "username": request.user.username}
+                        {"version": release_version, "username": validated_data_dict["updated_by"]}
                     )
                     template.snapshot_id = snapshot.id
 
@@ -112,7 +112,7 @@ def update_template(request, space_id, template_id):
                         operate_source=TemplateOperationSource.api.name,
                         operate_type=TemplateOperationType.release.name,
                         instance_id=template.id,
-                        operator=request.user.username,
+                        operator=validated_data_dict["updated_by"],
                         extra_info={"version": release_version},
                     )
             else:
@@ -120,7 +120,9 @@ def update_template(request, space_id, template_id):
                     current_version = "1.0.0"
                 else:
                     current_version = bump_custom(template.snapshot_version)
-                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, request.user.username, current_version)
+                snapshot = TemplateSnapshot.create_snapshot(
+                    pipeline_tree, validated_data_dict["updated_by"], current_version
+                )
                 validated_data_dict["snapshot_id"] = snapshot.id
                 snapshot.template_id = template.id
                 snapshot.save(update_fields=["template_id"])
