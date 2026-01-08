@@ -125,7 +125,7 @@ class CreateMockTaskWithTemplateIdSerializer(CreateMockTaskBaseSerializer):
         return attrs
 
 
-class CreateTaskWithoutTemplateSerializer(serializers.Serializer):
+class CreateTaskWithoutTemplateSerializer(CredentialsValidationMixin, serializers.Serializer):
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     scope_type = serializers.CharField(help_text=_("任务范围类型"), max_length=128, required=False)
