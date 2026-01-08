@@ -175,7 +175,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             else:
                 snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
             template = Template.objects.create(
-                **ser.data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
+                **ser.validated_data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
             )
             snapshot.template_id = template.id
             snapshot.save(update_fields=["template_id"])
