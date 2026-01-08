@@ -29,7 +29,9 @@ from bkflow.apigw.serializers.task import CreateMockTaskWithTemplateIdSerializer
 from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
-from bkflow.template.models import Template
+from bkflow.space.configs import FlowVersioning
+from bkflow.space.models import SpaceConfig
+from bkflow.template.models import Template, TemplateSnapshot
 
 
 @login_exempt
@@ -69,6 +71,16 @@ def create_mock_task(request, space_id):
     # )
     # preview_data = preview_template_tree(pipeline_tree, exclude_task_nodes_id)
     # simplified_pipeline_tree = preview_data["pipeline_tree"]
+    if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+        try:
+            draft_snapshot = TemplateSnapshot.objects.get(template_id=template.id, draft=True)
+        except TemplateSnapshot.DoesNotExist:
+            draft_snapshot = template.update_draft_snapshot(
+                template.pipeline_tree, request.user.username, template.version
+            )
+        pipeline_tree = draft_snapshot.data
+    else:
+        pipeline_tree = template.pipeline_tree
 
     create_task_data = dict(ser.data)
     create_task_data.update(
@@ -77,7 +89,7 @@ def create_mock_task(request, space_id):
             "space_id": space_id,
             "scope_type": template.scope_type,
             "scope_value": template.scope_value,
-            "pipeline_tree": template.pipeline_tree,
+            "pipeline_tree": pipeline_tree,
             "mock_data": ser.validated_data["mock_data"],
             "create_method": "MOCK",
             "trigger_method": TaskTriggerMethod.api.name,

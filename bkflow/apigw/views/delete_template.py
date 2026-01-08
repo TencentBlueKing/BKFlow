@@ -23,7 +23,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.template.models import Template
+from bkflow.decision_table.models import DecisionTable
+from bkflow.template.models import Template, TemplateReference, Trigger
 from bkflow.utils import err_code
 
 
@@ -34,5 +35,20 @@ from bkflow.utils import err_code
 @check_jwt_and_space
 @return_json_response
 def delete_template(request, space_id, template_id):
+    failed_data = {}
+    decision_templates = DecisionTable.objects.filter(template_id=template_id, is_deleted=False)
+    template_references = TemplateReference.objects.filter(subprocess_template_id=template_id)
+
+    if decision_templates.exists():
+        failed_data["decision_templates"] = list(decision_templates.values_list("id", flat=True))
+    if template_references.exists():
+        failed_data["parent_templates"] = list(template_references.values_list("id", flat=True))
+    # 如果存在任何引用，返回错误信息
+    if failed_data:
+        return {"result": False, "data": failed_data, "code": err_code.VALIDATION_ERROR.code, "message": "模板被引用，无法删除"}
+
+    # 如果没有引用，执行删除操作
     Template.objects.filter(space_id=space_id, id=template_id).update(is_deleted=True)
+    trigger_ids = Trigger.objects.filter(template_id=template_id).values_list("id", flat=True)
+    Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
     return {"result": True, "data": {}, "code": err_code.SUCCESS.code}

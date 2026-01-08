@@ -294,8 +294,8 @@ class TestTemplate:
         snapshot.template_id = template.id
         snapshot.save()
 
-        assert Template.exists(template.id) is True
-        assert Template.exists(99999) is False
+        assert Template.exists(template.id, self.space.id) is True
+        assert Template.exists(99999, self.space.id) is False
 
     def test_snapshot_property(self):
         """测试 snapshot 属性"""
