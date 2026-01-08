@@ -50,7 +50,7 @@ class TokenResourceValidator:
         return False
 
     def template_exists(self, template_id):
-        return Template.exists(template_id)
+        return Template.exists(template_id, self.space_id)
 
     def scope_exists(self, scope_data):
         try:
