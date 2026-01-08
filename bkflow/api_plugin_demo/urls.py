@@ -17,24 +17,15 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 from django.conf.urls import url
-from django.urls import include
 
-from .itsm.itsm import itsm_approve
-from .views import (
-    callback,
-    home,
-    is_admin_or_current_space_superuser,
-    is_admin_or_space_superuser,
-    user_exit,
-)
+from bkflow.api_plugin_demo import views
 
 urlpatterns = [
-    url(r"^$", home),
-    url(r"^logout/$", user_exit),
-    url(r"^is_admin_user/$", is_admin_or_space_superuser),
-    url(r"^is_current_space_admin/$", is_admin_or_current_space_superuser),
-    url(r"^callback/(?P<token>.+)/$", callback),
-    url(r"^itsm_approve/$", itsm_approve),
-    url(r"^openapi/", include("bkflow.interface.openapi.urls")),
-    url(r"", include("bkflow.interface.task.urls")),
+    url(r"^category/$", views.category_api, name="category_api"),
+    url(r"^list_meta/$", views.list_meta_api, name="list_meta_api"),
+    url(r"^detail_meta/$", views.detail_meta_api, name="detail_meta_api"),
+    url(r"^execute/get_user_info/$", views.execute_get_user_info, name="execute_get_user_info"),
+    url(r"^execute/create_task/$", views.execute_create_task, name="execute_create_task"),
+    url(r"^execute/process_data/$", views.execute_process_data, name="execute_process_data"),
+    url(r"^execute/api_with_credential/$", views.execute_api_with_credential, name="execute_api_with_credential"),
 ]

@@ -283,6 +283,7 @@ class UniformApiConfig(BaseSpaceConfig):
                 "meta_apis": "{meta_apis url}",
                 "api_categories": "{api_categories url}",
                 "display_name": "{display_name}",
+                "headers": {"X-Custom-Header": "${_system.operator}"},
             }
         }
     }
@@ -450,6 +451,7 @@ class ApiModel(BaseModel):
     meta_apis: str
     api_categories: str
     display_name: str
+    headers: Optional[dict] = None
 
     def get(self, field_name, default=None):
         # 由于获取插件种类/列表时候传入的 key 不确定 需要提供一个 get 方法
@@ -459,6 +461,7 @@ class ApiModel(BaseModel):
 class CommonModel(BaseModel):
     exclude_none_fields: Optional[str] = None
     enable_api_parameter_conversion: Optional[str] = None
+    enable_standard_response: Optional[str] = None
 
 
 class SchemaV2Model(BaseModel):

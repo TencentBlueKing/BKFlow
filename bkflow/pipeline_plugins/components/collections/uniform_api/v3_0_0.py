@@ -17,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import copy
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import jmespath
 from django.conf import settings
@@ -30,6 +30,13 @@ from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.pipeline_plugins.components.collections.base import (
     BKFlowBaseService,
     StepIntervalGenerator,
+)
+from bkflow.pipeline_plugins.components.collections.uniform_api.credential_handlers import (
+    ApiGatewayCredentialNameUserProvidedHandler,
+    CredentialKeySpaceConfigHandler,
+    CredentialKeyUserProvidedHandler,
+    DefaultCredentialHandler,
+    SpaceCredentialHandler,
 )
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_plugins.utils import convert_dict_value
@@ -113,6 +120,208 @@ class UniformAPIService(BKFlowBaseService):
         }
         return operator, space_id, extra_data
 
+    def _render_headers(self, headers_config: dict, operator: str, parent_data) -> dict:
+        """渲染headers配置中的变量
+
+        支持的变量格式：
+        - ${_system.operator}: 操作人
+        - ${_system.task_id}: 任务ID
+        - ${_system.task_name}: 任务名称
+        - ${_system.space_id}: 空间ID
+        - ${_system.scope_type}: 作用域类型
+        - ${_system.scope_value}: 作用域值
+
+        :param headers_config: headers配置字典
+        :param operator: 操作人
+        :param parent_data: 父数据
+        :return: 渲染后的headers字典
+        """
+        if not headers_config:
+            return {}
+
+        # 构建变量映射表
+        variable_map = {
+            "${_system.operator}": operator,
+            "${_system.task_id}": str(parent_data.get_one_of_inputs("task_id", "")),
+            "${_system.task_name}": parent_data.get_one_of_inputs("task_name", ""),
+            "${_system.space_id}": str(parent_data.get_one_of_inputs("task_space_id", "")),
+            "${_system.scope_type}": parent_data.get_one_of_inputs("task_scope_type", ""),
+            "${_system.scope_value}": parent_data.get_one_of_inputs("task_scope_value", ""),
+        }
+
+        rendered_headers = {}
+        for key, value in headers_config.items():
+            if isinstance(value, str):
+                # 替换所有支持的变量
+                rendered_value = value
+                for var_name, var_value in variable_map.items():
+                    if var_name in rendered_value:
+                        rendered_value = rendered_value.replace(var_name, var_value)
+                rendered_headers[key] = rendered_value
+            else:
+                rendered_headers[key] = value
+
+        return rendered_headers
+
+    def _get_api_config_by_url(self, validated_config, url: str) -> Optional[dict]:
+        """根据URL匹配对应的API配置
+
+        :param validated_config: 验证后的配置对象
+        :param url: API请求URL
+        :return: 匹配的API配置，如果没有匹配则返回None
+        """
+        if not hasattr(validated_config, "api") or not validated_config.api:
+            return None
+
+        # 尝试通过URL匹配meta_apis来确定使用的API key
+        # 提取URL的域名部分进行匹配
+        try:
+            from urllib.parse import urlparse
+
+            url_domain = urlparse(url).netloc
+        except Exception:
+            url_domain = ""
+
+        for __, api_model in validated_config.api.items():
+            if hasattr(api_model, "meta_apis") and api_model.meta_apis:
+                try:
+                    meta_domain = urlparse(api_model.meta_apis).netloc
+                    # 如果URL的域名与meta_apis的域名相同，则认为匹配
+                    if url_domain and meta_domain and url_domain == meta_domain:
+                        return api_model
+                except Exception:
+                    # 如果解析失败，使用简单的包含匹配
+                    if api_model.meta_apis in url:
+                        return api_model
+
+        # 如果只有一个API配置，直接返回
+        if len(validated_config.api) == 1:
+            return list(validated_config.api.values())[0]
+
+        # 如果无法匹配，返回第一个（默认行为）
+        if validated_config.api:
+            return list(validated_config.api.values())[0]
+
+        return None
+
+    def _get_credential(
+        self,
+        scope_type: Optional[str],
+        scope_id: Optional[str],
+        parent_data,
+        space_configs: dict,
+        credential_key: Optional[str] = None,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """获取凭证信息，优先使用用户传入的凭证，否则使用空间配置或默认凭证
+
+        :param scope_type: 范围类型
+        :param scope_id: 范围ID
+        :param parent_data: 父任务数据
+        :param space_configs: 空间配置字典（从space_infos_result中获取）
+        :param credential_key: 凭证key
+        :return: (app_code, app_secret) 元组，如果获取失败返回 (None, None)
+        """
+        # 按优先级顺序定义凭证处理器
+        handlers = [
+            CredentialKeyUserProvidedHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+            CredentialKeySpaceConfigHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+            ApiGatewayCredentialNameUserProvidedHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+            SpaceCredentialHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+            DefaultCredentialHandler(self.logger, scope_type, scope_id, parent_data, space_configs),
+        ]
+
+        # 按优先级顺序尝试各个处理器
+        for handler in handlers:
+            try:
+                if handler.can_handle(credential_key):
+                    app_code, app_secret = handler.get_credential(credential_key)
+                    if app_code and app_secret:
+                        return app_code, app_secret
+            except Exception as e:
+                self.logger.warning(f"[uniform_api] Handler {handler.get_name()} failed: {e}")
+                continue
+
+        # 如果 credential_key 存在但所有处理器都失败，记录警告
+        if credential_key:
+            # 创建一个临时处理器来获取 api_gateway_credential_name（用于日志）
+            temp_handler = CredentialKeyUserProvidedHandler(
+                self.logger, scope_type, scope_id, parent_data, space_configs
+            )
+            api_gateway_credential_name = temp_handler._get_api_gateway_credential_name()
+            self.logger.warning(
+                f"[uniform_api] credential_key {credential_key} not found in credentials and "
+                f"does not match api_gateway_credential_name {api_gateway_credential_name}"
+            )
+
+        return None, None
+
+    def _extract_error_message(self, request_result: HttpRequestResult) -> str:
+        """提取错误信息，优先从JSON响应的message字段获取"""
+        if request_result.json_resp and isinstance(request_result.json_resp, dict):
+            return request_result.json_resp.get("message") or request_result.message
+        return request_result.message or f"HTTP status code: {request_result.resp.status_code}"
+
+    def _handle_error_response(
+        self, data, request_result: HttpRequestResult, error_prefix: str = "[uniform_api error]"
+    ) -> bool:
+        """处理错误响应，设置错误信息并返回False"""
+        error_message = self._extract_error_message(request_result)
+        message = handle_plain_log(
+            "{} HTTP status code: {}, message: {}".format(error_prefix, request_result.resp.status_code, error_message)
+        )
+        self.logger.error(message)
+        data.outputs.ex_data = message
+        return False
+
+    def _check_response_success(
+        self, request_result: HttpRequestResult, enable_standard_response: bool
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        检查响应是否成功
+        返回: (is_success, error_reason)
+        """
+        if enable_standard_response:
+            # 标准响应模式：使用HTTP状态码判断
+            if 200 <= request_result.resp.status_code < 300:
+                return True, None
+            else:
+                return False, f"HTTP status code indicates failure: {request_result.resp.status_code}"
+        else:
+            # 非标准模式：检查JSON响应和result字段
+            if not request_result.json_resp:
+                return False, "get json response data failed"
+            if request_result.result is False:
+                return False, "response result is False"
+            return True, None
+
+    def _extract_response_data(
+        self, request_result: HttpRequestResult, enable_standard_response: bool, log_prefix: str = "[uniform_api]"
+    ) -> Tuple[Union[dict, list, str], bool]:
+        """
+        提取响应数据
+        返回: (response_data, is_json)
+        """
+        if enable_standard_response:
+            # 标准响应模式：优先使用JSON，否则使用原始body
+            if request_result.json_resp is not None:
+                self.logger.info(handle_plain_log(f"{log_prefix} response: {request_result.json_resp}"))
+                return request_result.json_resp, True
+            else:
+                # 如果响应不是JSON格式，将body的原始数据作为字符串返回
+                raw_body = request_result.resp.text if request_result.resp else ""
+                self.logger.warning(
+                    handle_plain_log(
+                        "{} warning: response is not valid JSON, using raw body as string: {}".format(
+                            log_prefix, raw_body[:200] if len(raw_body) > 200 else raw_body
+                        )
+                    )
+                )
+                return raw_body, False
+        else:
+            # 非标准模式：必须使用JSON响应
+            self.logger.info(handle_plain_log(f"{log_prefix} response: {request_result.json_resp}"))
+            return request_result.json_resp, True
+
     def _dispatch_schedule_trigger(self, data, parent_data, callback_data=None):
         operator, space_id, extra_data = self._load_parent_data(parent_data)
         api_data = copy.deepcopy(data.inputs)
@@ -121,13 +330,17 @@ class UniformAPIService(BKFlowBaseService):
         polling = api_data.pop("uniform_api_plugin_polling", None)
         callback = api_data.pop("uniform_api_plugin_callback", None)
         method = api_data.pop("uniform_api_plugin_method")
+        credential_key = api_data.pop("uniform_api_plugin_credential_key", None)
         resp_data_path: str = api_data.pop("response_data_path", None)
         # 获取空间相关配置信息
         interface_client = InterfaceModuleClient()
         scope_type, scope_id = parent_data.get_one_of_inputs("task_scope_type"), parent_data.get_one_of_inputs(
             "task_scope_value"
         )
-        space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
+        space_infos_params = {
+            "space_id": space_id,
+            "config_names": "uniform_api,credential,api_gateway_credential_name",
+        }
         if scope_type and scope_id:
             space_infos_params["scope"] = f"{scope_type}_{scope_id}"
         self.logger.info(f"get_space_info params: {space_infos_params}")
@@ -156,20 +369,26 @@ class UniformAPIService(BKFlowBaseService):
             # 启动参数转换
             api_data = convert_dict_value(api_data)
 
-        credential_data = space_configs.get("credential")
-        if credential_data:
-            app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
-            self.logger.info(f"using credential config app_code: {app_code}")
-        elif settings.USE_BKFLOW_CREDENTIAL:
-            self.logger.info("using bkflow credential")
-            app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
-        else:
+        # 获取凭证信息
+        app_code, app_secret = self._get_credential(scope_type, scope_id, parent_data, space_configs, credential_key)
+        if not app_code or not app_secret:
             message = "不存在调用凭证"
             self.logger.error(message)
             data.outputs.ex_data = message
             return False
         client = UniformAPIClient()
         headers = client.gen_default_apigw_header(app_code=app_code, app_secret=app_secret, username=operator)
+
+        # 获取并合并配置的headers
+        api_config = self._get_api_config_by_url(validated_config, url)
+        if api_config and hasattr(api_config, "headers") and api_config.headers:
+            rendered_headers = self._render_headers(api_config.headers, operator, parent_data)
+            # 合并headers，配置的headers优先级更高
+            headers.update(rendered_headers)
+            self.logger.info(handle_plain_log(f"[uniform_api] merged custom headers: {rendered_headers}"))
+        else:
+            self.logger.info(handle_plain_log(f"[uniform_api] no headers config found for url: {url}"))
+
         try:
             self.logger.info(handle_plain_log(f"[uniform_api] request url: {url}, method: {method}, data: {api_data}"))
             request_result: HttpRequestResult = client.request(
@@ -186,24 +405,28 @@ class UniformAPIService(BKFlowBaseService):
             return False
 
         data.outputs.status_code = request_result.resp.status_code
-        if not request_result.json_resp:
-            message = handle_plain_log(
-                "[uniform_api error] get json response data failed: {}".format(request_result.message)
-            )
-            self.logger.error(message)
-            data.outputs.ex_data = message
-            return False
 
-        if request_result.result is False:
-            message = handle_plain_log(
-                "[uniform_api error] response result is False: {}".format(request_result.message)
-            )
-            self.logger.error(message)
-            data.outputs.ex_data = message
-            return False
+        # 检查响应是否成功
+        enable_standard_response = validated_config.enable_standard_response
+        is_success, error_reason = self._check_response_success(request_result, enable_standard_response)
 
-        self.logger.info(handle_plain_log(f"[uniform_api] response: {request_result.json_resp}"))
-        resp_data = request_result.json_resp
+        if not is_success:
+            # 处理错误响应
+            return self._handle_error_response(data, request_result, "[uniform_api error]")
+
+        # 提取响应数据
+        resp_data, is_json = self._extract_response_data(request_result, enable_standard_response)
+
+        # 如果后续需要使用JSON数据（resp_data_path、polling、callback），需要确保有JSON响应
+        if resp_data_path or polling or callback:
+            if not is_json:
+                message = handle_plain_log(
+                    "[uniform_api error] JSON response is required for resp_data_path/polling/callback, "
+                    "but response is not valid JSON: {}".format(request_result.message)
+                )
+                self.logger.error(message)
+                data.outputs.ex_data = message
+                return False
         if resp_data_path:
             try:
                 resp_data = request_result.extract_json_resp_with_jmespath(resp_data_path)
@@ -258,7 +481,10 @@ class UniformAPIService(BKFlowBaseService):
         scope_type, scope_id = parent_data.get_one_of_inputs("task_scope_type"), parent_data.get_one_of_inputs(
             "task_scope_value"
         )
-        space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
+        space_infos_params = {
+            "space_id": space_id,
+            "config_names": "uniform_api,credential,api_gateway_credential_name",
+        }
         if scope_type and scope_id:
             space_infos_params["scope"] = f"{scope_type}_{scope_id}"
         self.logger.info(f"get_space_info params: {space_infos_params}")
@@ -272,14 +498,13 @@ class UniformAPIService(BKFlowBaseService):
             return False
 
         space_configs = space_infos_result.get("data", {}).get("configs", {})
-        credential_data = space_configs.get("credential")
-        if credential_data:
-            app_code, app_secret = credential_data["bk_app_code"], credential_data["bk_app_secret"]
-            self.logger.info(f"using credential config app_code: {app_code}")
-        elif settings.USE_BKFLOW_CREDENTIAL:
-            self.logger.info("using bkflow credential")
-            app_code, app_secret = settings.APP_CODE, settings.SECRET_KEY
-        else:
+        uniform_api_config = space_configs.get("uniform_api", {})
+        validated_config = UniformAPIConfigHandler(uniform_api_config).handle()
+
+        # 获取凭证信息
+        credential_key = data.get_one_of_inputs("uniform_api_plugin_credential_key", None)
+        app_code, app_secret = self._get_credential(scope_type, scope_id, parent_data, space_configs, credential_key)
+        if not app_code or not app_secret:
             message = "不存在调用凭证"
             self.logger.error(message)
             data.outputs.ex_data = message
@@ -287,6 +512,15 @@ class UniformAPIService(BKFlowBaseService):
 
         client = UniformAPIClient()
         headers = client.gen_default_apigw_header(app_code=app_code, app_secret=app_secret, username=operator)
+
+        # 获取并合并配置的headers
+        api_config = self._get_api_config_by_url(validated_config, polling_config.url)
+        if api_config and hasattr(api_config, "headers") and api_config.headers:
+            rendered_headers = self._render_headers(api_config.headers, operator, parent_data)
+            # 合并headers，配置的headers优先级更高
+            headers.update(rendered_headers)
+            self.logger.info(handle_plain_log(f"[uniform_api polling] merged custom headers: {rendered_headers}"))
+
         trigger_data = data.get_one_of_outputs("trigger_data", {})
         task_tag_value = jmespath.search(polling_config.task_tag_key, trigger_data)
         if task_tag_value is None:
@@ -316,6 +550,8 @@ class UniformAPIService(BKFlowBaseService):
             return False
 
         data.outputs.status_code = request_result.resp.status_code
+
+        # 轮询模式需要JSON响应来进行状态判断
         if not request_result.json_resp:
             message = handle_plain_log(
                 "[uniform_api polling error] get json response data failed: {}".format(request_result.message)
@@ -324,14 +560,15 @@ class UniformAPIService(BKFlowBaseService):
             data.outputs.ex_data = message
             return False
 
-        if request_result.result is False:
-            message = handle_plain_log(
-                "[uniform_api polling error] response result is False: {}".format(request_result.message)
-            )
-            self.logger.error(message)
-            data.outputs.ex_data = message
-            return False
+        # 检查响应是否成功
+        enable_standard_response = validated_config.enable_standard_response
+        is_success, error_reason = self._check_response_success(request_result, enable_standard_response)
 
+        if not is_success:
+            # 处理错误响应
+            return self._handle_error_response(data, request_result, "[uniform_api polling error]")
+
+        # 记录响应日志
         self.logger.info(handle_plain_log(f"[uniform_api polling] response: {request_result.json_resp}"))
 
         # 按照优先级进行判断：成功 > 失败 > 执行中
@@ -401,4 +638,4 @@ class UniformAPIComponent(Component):
     code = "uniform_api"
     bound_service = UniformAPIService
     desc = _("用于调用符合接口协议的统一API")
-    version = "v2.0.0"
+    version = "v3.0.0"

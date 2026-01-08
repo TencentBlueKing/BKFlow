@@ -16,25 +16,9 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from django.conf.urls import url
-from django.urls import include
+from django.apps import AppConfig
 
-from .itsm.itsm import itsm_approve
-from .views import (
-    callback,
-    home,
-    is_admin_or_current_space_superuser,
-    is_admin_or_space_superuser,
-    user_exit,
-)
 
-urlpatterns = [
-    url(r"^$", home),
-    url(r"^logout/$", user_exit),
-    url(r"^is_admin_user/$", is_admin_or_space_superuser),
-    url(r"^is_current_space_admin/$", is_admin_or_current_space_superuser),
-    url(r"^callback/(?P<token>.+)/$", callback),
-    url(r"^itsm_approve/$", itsm_approve),
-    url(r"^openapi/", include("bkflow.interface.openapi.urls")),
-    url(r"", include("bkflow.interface.task.urls")),
-]
+class ApiPluginDemoConfig(AppConfig):
+    name = "bkflow.api_plugin_demo"
+    label = "bkflow_api_plugin_demo"
