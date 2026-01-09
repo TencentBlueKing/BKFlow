@@ -2754,6 +2754,29 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+  /space/{space_id}/template/{template_id}/rollback_template/:
+    post:
+      operationId: rollback_template
+      description: 免登录回滚流程
+      tags: []
+      responses:
+        default:
+          description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/template/{template_id}/rollback_template/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
   /template/{template_id}/get_template_detail_by_app/:
     get:
       operationId: get_template_detail_by_app
