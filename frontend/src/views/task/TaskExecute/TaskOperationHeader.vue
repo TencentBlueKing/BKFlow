@@ -35,19 +35,19 @@
             class="node-ellipsis">...</span>
         </span>
       </div>
+      <span
+        v-if="stateStr"
+        :class="['task-state', state]">{{ stateStr }}</span>
       <router-link
-        v-if="isShowViewProcess || ifShowJumpToFlowBtn"
+        v-if="showJumpToFlowIcon"
         v-bk-tooltips="{
           content: $t('查看流程'),
           placements: ['top']
         }"
         class="common-icon-jump-link"
         :target="isIframe ? '_self' : '_blank'"
-        :to="ifShowJumpToFlowBtn ? '#' : `/template/view/${templateId}/`"
+        :to="isIframe ? '#' : `/template/view/${templateId}/`"
         @click.native="handleLinkClick" />
-      <span
-        v-if="stateStr"
-        :class="['task-state', state]">{{ stateStr }}</span>
     </div>
     <div
       slot="expand"
@@ -256,8 +256,12 @@
         isIframe: state => state.isIframe,
         view_mode: state => state.view_mode,
       }),
-      ifShowJumpToFlowBtn() {
-        return this.$route.query.ifShowJumpToFlowBtn === 'true';
+      showJumpToFlowIcon() {
+        if (this.isIframe) {
+            return this.$route.query.ifShowJumpToFlowBtn === 'true';
+        } else {
+            return this.isShowViewProcess;
+        }
       },
     },
     watch: {
@@ -308,7 +312,7 @@
         });
       },
       handleLinkClick(event) {
-        if (this.ifShowJumpToFlowBtn) {
+        if (this.isIframe) {
           event.preventDefault();
           this.linkToFlow();
         }
@@ -401,7 +405,7 @@
     }
     .common-icon-jump-link {
         color: #3a84ff;
-        margin: 0 8px 0 4px;
+        margin-left: 8px;
     }
     .task-state {
         display: inline-block;
