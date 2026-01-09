@@ -41,9 +41,7 @@
           content: $t('查看流程'),
           placements: ['top']
         }"
-        :class="[
-          ifShowJumpToFlowBtn ? 'common-icon-box-top-right-corner link-icon' : 'common-icon-jump-link'
-        ]"
+        class="common-icon-jump-link"
         :target="isIframe ? '_self' : '_blank'"
         :to="ifShowJumpToFlowBtn ? '#' : `/template/view/${templateId}/`"
         @click.native="handleLinkClick" />
