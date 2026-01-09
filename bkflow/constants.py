@@ -82,6 +82,7 @@ class TemplateOperationType(Enum):
     delete = _("删除")
     update = _("修改")
     release = _("发布")
+    rollback = _("回滚")
 
 
 class TaskTriggerMethod(Enum):
