@@ -57,6 +57,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.release_template import release_template
     from bkflow.apigw.views.renew_space_config import renew_space_config
     from bkflow.apigw.views.revoke_token import revoke_token
+    from bkflow.apigw.views.rollback_template import rollback_template
     from bkflow.apigw.views.update_template import update_template
     from bkflow.apigw.views.validate_pipeline_tree import validate_pipeline_tree
 
@@ -94,6 +95,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/apply_webhook_configs/$", apply_webhook_configs),
         url(r"^space/(?P<space_id>\d+)/delete_task/$", delete_task),
         url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/release_template/$", release_template),
+        url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/rollback_template/$", rollback_template),
         # 基于 bk_app_code 权限控制的接口
         url(r"^template/(?P<template_id>\d+)/get_template_detail_by_app/$", get_template_detail_by_app),
         url(r"^template/(?P<template_id>\d+)/create_task_by_app/$", create_task_by_app),
