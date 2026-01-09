@@ -36,21 +36,20 @@
         </span>
       </div>
       <router-link
-        v-if="isShowViewProcess"
+        v-if="isShowViewProcess || ifShowJumpToFlowBtn"
         v-bk-tooltips="{
           content: $t('查看流程'),
           placements: ['top']
         }"
-        class="common-icon-jump-link"
+        :class="[
+          ifShowJumpToFlowBtn ? 'common-icon-box-top-right-corner link-icon' : 'common-icon-jump-link'
+        ]"
         :target="isIframe ? '_self' : '_blank'"
-        :to="`/template/view/${templateId}/`" />
+        :to="ifShowJumpToFlowBtn ? '#' : `/template/view/${templateId}/`"
+        @click.native="handleLinkClick" />
       <span
         v-if="stateStr"
         :class="['task-state', state]">{{ stateStr }}</span>
-      <span
-        v-if="ifShowJumpToFlowBtn"
-        class="commonicon-icon common-icon-box-top-right-corner link-icon"
-        @click="linkToFlow" />
     </div>
     <div
       slot="expand"
@@ -309,6 +308,12 @@
           name: 'taskList',
           params: { project_id: this.project_id },
         });
+      },
+      handleLinkClick(event) {
+        if (this.ifShowJumpToFlowBtn) {
+          event.preventDefault();
+          this.linkToFlow();
+        }
       },
       linkToFlow() {
         if (window.parent) {
