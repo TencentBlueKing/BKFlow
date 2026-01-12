@@ -75,16 +75,17 @@ class ScopePermission(BaseTokenPermission):
         if task_id is None:
             return False
 
+        has_mock_permission = self.has_mock_permission(request.user.username, None, task_id, request.token)
         if view.action in view.MOCK_ABOVE_ACTIONS:
-            return self.has_mock_permission(request.user.username, None, task_id, request.token)
+            return has_mock_permission
 
         has_operate_permission = self.has_operate_permission(request.user.username, None, task_id, request.token)
 
         if view.action in view.OPERATE_ABOVE_ACTIONS:
-            return has_operate_permission
+            return has_operate_permission or has_mock_permission
 
         has_view_permission = self.has_view_permission(request.user.username, None, task_id, request.token)
-        return has_operate_permission or has_view_permission
+        return has_operate_permission or has_view_permission or has_mock_permission
 
 
 class TaskMockTokenPermission(BaseMockTokenPermission):
@@ -99,7 +100,7 @@ class TaskMockTokenPermission(BaseMockTokenPermission):
 
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
         result = client.get_task_detail(task_id)
-        if not result.get("result"):
+        if not result.get("result") or result["data"].get("create_method") != "MOCK":
             logger.error(f"[TaskMockTokenPermission] get_task_detail failed: {result}")
             return False
         template_id = result["data"].get("template_id")
