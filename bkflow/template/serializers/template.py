@@ -262,8 +262,7 @@ class TemplateOperationRecordSerializer(serializers.ModelSerializer):
         data["operate_source_name"] = (
             TemplateOperationSource[instance.operate_source].value if instance.operate_source else ""
         )
-        if instance.operate_type == TemplateOperationType.release.name:
-            data["version"] = instance.extra_info.get("version")
+        data["version"] = instance.extra_info.get("version")
         return data
 
 
