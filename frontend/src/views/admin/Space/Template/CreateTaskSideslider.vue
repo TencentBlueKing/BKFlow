@@ -91,7 +91,7 @@
           :property="'labels'">
           <label-cascade
             :value="taskFormData.labels"
-            scope="template"
+            scope="task"
             @confirm="handleSelected">
             <template #trigger="{ list, isShow }">
               <div

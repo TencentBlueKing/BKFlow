@@ -18,13 +18,10 @@
           :is-show="isShow" />
       </div>
       <template #content>
-        <bk-input class="search-input">
-          <template #prefix>
-            <span class="input-icon">
-              <search />
-            </span>
-          </template>
-        </bk-input>
+        <bk-input
+          v-model.trim="searchStr"
+          :left-icon="'bk-icon icon-search'"
+          class="search-input" />
         <div
           v-bkloading="{ isLoading: loading, zIndex: 102 }"
           class="cascade-content">
@@ -102,6 +99,7 @@
 <script>
 import { mapActions, mapState } from 'vuex';
 import CreateLabelDialog from '../labelManage/CreateLabelDialog.vue';
+import tools from '@/utils/tools.js';
 export default {
     name: 'LabelCascade',
     components: {
@@ -129,16 +127,12 @@ export default {
             loading: false,
             isInitialized: false,
             isShowCreate: false,
+            searchStr: '',
         };
     },
     computed: {
         ...mapState({
             spaceId: state => state.spaceId,
-        }),
-        ...mapState('project', {
-            projectId: state => state.project_id,
-            projectName: state => state.projectName,
-            authActions: state => state.authActions,
         }),
     },
     watch: {
@@ -148,6 +142,10 @@ export default {
                 this.labelIds = val.map(item => item.id);
             },
             immediate: true,
+        },
+        searchStr() {
+            console.log(111);
+            tools.throttle(this.getLabelList, 300).call(this);
         },
     },
     methods: {
@@ -160,6 +158,7 @@ export default {
                     parent_id: parentId,
                     limit: 1000,
                     offset: 0,
+                    name: this.searchStr,
                 };
                 const resp = await this.loadLabelList(params);
                 if (parentId) {
@@ -167,6 +166,7 @@ export default {
                     this.secondLabelList = resp.data.results;
                     return;
                 }
+                this.secondLabelList = [];
                 this.labelList = resp.data.results;
             } catch (e) {
                 console.error(e);
@@ -216,6 +216,8 @@ export default {
         },
         hide() {
             this.isShow = false;
+            const isEqual = tools.isDataEqual(this.value, this.selectLabelList);
+            if (isEqual) return;
             this.$emit('confirm', this.selectLabelList);
         },
         onCreateLabel() {
@@ -223,10 +225,12 @@ export default {
         },
         onManageLabel() {
             const { href } = this.$router.resolve({
-                name: 'projectConfig',
-                params: { id: this.projectId },
-                query: { activeTab: 'labelManage', space_id: this.spaceId },
-            });
+          name: 'spaceAdmin',
+          query: {
+            space_id: this.spaceId,
+            activeTab: 'labelManage',
+          },
+        });
             window.open(href, '_blank');
         },
     },

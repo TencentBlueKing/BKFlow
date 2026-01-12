@@ -558,8 +558,6 @@ export default {
             height: 16px;
             line-height: 16px;
             font-size: 10px;
-            display: flex;
-            align-items: center;
             padding: 0 6px;
             border-radius: 11px;
             color: #ffffff;

@@ -9,8 +9,9 @@
       :style="tagStyle(tag)">
       {{ tag.full_path }}
     </span>
-
-    <bk-popover theme="light">
+    <bk-popover
+      ext-cls="label-cell-popover"
+      theme="light">
       <span
         v-if="hiddenTags.length"
         class="more">
@@ -21,6 +22,7 @@
           <span
             v-for="tag in hiddenTags"
             :key="tag.id"
+            v-bk-overflow-tips
             class="tag"
             :style="tagStyle(tag)">
             {{ tag.full_path }}
@@ -92,32 +94,36 @@ export default {
                 this.hiddenTags = [];
                 return;
             }
-
             const containerWidth = this.$refs.container.offsetWidth;
-            const tagNodes = this.$refs.measure.children;
-
+            const tagNodes = Array.from(this.$refs.measure.children);
+            const tagInfos = tagNodes.map((node, index) => ({
+                tag: this.tags[index],
+                width: node.offsetWidth + 6,
+                index,
+            }));
+            // 优先展示tag宽度小的
+            tagInfos.sort((a, b) => a.width - b.width);
             let usedWidth = 0;
             const visible = [];
             const hidden = [];
-
-            for (let i = 0; i < tagNodes.length; i++) {
-                const width = tagNodes[i].offsetWidth + 6;
-                if (usedWidth + width <= containerWidth) {
-                    usedWidth += width;
-                    visible.push(this.tags[i]);
+            for (const info of tagInfos) {
+                if (usedWidth + info.width <= containerWidth) {
+                    usedWidth += info.width;
+                    visible.push(info);
                 } else {
-                    hidden.push(this.tags[i]);
+                    hidden.push(info);
                 }
             }
-
-            // 给 +N 预留空间（核心）
             if (hidden.length && visible.length) {
                 const last = visible.pop();
                 hidden.unshift(last);
             }
-
-            this.visibleTags = visible;
-            this.hiddenTags = hidden;
+            this.visibleTags = visible
+                .sort((a, b) => a.index - b.index)
+                .map(i => i.tag);
+            this.hiddenTags = hidden
+                .sort((a, b) => a.index - b.index)
+                .map(i => i.tag);
         },
     },
 };
@@ -133,23 +139,23 @@ export default {
 }
 
 .tag {
-    display: inline-block;
-    padding: 2px 6px;
+    padding: 0 4px;
     margin-right: 4px;
     background: #f0f2f5;
     border-radius: 11px;
-    font-size: 12px;
+    font-size: 10px;
+    line-height: 16px;
 }
 
 .more {
     display: inline-block;
-    width: 21px;
+    padding: 0 4px;
     height: 16px;
     background: #c4c6cc;
     border-radius: 11px;
     line-height: 16px;
     text-align: center;
-    color: #FFFFFF;
+    color: #ffffff;
 }
 
 .tooltip {
@@ -157,13 +163,17 @@ export default {
     flex-direction: column;
     gap: 6px;
     color: #fff;
-    white-space: normal;
-    padding: 0 4px;
     border-radius: 11px;
     color: #ffffff;
     font-size: 10px;
-    max-height: 120px;
+    max-height: 126px;
     overflow: auto;
+    .tag {
+        align-self: flex-start;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+    }
 }
 
 .measure {
@@ -172,5 +182,14 @@ export default {
     white-space: nowrap;
     height: 0;
     overflow: hidden;
+}
+</style>
+
+<style>
+    .label-cell-popover {
+    .tippy-tooltip {
+        padding: 8px;
+
+    }
 }
 </style>

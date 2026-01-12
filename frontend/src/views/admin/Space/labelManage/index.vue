@@ -5,7 +5,8 @@
       :space-id="spaceId"
       :placeholder="$t('搜索标签名称、标签范围、系统默认标签')"
       :search-list="searchList"
-      @updateSearchValue="searchValue = $event">
+      @updateSearchValue="searchValue = $event"
+      @changeRequest="handleSearchSelectChange">
       <bk-button
         theme="primary"
         :disabled="!spaceId"
@@ -27,7 +28,7 @@
         width="30">
         <template slot-scope="props">
           <bk-table
-            v-bkloading="{ isLoading: expandListLoading }"
+            v-bkloading="{ isLoading: props.row.childrenLoading }"
             :data="props.row.children"
             :outer-border="false">
             <bk-table-column :label="$t('标签名称')">
@@ -177,12 +178,20 @@ const SEARCH_LIST = [
         isDefaultOption: true,
     },
     {
-        id: 'creator',
+        id: 'label_scope',
         name: i18n.t('标签范围'),
+        children: [
+            { id: 'task', name: i18n.t('任务') },
+            { id: 'template', name: i18n.t('流程') },
+        ],
     },
     {
-        id: 'updated_by',
+        id: 'is_default',
         name: i18n.t('系统默认标签'),
+        children: [
+            { id: 'true', name: true },
+            { id: 'false', name: false },
+        ],
     },
 ];
 export default {
@@ -216,25 +225,34 @@ export default {
             'deleteLabel',
             'loadLabelReference',
         ]),
-        async getLabelList(parentId = null) {
-            const isExpand = Boolean(parentId);
-
+        async getLabelList(parent = null) {
+            const parentId = parent ? parent.id : null;
+            // 二级标签拉取全量数据
             const params = {
                 space_id: this.spaceId,
                 parent_id: parentId,
-                limit: isExpand ? 1000 : this.pagination.limit,
-                offset: isExpand
+                limit: parentId ? 1000 : this.pagination.limit,
+                offset: parentId
                     ? 0
                     : (this.pagination.current - 1) * this.pagination.limit,
+                ...this.requestData,
             };
             try {
-                isExpand
-                    ? (this.expandListLoading = true)
-                    : (this.listLoading = true);
+                if (parentId) {
+                    parent.childrenLoading = true;
+                } else {
+                    this.listLoading = true;
+                }
 
                 // 1. 获取标签列表
-                const { data } = await this.loadLabelList(params);
-                const list = data?.results || [];
+                const res = await this.loadLabelList(params);
+                const list = res.data?.results.map(item =>
+                    // 拼接 full_path
+                     ({
+                        ...item,
+                        childrenLoading: false,
+                    })
+                ) || [];
 
                 // 2. 获取引用数据
                 let referenceMap = {};
@@ -253,27 +271,25 @@ export default {
                     });
                 };
 
-                if (isExpand) {
-                    const parentLabel = this.labelList.find(label => label.id === parentId);
-                    if (!parentLabel) return;
-
-                    parentLabel.children = list;
-                    bindReference(parentLabel.children);
+                if (parentId) {
+                    parent.children = list;
+                    bindReference(parent.children);
                 } else {
                     this.labelList = list;
                     bindReference(this.labelList);
-
-                    this.pagination.count = data?.count || 0;
+                    this.pagination.count = res.data?.count || 0;
                     this.totalPage = Math.ceil(this.pagination.count / this.pagination.limit);
                 }
             } catch (error) {
                 console.error(error);
             } finally {
-                this.listLoading = false;
-                this.expandListLoading = false;
+                if (parentId) {
+                    parent.childrenLoading = false;
+                } else {
+                    this.listLoading = false;
+                }
             }
         },
-
         onEditLabel(label) {
             this.editLabel = label;
             this.isEdit = true;
@@ -320,8 +336,8 @@ export default {
             }
         },
         handleRowExpand(label) {
-            if (label.children) return;
-            this.getLabelList(label.id);
+            if (!label.has_children || label.children) return;
+            this.getLabelList(label);
         },
     },
 };
