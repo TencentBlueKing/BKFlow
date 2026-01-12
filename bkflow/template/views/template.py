@@ -733,6 +733,13 @@ class TemplateViewSet(UserModelViewSet):
 
         pipeline_tree = TemplateSnapshot.objects.get(template_id=instance.id, version=version).data
         draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username, version)
+        TemplateOperationRecord.objects.create(
+            operate_source=TemplateOperationSource.app.name,
+            operate_type=TemplateOperationType.rollback.name,
+            instance_id=instance.id,
+            operator=request.user.username,
+            extra_info={"version": version},
+        )
         return Response(data=draft_template.data)
 
     @swagger_auto_schema(
