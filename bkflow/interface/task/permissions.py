@@ -100,7 +100,7 @@ class TaskMockTokenPermission(BaseMockTokenPermission):
 
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
         result = client.get_task_detail(task_id)
-        if not result.get("result") or result["data"].get("create_method") != "MOCK":
+        if not result.get("result") or result.get("data", {}).get("create_method") != "MOCK":
             logger.error(f"[TaskMockTokenPermission] get_task_detail failed: {result}")
             return False
         template_id = result["data"].get("template_id")
