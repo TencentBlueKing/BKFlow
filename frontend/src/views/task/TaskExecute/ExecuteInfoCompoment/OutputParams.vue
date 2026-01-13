@@ -54,7 +54,14 @@
             <td
               v-else
               class="output-value">
-              {{ output.value }}
+              <span
+                v-bk-tooltips="{
+                  content: output.value,
+                  placements: ['top'],
+                  disabled: !output.key.includes('url')
+                }">
+                {{ output.value }}
+              </span>
             </td>
           </tr>
           <tr v-if="Object.keys(outputsInfo).length === 0">
