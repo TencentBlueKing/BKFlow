@@ -23,8 +23,14 @@
 
 ### 请求参数示例
 
-```
-GET /sdk/plugin_service/detail/?plugin_code=example_plugin&plugin_version=1.0.0&with_app_detail=true
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "plugin_code": "example_plugin",
+    "plugin_version": "1.0.0",
+    "with_app_detail": true
+}
 ```
 
 ### 返回结果示例
@@ -45,7 +51,8 @@ GET /sdk/plugin_service/detail/?plugin_code=example_plugin&plugin_version=1.0.0&
             "app_name": "示例应用"
         }
     },
-    "code": 0
+    "message": "",
+    "code": "0"
 }
 ```
 
@@ -54,7 +61,7 @@ GET /sdk/plugin_service/detail/?plugin_code=example_plugin&plugin_version=1.0.0&
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
 | data    | dict   | 返回数据                  |
 

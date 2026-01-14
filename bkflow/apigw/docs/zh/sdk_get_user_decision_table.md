@@ -24,8 +24,13 @@
 
 ### 请求参数示例
 
-```
-GET /sdk/decision_table/user/?space_id=1&template_id=1
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "space_id": 1,
+    "template_id": 1
+}
 ```
 
 ### 返回结果示例
@@ -49,7 +54,8 @@ GET /sdk/decision_table/user/?space_id=1&template_id=1
             "update_at": "2024-01-01T00:00:00Z"
         }
     ],
-    "code": 0
+    "message": "",
+    "code": "0"
 }
 ```
 
@@ -58,7 +64,7 @@ GET /sdk/decision_table/user/?space_id=1&template_id=1
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
 | data    | list   | 返回数据，决策表列表            |
 

@@ -54,24 +54,39 @@ pipeline_tree 需要包含以下结构：
 
 ```json
 {
-    "defined": {
-        "var1": {
-            "activities": ["node1", "node2"],
-            "conditions": [],
-            "constants": []
-        }
-    },
-    "nodefined": {
-        "${undefined_var}": {
-            "activities": ["node3"],
-            "conditions": [],
-            "constants": []
-        }
-    }
+     "result": true,
+     "data": {
+          "defined": {
+               "var1": {
+                    "activities": ["node1", "node2"],
+                    "conditions": [],
+                    "constants": []
+               }
+          },
+          "nodefined": {
+               "${undefined_var}": {
+                    "activities": ["node3"],
+                    "conditions": [],
+                    "constants": []
+               }
+          }
+     },
+     "code": "0",
+     "message": ""
 }
 ```
 
 ### 返回结果参数说明
+
+
+| 字段      | 类型     | 描述                    |
+|---------|--------|-----------------------|
+| result  | bool   | 返回结果，true为成功，false为失败 |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
+| message | string | 错误信息                  |
+| data    | dict   | 返回数据                  |
+
+#### data 字段说明
 
 | 字段       | 类型   | 描述                    |
 |----------|------|-----------------------|

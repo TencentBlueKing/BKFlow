@@ -20,6 +20,17 @@
 ### is_mock 说明
 当传参 is_full 时，必须同时传入 is_mock 参数
 
+### 请求参数示例
+
+```json
+{
+  "bk_app_code": "xxxx",
+  "bk_app_secret": "xxxx",
+  "bk_username or bk_token": "xxxx",
+  "task_ids": [1,2,3]
+}
+```
+
 
 ### 返回结果示例
 
