@@ -118,10 +118,11 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
     create_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     start_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     finish_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
+    is_waiting = serializers.SerializerMethodField()
 
     class Meta:
         model = TaskInstance
-        fields = "__all__"
+        exclude = ["extra_info"]
         read_only_fields = (
             "id",
             "instance_id",
@@ -140,6 +141,9 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
             "snapshot_id",
             "tree_info_id",
         )
+
+    def get_is_waiting(self, instance):
+        return instance.extra_info.get("is_waiting", False)
 
 
 class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
