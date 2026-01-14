@@ -30,6 +30,7 @@
 | scope_value   | string | 否  | 模板范围值            |
 | source        | string | 否  | 模板来源(空间接入方自定义字段) |
 | extra_info    | dict   | 否  | 模板额外信息           |
+| label_ids     | list   | 否  | 标签ID列表 |
 
 ### 请求参数示例
 
@@ -39,7 +40,8 @@
     "bk_app_secret": "xxxx",
     "bk_username or bk_token": "xxxx",
     "name": "新流程",
-    "desc": "流程描述"
+    "desc": "流程描述",
+    "label_ids": [1, 2, 3]
 }
 ```
 
