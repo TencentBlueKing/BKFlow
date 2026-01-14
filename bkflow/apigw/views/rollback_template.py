@@ -73,7 +73,7 @@ def rollback_template(request, space_id, template_id):
         draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username, version)
 
     TemplateOperationRecord.objects.create(
-        operate_source=TemplateOperationSource.app.name,
+        operate_source=TemplateOperationSource.api.name,
         operate_type=TemplateOperationType.rollback.name,
         instance_id=instance.id,
         operator=request.user.username,

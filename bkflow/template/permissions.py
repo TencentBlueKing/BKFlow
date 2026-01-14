@@ -64,7 +64,7 @@ class ScopePermission(BaseTokenPermission):
             has_operate_permission = self.has_operate_permission(
                 request.user.username, obj.space_id, obj.id, request.token
             )
-        return has_view_permission or has_edit_permission or has_operate_permission
+        return has_view_permission or has_edit_permission or has_operate_permission or has_mock_permission
 
 
 class TemplateMockPermission(BaseMockTokenPermission):
