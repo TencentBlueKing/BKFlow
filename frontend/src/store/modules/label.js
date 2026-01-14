@@ -11,33 +11,26 @@
 */
 import axios from 'axios';
 
-const taskList = {
+export default  {
   namespaced: true,
-  state: {
-
-  },
-  mutations: {
-
-  },
   actions: {
-    loadTaskList({}, data) {
-      const config = {};
-      if (data.cancelToken) {
-        config.cancelToken = data.cancelToken;
-        delete data.cancelToken;
-      }
-      return axios.get(`/task_admin/get_task_list/${data.space_id}/`, {
-        params: data,
-        ...config,
-      }).then(response => response.data);
+    // 获取标签列表 二级标签传入parent_id
+    loadLabelList({}, params) {
+      return axios.get('/api/label/', { params }).then(response => response.data);
     },
-    deleteTask({}, data) {
-      return axios.post('/task_admin/batch_delete_tasks/', data).then(response => response.data);
+    createLabel({}, data) {
+      return axios.post('/api/label/', data).then(response => response.data);
     },
-    updateTaskLabel({}, data) {
-      return axios.post(`/task_admin/update_labels/${data.space_id}/${data.task_id}/`, { label_ids: data.label_ids }).then(response => response.data);
+    updateLabel({}, { id, data }) {
+      return axios.put(`/api/label/${id}/`, data).then(response => response.data);
+    },
+    deleteLabel({}, id) {
+      return axios.delete(`/api/label/${id}/`).then(response => response.data);
+    },
+    // 获取标签引用参数
+    loadLabelReference({}, params) {
+      return axios.get('/api/label/get_label_ref_count/', { params }).then(response => response.data);
     },
   },
 };
 
-export default taskList;
