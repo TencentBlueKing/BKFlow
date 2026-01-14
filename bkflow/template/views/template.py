@@ -664,6 +664,16 @@ class TemplateViewSet(UserModelViewSet):
             extra_info={"version": new_version},
         )
 
+        event_broadcast_signal.send(
+            sender=WebhookEventType.TEMPLATE_RELEASE.value,
+            scopes=[(WebhookScopeType.SPACE.value, str(instance.space_id))],
+            extra_info={
+                "template_id": instance.id,
+                "version": new_version,
+                "username": request.user.username,
+            },
+        )
+
         return Response(data=self.get_serializer(instance).data)
 
     @action(methods=["POST"], detail=True, url_path="rollback_template")

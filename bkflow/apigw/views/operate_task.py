@@ -22,9 +22,11 @@ from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import OperateTaskSerializer
+from bkflow.constants import OPERATE_EVENT, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 
@@ -45,4 +47,11 @@ def operate_task(request, space_id, task_id, operation):
         append_attributes({"operation": operation})
         client = TaskComponentClient(space_id=space_id)
         result = client.operate_task(task_id, operation, data=ser.data)
+
+        if operation in OPERATE_EVENT:
+            event_broadcast_signal.send(
+                sender=OPERATE_EVENT[operation],
+                scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
+                extra_info={"task_id": task_id, "operation": operation, "username": request.user.username},
+            )
         return result

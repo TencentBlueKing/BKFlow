@@ -32,6 +32,8 @@ TEMPLATE_MD5SUM_LENGTH = 32
 
 formatted_key_pattern = re.compile(r"^\${(.*?)}$")
 
+OPERATE_EVENT = {"pause": "task_paused", "resume": "task_resumed", "revoke": "task_revoked"}
+
 
 class PipelineContextObjType(Enum):
     instance = "instance"
@@ -121,9 +123,13 @@ class WebhookEventType(Enum):
 
     TEMPLATE_UPDATE = "template_update"
     TEMPLATE_CREATE = "template_create"
+    TEMPLATE_RELEASE = "template_release"
     TASK_FAILED = "task_failed"
     TASK_FINISHED = "task_finished"
     TASK_CREATE = "task_create"
+    TASK_PAUSED = "task_paused"
+    TASK_RESUMED = "task_resumed"
+    TASK_REVOKED = "task_revoked"
 
 
 class TriggerConstantsMode(Enum):
