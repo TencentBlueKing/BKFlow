@@ -29,7 +29,6 @@
       :is-view-mode="isViewMode"
       :project-info-loading="projectInfoLoading"
       :template-label-loading="templateLabelLoading"
-      :template-labels="templateLabels"
       @templateDataChanged="$emit('templateDataChanged')"
       @updateTemplateLabelList="$emit('updateTemplateLabelList')"
       @closeTab="closeTab" />
@@ -67,10 +66,10 @@
       isViewMode: Boolean,
       projectInfoLoading: Boolean,
       templateLabelLoading: Boolean,
-      templateLabels: {
-        type: Array,
-        default: () => ([]),
-      },
+    //   templateLabels: {
+    //     type: Array,
+    //     default: () => ([]),
+    //   },
       activeTab: {
         type: String,
         default: '',
