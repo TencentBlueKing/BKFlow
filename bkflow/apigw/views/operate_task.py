@@ -25,7 +25,10 @@ from django.views.decorators.http import require_POST
 from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.serializers.task import OperateTaskSerializer
+from bkflow.apigw.serializers.task import (
+    OperateTaskSerializer,
+    UpdateTaskLabelsSerializer,
+)
 from bkflow.constants import OPERATE_EVENT_MAP, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
@@ -55,3 +58,18 @@ def operate_task(request, space_id, task_id, operation):
                 extra_info={"task_id": task_id, "operation": operation, "username": request.user.username},
             )
         return result
+
+
+@login_exempt
+@csrf_exempt
+@require_POST
+@apigw_require
+@check_jwt_and_space
+@return_json_response
+def update_task_labels(request, space_id, task_id):
+    data = json.loads(request.body or "{}")
+    ser = UpdateTaskLabelsSerializer(data=data)
+    ser.is_valid(raise_exception=True)
+
+    client = TaskComponentClient(space_id=space_id)
+    return client.update_labels(task_id, data={**ser.data, "space_id": space_id})

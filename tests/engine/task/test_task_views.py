@@ -28,10 +28,15 @@ from bkflow.task.models import (
     EngineSpaceConfigValueType,
     PeriodicTask,
     TaskInstance,
+    TaskLabelRelation,
     TaskMockData,
     TaskOperationRecord,
 )
-from bkflow.task.views import PeriodicTaskViewSet, TaskInstanceViewSet
+from bkflow.task.views import (
+    PeriodicTaskViewSet,
+    TaskInstanceFilterSet,
+    TaskInstanceViewSet,
+)
 from bkflow.utils.pipeline import build_default_pipeline_tree
 
 
@@ -1005,6 +1010,358 @@ class TestTaskInstanceViewSet:
         assert response.data["result"] is False
         assert "node_id should be in task" in response.data["message"]
 
+    def test_list_injects_labels(self):
+        """测试 list 会补充 labels 字段"""
+        task1 = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        task2 = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+
+        TaskLabelRelation.objects.create(task_id=task1.id, label_id=1)
+        TaskLabelRelation.objects.create(task_id=task1.id, label_id=2)
+        TaskLabelRelation.objects.create(task_id=task2.id, label_id=3)
+
+        view = TaskInstanceViewSet.as_view({"get": "list"})
+        request = self._create_request_with_auth("get", "/task/", {"limit": 10, "offset": 0})
+        response = view(request)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["data"]["results"]
+        assert len(results) >= 2
+        for item in results:
+            assert "labels" in item
+
+        task1_item = next(i for i in results if i["id"] == task1.id)
+        task2_item = next(i for i in results if i["id"] == task2.id)
+        assert sorted(task1_item["labels"]) == [1, 2]
+        assert sorted(task2_item["labels"]) == [3]
+
+    def test_list_filter_by_labels_invalid_value(self):
+        """测试 label 过滤参数非法时返回空结果"""
+        TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+
+        view = TaskInstanceViewSet.as_view({"get": "list"})
+        request = self._create_request_with_auth(
+            "get",
+            "/task/",
+            {"label": "not_int", "limit": 10, "offset": 0},
+        )
+        response = view(request)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["data"]["count"] == 0
+        assert response.data["data"]["results"] == []
+
+    def test_list_filter_by_labels_success(self):
+        """测试 label 过滤参数合法时能正确筛选任务"""
+        task1 = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        task2 = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        TaskLabelRelation.objects.create(task_id=task1.id, label_id=1)
+        TaskLabelRelation.objects.create(task_id=task2.id, label_id=2)
+
+        view = TaskInstanceViewSet.as_view({"get": "list"})
+        request = self._create_request_with_auth(
+            "get",
+            "/task/",
+            {"label": "1", "limit": 10, "offset": 0},
+        )
+        response = view(request)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["data"]["results"]
+        assert len(results) == 1
+        assert results[0]["id"] == task1.id
+
+    def test_update_labels_action(self):
+        """测试 update_labels action 会更新 TaskLabelRelation"""
+        task = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+
+        view = TaskInstanceViewSet.as_view({"post": "update_labels"})
+        request = self._create_request_with_auth(
+            "post",
+            f"/task/{task.id}/update_labels/",
+            {"label_ids": [11, 12]},
+        )
+        response = view(request, pk=task.id)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert sorted(response.data["data"]) == [11, 12]
+        assert set(TaskLabelRelation.objects.filter(task_id=task.id).values_list("label_id", flat=True)) == {11, 12}
+
+    def test_get_task_label_ref_count(self):
+        """测试 get_task_label_ref_count action"""
+        task1 = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        task2 = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+
+        TaskLabelRelation.objects.create(task_id=task1.id, label_id=1)
+        TaskLabelRelation.objects.create(task_id=task2.id, label_id=1)
+        TaskLabelRelation.objects.create(task_id=task2.id, label_id=2)
+
+        view = TaskInstanceViewSet.as_view({"get": "get_task_label_ref_count"})
+        request = self._create_request_with_auth(
+            "get",
+            "/task/get_task_label_ref_count/",
+            {"label_ids": "1,2,3", "space_id": 1},
+        )
+        response = view(request)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["result"] is True
+        assert response.data["data"]["1"] == 2
+        assert response.data["data"]["2"] == 1
+        assert response.data["data"]["3"] == 0
+
+    def test_delete_task_label_relation(self):
+        """测试 delete_task_label_relation action"""
+        task = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        TaskLabelRelation.objects.create(task_id=task.id, label_id=1)
+        TaskLabelRelation.objects.create(task_id=task.id, label_id=2)
+
+        view = TaskInstanceViewSet.as_view({"post": "delete_task_label_relation"})
+        request = self._create_request_with_auth(
+            "post",
+            "/task/delete_task_label_relation/",
+            {"label_ids": [1]},
+        )
+        response = view(request)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["data"]["label_ids"] == [1]
+        assert set(TaskLabelRelation.objects.filter(task_id=task.id).values_list("label_id", flat=True)) == {2}
+
+    @patch("bkflow.task.views.start_trace")
+    @patch("bkflow.task.views.TaskOperation")
+    def test_operate_task_operation_method_not_found(self, mock_task_operation, mock_start_trace):
+        """测试任务操作 - operation 存在但方法缺失"""
+
+        class _NoOp:
+            pass
+
+        mock_start_trace.return_value.__enter__ = MagicMock()
+        mock_start_trace.return_value.__exit__ = MagicMock()
+        mock_task_operation.return_value = _NoOp()
+
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        view = TaskInstanceViewSet.as_view({"post": "operate"})
+        request = self._create_request_with_auth("post", f"/task/{task_instance.id}/operate/start/", {})
+
+        with pytest.raises(Exception):
+            view(request, pk=task_instance.id, operation="start")
+
+    @patch("bkflow.task.views.start_trace")
+    @patch("bkflow.task.views.TaskNodeOperation")
+    def test_node_operate_method_not_found(self, mock_node_operation, mock_start_trace):
+        """测试节点操作 - operation 存在但方法缺失"""
+
+        class _NoOp:
+            pass
+
+        mock_start_trace.return_value.__enter__ = MagicMock()
+        mock_start_trace.return_value.__exit__ = MagicMock()
+        mock_node_operation.return_value = _NoOp()
+
+        pipeline_tree = build_default_pipeline_tree()
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=pipeline_tree)
+        self._start_task_instance(task_instance)
+        node_id = list(pipeline_tree["activities"].keys())[0]
+
+        view = TaskInstanceViewSet.as_view({"post": "node_operate"})
+        request = self._create_request_with_auth("post", f"/task/{task_instance.id}/node_operate/{node_id}/retry/", {})
+
+        with pytest.raises(Exception):
+            view(request, pk=task_instance.id, node_id=node_id, operation="retry")
+
+    def test_get_node_detail_include_data_true_success(self):
+        """测试 get_node_detail include_data=True 且获取数据成功"""
+
+        class _Result(dict):
+            def __init__(self, result=True, data=None, message="success"):
+                super().__init__({"result": result, "data": data, "message": message})
+                self.result = result
+                self.data = data
+                self.message = message
+
+        pipeline_tree = build_default_pipeline_tree()
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=pipeline_tree)
+        node_id = list(pipeline_tree["activities"].keys())[0]
+
+        node_data = {"x": 1}
+        node_detail = {"y": 2}
+
+        with patch("bkflow.task.views.TaskNodeOperation") as mock_node_operation:
+            mock_node_op = MagicMock()
+            mock_node_op.get_node_data.return_value = _Result(result=True, data=node_data)
+            mock_node_op.get_node_detail.return_value = _Result(result=True, data=node_detail)
+            mock_node_operation.return_value = mock_node_op
+
+            view = TaskInstanceViewSet.as_view({"get": "get_node_detail"})
+            request = self._create_request_with_auth(
+                "get",
+                f"/task/{task_instance.id}/get_task_node_detail/{node_id}/",
+                {"include_data": True},
+            )
+
+            response = view(request, pk=task_instance.id, node_id=node_id)
+            assert response.status_code == status.HTTP_200_OK
+            assert response.data["result"] is True
+            assert response.data["data"]["x"] == 1
+            assert response.data["data"]["y"] == 2
+
+    def test_get_node_detail_get_node_data_fail(self):
+        """测试 get_node_detail include_data=True 但 get_node_data 失败会提前返回"""
+
+        class _Result(dict):
+            def __init__(self, result=True, data=None, message="success"):
+                super().__init__({"result": result, "data": data, "message": message})
+                self.result = result
+                self.data = data
+                self.message = message
+
+        pipeline_tree = build_default_pipeline_tree()
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=pipeline_tree)
+        node_id = list(pipeline_tree["activities"].keys())[0]
+
+        with patch("bkflow.task.views.TaskNodeOperation") as mock_node_operation:
+            mock_node_op = MagicMock()
+            mock_node_op.get_node_data.return_value = _Result(result=False, data=None, message="failed")
+            mock_node_operation.return_value = mock_node_op
+
+            view = TaskInstanceViewSet.as_view({"get": "get_node_detail"})
+            request = self._create_request_with_auth(
+                "get",
+                f"/task/{task_instance.id}/get_task_node_detail/{node_id}/",
+                {"include_data": True},
+            )
+            response = view(request, pk=task_instance.id, node_id=node_id)
+
+            assert response.status_code == status.HTTP_200_OK
+            assert response.data["result"] is False
+            assert response.data["message"] == "failed"
+
+    def test_get_node_detail_get_node_detail_fail(self):
+        """测试 get_node_detail get_node_detail 失败会提前返回"""
+
+        class _Result(dict):
+            def __init__(self, result=True, data=None, message="success"):
+                super().__init__({"result": result, "data": data, "message": message})
+                self.result = result
+                self.data = data
+                self.message = message
+
+        pipeline_tree = build_default_pipeline_tree()
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=pipeline_tree)
+        node_id = list(pipeline_tree["activities"].keys())[0]
+
+        with patch("bkflow.task.views.TaskNodeOperation") as mock_node_operation:
+            mock_node_op = MagicMock()
+            mock_node_op.get_node_data.return_value = _Result(result=True, data={"x": 1})
+            mock_node_op.get_node_detail.return_value = _Result(result=False, data=None, message="detail_failed")
+            mock_node_operation.return_value = mock_node_op
+
+            view = TaskInstanceViewSet.as_view({"get": "get_node_detail"})
+            request = self._create_request_with_auth(
+                "get",
+                f"/task/{task_instance.id}/get_task_node_detail/{node_id}/",
+                {"include_data": True},
+            )
+            response = view(request, pk=task_instance.id, node_id=node_id)
+
+            assert response.status_code == status.HTTP_200_OK
+            assert response.data["result"] is False
+            assert response.data["message"] == "detail_failed"
+
+    def test_get_node_snapshot_config_template_node_id_not_found(self):
+        """测试 get_node_snapshot_config - template_node_id 未找到"""
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+
+        # create_instance may replace node ids, so take node_id from persisted execution_data.
+        pipeline_tree = task_instance.execution_data
+        node_id = list(pipeline_tree["activities"].keys())[0]
+        pipeline_tree["activities"][node_id].pop("template_node_id", None)
+
+        # set_execution_data won't overwrite existing snapshot data, so update snapshot directly.
+        from bkflow.task.models import TaskExecutionSnapshot
+
+        TaskExecutionSnapshot.objects.filter(id=task_instance.execution_snapshot_id).update(data=pipeline_tree)
+        task_instance.calculate_tree_info()
+
+        view = TaskInstanceViewSet.as_view({"get": "get_node_snapshot_config"})
+        request = self._create_request_with_auth(
+            "get",
+            f"/task/{task_instance.id}/get_node_snapshot_config/",
+            {"node_id": node_id},
+        )
+        response = view(request, pk=task_instance.id)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["result"] is False
+        assert response.data["message"] == "template_node_id 未找到"
+
+    def test_get_engine_config_raises_does_not_exist(self):
+        """测试 get_engine_config - 触发 DoesNotExist 异常分支"""
+        view = TaskInstanceViewSet.as_view({"get": "get_engine_config"})
+        request = self._create_request_with_auth(
+            "get",
+            "/task/get_engine_config/",
+            {"interface_config_ids": [999], "simplified": False},
+        )
+
+        with patch("bkflow.task.views.EngineSpaceConfig.objects.filter") as mock_filter:
+            mock_filter.side_effect = EngineSpaceConfig.DoesNotExist("not found")
+            response = view(request)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["result"] is False
+
+    def test_delete_engine_config_raises_does_not_exist(self):
+        """测试 delete_engine_config - 触发 DoesNotExist 异常分支"""
+        view = TaskInstanceViewSet.as_view({"delete": "delete_engine_config"})
+        request = self._create_request_with_auth(
+            "delete",
+            "/task/delete_engine_config/",
+            {"interface_config_ids": [999], "simplified": False},
+        )
+
+        with patch("bkflow.task.views.EngineSpaceConfig.objects.filter") as mock_filter:
+            mock_filter.side_effect = EngineSpaceConfig.DoesNotExist()
+            response = view(request)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["result"] is False
+
+    def test_filter_by_labels_with_empty_label_ids_returns_queryset(self):
+        """覆盖 TaskInstanceFilterSet.filter_by_labels 的 label_ids 为空分支"""
+
+        class _Value:
+            def split(self, _sep):
+                return []
+
+        TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        qs = TaskInstance.objects.filter(space_id=1)
+        f = TaskInstanceFilterSet()
+        new_qs = f.filter_by_labels(qs, "label", _Value())
+
+        assert list(new_qs) == list(qs)
+
+    def test_get_node_detail_raises_when_node_not_found(self):
+        """覆盖 get_node_detail 内部的 node not found 分支（绕过 validate_task_info）"""
+        from rest_framework.request import Request
+
+        from bkflow.exceptions import ValidationError
+
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        invalid_node_id = "invalid_node_id_999"
+
+        view = TaskInstanceViewSet()
+        view.action = "get_node_detail"
+        view.kwargs = {"pk": task_instance.id}
+
+        # DRF Request has query_params attribute (WSGIRequest doesn't).
+        raw_request = self._create_request_with_auth("get", "/", {"include_data": True})
+        request = Request(raw_request)
+        view.request = request
+
+        with pytest.raises(ValidationError):
+            TaskInstanceViewSet.get_node_detail.__wrapped__(view, request, node_id=invalid_node_id)
+
 
 @pytest.mark.django_db(transaction=True)
 class TestPeriodicTaskViewSet:
@@ -1095,6 +1452,28 @@ class TestPeriodicTaskViewSet:
         response = update_view(request)
         assert response.status_code == status.HTTP_200_OK
         assert response.data["data"]["name"] == "updated_name"
+
+    def test_update_periodic_task_not_found(self):
+        """测试更新周期任务 - trigger_id 不存在"""
+        update_view = PeriodicTaskViewSet.as_view({"post": "update_task"})
+        update_data = {
+            "trigger_id": 999999,
+            "name": "updated_name",
+            "cron": {
+                "minute": "30",
+                "hour": "12",
+                "day_of_week": "*",
+                "day_of_month": "*",
+                "month_of_year": "*",
+            },
+            "config": {},
+        }
+        request = self._create_request("post", "/periodic_task/update/", update_data)
+        response = update_view(request)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.data["data"]["result"] is False
+        assert "not exist" in response.data["data"]["message"]
 
     def test_batch_delete_periodic_tasks(self):
         """测试批量删除周期任务"""

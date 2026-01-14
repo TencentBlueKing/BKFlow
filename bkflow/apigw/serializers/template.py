@@ -47,6 +47,7 @@ class CreateTemplateSerializer(serializers.Serializer):
     )
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
+    label_ids = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
 
     def validate(self, attrs):
         # 将 bind_app_code 映射到 bk_app_code 字段（models 中的字段名）
@@ -77,8 +78,8 @@ class CreateTemplateSerializer(serializers.Serializer):
             try:
                 validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
             except Exception as e:
-                logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
-                raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
+                logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
+                raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
 
         creator = attrs.get("creator")
         if not creator and not self.context.get("request").user.username:
@@ -114,6 +115,7 @@ class UpdateTemplateSerializer(serializers.Serializer):
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
     auto_release = serializers.BooleanField(help_text=_("是否自动发布"), required=False, default=False)
+    label_ids = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
 
     def validate(self, attrs):
         operator = attrs.get("operator")
@@ -132,10 +134,14 @@ class UpdateTemplateSerializer(serializers.Serializer):
             try:
                 validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
             except Exception as e:
-                logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
-                raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
+                logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
+                raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
 
         return attrs
+
+
+class UpdateTemplateLabelsSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), required=True, child=serializers.IntegerField())
 
 
 class TemplateListFilterSerializer(serializers.Serializer):

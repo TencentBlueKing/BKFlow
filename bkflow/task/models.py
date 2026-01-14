@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from collections import defaultdict
 import json
 import logging
 
@@ -600,3 +601,73 @@ class TaskFlowRelation(models.Model):
 
     class Meta:
         verbose_name = verbose_name_plural = _("任务关系")
+
+
+class BaseLabelRelationManager(models.Manager):
+    """
+    标签关系管理器
+    """
+
+    def set_labels(self, obj_id, label_ids):
+        """
+        设置对象的标签（增量更新）
+        """
+        # 1. 构造查询参数，例如: {"template_id": 1} 或 {"task_id": 1}
+        filter_kwargs = {"task_id": obj_id}
+
+        # 2. 获取已有标签
+        existing_labels = self.filter(**filter_kwargs).values_list("label_id", flat=True)
+
+        # 3. 计算差异
+        existing_set = set(existing_labels)
+        new_set = set(label_ids)
+
+        add_ids = list(new_set - existing_set)
+        remove_ids = list(existing_set - new_set)
+
+        # 4. 执行删除
+        if remove_ids:
+            # 构造删除查询: template_id=1, label_id__in=[...]
+            delete_kwargs = {
+                "task_id": obj_id,
+                "label_id__in": remove_ids
+            }
+            self.filter(**delete_kwargs).delete()
+
+        # 5. 执行批量添加
+        if add_ids:
+            # 动态创建模型实例: TaskLabelRelation(task_id=1, label_id=xx)
+            new_relations = [
+                self.model(**{"task_id": obj_id, "label_id": label_id})
+                for label_id in add_ids
+            ]
+            self.bulk_create(new_relations)
+
+    def fetch_tasks_labels(self, task_ids):
+        """
+        批量获取多个对象的标签字典
+        返回格式: {obj_id: [label_dict, ...]}
+        """
+        filter_kwargs = {"task_id__in": task_ids}
+        relations = self.filter(**filter_kwargs).values("task_id", "label_id")
+
+        if not relations:
+            return {}
+
+        result = defaultdict(list)
+        for rel in relations:
+            result[rel["task_id"]].append(rel["label_id"])
+
+        return dict(result)
+
+
+class TaskLabelRelation(models.Model):
+    task_id = models.BigIntegerField(verbose_name=_("任务ID"), db_index=True)
+    label_id = models.IntegerField(verbose_name=_("标签ID"), db_index=True)
+
+    objects = BaseLabelRelationManager()
+
+    class Meta:
+        verbose_name = _("任务标签关系 TaskLabelRelation")
+        verbose_name_plural = _("任务标签关系 TaskLabelRelation")
+        unique_together = ("task_id", "label_id")
