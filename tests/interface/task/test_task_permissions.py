@@ -426,7 +426,7 @@ class TestTaskMockTokenPermission:
         mock_client = mock.Mock()
         mock_client.get_task_detail.return_value = {
             "result": True,
-            "data": {"id": "123", "template_id": "456", "name": "Test Task"},
+            "data": {"id": "123", "template_id": "456", "name": "Test Task", "create_method": "MOCK"},
         }
         mock_client_class.return_value = mock_client
 
@@ -485,7 +485,7 @@ class TestTaskMockTokenPermission:
         mock_client = mock.Mock()
         mock_client.get_task_detail.return_value = {
             "result": True,
-            "data": {"id": "123", "template_id": "456", "name": "Test Task"},
+            "data": {"id": "123", "template_id": "456", "name": "Test Task", "create_method": "MOCK"},
         }
         mock_client_class.return_value = mock_client
 

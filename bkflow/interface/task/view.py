@@ -121,9 +121,16 @@ class TaskInterfaceViewSet(GenericViewSet):
                 task_detail["auth"] = TASK_PERMISSION_TYPE
                 return
 
+            base_query = Q(
+                resource_id=f"{task_detail['scope_type']}_{task_detail['scope_value']}", resource_type="SCOPE"
+            ) | Q(resource_id=task_detail["id"], resource_type="TASK")
+
+            # 只有当任务是MOCK调试任务时，可以TEMPLATE的MOCK权限条件
+            if task_detail.get("create_method") == "MOCK":
+                base_query |= Q(resource_id=task_detail["template_id"], resource_type="TEMPLATE")
+
             permissions = Token.objects.filter(
-                Q(resource_id=f"{task_detail['scope_type']}_{task_detail['scope_value']}", resource_type="SCOPE")
-                | Q(resource_id=task_detail["id"], resource_type="TASK"),
+                base_query,
                 space_id=task_detail["space_id"],
                 user=request.user.username,
                 expired_time__gte=timezone.now(),
