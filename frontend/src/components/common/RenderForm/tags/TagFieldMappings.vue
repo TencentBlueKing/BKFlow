@@ -34,10 +34,10 @@
             :disabled="disabled || !editable"
             :placeholder="$t('请输入值或 $ 选择变量')"
             @input="onInput($event, index)"
-            @focus="onFocus(index)"
-            @blur="onBlur" />
+            @focus="onFocus(index)" />
           <!-- 变量提示列表 -->
           <variable-list
+            :ref="`variableListRef_${index}`"
             :is-list-open="isListOpen && currentIndex === index"
             :var-list="varList"
             :textarea-height="32"
@@ -92,6 +92,12 @@
       VariableList,
     },
     mixins: [getFormMixins(attrs)],
+    props: {
+      isSubflow: {
+        type: Boolean,
+        default: false,
+      },
+    },
     data() {
       // 将对象转换为数组用于显示
       const formList = this.objectToList(this.value);
@@ -109,21 +115,7 @@
         internalVariable: state => state.template.internalVariable,
       }),
       constantArr() {
-        let keyList = [];
-        if (this.constants) {
-          keyList = Object.keys(this.constants).map(key => ({
-            key,  // 直接使用 constants 的 key，它就是纯变量名
-            name: this.constants[key].name || key,
-          }));
-        }
-        if (this.internalVariable) {
-          const internalVars = Object.keys(this.internalVariable).map(key => ({
-            key,  // 直接使用 internalVariable 的 key
-            name: this.internalVariable[key].name || key,
-          }));
-          keyList = [...keyList, ...internalVars];
-        }
-        return keyList;
+        return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow);
       },
       keyRules() {
         return [
@@ -189,10 +181,10 @@
       },
     },
     created() {
-      window.addEventListener('click', this.handleListShow, false);
+      window.addEventListener('click', this.handleFieldMapListShow, false);
     },
     beforeDestroy() {
-      window.removeEventListener('click', this.handleListShow, false);
+      window.removeEventListener('click', this.handleFieldMapListShow, false);
     },
     methods: {
       objectToList(obj) {
@@ -210,40 +202,41 @@
         });
         return obj;
       },
-      handleListShow(e) {
-        if (!this.isListOpen) {
+      /**
+       * 处理全局点击事件，点击当前激活的 var-input-wrapper 外部时关闭变量列表
+       * @param {Event} e - 点击事件对象
+       */
+      handleFieldMapListShow(e) {
+        if (!this.isListOpen || this.currentIndex === -1) {
           return;
         }
-        const listPanel = document.querySelector('.rf-select-list');
-        if (listPanel && !dom.nodeContains(listPanel, e.target)) {
-          this.isListOpen = false;
+        // 获取当前激活的 var-input-wrapper 元素
+        const formItems = this.$el.querySelectorAll('.form-content-item');
+        const currentFormItem = formItems[this.currentIndex];
+        if (currentFormItem) {
+          const currentWrapper = currentFormItem.querySelector('.var-input-wrapper');
+          // 检查点击目标是否在当前的 var-input-wrapper 内部
+          if (currentWrapper && !dom.nodeContains(currentWrapper, e.target) && currentWrapper !== e.target) {
+            this.isListOpen = false;
+            this.currentIndex = -1;
+          }
         }
       },
       onInput(val, index) {
-        const matchResult = val.match(VAR_REG);
-        if (matchResult && matchResult[0]) {
-          const searchStr = matchResult[0].substring(1); // 去掉 $ 符号
-          this.varList = this.constantArr.filter(item => item.key.includes(searchStr));
-          this.isListOpen = this.varList.length > 0;
-          this.currentIndex = index;
-        } else {
-          this.varList = [];
-          this.isListOpen = false;
-        }
-      },
-      onBlur() {
-        setTimeout(() => {
-          this.isListOpen = false;
-          this.currentIndex = -1;
-        }, 200);
+        const result = this.filterVariableList(val, this.constantArr, VAR_REG);
+        this.varList = result.varList;
+        this.isListOpen = result.isListOpen;
+        this.currentIndex = index;
+        // 清空当前变量列表的搜索关键词
+        this.$nextTick(() => {
+          const currentVariableList = this.$refs[`variableListRef_${index}`];
+          if (currentVariableList && currentVariableList[0]) {
+            currentVariableList[0].searchKeyword = '';
+          }
+        });
       },
       onFocus(index) {
         this.currentIndex = index;
-        // 如果已经输入了 $ 符号，立即显示提示
-        const val = this.formList[index].value;
-        if (val && val.includes('$')) {
-          this.onInput(val, index);
-        }
       },
       onSelectVal(val) {
         const varRef = val;

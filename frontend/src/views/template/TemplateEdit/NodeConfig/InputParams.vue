@@ -18,6 +18,7 @@
         :constants="isSubflow ? subflowForms : constants"
         :form-option="option"
         :form-data="formData"
+        :is-subflow="isSubflow"
         :render-config="renderConfig"
         @change="onInputsValChange"
         @onRenderChange="$emit('renderConfigChange', arguments)"

@@ -288,6 +288,7 @@ const template = {
                     seconds: 10,
                     action: 'forced_fail',
                   },
+                  loop_config: node.loop_config || {},
                 });
                 return loc;
               }

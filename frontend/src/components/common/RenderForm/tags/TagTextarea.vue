@@ -23,6 +23,7 @@
         :placeholder="placeholder"
         @input="onInput" />
       <variable-list
+        ref="variableListRef"
         :is-list-open="showVarList && isListOpen"
         :var-list="varList"
         :textarea-height="textareaHeight"
@@ -35,7 +36,7 @@
 </template>
 <script>
   import '@/utils/i18n.js';
-  import dom from '@/utils/dom.js';
+  // import dom from '@/utils/dom.js';
   import { getFormMixins } from '../formMixins.js';
   import { mapState } from 'vuex';
   import VariableList from '../VariableList.vue';
@@ -79,6 +80,10 @@
           return {};
         },
       },
+      isSubflow: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -93,14 +98,7 @@
       }),
       constantArr: {
         get() {
-          let Keylist = [];
-          if (this.constants) {
-            Keylist = [...Object.values(this.constants)];
-          }
-          if (this.internalVariable) {
-            Keylist = [...Keylist, ...Object.values(this.internalVariable)];
-          }
-          return Keylist;
+          return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow);
         },
         set(val) {
           this.varList = val;
@@ -151,40 +149,21 @@
       window.removeEventListener('click', this.handleListShow, false);
     },
     methods: {
-      // 获取文本框的实际高度
-      updateTextareaHeight() {
-        this.$nextTick(() => {
-          if (this.$refs.tagTextarea && this.$refs.tagTextarea.$el) {
-            const textareaEl = this.$refs.tagTextarea.$el.querySelector('.el-textarea__inner');
-            if (textareaEl) {
-              this.textareaHeight = textareaEl.offsetHeight;
-            }
-          }
-        });
-      },
-      handleListShow(e) {
-        if (!this.isListOpen) {
-          return;
-        }
-        const listPanel = document.querySelector('.rf-select-list');
-        if (listPanel && !dom.nodeContains(listPanel, e.target)) {
-          this.isListOpen = false;
-        }
-      },
       onInput(val) {
         // 先更新文本框高度
         this.$nextTick(() => {
           this.updateTextareaHeight();
         });
-        const matchResult = val.match(VAR_REG);
-        if (matchResult && matchResult[0]) {
-          const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&');
-          const inputReg = new RegExp(regStr);
-          this.varList = this.constantArr.filter(item => inputReg.test(item.key));
-        } else {
-          this.varList = [];
-        }
-        this.isListOpen = !!this.varList.length;
+        const result = this.filterVariableList(val, this.constantArr, VAR_REG);
+        this.varList = result.varList;
+        this.isListOpen = result.isListOpen;
+        // 清空当前变量列表的搜索关键词
+        this.$nextTick(() => {
+          const currentVariableList = this.$refs.variableListRef;
+          if (currentVariableList) {
+            currentVariableList.searchKeyword = '';
+          }
+        });
       },
       onSelectVal(val) {
         const replacedValue = this.value.replace(VAR_REG, val);

@@ -11,6 +11,7 @@
 */
 import tools from '@/utils/tools.js';
 import { checkDataType } from '@/utils/checkDataType.js';
+import dom from '@/utils/dom.js';
 
 export const COMMON_ATTRS = {
   tagCode: {
@@ -357,6 +358,119 @@ export const getFormMixins = (attrs = {}) => {
         } else {
           throw new Error('获取不到全局变量');
         }
+      },
+      // 展示变量列表
+      handleListShow(e) {
+        if (!this.isListOpen) {
+          return;
+        }
+        const listPanel = document.querySelector('.rf-select-list');
+        if (listPanel && !dom.nodeContains(listPanel, e.target)) {
+          this.isListOpen = false;
+        }
+      },
+      /**
+       * 通用变量过滤方法
+       * 根据输入值过滤变量列表，支持分组和非分组两种数据结构
+       * @param {String} inputValue - 输入值
+       * @param {Array} constantArr - 变量数组
+       * @param {RegExp} varRegex - 变量匹配正则，默认为 /\$.*$/
+       * @returns {Object} 返回过滤结果 { varList, isListOpen }
+       */
+      filterVariableList(inputValue, constantArr, varRegex = /\$.*$/) {
+        const matchResult = inputValue.match(varRegex);
+        let varList = [];
+        let isListOpen = false;
+        if (matchResult && matchResult[0]) {
+          // 对匹配结果进行转义处理
+          const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&');
+          const inputReg = new RegExp(regStr);
+          // 检查数据结构类型
+          if (constantArr.length > 0 && constantArr[0].children) {
+            // 分组数据结构处理
+            varList = constantArr.map((group) => {
+              const filteredChildren = group.children.filter(item => inputReg.test(item.key));
+              if (filteredChildren.length > 0) {
+                return {
+                  ...group,
+                  children: filteredChildren,
+                };
+              }
+              return null;
+            }).filter(group => group !== null);
+            // 检查是否有分组包含变量
+            isListOpen = varList.some(group => group.children && group.children.length > 0);
+          } else {
+            // 非分组数据结构处理
+            varList = constantArr.filter(item => inputReg.test(item.key));
+            isListOpen = !!varList.length;
+          }
+        } else {
+          // 没有匹配到变量模式时，清空变量列表
+          varList = [];
+          isListOpen = false;
+        }
+        return { varList, isListOpen };
+      },
+      /**
+       * 构建常量数组的通用方法
+       * 根据constants和internalVariable构建分组的变量列表
+       * @param {Object} constants
+       * @param {Object} internalVariable - 内置变量
+       * @param {Boolean} isSubflow - 是否为子流程，决定是否包含循环变量
+       * @returns {Array} 返回分组的变量列表
+       */
+      buildConstantArray(constants, internalVariable, isSubflow = false) {
+        const constantArr = [...Object.values(constants)];
+        const inputVar = constantArr.filter(item => item.source_type === 'component_inputs');
+        const outputVar = constantArr.filter(item => item.source_type === 'component_outputs');
+        const custonVar = constantArr.filter(item => item.source_type === 'custom' && item.custom_type !== 'loop');
+        const loopVar = constantArr.filter(item => item.custom_type === 'loop');
+        const keyList = [
+          {
+            name: '内置变量',
+            type: 'system',
+            isCollapse: false,
+            children: [
+              ...Object.values(internalVariable),
+            ],
+          },
+          {
+            name: '输入变量',
+            type: 'input',
+            isCollapse: false,
+            children: [
+              ...Object.values(inputVar),
+            ],
+          },
+          {
+            name: '输出变量',
+            type: 'output',
+            isCollapse: false,
+            children: [
+              ...Object.values(outputVar),
+            ],
+          },
+          {
+            name: '普通变量',
+            type: 'custom',
+            isCollapse: false,
+            children: [
+              ...Object.values(custonVar),
+            ],
+          },
+        ];
+        if (isSubflow) {
+          keyList.push({
+            name: '循环变量',
+            type: 'loop',
+            isCollapse: false,
+            children: [
+              ...Object.values(loopVar),
+            ],
+          });
+        }
+        return keyList;
       },
     },
   };
