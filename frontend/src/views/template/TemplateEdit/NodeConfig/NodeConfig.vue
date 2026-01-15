@@ -946,6 +946,7 @@
           skippable,
           can_retry: canRetry,
           retryable,
+          loop_config: loopConfig,
         } = config;
         let templateName = i18n.t('请选择子流程');
 
@@ -986,6 +987,7 @@
           autoRetry: Object.assign({}, { enable: false, interval: 0, times: 1 }, auto_retry),
           timeoutConfig: timeoutConfig || { enable: false, seconds: 10, action: 'forced_fail' },
           executor_proxy: executorProxy ? executorProxy.split(',') : [],
+          loopConfig: loopConfig || {},
           subLatestVersion: templateData.version,
         };
       },
@@ -1563,8 +1565,18 @@
             ignorable,
             autoRetry,
             timeoutConfig,
+            loopConfig,
           } = this.basicInfo;
           const constants = {};
+          if (loopConfig.loop_params && loopConfig.loop_params.length > 0) {
+            const result = loopConfig.loop_params.reduce((arr, item) => {
+              if (item.name.trim() !== '' && item.source.trim() !== '') {
+                arr[item.name] = item.source;
+              }
+              return arr;
+            }, {});
+            loopConfig.loop_params = result;
+          }
           Object.keys(this.subflowForms).forEach((key) => {
             const constant = tools.deepClone(this.subflowForms[key]);
             if (constant.show_type === 'show') {
@@ -1590,6 +1602,7 @@
             error_ignorable: ignorable,
             auto_retry: autoRetry,
             timeout_config: timeoutConfig,
+            loop_config: loopConfig,
           });
           if (this.common) {
             config.executor_proxy = executor_proxy.join(',');
@@ -1891,9 +1904,10 @@
               this.basicInfo[item] = this.basicInfo[item].trim();
             });
             const { alwaysUseLatest, latestVersion, version, skippable, retryable, selectable: optional,
-                    desc, nodeName, autoRetry, timeoutConfig, executor_proxy,
+                    desc, nodeName, autoRetry, timeoutConfig, executor_proxy, loopConfig,
             } = this.basicInfo;
-            const nodeData = { status: '', skippable, retryable, optional, auto_retry: autoRetry, timeout_config: timeoutConfig, isActived: false };
+            const nodeData = { status: '', skippable, retryable, optional, auto_retry: autoRetry,
+            timeout_config: timeoutConfig, isActived: false, loop_config: loopConfig };
             if (this.common) {
               nodeData.executor_proxy = executor_proxy.join(',');
             }
