@@ -532,6 +532,71 @@
           <p>{{ $t('2. 若子流程中修改了变量的默认值，在未手动更新子流程版本的情况下，将继续使用修改前变量的原有值。') }}</p>
         </div>
       </bk-form-item>
+      <bk-form-item
+        :label="$t('执行控制')"
+        :required="true"
+        property="executeControl">
+        <div class="bk-button-group">
+          <bk-button
+            :class="executeControlActive === 'single' ? 'is-selected' : ''"
+            :disabled="isViewMode"
+            @click="onExecuteControlChange('single')">
+            {{ $t('单次执行') }}
+          </bk-button>
+          <bk-button
+            :class="executeControlActive === 'loop' ? 'is-selected' : ''"
+            :disabled="isViewMode"
+            @click="onExecuteControlChange('loop')">
+            {{ $t('循环执行') }}
+          </bk-button>
+          <!-- 一期先不做 -->
+          <!-- <bk-button
+            :class="executeControlActive === 'batch' ? 'is-selected' : ''"
+            :disabled="isViewMode"
+            @click="onExecuteControlChange('batch')">
+            {{ $t('批量执行') }}
+          </bk-button> -->
+        </div>
+      </bk-form-item>
+      <bk-form-item
+        v-if="executeControlActive !== 'single'"
+        :label="$t('循环类型')"
+        :required="true"
+        property="loopType">
+        <div class="execute-control-config">
+          <LoopExecutionConfig
+            v-if="executeControlActive === 'loop'"
+            ref="loopExecutionConfigRef"
+            :loop-config="formData.loopConfig"
+            :is-view-mode="isViewMode"
+            @change="onLoopConfigChange" />
+          <!-- <div
+            v-if="executeControlActive === 'batch'"
+            class="batch-config">
+            <div class="batch-config-count">
+              <span class="count-label">{{ $t('最大并行数') }}</span>
+              <bk-slider
+                v-model="formData.loopConfig"
+                class="count-slider"
+                :show-input="true" />
+            </div>
+            <LoopVar
+              :is-view-mode="isViewMode"
+              :var-list="formData.loopConfig"
+              @change="onBatchVarListChange" />
+          </div> -->
+        </div>
+      </bk-form-item>
+      <bk-form-item
+        v-if="executeControlActive === 'loop'"
+        :label="$t('循环控制')">
+        <div class="loop-control">
+          <bk-checkbox
+            v-model="formData.loopConfig.fail_skip"
+            @change="onLoopControlChange" />
+          <span class="control-text">{{ $t('循环内失败跳过') }}</span>
+        </div>
+      </bk-form-item>
       <!-- <bk-form-item v-if="common" :label="$t('执行代理人')" data-test-id="templateEdit_form_executor_proxy">
         <bk-user-selector
           :disabled="isViewMode"
@@ -552,12 +617,16 @@
   import { mapState, mapActions, mapMutations, mapGetters } from 'vuex';
   import { NAME_REG, STRING_LENGTH, INVALID_NAME_CHAR } from '@/constants/index.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
+  import LoopExecutionConfig from './LoopTypeInfo/LoopExecutionConfig.vue';
+  // import LoopVar from './LoopTypeInfo/LoopVar.vue';
 
   export default {
     name: 'BasicInfo',
     components: {
       // BkUserSelector,
       JumpLinkBKFlowOrExternal,
+      LoopExecutionConfig,
+      // LoopVar,
     },
     props: {
       projectId: {
@@ -697,6 +766,7 @@
         subflowVersion: '',
         subVersionSelectValue: '',
         subVersionlistData: [],
+        executeControlActive: 'single',
       };
     },
     computed: {
@@ -730,7 +800,29 @@
       basicInfo: {
         handler(val) {
           this.formData = tools.deepClone(val);
-          this.subVersionSelectValue = this.basicInfo.version;
+          if (this.formData.loopConfig && Object.keys(this.formData.loopConfig).length > 0) {
+            if (this.formData.loopConfig.enable) {
+              this.executeControlActive = 'loop';
+            } else {
+              this.executeControlActive = 'single';
+            }
+          } else {
+            // 初始化执行控制数据结构
+            this.formData.loopConfig = {
+              enable: false,
+              type: 'array_loop', // 数组循环array_loop 次数循环time_loop
+              loop_times: 3, // 默认为3
+              loop_params: [{ name: '', source: '' }],
+              fail_skip: false,
+            };
+            this.executeControlActive = 'single';
+          }
+          if (this.formData.loopConfig.loop_params && !Array.isArray(this.formData.loopConfig.loop_params)) {
+              this.formData.loopConfig.loop_params = Object.entries(this.formData.loopConfig.loop_params).map(([key, value]) => ({
+                name: key,
+                source: value,
+              }));
+          }
           // 如果有执行方案，默认选中<不使用执行方案>
           if (this.schemeList.length && !this.formData.schemeIdList.length) {
             this.formData.schemeIdList = [0];
@@ -742,6 +834,13 @@
         deep: true,
         immediate: true,
       },
+      // 'formData.loopConfig.batch.batchLoopCount': {
+      //   handler(newVal, oldVal) {
+      //     if (newVal !== oldVal) {
+      //       this.updateData();
+      //     }
+      //   },
+      // },
     },
     mounted() {
       if (this.isSubflow) {
@@ -932,6 +1031,7 @@
         const {
           version, nodeName, stageName, nodeLabel, ignorable, skippable, retryable,
           selectable, alwaysUseLatest, autoRetry, timeoutConfig, schemeIdList, executor_proxy,
+          loopConfig,
         } = this.formData;
         let data;
         if (this.isSubflow) {
@@ -948,6 +1048,7 @@
             autoRetry,
             timeoutConfig,
             skippable,
+            loopConfig,
           };
         } else {
           data = {
@@ -977,9 +1078,15 @@
         this.$emit('updateSubflowVersion');
       },
       validate() {
-        const comp = this.isSubflow ? this.$refs.subflowForm : this.$refs.pluginForm;
-        comp.clearError();
-        return comp.validate();
+        if (this.isSubflow) {
+          this.$refs.subflowForm.clearError();
+          if (this.$refs.loopExecutionConfigRef) {
+            return this.$refs.subflowForm.validate() && this.$refs.loopExecutionConfigRef.validate();
+          }
+          return this.$refs.subflowForm.validate();
+        }
+          this.$refs.pluginForm.clearError();
+          return this.$refs.pluginForm.validate();
       },
       transformPluginDesc(data) {
         const info = data.replace(/\n/g, '<br>');
@@ -1000,6 +1107,30 @@
         const { href } = this.$router.resolve(pathData);
         return href;
       },
+      // 执行控制类型变化处理
+      onExecuteControlChange(type) {
+        if (this.isViewMode) return;
+        this.executeControlActive = type;
+        if (type === 'loop') {
+          this.formData.loopConfig.enable = true;
+        } else {
+          this.formData.loopConfig.enable = false;
+        }
+        this.updateData();
+      },
+      // 循环执行配置变化
+      onLoopConfigChange(newConfig) {
+        this.formData.loopConfig = newConfig;
+        this.updateData();
+      },
+      onLoopControlChange() {
+        this.updateData();
+      },
+      // 批量执行配置变化
+      // onBatchVarListChange(list) {
+      //   this.formData.loopConfig.batch.params = list;
+      //   this.updateData();
+      // },
     },
   };
 </script>
@@ -1094,6 +1225,15 @@
             color: #999999;
             background: transparent;
         }
+    }
+    .loop-control{
+      display: flex;
+      align-items: center;
+      font-size: 12px;
+      color: #63656e;
+      .control-text{
+        margin-left: 5px;
+      }
     }
     .auto-retry-times,
     .timeout-setting-wrap {
@@ -1201,6 +1341,47 @@
             }
         }
     }
+
+    .bk-button-group {
+        display: inline-flex;
+
+        .bk-button {
+            border-radius: 0;
+            margin-left: -1px;
+            width: 120px;
+            font-size: 12px;
+
+            &:first-child {
+                border-top-left-radius: 2px;
+                border-bottom-left-radius: 2px;
+                margin-left: 0;
+            }
+
+            &:last-child {
+                border-top-right-radius: 2px;
+                border-bottom-right-radius: 2px;
+            }
+        }
+    }
+
+    .execute-control-config {
+        .batch-config {
+          .batch-config-count {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            color: #63656E;
+            .count-label{
+              font-size: 12px;
+              margin-right: 8px;
+            }
+            .count-slider{
+              flex: 1;
+            }
+          }
+        }
+    }
+
     .bk-option-content {
         &:hover {
             .open-link-icon {

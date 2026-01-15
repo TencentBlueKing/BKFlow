@@ -554,10 +554,11 @@
         const {
           source_tag: sourceTag,
           source_info: sourceInfo,
-          custom_type: customType,
+          custom_type: customType, // 对应code
           version = 'legacy',
           plugin_code: pluginCode,
         } = this.theEditingData;
+        // metaTage 对应meta_tag
         const tagStr = this.metaTag ? this.metaTag : sourceTag;
 
         // 兼容旧数据自定义变量勾选为输入参数 source_tag 为空
@@ -767,7 +768,7 @@
         this.theEditingData.source_tag = data.tag;
         this.theEditingData.is_meta = data.type === 'meta';
         this.metaTag = data.meta_tag;
-
+        // 校验规则
         const validateSet = this.getValidateSet();
         this.$set(this.renderOption, 'validateSet', validateSet);
         this.getAtomConfig();
