@@ -136,6 +136,7 @@
         :atom-methods="scheme.methods"
         :value="formValue"
         :parent-value="parentValue"
+        :is-subflow="isSubflow"
         @init="$emit('init', $event)"
         @change="updateForm"
         @onShow="onShowForm"
@@ -258,6 +259,10 @@
         default() {
           return {};
         },
+      },
+      isSubflow: {
+        type: Boolean,
+        default: false,
       },
     },
     data() {
