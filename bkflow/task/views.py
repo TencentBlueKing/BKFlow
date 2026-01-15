@@ -29,7 +29,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from bkflow.constants import (
-    OPERATE_EVENT,
+    OPERATE_EVENT_MAP,
     RecordType,
     TaskOperationSource,
     TaskOperationType,
@@ -204,13 +204,17 @@ class TaskInstanceViewSet(
             operator = data.pop("operator", request.user.username)
             operation_result = operation_method(operator=operator, **data)
 
-            if operation in OPERATE_EVENT:
+            if operation in ["pause", "resume", "revoke"]:
                 interface_client = InterfaceModuleClient()
                 interface_client.broadcast_task_events(
                     data={
                         "space_id": task_instance.space_id,
-                        "event": OPERATE_EVENT[operation],
-                        "extra_info": {"task_id": task_instance.id},
+                        "event": OPERATE_EVENT_MAP[operation],
+                        "extra_info": {
+                            "task_id": task_instance.id,
+                            "operation": operation,
+                            "username": request.user.username,
+                        },
                     }
                 )
             return Response(dict(operation_result))

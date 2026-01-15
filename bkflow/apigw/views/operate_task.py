@@ -26,7 +26,7 @@ from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import OperateTaskSerializer
-from bkflow.constants import OPERATE_EVENT, WebhookScopeType
+from bkflow.constants import OPERATE_EVENT_MAP, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 
@@ -48,9 +48,9 @@ def operate_task(request, space_id, task_id, operation):
         client = TaskComponentClient(space_id=space_id)
         result = client.operate_task(task_id, operation, data=ser.data)
 
-        if operation in OPERATE_EVENT:
+        if operation in ["pause", "resume", "revoke"]:
             event_broadcast_signal.send(
-                sender=OPERATE_EVENT[operation],
+                sender=OPERATE_EVENT_MAP[operation],
                 scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
                 extra_info={"task_id": task_id, "operation": operation, "username": request.user.username},
             )
