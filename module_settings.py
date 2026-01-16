@@ -157,6 +157,10 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.contrib.expired_cleaner",
     )
 
+    # 统计模块
+    if env.STATISTICS_ENABLED:
+        INSTALLED_APPS += ("bkflow.statistics",)
+
     BKFLOW_CELERY_ROUTES = {
         "bkflow.contrib.expired_cleaner.tasks.clean_task": {
             "queue": f"clean_task_{BKFLOW_MODULE.code}",
@@ -245,6 +249,10 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.pipeline_web",
     )
 
+    # 统计模块
+    if env.STATISTICS_ENABLED:
+        INSTALLED_APPS += ("bkflow.statistics",)
+
     VARIABLE_KEY_BLACKLIST = (
         env.VARIABLE_KEY_BLACKLIST.strip().strip(",").split(",") if env.VARIABLE_KEY_BLACKLIST else []
     )
@@ -288,3 +296,45 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
             "schedule": crontab(env.SYNC_BK_PLUGINS_CRONTAB),
         }
     }
+
+    # 如果启用统计功能，添加统计汇总定时任务
+    if env.STATISTICS_ENABLED:
+        app.conf.beat_schedule.update(
+            {
+                "generate_daily_summary": {
+                    "task": "bkflow.statistics.tasks.generate_daily_summary_task",
+                    "schedule": crontab(minute=30, hour=1),  # 每天凌晨 1:30 执行
+                },
+                "generate_plugin_summary": {
+                    "task": "bkflow.statistics.tasks.generate_plugin_summary_task",
+                    "schedule": crontab(minute=0, hour=2),  # 每天凌晨 2:00 执行
+                },
+                "clean_expired_statistics": {
+                    "task": "bkflow.statistics.tasks.clean_expired_statistics_task",
+                    "schedule": crontab(minute=0, hour=3),  # 每天凌晨 3:00 执行
+                },
+            }
+        )
+
+
+# 统计数据库配置（适用于所有模块类型）
+if env.STATISTICS_ENABLED and env.STATISTICS_USE_SEPARATE_DB and env.STATISTICS_DB_HOST:
+    # 获取或初始化 DATABASES
+    if "DATABASES" not in dir():
+        from config.default import DATABASES
+
+    DATABASES["statistics"] = {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env.STATISTICS_DB_NAME,
+        "USER": env.STATISTICS_DB_USER,
+        "PASSWORD": env.STATISTICS_DB_PASSWORD,
+        "HOST": env.STATISTICS_DB_HOST,
+        "PORT": env.STATISTICS_DB_PORT,
+        "CONN_MAX_AGE": env.STATISTICS_DB_CONN_MAX_AGE,
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+    }
+
+    # 添加数据库路由
+    DATABASE_ROUTERS = ["bkflow.statistics.db_router.StatisticsDBRouter"]
