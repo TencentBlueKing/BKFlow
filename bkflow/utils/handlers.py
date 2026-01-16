@@ -47,7 +47,9 @@ def mask_credential_values(data, in_place=False):
     }
 
     @param data: 可能包含 credentials 的数据，可以是 dict、list 或其他类型
-    @param in_place: 是否原地修改。False 时返回深拷贝后的脱敏数据（默认），True 时直接修改原数据
+    @param in_place: 是否原地修改。False 时返回深拷贝后的脱敏数据（默认），True 时直接修改原数据。
+                     注意：当 in_place=False 时，会使用 deepcopy 进行深拷贝，对于大型嵌套结构可能有性能开销。
+                     如果确定不需要保留原始数据，可以设置 in_place=True 以提高性能。
     @return: 脱敏后的数据
     """
     if data is None:
@@ -62,8 +64,48 @@ def mask_credential_values(data, in_place=False):
         for item in data:
             if isinstance(item, dict):
                 _mask_dict_credentials(item)
+            elif hasattr(item, "__dict__"):
+                _mask_object_credentials(item)
+    elif hasattr(data, "__dict__"):
+        _mask_object_credentials(data)
 
     return data
+
+
+def _mask_object_credentials(obj):
+    """
+    对对象中的 credentials 属性进行脱敏处理。
+    用于处理如 TaskContext 这类对象，其 credentials 是作为属性存在的。
+
+    @param obj: 需要处理的对象
+    """
+    if obj is None:
+        return
+
+    # 检查对象是否有 credentials 属性
+    if hasattr(obj, "credentials"):
+        credentials = getattr(obj, "credentials", None)
+        if isinstance(credentials, dict):
+            _mask_credentials_content(credentials)
+        elif credentials is not None:
+            # 如果 credentials 不是字典，直接替换为脱敏占位符
+            setattr(obj, "credentials", CREDENTIAL_MASK)
+
+    # 递归处理对象的其他属性
+    if hasattr(obj, "__dict__"):
+        for attr_name, attr_value in vars(obj).items():
+            if attr_name == "credentials":
+                continue
+            if isinstance(attr_value, dict):
+                _mask_dict_credentials(attr_value)
+            elif isinstance(attr_value, list):
+                for item in attr_value:
+                    if isinstance(item, dict):
+                        _mask_dict_credentials(item)
+                    elif hasattr(item, "__dict__"):
+                        _mask_object_credentials(item)
+            elif hasattr(attr_value, "__dict__") and not callable(attr_value):
+                _mask_object_credentials(attr_value)
 
 
 def _mask_dict_credentials(data: dict):
@@ -79,7 +121,7 @@ def _mask_dict_credentials(data: dict):
     if "credentials" in data and isinstance(data["credentials"], dict):
         _mask_credentials_content(data["credentials"])
 
-    # 递归处理嵌套的字典和列表
+    # 递归处理嵌套的字典、列表和对象
     for key, value in data.items():
         if key == "credentials":
             # credentials 已经处理过了，跳过
@@ -90,6 +132,11 @@ def _mask_dict_credentials(data: dict):
             for item in value:
                 if isinstance(item, dict):
                     _mask_dict_credentials(item)
+                elif hasattr(item, "__dict__"):
+                    _mask_object_credentials(item)
+        elif hasattr(value, "__dict__") and not callable(value):
+            # 处理对象类型的值（如 TaskContext 实例）
+            _mask_object_credentials(value)
 
 
 def _mask_credentials_content(credentials: dict):
@@ -161,7 +208,8 @@ def handle_api_error(system, api_name, params, result):
 
     logger.error(message)
 
-    handle_plain_log(message)
+    # 对 message 进行脱敏处理后返回
+    message = handle_plain_log(message)
     return message
 
 
@@ -192,29 +240,6 @@ def mask_credentials_in_string(text):
         "secret_key",
     ]
 
-    result = text
-    for field in sensitive_fields:
-        # 匹配 JSON 格式: "field": "value" 或 "field": 'value'
-        # 也匹配 Python dict 字符串格式: 'field': 'value'
-        patterns = [
-            # JSON 格式: "field": "value"
-            rf'(["\']){field}\1\s*:\s*(["\'])([^"\']+)\2',
-            # Python repr 格式: 'field': 'value' (单引号)
-            rf"'{field}'\s*:\s*'([^']+)'",
-            # Python repr 格式: "field": "value" (双引号)
-            rf'"{field}"\s*:\s*"([^"]+)"',
-        ]
-        for pattern in patterns:
-            result = re.sub(
-                pattern,
-                lambda m: m.group(0).rsplit(m.group()[-1].split(":")[-1].strip(), 1)[0]
-                + CREDENTIAL_MASK
-                + ("'" if m.group(0).endswith("'") else '"'),
-                result,
-                flags=re.IGNORECASE,
-            )
-
-    # 使用更简单直接的替换方式
     result = text
     for field in sensitive_fields:
         # 匹配 "field": "xxx" 或 'field': 'xxx' 模式
