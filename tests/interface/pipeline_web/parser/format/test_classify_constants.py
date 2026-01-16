@@ -241,3 +241,64 @@ class ClassifyConstantsTestCase(TestCase):
             "acts_outputs": {},
         }
         self.assertEqual(classify_constants(constants, False), expect_outputs)
+
+    def test_outputs_source_info_with_empty_list(self):
+        """
+        测试 source_info 中值为空列表的边界情况
+        当前端构建的 pipeline_tree 中 source_info 包含空列表时，应该被忽略
+        例如: {"node_id": []} 应该被视为无效的 source_info
+        """
+        constants = {
+            "${bk_timing}": {
+                "name": "定时时间",
+                "key": "${bk_timing}",
+                "desc": "",
+                "custom_type": "",
+                "source_info": {"node38f09be9ba7402ec05186c562c0e": ["bk_timing"]},
+                "source_tag": "sleep_timer.bk_timing",
+                "value": "",
+                "show_type": "show",
+                "source_type": "component_inputs",
+                "validation": "",
+                "index": 0,
+                "version": "legacy",
+            },
+            "${_result}": {
+                "name": "执行结果",
+                "key": "${_result}",
+                "desc": "",
+                "custom_type": "",
+                # source_info 包含键但值为空列表，这是边界情况
+                "source_info": {"node38f09be9ba7402ec05186c562c0e": []},
+                "source_tag": "",
+                "value": "",
+                "show_type": "hide",
+                "source_type": "component_outputs",
+                "validation": "",
+                "index": 1,
+                "version": "legacy",
+            },
+            "${custom}": {
+                "custom_type": "input",
+                "desc": "",
+                "index": 3,
+                "key": "${custom}",
+                "name": "custom",
+                "show_type": "show",
+                "source_info": {},
+                "source_tag": "input.input",
+                "source_type": "custom",
+                "validation": "^.+$",
+                "value": "${bk_timing}",
+                "version": "legacy",
+            },
+        }
+        # source_info 中值为空列表的变量应该被忽略，不会生成 acts_outputs
+        expect_outputs = {
+            "data_inputs": {
+                "${custom}": {"type": "splice", "value": "${bk_timing}", "is_param": False},
+                "${bk_timing}": {"type": "plain", "value": "", "is_param": False},
+            },
+            "acts_outputs": {},
+        }
+        self.assertEqual(classify_constants(constants, False), expect_outputs)
