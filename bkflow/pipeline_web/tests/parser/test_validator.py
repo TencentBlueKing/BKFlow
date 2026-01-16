@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -381,3 +380,35 @@ class TestValidator(unittest.TestCase):
         invalid_tree = self.valid_tree
         invalid_tree["outputs"].append("${system.key}")
         self.assertRaises(exceptions.ParserWebTreeException, validator.validate_web_pipeline_tree, invalid_tree)
+
+    def test_component_outputs_with_empty_source_info_list(self):
+        """
+        测试 source_info 中值为空列表的情况，应该返回友好的错误消息
+        """
+        from copy import deepcopy
+
+        invalid_tree = deepcopy(self.valid_tree)
+        invalid_tree["constants"]["${invalid_output}"] = {
+            "custom_type": "",
+            "desc": "",
+            "index": 10,
+            "key": "${invalid_output}",
+            "name": "无效的输出变量",
+            "show_type": "hide",
+            # source_info 包含空列表，这是无效的配置
+            "source_info": {"node5cf2e6f4b96746f5ef3795d2152f": []},
+            "source_tag": "",
+            "source_type": "component_outputs",
+            "validation": "",
+            "value": "",
+            "version": "legacy",
+        }
+
+        with self.assertRaises(exceptions.ParserWebTreeException) as context:
+            validator.validate_web_pipeline_tree(invalid_tree)
+
+        error_message = str(context.exception)
+        # 验证错误消息包含友好的提示
+        self.assertIn("无效的输出变量", error_message)
+        self.assertIn("组件输出", error_message)
+        self.assertIn("未选择有效的输出字段", error_message)

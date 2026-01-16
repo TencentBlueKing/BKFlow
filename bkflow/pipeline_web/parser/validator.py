@@ -30,6 +30,14 @@ from bkflow.pipeline_web.parser.format import classify_constants
 from bkflow.pipeline_web.parser.schemas import KEY_PATTERN_RE, WEB_PIPELINE_SCHEMA
 
 
+def _get_constant_display_name(const: dict, key: str) -> str:
+    """获取变量的显示名称，优先使用 name 字段"""
+    name = const.get("name", "")
+    if name:
+        return f"「{name}」({key})"
+    return f"「{key}」"
+
+
 def validate_web_pipeline_tree(web_pipeline_tree):
     # schema validate
     valid = Draft4Validator(WEB_PIPELINE_SCHEMA)
@@ -37,7 +45,7 @@ def validate_web_pipeline_tree(web_pipeline_tree):
     for error in sorted(valid.iter_errors(web_pipeline_tree), key=str):
         errors.append("{}: {}".format("→".join(map(str, error.absolute_path)), error.message))
     if errors:
-        raise exceptions.ParserWebTreeException(",".join(errors))
+        raise exceptions.ParserWebTreeException("流程结构校验失败，请检查流程配置是否完整: {}".format("; ".join(errors)))
 
     # constants key pattern validate
     key_validation_errors = []
@@ -45,20 +53,25 @@ def validate_web_pipeline_tree(web_pipeline_tree):
     classification = classify_constants(web_pipeline_tree["constants"], is_subprocess=False)
     for key, const in web_pipeline_tree["constants"].items():
         key_value = const.get("key")
+        display_name = _get_constant_display_name(const, key)
+
         if key != key_value:
-            key_validation_errors.append("constants {} key property value: {} not matched".format(key, key_value))
+            key_validation_errors.append("变量 {} 的 key 属性值 {} 与实际 key 不匹配，请检查变量配置".format(display_name, key_value))
             continue
 
         if not KEY_PATTERN_RE.match(key):
-            key_validation_errors.append("invalid key: {}".format(key))
+            key_validation_errors.append("变量 {} 的 key 格式不合法，请使用 ${{variable_name}} 格式".format(display_name))
 
         # Skip constants that are not in data_inputs (e.g., component_outputs with empty source_info)
         if key_value not in classification["data_inputs"]:
-            # If it's a component_outputs type with empty source_info, it's invalid
-            if const.get("source_type") == "component_outputs" and not const.get("source_info"):
-                key_validation_errors.append(
-                    "constants {} has source_type 'component_outputs' but source_info is empty".format(key)
-                )
+            # If it's a component_outputs type with invalid source_info, report error
+            if const.get("source_type") == "component_outputs":
+                source_info = const.get("source_info")
+                # source_info is empty dict or all values are empty lists
+                if not source_info or not any(v for v in source_info.values() if v):
+                    key_validation_errors.append(
+                        "变量 {} 配置无效：该变量类型为组件输出，但未选择有效的输出字段，" "请在对应节点中重新勾选输出变量或删除该变量".format(display_name)
+                    )
             continue
 
         data_type = classification["data_inputs"][key_value]["type"]
@@ -70,7 +83,7 @@ def validate_web_pipeline_tree(web_pipeline_tree):
     # outputs key pattern validate
     for output_key in web_pipeline_tree["outputs"]:
         if not KEY_PATTERN_RE.match(output_key):
-            key_validation_errors.append("invalid outputs key: {}".format(output_key))
+            key_validation_errors.append("输出变量 {} 的 key 格式不合法".format(output_key))
 
     if key_validation_errors:
         raise exceptions.ParserWebTreeException("\n".join(key_validation_errors))
@@ -79,6 +92,6 @@ def validate_web_pipeline_tree(web_pipeline_tree):
     try:
         Context(runtime, context_values, {}).hydrate()
     except Exception as e:
-        raise exceptions.ParserWebTreeException(f"constant verification failed: {str(e)}")
+        raise exceptions.ParserWebTreeException(f"变量配置校验失败: {str(e)}")
 
     validate_pipeline_tree(web_pipeline_tree, cycle_tolerate=True)
