@@ -398,14 +398,16 @@ class TaskNodeOperation:
         api_result = bamboo_engine_api.get_data(runtime=self.runtime, node_id=self.node_id)
         if not api_result.result:
             return api_result
+        loop_retry = kwargs.get("loop", False)
         return bamboo_engine_api.retry_node(
-            runtime=self.runtime, node_id=self.node_id, data=kwargs.get("inputs") or None
+            runtime=self.runtime, node_id=self.node_id, data=kwargs.get("inputs") or None, loop_retry=loop_retry
         )
 
     @record_operation(RecordType.task_node.name, TaskOperationType.skip.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def skip(self, operator: str, *args, **kwargs) -> OperationResult:
-        return bamboo_engine_api.skip_node(runtime=self.runtime, node_id=self.node_id)
+        loop_skip = kwargs.get("loop", False)
+        return bamboo_engine_api.skip_node(runtime=self.runtime, node_id=self.node_id, loop_skip=loop_skip)
 
     @record_operation(RecordType.task_node.name, TaskOperationType.callback.name, TaskOperationSource.api.name)
     @uniform_task_operation_result
@@ -461,8 +463,9 @@ class TaskNodeOperation:
             detail = detail[self.node_id]
             # 默认只请求最后一次循环结果
             format_bamboo_engine_status(detail)
+            node_info = self.runtime.get_node(self.node_id)
             if loop is None or int(loop) >= detail["loop"]:
-                loop = detail["loop"]
+                loop = detail["loop"] if not node_info.loop_strategy else -1
                 hist_result = bamboo_engine_api.get_node_histories(runtime=runtime, node_id=self.node_id, loop=loop)
                 if not hist_result:
                     logger.exception("bamboo_engine_api.get_node_histories fail")
@@ -482,8 +485,21 @@ class TaskNodeOperation:
                 detail["version"] = hist_result.data[-1]["version"]
 
             for hist in detail["histories"]:
-                # 重试记录必然是因为失败才重试
-                hist.setdefault("state", bamboo_engine_states.FAILED)
+                raw_inputs = hist["inputs"].get("subprocess")
+                if raw_inputs:
+                    inputs = raw_inputs["constants"]
+                    inputs = {key[2:-1]: value.get("value") for key, value in inputs.items()}
+                    hist["inputs"] = inputs
+
+                # 重试记录必然是因为失败才重试，设置了循环策略的节点只有成功才能接着循环
+                if node_info.loop_strategy:
+                    if hist["skip"] or hist["outputs"].get("_result"):
+                        state = bamboo_engine_states.FINISHED
+                    else:
+                        state = bamboo_engine_states.FAILED
+                else:
+                    state = bamboo_engine_states.FAILED
+                hist.setdefault("state", state)
                 hist["history_id"] = hist["id"]
                 format_bamboo_engine_status(hist)
         # 节点未执行

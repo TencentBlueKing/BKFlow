@@ -42,6 +42,15 @@ def validate_web_pipeline_tree(web_pipeline_tree):
     # constants key pattern validate
     key_validation_errors = []
     context_values = []
+
+    for name, act in web_pipeline_tree["activities"].items():
+        loop_config = act.get("loop_config", {})
+        if not loop_config.get("enable", False):
+            continue
+        loop_params = loop_config.get("loop_params", [])
+        if loop_config["loop_times"] != min([len(param.split(",")) for key, param in loop_params.items()]):
+            raise exceptions.ParserWebTreeException("loop times not matched")
+
     classification = classify_constants(web_pipeline_tree["constants"], is_subprocess=False)
     for key, const in web_pipeline_tree["constants"].items():
         key_value = const.get("key")
