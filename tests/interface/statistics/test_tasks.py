@@ -17,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -119,7 +119,7 @@ class TestSummaryTasks(TestCase):
         """测试每日汇总任务"""
         mock_is_enabled.return_value = True
         mock_db_alias.return_value = "default"
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        yesterday = (timezone.localdate() - timedelta(days=1)).isoformat()
         generate_daily_summary_task(target_date=yesterday)
         # 检查是否创建了汇总记录
         summaries = DailyStatisticsSummary.objects.all()
@@ -131,7 +131,7 @@ class TestSummaryTasks(TestCase):
         """测试插件汇总任务"""
         mock_is_enabled.return_value = True
         mock_db_alias.return_value = "default"
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        yesterday = (timezone.localdate() - timedelta(days=1)).isoformat()
         generate_plugin_summary_task(period_type="day", target_date=yesterday)
         # 检查是否创建了汇总记录
         summaries = PluginExecutionSummary.objects.all()
@@ -146,7 +146,7 @@ class TestSummaryTasks(TestCase):
         mock_db_alias.return_value = "default"
         mock_retention.return_value = 30
         # 创建过期数据
-        old_date = date.today() - timedelta(days=60)
+        old_date = timezone.localdate() - timedelta(days=60)
         DailyStatisticsSummary.objects.create(
             date=old_date,
             space_id=1,
