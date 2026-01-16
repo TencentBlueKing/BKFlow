@@ -59,7 +59,9 @@ class TaskOperationType(Enum):
     # 任务节点操作
     callback = _("回调")
     retry = _("重试")
+    loop_retry = _("循环重试")
     skip = _("跳过")
+    loop_skip = _("循环跳过")
     skip_exg = _("跳过失败网关")
     skip_cpg = _("跳过并行条件网关")
     pause_subproc = _("暂停节点")
