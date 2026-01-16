@@ -216,3 +216,56 @@ class TestCredentialMasking:
 
         assert "secretvalue" not in result
         assert CREDENTIAL_MASK in result
+
+    def test_mask_credential_values_with_object(self):
+        """Test masking credentials in an object (like TaskContext)"""
+
+        # 模拟 TaskContext 对象
+        class MockTaskContext:
+            def __init__(self):
+                self.task_id = 123
+                self.operator = "admin"
+                self.credentials = {
+                    "my_cred": {
+                        "bk_app_code": "app123",
+                        "bk_app_secret": "secret123",
+                    }
+                }
+
+        obj = MockTaskContext()
+        result = mask_credential_values(obj)
+
+        # credentials 中的敏感字段应该被脱敏
+        assert result.credentials["my_cred"]["bk_app_code"] == "app123"
+        assert result.credentials["my_cred"]["bk_app_secret"] == CREDENTIAL_MASK
+        # 其他属性应该保持不变
+        assert result.task_id == 123
+        assert result.operator == "admin"
+
+    def test_mask_credential_values_dict_with_object_value(self):
+        """Test masking credentials when dict contains object values"""
+
+        class MockContext:
+            def __init__(self):
+                self.credentials = {"cred": {"token": "secret_token"}}
+
+        data = {"${_system}": MockContext(), "other_key": "value"}
+
+        result = mask_credential_values(data)
+
+        # 对象中的 credentials 应该被脱敏
+        assert result["${_system}"].credentials["cred"]["token"] == CREDENTIAL_MASK
+        assert result["other_key"] == "value"
+
+    def test_mask_credential_values_object_with_unknown_fields(self):
+        """Test that object credentials with unknown fields are fully masked"""
+
+        class MockContext:
+            def __init__(self):
+                self.credentials = {"custom_cred": {"custom_field": "custom_value"}}
+
+        obj = MockContext()
+        result = mask_credential_values(obj)
+
+        # 没有已知敏感字段时，整个凭证字典应该被脱敏
+        assert result.credentials["custom_cred"] == "{***}"
