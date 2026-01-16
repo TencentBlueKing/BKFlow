@@ -25,10 +25,6 @@
 
 ### 请求参数示例
 
-```
-POST /space/{space_id}/template/{template_id}/rollback_template/
-```
-
 ```json
 {
     "version": "1.0.0"

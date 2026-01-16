@@ -63,7 +63,8 @@ GET /sdk/template/{template_id}/?with_mock_data=false
         "is_enabled": true,
         "extra_info": {}
     },
-    "code": 0
+    "message": "",
+    "code": "0"
 }
 ```
 
@@ -72,7 +73,7 @@ GET /sdk/template/{template_id}/?with_mock_data=false
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
 | data    | dict   | 返回数据                  |
 
