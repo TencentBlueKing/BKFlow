@@ -33,6 +33,7 @@ from bkflow.task.models import (
     TaskOperationRecord,
 )
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
+from bkflow.utils.handlers import mask_sensitive_data_for_display
 from bkflow.utils.strings import standardize_pipeline_node_name
 
 logger = logging.getLogger("root")
@@ -118,6 +119,11 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
     create_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     start_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     finish_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
+    extra_info = serializers.SerializerMethodField()
+
+    def get_extra_info(self, obj):
+        """对 extra_info 中的敏感信息（如 credentials）进行脱敏处理"""
+        return mask_sensitive_data_for_display(obj.extra_info)
 
     class Meta:
         model = TaskInstance
@@ -212,6 +218,12 @@ class GetEngineSpaceConfigSerializer(serializers.Serializer):
 
 
 class PeriodicTaskSerializer(serializers.ModelSerializer):
+    extra_info = serializers.SerializerMethodField()
+
+    def get_extra_info(self, obj):
+        """对 extra_info 中的敏感信息（如 credentials）进行脱敏处理"""
+        return mask_sensitive_data_for_display(obj.extra_info)
+
     class Meta:
         model = PeriodicTask
         fields = "__all__"

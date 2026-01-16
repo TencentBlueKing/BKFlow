@@ -16,9 +16,9 @@ jobs:
         python-version: [3.9]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -29,7 +29,7 @@ jobs:
 
     - name: Setup MySQL
       uses: shogo82148/actions-setup-mysql@v1
-      id: setup-mysql # Add an ID to reference outputs
+      id: setup-mysql
       with:
         mysql-version: '8.0'
         user: 'test_user'
@@ -61,3 +61,11 @@ jobs:
         sh scripts/run_interface_unit_test.sh
         echo "run engine unit test"
         sh scripts/run_engine_unit_test.sh
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        fail_ci_if_error: false
+        verbose: true
