@@ -153,7 +153,7 @@ class PipelineTreeSerializer(serializers.Serializer):
             standardize_pipeline_node_name(pipeline_tree)
             validate_web_pipeline_tree(pipeline_tree)
         except PipelineException as e:
-            raise serializers.ValidationError(str(e))
+            raise serializers.ValidationError(_("流程树校验失败: {}").format(str(e)))
 
 
 class GetTaskListSerializer(serializers.Serializer):
