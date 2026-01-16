@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+import copy
 import logging
 
 import ujson as json
@@ -25,6 +25,129 @@ from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 
 logger = logging.getLogger("root")
+
+# 凭证脱敏占位符
+CREDENTIAL_MASK = "******"
+
+
+def mask_credential_values(data, in_place=False):
+    """
+    对凭证数据进行脱敏处理，将 credentials 字典中每个凭证的 value 字段值替换为掩码。
+
+    凭证数据结构示例：
+    {
+        "credentials": {
+            "credential_key1": {
+                "bk_app_code": "app_code",
+                "bk_app_secret": "secret_value",  # 会被脱敏
+                ...
+            },
+            "credential_key2": {...}
+        }
+    }
+
+    @param data: 可能包含 credentials 的数据，可以是 dict、list 或其他类型
+    @param in_place: 是否原地修改。False 时返回深拷贝后的脱敏数据（默认），True 时直接修改原数据
+    @return: 脱敏后的数据
+    """
+    if data is None:
+        return data
+
+    if not in_place:
+        data = copy.deepcopy(data)
+
+    if isinstance(data, dict):
+        _mask_dict_credentials(data)
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict):
+                _mask_dict_credentials(item)
+
+    return data
+
+
+def _mask_dict_credentials(data: dict):
+    """
+    递归处理字典中的 credentials 字段。
+
+    @param data: 需要处理的字典
+    """
+    if not isinstance(data, dict):
+        return
+
+    # 如果当前字典包含 credentials 字段，对其进行脱敏
+    if "credentials" in data and isinstance(data["credentials"], dict):
+        _mask_credentials_content(data["credentials"])
+
+    # 递归处理嵌套的字典和列表
+    for key, value in data.items():
+        if key == "credentials":
+            # credentials 已经处理过了，跳过
+            continue
+        if isinstance(value, dict):
+            _mask_dict_credentials(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _mask_dict_credentials(item)
+
+
+def _mask_credentials_content(credentials: dict):
+    """
+    对 credentials 字典内容进行脱敏。
+    credentials 结构为 {credential_key: credential_dict}，
+    其中 credential_dict 包含敏感字段如 bk_app_secret、token 等。
+
+    脱敏策略：
+    1. 如果凭证值是字典且包含已知敏感字段，则只脱敏这些敏感字段
+    2. 如果凭证值是字典但不包含任何已知敏感字段，则将整个字典脱敏为 "{***}"
+    3. 如果凭证值是字符串，直接脱敏
+
+    @param credentials: 凭证字典
+    """
+    # 需要脱敏的敏感字段名列表
+    sensitive_fields = {
+        "bk_app_secret",
+        "app_secret",
+        "secret",
+        "token",
+        "access_token",
+        "refresh_token",
+        "password",
+        "api_key",
+        "private_key",
+        "secret_key",
+    }
+
+    for cred_key, cred_value in list(credentials.items()):
+        if isinstance(cred_value, dict):
+            # 检查是否包含任何已知的敏感字段
+            has_sensitive_field = any(field in cred_value for field in sensitive_fields)
+            if has_sensitive_field:
+                # 只脱敏已知的敏感字段
+                for field in sensitive_fields:
+                    if field in cred_value:
+                        cred_value[field] = CREDENTIAL_MASK
+            else:
+                # 如果没有匹配到已知敏感字段，可能使用了自定义字段名
+                # 为安全起见，将整个凭证字典脱敏
+                credentials[cred_key] = "{***}"
+        elif isinstance(cred_value, str):
+            # 如果整个凭证值就是一个字符串（比如 token），直接脱敏
+            credentials[cred_key] = CREDENTIAL_MASK
+
+
+def mask_sensitive_data_for_display(data, in_place=False):
+    """
+    用于展示的数据脱敏函数，会处理以下敏感数据：
+    1. credentials 凭证信息
+    2. 其他可能的敏感字段
+
+    @param data: 需要脱敏的数据
+    @param in_place: 是否原地修改
+    @return: 脱敏后的数据
+    """
+    return mask_credential_values(data, in_place=in_place)
 
 
 def handle_api_error(system, api_name, params, result):
@@ -42,8 +165,88 @@ def handle_api_error(system, api_name, params, result):
     return message
 
 
+def mask_credentials_in_string(text):
+    """
+    对字符串中可能包含的 credentials 敏感信息进行脱敏。
+    使用正则表达式匹配常见的敏感字段模式并进行替换。
+
+    @param text: 需要脱敏的字符串
+    @return: 脱敏后的字符串
+    """
+    import re
+
+    if not isinstance(text, str):
+        return text
+
+    # 需要脱敏的敏感字段名列表
+    sensitive_fields = [
+        "bk_app_secret",
+        "app_secret",
+        "secret",
+        "token",
+        "access_token",
+        "refresh_token",
+        "password",
+        "api_key",
+        "private_key",
+        "secret_key",
+    ]
+
+    result = text
+    for field in sensitive_fields:
+        # 匹配 JSON 格式: "field": "value" 或 "field": 'value'
+        # 也匹配 Python dict 字符串格式: 'field': 'value'
+        patterns = [
+            # JSON 格式: "field": "value"
+            rf'(["\']){field}\1\s*:\s*(["\'])([^"\']+)\2',
+            # Python repr 格式: 'field': 'value' (单引号)
+            rf"'{field}'\s*:\s*'([^']+)'",
+            # Python repr 格式: "field": "value" (双引号)
+            rf'"{field}"\s*:\s*"([^"]+)"',
+        ]
+        for pattern in patterns:
+            result = re.sub(
+                pattern,
+                lambda m: m.group(0).rsplit(m.group()[-1].split(":")[-1].strip(), 1)[0]
+                + CREDENTIAL_MASK
+                + ("'" if m.group(0).endswith("'") else '"'),
+                result,
+                flags=re.IGNORECASE,
+            )
+
+    # 使用更简单直接的替换方式
+    result = text
+    for field in sensitive_fields:
+        # 匹配 "field": "xxx" 或 'field': 'xxx' 模式
+        # JSON 双引号格式
+        pattern1 = rf'"{field}"\s*:\s*"[^"]*"'
+        result = re.sub(pattern1, f'"{field}": "{CREDENTIAL_MASK}"', result, flags=re.IGNORECASE)
+        # Python 单引号格式
+        pattern2 = rf"'{field}'\s*:\s*'[^']*'"
+        result = re.sub(pattern2, f"'{field}': '{CREDENTIAL_MASK}'", result, flags=re.IGNORECASE)
+        # 混合格式 "field": 'xxx'
+        pattern3 = rf'"{field}"\s*:\s*\'[^\']*\''
+        result = re.sub(pattern3, f"\"{field}\": '{CREDENTIAL_MASK}'", result, flags=re.IGNORECASE)
+        # 混合格式 'field': "xxx"
+        pattern4 = rf"'{field}'\s*:\s*\"[^\"]*\""
+        result = re.sub(pattern4, f"'{field}': \"{CREDENTIAL_MASK}\"", result, flags=re.IGNORECASE)
+
+    return result
+
+
 def handle_plain_log(plain_log):
+    """
+    处理日志中的敏感信息，包括：
+    1. LOG_SHIELDING_KEYWORDS 配置的关键字
+    2. credentials 中的敏感字段
+
+    @param plain_log: 需要处理的日志字符串
+    @return: 脱敏后的日志字符串
+    """
     if plain_log:
+        # 处理配置的屏蔽关键字
         for key_word in settings.LOG_SHIELDING_KEYWORDS:
-            plain_log = plain_log.replace(key_word, "******")
+            plain_log = plain_log.replace(key_word, CREDENTIAL_MASK)
+        # 处理 credentials 中的敏感字段
+        plain_log = mask_credentials_in_string(plain_log)
     return plain_log

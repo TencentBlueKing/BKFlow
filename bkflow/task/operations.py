@@ -55,6 +55,7 @@ from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.canvas import get_variable_mapping
 from bkflow.utils.dates import format_datetime
+from bkflow.utils.handlers import mask_sensitive_data_for_display
 
 logger = logging.getLogger("root")
 
@@ -326,7 +327,9 @@ class TaskOperation:
                 result=False, message="hydrate context failed.", exc=e, exc_trace=traceback.format_exc()
             )
 
-        data = [{"key": key, "value": value} for key, value in hydrated_context.items()]
+        # 对渲染后的上下文进行脱敏处理（如 credentials）
+        masked_context = mask_sensitive_data_for_display(hydrated_context)
+        data = [{"key": key, "value": value} for key, value in masked_context.items()]
         return OperationResult(result=True, data=data)
 
     @uniform_task_operation_result
@@ -381,8 +384,10 @@ class TaskOperation:
                 result=False, message="hydrate context failed.", exc=e, exc_trace=traceback.format_exc()
             )
 
+        # 对渲染后的参数数据进行脱敏处理（如 credentials）
+        masked_param_data = mask_sensitive_data_for_display(hydrated_param_data)
         return OperationResult(
-            result=True, data=[{"key": key, "value": value} for key, value in hydrated_param_data.items()]
+            result=True, data=[{"key": key, "value": value} for key, value in masked_param_data.items()]
         )
 
 
@@ -633,7 +638,9 @@ class TaskNodeOperation:
         if not success:
             return OperationResult(result=False, data={}, message=err)
 
-        data = {"inputs": inputs, "outputs": outputs_table, "ex_data": outputs.pop("ex_data", "")}
+        # 对 inputs 中的敏感信息进行脱敏处理（如 credentials）
+        masked_inputs = mask_sensitive_data_for_display(inputs)
+        data = {"inputs": masked_inputs, "outputs": outputs_table, "ex_data": outputs.pop("ex_data", "")}
         return OperationResult(result=True, data=data, message="")
 
     @staticmethod

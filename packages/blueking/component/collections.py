@@ -17,9 +17,11 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+from .apis.bk_login import CollectionsBkLogin
 from .apis.cmsi import CollectionsCMSI
 
 # Available components
 AVAILABLE_COLLECTIONS = {
+    "bk_login": CollectionsBkLogin,
     "cmsi": CollectionsCMSI,
 }

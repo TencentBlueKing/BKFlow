@@ -262,8 +262,7 @@ class TemplateOperationRecordSerializer(serializers.ModelSerializer):
         data["operate_source_name"] = (
             TemplateOperationSource[instance.operate_source].value if instance.operate_source else ""
         )
-        if instance.operate_type == TemplateOperationType.release.name:
-            data["version"] = instance.extra_info.get("version")
+        data["version"] = instance.extra_info.get("version")
         return data
 
 
@@ -339,6 +338,10 @@ class TemplateReleaseSerializer(serializers.Serializer):
     force = serializers.BooleanField(help_text=_("是否强制发布"), required=False, default=False)
     version = serializers.CharField(help_text=_("版本号"), required=True)
     desc = serializers.CharField(help_text=_("描述"), required=False, allow_blank=True)
+
+
+class TemplateRollbackSerializer(serializers.Serializer):
+    version = serializers.CharField(help_text=_("需要回滚的版本号"), required=True)
 
 
 class TemplateSnapshotSerializer(serializers.ModelSerializer):

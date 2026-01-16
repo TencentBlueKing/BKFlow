@@ -32,6 +32,7 @@ from bkflow.constants import (
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
+from bkflow.utils.handlers import mask_sensitive_data_for_display
 
 
 class Subprocess(BaseModel):
@@ -114,7 +115,8 @@ class SubprocessPluginService(BKFlowBaseService):
         }
         context = Context(self.runtime, context_values, root_pipeline_inputs)
         hydrated_context = context.hydrate(deformat=True)
-        self.logger.info(f"subprocess parent hydrated context: {hydrated_context}")
+        # 对上下文进行脱敏后再打印日志，避免泄露 credentials 等敏感信息
+        self.logger.info(f"subprocess parent hydrated context: {mask_sensitive_data_for_display(hydrated_context)}")
 
         parsed_subprocess_inputs = Template(subprocess_inputs).render(hydrated_context)
         parent_constants = parent_task.pipeline_tree["constants"]
@@ -131,7 +133,10 @@ class SubprocessPluginService(BKFlowBaseService):
                 constant["value"] = context_mappings[raw_subprocess_inputs[key]].value
             elif constant.get("need_render", True) and key in parsed_subprocess_inputs:
                 constant["value"] = parsed_subprocess_inputs[key]
-        self.logger.info(f'subprocess parsed constants: {pipeline_tree.get("constants", {})}')
+        # 对 constants 进行脱敏后再打印日志，避免泄露 credentials 等敏感信息
+        self.logger.info(
+            f'subprocess parsed constants: {mask_sensitive_data_for_display(pipeline_tree.get("constants", {}))}'
+        )
 
     def _create_subprocess_task_instance(self, subprocess, template, pipeline_tree, parent_task):
         """创建子任务实例和关系记录"""
