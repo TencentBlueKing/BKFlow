@@ -114,7 +114,10 @@ class SubprocessPluginService(BKFlowBaseService):
         root_pipeline_inputs = {
             key: inputs.value for key, inputs in self.runtime.get_data_inputs(self.top_pipeline_id).items()
         }
-        context = Context(self.runtime, context_values, root_pipeline_inputs)
+        if self.runtime.get_node(self.id).loop_strategy:
+            context: Context = Context(self.runtime, context_values, root_pipeline_inputs, self.inner_loop)
+        else:
+            context = Context(self.runtime, context_values, root_pipeline_inputs)
         hydrated_context = context.hydrate(deformat=True)
         # 对上下文进行脱敏后再打印日志，避免泄露 credentials 等敏感信息
         self.logger.info(f"subprocess parent hydrated context: {mask_sensitive_data_for_display(hydrated_context)}")
