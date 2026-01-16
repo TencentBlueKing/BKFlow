@@ -44,6 +44,17 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^notice/", include("bk_notice_sdk.urls")),
         url(r"^version_log/", include("version_log.urls", namespace="version_log")),
     ]
+
+    # 统计 API 路由
+    try:
+        import env
+
+        if getattr(env, "STATISTICS_ENABLED", True):
+            urlpatterns += [
+                url(r"^api/statistics/", include("bkflow.statistics.urls")),
+            ]
+    except ImportError:
+        pass
 elif settings.BKFLOW_MODULE.type == BKFLOWModuleType.engine:
     engine_admin_actions = [
         "task_pause",
