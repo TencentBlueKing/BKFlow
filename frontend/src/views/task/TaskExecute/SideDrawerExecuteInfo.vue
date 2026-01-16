@@ -205,7 +205,7 @@
   import axios from 'axios';
   import SubflowCanvas from '@/components/canvas/ProcessCanvas/SubflowCanvas.vue';
   import OptionsPanel from './ExecuteInfoCompoment/OptionsPanel.vue';
-  import getOrderNodeToNodeTree from '@/utils/orderCanvasNodeToNodeTree.js';
+  import { getOrderNodeToNodeTree } from '@/utils/orderCanvasNodeToNodeTree.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import SubStageCanvas from '../../../components/canvas/StageCanvas/SubStageCanvas.vue';
   const { CancelToken } = axios;
@@ -1355,11 +1355,11 @@
               component_code: item.component_code,
             };
             const resp = await this.getNodeActDetail(query);
-            item.allExecutedInfo = resp.data.skip ? [] : [resp.data];
-            if (resp.data.histories) {
+            item.allExecutedInfo = resp.data?.skip ? [] : [resp.data];
+            if (resp.data?.histories) {
               item.allExecutedInfo.unshift(...resp.data.histories);
-              item.curSelectCount = resp.data.skip ? resp.data.histories.length : resp.data.histories.length + 1;
-              item.totalCount = resp.data.skip ? resp.data.histories.length : resp.data.histories.length + 1;
+              item.curSelectCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
+              item.totalCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
             } else {
               item.curSelectCount = item.allExecutedInfo.length;
               item.totalCount = item.allExecutedInfo.length;

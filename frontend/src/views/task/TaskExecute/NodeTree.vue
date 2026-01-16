@@ -371,6 +371,12 @@
         }
         return false;
       },
+      getNodeType(node, type) {
+        if (type === 'callback') return 'callback';
+        if (node.type === 'ServiceActivity') return 'tasknode';
+        if (node.component?.code === 'subprocess_plugin') return 'subflow';
+        return 'controlNode';
+      },
       onSelectNode(e, node, type) {
         // 当父节点展开且未选中、 节点为并行、网关条件时阻止冒泡
         this.setDefaultGateway = false;
@@ -436,8 +442,7 @@
           return;
         }
         this.curSelectId = node.id;
-        let nodeType = node.component?.code === 'subprocess_plugin' ? 'subflow' : 'controlNode';
-        nodeType = node.type === 'ServiceActivity' ? 'tasknode' : nodeType;
+        const nodeType = this.getNodeType(node, type);
 
         node.selected = nodeType !== 'subflow';
         // let rootNode = node;
