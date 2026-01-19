@@ -3,6 +3,84 @@ from unittest import mock
 from bkflow.contrib.api import http
 
 
+class TestSanitizeSensitiveData:
+    """测试敏感数据脱敏函数"""
+
+    def test_sanitize_none(self):
+        """测试 None 输入"""
+        assert http._sanitize_sensitive_data(None) is None
+
+    def test_sanitize_simple_dict(self):
+        """测试简单字典，包含敏感字段"""
+        data = {
+            "username": "admin",
+            "password": "secret123",
+            "credentials": {"key": "value"},
+            "api_key": "abc123",
+            "normal_field": "normal_value",
+        }
+        result = http._sanitize_sensitive_data(data)
+        assert result["username"] == "admin"
+        assert result["password"] == "***REDACTED***"
+        assert result["credentials"] == "***REDACTED***"
+        assert result["api_key"] == "***REDACTED***"
+        assert result["normal_field"] == "normal_value"
+
+    def test_sanitize_nested_dict(self):
+        """测试嵌套字典"""
+        data = {
+            "user": {
+                "name": "admin",
+                "secret_token": "token123",
+            },
+            "config": {
+                "url": "http://example.com",
+                "accesskey": "key123",
+            },
+        }
+        result = http._sanitize_sensitive_data(data)
+        assert result["user"]["name"] == "admin"
+        assert result["user"]["secret_token"] == "***REDACTED***"
+        assert result["config"]["url"] == "http://example.com"
+        assert result["config"]["accesskey"] == "***REDACTED***"
+
+    def test_sanitize_list(self):
+        """测试列表中的敏感数据"""
+        data = [
+            {"name": "item1", "password": "pass1"},
+            {"name": "item2", "token": "token2"},
+        ]
+        result = http._sanitize_sensitive_data(data)
+        assert result[0]["name"] == "item1"
+        assert result[0]["password"] == "***REDACTED***"
+        assert result[1]["name"] == "item2"
+        assert result[1]["token"] == "***REDACTED***"
+
+    def test_sanitize_max_depth_exceeded(self):
+        """测试超过最大递归深度"""
+        data = {"level1": {"level2": {"level3": "value"}}}
+        result = http._sanitize_sensitive_data(data, max_depth=1)
+        assert result["level1"] == "***MAX_DEPTH_EXCEEDED***"
+
+    def test_sanitize_primitive_types(self):
+        """测试基本类型直接返回"""
+        assert http._sanitize_sensitive_data("string") == "string"
+        assert http._sanitize_sensitive_data(123) == 123
+        assert http._sanitize_sensitive_data(True) is True
+
+    def test_sanitize_case_insensitive(self):
+        """测试大小写不敏感"""
+        data = {
+            "PASSWORD": "secret",
+            "Api_Key": "key",
+            "CREDENTIAL_info": "cred",
+        }
+        result = http._sanitize_sensitive_data(data)
+        assert result["PASSWORD"] == "***REDACTED***"
+        assert result["Api_Key"] == "***REDACTED***"
+        assert result["CREDENTIAL_info"] == "***REDACTED***"
+
+
 class TestHttpApi:
     def test_gen_header(self):
         headers = http._gen_header()

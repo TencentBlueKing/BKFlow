@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-import json
 import logging
 
 import curlify
@@ -26,6 +25,38 @@ import requests
 from bkflow.utils.handlers import handle_plain_log
 
 logger = logging.getLogger("component")
+
+# 敏感字段关键词列表，用于日志脱敏
+SENSITIVE_KEYWORDS = ["credential", "password", "secret", "token", "api_key", "apikey", "access_key", "accesskey"]
+
+
+def _sanitize_sensitive_data(data, max_depth=10):
+    """
+    对敏感数据进行脱敏处理，用于日志记录
+    :param data: 需要脱敏的数据
+    :param max_depth: 最大递归深度，防止循环引用导致无限递归
+    :return: 脱敏后的数据
+    """
+    if max_depth <= 0:
+        return "***MAX_DEPTH_EXCEEDED***"
+
+    if data is None:
+        return None
+
+    if isinstance(data, dict):
+        sanitized = {}
+        for key, value in data.items():
+            key_lower = key.lower()
+            # 检查 key 是否包含敏感关键词
+            if any(keyword in key_lower for keyword in SENSITIVE_KEYWORDS):
+                sanitized[key] = "***REDACTED***"
+            else:
+                sanitized[key] = _sanitize_sensitive_data(value, max_depth - 1)
+        return sanitized
+    elif isinstance(data, list):
+        return [_sanitize_sensitive_data(item, max_depth - 1) for item in data]
+    else:
+        return data
 
 
 def _gen_header():
@@ -109,10 +140,18 @@ def _http_request(
                 resp_message = resp.json()
             except Exception:
                 resp_message = resp.content
-            message = "Request API error, status_code: {}, url: {}, method: {}, data:{}, resp data: {}".format(
-                resp.status_code, url, method, json.dumps(data), resp_message
+            message = "Request API error, status_code: {}, url: {}, method: {}, resp: {}".format(
+                resp.status_code, url, method, resp_message
             )
-
+            # 日志中记录脱敏后的请求数据，便于问题排查
+            logger.error(
+                "API request failed: status_code=%s, url=%s, method=%s, data=%s, resp=%s",
+                resp.status_code,
+                url,
+                method,
+                _sanitize_sensitive_data(data),
+                resp_message,
+            )
             return {"result": False, "message": message}
 
         log_message = (
@@ -123,6 +162,8 @@ def _http_request(
         try:
             json_resp = resp.json()
             request_id = json_resp.get("request_id")
+            # 对日志中的敏感数据进行脱敏处理
+            sanitized_data = _sanitize_sensitive_data(data)
             if not json_resp.get("result"):
                 logger.error(
                     log_message
@@ -130,7 +171,7 @@ def _http_request(
                         "request_id": request_id,
                         "message": json_resp.get("message"),
                         "url": url,
-                        "data": data,
+                        "data": sanitized_data,
                         "response": resp.text,
                     }
                 )
@@ -141,7 +182,7 @@ def _http_request(
                         "request_id": request_id,
                         "message": json_resp.get("message"),
                         "url": url,
-                        "data": data,
+                        "data": sanitized_data,
                         "response": resp.text,
                     }
                 )

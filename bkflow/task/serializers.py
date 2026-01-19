@@ -92,7 +92,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
         except PipelineException as e:
             msg = f"[API] create_task get invalid pipeline_tree: {e}"
             logger.exception(msg)
-            raise serializers.ValidationError(str(e))
+            raise serializers.ValidationError({"pipeline_tree": str(e)})
 
         return value
 
