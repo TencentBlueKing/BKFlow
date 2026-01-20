@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -32,7 +31,7 @@ class CreateSpaceSerializer(serializers.Serializer):
     """
 
     name = serializers.CharField(help_text=_("空间名称"), max_length=32, required=True)
-    desc = serializers.CharField(help_text=_("空间描述"), max_length=128, required=False)
+    desc = serializers.CharField(help_text=_("空间描述"), max_length=128, required=False, allow_blank=True, allow_null=True)
     platform_url = serializers.URLField(help_text=_("平台提供服务的地址"), max_length=256, required=True)
     app_code = serializers.CharField(help_text=_("app id"), max_length=32, required=True)
 
