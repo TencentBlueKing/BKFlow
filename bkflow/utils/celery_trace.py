@@ -43,7 +43,7 @@ def inject_trace_on_publish(headers=None, **kwargs):
     """
     if headers is not None:
         inject_trace_to_celery_headers(headers)
-        logger.debug(
+        logger.info(
             "[celery_trace] Injected trace headers on task publish: traceparent=%s, baggage=%s",
             headers.get("traceparent"),
             headers.get("baggage"),
@@ -73,7 +73,7 @@ def extract_trace_on_run(task_id=None, task=None, **kwargs):
     if current_span and hasattr(current_span, "set_attribute"):
         inject_baggage_to_span(current_span)
 
-    logger.debug(
+    logger.info(
         "[celery_trace] Extracted trace context on task prerun: task_id=%s, traceparent=%s, baggage=%s",
         task_id,
         task_headers.get("traceparent"),
@@ -87,7 +87,7 @@ def cleanup_trace_on_done(task_id=None, **kwargs):
     token = _task_context_tokens.pop(task_id, None)
     if token is not None:
         detach(token)
-        logger.debug("[celery_trace] Detached trace context on task postrun: task_id=%s", task_id)
+        logger.info("[celery_trace] Detached trace context on task postrun: task_id=%s", task_id)
 
 
 def setup_celery_trace_signals():
