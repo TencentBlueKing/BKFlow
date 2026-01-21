@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -25,7 +24,7 @@ from bkflow.space.credential import BkAppCredential
 
 class CreateCredentialSerializer(serializers.Serializer):
     name = serializers.CharField(help_text=_("凭证名称"), max_length=32, required=True)
-    desc = serializers.CharField(help_text=_("凭证描述"), max_length=32, required=False)
+    desc = serializers.CharField(help_text=_("凭证描述"), max_length=128, required=False, allow_blank=True, allow_null=True)
     type = serializers.CharField(help_text=_("凭证类型"), max_length=32, required=True)
     content = serializers.JSONField(help_text=_("凭证内容"), required=True)
 
@@ -37,7 +36,7 @@ class CreateCredentialSerializer(serializers.Serializer):
 
 class UpdateCredentialSerializer(serializers.Serializer):
     name = serializers.CharField(help_text=_("凭证名称"), max_length=32, required=False)
-    desc = serializers.CharField(help_text=_("凭证描述"), max_length=32, required=False)
+    desc = serializers.CharField(help_text=_("凭证描述"), max_length=128, required=False, allow_blank=True, allow_null=True)
     type = serializers.CharField(help_text=_("凭证类型"), max_length=32, required=False)
     content = serializers.JSONField(help_text=_("凭证内容"), required=False)
 

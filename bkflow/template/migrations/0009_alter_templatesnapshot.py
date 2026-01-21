@@ -21,12 +21,12 @@ import logging
 
 from django.db import migrations
 
-from bkflow.space.configs import FlowVersioning
-from bkflow.space.models import SpaceConfig
-from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
 from bkflow.utils.version import bump_custom
 
 logger = logging.getLogger(__name__)
+
+# FlowVersioning 配置名称常量，避免导入 bkflow.space.configs
+FLOW_VERSIONING_CONFIG_NAME = "flow_versioning"
 
 
 def add_version_to_snapshots(apps, schema_editor):
@@ -34,8 +34,13 @@ def add_version_to_snapshots(apps, schema_editor):
     为未开启版本管理的空间下的模板快照添加版本号
     版本号从1.0.0开始，按创建时间依次递增
     """
+    # 使用历史模型，避免访问当前代码中还未迁移的字段
+    SpaceConfig = apps.get_model("space", "SpaceConfig")
+    Template = apps.get_model("template", "Template")
+    TemplateSnapshot = apps.get_model("template", "TemplateSnapshot")
+
     disabled_versioning_spaces = []
-    all_space_configs = SpaceConfig.objects.filter(name=FlowVersioning.name)
+    all_space_configs = SpaceConfig.objects.filter(name=FLOW_VERSIONING_CONFIG_NAME)
 
     for config in all_space_configs:
         if config.value_type == "TEXT":
@@ -110,6 +115,9 @@ def add_version_to_snapshots(apps, schema_editor):
 
 def reverse_add_version_to_snapshots(apps, schema_editor):
     """回滚操作：只清除本次迁移修改的快照的版本号"""
+    # 使用历史模型
+    TemplateSnapshot = apps.get_model("template", "TemplateSnapshot")
+
     # 尝试获取本次迁移修改的快照ID
     modified_snapshot_ids = []
     if hasattr(schema_editor.connection, "migration_data"):
@@ -126,6 +134,8 @@ def reverse_add_version_to_snapshots(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("template", "0008_alter_templatesnapshot_version"),
+        # 需要依赖 space app，因为迁移中使用了 SpaceConfig 模型
+        ("space", "0002_spaceconfig"),
     ]
 
     operations = [
