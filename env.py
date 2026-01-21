@@ -187,7 +187,7 @@ REQUEST_RETRY_NUMBER = int(os.getenv("REQUEST_RETRY_NUMBER", 3))
 
 # ============== 统计功能配置 ==============
 # 是否启用统计功能
-STATISTICS_ENABLED = os.getenv("STATISTICS_ENABLED", "true").lower() == "true"
+STATISTICS_ENABLED = os.getenv("STATISTICS_ENABLED", "false").lower() == "true"
 
 # 是否使用独立统计数据库
 STATISTICS_USE_SEPARATE_DB = os.getenv("STATISTICS_USE_SEPARATE_DB", "false").lower() == "true"
