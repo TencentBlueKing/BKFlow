@@ -1,11 +1,10 @@
-swagger: '2.0'
-basePath: /
+openapi: 3.0.1
+servers:
+- url: /
 info:
   version: '0.1'
   title: API Gateway Resources
   description: ''
-schemes:
-- http
 paths:
   /create_space:
     post:
@@ -15,22 +14,27 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/create_space/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Create a space
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/apply_token/:
     post:
       operationId: apply_token
@@ -39,22 +43,34 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/apply_token/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Apply a token
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/revoke_token/:
     post:
       operationId: revoke_token
@@ -63,22 +79,34 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/revoke_token/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Revoke a token
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/create_task/:
     post:
       operationId: create_task
@@ -87,135 +115,146 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 任务ID
-                  space_id:
-                    type: integer
-                    description: 空间ID
-                  scope_type:
-                    type: string
-                    description: 任务范围类型
-                  scope_value:
-                    type: string
-                    description: 任务范围值
-                  instance_id:
-                    type: string
-                    description: 实例ID
-                  template_id:
-                    type: integer
-                    description: 模板ID
-                  name:
-                    type: string
-                    description: 任务名称
-                  creator:
-                    type: string
-                    description: 创建者
-                  create_time:
-                    type: string
-                    description: 创建时间
-                  executor:
-                    type: string
-                    description: 执行者
-                  start_time:
-                    type: string
-                    description: 开始时间
-                  finish_time:
-                    type: string
-                    description: 结束时间
-                  description:
-                    type: string
-                    description: 描述
-                  is_started:
+                  result:
                     type: boolean
-                    description: 是否已开始
-                  is_finished:
-                    type: boolean
-                    description: 是否已结束
-                  is_revoked:
-                    type: boolean
-                    description: 是否已撤销
-                  is_deleted:
-                    type: boolean
-                    description: 是否已删除
-                  is_expired:
-                    type: boolean
-                    description: 是否已过期
-                  snapshot_id:
-                    type: integer
-                    description: 快照ID
-                  execution_snapshot_id:
-                    type: integer
-                    description: 执行快照ID
-                  tree_info_id:
-                    type: integer
-                    description: 任务拓扑信息ID
-                  extra_info:
+                    description: true/false 操作是否成功
+                  data:
                     type: object
-                    description: 任务额外信息
-                    additionalProperties: true
-                description: result=true 时成功数据，详细信息请见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    properties:
+                      id:
+                        type: integer
+                        description: 任务ID
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      scope_type:
+                        type: string
+                        description: 任务范围类型
+                      scope_value:
+                        type: string
+                        description: 任务范围值
+                      instance_id:
+                        type: string
+                        description: 实例ID
+                      template_id:
+                        type: integer
+                        description: 模板ID
+                      name:
+                        type: string
+                        description: 任务名称
+                      creator:
+                        type: string
+                        description: 创建者
+                      create_time:
+                        type: string
+                        description: 创建时间
+                      executor:
+                        type: string
+                        description: 执行者
+                      start_time:
+                        type: string
+                        description: 开始时间
+                      finish_time:
+                        type: string
+                        description: 结束时间
+                      description:
+                        type: string
+                        description: 描述
+                      is_started:
+                        type: boolean
+                        description: 是否已开始
+                      is_finished:
+                        type: boolean
+                        description: 是否已结束
+                      is_revoked:
+                        type: boolean
+                        description: 是否已撤销
+                      is_deleted:
+                        type: boolean
+                        description: 是否已删除
+                      is_expired:
+                        type: boolean
+                        description: 是否已过期
+                      snapshot_id:
+                        type: integer
+                        description: 快照ID
+                      execution_snapshot_id:
+                        type: integer
+                        description: 执行快照ID
+                      tree_info_id:
+                        type: integer
+                        description: 任务拓扑信息ID
+                      extra_info:
+                        type: object
+                        description: 任务额外信息
+                        additionalProperties: true
+                    description: result=true 时成功数据，详细信息请见下面说明
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - template_id
+              - creator
+              properties:
+                template_id:
+                  type: integer
+                  description: 模板ID
+                name:
+                  type: string
+                  description: 任务名称
+                creator:
+                  type: string
+                  description: 创建者
+                description:
+                  type: string
+                  description: 任务描述
+                constants:
+                  type: object
+                  description: 任务启动参数，key为变量KEY（${key}格式），value为变量值
+                  additionalProperties: true
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/create_task/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Create a task
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - template_id
-          - creator
-          properties:
-            template_id:
-              type: integer
-              description: 模板ID
-            name:
-              type: string
-              description: 任务名称
-            creator:
-              type: string
-              description: 创建者
-            description:
-              type: string
-              description: 任务描述
-            constants:
-              type: object
-              description: 任务启动参数，key为变量KEY（${key}格式），value为变量值
-              additionalProperties: true
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/create_task_without_template/:
     post:
       operationId: create_task_without_template
@@ -224,148 +263,159 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 任务ID
-                  space_id:
-                    type: integer
-                    description: 空间ID
-                  scope_type:
-                    type: string
-                    description: 任务范围类型
-                  scope_value:
-                    type: string
-                    description: 任务范围值
-                  instance_id:
-                    type: string
-                    description: 实例ID
-                  template_id:
-                    type: integer
-                    x-nullable: true
-                    description: 模板ID
-                  name:
-                    type: string
-                    description: 任务名称
-                  creator:
-                    type: string
-                    description: 创建者
-                  create_time:
-                    type: string
-                    description: 创建时间
-                  executor:
-                    type: string
-                    description: 执行者
-                  start_time:
-                    type: string
-                    description: 开始时间
-                  finish_time:
-                    type: string
-                    description: 结束时间
-                  description:
-                    type: string
-                    description: 描述
-                  is_started:
+                  result:
                     type: boolean
-                    description: 是否已开始
-                  is_finished:
-                    type: boolean
-                    description: 是否已完成
-                  is_revoked:
-                    type: boolean
-                    description: 是否已撤销
-                  is_deleted:
-                    type: boolean
-                    description: 是否已删除
-                  is_expired:
-                    type: boolean
-                    description: 是否已过期
-                  snapshot_id:
-                    type: integer
-                    description: 快照ID
-                  execution_snapshot_id:
-                    type: integer
-                    description: 执行快照ID
-                  tree_info_id:
-                    type: integer
-                    x-nullable: true
-                    description: 任务拓扑信息ID
-                  extra_info:
+                    description: true/false 操作是否成功
+                  data:
                     type: object
-                    description: 任务额外信息
-                    additionalProperties: true
-                description: result=true 时成功数据，详细信息请见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    properties:
+                      id:
+                        type: integer
+                        description: 任务ID
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      scope_type:
+                        type: string
+                        description: 任务范围类型
+                      scope_value:
+                        type: string
+                        description: 任务范围值
+                      instance_id:
+                        type: string
+                        description: 实例ID
+                      template_id:
+                        type: integer
+                        x-nullable: true
+                        description: 模板ID
+                      name:
+                        type: string
+                        description: 任务名称
+                      creator:
+                        type: string
+                        description: 创建者
+                      create_time:
+                        type: string
+                        description: 创建时间
+                      executor:
+                        type: string
+                        description: 执行者
+                      start_time:
+                        type: string
+                        description: 开始时间
+                      finish_time:
+                        type: string
+                        description: 结束时间
+                      description:
+                        type: string
+                        description: 描述
+                      is_started:
+                        type: boolean
+                        description: 是否已开始
+                      is_finished:
+                        type: boolean
+                        description: 是否已完成
+                      is_revoked:
+                        type: boolean
+                        description: 是否已撤销
+                      is_deleted:
+                        type: boolean
+                        description: 是否已删除
+                      is_expired:
+                        type: boolean
+                        description: 是否已过期
+                      snapshot_id:
+                        type: integer
+                        description: 快照ID
+                      execution_snapshot_id:
+                        type: integer
+                        description: 执行快照ID
+                      tree_info_id:
+                        type: integer
+                        x-nullable: true
+                        description: 任务拓扑信息ID
+                      extra_info:
+                        type: object
+                        description: 任务额外信息
+                        additionalProperties: true
+                    description: result=true 时成功数据，详细信息请见下面说明
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - creator
+              - pipeline_tree
+              properties:
+                name:
+                  type: string
+                  description: 任务名
+                creator:
+                  type: string
+                  description: 创建者
+                scope_type:
+                  type: string
+                  description: 任务范围类型
+                scope_value:
+                  type: string
+                  description: 任务范围值
+                description:
+                  type: string
+                  description: 描述
+                constants:
+                  type: object
+                  description: 任务启动参数
+                  additionalProperties: true
+                pipeline_tree:
+                  type: object
+                  description: 任务结构树
+                  additionalProperties: true
+                notify_config:
+                  type: object
+                  description: 通知配置
+                  additionalProperties: true
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/create_task_without_template/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Create a task without template
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - creator
-          - pipeline_tree
-          properties:
-            name:
-              type: string
-              description: 任务名
-            creator:
-              type: string
-              description: 创建者
-            scope_type:
-              type: string
-              description: 任务范围类型
-            scope_value:
-              type: string
-              description: 任务范围值
-            description:
-              type: string
-              description: 描述
-            constants:
-              type: object
-              description: 任务启动参数
-              additionalProperties: true
-            pipeline_tree:
-              type: object
-              description: 任务结构树
-              additionalProperties: true
-            notify_config:
-              type: object
-              description: 通知配置
-              additionalProperties: true
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/validate_pipeline_tree/:
     post:
       operationId: validate_pipeline_tree
@@ -374,55 +424,66 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 校验是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
-                description: 返回数据
-                additionalProperties: true
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 校验是否成功
+                  data:
+                    type: object
+                    description: 返回数据
+                    additionalProperties: true
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - pipeline_tree
+              properties:
+                pipeline_tree:
+                  type: object
+                  description: 任务结构树
+                  additionalProperties: true
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/validate_pipeline_tree/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Validate a pipeline tree
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - pipeline_tree
-          properties:
-            pipeline_tree:
-              type: object
-              description: 任务结构树
-              additionalProperties: true
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/create_mock_task/:
     post:
       operationId: create_mock_task
@@ -431,159 +492,170 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 任务ID
-                  space_id:
-                    type: integer
-                    description: 空间ID
-                  scope_type:
-                    type: string
-                    description: 任务范围类型
-                  scope_value:
-                    type: string
-                    description: 任务范围值
-                  instance_id:
-                    type: string
-                    description: 实例ID
-                  template_id:
-                    type: integer
-                    description: 模板ID
-                  name:
-                    type: string
-                    description: 任务名称
-                  creator:
-                    type: string
-                    description: 创建者
-                  create_time:
-                    type: string
-                    description: 创建时间
-                  create_method:
-                    type: string
-                    description: 创建方式，值为MOCK
-                  executor:
-                    type: string
-                    description: 执行者
-                  start_time:
-                    type: string
-                    description: 开始时间
-                  finish_time:
-                    type: string
-                    description: 结束时间
-                  description:
-                    type: string
-                    description: 描述
-                  is_started:
+                  result:
                     type: boolean
-                    description: 是否已开始
-                  is_finished:
-                    type: boolean
-                    description: 是否已完成
-                  is_revoked:
-                    type: boolean
-                    description: 是否已撤销
-                  is_deleted:
-                    type: boolean
-                    description: 是否已删除
-                  is_expired:
-                    type: boolean
-                    description: 是否已过期
-                  snapshot_id:
-                    type: integer
-                    description: 快照ID
-                  execution_snapshot_id:
-                    type: integer
-                    description: 执行快照ID
-                  tree_info_id:
-                    type: integer
-                    description: 任务拓扑信息ID
-                  extra_info:
+                    description: true/false 操作是否成功
+                  data:
                     type: object
-                    description: 任务额外信息
-                    additionalProperties: true
-                description: result=true 时成功数据，详细信息请见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    properties:
+                      id:
+                        type: integer
+                        description: 任务ID
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      scope_type:
+                        type: string
+                        description: 任务范围类型
+                      scope_value:
+                        type: string
+                        description: 任务范围值
+                      instance_id:
+                        type: string
+                        description: 实例ID
+                      template_id:
+                        type: integer
+                        description: 模板ID
+                      name:
+                        type: string
+                        description: 任务名称
+                      creator:
+                        type: string
+                        description: 创建者
+                      create_time:
+                        type: string
+                        description: 创建时间
+                      create_method:
+                        type: string
+                        description: 创建方式，值为MOCK
+                      executor:
+                        type: string
+                        description: 执行者
+                      start_time:
+                        type: string
+                        description: 开始时间
+                      finish_time:
+                        type: string
+                        description: 结束时间
+                      description:
+                        type: string
+                        description: 描述
+                      is_started:
+                        type: boolean
+                        description: 是否已开始
+                      is_finished:
+                        type: boolean
+                        description: 是否已完成
+                      is_revoked:
+                        type: boolean
+                        description: 是否已撤销
+                      is_deleted:
+                        type: boolean
+                        description: 是否已删除
+                      is_expired:
+                        type: boolean
+                        description: 是否已过期
+                      snapshot_id:
+                        type: integer
+                        description: 快照ID
+                      execution_snapshot_id:
+                        type: integer
+                        description: 执行快照ID
+                      tree_info_id:
+                        type: integer
+                        description: 任务拓扑信息ID
+                      extra_info:
+                        type: object
+                        description: 任务额外信息
+                        additionalProperties: true
+                    description: result=true 时成功数据，详细信息请见下面说明
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - template_id
+              - creator
+              - name
+              properties:
+                template_id:
+                  type: integer
+                  description: 模板id
+                name:
+                  type: string
+                  description: 任务名
+                creator:
+                  type: string
+                  description: 创建者
+                description:
+                  type: string
+                  description: 描述
+                constants:
+                  type: object
+                  description: 任务启动参数
+                  additionalProperties: true
+                mock_data:
+                  type: object
+                  description: mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock
+                    执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs
+                    没有传参，则会自动将创建任务时对应的 mock 数据 作为 outputs）
+                  properties:
+                    nodes:
+                      type: array
+                      items:
+                        type: string
+                      description: mock 任务使用 mock 执行的节点
+                    outputs:
+                      type: object
+                      description: mock 执行对应节点的节点输出
+                      additionalProperties: true
+                    mock_data_ids:
+                      type: object
+                      description: mock 执行对应节点使用的 mock 数据 id
+                      additionalProperties:
+                        type: integer
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/create_mock_task/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Create a mock task
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - template_id
-          - creator
-          - name
-          properties:
-            template_id:
-              type: integer
-              description: 模板id
-            name:
-              type: string
-              description: 任务名
-            creator:
-              type: string
-              description: 创建者
-            description:
-              type: string
-              description: 描述
-            constants:
-              type: object
-              description: 任务启动参数
-              additionalProperties: true
-            mock_data:
-              type: object
-              description: mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock
-                执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs 没有传参，则会自动将创建任务时对应的
-                mock 数据 作为 outputs）
-              properties:
-                nodes:
-                  type: array
-                  items:
-                    type: string
-                  description: mock 任务使用 mock 执行的节点
-                outputs:
-                  type: object
-                  description: mock 执行对应节点的节点输出
-                  additionalProperties: true
-                mock_data_ids:
-                  type: object
-                  description: mock 执行对应节点使用的 mock 数据 id
-                  additionalProperties:
-                    type: integer
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/create_template/:
     post:
       operationId: create_template
@@ -592,138 +664,149 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 流程ID
-                  space_id:
-                    type: integer
-                    description: 流程所属空间ID
-                  name:
-                    type: string
-                    description: 流程名称
-                  desc:
-                    type: string
-                    description: 流程描述
-                  notify_config:
-                    type: object
-                    description: 通知配置
-                    additionalProperties: true
-                  scope_type:
-                    type: string
-                    description: 流程范围类型
-                  scope_value:
-                    type: string
-                    description: 流程范围值
-                  pipeline_tree:
-                    type: object
-                    description: 流程树详情
-                    additionalProperties: true
-                  source:
-                    type: string
-                    description: 流程来源
-                  version:
-                    type: string
-                    description: 流程版本
-                  is_enabled:
+                  result:
                     type: boolean
-                    description: 流程是否启用
-                  extra_info:
+                    description: true/false 操作是否成功
+                  data:
                     type: object
-                    description: 流程扩展信息
-                    additionalProperties: true
-                  creator:
+                    properties:
+                      id:
+                        type: integer
+                        description: 流程ID
+                      space_id:
+                        type: integer
+                        description: 流程所属空间ID
+                      name:
+                        type: string
+                        description: 流程名称
+                      desc:
+                        type: string
+                        description: 流程描述
+                      notify_config:
+                        type: object
+                        description: 通知配置
+                        additionalProperties: true
+                      scope_type:
+                        type: string
+                        description: 流程范围类型
+                      scope_value:
+                        type: string
+                        description: 流程范围值
+                      pipeline_tree:
+                        type: object
+                        description: 流程树详情
+                        additionalProperties: true
+                      source:
+                        type: string
+                        description: 流程来源
+                      version:
+                        type: string
+                        description: 流程版本
+                      is_enabled:
+                        type: boolean
+                        description: 流程是否启用
+                      extra_info:
+                        type: object
+                        description: 流程扩展信息
+                        additionalProperties: true
+                      creator:
+                        type: string
+                        description: 流程创建者
+                      create_at:
+                        type: string
+                        description: 流程创建时间
+                      update_at:
+                        type: string
+                        description: 流程更新时间
+                      updated_by:
+                        type: string
+                        description: 流程更新者
+                    description: result=true 时成功数据，详细信息请见下面说明
+                  message:
                     type: string
-                    description: 流程创建者
-                  create_at:
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
                     type: string
-                    description: 流程创建时间
-                  update_at:
-                    type: string
-                    description: 流程更新时间
-                  updated_by:
-                    type: string
-                    description: 流程更新者
-                description: result=true 时成功数据，详细信息请见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              properties:
+                name:
+                  type: string
+                  description: 模板名称
+                creator:
+                  type: string
+                  description: 创建人
+                source_template_id:
+                  type: integer
+                  description: 来源的模板ID(用于复制并新建)
+                notify_config:
+                  type: object
+                  description: 通知配置
+                  additionalProperties: true
+                desc:
+                  type: string
+                  description: 空间描述
+                scope_type:
+                  type: string
+                  description: 模板范围类型
+                scope_value:
+                  type: string
+                  description: 模板范围值
+                source:
+                  type: string
+                  description: 模板来源(空间接入方自定义字段)
+                version:
+                  type: string
+                  description: 模板版本(空间接入方自定义字段)
+                extra_info:
+                  type: object
+                  description: 模板额外信息
+                  additionalProperties: true
+                pipeline_tree:
+                  type: object
+                  description: 模板信息
+                  additionalProperties: true
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/create_template/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: create a template
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - name
-          properties:
-            name:
-              type: string
-              description: 模板名称
-            creator:
-              type: string
-              description: 创建人
-            source_template_id:
-              type: integer
-              description: 来源的模板ID(用于复制并新建)
-            notify_config:
-              type: object
-              description: 通知配置
-              additionalProperties: true
-            desc:
-              type: string
-              description: 空间描述
-            scope_type:
-              type: string
-              description: 模板范围类型
-            scope_value:
-              type: string
-              description: 模板范围值
-            source:
-              type: string
-              description: 模板来源(空间接入方自定义字段)
-            version:
-              type: string
-              description: 模板版本(空间接入方自定义字段)
-            extra_info:
-              type: object
-              description: 模板额外信息
-              additionalProperties: true
-            pipeline_tree:
-              type: object
-              description: 模板信息
-              additionalProperties: true
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/get_space_configs/:
     get:
       operationId: get_space_configs
@@ -732,56 +815,67 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  space_id:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: object
+                    properties:
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      config:
+                        type: array
+                        description: 空间配置列表
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              description: 配置键
+                            value:
+                              type: string
+                              description: 配置值
+                    description: result=true 时返回数据，详细信息见下面说明
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
                     type: integer
-                    description: 空间ID
-                  config:
-                    type: array
-                    description: 空间配置列表
-                    items:
-                      type: object
-                      properties:
-                        key:
-                          type: string
-                          description: 配置键
-                        value:
-                          type: string
-                          description: 配置值
-                description: result=true 时返回数据，详细信息见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/get_space_configs/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Get configs of a space
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/get_task_list/:
     get:
       operationId: get_task_list
@@ -790,125 +884,136 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  count:
-                    type: integer
-                    description: 总数
-                  next:
-                    type: string
-                    x-nullable: true
-                    description: 下一页链接
-                  previous:
-                    type: string
-                    x-nullable: true
-                    description: 上一页链接
-                  results:
-                    type: array
-                    description: 任务列表
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: integer
-                          description: 任务ID
-                        space_id:
-                          type: integer
-                          description: 任务所属空间ID
-                        scope_type:
-                          type: string
-                          description: 任务范围类型
-                        scope_value:
-                          type: string
-                          description: 任务范围值
-                        instance_id:
-                          type: string
-                          description: 任务实例ID
-                        template_id:
-                          type: integer
-                          description: 任务模版ID
-                        name:
-                          type: string
-                          description: 任务名
-                        creator:
-                          type: string
-                          description: 任务创建者
-                        create_method:
-                          type: string
-                          description: 任务创建方式
-                        create_time:
-                          type: string
-                          description: 任务创建时间
-                        executor:
-                          type: string
-                          description: 任务执行者
-                        start_time:
-                          type: string
-                          description: 任务开始时间
-                        finish_time:
-                          type: string
-                          description: 任务结束时间
-                        is_started:
-                          type: boolean
-                          description: 任务是否已开始
-                        is_finished:
-                          type: boolean
-                          description: 任务是否已结束
-                        is_revoked:
-                          type: boolean
-                          description: 任务是否已撤销
-                        is_deleted:
-                          type: boolean
-                          description: 任务是否已删除
-                        is_expired:
-                          type: boolean
-                          description: 任务是否已过期
-                        snapshot_id:
-                          type: integer
-                          description: 任务快照ID
-                        execution_snapshot_id:
-                          type: integer
-                          description: 任务执行快照ID
-                        tree_info_id:
-                          type: integer
-                          description: 任务树信息ID
-                        extra_info:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                        description: 总数
+                      next:
+                        type: string
+                        x-nullable: true
+                        description: 下一页链接
+                      previous:
+                        type: string
+                        x-nullable: true
+                        description: 上一页链接
+                      results:
+                        type: array
+                        description: 任务列表
+                        items:
                           type: object
-                          description: 任务额外信息
-                          additionalProperties: true
-                description: result=true 时返回数据，详细信息见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                          properties:
+                            id:
+                              type: integer
+                              description: 任务ID
+                            space_id:
+                              type: integer
+                              description: 任务所属空间ID
+                            scope_type:
+                              type: string
+                              description: 任务范围类型
+                            scope_value:
+                              type: string
+                              description: 任务范围值
+                            instance_id:
+                              type: string
+                              description: 任务实例ID
+                            template_id:
+                              type: integer
+                              description: 任务模版ID
+                            name:
+                              type: string
+                              description: 任务名
+                            creator:
+                              type: string
+                              description: 任务创建者
+                            create_method:
+                              type: string
+                              description: 任务创建方式
+                            create_time:
+                              type: string
+                              description: 任务创建时间
+                            executor:
+                              type: string
+                              description: 任务执行者
+                            start_time:
+                              type: string
+                              description: 任务开始时间
+                            finish_time:
+                              type: string
+                              description: 任务结束时间
+                            is_started:
+                              type: boolean
+                              description: 任务是否已开始
+                            is_finished:
+                              type: boolean
+                              description: 任务是否已结束
+                            is_revoked:
+                              type: boolean
+                              description: 任务是否已撤销
+                            is_deleted:
+                              type: boolean
+                              description: 任务是否已删除
+                            is_expired:
+                              type: boolean
+                              description: 任务是否已过期
+                            snapshot_id:
+                              type: integer
+                              description: 任务快照ID
+                            execution_snapshot_id:
+                              type: integer
+                              description: 任务执行快照ID
+                            tree_info_id:
+                              type: integer
+                              description: 任务树信息ID
+                            extra_info:
+                              type: object
+                              description: 任务额外信息
+                              additionalProperties: true
+                    description: result=true 时返回数据，详细信息见下面说明
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/get_task_list/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Get task list
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/renew_space_config/:
     post:
       operationId: renew_space_config
@@ -917,22 +1022,34 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/renew_space_config/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Renew config of a space
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/task/{task_id}/get_task_detail/:
     get:
       operationId: get_task_detail
@@ -941,112 +1058,129 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 任务ID
-                  pipeline_tree:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
                     type: object
-                    description: 任务树数据
-                    additionalProperties: true
-                  space_id:
+                    properties:
+                      id:
+                        type: integer
+                        description: 任务ID
+                      pipeline_tree:
+                        type: object
+                        description: 任务树数据
+                        additionalProperties: true
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      scope_type:
+                        type: string
+                        description: 范围类型
+                      scope_value:
+                        type: string
+                        description: 范围值
+                      instance_id:
+                        type: string
+                        description: 实例ID
+                      template_id:
+                        type: integer
+                        description: 模板ID
+                      name:
+                        type: string
+                        description: 任务名称
+                      creator:
+                        type: string
+                        description: 创建者
+                      create_time:
+                        type: string
+                        description: 创建时间
+                      executor:
+                        type: string
+                        description: 执行者
+                      start_time:
+                        type: string
+                        description: 开始时间
+                      finish_time:
+                        type: string
+                        description: 结束时间
+                      description:
+                        type: string
+                        description: 描述
+                      is_started:
+                        type: boolean
+                        description: 是否已启动
+                      is_finished:
+                        type: boolean
+                        description: 是否已结束
+                      is_revoked:
+                        type: boolean
+                        description: 是否已撤销
+                      is_deleted:
+                        type: boolean
+                        description: 是否已删除
+                      is_expired:
+                        type: boolean
+                        description: 是否已过期
+                      snapshot_id:
+                        type: integer
+                        description: 快照ID
+                      execution_snapshot_id:
+                        type: integer
+                        description: 执行快照ID
+                      tree_info_id:
+                        type: integer
+                        description: 任务拓扑信息ID
+                      extra_info:
+                        type: object
+                        description: 任务额外信息
+                        additionalProperties: true
+                    description: result=true 时返回数据，详细信息见下面说明
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
                     type: integer
-                    description: 空间ID
-                  scope_type:
+                    description: 错误码
+                  trace_id:
                     type: string
-                    description: 范围类型
-                  scope_value:
-                    type: string
-                    description: 范围值
-                  instance_id:
-                    type: string
-                    description: 实例ID
-                  template_id:
-                    type: integer
-                    description: 模板ID
-                  name:
-                    type: string
-                    description: 任务名称
-                  creator:
-                    type: string
-                    description: 创建者
-                  create_time:
-                    type: string
-                    description: 创建时间
-                  executor:
-                    type: string
-                    description: 执行者
-                  start_time:
-                    type: string
-                    description: 开始时间
-                  finish_time:
-                    type: string
-                    description: 结束时间
-                  description:
-                    type: string
-                    description: 描述
-                  is_started:
-                    type: boolean
-                    description: 是否已启动
-                  is_finished:
-                    type: boolean
-                    description: 是否已结束
-                  is_revoked:
-                    type: boolean
-                    description: 是否已撤销
-                  is_deleted:
-                    type: boolean
-                    description: 是否已删除
-                  is_expired:
-                    type: boolean
-                    description: 是否已过期
-                  snapshot_id:
-                    type: integer
-                    description: 快照ID
-                  execution_snapshot_id:
-                    type: integer
-                    description: 执行快照ID
-                  tree_info_id:
-                    type: integer
-                    description: 任务拓扑信息ID
-                  extra_info:
-                    type: object
-                    description: 任务额外信息
-                    additionalProperties: true
-                description: result=true 时返回数据，详细信息见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/task/{task_id}/get_task_detail/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Get detail of a task
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/task/{task_id}/node/{node_id}/get_task_node_detail/:
     get:
       operationId: get_task_node_detail
@@ -1055,62 +1189,85 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  name:
-                    type: string
-                    description: 节点名称
-                  error_ignorable:
+                  result:
                     type: boolean
-                    description: 节点失败是否可忽略
-                  state:
-                    type: string
-                    description: 节点状态
-                  inputs:
+                    description: true/false 查询成功与否
+                  data:
                     type: object
-                    description: 节点输入参数，key：value格式
-                    additionalProperties: true
-                  outputs:
-                    type: array
-                    description: 节点输出参数
-                    items:
-                      type: object
-                  ex_data:
+                    properties:
+                      name:
+                        type: string
+                        description: 节点名称
+                      error_ignorable:
+                        type: boolean
+                        description: 节点失败是否可忽略
+                      state:
+                        type: string
+                        description: 节点状态
+                      inputs:
+                        type: object
+                        description: 节点输入参数，key：value格式
+                        additionalProperties: true
+                      outputs:
+                        type: array
+                        description: 节点输出参数
+                        items:
+                          type: object
+                      ex_data:
+                        type: string
+                        description: 节点执行失败时的错误信息，json字符串或者HTML字符串、普通字符串
+                    description: result=true 时返回数据，详细信息见下面说明
+                  message:
                     type: string
-                    description: 节点执行失败时的错误信息，json字符串或者HTML字符串、普通字符串
-                description: result=true 时返回数据，详细信息见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: node_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/task/{task_id}/node/{node_id}/get_task_node_detail/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Get node detail of a task
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/task/{task_id}/get_task_states/:
     get:
       operationId: get_task_states
@@ -1119,84 +1276,101 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: string
-                    description: 任务实例ID
-                  state:
-                    type: string
-                    description: 任务状态，CREATED：未执行，RUNNING：执行中，FAILED：失败，SUSPENDED：暂停，REVOKED：已终止，FINISHED：已完成
-                  root_id:
-                    type: string
-                    description: 根任务ID
-                  parent_id:
-                    type: string
-                    description: 父任务ID
-                  version:
-                    type: string
-                    description: 任务版本
-                  loop:
-                    type: integer
-                    description: 任务循环次数
-                  retry:
-                    type: integer
-                    description: 任务重试次数
-                  skip:
+                  result:
                     type: boolean
-                    description: 任务是否跳过
-                  error_ignorable:
-                    type: boolean
-                    description: 任务是否忽略错误
-                  error_ignored:
-                    type: boolean
-                    description: 任务是否忽略错误
-                  children:
+                    description: true/false 查询成功与否
+                  data:
                     type: object
-                    description: 节点状态列表
-                    additionalProperties: true
-                  elapsed_time:
+                    properties:
+                      id:
+                        type: string
+                        description: 任务实例ID
+                      state:
+                        type: string
+                        description: 任务状态，CREATED：未执行，RUNNING：执行中，FAILED：失败，SUSPENDED：暂停，REVOKED：已终止，FINISHED：已完成
+                      root_id:
+                        type: string
+                        description: 根任务ID
+                      parent_id:
+                        type: string
+                        description: 父任务ID
+                      version:
+                        type: string
+                        description: 任务版本
+                      loop:
+                        type: integer
+                        description: 任务循环次数
+                      retry:
+                        type: integer
+                        description: 任务重试次数
+                      skip:
+                        type: boolean
+                        description: 任务是否跳过
+                      error_ignorable:
+                        type: boolean
+                        description: 任务是否忽略错误
+                      error_ignored:
+                        type: boolean
+                        description: 任务是否忽略错误
+                      children:
+                        type: object
+                        description: 节点状态列表
+                        additionalProperties: true
+                      elapsed_time:
+                        type: integer
+                        description: 任务耗时，单位：秒
+                      start_time:
+                        type: string
+                        description: 任务开始时间
+                      finish_time:
+                        type: string
+                        description: 任务结束时间
+                    description: result=true 时返回数据，详细信息见下面说明
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
                     type: integer
-                    description: 任务耗时，单位：秒
-                  start_time:
+                    description: 错误码
+                  trace_id:
                     type: string
-                    description: 任务开始时间
-                  finish_time:
-                    type: string
-                    description: 任务结束时间
-                description: result=true 时返回数据，详细信息见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/task/{task_id}/get_task_states/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Get states of a task
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/get_tasks_states/:
     post:
       operationId: get_tasks_states
@@ -1205,61 +1379,72 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
-                description: 返回数据，key为任务ID，value为任务状态信息
-                additionalProperties:
-                  type: object
-                  properties:
-                    state:
-                      type: string
-                      description: 任务状态
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: object
+                    description: 返回数据，key为任务ID，value为任务状态信息
+                    additionalProperties:
+                      type: object
+                      properties:
+                        state:
+                          type: string
+                          description: 任务状态
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - task_ids
+              properties:
+                task_ids:
+                  type: array
+                  description: 需要查询的任务 id 列表
+                  items:
+                    type: integer
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/get_tasks_states/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Get states of a task with filter params
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - task_ids
-          properties:
-            task_ids:
-              type: array
-              description: 需要查询的任务 id 列表
-              items:
-                type: integer
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/task/{task_id}/operate_task/{operation}/:
     post:
       operationId: operate_task
@@ -1268,54 +1453,77 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
-                x-nullable: true
-                description: 返回数据
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: object
+                    x-nullable: true
+                    description: 返回数据
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: operation
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - operator
+              properties:
+                operator:
+                  type: string
+                  description: 操作人
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/task/{task_id}/operate_task/{operation}/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Operate task
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - operator
-          properties:
-            operator:
-              type: string
-              description: 操作人
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/task/{task_id}/node/{node_id}/operate_node/{operation}/:
     post:
       operationId: operate_task_node
@@ -1324,22 +1532,52 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: node_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: operation
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/task/{task_id}/node/{node_id}/operate_node/{operation}/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Operate task node
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/template/{template_id}/get_template_detail/:
     get:
       operationId: get_template_detail
@@ -1348,103 +1586,121 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 流程 ID
-                  space_id:
-                    type: integer
-                    description: 流程对应的空间 ID
-                  name:
-                    type: string
-                    description: 流程名称
-                  desc:
-                    type: string
-                    description: 流程描述
-                  notify_config:
-                    type: object
-                    description: 流程通知配置
-                    additionalProperties: true
-                  scope_type:
-                    type: string
-                    description: 流程所属领域类型
-                  scope_value:
-                    type: string
-                    description: 流程所属领域值
-                  pipeline_tree:
-                    type: object
-                    description: 流程树，当 with_mock_data 传参为 true 时，为精简后的流程树
-                    additionalProperties: true
-                  source:
-                    type: string
-                    description: 流程来源，第三方系统对应的资源 ID
-                  version:
-                    type: string
-                    description: 流程版本号，对应第三方系统对应的资源版本
-                  is_enabled:
+                  result:
                     type: boolean
-                    description: 是否启用
-                  extra_info:
+                    description: true/false 查询成功与否
+                  data:
                     type: object
-                    description: 额外信息
-                    additionalProperties: true
-                  creator:
+                    properties:
+                      id:
+                        type: integer
+                        description: 流程 ID
+                      space_id:
+                        type: integer
+                        description: 流程对应的空间 ID
+                      name:
+                        type: string
+                        description: 流程名称
+                      desc:
+                        type: string
+                        description: 流程描述
+                      notify_config:
+                        type: object
+                        description: 流程通知配置
+                        additionalProperties: true
+                      scope_type:
+                        type: string
+                        description: 流程所属领域类型
+                      scope_value:
+                        type: string
+                        description: 流程所属领域值
+                      pipeline_tree:
+                        type: object
+                        description: 流程树，当 with_mock_data 传参为 true 时，为精简后的流程树
+                        additionalProperties: true
+                      source:
+                        type: string
+                        description: 流程来源，第三方系统对应的资源 ID
+                      version:
+                        type: string
+                        description: 流程版本号，对应第三方系统对应的资源版本
+                      is_enabled:
+                        type: boolean
+                        description: 是否启用
+                      extra_info:
+                        type: object
+                        description: 额外信息
+                        additionalProperties: true
+                      creator:
+                        type: string
+                        description: 流程创建人
+                      create_at:
+                        type: string
+                        description: 创建时间
+                      update_by:
+                        type: string
+                        description: 流程更新人
+                      update_at:
+                        type: string
+                        description: 更新时间
+                      appoint_node_ids:
+                        type: array
+                        description: 当 with_mock_data 传参为 true 时返回，mock 执行时选中的节点 ID
+                          列表
+                        items:
+                          type: string
+                      mock_data:
+                        type: array
+                        description: 当 with_mock_data 传参为 true 时返回，每个元素包含 node_id，data
+                          和 is_default
+                        items:
+                          type: object
+                    description: result=true 时返回数据，详细信息见下面说明
+                  message:
                     type: string
-                    description: 流程创建人
-                  create_at:
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
                     type: string
-                    description: 创建时间
-                  update_by:
-                    type: string
-                    description: 流程更新人
-                  update_at:
-                    type: string
-                    description: 更新时间
-                  appoint_node_ids:
-                    type: array
-                    description: 当 with_mock_data 传参为 true 时返回，mock 执行时选中的节点 ID 列表
-                    items:
-                      type: string
-                  mock_data:
-                    type: array
-                    description: 当 with_mock_data 传参为 true 时返回，每个元素包含 node_id，data
-                      和 is_default
-                    items:
-                      type: object
-                description: result=true 时返回数据，详细信息见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/template/{template_id}/get_template_detail/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Get detail of a template
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/template/{template_id}/get_template_mock_data/:
     get:
       operationId: get_template_mock_data
@@ -1453,79 +1709,96 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
-                type: array
-                description: Mock数据列表
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                      description: Mock 数据 ID
-                    name:
-                      type: string
-                      description: Mock 数据名称
-                    space_id:
-                      type: integer
-                      description: Mock 数据所属空间 ID
-                    template_id:
-                      type: integer
-                      description: Mock 数据所属流程模板 ID
-                    node_id:
-                      type: string
-                      description: Mock 数据所属节点 ID
-                    data:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: array
+                    description: Mock数据列表
+                    items:
                       type: object
-                      description: Mock 数据内容
-                      additionalProperties: true
-                    is_default:
-                      type: boolean
-                      description: 是否为默认 Mock 数据
-                    extra_info:
-                      type: object
-                      x-nullable: true
-                      description: 额外信息
-                      additionalProperties: true
-                    operator:
-                      type: string
-                      description: 操作人
-                    create_at:
-                      type: string
-                      description: 创建时间
-                    update_at:
-                      type: string
-                      description: 更新时间
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                      properties:
+                        id:
+                          type: integer
+                          description: Mock 数据 ID
+                        name:
+                          type: string
+                          description: Mock 数据名称
+                        space_id:
+                          type: integer
+                          description: Mock 数据所属空间 ID
+                        template_id:
+                          type: integer
+                          description: Mock 数据所属流程模板 ID
+                        node_id:
+                          type: string
+                          description: Mock 数据所属节点 ID
+                        data:
+                          type: object
+                          description: Mock 数据内容
+                          additionalProperties: true
+                        is_default:
+                          type: boolean
+                          description: 是否为默认 Mock 数据
+                        extra_info:
+                          type: object
+                          x-nullable: true
+                          description: 额外信息
+                          additionalProperties: true
+                        operator:
+                          type: string
+                          description: 操作人
+                        create_at:
+                          type: string
+                          description: 创建时间
+                        update_at:
+                          type: string
+                          description: 更新时间
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/template/{template_id}/get_template_mock_data/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Get mock data of a template
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/get_template_list/:
     get:
       operationId: get_template_list
@@ -1534,96 +1807,107 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
-                type: array
-                description: 模板列表
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                      description: 流程id
-                    space_id:
-                      type: integer
-                      description: 流程空间id
-                    name:
-                      type: string
-                      description: 流程名称
-                    desc:
-                      type: string
-                      description: 流程描述
-                    notify_config:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: array
+                    description: 模板列表
+                    items:
                       type: object
-                      description: 流程通知配置
-                      additionalProperties: true
-                    scope_type:
-                      type: string
-                      description: 流程范围类型
-                    scope_value:
-                      type: string
-                      description: 流程范围值
-                    source:
-                      type: string
-                      description: 流程来源
-                    version:
-                      type: string
-                      description: 流程版本
-                    is_enabled:
-                      type: boolean
-                      description: 流程是否启用
-                    extra_info:
-                      type: object
-                      description: 流程扩展信息
-                      additionalProperties: true
-                    creator:
-                      type: string
-                      description: 流程创建者
-                    create_at:
-                      type: string
-                      description: 流程创建时间
-                    update_at:
-                      type: string
-                      description: 流程更新时间
-                    updated_by:
-                      type: string
-                      description: 流程更新者
-                    has_interval_trigger:
-                      type: boolean
-                      description: 是否有定时触发器
-              count:
-                type: integer
-                description: 总数
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                      properties:
+                        id:
+                          type: integer
+                          description: 流程id
+                        space_id:
+                          type: integer
+                          description: 流程空间id
+                        name:
+                          type: string
+                          description: 流程名称
+                        desc:
+                          type: string
+                          description: 流程描述
+                        notify_config:
+                          type: object
+                          description: 流程通知配置
+                          additionalProperties: true
+                        scope_type:
+                          type: string
+                          description: 流程范围类型
+                        scope_value:
+                          type: string
+                          description: 流程范围值
+                        source:
+                          type: string
+                          description: 流程来源
+                        version:
+                          type: string
+                          description: 流程版本
+                        is_enabled:
+                          type: boolean
+                          description: 流程是否启用
+                        extra_info:
+                          type: object
+                          description: 流程扩展信息
+                          additionalProperties: true
+                        creator:
+                          type: string
+                          description: 流程创建者
+                        create_at:
+                          type: string
+                          description: 流程创建时间
+                        update_at:
+                          type: string
+                          description: 流程更新时间
+                        updated_by:
+                          type: string
+                          description: 流程更新者
+                        has_interval_trigger:
+                          type: boolean
+                          description: 是否有定时触发器
+                  count:
+                    type: integer
+                    description: 总数
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/get_template_list/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Get list of templates
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/apply_webhook_configs/:
     post:
       operationId: apply_webhook_configs
@@ -1632,86 +1916,97 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
-                description: 返回数据
-                additionalProperties: true
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: object
+                    description: 返回数据
+                    additionalProperties: true
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - webhooks
+              properties:
+                webhooks:
+                  type: array
+                  description: webhook 列表，列表中的每个元素对应一份 webhook 配置，每次调用会对当前空间的 webhook
+                    配置进行覆盖
+                  items:
+                    type: object
+                    required:
+                    - code
+                    - name
+                    - endpoint
+                    - events
+                    properties:
+                      code:
+                        type: string
+                        description: webhook 编码，需唯一
+                      name:
+                        type: string
+                        description: webhook 名称
+                      endpoint:
+                        type: string
+                        description: webhook 请求地址
+                      events:
+                        type: array
+                        description: 'webhook 订阅的事件列表, 支持的事件有: template_update，template_create，task_failed，task_finished'
+                        items:
+                          type: string
+                          enum:
+                          - template_update
+                          - template_create
+                          - task_failed
+                          - task_finished
+                      extra_info:
+                        type: object
+                        description: 额外扩展信息
+                        additionalProperties: true
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/apply_webhook_configs/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: Apply configs of webhook
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - webhooks
-          properties:
-            webhooks:
-              type: array
-              description: webhook 列表，列表中的每个元素对应一份 webhook 配置，每次调用会对当前空间的 webhook
-                配置进行覆盖
-              items:
-                type: object
-                required:
-                - code
-                - name
-                - endpoint
-                - events
-                properties:
-                  code:
-                    type: string
-                    description: webhook 编码，需唯一
-                  name:
-                    type: string
-                    description: webhook 名称
-                  endpoint:
-                    type: string
-                    description: webhook 请求地址
-                  events:
-                    type: array
-                    description: 'webhook 订阅的事件列表, 支持的事件有: template_update，template_create，task_failed，task_finished'
-                    items:
-                      type: string
-                      enum:
-                      - template_update
-                      - template_create
-                      - task_failed
-                      - task_finished
-                  extra_info:
-                    type: object
-                    description: 额外扩展信息
-                    additionalProperties: true
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/update_template/{template_id}/:
     post:
       operationId: update_template
@@ -1720,133 +2015,150 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 流程ID
-                  space_id:
-                    type: integer
-                    description: 流程所属空间ID
-                  name:
-                    type: string
-                    description: 流程名称
-                  desc:
-                    type: string
-                    description: 流程描述
-                  notify_config:
-                    type: object
-                    description: 通知配置
-                    additionalProperties: true
-                  scope_type:
-                    type: string
-                    description: 流程范围类型
-                  scope_value:
-                    type: string
-                    description: 流程范围值
-                  pipeline_tree:
-                    type: object
-                    description: 流程树详情
-                    additionalProperties: true
-                  source:
-                    type: string
-                    description: 流程来源
-                  version:
-                    type: string
-                    description: 流程版本
-                  is_enabled:
+                  result:
                     type: boolean
-                    description: 流程是否启用
-                  extra_info:
+                    description: true/false 操作是否成功
+                  data:
                     type: object
-                    description: 流程扩展信息
-                    additionalProperties: true
-                  creator:
+                    properties:
+                      id:
+                        type: integer
+                        description: 流程ID
+                      space_id:
+                        type: integer
+                        description: 流程所属空间ID
+                      name:
+                        type: string
+                        description: 流程名称
+                      desc:
+                        type: string
+                        description: 流程描述
+                      notify_config:
+                        type: object
+                        description: 通知配置
+                        additionalProperties: true
+                      scope_type:
+                        type: string
+                        description: 流程范围类型
+                      scope_value:
+                        type: string
+                        description: 流程范围值
+                      pipeline_tree:
+                        type: object
+                        description: 流程树详情
+                        additionalProperties: true
+                      source:
+                        type: string
+                        description: 流程来源
+                      version:
+                        type: string
+                        description: 流程版本
+                      is_enabled:
+                        type: boolean
+                        description: 流程是否启用
+                      extra_info:
+                        type: object
+                        description: 流程扩展信息
+                        additionalProperties: true
+                      creator:
+                        type: string
+                        description: 流程创建者
+                      create_at:
+                        type: string
+                        description: 流程创建时间
+                      update_at:
+                        type: string
+                        description: 流程更新时间
+                      updated_by:
+                        type: string
+                        description: 流程更新者
+                    description: result=true 时成功数据，详细信息请见下面说明
+                  message:
                     type: string
-                    description: 流程创建者
-                  create_at:
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
                     type: string
-                    description: 流程创建时间
-                  update_at:
-                    type: string
-                    description: 流程更新时间
-                  updated_by:
-                    type: string
-                    description: 流程更新者
-                description: result=true 时成功数据，详细信息请见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 模板名称
+                operator:
+                  type: string
+                  description: 更新人
+                notify_config:
+                  type: object
+                  description: 通知配置
+                  additionalProperties: true
+                desc:
+                  type: string
+                  description: 空间描述
+                scope_type:
+                  type: string
+                  description: 模板范围类型
+                scope_value:
+                  type: string
+                  description: 模板范围值
+                source:
+                  type: string
+                  description: 模板来源(空间接入方自定义字段)
+                version:
+                  type: string
+                  description: 模板版本(空间接入方自定义字段)
+                extra_info:
+                  type: object
+                  description: 模板额外信息
+                  additionalProperties: true
+                pipeline_tree:
+                  type: object
+                  description: 模板信息
+                  additionalProperties: true
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/update_template/{template_id}/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: update a template
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          properties:
-            name:
-              type: string
-              description: 模板名称
-            operator:
-              type: string
-              description: 更新人
-            notify_config:
-              type: object
-              description: 通知配置
-              additionalProperties: true
-            desc:
-              type: string
-              description: 空间描述
-            scope_type:
-              type: string
-              description: 模板范围类型
-            scope_value:
-              type: string
-              description: 模板范围值
-            source:
-              type: string
-              description: 模板来源(空间接入方自定义字段)
-            version:
-              type: string
-              description: 模板版本(空间接入方自定义字段)
-            extra_info:
-              type: object
-              description: 模板额外信息
-              additionalProperties: true
-            pipeline_tree:
-              type: object
-              description: 模板信息
-              additionalProperties: true
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/delete_template/{template_id}/:
     post:
       operationId: delete_template
@@ -1855,68 +2167,97 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  count:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                        description: 删除的模板数量
+                    description: result=true 时成功数据，详细信息请见下面说明
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
                     type: integer
-                    description: 删除的模板数量
-                description: result=true 时成功数据，详细信息请见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/delete_template/{template_id}/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: delete a template
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/delete_task/:
     post:
       operationId: delete_task
       description: 删除任务
-      tags: [ ]
+      tags: []
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/delete_task/
           matchSubpath: false
           timeout: 0
-          upstreams: { }
-          transformHeaders: { }
+          name: default
         authConfig:
           userVerifiedRequired: false
-        disabledStages: [ ]
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
         descriptionEn: delete task
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/create_credential/:
     post:
       operationId: create_credential
@@ -1925,99 +2266,110 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 凭证ID
-                  space_id:
-                    type: integer
-                    description: 空间ID
-                  name:
-                    type: string
-                    description: 凭证名称
-                  desc:
-                    type: string
-                    description: 凭证描述
-                  type:
-                    type: string
-                    description: 凭证类型，当前支持BK_APP（蓝鲸应用凭证）
-                  content:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
                     type: object
-                    description: 凭证内容（敏感信息会被脱敏显示）
-                    additionalProperties: true
-                description: result=true 时成功数据，详细信息请见下面说明
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    properties:
+                      id:
+                        type: integer
+                        description: 凭证ID
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      name:
+                        type: string
+                        description: 凭证名称
+                      desc:
+                        type: string
+                        description: 凭证描述
+                      type:
+                        type: string
+                        description: 凭证类型，当前支持BK_APP（蓝鲸应用凭证）
+                      content:
+                        type: object
+                        description: 凭证内容（敏感信息会被脱敏显示）
+                        additionalProperties: true
+                    description: result=true 时成功数据，详细信息请见下面说明
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              - type
+              - content
+              properties:
+                name:
+                  type: string
+                  maxLength: 32
+                  description: 凭证名称，最大长度32字符
+                desc:
+                  type: string
+                  maxLength: 32
+                  description: 凭证描述，最大长度32字符
+                type:
+                  type: string
+                  enum:
+                  - BK_APP
+                  description: 凭证类型，当前支持：BK_APP（蓝鲸应用凭证）
+                content:
+                  type: object
+                  description: 凭证内容，根据凭证类型不同而不同。当type为BK_APP时，需要包含bk_app_code和bk_app_secret字段
+                  required:
+                  - bk_app_code
+                  - bk_app_secret
+                  properties:
+                    bk_app_code:
+                      type: string
+                      description: 蓝鲸应用ID
+                    bk_app_secret:
+                      type: string
+                      description: 蓝鲸应用密钥，不能全为 '*' 字符
+                  additionalProperties: true
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/create_credential/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: create a credential
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: true
-        schema:
-          type: object
-          required:
-          - name
-          - type
-          - content
-          properties:
-            name:
-              type: string
-              maxLength: 32
-              description: 凭证名称，最大长度32字符
-            desc:
-              type: string
-              maxLength: 32
-              description: 凭证描述，最大长度32字符
-            type:
-              type: string
-              enum:
-              - BK_APP
-              description: 凭证类型，当前支持：BK_APP（蓝鲸应用凭证）
-            content:
-              type: object
-              description: 凭证内容，根据凭证类型不同而不同。当type为BK_APP时，需要包含bk_app_code和bk_app_secret字段
-              required:
-              - bk_app_code
-              - bk_app_secret
-              properties:
-                bk_app_code:
-                  type: string
-                  description: 蓝鲸应用ID
-                bk_app_secret:
-                  type: string
-                  description: 蓝鲸应用密钥，不能全为 '*' 字符
-              additionalProperties: true
+        enableWebsocket: false
+        pluginConfigs: []
   /grant_apigw_permissions_to_app:
     post:
       operationId: grant_apigw_permissions_to_app
@@ -2026,22 +2378,27 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: false
         allowApplyPermission: false
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/grant_apigw_permissions_to_app/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: grant apigw permissions of bkflow to other app
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/decision_table/user/:
     get:
       operationId: sdk_get_user_decision_table
@@ -2050,6 +2407,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2065,6 +2425,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin/:
     get:
       operationId: sdk_get_plugin_list
@@ -2073,6 +2435,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2088,6 +2453,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin/{plugin_id}/:
     get:
       operationId: sdk_get_plugin_detail
@@ -2096,6 +2463,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: plugin_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2111,6 +2488,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin_query/uniform_api/category_list/{space_id}/:
     get:
       operationId: sdk_get_api_plugin_category_list
@@ -2119,6 +2498,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2134,6 +2523,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin_service/detail/:
     get:
       operationId: sdk_get_plugin_service_detail
@@ -2142,6 +2533,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2157,6 +2551,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/bk_plugin/:
     get:
       operationId: sdk_get_bk_plugin_list
@@ -2165,6 +2561,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2180,6 +2579,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin_service/app_detail/:
     get:
       operationId: sdk_get_plugin_service_app_detail
@@ -2188,6 +2589,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2203,6 +2607,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin_service/meta/:
     get:
       operationId: sdk_get_plugin_service_meta
@@ -2211,6 +2617,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2226,6 +2635,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin_service/tags/:
     get:
       operationId: sdk_get_plugin_tags
@@ -2234,6 +2645,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2249,6 +2663,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/task/get_task_mock_data/{task_id}/:
     get:
       operationId: sdk_get_task_mock_data
@@ -2257,6 +2673,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2272,6 +2698,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/task/operate_task/{task_id}/{action}/:
     post:
       operationId: sdk_operate_task
@@ -2280,6 +2708,22 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: action
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2295,6 +2739,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/admin/create_default_template/{space_id}/:
     post:
       operationId: sdk_create_default_template
@@ -2303,6 +2749,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2318,6 +2774,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/admin/template_copy/:
     post:
       operationId: sdk_copy_template
@@ -2326,6 +2784,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2341,6 +2802,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/analysis_constants_ref/:
     post:
       operationId: sdk_get_template_constant_reference
@@ -2349,6 +2812,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2364,6 +2830,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/variable/:
     get:
       operationId: sdk_get_template_variable_list
@@ -2372,6 +2840,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2387,6 +2858,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/variable/check_variable_key/:
     get:
       operationId: sdk_template_variable_check_variable_key
@@ -2395,6 +2868,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2410,6 +2886,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/variable/get_constant_preview_result/:
     post:
       operationId: sdk_template_variable_constant_preview_result
@@ -2418,6 +2896,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2433,6 +2914,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/variable/system_variable/:
     get:
       operationId: sdk_get_template_system_variable
@@ -2441,6 +2924,9 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2456,6 +2942,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/variable/{variable_id}/:
     get:
       operationId: sdk_get_template_variable_detail
@@ -2464,6 +2952,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: variable_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2479,6 +2977,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/{template_id}/:
     get:
       operationId: sdk_fetch_template
@@ -2487,6 +2987,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2502,6 +3012,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
     put:
       operationId: sdk_update_template
       description: 保存流程
@@ -2509,6 +3021,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2524,6 +3046,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/{template_id}/get_space_related_configs/:
     get:
       operationId: sdk_get_space_related_configs
@@ -2532,6 +3056,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2547,6 +3081,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/{template_id}/get_template_operation_record/:
     get:
       operationId: sdk_get_template_operate_record
@@ -2555,6 +3091,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2570,6 +3116,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/{template_id}/get_draft_template/:
     get:
       operationId: sdk_get_draft_template
@@ -2578,6 +3126,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2593,6 +3151,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/{template_id}/calculate_version/:
     get:
       operationId: sdk_calculate_version
@@ -2601,6 +3161,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2616,6 +3186,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/{template_id}/release_template/:
     post:
       operationId: sdk_release_template
@@ -2624,6 +3196,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2639,6 +3221,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/{template_id}/rollback_template/:
     post:
       operationId: sdk_rollback_template
@@ -2647,6 +3231,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2662,6 +3256,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/{template_id}/preview_task_tree/:
     post:
       operationId: sdk_preview_task_tree
@@ -2670,6 +3266,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2685,14 +3291,19 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/snapshot/list_snapshot/:
     get:
       operationId: sdk_list_snapshot
       description: 获取流程快照列表
-      tags: [ ]
+      tags: []
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2708,6 +3319,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/template/snapshot/{snapshot_id}/delete_snapshot/:
     post:
       operationId: sdk_delete_snapshot
@@ -2716,6 +3329,16 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: snapshot_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2731,6 +3354,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/template/{template_id}/release_template/:
     post:
       operationId: release_template
@@ -2739,6 +3364,22 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2754,6 +3395,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/template/{template_id}/rollback_template/:
     post:
       operationId: rollback_template
@@ -2762,6 +3405,22 @@ paths:
       responses:
         default:
           description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -2777,6 +3436,8 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /template/{template_id}/get_template_detail_by_app/:
     get:
       operationId: get_template_detail_by_app
@@ -2785,97 +3446,106 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 流程 ID
-                  space_id:
-                    type: integer
-                    description: 流程对应的空间 ID
-                  name:
-                    type: string
-                    description: 流程名称
-                  desc:
-                    type: string
-                    description: 流程描述
-                  notify_config:
-                    type: object
-                    description: 流程通知配置
-                    additionalProperties: true
-                  scope_type:
-                    type: string
-                    description: 流程所属领域类型
-                  scope_value:
-                    type: string
-                    description: 流程所属领域值
-                  bk_app_code:
-                    type: string
-                    description: 绑定的蓝鲸应用编码
-                  pipeline_tree:
-                    type: object
-                    description: 流程树
-                    additionalProperties: true
-                  source:
-                    type: string
-                    description: 流程来源
-                  version:
-                    type: string
-                    description: 流程版本号
-                  is_enabled:
+                  result:
                     type: boolean
-                    description: 是否启用
-                  extra_info:
+                    description: true/false 查询成功与否
+                  data:
                     type: object
-                    description: 额外信息
-                    additionalProperties: true
-                  creator:
+                    properties:
+                      id:
+                        type: integer
+                        description: 流程 ID
+                      space_id:
+                        type: integer
+                        description: 流程对应的空间 ID
+                      name:
+                        type: string
+                        description: 流程名称
+                      desc:
+                        type: string
+                        description: 流程描述
+                      notify_config:
+                        type: object
+                        description: 流程通知配置
+                        additionalProperties: true
+                      scope_type:
+                        type: string
+                        description: 流程所属领域类型
+                      scope_value:
+                        type: string
+                        description: 流程所属领域值
+                      bk_app_code:
+                        type: string
+                        description: 绑定的蓝鲸应用编码
+                      pipeline_tree:
+                        type: object
+                        description: 流程树
+                        additionalProperties: true
+                      source:
+                        type: string
+                        description: 流程来源
+                      version:
+                        type: string
+                        description: 流程版本号
+                      is_enabled:
+                        type: boolean
+                        description: 是否启用
+                      extra_info:
+                        type: object
+                        description: 额外信息
+                        additionalProperties: true
+                      creator:
+                        type: string
+                        description: 流程创建人
+                      create_at:
+                        type: string
+                        description: 创建时间
+                      updated_by:
+                        type: string
+                        description: 流程更新人
+                      update_at:
+                        type: string
+                        description: 更新时间
+                    description: result=true 时返回数据
+                  message:
                     type: string
-                    description: 流程创建人
-                  create_at:
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
                     type: string
-                    description: 创建时间
-                  updated_by:
-                    type: string
-                    description: 流程更新人
-                  update_at:
-                    type: string
-                    description: 更新时间
-                description: result=true 时返回数据
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/template/{template_id}/get_template_detail_by_app/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: true
           appVerifiedRequired: true
           resourcePermissionRequired: false
         disabledStages: []
         descriptionEn: Get template detail by bk_app_code authentication
+        enableWebsocket: false
+        pluginConfigs: []
   /template/{template_id}/create_task_by_app/:
     post:
       operationId: create_task_by_app
@@ -2884,128 +3554,137 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: integer
-                    description: 任务ID
-                  space_id:
-                    type: integer
-                    description: 空间ID
-                  scope_type:
-                    type: string
-                    description: 任务范围类型
-                  scope_value:
-                    type: string
-                    description: 任务范围值
-                  instance_id:
-                    type: string
-                    description: 实例ID
-                  template_id:
-                    type: integer
-                    description: 模板ID
-                  name:
-                    type: string
-                    description: 任务名称
-                  creator:
-                    type: string
-                    description: 创建者
-                  create_time:
-                    type: string
-                    description: 创建时间
-                  executor:
-                    type: string
-                    description: 执行者
-                  start_time:
-                    type: string
-                    description: 开始时间
-                  finish_time:
-                    type: string
-                    description: 结束时间
-                  description:
-                    type: string
-                    description: 描述
-                  is_started:
+                  result:
                     type: boolean
-                    description: 是否已开始
-                  is_finished:
-                    type: boolean
-                    description: 是否已结束
-                  is_revoked:
-                    type: boolean
-                    description: 是否已撤销
-                  is_deleted:
-                    type: boolean
-                    description: 是否已删除
-                  is_expired:
-                    type: boolean
-                    description: 是否已过期
-                  snapshot_id:
-                    type: integer
-                    description: 快照ID
-                  execution_snapshot_id:
-                    type: integer
-                    description: 执行快照ID
-                  tree_info_id:
-                    type: integer
-                    description: 任务拓扑信息ID
-                  extra_info:
+                    description: true/false 操作是否成功
+                  data:
                     type: object
-                    description: 任务额外信息
-                    additionalProperties: true
-                description: result=true 时成功数据
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    properties:
+                      id:
+                        type: integer
+                        description: 任务ID
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      scope_type:
+                        type: string
+                        description: 任务范围类型
+                      scope_value:
+                        type: string
+                        description: 任务范围值
+                      instance_id:
+                        type: string
+                        description: 实例ID
+                      template_id:
+                        type: integer
+                        description: 模板ID
+                      name:
+                        type: string
+                        description: 任务名称
+                      creator:
+                        type: string
+                        description: 创建者
+                      create_time:
+                        type: string
+                        description: 创建时间
+                      executor:
+                        type: string
+                        description: 执行者
+                      start_time:
+                        type: string
+                        description: 开始时间
+                      finish_time:
+                        type: string
+                        description: 结束时间
+                      description:
+                        type: string
+                        description: 描述
+                      is_started:
+                        type: boolean
+                        description: 是否已开始
+                      is_finished:
+                        type: boolean
+                        description: 是否已结束
+                      is_revoked:
+                        type: boolean
+                        description: 是否已撤销
+                      is_deleted:
+                        type: boolean
+                        description: 是否已删除
+                      is_expired:
+                        type: boolean
+                        description: 是否已过期
+                      snapshot_id:
+                        type: integer
+                        description: 快照ID
+                      execution_snapshot_id:
+                        type: integer
+                        description: 执行快照ID
+                      tree_info_id:
+                        type: integer
+                        description: 任务拓扑信息ID
+                      extra_info:
+                        type: object
+                        description: 任务额外信息
+                        additionalProperties: true
+                    description: result=true 时成功数据
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 任务名称
+                description:
+                  type: string
+                  description: 任务描述
+                constants:
+                  type: object
+                  description: 任务启动参数，key为变量KEY（${key}格式），value为变量值
+                  additionalProperties: true
+        required: false
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/template/{template_id}/create_task_by_app/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: true
           appVerifiedRequired: true
           resourcePermissionRequired: false
         disabledStages: []
         descriptionEn: Create task by bk_app_code authentication
-      parameters:
-      - name: body
-        in: body
-        description: ''
-        required: false
-        schema:
-          type: object
-          properties:
-            name:
-              type: string
-              description: 任务名称
-            description:
-              type: string
-              description: 任务描述
-            constants:
-              type: object
-              description: 任务启动参数，key为变量KEY（${key}格式），value为变量值
-              additionalProperties: true
+        enableWebsocket: false
+        pluginConfigs: []
   /task/{task_id}/operate_task_by_app/{operation}/:
     post:
       operationId: operate_task_by_app
@@ -3014,43 +3693,58 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 操作是否成功
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
-                x-nullable: true
-                description: 返回数据
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: object
+                    x-nullable: true
+                    description: 返回数据
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: operation
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: post
           path: /{env.api_sub_path}apigw/task/{task_id}/operate_task_by_app/{operation}/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: true
           appVerifiedRequired: true
           resourcePermissionRequired: false
         disabledStages: []
         descriptionEn: Operate task by bk_app_code authentication
+        enableWebsocket: false
+        pluginConfigs: []
   /task/{task_id}/get_task_states_by_app/:
     get:
       operationId: get_task_states_by_app
@@ -3059,83 +3753,92 @@ paths:
       responses:
         '200':
           description: ''
-          schema:
-            type: object
-            properties:
-              result:
-                type: boolean
-                description: true/false 查询成功与否
-              data:
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  id:
-                    type: string
-                    description: 任务实例ID
-                  state:
-                    type: string
-                    description: 任务状态，CREATED：未执行，RUNNING：执行中，FAILED：失败，SUSPENDED：暂停，REVOKED：已终止，FINISHED：已完成
-                  root_id:
-                    type: string
-                    description: 根任务ID
-                  parent_id:
-                    type: string
-                    description: 父任务ID
-                  version:
-                    type: string
-                    description: 任务版本
-                  loop:
-                    type: integer
-                    description: 任务循环次数
-                  retry:
-                    type: integer
-                    description: 任务重试次数
-                  skip:
+                  result:
                     type: boolean
-                    description: 任务是否跳过
-                  error_ignorable:
-                    type: boolean
-                    description: 任务是否忽略错误
-                  error_ignored:
-                    type: boolean
-                    description: 任务是否忽略错误
-                  children:
+                    description: true/false 查询成功与否
+                  data:
                     type: object
-                    description: 节点状态列表
-                    additionalProperties: true
-                  elapsed_time:
+                    properties:
+                      id:
+                        type: string
+                        description: 任务实例ID
+                      state:
+                        type: string
+                        description: 任务状态，CREATED：未执行，RUNNING：执行中，FAILED：失败，SUSPENDED：暂停，REVOKED：已终止，FINISHED：已完成
+                      root_id:
+                        type: string
+                        description: 根任务ID
+                      parent_id:
+                        type: string
+                        description: 父任务ID
+                      version:
+                        type: string
+                        description: 任务版本
+                      loop:
+                        type: integer
+                        description: 任务循环次数
+                      retry:
+                        type: integer
+                        description: 任务重试次数
+                      skip:
+                        type: boolean
+                        description: 任务是否跳过
+                      error_ignorable:
+                        type: boolean
+                        description: 任务是否忽略错误
+                      error_ignored:
+                        type: boolean
+                        description: 任务是否忽略错误
+                      children:
+                        type: object
+                        description: 节点状态列表
+                        additionalProperties: true
+                      elapsed_time:
+                        type: integer
+                        description: 任务耗时，单位：秒
+                      start_time:
+                        type: string
+                        description: 任务开始时间
+                      finish_time:
+                        type: string
+                        description: 任务结束时间
+                    description: result=true 时返回数据
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
                     type: integer
-                    description: 任务耗时，单位：秒
-                  start_time:
+                    description: 错误码
+                  trace_id:
                     type: string
-                    description: 任务开始时间
-                  finish_time:
-                    type: string
-                    description: 任务结束时间
-                description: result=true 时返回数据
-              message:
-                type: string
-                description: result=false 时错误信息
-              code:
-                type: integer
-                description: 错误码
-              trace_id:
-                type: string
-                description: open telemetry trace_id
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          type: HTTP
           method: get
           path: /{env.api_sub_path}apigw/task/{task_id}/get_task_states_by_app/
           matchSubpath: false
           timeout: 0
-          upstreams: {}
-          transformHeaders: {}
+          name: default
         authConfig:
           userVerifiedRequired: true
           appVerifiedRequired: true
           resourcePermissionRequired: false
         disabledStages: []
         descriptionEn: Get task states by bk_app_code authentication
+        enableWebsocket: false
+        pluginConfigs: []
