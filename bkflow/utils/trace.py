@@ -21,7 +21,6 @@ from opentelemetry.baggage.propagation import W3CBaggagePropagator
 from opentelemetry.context import attach, detach, get_current
 from opentelemetry.propagate import get_global_textmap, set_global_textmap
 from opentelemetry.propagators.composite import CompositePropagator
-from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SpanProcessor
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
@@ -40,10 +39,11 @@ BAGGAGE_PREFIX = f"{settings.PLATFORM_CODE}."  # baggage key 前缀，避免冲�
 
 
 def setup_propagators():
-    """设置全局的 propagator，确保 baggage 能够跨服务传播
+    """设置全局的 propagator 和 SpanProcessor，确保 baggage 能够跨服务传播
 
     应该在应用启动时调用（如 Django AppConfig.ready() 或 celery worker 启动时）
     """
+    # 1. 设置 propagator，支持 W3C Trace Context 和 Baggage
     propagator = CompositePropagator(
         [
             TraceContextTextMapPropagator(),  # W3C Trace Context (traceparent, tracestate)
@@ -51,6 +51,19 @@ def setup_propagators():
         ]
     )
     set_global_textmap(propagator)
+
+    # 2. 注册 BaggageToSpanProcessor，确保每个 span 自动从 baggage 中获取属性
+    provider = trace.get_tracer_provider()
+    if provider and not isinstance(provider, trace.ProxyTracerProvider):
+        # 检查是否已经注册过 BaggageToSpanProcessor
+        already_registered = False
+        for sp in getattr(provider._active_span_processor, "_span_processors", []):
+            if isinstance(sp, BaggageToSpanProcessor):
+                already_registered = True
+                break
+
+        if not already_registered:
+            provider.add_span_processor(BaggageToSpanProcessor())
 
 
 def set_baggage_attributes(attributes: Dict[str, str]) -> object:
@@ -192,56 +205,15 @@ def extract_trace_from_celery(task_headers: dict):
 
 
 # ============ 原有函数的改进版本 ============
-class AttributeInjectionSpanProcessor(SpanProcessor):
-    """Span处理器，用于在Span开始时设置属性（保持向后兼容）"""
+def propagate_attributes(attributes: dict):
+    """把 attributes 设置到 baggage 中，实现跨服务传播
 
-    def __init__(self, attributes):
-        self.attributes = attributes
-
-    def on_start(self, span: trace.Span, parent_context):
-        if not isinstance(span, trace.Span):
-            return
-
-        for key, value in self.attributes.items():
-            span.set_attribute(key, value)
-
-    def on_end(self, span: trace.Span):
-        pass
-
-    def set_attributes(self, attributes):
-        self.attributes = attributes
-
-
-def propagate_attributes(attributes: dict, use_baggage: bool = True):
-    """把 attributes 设置到 span 上，并继承到后面所有 span
-
-    改进：新增 use_baggage 参数，当为 True 时同时将属性设置到 baggage 中，
-    实现跨 HTTP 和 Celery 的传播
+    属性会通过 BaggageToSpanProcessor 自动设置到每个新创建的 span 上，
+    同时也会通过 HTTP headers 和 Celery task headers 跨服务传播。
 
     :param attributes: 需要传播的属性
-    :param use_baggage: 是否同时使用 baggage 进行跨服务传播
     """
-    # 1. 使用 baggage 实现跨服务传播
-    if use_baggage:
-        set_baggage_attributes(attributes)
-
-    # 2. 保持原有的 SpanProcessor 逻辑（用于进程内传播）
-    provider = trace.get_tracer_provider()
-
-    if not provider or isinstance(provider, trace.ProxyTracerProvider):
-        provider = TracerProvider()
-        trace.set_tracer_provider(provider)
-
-    # Add a span processor that sets attributes on every new span
-    inject_attributes = False
-    for sp in getattr(provider._active_span_processor, "_span_processors", []):
-        if isinstance(sp, AttributeInjectionSpanProcessor):
-            inject_attributes = True
-            sp.set_attributes(attributes)
-            break
-
-    if not inject_attributes:
-        provider.add_span_processor(AttributeInjectionSpanProcessor(attributes))
+    set_baggage_attributes(attributes)
 
 
 def append_attributes(attributes: dict):
@@ -255,12 +227,11 @@ def append_attributes(attributes: dict):
 
 
 @contextmanager
-def start_trace(span_name: str, propagate: bool = False, use_baggage: bool = True, **attributes):
+def start_trace(span_name: str, propagate: bool = False, **attributes):
     """Start a trace
 
     :param span_name: 自定义Span名称
-    :param propagate: 是否需要传播
-    :param use_baggage: 是否使用 baggage 跨服务传播
+    :param propagate: 是否需要传播（通过 baggage 跨服务传播）
     :param attributes: 需要跟span增加的属性, 默认为空
     :yield: 当前上下文的Span
     """
@@ -268,27 +239,24 @@ def start_trace(span_name: str, propagate: bool = False, use_baggage: bool = Tru
 
     span_attributes = {f"{settings.PLATFORM_CODE}.{key}": value for key, value in attributes.items()}
 
-    # 设置需要传播的属性
+    # 设置需要传播的属性到 baggage 中
     if propagate:
-        propagate_attributes(span_attributes, use_baggage=use_baggage)
+        propagate_attributes(span_attributes)
 
     with tracer.start_as_current_span(span_name, kind=SpanKind.SERVER) as span:
-        # 从 baggage 中恢复属性到 span（处理跨服务传播的情况）
-        inject_baggage_to_span(span)
-
-        # 如果不进行传播，则在当前span手动配置需要添加的属性
+        # 手动设置本次传入的属性到当前 span
+        # 注：BaggageToSpanProcessor 会自动处理从 baggage 继承的属性
         for attr_key, attr_value in span_attributes.items():
             span.set_attribute(attr_key, attr_value)
 
         yield span
 
 
-def trace_view(propagate: bool = True, attr_keys=None, use_baggage: bool = True, **default_attributes):
+def trace_view(propagate: bool = True, attr_keys=None, **default_attributes):
     """用来装饰view的trace装饰器
 
-    :param propagate: 是否需要传播
+    :param propagate: 是否需要传播（通过 baggage 跨服务传播）
     :param attr_keys: 需要从request和url中获取的属性
-    :param use_baggage: 是否使用 baggage 跨服务传播
     :param default_attributes: 默认属性
     :return: view_func
     """
@@ -313,7 +281,7 @@ def trace_view(propagate: bool = True, attr_keys=None, use_baggage: bool = True,
                             attributes[attr_key] = scope[attr_key]
                             break
 
-                with start_trace(view_func.__name__, propagate, use_baggage, **attributes):
+                with start_trace(view_func.__name__, propagate, **attributes):
                     return view_func(request, *args, **kwargs)
             finally:
                 detach(token)
