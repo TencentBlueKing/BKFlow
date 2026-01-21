@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,6 +18,9 @@ to the current version of the project delivered to anyone in the future.
 """
 from django.apps import AppConfig
 
+from bkflow.utils.celery_trace import setup_celery_trace_signals
+from bkflow.utils.trace import setup_propagators
+
 
 class TaskConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
@@ -37,3 +39,7 @@ class TaskConfig(AppConfig):
 
         OPERATION_RECORDER.register(RecordType.task.name, TaskOperationRecorder)
         OPERATION_RECORDER.register(RecordType.task_node.name, TaskNodeOperationRecorder)
+
+        # 初始化 OpenTelemetry trace propagator 和 Celery trace signals
+        setup_propagators()
+        setup_celery_trace_signals()

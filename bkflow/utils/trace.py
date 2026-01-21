@@ -13,12 +13,18 @@ import copy
 import enum
 from contextlib import contextmanager
 from functools import wraps
+from typing import Dict, Optional
 
 from django.conf import settings
-from opentelemetry import trace
+from opentelemetry import baggage, trace
+from opentelemetry.baggage.propagation import W3CBaggagePropagator
+from opentelemetry.context import attach, detach, get_current
+from opentelemetry.propagate import get_global_textmap, set_global_textmap
+from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SpanProcessor
 from opentelemetry.trace import SpanKind
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 
 class CallFrom(enum.Enum):
@@ -29,8 +35,165 @@ class CallFrom(enum.Enum):
     BACKEND = "backend"
 
 
+# ============ Baggage 相关常量 ============
+BAGGAGE_PREFIX = f"{settings.PLATFORM_CODE}."  # baggage key 前缀，避免冲突
+
+
+def setup_propagators():
+    """设置全局的 propagator，确保 baggage 能够跨服务传播
+
+    应该在应用启动时调用（如 Django AppConfig.ready() 或 celery worker 启动时）
+    """
+    propagator = CompositePropagator(
+        [
+            TraceContextTextMapPropagator(),  # W3C Trace Context (traceparent, tracestate)
+            W3CBaggagePropagator(),  # W3C Baggage
+        ]
+    )
+    set_global_textmap(propagator)
+
+
+def set_baggage_attributes(attributes: Dict[str, str]) -> object:
+    """将属性设置到 baggage 中，这些属性会随 trace context 跨服务传播
+
+    :param attributes: 需要传播的属性字典
+    :return: context token，用于后续 detach
+    """
+    ctx = get_current()
+    for key, value in attributes.items():
+        # 添加前缀避免 key 冲突，同时移除已有的 platform code 前缀避免重复
+        clean_key = key
+        platform_prefix = f"{settings.PLATFORM_CODE}."
+        if clean_key.startswith(platform_prefix):
+            clean_key = clean_key[len(platform_prefix) :]
+        baggage_key = f"{BAGGAGE_PREFIX}{clean_key}"
+        ctx = baggage.set_baggage(baggage_key, str(value), context=ctx)
+    return attach(ctx)
+
+
+def get_baggage_attributes() -> Dict[str, str]:
+    """从当前 context 中获取 bkflow 相关的 baggage 属性
+
+    :return: 属性字典
+    """
+    result = {}
+    all_baggage = baggage.get_all()
+    for key, value in all_baggage.items():
+        if key.startswith(BAGGAGE_PREFIX):
+            # 移除前缀，恢复原始 key
+            original_key = key[len(BAGGAGE_PREFIX) :]
+            result[original_key] = value
+    return result
+
+
+def inject_baggage_to_span(span: trace.Span):
+    """将 baggage 中的属性注入到 span 的 attributes 中
+
+    :param span: 当前 span
+    """
+    if span is None or not hasattr(span, "set_attribute"):
+        return
+
+    attrs = get_baggage_attributes()
+    for key, value in attrs.items():
+        span.set_attribute(f"{settings.PLATFORM_CODE}.{key}", value)
+
+
+class BaggageToSpanProcessor(SpanProcessor):
+    """Span 处理器，在 Span 开始时自动将 baggage 中的属性设置到 span 上"""
+
+    def on_start(self, span: trace.Span, parent_context):
+        inject_baggage_to_span(span)
+
+    def on_end(self, span: trace.Span):
+        pass
+
+    def shutdown(self):
+        pass
+
+    def force_flush(self, timeout_millis: int = 30000):
+        return True
+
+
+# ============ HTTP 请求工具函数 ============
+def inject_trace_headers(headers: Optional[dict] = None) -> dict:
+    """在发送 HTTP 请求前，注入 trace context 和 baggage 到 headers 中
+
+    使用示例:
+        headers = inject_trace_headers()
+        response = requests.get(url, headers=headers)
+
+    :param headers: 已有的 headers，如果为 None 则创建新的
+    :return: 包含 trace context 和 baggage 的 headers
+    """
+    if headers is None:
+        headers = {}
+
+    propagator = get_global_textmap()
+    propagator.inject(headers)
+    return headers
+
+
+def extract_trace_context(carrier: dict):
+    """从 HTTP headers 中提取 trace context 和 baggage
+
+    使用示例（在 view 或中间件中）:
+        ctx = extract_trace_context(request.META)
+        token = attach(ctx)
+        try:
+            # 处理请求...
+        finally:
+            detach(token)
+
+    :param carrier: HTTP headers（Django 中是 request.META）
+    :return: context 对象
+    """
+    propagator = get_global_textmap()
+    # Django 的 META 使用 HTTP_ 前缀，需要转换
+    normalized_carrier = {}
+    for key, value in carrier.items():
+        if key.startswith("HTTP_"):
+            # 转换 HTTP_TRACEPARENT -> traceparent
+            normalized_key = key[5:].lower().replace("_", "-")
+            normalized_carrier[normalized_key] = value
+
+    return propagator.extract(normalized_carrier)
+
+
+# ============ Celery 工具函数 ============
+def inject_trace_to_celery_headers(headers: Optional[dict] = None) -> dict:
+    """在调度 Celery 任务时，注入 trace context 和 baggage 到 task headers 中
+
+    使用示例:
+        task.apply_async(
+            args=[...],
+            headers=inject_trace_to_celery_headers()
+        )
+
+    :param headers: 已有的 headers
+    :return: 包含 trace context 和 baggage 的 headers
+    """
+    if headers is None:
+        headers = {}
+
+    propagator = get_global_textmap()
+    propagator.inject(headers)
+    return headers
+
+
+def extract_trace_from_celery(task_headers: dict):
+    """从 Celery task headers 中提取 trace context 和 baggage
+
+    :param task_headers: Celery task 的 headers
+    :return: context 对象
+    """
+    propagator = get_global_textmap()
+    return propagator.extract(task_headers or {})
+
+
+# ============ 原有函数的改进版本 ============
 class AttributeInjectionSpanProcessor(SpanProcessor):
-    """Span处理器，用于在Span开始时设置属性"""
+    """Span处理器，用于在Span开始时设置属性（保持向后兼容）"""
 
     def __init__(self, attributes):
         self.attributes = attributes
@@ -43,19 +206,26 @@ class AttributeInjectionSpanProcessor(SpanProcessor):
             span.set_attribute(key, value)
 
     def on_end(self, span: trace.Span):
-        # Implement custom logic if needed on span end
         pass
 
     def set_attributes(self, attributes):
         self.attributes = attributes
 
 
-def propagate_attributes(attributes: dict):
-    """把attributes设置到span上，并继承到后面所有span
+def propagate_attributes(attributes: dict, use_baggage: bool = True):
+    """把 attributes 设置到 span 上，并继承到后面所有 span
 
-    :param attributes: 默认属性
+    改进：新增 use_baggage 参数，当为 True 时同时将属性设置到 baggage 中，
+    实现跨 HTTP 和 Celery 的传播
+
+    :param attributes: 需要传播的属性
+    :param use_baggage: 是否同时使用 baggage 进行跨服务传播
     """
+    # 1. 使用 baggage 实现跨服务传播
+    if use_baggage:
+        set_baggage_attributes(attributes)
 
+    # 2. 保持原有的 SpanProcessor 逻辑（用于进程内传播）
     provider = trace.get_tracer_provider()
 
     if not provider or isinstance(provider, trace.ProxyTracerProvider):
@@ -85,23 +255,27 @@ def append_attributes(attributes: dict):
 
 
 @contextmanager
-def start_trace(span_name: str, propagate: bool = False, **attributes):
+def start_trace(span_name: str, propagate: bool = False, use_baggage: bool = True, **attributes):
     """Start a trace
 
     :param span_name: 自定义Span名称
     :param propagate: 是否需要传播
+    :param use_baggage: 是否使用 baggage 跨服务传播
     :param attributes: 需要跟span增加的属性, 默认为空
     :yield: 当前上下文的Span
     """
     tracer = trace.get_tracer(__name__)
 
-    span_attributes = {f"{settings.APP_CODE}.{key}": value for key, value in attributes.items()}
+    span_attributes = {f"{settings.PLATFORM_CODE}.{key}": value for key, value in attributes.items()}
 
     # 设置需要传播的属性
     if propagate:
-        propagate_attributes(span_attributes)
+        propagate_attributes(span_attributes, use_baggage=use_baggage)
 
     with tracer.start_as_current_span(span_name, kind=SpanKind.SERVER) as span:
+        # 从 baggage 中恢复属性到 span（处理跨服务传播的情况）
+        inject_baggage_to_span(span)
+
         # 如果不进行传播，则在当前span手动配置需要添加的属性
         for attr_key, attr_value in span_attributes.items():
             span.set_attribute(attr_key, attr_value)
@@ -109,11 +283,12 @@ def start_trace(span_name: str, propagate: bool = False, **attributes):
         yield span
 
 
-def trace_view(propagate: bool = True, attr_keys=None, **default_attributes):
+def trace_view(propagate: bool = True, attr_keys=None, use_baggage: bool = True, **default_attributes):
     """用来装饰view的trace装饰器
 
     :param propagate: 是否需要传播
     :param attr_keys: 需要从request和url中获取的属性
+    :param use_baggage: 是否使用 baggage 跨服务传播
     :param default_attributes: 默认属性
     :return: view_func
     """
@@ -122,19 +297,26 @@ def trace_view(propagate: bool = True, attr_keys=None, **default_attributes):
     def decorator(view_func):
         @wraps(view_func)
         def _wrapped_view(request, *args, **kwargs):
-            attributes = copy.deepcopy(default_attributes)
+            # 先从请求中提取 trace context 和 baggage
+            ctx = extract_trace_context(request.META)
+            token = attach(ctx)
 
-            for attr_key in attr_keys:
-                # 需要的属性只要在kwargs, request.GET, request.query_params(drf), request.POST, request.data(drf)中就可以
-                query_params = getattr(request, "GET", {}) or getattr(request, "query_params", {})
-                query_data = getattr(request, "POST", {}) or getattr(request, "data", {})
-                for scope in (kwargs, query_params, query_data):
-                    if attr_key in scope:
-                        attributes[attr_key] = scope[attr_key]
-                        break
+            try:
+                attributes = copy.deepcopy(default_attributes)
 
-            with start_trace(view_func.__name__, propagate, **attributes):
-                return view_func(request, *args, **kwargs)
+                for attr_key in attr_keys:
+                    # 需要的属性只要在kwargs, request.GET, request.query_params(drf), request.POST, request.data(drf)中就可以
+                    query_params = getattr(request, "GET", {}) or getattr(request, "query_params", {})
+                    query_data = getattr(request, "POST", {}) or getattr(request, "data", {})
+                    for scope in (kwargs, query_params, query_data):
+                        if attr_key in scope:
+                            attributes[attr_key] = scope[attr_key]
+                            break
+
+                with start_trace(view_func.__name__, propagate, use_baggage, **attributes):
+                    return view_func(request, *args, **kwargs)
+            finally:
+                detach(token)
 
         return _wrapped_view
 
