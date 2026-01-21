@@ -29,6 +29,9 @@ from blueapps.opentelemetry.utils import inject_logging_trace_info
 import env
 from bkflow.utils.pipeline import pipeline_gateway_expr_func
 
+# 平台代码
+PLATFORM_CODE = "bkflow"
+
 # 这里是默认的 INSTALLED_APPS，大部分情况下，不需要改动
 # 如果你已经了解每个默认 APP 的作用，确实需要去掉某些 APP，请去掉下面的注释，然后修改
 # INSTALLED_APPS = (
