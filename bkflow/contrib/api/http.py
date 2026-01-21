@@ -23,6 +23,7 @@ import curlify
 import requests
 
 from bkflow.utils.handlers import handle_plain_log
+from bkflow.utils.trace import inject_trace_headers
 
 logger = logging.getLogger("component")
 
@@ -63,6 +64,8 @@ def _gen_header():
     headers = {
         "Content-Type": "application/json",
     }
+    # 注入 trace context 和 baggage 到 headers，实现跨服务追踪
+    inject_trace_headers(headers)
     return headers
 
 
