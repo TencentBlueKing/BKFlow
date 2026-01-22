@@ -82,6 +82,11 @@ def _http_request(
     resp = requests.Response()
     request_id = None
 
+    # 始终注入 trace context 和 baggage 到 headers，确保跨服务追踪
+    if headers is None:
+        headers = {}
+    inject_trace_headers(headers)
+
     try:
         if method == "GET":
             resp = requests.get(
