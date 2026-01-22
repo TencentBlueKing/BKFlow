@@ -243,7 +243,7 @@
   import { graphToJson } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
-  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
+  import StageCanvas from '@/components/canvas/StageCanvas/MainStageCanvas.vue';
   import { checkConditionLoop, findLoopTarget, findNearestGatewayByIncoming } from '@/utils/orderCanvasNodeToNodeTree.js';
 
   const { CancelToken } = axios;
