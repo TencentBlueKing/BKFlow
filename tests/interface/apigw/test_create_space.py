@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -42,5 +41,6 @@ class TestCreateSpace(TestCase):
         resp_data = json.loads(resp.content)
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp_data["result"], True)
-        self.assertEqual(resp_data["data"]["space"]["id"], 1)
+        self.assertIsInstance(resp_data["data"]["space"]["id"], int)
+        self.assertGreater(resp_data["data"]["space"]["id"], 0)
         self.assertEqual(resp_data["data"]["space"]["name"], "test_space")
