@@ -76,7 +76,7 @@ class CreateTaskSerializer(CredentialsValidationMixin, serializers.Serializer):
     template_id = serializers.IntegerField(help_text=_("模版ID"))
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
-    description = serializers.CharField(help_text=_("任务描述"), required=False)
+    description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
 
 
@@ -85,7 +85,7 @@ class CreateTaskByAppSerializer(serializers.Serializer):
 
     template_id = serializers.IntegerField(help_text=_("模版ID"))
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
-    description = serializers.CharField(help_text=_("任务描述"), required=False)
+    description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
 
 
@@ -101,7 +101,7 @@ class CreateMockTaskBaseSerializer(CredentialsValidationMixin, serializers.Seria
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=True)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     mock_data = TaskMockDataSerializer(help_text=_("Mock 数据"), default=TaskMockDataSerializer())
-    description = serializers.CharField(help_text=_("任务描述"), required=False)
+    description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), default={})
 
 
@@ -139,7 +139,7 @@ class CreateTaskWithoutTemplateSerializer(CredentialsValidationMixin, serializer
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     scope_type = serializers.CharField(help_text=_("任务范围类型"), max_length=128, required=False)
     scope_value = serializers.CharField(help_text=_("任务范围值"), max_length=128, required=False)
-    description = serializers.CharField(help_text=_("任务描述"), required=False)
+    description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
     notify_config = serializers.JSONField(help_text=_("通知配置"), required=False, default={})
@@ -153,7 +153,7 @@ class PipelineTreeSerializer(serializers.Serializer):
             standardize_pipeline_node_name(pipeline_tree)
             validate_web_pipeline_tree(pipeline_tree)
         except PipelineException as e:
-            raise serializers.ValidationError(str(e))
+            raise serializers.ValidationError(_("流程树校验失败: {}").format(str(e)))
 
 
 class GetTaskListSerializer(serializers.Serializer):

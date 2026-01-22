@@ -92,7 +92,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     snapshot_id = serializers.IntegerField(help_text=_("快照ID"), required=False, read_only=True)
     notify_config = serializers.JSONField(help_text=_("配置"), required=False)
     version = serializers.CharField(help_text=_("版本"), read_only=True)
-    desc = serializers.CharField(help_text=_("流程说明"), required=False, allow_blank=True)
+    desc = serializers.CharField(help_text=_("流程说明"), required=False, allow_blank=True, allow_null=True)
     triggers = TriggerSerializer(many=True, required=True, allow_null=True)
     subprocess_info = serializers.JSONField(help_text=_("子流程信息"), read_only=True)
 

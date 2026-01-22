@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -177,9 +176,11 @@ def classify_constants(constants: dict, is_subprocess: bool):
 
         # 输出参数
         if info["source_type"] == "component_outputs":
-            if info["source_info"].values():
-                source_key = list(info["source_info"].values())[0][0]
-                source_step = list(info["source_info"].keys())[0]
+            # 获取 source_info 中第一个值非空的键值对
+            valid_source_info = [(k, v) for k, v in info["source_info"].items() if v]
+            if valid_source_info:
+                source_step, source_keys = valid_source_info[0]
+                source_key = source_keys[0]
                 # 生成 pipeline 层需要的 pipeline input
                 data_inputs[key] = {
                     "type": "splice",

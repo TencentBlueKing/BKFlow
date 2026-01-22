@@ -32,7 +32,7 @@ from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.exceptions import CreateTokenException
 from bkflow.apigw.serializers.token import ApiGwTokenSerializer, TokenResourceValidator
 from bkflow.permission.models import Token
-from bkflow.space.configs import TokenExpirationConfig
+from bkflow.space.configs import TokenAutoRenewalConfig, TokenExpirationConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.utils import err_code
 
@@ -83,6 +83,11 @@ def apply_token(request, space_id):
 
     if tokens.exists():
         token = tokens.first()
+        # 只有开启了自动续期开关才刷新过期时间
+        token_auto_renewal = SpaceConfig.get_config(space_id, TokenAutoRenewalConfig.name)
+        if token_auto_renewal == "true":
+            token.expired_time = expire_time
+            token.save(update_fields=["expired_time"])
     else:
         logger.error("[apigw>apply_token], the token is not exists, now while create a new token。")
         token = Token.objects.create(
