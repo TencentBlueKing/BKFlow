@@ -43,6 +43,10 @@ def setup_propagators():
 
     应该在应用启动时调用（如 Django AppConfig.ready() 或 celery worker 启动时）
     """
+    import logging
+
+    logger = logging.getLogger("root")
+
     # 1. 设置 propagator，支持 W3C Trace Context 和 Baggage
     propagator = CompositePropagator(
         [
@@ -51,19 +55,35 @@ def setup_propagators():
         ]
     )
     set_global_textmap(propagator)
+    logger.info("[setup_propagators] Global textmap propagator set")
 
     # 2. 注册 BaggageToSpanProcessor，确保每个 span 自动从 baggage 中获取属性
     provider = trace.get_tracer_provider()
-    if provider and not isinstance(provider, trace.ProxyTracerProvider):
-        # 检查是否已经注册过 BaggageToSpanProcessor
-        already_registered = False
-        for sp in getattr(provider._active_span_processor, "_span_processors", []):
-            if isinstance(sp, BaggageToSpanProcessor):
-                already_registered = True
-                break
+    logger.info(f"[setup_propagators] Current tracer provider: {type(provider).__name__}")
 
-        if not already_registered:
-            provider.add_span_processor(BaggageToSpanProcessor())
+    if provider is None:
+        logger.warning("[setup_propagators] No tracer provider found, skipping BaggageToSpanProcessor registration")
+        return
+
+    if isinstance(provider, trace.ProxyTracerProvider):
+        logger.warning(
+            "[setup_propagators] Provider is ProxyTracerProvider, BaggageToSpanProcessor will not be registered. "
+            "Make sure OpenTelemetry is properly initialized before calling setup_propagators()."
+        )
+        return
+
+    # 检查是否已经注册过 BaggageToSpanProcessor
+    already_registered = False
+    for sp in getattr(provider._active_span_processor, "_span_processors", []):
+        if isinstance(sp, BaggageToSpanProcessor):
+            already_registered = True
+            break
+
+    if already_registered:
+        logger.info("[setup_propagators] BaggageToSpanProcessor already registered")
+    else:
+        provider.add_span_processor(BaggageToSpanProcessor())
+        logger.info("[setup_propagators] BaggageToSpanProcessor registered successfully")
 
 
 def set_baggage_attributes(attributes: Dict[str, str]) -> object:
@@ -244,8 +264,11 @@ def start_trace(span_name: str, propagate: bool = False, **attributes):
         propagate_attributes(span_attributes)
 
     with tracer.start_as_current_span(span_name, kind=SpanKind.SERVER) as span:
+        # 从 baggage 中恢复属性到 span（处理跨服务传播的情况）
+        # 注：即使 BaggageToSpanProcessor 已注册，这里也手动调用以确保兼容性
+        inject_baggage_to_span(span)
+
         # 手动设置本次传入的属性到当前 span
-        # 注：BaggageToSpanProcessor 会自动处理从 baggage 继承的属性
         for attr_key, attr_value in span_attributes.items():
             span.set_attribute(attr_key, attr_value)
 
