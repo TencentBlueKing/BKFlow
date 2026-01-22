@@ -11,13 +11,18 @@ specific language governing permissions and limitations under the License.
 """
 import copy
 import enum
+import logging
+import time
 from contextlib import contextmanager
 from functools import wraps
+from typing import Optional
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SpanProcessor
-from opentelemetry.trace import SpanKind
+from opentelemetry.trace import SpanKind, Status, StatusCode
+
+logger = logging.getLogger("root")
 
 
 class CallFrom(enum.Enum):
@@ -127,3 +132,94 @@ def trace_view(propagate: bool = True, attr_keys=None, **default_attributes):
         return _wrapped_view
 
     return decorator
+
+
+# 用于存储插件Span信息的常量key
+PLUGIN_SPAN_START_TIME_KEY = "_plugin_span_start_time_ns"
+PLUGIN_SPAN_NAME_KEY = "_plugin_span_name"
+PLUGIN_SPAN_ATTRIBUTES_KEY = "_plugin_span_attributes"
+
+
+def start_plugin_span(span_name: str, data, **attributes) -> int:
+    """
+    记录插件Span的开始时间，将相关信息保存到data outputs中，用于跨schedule调用追踪
+
+    :param span_name: Span名称
+    :param data: 插件的data对象，用于持久化span信息
+    :param attributes: Span的属性
+    :return: 开始时间戳（纳秒）
+    """
+    start_time_ns = time.time_ns()
+
+    # 将span信息保存到data outputs中，以便在schedule中使用
+    data.set_outputs(PLUGIN_SPAN_START_TIME_KEY, start_time_ns)
+    data.set_outputs(PLUGIN_SPAN_NAME_KEY, span_name)
+    # 确保属性值可以序列化
+    serializable_attributes = {k: str(v) if v is not None else "" for k, v in attributes.items()}
+    data.set_outputs(PLUGIN_SPAN_ATTRIBUTES_KEY, serializable_attributes)
+
+    logger.info(f"[plugin_span] started span '{span_name}' at {start_time_ns}")
+
+    return start_time_ns
+
+
+def end_plugin_span(
+    data,
+    success: bool = True,
+    error_message: Optional[str] = None,
+    end_time_ns: Optional[int] = None,
+):
+    """
+    结束插件Span，创建一个完整的Span并立即结束
+
+    :param data: 插件的data对象，包含span开始时间等信息
+    :param success: 插件是否执行成功
+    :param error_message: 如果失败，记录的错误信息
+    :param end_time_ns: 结束时间戳（纳秒），如果不提供则使用当前时间
+    """
+    start_time_ns = data.get_one_of_outputs(PLUGIN_SPAN_START_TIME_KEY)
+    span_name = data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY)
+    attributes = data.get_one_of_outputs(PLUGIN_SPAN_ATTRIBUTES_KEY) or {}
+
+    if not start_time_ns or not span_name:
+        # 没有找到span开始信息，可能是旧数据或异常情况
+        logger.warning("[plugin_span] No span start info found, skipping span end")
+        return
+
+    if end_time_ns is None:
+        end_time_ns = time.time_ns()
+
+    tracer = trace.get_tracer(__name__)
+
+    try:
+        # 使用start_span创建span，并手动设置开始时间
+        span = tracer.start_span(
+            name=span_name,
+            start_time=start_time_ns,
+            kind=SpanKind.CLIENT,
+        )
+
+        # 设置属性
+        for key, value in attributes.items():
+            span.set_attribute(f"bk_flow.plugin.{key}", value)
+
+        # 设置执行结果状态
+        if success:
+            span.set_status(Status(StatusCode.OK))
+            span.set_attribute("bk_flow.plugin.success", True)
+        else:
+            span.set_status(Status(StatusCode.ERROR, error_message or "Plugin execution failed"))
+            span.set_attribute("bk_flow.plugin.success", False)
+            if error_message:
+                span.set_attribute("bk_flow.plugin.error", str(error_message)[:1000])
+
+        # 计算并记录耗时
+        duration_ms = (end_time_ns - start_time_ns) / 1_000_000
+        span.set_attribute("bk_flow.plugin.duration_ms", duration_ms)
+
+        # 手动结束span，设置结束时间
+        span.end(end_time=end_time_ns)
+
+        logger.info(f"[plugin_span] ended span '{span_name}', success={success}, duration_ms={duration_ms:.2f}")
+    except Exception as e:
+        logger.exception(f"[plugin_span] Failed to end span '{span_name}': {e}")

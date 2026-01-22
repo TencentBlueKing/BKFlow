@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -35,6 +34,7 @@ from bkflow.utils.handlers import handle_api_error
 
 
 class ApproveService(BKFlowBaseService):
+    plugin_name = "approve"
     __need_schedule__ = True
 
     def inputs_format(self):
@@ -61,9 +61,7 @@ class ApproveService(BKFlowBaseService):
 
     def outputs_format(self):
         return [
-            self.OutputItem(
-                name=_("单据sn"), key="sn", type="string", schema=StringItemSchema(description=_("单据sn"))
-            ),
+            self.OutputItem(name=_("单据sn"), key="sn", type="string", schema=StringItemSchema(description=_("单据sn"))),
             self.OutputItem(
                 name=_("审核结果"),
                 key="approve_result",
@@ -72,15 +70,27 @@ class ApproveService(BKFlowBaseService):
             ),
         ]
 
+    def _get_span_attributes(self, data, parent_data):
+        """覆盖基类方法，添加审批插件特有的属性"""
+        attributes = super()._get_span_attributes(data, parent_data)
+        attributes.update(
+            {
+                "executor": parent_data.get_one_of_inputs("executor"),
+                "verifier": data.get_one_of_inputs("bk_verifier"),
+            }
+        )
+        return attributes
+
     def plugin_execute(self, data, parent_data):
         executor = parent_data.get_one_of_inputs("executor")
+        space_id = parent_data.get_one_of_inputs("task_space_id")
+        task_id = parent_data.get_one_of_inputs("task_id")
+
         client = BKItsmClient(username=executor)
 
         verifier = data.get_one_of_inputs("bk_verifier")
         title = data.get_one_of_inputs("bk_approve_title")
         approve_content = data.get_one_of_inputs("bk_approve_content")
-        space_id = parent_data.get_one_of_inputs("task_space_id")
-        task_id = parent_data.get_one_of_inputs("task_id")
 
         kwargs = {
             "creator": executor,

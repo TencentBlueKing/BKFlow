@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -36,6 +35,7 @@ __group_name__ = _("蓝鲸服务(BK)")
 
 
 class SleepTimerService(BKFlowBaseService):
+    plugin_name = "sleep_timer"
     __need_schedule__ = True
     interval = StaticIntervalGenerator(0)
     BK_TIMEMING_TICK_INTERVAL = int(os.getenv("BK_TIMEMING_TICK_INTERVAL", 60 * 60 * 24))
@@ -65,9 +65,7 @@ class SleepTimerService(BKFlowBaseService):
                 name=_("是否强制晚于当前时间"),
                 key="force_check",
                 type="boolean",
-                schema=BooleanItemSchema(
-                    description=_("用户输入日期格式时是否强制要求时间晚于当前时间，只对日期格式定时输入有效")
-                ),
+                schema=BooleanItemSchema(description=_("用户输入日期格式时是否强制要求时间晚于当前时间，只对日期格式定时输入有效")),
             ),
         ]
 

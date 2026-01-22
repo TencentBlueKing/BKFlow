@@ -28,6 +28,8 @@ __group_name__ = _("蓝鲸服务(BK)")
 
 
 class NotifyService(BKFlowBaseService):
+    plugin_name = "notify"
+
     def inputs_format(self):
         return [
             self.InputItem(
