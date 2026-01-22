@@ -559,6 +559,8 @@ class PythonCodeExecutor:
 class PythonCodeService(BKFlowBaseService):
     """Python代码执行服务"""
 
+    plugin_name = "python_code"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.executor = PythonCodeExecutor(service=self)

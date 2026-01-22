@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,8 +21,18 @@ from django.apps import apps
 from pipeline.core.flow import AbstractIntervalGenerator, StaticIntervalGenerator
 from pipeline.core.flow.activity import Service
 
+from bkflow.utils.trace import end_plugin_span, start_plugin_span
+
+# 标记 Span 是否已结束的 key
+PLUGIN_SPAN_ENDED_KEY = "_plugin_span_ended"
+
 
 class BKFlowBaseService(Service):
+    # 插件名称，子类应覆盖此属性来声明插件名称
+    plugin_name = "base"
+    # 是否启用插件执行 Span 追踪，子类可以覆盖此属性来禁用
+    enable_plugin_span = True
+
     @staticmethod
     def get_taskflow_mock_data(taskflow_id):
         TaskMockData = apps.get_model("task.TaskMockData")
@@ -65,19 +74,93 @@ class BKFlowBaseService(Service):
     def plugin_schedule(self, data, parent_data, callback_data=None):
         pass
 
+    def _get_span_name(self):
+        """获取 Span 名称，使用 'bk_flow.' 前缀加上插件名称"""
+        return f"bk_flow.{self.plugin_name}"
+
+    def _get_span_attributes(self, data, parent_data):
+        """获取 Span 属性，子类可以覆盖此方法来添加自定义属性"""
+        return {
+            "space_id": parent_data.get_one_of_inputs("task_space_id"),
+            "task_id": parent_data.get_one_of_inputs("task_id"),
+            "node_id": self.id,
+        }
+
+    def _start_plugin_span(self, data, parent_data):
+        """启动插件执行 Span"""
+        if not self.enable_plugin_span:
+            return
+
+        span_name = self._get_span_name()
+        attributes = self._get_span_attributes(data, parent_data)
+        start_plugin_span(span_name=span_name, data=data, **attributes)
+        # 标记 Span 未结束
+        data.set_outputs(PLUGIN_SPAN_ENDED_KEY, False)
+
+    def _end_plugin_span(self, data, success, error_message=None):
+        """结束插件执行 Span（确保只调用一次）"""
+        if not self.enable_plugin_span:
+            return
+
+        # 检查是否已经结束过
+        if data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY, False):
+            return
+
+        end_plugin_span(data, success=success, error_message=error_message)
+        # 标记 Span 已结束
+        data.set_outputs(PLUGIN_SPAN_ENDED_KEY, True)
+
+    def _get_error_message(self, data):
+        """从 data 中获取错误信息"""
+        return data.get_one_of_outputs("ex_data") or "Plugin execution failed"
+
     def execute(self, data, parent_data):
+        # Mock 模式不追踪 Span
         if parent_data.get_one_of_inputs("is_mock") and self.is_mock_node(
             parent_data.get_one_of_inputs("task_id"), self.id
         ):
             return self.mock_execute(data, parent_data)
-        return self.plugin_execute(data, parent_data)
+
+        # === Span 开始 ===
+        self._start_plugin_span(data, parent_data)
+
+        # 执行插件逻辑
+        result = self.plugin_execute(data, parent_data)
+
+        # === 判断是否需要结束 Span ===
+        if not result:
+            # 执行失败，立即结束 Span
+            self._end_plugin_span(data, success=False, error_message=self._get_error_message(data))
+        elif not self.need_schedule():
+            # 执行成功且不需要 schedule（同步插件），立即结束 Span
+            self._end_plugin_span(data, success=True)
+        # 如果需要 schedule，Span 将在 schedule 中结束
+
+        return result
 
     def schedule(self, data, parent_data, callback_data=None):
+        # Mock 模式不追踪 Span
         if parent_data.get_one_of_inputs("is_mock") and self.is_mock_node(
             parent_data.get_one_of_inputs("task_id"), self.id
         ):
             return self.mock_schedule(data, parent_data)
-        return self.plugin_schedule(data, parent_data, callback_data)
+
+        # 记录 schedule 前是否已经完成
+        was_finished = not self.need_schedule()
+
+        # 执行 schedule 逻辑
+        result = self.plugin_schedule(data, parent_data, callback_data)
+
+        # === 判断是否需要结束 Span ===
+        if not result:
+            # 执行失败，结束 Span
+            self._end_plugin_span(data, success=False, error_message=self._get_error_message(data))
+        elif not self.need_schedule() and not was_finished:
+            # 本次 schedule 完成了（从需要 schedule 变为不需要），结束 Span
+            self._end_plugin_span(data, success=True)
+        # 如果仍需要继续 schedule，Span 将在下次 schedule 中结束
+
+        return result
 
 
 class StepIntervalGenerator(AbstractIntervalGenerator):
@@ -88,14 +171,14 @@ class StepIntervalGenerator(AbstractIntervalGenerator):
         :param max_interval: 最大的间隔时间，到达后不会继续增加
         :param fix_interval: 固定的间隔时间，优先级最高
         """
-        super(StepIntervalGenerator, self).__init__()
+        super().__init__()
         self.fix_interval = fix_interval
         self.init_interval = init_interval
         self.max_interval = max_interval
         self.max_count = max_count
 
     def next(self):
-        super(StepIntervalGenerator, self).next()
+        super().next()
         # 最小 10s，最大 600s 一次
         return self.fix_interval or (
             self.init_interval if self.count < 30 else min((self.count - 25) ** 2, self.max_interval)
