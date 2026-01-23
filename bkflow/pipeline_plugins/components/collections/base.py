@@ -21,10 +21,12 @@ from django.apps import apps
 from pipeline.core.flow import AbstractIntervalGenerator, StaticIntervalGenerator
 from pipeline.core.flow.activity import Service
 
-from bkflow.utils.trace import end_plugin_span, start_plugin_span
+from bkflow.utils.trace import end_plugin_span, plugin_method_span, start_plugin_span
 
 # 标记 Span 是否已结束的 key
 PLUGIN_SPAN_ENDED_KEY = "_plugin_span_ended"
+# 记录 schedule 调用次数的 key
+PLUGIN_SCHEDULE_COUNT_KEY = "_plugin_schedule_count"
 
 
 class BKFlowBaseService(Service):
@@ -86,6 +88,19 @@ class BKFlowBaseService(Service):
             "node_id": self.id,
         }
 
+    def _get_trace_context(self, parent_data):
+        """从 parent_data 中获取 trace context"""
+        return {
+            "trace_id": parent_data.get_one_of_inputs("_trace_id"),
+            "parent_span_id": parent_data.get_one_of_inputs("_parent_span_id"),
+        }
+
+    def _get_method_span_attributes(self, data, parent_data):
+        """获取方法级别 Span 的属性"""
+        attrs = self._get_span_attributes(data, parent_data)
+        attrs["plugin_name"] = self.plugin_name
+        return attrs
+
     def _start_plugin_span(self, data, parent_data):
         """启动插件执行 Span"""
         if not self.enable_plugin_span:
@@ -133,13 +148,31 @@ class BKFlowBaseService(Service):
         ):
             return self.mock_execute(data, parent_data)
 
-        # === Span 开始 ===
+        # === 主插件 Span 开始 ===
         self._start_plugin_span(data, parent_data)
 
-        # 执行插件逻辑
-        result = self.plugin_execute(data, parent_data)
+        # 初始化 schedule 计数器
+        data.set_outputs(PLUGIN_SCHEDULE_COUNT_KEY, 0)
 
-        # === 判断是否需要结束 Span ===
+        # 获取 trace context 和属性
+        trace_context = self._get_trace_context(parent_data)
+        method_attrs = self._get_method_span_attributes(data, parent_data)
+
+        # === 执行 plugin_execute 并追踪 ===
+        if self.enable_plugin_span:
+            with plugin_method_span(
+                method_name="execute",
+                trace_id=trace_context.get("trace_id"),
+                parent_span_id=trace_context.get("parent_span_id"),
+                **method_attrs,
+            ) as span_result:
+                result = self.plugin_execute(data, parent_data)
+                if not result:
+                    span_result.set_error(self._get_error_message(data))
+        else:
+            result = self.plugin_execute(data, parent_data)
+
+        # === 判断是否需要结束主 Span ===
         if not result:
             # 执行失败，立即结束 Span
             self._end_plugin_span(data, success=False, error_message=self._get_error_message(data))
@@ -160,10 +193,30 @@ class BKFlowBaseService(Service):
         # 记录 schedule 前是否已经完成
         was_finished = not self.need_schedule()
 
-        # 执行 schedule 逻辑
-        result = self.plugin_schedule(data, parent_data, callback_data)
+        # 更新 schedule 计数器
+        schedule_count = data.get_one_of_outputs(PLUGIN_SCHEDULE_COUNT_KEY, 0) + 1
+        data.set_outputs(PLUGIN_SCHEDULE_COUNT_KEY, schedule_count)
 
-        # === 判断是否需要结束 Span ===
+        # 获取 trace context 和属性
+        trace_context = self._get_trace_context(parent_data)
+        method_attrs = self._get_method_span_attributes(data, parent_data)
+        method_attrs["schedule_count"] = schedule_count
+
+        # === 执行 plugin_schedule 并追踪 ===
+        if self.enable_plugin_span:
+            with plugin_method_span(
+                method_name="schedule",
+                trace_id=trace_context.get("trace_id"),
+                parent_span_id=trace_context.get("parent_span_id"),
+                **method_attrs,
+            ) as span_result:
+                result = self.plugin_schedule(data, parent_data, callback_data)
+                if not result:
+                    span_result.set_error(self._get_error_message(data))
+        else:
+            result = self.plugin_schedule(data, parent_data, callback_data)
+
+        # === 判断是否需要结束主 Span ===
         if not result:
             # 执行失败，结束 Span
             self._end_plugin_span(data, success=False, error_message=self._get_error_message(data))
