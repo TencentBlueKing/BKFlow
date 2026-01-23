@@ -364,6 +364,152 @@ def get_current_trace_context() -> Optional[dict]:
         return None
 
 
+@contextmanager
+def plugin_method_span(
+    method_name: str,
+    trace_id: Optional[str] = None,
+    parent_span_id: Optional[str] = None,
+    **attributes,
+):
+    """
+    用于追踪 plugin_execute 和 plugin_schedule 方法的同步 Span 上下文管理器
+
+    :param method_name: 方法名称，如 'execute' 或 'schedule'
+    :param trace_id: 父级 trace_id（十六进制字符串），用于关联到 start_task 的 trace
+    :param parent_span_id: 父级 span_id（十六进制字符串），用于建立父子关系
+    :param attributes: Span 的属性（space_id, task_id, node_id, plugin_name 等）
+    :yield: SpanResult 对象，用于记录执行结果
+    """
+    start_time_ns = time.time_ns()
+
+    # 提取关键属性用于日志
+    plugin_name = attributes.get("plugin_name", "unknown")
+    task_id = attributes.get("task_id", "unknown")
+    node_id = attributes.get("node_id", "unknown")
+    schedule_count = attributes.get("schedule_count")
+
+    # 构建 span 名称
+    span_name = f"bk_flow.{plugin_name}.{method_name}"
+
+    # 用于存储执行结果的容器
+    class SpanResult:
+        def __init__(self):
+            self.success = True
+            self.error_message = None
+
+        def set_error(self, message: str):
+            self.success = False
+            self.error_message = message
+
+    result = SpanResult()
+
+    # 日志：方法开始
+    schedule_info = f", schedule_count={schedule_count}" if schedule_count is not None else ""
+    logger.info(
+        f"[plugin_method_span] {method_name} started | "
+        f"plugin={plugin_name} | "
+        f"task_id={task_id} | "
+        f"node_id={node_id}"
+        f"{schedule_info}"
+    )
+
+    try:
+        yield result
+    finally:
+        end_time_ns = time.time_ns()
+        duration_ms = (end_time_ns - start_time_ns) / 1_000_000
+
+        tracer = trace.get_tracer(__name__)
+
+        try:
+            # 尝试重建 parent context
+            parent_context = _build_parent_context(trace_id, parent_span_id)
+
+            # 创建 span
+            span = tracer.start_span(
+                name=span_name,
+                context=parent_context,
+                start_time=start_time_ns,
+                kind=SpanKind.INTERNAL,
+            )
+
+            # 获取实际的 span context 用于日志
+            span_context = span.get_span_context()
+            actual_trace_id = format(span_context.trace_id, "032x") if span_context.is_valid else "invalid"
+            actual_span_id = format(span_context.span_id, "016x") if span_context.is_valid else "invalid"
+
+            # 设置属性
+            span.set_attribute("bk_flow.plugin.method", method_name)
+            for key, value in attributes.items():
+                if value is not None:
+                    span.set_attribute(f"bk_flow.plugin.{key}", str(value))
+
+            # 设置执行结果状态
+            if result.success:
+                span.set_status(Status(StatusCode.OK))
+                span.set_attribute("bk_flow.plugin.success", True)
+            else:
+                span.set_status(Status(StatusCode.ERROR, result.error_message or f"{method_name} failed"))
+                span.set_attribute("bk_flow.plugin.success", False)
+                if result.error_message:
+                    span.set_attribute("bk_flow.plugin.error", str(result.error_message)[:1000])
+
+            # 记录耗时
+            span.set_attribute("bk_flow.plugin.duration_ms", duration_ms)
+
+            # 记录 trace 关联信息
+            span.set_attribute("bk_flow.plugin.has_parent_trace", parent_context is not None)
+
+            # 结束 span
+            span.end(end_time=end_time_ns)
+
+            # 完善的日志输出
+            parent_info = ""
+            if trace_id:
+                parent_info = f", parent_trace_id={trace_id}"
+                if parent_context:
+                    parent_info += " (linked)"
+                else:
+                    parent_info += " (unlinked)"
+
+            if result.success:
+                logger.info(
+                    f"[plugin_method_span] {method_name} completed | "
+                    f"plugin={plugin_name} | "
+                    f"success=True | "
+                    f"duration_ms={duration_ms:.2f} | "
+                    f"trace_id={actual_trace_id} | "
+                    f"span_id={actual_span_id} | "
+                    f"task_id={task_id} | "
+                    f"node_id={node_id}"
+                    f"{schedule_info}"
+                    f"{parent_info}"
+                )
+            else:
+                logger.warning(
+                    f"[plugin_method_span] {method_name} failed | "
+                    f"plugin={plugin_name} | "
+                    f"success=False | "
+                    f"duration_ms={duration_ms:.2f} | "
+                    f"error={result.error_message[:200] if result.error_message else 'N/A'} | "
+                    f"trace_id={actual_trace_id} | "
+                    f"span_id={actual_span_id} | "
+                    f"task_id={task_id} | "
+                    f"node_id={node_id}"
+                    f"{schedule_info}"
+                    f"{parent_info}"
+                )
+
+        except Exception as e:
+            logger.exception(
+                f"[plugin_method_span] Failed to create span for {method_name} | "
+                f"plugin={plugin_name} | "
+                f"error={e} | "
+                f"task_id={task_id} | "
+                f"node_id={node_id}"
+            )
+
+
 def start_plugin_span(
     span_name: str,
     data,
