@@ -190,9 +190,6 @@ class BKFlowBaseService(Service):
         ):
             return self.mock_schedule(data, parent_data)
 
-        # 记录 schedule 前是否已经完成
-        was_finished = not self.need_schedule()
-
         # 更新 schedule 计数器
         schedule_count = data.get_one_of_outputs(PLUGIN_SCHEDULE_COUNT_KEY, 0) + 1
         data.set_outputs(PLUGIN_SCHEDULE_COUNT_KEY, schedule_count)
@@ -217,11 +214,14 @@ class BKFlowBaseService(Service):
             result = self.plugin_schedule(data, parent_data, callback_data)
 
         # === 判断是否需要结束主 Span ===
+        # 注意：bamboo_engine 每次调用 schedule 时会创建新的 Service 实例，
+        # 所以不能依赖实例属性来判断状态变化，只能依赖 data outputs 中的标记。
+        # _end_plugin_span 内部已有幂等保护（PLUGIN_SPAN_ENDED_KEY），不会重复结束。
         if not result:
             # 执行失败，结束 Span
             self._end_plugin_span(data, success=False, error_message=self._get_error_message(data))
-        elif not self.need_schedule() and not was_finished:
-            # 本次 schedule 完成了（从需要 schedule 变为不需要），结束 Span
+        elif not self.need_schedule():
+            # schedule 完成，不再需要继续轮询，结束 Span
             self._end_plugin_span(data, success=True)
         # 如果仍需要继续 schedule，Span 将在下次 schedule 中结束
 
