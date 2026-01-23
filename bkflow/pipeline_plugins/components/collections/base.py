@@ -93,7 +93,19 @@ class BKFlowBaseService(Service):
 
         span_name = self._get_span_name()
         attributes = self._get_span_attributes(data, parent_data)
-        start_plugin_span(span_name=span_name, data=data, **attributes)
+
+        # 从 parent_data 中获取 trace context（由 start_task 时注入）
+        # 这样插件 Span 可以关联到 start_task 的 trace
+        trace_id = parent_data.get_one_of_inputs("_trace_id")
+        parent_span_id = parent_data.get_one_of_inputs("_parent_span_id")
+
+        start_plugin_span(
+            span_name=span_name,
+            data=data,
+            trace_id=trace_id,
+            parent_span_id=parent_span_id,
+            **attributes,
+        )
         # 标记 Span 未结束
         data.set_outputs(PLUGIN_SPAN_ENDED_KEY, False)
 
