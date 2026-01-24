@@ -30,6 +30,7 @@ from bamboo_engine.api import EngineAPIResult
 from bamboo_engine.context import Context
 from bamboo_engine.eri import ContextValue, ContextValueType
 from bamboo_engine.template import Template
+from django.conf import settings
 from django.utils import timezone
 from pipeline.component_framework.library import ComponentLibrary
 from pipeline.engine.utils import calculate_elapsed_time
@@ -159,11 +160,13 @@ class TaskOperation:
                 root_pipeline_context.update({"${_space}": space_obj})
 
             # 捕获当前 trace context，传递给 pipeline 执行环境
-            trace_context = get_current_trace_context()
-            if trace_context:
-                root_pipeline_data["_trace_id"] = trace_context["trace_id"]
-                root_pipeline_data["_parent_span_id"] = trace_context["span_id"]
-                logger.debug(f"[TaskOperation.start] Captured trace context | task_id={self.task_instance.id}")
+            # 只有在启用 trace 的情况下才注入 trace 信息
+            if settings.ENABLE_OTEL_TRACE:
+                trace_context = get_current_trace_context()
+                if trace_context:
+                    root_pipeline_data["_trace_id"] = trace_context["trace_id"]
+                    root_pipeline_data["_parent_span_id"] = trace_context["span_id"]
+                    logger.debug(f"[TaskOperation.start] Captured trace context | task_id={self.task_instance.id}")
 
             # run pipeline
             result = bamboo_engine_api.run_pipeline(

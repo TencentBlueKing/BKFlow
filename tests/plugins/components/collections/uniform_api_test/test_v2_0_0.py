@@ -35,6 +35,18 @@ SETTINGS_PATCHER = Patcher(
 
 
 class UniformAPIComponentTest(TestCase, ComponentTestMixin):
+    def setUp(self):
+        # 默认关闭trace开关
+        from unittest.mock import patch
+
+        self.trace_patcher = patch("django.conf.settings.ENABLE_OTEL_TRACE", False)
+        self.trace_patcher.start()
+        super().setUp()
+
+    def tearDown(self):
+        self.trace_patcher.stop()
+        super().tearDown()
+
     def component_cls(self):
         return UniformAPIComponent
 

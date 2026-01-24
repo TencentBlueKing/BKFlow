@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 
 from django.apps import apps
+from django.conf import settings
 from pipeline.core.flow import AbstractIntervalGenerator, StaticIntervalGenerator
 from pipeline.core.flow.activity import Service
 
@@ -103,7 +104,8 @@ class BKFlowBaseService(Service):
 
     def _start_plugin_span(self, data, parent_data):
         """启动插件执行 Span"""
-        if not self.enable_plugin_span:
+        # 只有在启用 trace 且插件启用 span 追踪时才启动
+        if not self.enable_plugin_span or not settings.ENABLE_OTEL_TRACE:
             return
 
         span_name = self._get_span_name()
@@ -124,7 +126,8 @@ class BKFlowBaseService(Service):
 
     def _end_plugin_span(self, data, success, error_message=None):
         """结束插件执行 Span（确保只调用一次）"""
-        if not self.enable_plugin_span:
+        # 只有在启用 trace 且插件启用 span 追踪时才结束
+        if not self.enable_plugin_span or not settings.ENABLE_OTEL_TRACE:
             return
 
         if data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY, False):
@@ -145,11 +148,11 @@ class BKFlowBaseService(Service):
             return self.mock_execute(data, parent_data)
 
         self._start_plugin_span(data, parent_data)
-        data.set_outputs(PLUGIN_SCHEDULE_COUNT_KEY, 0)
 
         trace_context = self._get_trace_context(parent_data)
         method_attrs = self._get_method_span_attributes(data, parent_data)
-        if self.enable_plugin_span:
+        if self.enable_plugin_span and settings.ENABLE_OTEL_TRACE:
+            data.set_outputs(PLUGIN_SCHEDULE_COUNT_KEY, 0)
             with plugin_method_span(
                 method_name="execute",
                 trace_id=trace_context.get("trace_id"),
@@ -176,13 +179,12 @@ class BKFlowBaseService(Service):
         ):
             return self.mock_schedule(data, parent_data)
 
-        schedule_count = data.get_one_of_outputs(PLUGIN_SCHEDULE_COUNT_KEY, 0) + 1
-        data.set_outputs(PLUGIN_SCHEDULE_COUNT_KEY, schedule_count)
-
         trace_context = self._get_trace_context(parent_data)
         method_attrs = self._get_method_span_attributes(data, parent_data)
-        method_attrs["schedule_count"] = schedule_count
-        if self.enable_plugin_span:
+        if self.enable_plugin_span and settings.ENABLE_OTEL_TRACE:
+            schedule_count = data.get_one_of_outputs(PLUGIN_SCHEDULE_COUNT_KEY, 0) + 1
+            data.set_outputs(PLUGIN_SCHEDULE_COUNT_KEY, schedule_count)
+            method_attrs["schedule_count"] = schedule_count
             with plugin_method_span(
                 method_name="schedule",
                 trace_id=trace_context.get("trace_id"),

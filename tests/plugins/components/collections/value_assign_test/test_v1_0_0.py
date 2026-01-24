@@ -17,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from bamboo_engine.eri import ContextValue, ContextValueType
 from django.test import TestCase
@@ -39,6 +39,14 @@ from bkflow.pipeline_plugins.components.collections.value_assign.v1_0_0 import (
 class ValueAssignComponentTest(TestCase, ComponentTestMixin):
     def setUp(self):
         ValueAssignService.top_pipeline_id = "top_pipeline_id"
+        # 默认关闭trace开关
+        self.trace_patcher = patch("django.conf.settings.ENABLE_OTEL_TRACE", False)
+        self.trace_patcher.start()
+        super().setUp()
+
+    def tearDown(self):
+        self.trace_patcher.stop()
+        super().tearDown()
 
     def component_cls(self):
         return ValueAssignComponent

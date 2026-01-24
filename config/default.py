@@ -83,6 +83,9 @@ if env.USE_PYINSTRUMENT:
 # 是否开启调试日志
 ENABLE_DEBUG_LOG = env.ENABLE_DEBUG_LOG
 
+# OTEL Trace配置
+ENABLE_OTEL_TRACE = env.ENABLE_OTEL_TRACE
+
 # 模块间调用相关配置
 APP_INTERNAL_VALIDATION_SKIP = env.APP_INTERNAL_VALIDATION_SKIP
 APP_INTERNAL_TOKEN = env.APP_INTERNAL_TOKEN
@@ -353,7 +356,7 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
     handler_filter_injection(["bamboo_engine_node_info_filter"])
 
     # 日志中添加trace_id
-    if env.ENABLE_OTEL_TRACE:
+    if ENABLE_OTEL_TRACE:
         trace_format = (
             "[trace_id]: %(otelTraceID)s [span_id]: %(otelSpanID)s [resource.service.name]: %(otelServiceName)s"
         )
