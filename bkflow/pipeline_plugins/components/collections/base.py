@@ -84,11 +84,20 @@ class BKFlowBaseService(Service):
 
     def _get_span_attributes(self, data, parent_data):
         """获取 Span 属性，子类可以覆盖此方法来添加自定义属性"""
-        return {
+        attributes = {
             "space_id": parent_data.get_one_of_inputs("task_space_id"),
             "task_id": parent_data.get_one_of_inputs("task_id"),
             "node_id": self.id,
         }
+
+        # 从 parent_data 中获取 custom_span_attributes，并合并到 Span 属性中
+        # custom_span_attributes 通过 TaskContext 从 extra_info.custom_context 传递过来
+        custom_span_attributes = parent_data.get_one_of_inputs("custom_span_attributes")
+        if custom_span_attributes and isinstance(custom_span_attributes, dict):
+            # 将自定义属性合并到基础属性中，自定义属性优先级更高
+            attributes.update(custom_span_attributes)
+
+        return attributes
 
     def _get_trace_context(self, parent_data):
         """从 parent_data 中获取 trace context"""

@@ -56,6 +56,14 @@ def create_task_without_template(request, space_id):
     if credentials:
         create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})["credentials"] = credentials
 
+    # 将custom_span_attributes放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
+    # 用于传递到节点Span中
+    custom_span_attributes = ser.data.get("custom_span_attributes", {})
+    if custom_span_attributes:
+        create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
+            "custom_span_attributes"
+        ] = custom_span_attributes
+
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)
     return result
