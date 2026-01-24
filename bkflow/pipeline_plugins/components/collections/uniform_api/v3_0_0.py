@@ -66,6 +66,7 @@ class CallbackConfig(BaseModel):
 
 
 class UniformAPIService(BKFlowBaseService):
+    plugin_name = "uniform_api"
     __need_schedule__ = True
     interval = StepIntervalGenerator(init_interval=0)
 
@@ -87,6 +88,17 @@ class UniformAPIService(BKFlowBaseService):
                 schema=IntItemSchema(description=_("HTTP 请求响应状态码")),
             ),
         ]
+
+    def _get_span_attributes(self, data, parent_data):
+        """覆盖基类方法，添加API插件特有的属性"""
+        attributes = super()._get_span_attributes(data, parent_data)
+        attributes.update(
+            {
+                "url": data.get_one_of_inputs("uniform_api_plugin_url", ""),
+                "method": data.get_one_of_inputs("uniform_api_plugin_method", ""),
+            }
+        )
+        return attributes
 
     def plugin_execute(self, data, parent_data):
         # callback 的情况需要在 execute 中进行调用
@@ -458,11 +470,11 @@ class UniformAPIService(BKFlowBaseService):
 
     def _dispatch_schedule_polling(self, data, parent_data, callback_data=None):
         if self.interval.reach_limit():
-            data.set_outputs(
-                "ex_data",
-                message="[uniform_api polling] reach max count of schedule, "
-                "please ensure the task can be finished in one day",
+            message = (
+                "[uniform_api polling] reach max count of schedule, "
+                "please ensure the task can be finished in one day"
             )
+            data.set_outputs("ex_data", message)
             return False
 
         operator, space_id, extra_data = self._load_parent_data(parent_data)
@@ -583,11 +595,12 @@ class UniformAPIService(BKFlowBaseService):
         if jmespath.search(polling_config.fail_tag.key, status_data) == polling_config.fail_tag.value:
             default_msg = f"[uniform_api polling] get fail status: {status_data}"
             self.logger.info(default_msg)
-            data.outputs.ex_data = (
+            error_msg = (
                 jmespath.search(polling_config.fail_tag.msg_key, status_data)
                 if polling_config.fail_tag.msg_key
                 else default_msg
             )
+            data.outputs.ex_data = error_msg
             return False
 
         if jmespath.search(polling_config.running_tag.key, status_data) == polling_config.running_tag.value:
@@ -620,11 +633,12 @@ class UniformAPIService(BKFlowBaseService):
         if jmespath.search(callback_config.fail_tag.key, callback_data) == callback_config.fail_tag.value:
             default_msg = f"[uniform_api callback] get fail status: {callback_data}"
             self.logger.info(default_msg)
-            data.outputs.ex_data = (
+            error_msg = (
                 jmespath.search(callback_config.fail_tag.msg_key, callback_data)
                 if callback_config.fail_tag.msg_key
                 else default_msg
             )
+            data.outputs.ex_data = error_msg
             return False
 
         message = f"[uniform_api callback] get status fail: {callback_data}"

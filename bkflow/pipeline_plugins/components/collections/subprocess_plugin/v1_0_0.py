@@ -44,6 +44,7 @@ class Subprocess(BaseModel):
 
 
 class SubprocessPluginService(BKFlowBaseService):
+    plugin_name = "subprocess_plugin"
     __need_schedule__ = True
     runtime = BambooDjangoRuntime()
 

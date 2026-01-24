@@ -29,6 +29,9 @@ from blueapps.opentelemetry.utils import inject_logging_trace_info
 import env
 from bkflow.utils.pipeline import pipeline_gateway_expr_func
 
+# 平台代码
+PLATFORM_CODE = "bkflow"
+
 # 这里是默认的 INSTALLED_APPS，大部分情况下，不需要改动
 # 如果你已经了解每个默认 APP 的作用，确实需要去掉某些 APP，请去掉下面的注释，然后修改
 # INSTALLED_APPS = (
@@ -82,6 +85,9 @@ if env.USE_PYINSTRUMENT:
 
 # 是否开启调试日志
 ENABLE_DEBUG_LOG = env.ENABLE_DEBUG_LOG
+
+# OTEL Trace配置
+ENABLE_OTEL_TRACE = env.ENABLE_OTEL_TRACE
 
 # 模块间调用相关配置
 APP_INTERNAL_VALIDATION_SKIP = env.APP_INTERNAL_VALIDATION_SKIP
@@ -353,7 +359,7 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
     handler_filter_injection(["bamboo_engine_node_info_filter"])
 
     # 日志中添加trace_id
-    if env.ENABLE_OTEL_TRACE:
+    if ENABLE_OTEL_TRACE:
         trace_format = (
             "[trace_id]: %(otelTraceID)s [span_id]: %(otelSpanID)s [resource.service.name]: %(otelServiceName)s"
         )

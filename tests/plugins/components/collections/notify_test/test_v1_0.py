@@ -16,7 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 from pipeline.component_framework.test import (
@@ -32,6 +32,16 @@ from bkflow.pipeline_plugins.components.collections.notify.v1_0 import NotifyCom
 
 
 class BkNotifyComponentTest(TestCase, ComponentTestMixin):
+    def setUp(self):
+        # 默认关闭trace开关
+        self.trace_patcher = patch("django.conf.settings.ENABLE_OTEL_TRACE", False)
+        self.trace_patcher.start()
+        super().setUp()
+
+    def tearDown(self):
+        self.trace_patcher.stop()
+        super().tearDown()
+
     def component_cls(self):
         return NotifyComponent
 
