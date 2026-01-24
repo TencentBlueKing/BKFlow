@@ -11,15 +11,16 @@
 
 #### 接口参数
 
-| 字段          | 类型     | 必选 | 描述                                                                                                                                                              |
-|-------------|--------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| template_id | int    | 是  | 模板id                                                                                                                                                            |
-| name        | string | 是  | 任务名                                                                                                                                                             |
-| creator     | string | 是  | 创建者                                                                                                                                                             |
-| description | string | 否  | 描述                                                                                                                                                              |
-| constants   | dict   | 否  | 任务启动参数                                                                                                                                                          |
-| credentials | dict   | 否  | 凭证字典，用于传递API调用所需的凭证信息，详见下方说明                                                                                                                              |
-| mock_data   | dict   | 否  | mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock 执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs 没有传参，则会自动将创建任务时对应的 mock 数据 作为 outputs） |
+| 字段                    | 类型     | 必选 | 描述                                                                                                                                                              |
+|----------------------|--------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| template_id           | int    | 是  | 模板id                                                                                                                                                            |
+| name                  | string | 是  | 任务名                                                                                                                                                             |
+| creator               | string | 是  | 创建者                                                                                                                                                             |
+| description           | string | 否  | 描述                                                                                                                                                              |
+| constants             | dict   | 否  | 任务启动参数                                                                                                                                                          |
+| credentials           | dict   | 否  | 凭证字典，用于传递API调用所需的凭证信息，详见下方说明                                                                                                                              |
+| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到所有节点上报的 Span 中，详见下方说明                                                                                                                              |
+| mock_data             | dict   | 否  | mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock 执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs 没有传参，则会自动将创建任务时对应的 mock 数据 作为 outputs） |
 
 ### credentials 参数说明
 
@@ -54,6 +55,36 @@
 - 凭证信息会被存储在任务的 `extra_info.custom_context.credentials` 中，供流程执行时使用
 - 凭证信息仅用于统一 API 插件（uniform_api）的 API 调用认证
 - 如果空间配置中设置了 `api_gateway_credential_name` 为字典格式（支持按 scope 配置不同凭证），系统会根据任务的 scope_type 和 scope_value 匹配对应的凭证名称
+
+### custom_span_attributes 参数说明
+
+`custom_span_attributes` 参数用于在创建任务时传递自定义属性到所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
+
+**参数格式要求：**
+- 类型：字典（dict）
+- key：自定义属性名称（字符串）
+- value：自定义属性值（字符串、数字等可序列化的值）
+
+**使用场景：**
+- 业务埋点：传入业务ID、订单ID等业务标识进行埋点上报
+- 请求埋点：传入请求ID、调用链ID等请求标识进行埋点上报
+- 环境埋点：传入环境类型、区域等环境信息进行埋点上报
+
+**参数示例：**
+```json
+{
+    "custom_span_attributes": {
+        "business_id": "12345",
+        "request_id": "req-abc-123",
+        "test_mode": "mock"
+    }
+}
+```
+
+**注意事项：**
+- 自定义属性会被存储在任务的 `extra_info.custom_context.custom_span_attributes` 中
+- 这些属性会通过 `TaskContext` 传递到所有节点的 Span 中
+- 自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
 
 ### pipeline_tree 版本说明
 
@@ -102,6 +133,36 @@
     "creator": "创建者",
     "credentials": {
         "my_credential": "eyJia19hcHBfY29kZSI6ICJteV9hcHAiLCAiYmtfYXBwX3NlY3JldCI6ICJteV9zZWNyZXQifQ=="
+    },
+    "mock_data": {
+        "nodes": [
+            "nd7927122ef6310eb309c2c8d3f70c23"
+        ],
+        "outputs": {
+            "nd7927122ef6310eb309c2c8d3f70c23": {
+                "callback_data": "abc"
+            }
+        },
+        "mock_data_ids": {
+            "nd7927122ef6310eb309c2c8d3f70c23": 1
+        }
+    }
+}
+```
+
+带自定义 Span 属性的请求参数示例：
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "bk_username or bk_token": "xxxx",
+    "name": "空间名",
+    "template_id": 4,
+    "creator": "创建者",
+    "custom_span_attributes": {
+        "business_id": "12345",
+        "request_id": "req-abc-123",
+        "test_mode": "mock"
     },
     "mock_data": {
         "nodes": [
