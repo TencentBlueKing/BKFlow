@@ -13,6 +13,7 @@
 | 字段              | 类型     | 必选 | 描述                                                                                                                                           |
 |-----------------|--------|----|----------------------------------------------------------------------------------------------------------------------------------------------|
 | with_mock_data  | bool   | 否  | 是否一起返回 mock 数据，默认为 false。 当设置为 true 时，返回数据中会增加 appoint_node_ids 和 mock_data 两个字段，且如果 appoint_node_ids 有指定 mock 执行节点时，pipeline_tree 会进行对应的精简。 |
+| format          | string | 否  | 返回数据格式，可选值：raw（默认，原始格式）、pipeline_tree（流程树格式，与raw相同）、plugin（插件格式）。当传入 plugin 时，返回插件格式的数据结构。 |
 
 
 路径参数:
@@ -132,3 +133,92 @@
 | update_at        | datetime | 更新时间                                                           |
 | appoint_node_ids | list     | 当 with_mock_data 传参为 true 时返回，mock 执行时选中的节点 ID 列表              |
 | mock_data        | list     | 当 with_mock_data 传参为 true 时返回，每个元素包含 node_id，data 和 is_default |
+
+### format=plugin 时的返回示例
+
+当 format 参数传入 plugin 时，返回插件格式的数据结构：
+
+```json
+{
+    "result": true,
+    "data": {
+        "id": 3,
+        "name": "测试模板",
+        "desc": "模板描述信息",
+        "version": "1.0.0",
+        "space_id": 2,
+        "scope_type": null,
+        "scope_value": null,
+        "creator": "admin",
+        "create_at": "2024-01-01T00:00:00Z",
+        "updated_by": "admin",
+        "update_at": "2024-01-02T00:00:00Z",
+        "inputs": {
+            "type": "object",
+            "properties": {
+                "param1": {
+                    "title": "参数1",
+                    "type": "string"
+                }
+            },
+            "required": ["param1"],
+            "definitions": {}
+        },
+        "outputs": {
+            "type": "object",
+            "properties": {
+                "output1": {
+                    "title": "输出1",
+                    "type": "string"
+                }
+            },
+            "required": ["output1"],
+            "definitions": {}
+        },
+        "context_inputs": {
+            "type": "object",
+            "properties": {
+                "executor": {
+                    "title": "任务执行人",
+                    "type": "string"
+                },
+                "task_name": {
+                    "title": "任务名称",
+                    "type": "string"
+                },
+                "task_id": {
+                    "title": "任务ID",
+                    "type": "string"
+                },
+                "task_space_id": {
+                    "title": "任务空间ID",
+                    "type": "string"
+                }
+            },
+            "required": ["executor", "task_name", "task_id", "task_space_id"],
+            "definitions": {}
+        }
+    },
+    "code": 0,
+    "trace_id": "xxxxxxxxx"
+}
+```
+
+### format=plugin 时 data 字段说明
+
+| 字段                   | 类型     | 描述                                        |
+|----------------------|--------|-------------------------------------------|
+| id                   | int    | 流程 ID                                     |
+| name                 | string | 流程名称                                      |
+| desc                 | string | 流程描述                                      |
+| version              | string | 流程版本号                                     |
+| space_id             | int    | 空间 ID                                     |
+| scope_type           | string | 流程所属作用域类型                                 |
+| scope_value          | string | 流程所属作用域值                                  |
+| creator              | string | 创建人                                       |
+| create_at            | datetime | 创建时间                                    |
+| updated_by           | string | 更新人                                       |
+| update_at            | datetime | 更新时间                                    |
+| inputs               | object | 输入参数 JSON Schema，从 pipeline_tree 解析       |
+| outputs              | object | 输出参数 JSON Schema，从 pipeline_tree 解析       |
+| context_inputs       | object | 上下文输入参数 JSON Schema                       |

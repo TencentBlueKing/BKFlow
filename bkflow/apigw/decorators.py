@@ -121,8 +121,6 @@ def check_template_bk_app_code(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
         exempt = getattr(settings, "BK_APIGW_REQUIRE_EXEMPT", False)
-        if exempt:
-            return view_func(request, *args, **kwargs)
 
         template_id = request.resolver_match.kwargs.get("template_id")
         if template_id is None:
@@ -144,6 +142,14 @@ def check_template_bk_app_code(view_func):
                 },
             )
 
+        # 将 template 和 space_id 挂载到 request 上，方便后续使用
+        request.template = template
+        request.space_id = template.space_id
+
+        # 如果 exempt，跳过权限检查，直接执行视图函数
+        if exempt:
+            return view_func(request, *args, **kwargs)
+
         # 检查模板是否绑定了 bk_app_code
         if not template.bk_app_code:
             return JsonResponse(
@@ -164,10 +170,6 @@ def check_template_bk_app_code(view_func):
                     "message": _("当前应用无权操作此模板，app={}，模板绑定的 app={}").format(request_app_code, template.bk_app_code),
                 },
             )
-
-        # 将 template 和 space_id 挂载到 request 上，方便后续使用
-        request.template = template
-        request.space_id = template.space_id
 
         return view_func(request, *args, **kwargs)
 

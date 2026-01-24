@@ -46,6 +46,7 @@ class ValueConvertType(Enum):
 
 
 class ValueAssignService(BKFlowBaseService):
+    plugin_name = "value_assign"
 
     type_mapping = {
         ValueConvertType.STRING.value: str,

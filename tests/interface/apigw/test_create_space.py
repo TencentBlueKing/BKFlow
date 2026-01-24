@@ -35,12 +35,18 @@ class TestCreateSpace(TestCase):
 
     @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
     def test_create_space_success(self):
+        from bkflow.space.models import Space
+
         data = {"name": "test_space", "platform_url": "http://abc.com", "app_code": "test", "desc": "test"}
 
         resp = self.client.post(path=self.url, data=json.dumps(data), content_type="application/json")
         resp_data = json.loads(resp.content)
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp_data["result"], True)
-        self.assertIsInstance(resp_data["data"]["space"]["id"], int)
-        self.assertGreater(resp_data["data"]["space"]["id"], 0)
+        # 验证返回的 space id 是有效的，并且与数据库中创建的 space 一致
+        space_id = resp_data["data"]["space"]["id"]
+        self.assertIsInstance(space_id, int)
+        self.assertGreater(space_id, 0)
+        space = Space.objects.get(id=space_id)
+        self.assertEqual(space.name, "test_space")
         self.assertEqual(resp_data["data"]["space"]["name"], "test_space")

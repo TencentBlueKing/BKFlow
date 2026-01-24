@@ -25,6 +25,7 @@ from django.views.decorators.http import require_GET
 
 from bkflow.apigw.decorators import check_template_bk_app_code, return_json_response
 from bkflow.apigw.serializers.template import TemplateDetailQuerySerializer
+from bkflow.apigw.utils import parse_pipeline_tree_to_plugin_schema
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.space.configs import FlowVersioning
@@ -52,6 +53,35 @@ def get_template_detail_by_app(request, template_id):
     # template 已经在装饰器中挂载到 request 上
     template = request.template
     space_id = request.space_id
+
+    # 处理 format 参数
+    format_type = params.get("format", "raw")
+
+    # 如果是 plugin 格式，返回插件格式数据
+    if format_type == "plugin":
+        # 从 pipeline_tree 解析 inputs、outputs、context_inputs
+        plugin_schema = parse_pipeline_tree_to_plugin_schema(template.pipeline_tree)
+        # 补充流程本身的基本信息
+        plugin_data = {
+            "id": template.id,
+            "name": template.name,
+            "desc": template.desc,
+            "version": template.version,
+            "space_id": template.space_id,
+            "scope_type": template.scope_type,
+            "scope_value": template.scope_value,
+            "bk_app_code": template.bk_app_code,
+            "creator": template.creator,
+            "create_at": template.create_at,
+            "updated_by": template.updated_by,
+            "update_at": template.update_at,
+            **plugin_schema,
+        }
+        return {
+            "result": True,
+            "data": plugin_data,
+            "code": err_code.SUCCESS.code,
+        }
 
     response = {
         "result": True,

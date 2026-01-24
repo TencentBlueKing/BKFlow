@@ -48,6 +48,7 @@ UNFINISHED_STATES = {State.POLL, State.CALLBACK}
 
 
 class RemotePluginService(BKFlowBaseService):
+    plugin_name = "bk_plugin"
     interval = StepIntervalGenerator()
 
     def outputs_format(self):
@@ -56,6 +57,17 @@ class RemotePluginService(BKFlowBaseService):
                 name="Trace ID", key="trace_id", type="string", schema=StringItemSchema(description="Trace ID")
             ),
         ]
+
+    def _get_span_attributes(self, data, parent_data):
+        """覆盖基类方法，添加第三方插件特有的属性"""
+        attributes = super()._get_span_attributes(data, parent_data)
+        attributes.update(
+            {
+                "plugin_code": data.get_one_of_inputs("plugin_code"),
+                "plugin_version": data.get_one_of_inputs("plugin_version"),
+            }
+        )
+        return attributes
 
     def plugin_execute(self, data, parent_data):
         plugin_code = data.get_one_of_inputs("plugin_code")
@@ -118,6 +130,7 @@ class RemotePluginService(BKFlowBaseService):
             data.set_outputs("ex_data", result_data["err"])
             return False
         if state in UNFINISHED_STATES:
+            # 需要轮询或回调
             setattr(self, "__need_schedule__", True)
         return True
 
@@ -157,9 +170,11 @@ class RemotePluginService(BKFlowBaseService):
             message = _("请通过第三方节点日志查看任务失败原因")
             logger.error(message)
             logger.error(f"[remote plugin service state failed]: {result_data}")
-            data.set_outputs("ex_data", result_data["outputs"].get("err") or message)
+            error_msg = result_data["outputs"].get("err") or str(message)
+            data.set_outputs("ex_data", error_msg)
             return False
         if state in UNFINISHED_STATES:
+            # 仍在执行中，继续等待
             setattr(self, "__need_schedule__", True)
         if state == State.SUCCESS:
             self.finish_schedule()
