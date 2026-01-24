@@ -78,6 +78,9 @@ class CreateTaskSerializer(CredentialsValidationMixin, serializers.Serializer):
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    custom_span_attributes = serializers.DictField(
+        help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
+    )
 
 
 class CreateTaskByAppSerializer(serializers.Serializer):
@@ -87,6 +90,9 @@ class CreateTaskByAppSerializer(serializers.Serializer):
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
     description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    custom_span_attributes = serializers.DictField(
+        help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
+    )
 
 
 class TaskMockDataSerializer(serializers.Serializer):
@@ -103,6 +109,9 @@ class CreateMockTaskBaseSerializer(CredentialsValidationMixin, serializers.Seria
     mock_data = TaskMockDataSerializer(help_text=_("Mock 数据"), default=TaskMockDataSerializer())
     description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), default={})
+    custom_span_attributes = serializers.DictField(
+        help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
+    )
 
 
 class CreateMockTaskWithPipelineTreeSerializer(CreateMockTaskBaseSerializer):
@@ -143,6 +152,9 @@ class CreateTaskWithoutTemplateSerializer(CredentialsValidationMixin, serializer
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
     notify_config = serializers.JSONField(help_text=_("通知配置"), required=False, default={})
+    custom_span_attributes = serializers.DictField(
+        help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
+    )
 
 
 class PipelineTreeSerializer(serializers.Serializer):
