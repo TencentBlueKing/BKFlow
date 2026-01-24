@@ -1057,6 +1057,10 @@ const en = {
   参数名不能为空: 'Parameter name cannot be empty',
   参数名不能重复: 'Parameter name cannot be duplicated',
   '请输入值或 $ 选择变量': 'Enter value or $ to select variable',
+  导入流程: 'Import Process',
+  '仅支持 .json 格式文件': 'Only .json format files are supported',
+  导入: 'Import',
+  导入成功: 'Import Successful',
 };
 
 export default en;
