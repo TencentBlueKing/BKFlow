@@ -127,7 +127,10 @@ def _parse_inputs_from_pipeline_tree(pipeline_tree):
         # 输入参数：show_type 为 show 且不是组件输出
         if info.get("show_type") == "show" and info.get("source_type") != "component_outputs":
             # 移除 key 中的 ${} 包装
-            clean_key = key.strip("${}")
+            if key.startswith("${") and key.endswith("}"):
+                clean_key = key[2:-1]  # 去掉包裹的 ${}
+            else:
+                clean_key = key
             properties[clean_key] = _constant_to_json_schema_property(info)
 
             # 如果没有默认值，则为必填
@@ -159,7 +162,10 @@ def _parse_outputs_from_pipeline_tree(pipeline_tree):
         if key in constants:
             info = constants[key]
             # 移除 key 中的 ${} 包装
-            clean_key = key.strip("${}")
+            if key.startswith("${") and key.endswith("}"):
+                clean_key = key[2:-1]  # 去掉包裹的 ${}
+            else:
+                clean_key = key
             properties[clean_key] = _constant_to_json_schema_property(info)
             required.append(clean_key)
 
