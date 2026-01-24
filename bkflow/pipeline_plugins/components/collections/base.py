@@ -78,8 +78,9 @@ class BKFlowBaseService(Service):
         pass
 
     def _get_span_name(self):
-        """获取 Span 名称，使用 'bk_flow.' 前缀加上插件名称"""
-        return f"bk_flow.{self.plugin_name}"
+        """获取 Span 名称，使用 PLATFORM_CODE 前缀加上插件名称"""
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+        return f"{platform_code}.{self.plugin_name}"
 
     def _get_span_attributes(self, data, parent_data):
         """获取 Span 属性，子类可以覆盖此方法来添加自定义属性"""

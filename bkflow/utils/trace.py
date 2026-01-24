@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from functools import wraps
 from typing import Optional
 
+from django.conf import settings
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SpanProcessor
@@ -80,8 +81,9 @@ def append_attributes(attributes: dict):
     :param attributes: 需要追加的属性
     """
     current_span = trace.get_current_span()
+    platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
     for key, value in attributes.items():
-        current_span.set_attribute(f"bk_flow.{key}", value)
+        current_span.set_attribute(f"{platform_code}.{key}", value)
 
 
 @contextmanager
@@ -94,8 +96,9 @@ def start_trace(span_name: str, propagate: bool = False, **attributes):
     :yield: 当前上下文的Span
     """
     tracer = trace.get_tracer(__name__)
+    platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
 
-    span_attributes = {f"bk_flow.{key}": value for key, value in attributes.items()}
+    span_attributes = {f"{platform_code}.{key}": value for key, value in attributes.items()}
 
     # 设置需要传播的属性
     if propagate:
@@ -205,7 +208,8 @@ def plugin_method_span(
     schedule_count = attributes.get("schedule_count")
 
     # 构建 span 名称
-    span_name = f"bk_flow.{plugin_name}.{method_name}"
+    platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+    span_name = f"{platform_code}.{plugin_name}.{method_name}"
 
     # 用于存储执行结果的容器
     class SpanResult:
@@ -246,20 +250,21 @@ def plugin_method_span(
             )
 
             # 设置属性
-            span.set_attribute("bk_flow.plugin.method", method_name)
+            platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+            span.set_attribute(f"{platform_code}.plugin.method", method_name)
             for key, value in attributes.items():
                 if value is not None:
-                    span.set_attribute(f"bk_flow.plugin.{key}", str(value))
+                    span.set_attribute(f"{platform_code}.plugin.{key}", str(value))
 
             # 设置执行结果状态
             if result.success:
                 span.set_status(Status(StatusCode.OK))
-                span.set_attribute("bk_flow.plugin.success", True)
+                span.set_attribute(f"{platform_code}.plugin.success", True)
             else:
                 span.set_status(Status(StatusCode.ERROR, result.error_message or f"{method_name} failed"))
-                span.set_attribute("bk_flow.plugin.success", False)
+                span.set_attribute(f"{platform_code}.plugin.success", False)
                 if result.error_message:
-                    span.set_attribute("bk_flow.plugin.error", str(result.error_message)[:1000])
+                    span.set_attribute(f"{platform_code}.plugin.error", str(result.error_message)[:1000])
 
             # 结束 span
             span.end(end_time=end_time_ns)
@@ -411,18 +416,19 @@ def end_plugin_span(
         )
 
         # 设置属性
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
         for key, value in attributes.items():
-            span.set_attribute(f"bk_flow.plugin.{key}", value)
+            span.set_attribute(f"{platform_code}.plugin.{key}", value)
 
         # 设置执行结果状态
         if success:
             span.set_status(Status(StatusCode.OK))
-            span.set_attribute("bk_flow.plugin.success", True)
+            span.set_attribute(f"{platform_code}.plugin.success", True)
         else:
             span.set_status(Status(StatusCode.ERROR, error_message or "Plugin execution failed"))
-            span.set_attribute("bk_flow.plugin.success", False)
+            span.set_attribute(f"{platform_code}.plugin.success", False)
             if error_message:
-                span.set_attribute("bk_flow.plugin.error", str(error_message)[:1000])
+                span.set_attribute(f"{platform_code}.plugin.error", str(error_message)[:1000])
 
         # 手动结束span，设置结束时间
         span.end(end_time=end_time_ns)

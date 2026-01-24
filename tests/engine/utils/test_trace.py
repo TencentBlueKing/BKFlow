@@ -20,6 +20,7 @@ import time
 from unittest import mock
 
 import pytest
+from django.conf import settings
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 
@@ -190,8 +191,10 @@ class TestStartPluginSpan:
     def test_start_plugin_span_basic(self):
         """Test basic start_plugin_span functionality"""
         data = MockData()
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+        span_name = f"{platform_code}.test_plugin"
         returned_start_time = start_plugin_span(
-            span_name="bk_flow.test_plugin",
+            span_name=span_name,
             data=data,
             space_id="space_1",
             task_id="task_1",
@@ -201,7 +204,7 @@ class TestStartPluginSpan:
         assert isinstance(returned_start_time, int)
         assert returned_start_time > 0
         assert data.get_one_of_outputs(PLUGIN_SPAN_START_TIME_KEY) == returned_start_time
-        assert data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY) == "bk_flow.test_plugin"
+        assert data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY) == span_name
         attributes = data.get_one_of_outputs(PLUGIN_SPAN_ATTRIBUTES_KEY)
         assert attributes["space_id"] == "space_1"
         assert attributes["task_id"] == "task_1"
@@ -210,11 +213,13 @@ class TestStartPluginSpan:
     def test_start_plugin_span_with_trace_context(self):
         """Test start_plugin_span with trace context"""
         data = MockData()
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+        span_name = f"{platform_code}.test_plugin"
         trace_id = "a" * 32  # 32 hex chars
         parent_span_id = "b" * 16  # 16 hex chars
 
         start_plugin_span(
-            span_name="bk_flow.test_plugin",
+            span_name=span_name,
             data=data,
             trace_id=trace_id,
             parent_span_id=parent_span_id,
@@ -227,8 +232,10 @@ class TestStartPluginSpan:
     def test_start_plugin_span_serializes_attributes(self):
         """Test that attributes are serialized to strings"""
         data = MockData()
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+        span_name = f"{platform_code}.test_plugin"
         start_plugin_span(
-            span_name="bk_flow.test_plugin",
+            span_name=span_name,
             data=data,
             task_id=123,  # Integer
             space_id=None,  # None value
@@ -248,8 +255,10 @@ class TestEndPluginSpan:
         start_time_ns = time.time_ns()
 
         # Setup span start info
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+        span_name = f"{platform_code}.test_plugin"
         data.set_outputs(PLUGIN_SPAN_START_TIME_KEY, start_time_ns)
-        data.set_outputs(PLUGIN_SPAN_NAME_KEY, "bk_flow.test_plugin")
+        data.set_outputs(PLUGIN_SPAN_NAME_KEY, span_name)
         data.set_outputs(
             PLUGIN_SPAN_ATTRIBUTES_KEY,
             {"task_id": "task_1", "node_id": "node_1", "space_id": "space_1"},
@@ -268,8 +277,10 @@ class TestEndPluginSpan:
         data = MockData()
         start_time_ns = time.time_ns()
 
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+        span_name = f"{platform_code}.test_plugin"
         data.set_outputs(PLUGIN_SPAN_START_TIME_KEY, start_time_ns)
-        data.set_outputs(PLUGIN_SPAN_NAME_KEY, "bk_flow.test_plugin")
+        data.set_outputs(PLUGIN_SPAN_NAME_KEY, span_name)
         data.set_outputs(PLUGIN_SPAN_ATTRIBUTES_KEY, {"task_id": "task_1"})
 
         end_plugin_span(data, success=False, error_message="Test error")
@@ -307,8 +318,10 @@ class TestEndPluginSpan:
         start_time_ns = time.time_ns()
         end_time_ns = start_time_ns + 1_000_000  # 1ms later
 
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+        span_name = f"{platform_code}.test_plugin"
         data.set_outputs(PLUGIN_SPAN_START_TIME_KEY, start_time_ns)
-        data.set_outputs(PLUGIN_SPAN_NAME_KEY, "bk_flow.test_plugin")
+        data.set_outputs(PLUGIN_SPAN_NAME_KEY, span_name)
         data.set_outputs(PLUGIN_SPAN_ATTRIBUTES_KEY, {"task_id": "task_1"})
 
         end_plugin_span(data, success=True, end_time_ns=end_time_ns)
@@ -340,8 +353,10 @@ class TestPluginSpanIntegration:
         data = MockData()
 
         # Start span
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+        span_name = f"{platform_code}.test_plugin"
         start_time = start_plugin_span(
-            span_name="bk_flow.test_plugin",
+            span_name=span_name,
             data=data,
             trace_id="a" * 32,
             parent_span_id="b" * 16,

@@ -57,7 +57,7 @@ from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.canvas import get_variable_mapping
 from bkflow.utils.dates import format_datetime
 from bkflow.utils.handlers import mask_sensitive_data_for_display
-from bkflow.utils.trace import get_current_trace_context
+from bkflow.utils.trace import get_current_trace_context, start_trace
 
 logger = logging.getLogger("root")
 
@@ -103,6 +103,50 @@ def uniform_task_operation_result(func):
     return wrapper
 
 
+def trace_task_operation(operation_name: str, operation_type: str = "task"):
+    """为任务操作添加 trace span 的装饰器
+
+    :param operation_name: 操作名称，如 'start', 'pause', 'resume' 等
+    :param operation_type: 操作类型，'task' 或 'task_node'，默认为 'task'
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # 只有在启用 trace 的情况下才创建 span
+            if not settings.ENABLE_OTEL_TRACE:
+                return func(self, *args, **kwargs)
+
+            # 在创建新 span 之前，先获取外部的 trace context（如果有的话）
+            # 这样方法内部可以区分是外部的 trace context 还是装饰器创建的 span 的 context
+            external_trace_context = get_current_trace_context()
+
+            platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+            span_name = f"{platform_code}.{operation_type}.{operation_name}"
+
+            # 提取任务相关信息作为属性
+            attributes = {
+                "task_id": getattr(self.task_instance, "id", None),
+                "space_id": getattr(self.task_instance, "space_id", None),
+                "operator": kwargs.get("operator") or (args[0] if args else None),
+            }
+
+            # 如果是节点操作，添加 node_id
+            if operation_type == "task_node" and hasattr(self, "node_id"):
+                attributes["node_id"] = self.node_id
+
+            # 将外部的 trace context 传递给方法，以便方法内部可以使用
+            # 注意：这里使用一个特殊的 key，避免与正常的 kwargs 冲突
+            kwargs["_external_trace_context"] = external_trace_context
+
+            with start_trace(span_name=span_name, propagate=False, **attributes):
+                return func(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 class TaskOperation:
     CREATED_STATUS = {
         "start_time": None,
@@ -118,6 +162,7 @@ class TaskOperation:
         self.task_instance = task_instance
         self.queue = queue
 
+    @trace_task_operation("start")
     @record_operation(RecordType.task.name, TaskOperationType.start.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def start(self, operator: str, *args, **kwargs) -> OperationResult:
@@ -161,8 +206,11 @@ class TaskOperation:
 
             # 捕获当前 trace context，传递给 pipeline 执行环境
             # 只有在启用 trace 的情况下才注入 trace 信息
+            # 使用装饰器传递的外部 trace context（如果有），而不是装饰器创建的 span 的 context
             if settings.ENABLE_OTEL_TRACE:
-                trace_context = get_current_trace_context()
+                # 优先使用外部传入的 trace context（在装饰器创建 span 之前获取的）
+                trace_context = kwargs.get("_external_trace_context")
+                # 如果没有外部的 trace context，则不注入（避免使用装饰器创建的 span 的 context）
                 if trace_context:
                     root_pipeline_data["_trace_id"] = trace_context["trace_id"]
                     root_pipeline_data["_parent_span_id"] = trace_context["span_id"]
@@ -199,6 +247,7 @@ class TaskOperation:
 
         return result
 
+    @trace_task_operation("pause")
     @record_operation(RecordType.task.name, TaskOperationType.pause.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def pause(self, operator: str, *args, **kwargs) -> OperationResult:
@@ -206,6 +255,7 @@ class TaskOperation:
             runtime=BambooDjangoRuntime(), pipeline_id=self.task_instance.instance_id
         )
 
+    @trace_task_operation("resume")
     @record_operation(RecordType.task.name, TaskOperationType.resume.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def resume(self, operator: str, *args, **kwargs) -> OperationResult:
@@ -213,6 +263,7 @@ class TaskOperation:
             runtime=BambooDjangoRuntime(), pipeline_id=self.task_instance.instance_id
         )
 
+    @trace_task_operation("revoke")
     @record_operation(RecordType.task.name, TaskOperationType.revoke.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def revoke(self, operator: str, *args, **kwargs) -> OperationResult:
@@ -220,6 +271,7 @@ class TaskOperation:
             runtime=BambooDjangoRuntime(), pipeline_id=self.task_instance.instance_id
         )
 
+    @trace_task_operation("get_task_states")
     @uniform_task_operation_result
     def get_task_states(
         self, subprocess_id: str = None, with_ex_data: bool = False, *args, **kwargs
@@ -318,6 +370,7 @@ class TaskOperation:
 
         return OperationResult(result=True, data=task_states)
 
+    @trace_task_operation("render_current_constants")
     @uniform_task_operation_result
     def render_current_constants(self):
         runtime = BambooDjangoRuntime()
@@ -343,6 +396,7 @@ class TaskOperation:
         data = [{"key": key, "value": value} for key, value in masked_context.items()]
         return OperationResult(result=True, data=data)
 
+    @trace_task_operation("render_context_with_node_outputs")
     @uniform_task_operation_result
     def render_context_with_node_outputs(self, node_ids: List[str], to_render_constants):
         runtime = BambooDjangoRuntime()
@@ -408,6 +462,7 @@ class TaskNodeOperation:
         self.node_id = node_id
         self.runtime = BambooDjangoRuntime()
 
+    @trace_task_operation("retry", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.retry.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def retry(self, operator: str, *args, **kwargs) -> OperationResult:
@@ -418,11 +473,13 @@ class TaskNodeOperation:
             runtime=self.runtime, node_id=self.node_id, data=kwargs.get("inputs") or None
         )
 
+    @trace_task_operation("skip", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.skip.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def skip(self, operator: str, *args, **kwargs) -> OperationResult:
         return bamboo_engine_api.skip_node(runtime=self.runtime, node_id=self.node_id)
 
+    @trace_task_operation("callback", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.callback.name, TaskOperationSource.api.name)
     @uniform_task_operation_result
     def callback(self, operator: str, *args, **kwargs) -> OperationResult:
@@ -432,6 +489,7 @@ class TaskNodeOperation:
             version = runtime.get_state(self.node_id).version
         return bamboo_engine_api.callback(runtime=runtime, node_id=self.node_id, version=version, data=kwargs["data"])
 
+    @trace_task_operation("skip_exg", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.skip_exg.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def skip_exg(self, operator: str, *args, **kwargs) -> OperationResult:
@@ -439,6 +497,7 @@ class TaskNodeOperation:
             runtime=self.runtime, node_id=self.node_id, flow_id=kwargs["flow_id"]
         )
 
+    @trace_task_operation("skip_cpg", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.skip_cpg.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def skip_cpg(self, operator: str, *args, **kwargs) -> OperationResult:
@@ -449,6 +508,7 @@ class TaskNodeOperation:
             converge_gateway_id=kwargs["converge_gateway_id"],
         )
 
+    @trace_task_operation("forced_fail", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.forced_fail.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def forced_fail(self, operator: str, *args, **kwargs) -> OperationResult:
@@ -459,6 +519,7 @@ class TaskNodeOperation:
             send_post_set_state_signal=kwargs.get("send_post_set_state_signal", True),
         )
 
+    @trace_task_operation("get_node_detail", operation_type="task_node")
     @uniform_task_operation_result
     def get_node_detail(
         self, subprocess_stack: List[str] = None, loop: Optional[int] = None, *args, **kwargs
@@ -517,6 +578,7 @@ class TaskNodeOperation:
 
         return OperationResult(result=True, data=detail)
 
+    @trace_task_operation("get_outputs", operation_type="task_node")
     @uniform_task_operation_result
     def get_outputs(self, *args, **kwargs) -> OperationResult:
         runtime = BambooDjangoRuntime()
@@ -525,6 +587,7 @@ class TaskNodeOperation:
             logger.error(f"get_outputs failed: {outputs_result.message}, exc: {outputs_result.exc}")
         return outputs_result
 
+    @trace_task_operation("get_node_data", operation_type="task_node")
     @uniform_task_operation_result
     def get_node_data(
         self,

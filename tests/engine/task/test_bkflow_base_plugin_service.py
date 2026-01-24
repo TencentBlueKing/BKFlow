@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import pytest
+from django.conf import settings
 from django.test import override_settings
 from pipeline.core.data.base import DataObject
 
@@ -110,7 +111,8 @@ class TestBKFlowBaseService:
         assert result is True
 
         # Verify span was started
-        assert data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY) == "bk_flow.test_plugin"
+        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
+        assert data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY) == f"{platform_code}.test_plugin"
         assert data.get_one_of_outputs(PLUGIN_SPAN_START_TIME_KEY) is not None
         assert data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY) is True  # Should be ended for sync plugin
 
