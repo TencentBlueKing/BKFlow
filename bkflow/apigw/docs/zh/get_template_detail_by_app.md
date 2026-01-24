@@ -18,6 +18,7 @@
 | 字段              | 类型     | 必选 | 描述                                                                                                                                           |
 |-----------------|--------|----|----------------------------------------------------------------------------------------------------------------------------------------------|
 | with_mock_data  | bool   | 否  | 是否一起返回 mock 数据，默认为 false。 当设置为 true 时，返回数据中会增加 appoint_node_ids 和 mock_data 两个字段，且如果 appoint_node_ids 有指定 mock 执行节点时，pipeline_tree 会进行对应的精简。 |
+| format          | string | 否  | 返回数据格式，可选值：raw（默认，原始格式）、pipeline_tree（流程树格式，与raw相同）、plugin（插件格式）。当传入 plugin 时，返回插件格式的数据结构。 |
 
 
 路径参数:
@@ -133,3 +134,74 @@ bk_app_code 不匹配:
 | appoint_node_ids | list     | 当 with_mock_data 传参为 true 时返回，mock 执行时选中的节点 ID 列表              |
 | mock_data        | list     | 当 with_mock_data 传参为 true 时返回，每个元素包含 node_id，data 和 is_default |
 
+### format=plugin 时的返回示例
+
+当 format 参数传入 plugin 时，返回插件格式的数据结构：
+
+```json
+{
+    "result": true,
+    "data": {
+        "desc": "插件描述信息",
+        "version": "0.0.1",
+        "enable_plugin_callback": true,
+        "inputs": {
+            "type": "object",
+            "properties": {
+                "param1": {
+                    "title": "参数1",
+                    "type": "string"
+                }
+            },
+            "required": ["param1"],
+            "definitions": {}
+        },
+        "outputs": {
+            "type": "object",
+            "properties": {
+                "output1": {
+                    "title": "输出1",
+                    "type": "string"
+                }
+            },
+            "required": ["output1"],
+            "definitions": {}
+        },
+        "context_inputs": {
+            "type": "object",
+            "properties": {
+                "executor": {
+                    "title": "任务执行人",
+                    "type": "string"
+                }
+            },
+            "required": ["executor"],
+            "definitions": {}
+        },
+        "forms": {
+            "renderform": "(function () { ... })();"
+        },
+        "app": {
+            "url": "http://example.com/",
+            "urls": ["http://example.com/"],
+            "name": "示例应用",
+            "code": "example-app"
+        }
+    },
+    "code": 0,
+    "trace_id": "xxxxxxxxx"
+}
+```
+
+### format=plugin 时 data 字段说明
+
+| 字段                   | 类型     | 描述                                        |
+|----------------------|--------|-------------------------------------------|
+| desc                 | string | 插件描述信息                                    |
+| version              | string | 插件版本号                                     |
+| enable_plugin_callback | bool   | 是否启用插件回调                                  |
+| inputs               | object | 插件输入参数 JSON Schema                       |
+| outputs              | object | 插件输出参数 JSON Schema                       |
+| context_inputs       | object | 插件上下文输入参数 JSON Schema                    |
+| forms                | object | 表单配置，包含 renderform 字段                    |
+| app                  | object | 应用信息，包含 url、urls、name、code 等字段          |

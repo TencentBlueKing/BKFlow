@@ -151,3 +151,9 @@ class TemplateListFilterSerializer(serializers.Serializer):
 
 class TemplateDetailQuerySerializer(serializers.Serializer):
     with_mock_data = serializers.BooleanField(help_text=_("是否包含 mock 数据"), required=False)
+    format = serializers.ChoiceField(
+        help_text=_("返回数据格式，raw-原始格式，pipeline_tree-流程树格式，plugin-插件格式"),
+        choices=["raw", "pipeline_tree", "plugin"],
+        required=False,
+        default="raw",
+    )
