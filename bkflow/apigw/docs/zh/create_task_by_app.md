@@ -16,11 +16,12 @@
 
 #### 接口参数
 
-| 字段          | 类型     | 必选 | 描述     |
-|-------------|--------|----|--------|
-| name        | string | 否  | 任务名    |
-| description | string | 否  | 描述     |
-| constants   | json   | 否  | 任务启动参数 |
+| 字段                    | 类型     | 必选 | 描述                                    |
+|----------------------|--------|----|---------------------------------------|
+| name                  | string | 否  | 任务名                                   |
+| description           | string | 否  | 描述                                    |
+| constants             | json   | 否  | 任务启动参数                                |
+| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到所有节点上报的 Span 中，详见下方说明 |
 
 
 路径参数:
@@ -36,6 +37,36 @@
 - 请求方的 bk_app_code 必须与模板绑定的 bk_app_code 一致
 - 需要用户认证，创建者将使用网关认证的用户
 
+### custom_span_attributes 参数说明
+
+`custom_span_attributes` 参数用于在创建任务时传递自定义属性到所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
+
+**参数格式要求：**
+- 类型：字典（dict）
+- key：自定义属性名称（字符串）
+- value：自定义属性值（字符串、数字等可序列化的值）
+
+**使用场景：**
+- 业务埋点：传入业务ID、订单ID等业务标识进行埋点上报
+- 请求埋点：传入请求ID、调用链ID等请求标识进行埋点上报
+- 环境埋点：传入环境类型、区域等环境信息进行埋点上报
+
+**参数示例：**
+```json
+{
+    "custom_span_attributes": {
+        "business_id": "12345",
+        "request_id": "req-abc-123",
+        "user_type": "vip"
+    }
+}
+```
+
+**注意事项：**
+- 自定义属性会被存储在任务的 `extra_info.custom_context.custom_span_attributes` 中
+- 这些属性会通过 `TaskContext` 传递到所有节点的 Span 中
+- 自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
+
 ### 请求参数示例
 
 ```json
@@ -43,6 +74,20 @@
     "name": "任务名称",
     "constants": {
         "${param1}": "value1"
+    }
+}
+```
+
+带自定义 Span 属性的请求参数示例：
+```json
+{
+    "name": "任务名称",
+    "constants": {
+        "${param1}": "value1"
+    },
+    "custom_span_attributes": {
+        "business_id": "12345",
+        "request_id": "req-abc-123"
     }
 }
 ```
