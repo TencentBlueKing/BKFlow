@@ -216,7 +216,8 @@ class TestTaskInstanceViewSet:
         assert response.status_code == status.HTTP_200_OK
 
     @patch("bkflow.task.views.TaskOperation")
-    def test_operate_task_pause(self, mock_task_operation):
+    @patch("bkflow.task.views.InterfaceModuleClient")
+    def test_operate_task_pause(self, mock_interface_client, mock_task_operation):
         """测试任务操作 - pause"""
         task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
         # 启动任务
@@ -226,6 +227,9 @@ class TestTaskInstanceViewSet:
         mock_operation.pause.return_value = MagicMock(result=True, data={}, message="success")
         mock_task_operation.return_value = mock_operation
 
+        # Mock InterfaceModuleClient
+        mock_interface_client.return_value.broadcast_task_events.return_value = MagicMock()
+
         view = TaskInstanceViewSet.as_view({"post": "operate"})
         request = self._create_request_with_auth("post", f"/task/{task_instance.id}/operate/pause/", {})
 
@@ -233,7 +237,8 @@ class TestTaskInstanceViewSet:
         assert response.status_code == status.HTTP_200_OK
 
     @patch("bkflow.task.views.TaskOperation")
-    def test_operate_task_resume(self, mock_task_operation):
+    @patch("bkflow.task.views.InterfaceModuleClient")
+    def test_operate_task_resume(self, mock_interface_client, mock_task_operation):
         """测试任务操作 - resume"""
         task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
         # 启动任务
@@ -243,6 +248,9 @@ class TestTaskInstanceViewSet:
         mock_operation.resume.return_value = MagicMock(result=True, data={}, message="success")
         mock_task_operation.return_value = mock_operation
 
+        # Mock InterfaceModuleClient
+        mock_interface_client.return_value.broadcast_task_events.return_value = MagicMock()
+
         view = TaskInstanceViewSet.as_view({"post": "operate"})
         request = self._create_request_with_auth("post", f"/task/{task_instance.id}/operate/resume/", {})
 
@@ -250,7 +258,8 @@ class TestTaskInstanceViewSet:
         assert response.status_code == status.HTTP_200_OK
 
     @patch("bkflow.task.views.TaskOperation")
-    def test_operate_task_revoke(self, mock_task_operation):
+    @patch("bkflow.task.views.InterfaceModuleClient")
+    def test_operate_task_revoke(self, mock_interface_client, mock_task_operation):
         """测试任务操作 - revoke"""
         task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
         # 启动任务
@@ -259,6 +268,9 @@ class TestTaskInstanceViewSet:
         mock_operation = MagicMock()
         mock_operation.revoke.return_value = MagicMock(result=True, data={}, message="success")
         mock_task_operation.return_value = mock_operation
+
+        # Mock InterfaceModuleClient
+        mock_interface_client.return_value.broadcast_task_events.return_value = MagicMock()
 
         view = TaskInstanceViewSet.as_view({"post": "operate"})
         request = self._create_request_with_auth("post", f"/task/{task_instance.id}/operate/revoke/", {})
