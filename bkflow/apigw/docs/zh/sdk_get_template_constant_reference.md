@@ -17,16 +17,11 @@
 
 ### 接口参数
 
-| 字段          | 类型   | 必选 | 描述                    |
-|-------------|------|----|-----------------------|
-| pipeline_tree | dict | 是  | 流程树，包含 constants 字段 |
-
-### pipeline_tree 说明
-
-pipeline_tree 需要包含以下结构：
-- `constants`: 流程中定义的全局变量
-- `activities`: 流程中的活动节点
-- `gateways`: 流程中的网关节点
+| 字段          | 类型   | 必选  | 描述          |
+|-------------|------|-----|-------------|
+| constants   | dict | 是   | 流程中定义的全局变量  |
+| activities  | dict | 是   | 流程中的活动节点    |
+| gateways    | dict | 是   | 流程中的网关节点    |
 
 ### 请求参数示例
 
@@ -35,18 +30,15 @@ pipeline_tree 需要包含以下结构：
     "bk_app_code": "xxxx",
     "bk_app_secret": "xxxx",
     "bk_username or bk_token": "xxxx",
-    "pipeline_tree": {
-        "constants": {
-            "var1": {
-                "key": "var1",
-                "name": "变量1",
-                "value": "value1"
-            }
-        },
-        "activities": {},
-        "gateways": {},
-        "flows": {}
-    }
+    "constants": {
+        "var1": {
+            "key": "var1",
+            "name": "变量1",
+            "value": "value1"
+        }
+    },
+    "activities": {},
+    "gateways": {}
 }
 ```
 
@@ -54,24 +46,39 @@ pipeline_tree 需要包含以下结构：
 
 ```json
 {
-    "defined": {
-        "var1": {
-            "activities": ["node1", "node2"],
-            "conditions": [],
-            "constants": []
-        }
-    },
-    "nodefined": {
-        "${undefined_var}": {
-            "activities": ["node3"],
-            "conditions": [],
-            "constants": []
-        }
-    }
+     "result": true,
+     "data": {
+          "defined": {
+               "var1": {
+                    "activities": ["node1", "node2"],
+                    "conditions": [],
+                    "constants": []
+               }
+          },
+          "nodefined": {
+               "${undefined_var}": {
+                    "activities": ["node3"],
+                    "conditions": [],
+                    "constants": []
+               }
+          }
+     },
+     "code": "0",
+     "message": ""
 }
 ```
 
 ### 返回结果参数说明
+
+
+| 字段      | 类型     | 描述                    |
+|---------|--------|-----------------------|
+| result  | bool   | 返回结果，true为成功，false为失败 |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
+| message | string | 错误信息                  |
+| data    | dict   | 返回数据                  |
+
+#### data 字段说明
 
 | 字段       | 类型   | 描述                    |
 |----------|------|-----------------------|

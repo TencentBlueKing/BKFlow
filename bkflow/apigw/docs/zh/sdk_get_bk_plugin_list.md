@@ -26,8 +26,13 @@
 
 ### 请求参数示例
 
-```
-GET /sdk/bk_plugin/?tag=4&space_id=213
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "space_id": 123,
+    "tag": 4
+}
 ```
 
 ### 返回结果示例
@@ -53,18 +58,19 @@ GET /sdk/bk_plugin/?tag=4&space_id=213
                }
           ]
      },
-     "code": 0
+     "message": "",
+     "code": "0"
 }
 ```
 
 ### 返回结果参数说明
 
-| 字段        | 类型       | 描述                    |
-|-----------|----------|-----------------------|
-| result    | bool     | 返回结果，true为成功，false为失败 |
-| code      | int      | 返回码，0表示成功，其他值表示失败     |
-| message   | string   | 错误信息                  |
-| data      | list     | 返回数据，插件列表             |
+| 字段        | 类型     | 描述                    |
+|-----------|--------|-----------------------|
+| result    | bool   | 返回结果，true为成功，false为失败 |
+| code      | string | 返回码，0表示成功，其他值表示失败     |
+| message   | string | 错误信息                  |
+| data      | list   | 返回数据，插件列表             |
 
 #### data[plugins] 字段说明
 

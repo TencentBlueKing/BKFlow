@@ -95,10 +95,6 @@ POST /sdk/template/{template_id}/preview_task_tree/
                          "target": "e17aef95ed6934a428215b2a7a3fa4184",
                          "id": "f520808740b9945f8b01fa1dd889945d9"
                     }
-               },
-               "data": {
-                    "inputs": {},
-                    "outputs": []
                }
           },
           "constants_not_referred": {},
@@ -116,7 +112,7 @@ POST /sdk/template/{template_id}/preview_task_tree/
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
 | data    | dict   | 返回数据                  |
 
@@ -125,8 +121,8 @@ POST /sdk/template/{template_id}/preview_task_tree/
 
 | 字段                     | 类型     | 描述         |
 |------------------------|--------|------------|
-| pipeline_tree          | string | 流程数据       |
+| pipeline_tree          | dict   | 流程数据       |
 | constants_not_referred | dict   | 流程中未被引用的节点 |
-| mock_data              | dict   | mock数据方案   |
-| version                | dict   | 流程版本       |
+| mock_data              | list   | mock数据方案   |
+| version                | string | 流程版本       |
 | outputs                | dict   | 流程输出       |

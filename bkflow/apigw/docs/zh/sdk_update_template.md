@@ -25,7 +25,7 @@
 
 | 字段            | 类型     | 必选 | 描述               |
 |---------------|--------|----|------------------|
-| name          | string | 否  | 模板名称             |
+| name          | string | 是  | 模板名称             |
 | operator      | string | 否  | 更新人              |
 | notify_config | json   | 否  | 通知配置             |
 | desc          | string | 否  | 模板描述             |
@@ -34,7 +34,8 @@
 | source        | string | 否  | 模板来源(空间接入方自定义字段) |
 | version       | string | 否  | 模板版本(空间接入方自定义字段) |
 | extra_info    | dict   | 否  | 模板额外信息           |
-| pipeline_tree | dict   | 否  | 流程树               |
+| pipeline_tree | dict   | 是  | 流程树              |
+| triggers      | list   | 是  | 流程触发器            |
 
 ### notify_config 示例
 
@@ -59,7 +60,62 @@
     "bk_app_secret": "xxxx",
     "bk_username or bk_token": "xxxx",
     "name": "更新后的模板名",
-    "desc": "更新后的描述"
+    "desc": "更新后的描述",
+    "pipeline_tree": {
+        "id": "pd0980c284042448380d29e046bf348fc",
+        "start_event": {
+            "incoming": "",
+            "outgoing": "f22d707b4e7704868b51fbc504107da27",
+            "type": "EmptyStartEvent",
+            "id": "e39ce14ef5df644ccaa5236b50a9c44ca",
+            "name": null
+        },
+        "end_event": {
+            "incoming": [
+                "f520808740b9945f8b01fa1dd889945d9"
+            ],
+            "outgoing": "",
+            "type": "EmptyEndEvent",
+            "id": "e17aef95ed6934a428215b2a7a3fa4184",
+            "name": null
+        },
+        "activities": {
+            "e36e8026b07b5448299b52f91a9d265af": {
+                "incoming": [
+                    "f22d707b4e7704868b51fbc504107da27"
+                ],
+                "outgoing": "f520808740b9945f8b01fa1dd889945d9",
+                "type": "ServiceActivity",
+                "id": "e36e8026b07b5448299b52f91a9d265af",
+                "name": null,
+                "error_ignorable": false,
+                "timeout": null,
+                "skippable": true,
+                "retryable": true,
+                "component": {
+                    "code": "example_component",
+                    "inputs": {}
+                },
+                "optional": false
+            }
+        },
+        "gateways": {},
+        "flows": {
+            "f22d707b4e7704868b51fbc504107da27": {
+                "is_default": false,
+                "source": "e39ce14ef5df644ccaa5236b50a9c44ca",
+                "target": "e36e8026b07b5448299b52f91a9d265af",
+                "id": "f22d707b4e7704868b51fbc504107da27"
+            },
+            "f520808740b9945f8b01fa1dd889945d9": {
+                "is_default": false,
+                "source": "e36e8026b07b5448299b52f91a9d265af",
+                "target": "e17aef95ed6934a428215b2a7a3fa4184",
+                "id": "f520808740b9945f8b01fa1dd889945d9"
+            }
+        }
+    },
+    "triggers": []
 }
 ```
 
@@ -82,7 +138,8 @@
         "is_enabled": true,
         "extra_info": {}
     },
-    "code": 0
+    "message": "",
+    "code": "0"
 }
 ```
 
@@ -91,7 +148,7 @@
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
 | data    | dict   | 返回数据                  |
 
