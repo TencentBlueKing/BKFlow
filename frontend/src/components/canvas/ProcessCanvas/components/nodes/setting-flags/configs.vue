@@ -28,7 +28,7 @@
       </span>
       <!-- 配置了循环的子流程 -->
       <div
-        v-if="node.type === 'subflow' && (node.loop_config && node.loop_config.enable)"
+        v-if="node.type === 'subflow' && node.loop_config?.enable"
         class="loop-bacth-execute-icon">
         <div class="commonicon-icon common-icon-loading-oval" />
       </div>
