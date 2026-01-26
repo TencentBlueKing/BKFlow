@@ -271,7 +271,6 @@ class TaskOperation:
             runtime=BambooDjangoRuntime(), pipeline_id=self.task_instance.instance_id
         )
 
-    @trace_task_operation("get_task_states")
     @uniform_task_operation_result
     def get_task_states(
         self, subprocess_id: str = None, with_ex_data: bool = False, *args, **kwargs
@@ -370,7 +369,6 @@ class TaskOperation:
 
         return OperationResult(result=True, data=task_states)
 
-    @trace_task_operation("render_current_constants")
     @uniform_task_operation_result
     def render_current_constants(self):
         runtime = BambooDjangoRuntime()
@@ -396,7 +394,6 @@ class TaskOperation:
         data = [{"key": key, "value": value} for key, value in masked_context.items()]
         return OperationResult(result=True, data=data)
 
-    @trace_task_operation("render_context_with_node_outputs")
     @uniform_task_operation_result
     def render_context_with_node_outputs(self, node_ids: List[str], to_render_constants):
         runtime = BambooDjangoRuntime()
@@ -578,7 +575,6 @@ class TaskNodeOperation:
 
         return OperationResult(result=True, data=detail)
 
-    @trace_task_operation("get_outputs", operation_type="task_node")
     @uniform_task_operation_result
     def get_outputs(self, *args, **kwargs) -> OperationResult:
         runtime = BambooDjangoRuntime()
@@ -587,7 +583,6 @@ class TaskNodeOperation:
             logger.error(f"get_outputs failed: {outputs_result.message}, exc: {outputs_result.exc}")
         return outputs_result
 
-    @trace_task_operation("get_node_data", operation_type="task_node")
     @uniform_task_operation_result
     def get_node_data(
         self,
