@@ -759,7 +759,7 @@
           const isThird = Boolean(variable.plugin_code);
           const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
           let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
-          if (variable.is_meta || formItemConfig.meta_transform) {
+          if (variable.is_meta || formItemConfig?.meta_transform) {
             formItemConfig = formItemConfig.meta_transform(variable.meta || variable);
             if (!variable.meta) {
               variable.meta = tools.deepClone(variable);
@@ -1514,9 +1514,9 @@
             loopConfig,
           } = this.basicInfo;
           const constants = {};
-          if (loopConfig.loop_params && loopConfig.loop_params.length > 0) {
+          if (Array.isArray(loopConfig.loop_params) && loopConfig.loop_params.length > 0) {
             const result = loopConfig.loop_params.reduce((arr, item) => {
-              if (item.name.trim() !== '' && item.source.trim() !== '') {
+              if (item.name?.trim() && item.source?.trim()) {
                 arr[item.name] = item.source;
               }
               return arr;

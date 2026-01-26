@@ -41,7 +41,8 @@
         <bk-slider
           v-model="formData.loop_times"
           class="count-slider"
-          :show-input="true" />
+          :show-input="true"
+          @input="onLoopTimesChange" />
       </div>
     </div>
   </div>
@@ -53,7 +54,7 @@ import LoopVar from './LoopVar.vue';
 // import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
 
 export default {
-  name: 'BatchExecutionConfig',
+  name: 'LoopExecutionConfig',
   components: {
     LoopVar,
     // FullCodeEditor,
@@ -75,6 +76,7 @@ export default {
     // this.loopConfig.conditionCode = this.toggleExpressionFormat(this.loopConfig.conditionCode);
     return {
       formData: tools.deepClone(this.loopConfig),
+      debounceTimer: null,
     };
   },
   watch: {
@@ -84,13 +86,11 @@ export default {
       },
       deep: true,
     },
-    'formData.loop_times': {
-        handler(newVal, oldVal) {
-          if (newVal !== oldVal) {
-            this.$emit('change', this.formData);
-          }
-        },
-      },
+  },
+  beforeDestroy() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
   },
   methods: {
     // onDataChange(value) {
@@ -113,6 +113,17 @@ export default {
     },
     onLoopTypeChange() {
       this.$emit('change', this.formData);
+    },
+    onLoopTimesChange() {
+      this.debounceEmitChange();
+    },
+    debounceEmitChange() {
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+      this.debounceTimer = setTimeout(() => {
+        this.$emit('change', this.formData);
+      }, 300);
     },
     validate() {
       const valid = this.$refs.arrayLoopRef;
