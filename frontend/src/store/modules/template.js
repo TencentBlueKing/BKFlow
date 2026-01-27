@@ -304,7 +304,7 @@ const template = {
       });
     },
     updatePipelineTree(state, data) {
-      const { activities, flows, gateways, line, location, start_event: startEvent, end_event: endEvent, canvas_mode: canvasMode, stage_canvas_data: stageCanvasData, constants } = data;
+      const { activities, flows, gateways, line, location, start_event: startEvent, end_event: endEvent, canvas_mode: canvasMode, stage_canvas_data: stageCanvasData, constants, outputs } = data;
       activities && (state.activities = activities);
       flows && (state.flows = flows);
       gateways && (state.gateways = gateways);
@@ -315,6 +315,7 @@ const template = {
       canvasMode && (state.canvas_mode = canvasMode);
       stageCanvasData && (state.stage_canvas_data = stageCanvasData);
       constants && (state.constants = constants);
+      outputs && (state.outputs = outputs);
     },
     updateStageCanvasData(state, stageCanvasData) {
       state.stage_canvas_data = stageCanvasData;

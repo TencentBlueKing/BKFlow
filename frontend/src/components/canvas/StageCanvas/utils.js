@@ -400,7 +400,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   stage_canvas_data: [],
   constants: {},
 }) => {
-  const { activities = {}, stage_canvas_data: stageCanvasData = [], location, constants = {} } = cloneDeepWith(pipelineTree);
+  const { activities = {}, stage_canvas_data: stageCanvasData = [], location, constants = {}, outputs = [] } = cloneDeepWith(pipelineTree);
   const startPointLocation = {
     id: `node${uuid()}`,
     type: 'startpoint',
@@ -422,6 +422,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     start_event: {},
     canvas_mode: 'stage',
     constants: {},
+    outputs: [],
   };
 
   newPipelineTree.location.push(startPointLocation, endPointLocation);
@@ -586,12 +587,24 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   const activitieIds = Object.keys(newPipelineTree.activities);
   // 遍历全部变量，将变量中source节点被删除的变量删除
   Object.keys(constants).forEach((key) => {
-    const sourceId = Object.keys(constants[key].source_info)[0];
-    if (sourceId && !activitieIds.includes(sourceId)) {
-      delete constants[key].source_info[sourceId];
-    }
+    // 获取所有引用节点
+    const sourceIds = Object.keys(constants[key].source_info);
+    sourceIds.forEach((sourceId) => {
+      // 如果节点被删除，则删除变量
+      if (!activitieIds.includes(sourceId)) {
+        delete constants[key].source_info[sourceId];
+        if (Object.keys(constants[key].source_info).length === 0) {
+          delete constants[key];
+          // 如果变量被删除，则删除输出
+          if (outputs.includes(key)) {
+            outputs.splice(outputs.indexOf(key), 1);
+          }
+        }
+      }
+    }); 
   });
   newPipelineTree.constants = { ...constants };
+  newPipelineTree.outputs = { ...outputs };
   return newPipelineTree;
 };
 
