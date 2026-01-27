@@ -4,7 +4,7 @@
       ref="tableOperate"
       :space-id="spaceId"
       :placeholder="
-        $t('ID/流程名称/创建人/更新人/启用/所属作用域类型/所属作用域值')
+        $t('ID/流程名称/标签/创建人/更新人/启用/所属作用域类型/所属作用域值')
       "
       :search-list="searchList"
       @updateSearchValue="searchValue = $event"
@@ -402,6 +402,10 @@ const SEARCH_LIST = [
         isDefaultOption: true,
     },
     {
+        id: 'label',
+        name: i18n.t('标签'),
+    },
+    {
         id: 'creator',
         name: i18n.t('创建人'),
     },
@@ -534,6 +538,7 @@ export default {
             const {
                 name,
                 id,
+                label,
                 creator,
                 updated_by,
                 create_at: createAt,
@@ -549,6 +554,7 @@ export default {
                 limit,
                 offset: (current - 1) * limit,
                 name__icontains: name,
+                label,
                 id,
                 creator,
                 updated_by,
@@ -1006,7 +1012,7 @@ export default {
         .label-item {
             height: 16px;
             line-height: 16px;
-            font-size: 10px;
+            font-size: 12px;
             display: flex;
             align-items: center;
             padding: 0 6px;

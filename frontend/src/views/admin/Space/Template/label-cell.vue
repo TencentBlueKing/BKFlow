@@ -143,7 +143,7 @@ export default {
     margin-right: 4px;
     background: #f0f2f5;
     border-radius: 11px;
-    font-size: 10px;
+    font-size: 12px;
     line-height: 16px;
 }
 

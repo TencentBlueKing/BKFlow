@@ -5,7 +5,7 @@
       :space-id="spaceId"
       :placeholder="
         $t(
-          'ID/任务名称/创建人/执行人/所属模板 ID/所属作用域类型/所属作用域值'
+          'ID/任务名称/标签/创建人/执行人/所属模板 ID/所属作用域类型/所属作用域值'
         )
       "
       :search-list="searchList"
@@ -59,7 +59,7 @@
           <div v-else-if="item.id === 'label'">
             <label-cascade
               :value="props.row.labels"
-              scope="template"
+              scope="task"
               @confirm="onConfirmEditLabel(props.row, $event)">
               <template #trigger="{ list, isShow }">
                 <div
@@ -240,6 +240,10 @@ const SEARCH_LIST = [
         isDefaultOption: true,
     },
     {
+        id: 'label',
+        name: i18n.t('标签'),
+    },
+    {
         id: 'creator',
         name: i18n.t('创建人'),
     },
@@ -402,6 +406,7 @@ export default {
             const {
                 name,
                 id,
+                label,
                 creator,
                 create_time: createTime,
                 start_time: startTime,
@@ -418,6 +423,7 @@ export default {
                 offset: (this.pagination.current - 1) * limit,
                 name__icontains: name,
                 id,
+                label,
                 creator,
                 executor,
                 scope_type,
@@ -557,7 +563,7 @@ export default {
         .label-item {
             height: 16px;
             line-height: 16px;
-            font-size: 10px;
+            font-size: 12px;
             padding: 0 6px;
             border-radius: 11px;
             color: #ffffff;
