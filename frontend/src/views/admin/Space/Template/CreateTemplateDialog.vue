@@ -49,7 +49,7 @@
         <label-cascade
           :value="selectedLabels"
           scope="template"
-          @change="handleSelected">
+          @confirm="handleSelected">
           <template #trigger="{ list, isShow }">
             <div :class="['cascade-trigger', { focus: isShow }]">
               <div class="label-list">
@@ -194,6 +194,7 @@ export default {
         handleSelected(val) {
             this.selectedLabels = val;
             this.templateFormData.label_ids = val.map(item => item.id);
+            console.log(this.templateFormData.label_ids);
         },
         handleDeleteLabel(val) {
             this.selectedLabels = this.selectedLabels.filter(item => item.id !== val);
