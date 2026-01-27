@@ -59,7 +59,7 @@
           <div v-else-if="item.id === 'label'">
             <label-cascade
               :value="props.row.labels"
-              scope="template"
+              scope="task"
               @confirm="onConfirmEditLabel(props.row, $event)">
               <template #trigger="{ list, isShow }">
                 <div
@@ -557,7 +557,7 @@ export default {
         .label-item {
             height: 16px;
             line-height: 16px;
-            font-size: 10px;
+            font-size: 12px;
             padding: 0 6px;
             border-radius: 11px;
             color: #ffffff;

@@ -158,6 +158,7 @@ export default {
                     limit: 1000,
                     offset: 0,
                     name: this.searchStr,
+                    label_scope: this.scope,
                 };
                 const resp = await this.loadLabelList(params);
                 if (parentLabel) {

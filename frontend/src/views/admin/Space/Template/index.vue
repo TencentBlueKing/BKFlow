@@ -1006,7 +1006,7 @@ export default {
         .label-item {
             height: 16px;
             line-height: 16px;
-            font-size: 10px;
+            font-size: 12px;
             display: flex;
             align-items: center;
             padding: 0 6px;

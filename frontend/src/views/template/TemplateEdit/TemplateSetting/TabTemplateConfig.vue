@@ -793,7 +793,7 @@ export default {
         padding: 7px 0 9px 0;
         .label-item {
             height: 16px;
-            font-size: 10px;
+            font-size: 12px;
             display: flex;
             align-items: center;
             padding: 0 4px;
