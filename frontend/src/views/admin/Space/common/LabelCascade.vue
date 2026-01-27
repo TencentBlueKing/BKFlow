@@ -144,26 +144,36 @@ export default {
             immediate: true,
         },
         searchStr() {
-            console.log(111);
             tools.throttle(this.getLabelList, 300).call(this);
         },
     },
     methods: {
         ...mapActions('label', ['loadLabelList', 'deleteLabel']),
-        async getLabelList(parentId = null) {
+        async getLabelList(parentLabel = null) {
             try {
                 this.loading = true;
                 const params = {
                     space_id: this.spaceId,
-                    parent_id: parentId,
+                    parent_id: parentLabel ? parentLabel.id : null,
                     limit: 1000,
                     offset: 0,
                     name: this.searchStr,
                 };
                 const resp = await this.loadLabelList(params);
-                if (parentId) {
-                    this.labelList.find(label => label.id === parentId).children = resp.data.results;
-                    this.secondLabelList = resp.data.results;
+                if (parentLabel) {
+                    const children = resp.data.results || [];
+                    parentLabel.children = children;
+                    this.secondLabelList = children;
+                    const parentChecked = this.labelIds.includes(parentLabel.id);
+                    if (parentChecked) {
+                        children.forEach((child) => {
+                            this.addLabel(child);
+                        });
+                    } else {
+                        children.forEach((child) => {
+                            this.removeLabel(child.id);
+                        });
+                    }
                     return;
                 }
                 this.secondLabelList = [];
@@ -198,21 +208,65 @@ export default {
                 if (label.children) {
                     this.secondLabelList = label.children;
                 } else {
-                    this.getLabelList(label.id);
+                    this.getLabelList(label);
                 }
             }
         },
         handleCheckChange(label, checked) {
             if (checked) {
+                this.handleCheck(label);
+            } else {
+                this.handleUncheck(label);
+            }
+        },
+        handleCheck(label) {
+            this.addLabel(label);
+            // 选中一级 → 选中所有二级
+            if (label.has_children && Array.isArray(label.children)) {
+                label.children.forEach((child) => {
+                    this.addLabel(child);
+                });
+            }
+            // 选中二级 → 选中一级
+            if (label.parent_id) {
+                const parent = this.labelList.find(item => item.id === label.parent_id);
+                if (parent) {
+                    this.addLabel(parent);
+                }
+            }
+        },
+        handleUncheck(label) {
+            this.removeLabel(label.id);
+            // 取消一级 → 取消所有二级
+            if (label.has_children && Array.isArray(label.children)) {
+                label.children.forEach((child) => {
+                    this.removeLabel(child.id);
+                });
+            }
+            // 取消二级 → 如果没有兄弟被选中，取消一级
+            if (label.parent_id) {
+                const parent = this.labelList.find(item => item.id === label.parent_id);
+                if (!parent || !Array.isArray(parent.children)) return;
+                const hasSelectedSibling = parent.children.some(child => this.labelIds.includes(child.id));
+                if (!hasSelectedSibling) {
+                    this.removeLabel(parent.id);
+                }
+            }
+        },
+        addLabel(label) {
+            if (!this.labelIds.includes(label.id)) {
                 this.selectLabelList.push({
                     id: label.id,
                     name: label.name,
                     color: label.color,
                     full_path: label.full_path,
                 });
-            } else {
-                this.selectLabelList = this.selectLabelList.filter(item => item.id !== label.id);
+                this.labelIds.push(label.id);
             }
+        },
+        removeLabel(id) {
+            this.selectLabelList = this.selectLabelList.filter(item => item.id !== id);
+            this.labelIds = this.labelIds.filter(labelId => labelId !== id);
         },
         hide() {
             this.isShow = false;
@@ -225,12 +279,12 @@ export default {
         },
         onManageLabel() {
             const { href } = this.$router.resolve({
-          name: 'spaceAdmin',
-          query: {
-            space_id: this.spaceId,
-            activeTab: 'labelManage',
-          },
-        });
+                name: 'spaceAdmin',
+                query: {
+                    space_id: this.spaceId,
+                    activeTab: 'labelManage',
+                },
+            });
             window.open(href, '_blank');
         },
     },
