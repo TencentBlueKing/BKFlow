@@ -194,7 +194,6 @@ export default {
         handleSelected(val) {
             this.selectedLabels = val;
             this.templateFormData.label_ids = val.map(item => item.id);
-            console.log(this.templateFormData.label_ids);
         },
         handleDeleteLabel(val) {
             this.selectedLabels = this.selectedLabels.filter(item => item.id !== val);

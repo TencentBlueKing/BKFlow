@@ -223,7 +223,7 @@ export default {
                     name: `${this.row.name}_${moment().format('YYYYMMDDHHmmss')}`,
                     creator: this.username,
                     constants: '',
-                    labels: this.row.labels,
+                    labels: [],
                 };
                 const resp = await this.getPreviewTaskTree({
                     templateId: this.row.id,
