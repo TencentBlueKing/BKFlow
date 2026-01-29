@@ -604,7 +604,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     });
   });
   newPipelineTree.constants = { ...constants };
-  newPipelineTree.outputs = { ...outputs };
+  newPipelineTree.outputs = [...outputs];
   return newPipelineTree;
 };
 
