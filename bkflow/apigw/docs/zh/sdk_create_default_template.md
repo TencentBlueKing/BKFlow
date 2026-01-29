@@ -24,15 +24,12 @@
 | 字段            | 类型     | 必选 | 描述               |
 |---------------|--------|----|------------------|
 | name          | string | 是  | 模板名称             |
-| pipeline_tree | dict   | 是  | 流程树               |
 | desc          | string | 否  | 模板描述             |
 | notify_config | json   | 否  | 通知配置             |
 | scope_type    | string | 否  | 模板范围类型           |
 | scope_value   | string | 否  | 模板范围值            |
 | source        | string | 否  | 模板来源(空间接入方自定义字段) |
-| version       | string | 否  | 模板版本(空间接入方自定义字段) |
 | extra_info    | dict   | 否  | 模板额外信息           |
-| triggers      | list   | 否  | 触发器列表            |
 
 ### 请求参数示例
 
@@ -42,13 +39,6 @@
     "bk_app_secret": "xxxx",
     "bk_username or bk_token": "xxxx",
     "name": "新流程",
-    "pipeline_tree": {
-        "start_event": {},
-        "end_event": {},
-        "activities": {},
-        "gateways": {},
-        "flows": {}
-    },
     "desc": "流程描述"
 }
 ```
