@@ -34,7 +34,9 @@ function traverseFlowPath(flowId, flows, activities, gateways, ordered, nodeIds,
   if (!options.depth) {
     options.depth = 0;
   }
-  const isNodeProcessed = nodeId => ordered.some(item => item?.id === nodeId) || nodeIds.includes(nodeId);
+  const isNodeProcessed = nodeId => ordered.some(item => item?.id === nodeId)
+    || ((returnTarget || collectPath) && nodeIds.includes(nodeId));
+
   while (currentNodeId) {
     // 避免无限循环 - 检查当前路径和全局访问记录
     if (visitedNodes.has(currentNodeId) || options.globalVisited.has(currentNodeId)) {
