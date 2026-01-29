@@ -65,14 +65,15 @@ GET /sdk/template/snapshot/list_snapshot/
 
 #### data 字段说明
 
-| 字段             | 类型     | 描述              |
-|----------------|--------|-----------------|
-| create_time    | string | 数据创建时间          |
-| update_time    | string | 数据更新时间          |
-| version        | string | 流程版本号（草稿版本无版本号） |
-| template_id    | string | 关联的模板id         |
-| desc           | string | 流程版本描述          |
-| draft          | bool   | 是否是操作版本         |
-| creator        | string | 创建人             |
-| operator       | string | 操作人             |
-| md5sum         | string | 流程数据的md5值       |
+| 字段          | 类型     | 描述              |
+|-------------|--------|-----------------|
+| id          | int    | 快照id            |
+| create_time | string | 数据创建时间          |
+| update_time | string | 数据更新时间          |
+| version     | string | 流程版本号（草稿版本无版本号） |
+| template_id | string | 关联的模板id         |
+| desc        | string | 流程版本描述          |
+| draft       | bool   | 是否是操作版本         |
+| creator     | string | 创建人             |
+| operator    | string | 操作人             |
+| md5sum      | string | 流程数据的md5值       |

@@ -91,10 +91,6 @@ POST /sdk/template/{template_id}/rollback_template/
                     "target": "e17aef95ed6934a428215b2a7a3fa4184",
                     "id": "f520808740b9945f8b01fa1dd889945d9"
                }
-          },
-          "data": {
-               "inputs": {},
-               "outputs": []
           }
      },
      "code": "0",
@@ -107,7 +103,7 @@ POST /sdk/template/{template_id}/rollback_template/
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
 | data    | dict   | 回滚后的流程数据              |
 

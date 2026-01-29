@@ -61,7 +61,8 @@ constants 格式示例：
     "data": {
         "var1": "resolved_value1"
     },
-    "code": 0
+    "message": "",
+    "code": "0"
 }
 ```
 
@@ -70,7 +71,7 @@ constants 格式示例：
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
 | data    | dict   | 返回数据，key为变量名，value为解析后的值 |
 
