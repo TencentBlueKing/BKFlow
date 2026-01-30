@@ -21,14 +21,22 @@
 
 ### 请求参数示例
 
-```
-GET /sdk/template/variable/check_variable_key/?key=var_name
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "key": "var_name"
+}
 ```
 
 或
 
-```
-GET /sdk/template/variable/check_variable_key/?key=${var_name}
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "key": "${var_name}"
+}
 ```
 
 ### 返回结果示例
@@ -37,7 +45,7 @@ GET /sdk/template/variable/check_variable_key/?key=${var_name}
 {
     "result": true,
     "data": null,
-    "code": 0,
+    "code": "0",
     "message": ""
 }
 ```
@@ -47,7 +55,7 @@ GET /sdk/template/variable/check_variable_key/?key=${var_name}
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败。如果key不合法，会返回false并附带错误信息 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息，当key不合法时会返回错误提示 |
 | data    | null   | 占位字段                |
 
