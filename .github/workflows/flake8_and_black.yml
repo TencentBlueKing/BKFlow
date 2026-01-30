@@ -5,9 +5,9 @@ name: Flake8 and Black
 
 on:
   push:
-    branches: [ master, develop, release*, feature* ]
+    branches: [ master, develop, release*, feature*, feat* ]
   pull_request:
-    branches: [ master, develop, release*, feature* ]
+    branches: [ master, develop, release*, feature*, feat* ]
 
 jobs:
   flake8_and_black:
