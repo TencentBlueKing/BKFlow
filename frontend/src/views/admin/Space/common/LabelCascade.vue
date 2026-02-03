@@ -119,8 +119,8 @@ export default {
         return {
             showCreateLabelDialog: false,
             labelList: [],
-            selectLabelList: [],
-            labelIds: [],
+            selectLabelList: [], // 实际选中的标签列表
+            labelIds: [], // 绑定列表选中态
             isShow: false,
             secondLabelList: [],
             foucsId: 0,
@@ -128,6 +128,7 @@ export default {
             isInitialized: false,
             isShowCreate: false,
             searchStr: '',
+            needReload: true, // 是否需要重新绑定一级标签选中态（刷新列表后重新绑定）
         };
     },
     computed: {
@@ -168,11 +169,12 @@ export default {
                     const parentChecked = this.labelIds.includes(parentLabel.id);
                     if (parentChecked) {
                         children.forEach((child) => {
-                            this.addLabel(child);
+                            this.addLabelId(child);
+                            this.addToSelect(child);
                         });
                     } else {
                         children.forEach((child) => {
-                            this.removeLabel(child.id);
+                            this.removeLabelId(child.id);
                         });
                     }
                     return;
@@ -188,20 +190,35 @@ export default {
         getPopoverInstance() {
             return this.$refs.labelPopover.instance;
         },
-        isVisible(val) {
+        async isVisible(val) {
             const popover = this.getPopoverInstance();
             if (val) {
                 popover.show();
                 this.isShow = true;
-                if (this.isInitialized) return;
-                this.getLabelList();
-                this.isInitialized = true;
+                if (!this.isInitialized) {
+                    // 初始化
+                    await this.getLabelList();
+                    this.isInitialized = true;
+                }
+                if (this.needReload) {
+                    // 有二级标签选中时，选中其一级标签
+                    this.selectLabelList.forEach((label) => {
+                        if (label.full_path.includes('/')) {
+                            const parentFullPath = label.full_path.split('/')[0];
+                            const parentLabel = this.labelList.find(item => item.name === parentFullPath);
+                            if (parentLabel) {
+                                this.addLabelId(parentLabel);
+                            }
+                        }
+                    });
+                    this.needReload = false;
+                }
             } else {
                 popover.hide();
                 this.isShow = false;
             }
         },
-        handleClickFirstLabel(label) {
+        async handleClickFirstLabel(label) {
             this.foucsId = label.id;
             if (!label.has_children) {
                 this.secondLabelList = [];
@@ -209,7 +226,7 @@ export default {
                 if (label.children) {
                     this.secondLabelList = label.children;
                 } else {
-                    this.getLabelList(label);
+                  await this.getLabelList(label);
                 }
             }
         },
@@ -221,52 +238,73 @@ export default {
             }
         },
         handleCheck(label) {
-            this.addLabel(label);
+            this.addLabelId(label);
             // 选中一级 → 选中所有二级
             if (label.has_children && Array.isArray(label.children)) {
                 label.children.forEach((child) => {
-                    this.addLabel(child);
+                    this.addLabelId(child);
+                    this.addToSelect(child);
                 });
+                return;
             }
-            // 选中二级 → 选中一级
+            // 选中二级
             if (label.parent_id) {
                 const parent = this.labelList.find(item => item.id === label.parent_id);
                 if (parent) {
-                    this.addLabel(parent);
+                    // 父级只进 labelIds
+                    this.addLabelId(parent);
+                    // 展示列表里如果有父级，移除
+                    this.removeFromSelect(parent.id);
                 }
+                // 二级进展示
+                this.addToSelect(label);
+                return;
+            }
+            // 普通一级（没有 children 的）
+            if (!label.has_children) {
+                this.addToSelect(label);
             }
         },
         handleUncheck(label) {
-            this.removeLabel(label.id);
+            this.removeLabelId(label.id);
             // 取消一级 → 取消所有二级
             if (label.has_children && Array.isArray(label.children)) {
                 label.children.forEach((child) => {
-                    this.removeLabel(child.id);
+                    this.removeLabelId(child.id);
                 });
+                // 确保一级也不在 select 中
+                this.removeFromSelect(label.id);
             }
+
             // 取消二级 → 如果没有兄弟被选中，取消一级
             if (label.parent_id) {
                 const parent = this.labelList.find(item => item.id === label.parent_id);
                 if (!parent || !Array.isArray(parent.children)) return;
                 const hasSelectedSibling = parent.children.some(child => this.labelIds.includes(child.id));
                 if (!hasSelectedSibling) {
-                    this.removeLabel(parent.id);
+                    this.removeLabelId(parent.id);
                 }
             }
         },
-        addLabel(label) {
+        addLabelId(label) {
             if (!this.labelIds.includes(label.id)) {
-                this.selectLabelList.push({
-                    id: label.id,
-                    name: label.name,
-                    color: label.color,
-                    full_path: label.full_path,
-                });
                 this.labelIds.push(label.id);
             }
         },
-        removeLabel(id) {
+        addToSelect(label) {
+            if (this.selectLabelList.some(item => item.id === label.id)) return;
+            this.selectLabelList.push({
+                id: label.id,
+                name: label.name,
+                color: label.color,
+                full_path: label.full_path,
+            });
+        },
+        removeFromSelect(id) {
             this.selectLabelList = this.selectLabelList.filter(item => item.id !== id);
+        },
+        removeLabelId(id) {
+            this.removeFromSelect(id);
             this.labelIds = this.labelIds.filter(labelId => labelId !== id);
         },
         hide() {
@@ -274,6 +312,7 @@ export default {
             const isEqual = tools.isDataEqual(this.value, this.selectLabelList);
             if (isEqual) return;
             this.$emit('confirm', this.selectLabelList);
+            this.needReload = true;
         },
         onCreateLabel() {
             this.isShowCreate = true;

@@ -692,6 +692,9 @@ export default {
         onSelectLabel(labels) {
             this.formData.template_labels = labels;
         },
+        handleDeleteLabel(id) {
+            this.formData.template_labels = this.formData.template_labels.filter(item => item.id !== id);
+        },
     },
 };
 </script>

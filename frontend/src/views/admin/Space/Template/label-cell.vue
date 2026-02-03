@@ -114,10 +114,6 @@ export default {
                     hidden.push(info);
                 }
             }
-            if (hidden.length && visible.length) {
-                const last = visible.pop();
-                hidden.unshift(last);
-            }
             this.visibleTags = visible
                 .sort((a, b) => a.index - b.index)
                 .map(i => i.tag);

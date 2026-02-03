@@ -303,7 +303,7 @@ export default {
             this.taskFormData.labels = val;
         },
         handleDeleteLabel(val) {
-            this.taskFormData.labels = this.taskFormData.labels.filter(item => item.id !== val.id);
+            this.taskFormData.labels = this.taskFormData.labels.filter(item => item.id !== val);
         },
     },
 };
