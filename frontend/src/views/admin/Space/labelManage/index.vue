@@ -56,8 +56,8 @@
               <i18n
                 tag="div"
                 path="labelReference">
-                <span class="highlight">{{ 1 }}</span>
-                <span class="highlight">{{ 2 }}</span>
+                <span class="highlight">{{ row.reference.template_count }}</span>
+                <span class="highlight">{{ row.reference.task_count }}</span>
               </i18n>
             </bk-table-column>
             <bk-table-column :label="$t('系统默认标签')">
