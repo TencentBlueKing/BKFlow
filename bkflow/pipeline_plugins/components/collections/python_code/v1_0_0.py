@@ -286,6 +286,13 @@ class PythonCodeExecutor:
         except ImportError:
             pass
 
+        # _getitem_: 用于索引操作，如 data['key'], list[0]
+        # 使用 operator.getitem 作为守卫函数
+        import operator
+
+        if "_getitem_" not in restricted_builtins:
+            restricted_builtins["_getitem_"] = operator.getitem
+
         safe_builtins_dict = {
             "__name__": "__main__",
             "__builtins__": restricted_builtins,
