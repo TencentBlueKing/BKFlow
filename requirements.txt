@@ -35,7 +35,9 @@ bk-notice-sdk==1.3.0
 
 # engine service
 boto3==1.26.133
-bamboo-pipeline==3.29.5
+# bamboo-pipeline==3.29.5
+./packages/bamboo_engine-2.11.1rc1-py3-none-any.whl
+./packages/bamboo_pipeline-3.29.6rc1-py3-none-any.whl
 pydantic==1.10.6
 django-extensions==3.2.1
 
