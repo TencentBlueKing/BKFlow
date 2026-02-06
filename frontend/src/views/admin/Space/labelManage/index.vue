@@ -53,12 +53,18 @@
               </template>
             </bk-table-column>
             <bk-table-column :label="$t('标签引用')">
-              <i18n
-                tag="div"
-                path="labelReference">
-                <span class="highlight">{{ row.reference.template_count }}</span>
-                <span class="highlight">{{ row.reference.task_count }}</span>
-              </i18n>
+              <template slot-scope="{ row }">
+                <i18n
+                  tag="div"
+                  path="labelReference">
+                  <span class="highlight">{{
+                    row.reference.template_count
+                  }}</span>
+                  <span class="highlight">{{
+                    row.reference.task_count
+                  }}</span>
+                </i18n>
+              </template>
             </bk-table-column>
             <bk-table-column :label="$t('系统默认标签')">
               <template slot-scope="{ row }">
@@ -216,9 +222,6 @@ export default {
             deleting: false,
         };
     },
-    mounted() {
-        this.getLabelList();
-    },
     methods: {
         ...mapActions('label', [
             'loadLabelList',
@@ -228,15 +231,7 @@ export default {
         async getLabelList(parent = null) {
             const parentId = parent ? parent.id : null;
             // 二级标签拉取全量数据
-            const params = {
-                space_id: this.spaceId,
-                parent_id: parentId,
-                limit: parentId ? 1000 : this.pagination.limit,
-                offset: parentId
-                    ? 0
-                    : (this.pagination.current - 1) * this.pagination.limit,
-                ...this.requestData,
-            };
+            const params = this.getQueryData(parentId);
             try {
                 if (parentId) {
                     parent.childrenLoading = true;
@@ -247,12 +242,12 @@ export default {
                 // 1. 获取标签列表
                 const res = await this.loadLabelList(params);
                 const list = res.data?.results.map(item =>
-                    // 拼接 full_path
-                     ({
-                        ...item,
-                        childrenLoading: false,
-                    })
-                ) || [];
+                        // 拼接 full_path
+                        ({
+                            ...item,
+                            childrenLoading: false,
+                        })
+                    ) || [];
 
                 // 2. 获取引用数据
                 let referenceMap = {};
@@ -267,7 +262,7 @@ export default {
                 // 3. 绑定 reference
                 const bindReference = (labels) => {
                     labels.forEach((label) => {
-                        label.reference = referenceMap[label.id];
+                        label.reference = referenceMap[label.id] || { template_count: 0, task_count: 0 };
                     });
                 };
 
@@ -289,6 +284,25 @@ export default {
                     this.listLoading = false;
                 }
             }
+        },
+        getQueryData(parentId) {
+            const {
+                name,
+                label_scope,
+                is_default,
+            } = this.requestData;
+            const data = {
+                name,
+                label_scope,
+                is_default,
+                space_id: this.spaceId,
+                parent_id: parentId,
+                limit: parentId ? 1000 : this.pagination.limit,
+                offset: parentId
+                    ? 0
+                    : (this.pagination.current - 1) * this.pagination.limit,
+            };
+            return data;
         },
         onEditLabel(label) {
             this.editLabel = label;
