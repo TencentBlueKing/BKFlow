@@ -54,7 +54,10 @@ class TestTaskInterfaceAdminViewSet:
     def test_get_task_list(self, mock_client_class):
         """Test get_task_list method"""
         mock_client = mock.Mock()
-        mock_client.task_list.return_value = {"result": True, "data": [{"id": 1, "name": "Task 1"}]}
+        mock_client.task_list.return_value = {
+            "result": True,
+            "data": {"results": [{"id": 1, "name": "Task 1", "labels": []}]},
+        }
         mock_client_class.return_value = mock_client
 
         view = TaskInterfaceAdminViewSet.as_view({"get": "get_task_list"})
@@ -65,7 +68,7 @@ class TestTaskInterfaceAdminViewSet:
 
         assert response.status_code == 200
         mock_client.task_list.assert_called_once()
-        assert mock_client_class.called_with(space_id=self.space.id)
+        mock_client_class.assert_called_once_with(space_id=self.space.id)
 
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_tasks_states(self, mock_client_class):
