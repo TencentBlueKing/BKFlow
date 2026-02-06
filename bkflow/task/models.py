@@ -621,7 +621,7 @@ class BaseLabelRelationManager(models.Manager):
         # 3. 计算差异
         existing_set = set(existing_labels)
         new_set = set(label_ids)
-        
+
         add_ids = list(new_set - existing_set)
         remove_ids = list(existing_set - new_set)
 
@@ -629,7 +629,7 @@ class BaseLabelRelationManager(models.Manager):
         if remove_ids:
             # 构造删除查询: template_id=1, label_id__in=[...]
             delete_kwargs = {
-                "task_id": obj_id, 
+                "task_id": obj_id,
                 "label_id__in": remove_ids
             }
             self.filter(**delete_kwargs).delete()
