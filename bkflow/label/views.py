@@ -137,7 +137,9 @@ class LabelViewSet(AdminModelViewSet):
 
             try:
                 # 尝试查找已存在的父标签 (一级标签，parent_id为空)
-                parent_label = Label.objects.get(name=parent_name, parent_id__isnull=True)
+                parent_label = Label.objects.get(
+                    name=parent_name, space_id=data.get("space_id"), parent_id__isnull=True
+                )
                 parent_label_pk = parent_label.pk
             except Label.DoesNotExist:
                 # 如果一级标签不存在，则自动创建

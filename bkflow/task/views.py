@@ -248,7 +248,7 @@ class TaskInstanceViewSet(
         else:
             task_ids = serializer.validated_data["task_ids"]
             TaskInstance.objects.filter(space_id=space_id, id__in=task_ids, is_deleted=False).update(is_deleted=True)
-        TaskLabelRelation.objects.filter(task_id__in=serializer.validated_data["task_ids"]).delete()
+            TaskLabelRelation.objects.filter(task_id__in=serializer.validated_data["task_ids"]).delete()
         return Response({"result": True, "data": None, "message": "success"})
 
     @swagger_auto_schema(methods=["post"], operation_description="任务操作", request_body=EmptyBodySerializer)

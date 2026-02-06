@@ -118,7 +118,8 @@ class Label(models.Model):
 
     def __str__(self):
         # 手动查询父标签名称（替代外键的self.parent.name）
-        parent_name = self.get_parent_label().name if self.get_parent_label() else "无"
+        parent_label = self.get_parent_label()
+        parent_name = parent_label.name if parent_label else "无"
         return f"标签：{self.name}（父标签：{parent_name}，空间：{self.space_id}）"
 
     def get_parent_label(self):
