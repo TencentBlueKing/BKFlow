@@ -98,7 +98,7 @@ class Label(models.Model):
     color = models.CharField(_("标签颜色"), max_length=7, default="#dcffe2", help_text="标签颜色值（如#ffffff）")
     description = models.CharField(_("标签描述"), max_length=255, blank=True, null=True, help_text="标签描述")
     label_scope = models.JSONField(
-        verbose_name=_("标签范围"), default="template", help_text="标签范围（支持多选，如['task', 'common']）"
+        verbose_name=_("标签范围"), default=["template", "task"], help_text="标签范围（支持多选，如['task', 'common']）"
     )
 
     # 核心修改：用IntegerField存储父标签ID，替代外键
