@@ -163,11 +163,23 @@ class LabelViewSet(AdminModelViewSet):
         """删除标签，级联删除子标签"""
         instance = self.get_object()
 
+        need_delete_label_ids = [instance.pk]
         # 如果是一级标签，删除所有子标签
         if instance.parent_id is None:
-            Label.objects.filter(parent_id=instance.pk).delete()
+            sub_label_ids = Label.objects.filter(parent_id=instance.pk).values_list("id", flat=True)
+            need_delete_label_ids.extend(sub_label_ids)
 
-        self.perform_destroy(instance)
+        # 删除任务标签关系通过任务组件接口完成，此处不做处理
+        client = TaskComponentClient(space_id=instance.space_id)
+        result = client.delete_task_label_relation({"label_ids": need_delete_label_ids})
+        if not result["result"]:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        # 删除模板标签关系
+        TemplateLabelRelation.objects.filter(label_id__in=need_delete_label_ids).delete()
+
+        Label.objects.filter(id__in=need_delete_label_ids).delete()
+
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], serializer_class=LabelRefSerializer)

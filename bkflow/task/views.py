@@ -52,7 +52,6 @@ from bkflow.task.models import (
     TaskLabelRelation,
     TaskMockData,
     TaskOperationRecord,
-    TaskLabelRelation,
 )
 from bkflow.task.node_log import NodeLogDataSourceFactory
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
@@ -60,6 +59,7 @@ from bkflow.task.serializers import (
     BatchDeletePeriodicTaskSerializer,
     CreatePeriodicTaskSerializer,
     CreateTaskInstanceSerializer,
+    DeleteTaskLabelRelationSerializer,
     EngineSpaceConfigSerializer,
     GetEngineSpaceConfigSerializer,
     GetTaskOperationRecordSerializer,
@@ -170,7 +170,7 @@ class TaskInstanceViewSet(
         elif self.action == "retrieve":
             return RetrieveTaskInstanceSerializer
         return super().get_serializer_class()
-    
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
@@ -178,7 +178,7 @@ class TaskInstanceViewSet(
 
         serializer = self.get_serializer(page, many=True)
         task_ids = [task["id"] for task in serializer.data]
-        tasks_labels  = TaskLabelRelation.objects.fetch_tasks_labels(task_ids)
+        tasks_labels = TaskLabelRelation.objects.fetch_tasks_labels(task_ids)
         for task in serializer.data:
             task["labels"] = tasks_labels.get(task["id"], [])
 
@@ -207,6 +207,16 @@ class TaskInstanceViewSet(
             result[label_id] = label_template_count_map.get(int(label_id), 0)
 
         return Response(result)
+
+    @action(detail=False, methods=["post"], serializer_class=DeleteTaskLabelRelationSerializer)
+    def delete_task_label_relation(self, request, *args, **kwargs):
+        """删除任务标签关联"""
+        ser = DeleteTaskLabelRelationSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        validated_params = ser.validated_data
+        label_ids = validated_params["label_ids"]
+        TaskLabelRelation.objects.filter(label_id__in=label_ids).delete()
+        return Response({"label_ids": label_ids})
 
     @record_operation(RecordType.task.name, TaskOperationType.create.name, TaskOperationSource.api.name)
     def create(self, request, *args, **kwargs):
@@ -238,6 +248,7 @@ class TaskInstanceViewSet(
         else:
             task_ids = serializer.validated_data["task_ids"]
             TaskInstance.objects.filter(space_id=space_id, id__in=task_ids, is_deleted=False).update(is_deleted=True)
+        TaskLabelRelation.objects.filter(task_id__in=serializer.validated_data["task_ids"]).delete()
         return Response({"result": True, "data": None, "message": "success"})
 
     @swagger_auto_schema(methods=["post"], operation_description="任务操作", request_body=EmptyBodySerializer)

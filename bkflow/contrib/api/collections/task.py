@@ -71,6 +71,13 @@ class TaskComponentClient(BaseComponentClient):
             data=None,
         )
 
+    def delete_task_label_relation(self, data):
+        return self._request(
+            method="post",
+            url=self._get_task_url("task/delete_task_label_relation/"),
+            data=data,
+        )
+
     def create_task(self, data):
         return self._request(method="post", url=self._get_task_url("task/"), data=data)
 

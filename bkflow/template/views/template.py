@@ -191,8 +191,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         pipeline_tree = build_default_pipeline_tree_with_space_id(space_id)
         # 涉及到两张表的创建，需要那个开启事物，确保两张表全部都创建成功
         with transaction.atomic():
-            validate_data = ser.data.copy()
-            label_ids = validate_data.pop("label_ids", [])
+            label_ids = ser.validated_data.pop("label_ids", [])
             username = request.user.username
             if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
                 snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
@@ -333,6 +332,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             "id", flat=True
         )
         Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids), is_full=is_full)
+        TemplateLabelRelation.objects.filter(template_id__in=template_ids).delete()
         return Response({"delete_num": update_num})
 
     @swagger_auto_schema(method="POST", operation_description="流程模版复制", request_body=TemplateCopySerializer)

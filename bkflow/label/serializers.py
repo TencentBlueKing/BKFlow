@@ -102,13 +102,32 @@ class LabelSerializer(serializers.ModelSerializer):
         # 新增时：检查同一 space_id 下名称是否重复
         if self.instance is None:
             space_id = self.initial_data.get("space_id", -1)
-            if Label.objects.filter(space_id=space_id, name=value).exists():
+            if Label.objects.filter(
+                space_id=space_id, name=value, parent_id=self.initial_data.get("parent_id", None)
+            ).exists():
                 raise serializers.ValidationError(_(f"该空间下已存在名称为「{value}」的标签"))
         # 修改时：排除自身，检查同一 space_id 下名称是否重复
         else:
             space_id = self.initial_data.get("space_id", self.instance.space_id)
-            if Label.objects.filter(space_id=space_id, name=value).exclude(id=self.instance.id).exists():
+            if (
+                Label.objects.filter(space_id=space_id, name=value, parent_id=self.initial_data.get("parent_id", None))
+                .exclude(id=self.instance.id)
+                .exists()
+            ):
                 raise serializers.ValidationError(_(f"该空间下已存在名称为「{value}」的标签"))
+        return value
+
+    def validate_label_scope(self, value):
+        """验证标签范围非空且去重"""
+        parent_id = self.initial_data.get("parent_id", None)
+        if parent_id:
+            # 有父标签时，标签范围必须与父标签一致
+            try:
+                parent_label = Label.objects.get(id=parent_id)
+            except Label.DoesNotExist:
+                raise serializers.ValidationError(_("父标签不存在"))
+            if not set(value).issubset(set(parent_label.label_scope)):
+                raise serializers.ValidationError(_("子标签的范围必须是父标签的子集"))
         return value
 
 

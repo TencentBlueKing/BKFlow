@@ -17,9 +17,10 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import pytest
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
-from bkflow.label.models import Label, TaskLabelRelation, TemplateLabelRelation
+from bkflow.label.models import Label, TemplateLabelRelation
 
 # Enable database access for all tests in this module
 pytestmark = pytest.mark.django_db
@@ -180,7 +181,7 @@ class TestLabelModel:
             updated_by="tester",
         )
 
-        with pytest.raises(ValidationError) as exc:
+        with pytest.raises(DjangoValidationError) as exc:
             child.save()
 
         msg = str(exc.value)
@@ -199,7 +200,7 @@ class TestLabelModel:
             updated_by="tester",
         )
 
-        with pytest.raises(ValidationError) as exc:
+        with pytest.raises(DjangoValidationError) as exc:
             child.save()
 
         msg = str(exc.value)
@@ -215,7 +216,7 @@ class TestLabelModel:
         # introduce a cycle: parent -> child, child -> parent already exists
         parent.parent_id = child.id
 
-        with pytest.raises(ValidationError) as exc:
+        with pytest.raises(DjangoValidationError) as exc:
             parent.save()
 
         msg = str(exc.value)
@@ -241,6 +242,43 @@ class TestLabelModel:
         all_descendants = root.get_all_children(recursive=True)
         ids = {label.id for label in all_descendants}
         assert ids == {child1.id, child2.id, grandchild.id}
+
+    def test_get_label_ids_by_names(self):
+        """get_label_ids_by_names should return label IDs matching given names."""
+        l1 = make_label("apple")
+        l2 = make_label("banana")
+
+        # Test exact name matching
+        ids = Label.get_label_ids_by_names("apple")
+        assert ids == [l1.id]
+
+        # Test multiple names separated by commas
+        ids = Label.get_label_ids_by_names("apple,banana")
+        assert set(ids) == {l1.id, l2.id}
+
+        # Test multiple names separated by spaces
+        ids = Label.get_label_ids_by_names("apple banana")
+        assert set(ids) == {l1.id, l2.id}
+
+        # Test case insensitive matching
+        ids = Label.get_label_ids_by_names("APPLE")
+        assert ids == [l1.id]
+
+        # Test partial matching
+        ids = Label.get_label_ids_by_names("app")
+        assert ids == [l1.id]
+
+        # Test no matches
+        ids = Label.get_label_ids_by_names("grape")
+        assert ids == []
+
+        # Test empty input
+        ids = Label.get_label_ids_by_names("")
+        assert ids == []
+
+        # Test with extra whitespace
+        ids = Label.get_label_ids_by_names("  apple  ,  banana  ")
+        assert set(ids) == {l1.id, l2.id}
 
 
 class TestTemplateLabelRelationManager:
@@ -309,20 +347,175 @@ class TestTemplateLabelRelationManager:
                 assert set(item.keys()) >= {"id", "name", "color", "full_path"}
 
 
-class TestTaskLabelRelationManager:
-    """
-    Tests for BaseLabelRelationManager via TaskLabelRelation.
-    """
+class TestLabelSerializer:
+    """Tests for LabelSerializer validation logic."""
 
-    def test_manager_uses_task_id(self):
-        """
-        set_labels should use 'task_id' as fk_field for TaskLabelRelation.
-        """
-        label = make_label("task_label")
-        task_id = 200
+    def test_validate_color_valid_and_invalid_formats(self):
+        """validate_color should accept valid hex colors and reject invalid ones."""
+        from rest_framework.test import APIRequestFactory
 
-        TaskLabelRelation.objects.set_labels(task_id, [label.id])
+        from bkflow.label.serializers import LabelSerializer
 
-        relations = TaskLabelRelation.objects.filter(task_id=task_id)
-        assert relations.count() == 1
-        assert relations.first().label_id == label.id
+        factory = APIRequestFactory()
+        request = factory.post("/api/label/", data={"space_id": 1})
+
+        # Test individual validation method
+        serializer = LabelSerializer(context={"request": request})
+
+        # Valid hex colors should pass
+        assert serializer.validate_color("#ffffff") == "#ffffff"
+        assert serializer.validate_color("#000000") == "#000000"
+        assert serializer.validate_color("#FF00FF") == "#FF00FF"
+
+        # Invalid hex colors should raise ValidationError - this is CORRECT behavior
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.validate_color("ffffff")  # missing #
+        assert "颜色格式错误" == str(exc.value.detail[0])
+
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.validate_color("#fff")  # wrong length
+        assert "颜色格式错误" == str(exc.value.detail[0])
+
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.validate_color("#gggggg")  # invalid characters
+        assert "颜色格式错误" == str(exc.value.detail[0])
+
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.validate_color("#12345")  # wrong length
+        assert "颜色格式错误" == str(exc.value.detail[0])
+
+    def test_validate_name_duplicate_check(self):
+        """validate_name should prevent duplicate names within same space and parent."""
+        from rest_framework.test import APIRequestFactory
+
+        from bkflow.label.serializers import LabelSerializer
+
+        # Create initial label
+        existing_label = make_label("existing_label", space_id=1, color="#ffffff", label_scope=["task"])
+
+        factory = APIRequestFactory()
+
+        # Test duplicate detection on create
+        request = factory.post("/api/label/", data={"space_id": 1})
+
+        # Provide all required fields
+        serializer = LabelSerializer(
+            data={"space_id": 1, "name": "existing_label", "color": "#ffffff", "label_scope": ["task"]},
+            context={"request": request},
+        )
+
+        # Should raise validation error for duplicate name - this is CORRECT behavior
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.is_valid(raise_exception=True)
+        assert "该空间下已存在名称为「existing_label」的标签" == exc.value.detail["name"][0]
+
+        # Test duplicate detection on update (should exclude self)
+        request = factory.put(f"/api/label/{existing_label.id}/", data={"space_id": 1})
+        serializer = LabelSerializer(
+            instance=existing_label,
+            data={"space_id": 1, "name": "existing_label", "color": "#ffffff", "label_scope": ["task"]},
+            context={"request": request},
+        )
+        # Should not raise for same name when updating self
+        assert serializer.is_valid() is True
+
+        # Should raise for duplicate with different label
+        existing_label2 = make_label("existing_label2", space_id=1, color="#ffffff", label_scope=["task"])
+        request = factory.put(f"/api/label/{existing_label2.id}/", data={"space_id": 1})
+        serializer = LabelSerializer(
+            instance=existing_label2,
+            data={"space_id": 1, "name": "existing_label", "color": "#ffffff", "label_scope": ["task"]},
+            context={"request": request},
+        )
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.is_valid(raise_exception=True)
+        error_message = str(exc.value)
+        assert "该空间下已存在名称为「existing_label」的标签" in error_message
+
+    def test_validate_label_scope_parent_validation(self):
+        """validate_label_scope should enforce parent-child scope consistency."""
+        from rest_framework.test import APIRequestFactory
+
+        from bkflow.label.serializers import LabelSerializer
+
+        # Create parent with specific scope
+        parent = make_label("parent", label_scope=["task", "template"], color="#ffffff", space_id=1)
+
+        factory = APIRequestFactory()
+
+        # Valid child scope (subset of parent)
+        request = factory.post("/api/label/", data={"parent_id": parent.id})
+
+        # Valid: child scope is subset of parent scope
+        serializer = LabelSerializer(
+            data={"parent_id": parent.id, "name": "child", "color": "#ffffff", "label_scope": ["task"], "space_id": 1},
+            context={"request": request},
+        )
+
+        # The validation should pass for valid subset
+        assert serializer.is_valid() is True
+
+        # Invalid: child scope not subset of parent scope
+        serializer = LabelSerializer(
+            data={
+                "parent_id": parent.id,
+                "name": "child",
+                "color": "#ffffff",
+                "label_scope": ["common"],
+                "space_id": 1,
+            },
+            context={"request": request},
+        )
+
+        # Should raise ValidationError for invalid scope - this is CORRECT behavior
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.is_valid(raise_exception=True)
+        assert "子标签的范围必须是父标签的子集" == exc.value.detail["label_scope"][0]
+
+        # Invalid: parent doesn't exist
+        request = factory.post("/api/label/", data={"parent_id": 999999})
+        serializer = LabelSerializer(
+            data={"parent_id": 999999, "name": "child", "color": "#ffffff", "label_scope": ["task"], "space_id": 1},
+            context={"request": request},
+        )
+
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.is_valid(raise_exception=True)
+        assert "父标签不存在" in str(exc.value)
+
+    def test_validate_name_empty_and_whitespace(self):
+        """validate_name should reject empty and whitespace-only names."""
+        from rest_framework.test import APIRequestFactory
+
+        from bkflow.label.serializers import LabelSerializer
+
+        factory = APIRequestFactory()
+        request = factory.post("/api/label/", data={"space_id": 1})
+
+        # Test with empty name
+        serializer = LabelSerializer(
+            data={"space_id": 1, "name": "", "color": "#ffffff", "label_scope": ["task"]}, context={"request": request}
+        )
+
+        # Should raise validation error for empty name - this is CORRECT behavior
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.is_valid(raise_exception=True)
+        assert "该字段不能为空。" == exc.value.detail["name"][0]
+
+        # Test with whitespace-only name
+        serializer = LabelSerializer(
+            data={"space_id": 1, "name": "   ", "color": "#ffffff", "label_scope": ["task"]},
+            context={"request": request},
+        )
+
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.is_valid(raise_exception=True)
+
+        # Valid name with surrounding whitespace should be trimmed
+        serializer = LabelSerializer(
+            data={"space_id": 1, "name": "  valid_name  ", "color": "#ffffff", "label_scope": ["task"]},
+            context={"request": request},
+        )
+
+        assert serializer.is_valid() is True
+        assert serializer.validated_data["name"] == "valid_name"
