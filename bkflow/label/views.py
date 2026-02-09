@@ -190,7 +190,6 @@ class LabelViewSet(AdminModelViewSet):
         ser = LabelRefSerializer(data=request.query_params)
         ser.is_valid(raise_exception=True)
         validated_params = ser.validated_data
-        label_ids = validated_params["label_ids"].split(",")
 
         # 调用任务组件接口获取任务引用数量
         client = TaskComponentClient(space_id=validated_params["space_id"])
@@ -200,6 +199,7 @@ class LabelViewSet(AdminModelViewSet):
         label_task_ref_count_map = result["data"]
 
         # 获取模板引用数量
+        label_ids = validated_params["label_ids"].split(",")
         aggregation_qs = (
             TemplateLabelRelation.objects.filter(label_id__in=label_ids).values("label_id").annotate(count=Count("id"))
         )

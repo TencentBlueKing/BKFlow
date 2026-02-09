@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
-from copy import deepcopy
 
 from django.db.models import Q
 from django.utils import timezone
@@ -59,7 +58,7 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
     def get_task_list(self, request, space_id):
         client = TaskComponentClient(space_id=space_id)
         # 把标签名称转换为id进行搜索
-        query_params = deepcopy(request.query_params)
+        query_params = request.query_params.copy()
         labels = request.query_params.get("label", "")
         label_ids = Label.get_label_ids_by_names(labels)
         if label_ids:

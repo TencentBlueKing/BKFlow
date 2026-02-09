@@ -136,3 +136,29 @@ class LabelRefSerializer(serializers.Serializer):
 
     space_id = serializers.IntegerField(required=True, help_text="空间ID")
     label_ids = serializers.CharField(required=True, help_text="标签ID")
+
+    def validate_label_ids(self, value):
+        """
+        字段级验证：验证 label_ids 格式（仅允许数字和逗号，或列表/元组类型的数字）
+        """
+        # 处理列表/元组类型的入参（如果前端传的是列表）
+        if isinstance(value, (list, tuple)):
+            # 先验证列表中的每个元素都是数字
+            for item in value:
+                if not isinstance(item, (int, str)) or (isinstance(item, str) and not item.isdigit()):
+                    raise serializers.ValidationError("label_ids 列表中仅允许包含数字")
+            label_ids_str = ",".join(map(str, value))
+        else:
+            # 处理字符串类型的入参
+            label_ids_str = str(value).strip()  # 去除首尾空格
+
+        # 正则验证：仅包含数字和逗号，且不以逗号开头/结尾，也不是空字符串
+        if not label_ids_str:
+            raise serializers.ValidationError("label_ids 不能为空")
+        if not re.match(r"^[\d,]+$", label_ids_str) or label_ids_str.startswith(",") or label_ids_str.endswith(","):
+            raise serializers.ValidationError("label_ids 格式非法，仅允许数字和逗号（如 1,2,3）")
+
+        # 可选：去重 + 排序，保证格式统一
+        label_ids_list = list(set(label_ids_str.split(",")))
+        label_ids_list.sort()
+        return ",".join(label_ids_list)
