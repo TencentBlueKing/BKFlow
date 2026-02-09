@@ -319,26 +319,45 @@
       onOpenFrameSelect() {
         this.isSelectionOpen = true;
         this.$emit('onFrameSelectToggle', true);
-        // 禁用画布平移
-        this.instance.disablePanning();
-        // 开启选择
-        this.instance.enableSelection();
-        // 开启框选
-        this.instance.enableRubberband();
-        // 设置光标样式
+        try {
+          // 禁用画布平移
+          this.instance.disablePanning();
+          // 开启选择
+          this.instance.enableSelection();
+          // 开启框选
+          this.instance.enableRubberband();
+        } catch (error) {
+          console.warn(error);
+        }
         const graphSvg = this.getNodeElement('.x6-graph-svg');
-        graphSvg.style.cursor = 'crosshair';
+        if (graphSvg) {
+          graphSvg.style.cursor = 'crosshair';
+        }
       },
       onFrameSelectEnd() {
         this.isSelectionOpen = false;
         this.$emit('onFrameSelectToggle', false);
-        this.instance.enablePanning();
-        this.instance.disableSelection();
-        this.instance.disableRubberband();
+        try {
+          // 禁用框选和选择功能
+          this.instance.disableRubberband();
+          this.instance.disableSelection();
+          // 延迟启用平移功能，避免状态冲突
+          this.$nextTick(() => {
+            this.instance.enablePanning();
+          });
+        } catch (error) {
+          console.warn(error);
+          try {
+            this.instance.enablePanning();
+          } catch (e) {
+            console.error(e);
+          }
+        }
         const graphSvg = this.getNodeElement('.x6-graph-svg');
-        graphSvg.style.cursor = 'pointer';
+        if (graphSvg) {
+          graphSvg.style.cursor = 'pointer';
+        }
       },
-
       // 节点选中
       handleSelectedChange({ selected }) {
         if (this.isSelectionOpen) {
