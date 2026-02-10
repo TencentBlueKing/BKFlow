@@ -403,3 +403,88 @@ class TestLabelFilter:
         filtered_ids = list(filtered.values_list("id", flat=True))
         assert non_default_label.id in filtered_ids
         assert default_label.id not in filtered_ids
+
+
+class TestLabelViewSetExtraCoverage:
+    """Extra tests to cover remaining branches in bkflow.label.views."""
+
+    pytestmark = pytest.mark.django_db
+
+    def setup_method(self):
+        self.factory = APIRequestFactory()
+        self.admin_user, created = User.objects.get_or_create(
+            username="label_admin_extra",
+            defaults={
+                "is_superuser": True,
+                "is_staff": True,
+            },
+        )
+
+        ModuleInfo.objects.get_or_create(
+            space_id=1,
+            defaults={
+                "code": "test_task",
+                "url": "http://test.example.com",
+                "token": "test_token",
+                "type": ModuleType.TASK.value,
+                "isolation_level": IsolationLevel.ONLY_CALCULATION.value,
+            },
+        )
+
+        self.list_view = LabelViewSet.as_view({"get": "list"})
+        self.destroy_view = LabelViewSet.as_view({"delete": "destroy"})
+
+    def test_list_without_required_space_id_returns_empty(self):
+        """Missing required filter should make filterset invalid and return empty queryset."""
+        make_label("root", space_id=1)
+
+        request = self.factory.get("/api/label/")
+        request.user = self.admin_user
+
+        response = self.list_view(request)
+        assert response.status_code == status.HTTP_200_OK
+
+        # For SimpleGenericViewSet response format
+        data = response.data.get("data", {})
+        results = data.get("results", [])
+        assert results == []
+
+    def test_destroy_when_task_component_client_returns_error(self):
+        """destroy should return 400 and not delete objects when task component rejects."""
+        root = make_label("root_fail_delete", space_id=1)
+        child = make_label("child_fail_delete", space_id=1, parent_id=root.id)
+
+        request = self.factory.delete(f"/api/label/{root.id}/")
+        request.user = self.admin_user
+
+        with patch("bkflow.label.views.TaskComponentClient") as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.delete_task_label_relation.return_value = {"result": False, "message": "fail"}
+
+            response = self.destroy_view(request, pk=root.id)
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        assert Label.objects.filter(id=root.id).exists() is True
+        assert Label.objects.filter(id=child.id).exists() is True
+
+
+class TestLabelFilterQuerysetBranches:
+    """Cover LabelFilter.filter_queryset has_parent_id=True branch."""
+
+    pytestmark = pytest.mark.django_db
+
+    def test_filter_queryset_with_parent_id_keeps_queryset(self):
+        from bkflow.label.views import LabelFilter
+
+        parent = make_label("parent_for_filter", space_id=1)
+        child = make_label("child_for_filter", space_id=1, parent_id=parent.id)
+
+        # provide required space_id + parent_id so has_parent_id=True
+        data = {"space_id": 1, "parent_id": parent.id}
+        f = LabelFilter(data=data, queryset=Label.objects.all())
+
+        assert f.is_valid() is True
+        qs = f.qs
+
+        returned_ids = set(qs.values_list("id", flat=True))
+        assert returned_ids == {child.id}
