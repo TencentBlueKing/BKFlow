@@ -121,9 +121,20 @@ class WebhookEventType(Enum):
 
     TEMPLATE_UPDATE = "template_update"
     TEMPLATE_CREATE = "template_create"
+    TEMPLATE_RELEASE = "template_release"
     TASK_FAILED = "task_failed"
     TASK_FINISHED = "task_finished"
     TASK_CREATE = "task_create"
+    TASK_PAUSED = "task_paused"
+    TASK_RESUMED = "task_resumed"
+    TASK_REVOKED = "task_revoked"
+
+
+OPERATE_EVENT_MAP = {
+    "pause": WebhookEventType.TASK_PAUSED.value,
+    "resume": WebhookEventType.TASK_RESUMED.value,
+    "revoke": WebhookEventType.TASK_REVOKED.value,
+}
 
 
 class TriggerConstantsMode(Enum):
