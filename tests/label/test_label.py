@@ -166,6 +166,15 @@ class TestLabelModel:
         assert child.full_path == "root/child"
         assert grandchild.full_path == "root/child/grandchild"
 
+    def test_str_contains_parent_name_or_default(self):
+        """__str__ should include parent name when available, otherwise use default text."""
+        root = make_label("root_for_str")
+        child = make_label("child_for_str", parent_id=root.id)
+
+        assert "root_for_str" in str(child)
+        assert "child_for_str" in str(child)
+        assert "父标签：无" in str(root)
+
     def test_label_clean_validates_parent_space(self):
         """
         save should fail when child's space_id does not match parent space_id.
@@ -221,6 +230,24 @@ class TestLabelModel:
 
         msg = str(exc.value)
         assert "禁止循环引用" in msg
+
+    def test_label_clean_breaks_when_ancestor_missing(self):
+        """Cycle check should break gracefully when an ancestor record is missing."""
+        parent = make_label("parent_inconsistent")
+        # Create an inconsistent chain: parent.parent_id points to a missing label.
+        # Use queryset.update to bypass model clean/save.
+        Label.objects.filter(id=parent.id).update(parent_id=999999)
+
+        child = Label(
+            name="child_ok",
+            space_id=parent.space_id,
+            parent_id=parent.id,
+            label_scope=["task"],
+            creator="tester",
+            updated_by="tester",
+        )
+        # Should not raise, even though parent's parent is missing.
+        child.save()
 
     def test_get_all_children_delegates_to_manager(self):
         """
@@ -345,6 +372,10 @@ class TestTemplateLabelRelationManager:
         for labels in result.values():
             for item in labels:
                 assert set(item.keys()) >= {"id", "name", "color", "full_path"}
+
+    def test_fetch_objects_labels_returns_empty_when_no_relations(self):
+        """fetch_objects_labels should return {} when the provided objects have no relations."""
+        assert TemplateLabelRelation.objects.fetch_objects_labels([999999], label_fields=("name", "color")) == {}
 
 
 class TestLabelSerializer:
@@ -519,3 +550,133 @@ class TestLabelSerializer:
 
         assert serializer.is_valid() is True
         assert serializer.validated_data["name"] == "valid_name"
+
+    def test_validate_name_custom_error_when_blank_after_strip(self):
+        """Direct validate_name should raise the custom error when value becomes blank after strip."""
+        from bkflow.label.serializers import LabelSerializer
+
+        serializer = LabelSerializer()
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.validate_name("   ")
+        assert "标签名称不能为空" == str(exc.value.detail[0])
+
+
+class TestLabelPermission:
+    """Tests for bkflow.label.permissions.LabelPermission."""
+
+    def test_get_resource_type(self):
+        from bkflow.label.permissions import LabelPermission
+
+        assert LabelPermission().get_resource_type() == "LABEL"
+
+    def test_has_object_permission_edit_actions_use_edit_permission_only(self, monkeypatch):
+        """When action is in EDIT_ABOVE_ACTIONS, only edit permission matters."""
+        from types import SimpleNamespace
+
+        from bkflow.label.permissions import LabelPermission
+
+        perm = LabelPermission()
+
+        monkeypatch.setattr(perm, "has_edit_permission", lambda *args, **kwargs: True)
+        monkeypatch.setattr(perm, "has_view_permission", lambda *args, **kwargs: False)
+
+        request = SimpleNamespace(user=SimpleNamespace(username="tester"), token="t")
+        view = SimpleNamespace(action="create", EDIT_ABOVE_ACTIONS=["create", "update", "partial_update", "destroy"])
+        obj = SimpleNamespace(space_id=1, id=123)
+
+        assert perm.has_object_permission(request, view, obj) is True
+
+        monkeypatch.setattr(perm, "has_edit_permission", lambda *args, **kwargs: False)
+        assert perm.has_object_permission(request, view, obj) is False
+
+    def test_has_object_permission_view_actions_allow_view_or_edit(self, monkeypatch):
+        """When action is not edit-type, view permission OR edit permission passes."""
+        from types import SimpleNamespace
+
+        from bkflow.label.permissions import LabelPermission
+
+        perm = LabelPermission()
+        request = SimpleNamespace(user=SimpleNamespace(username="tester"), token="t")
+        view = SimpleNamespace(action="list", EDIT_ABOVE_ACTIONS=["create", "update", "partial_update", "destroy"])
+        obj = SimpleNamespace(space_id=1, id=123)
+
+        # view=True, edit=False -> True
+        monkeypatch.setattr(perm, "has_edit_permission", lambda *args, **kwargs: False)
+        monkeypatch.setattr(perm, "has_view_permission", lambda *args, **kwargs: True)
+        assert perm.has_object_permission(request, view, obj) is True
+
+        # view=False, edit=True -> True
+        monkeypatch.setattr(perm, "has_edit_permission", lambda *args, **kwargs: True)
+        monkeypatch.setattr(perm, "has_view_permission", lambda *args, **kwargs: False)
+        assert perm.has_object_permission(request, view, obj) is True
+
+        # view=False, edit=False -> False
+        monkeypatch.setattr(perm, "has_edit_permission", lambda *args, **kwargs: False)
+        monkeypatch.setattr(perm, "has_view_permission", lambda *args, **kwargs: False)
+        assert perm.has_object_permission(request, view, obj) is False
+
+
+class TestLabelAdminHelpers:
+    """Cover admin helper methods in bkflow.label.admin."""
+
+    def test_label_admin_parent_label(self):
+        from django.contrib import admin
+
+        from bkflow.label.admin import LabelAdmin
+        from bkflow.label.models import Label
+
+        root = make_label("root_admin")
+        child = make_label("child_admin", parent_id=root.id)
+
+        admin_obj = LabelAdmin(Label, admin.site)
+
+        assert admin_obj.parent_label(root) == "-"
+        assert admin_obj.parent_label(child) == "root_admin"
+
+    def test_template_label_relation_admin_label_name(self):
+        from django.contrib import admin
+
+        from bkflow.label.admin import TemplateLabelRelationAdmin
+        from bkflow.label.models import TemplateLabelRelation
+
+        label = make_label("label_for_relation")
+        rel_ok = TemplateLabelRelation.objects.create(template_id=1, label_id=label.id)
+        rel_missing = TemplateLabelRelation.objects.create(template_id=1, label_id=999999999)
+
+        admin_obj = TemplateLabelRelationAdmin(TemplateLabelRelation, admin.site)
+
+        assert admin_obj.label_name(rel_ok) == "label_for_relation"
+        assert admin_obj.label_name(rel_missing) == "-"
+
+
+class TestLabelRefSerializer:
+    def test_validate_label_ids_accepts_list_and_sorts_dedup(self):
+        from bkflow.label.serializers import LabelRefSerializer
+
+        ser = LabelRefSerializer()
+        assert ser.validate_label_ids([3, "2", 2]) == "2,3"
+
+    def test_validate_label_ids_rejects_invalid_list_item(self):
+        from rest_framework.exceptions import ValidationError
+
+        from bkflow.label.serializers import LabelRefSerializer
+
+        ser = LabelRefSerializer()
+        with pytest.raises(ValidationError):
+            ser.validate_label_ids(["x"])
+
+    def test_validate_label_ids_rejects_empty_and_bad_format(self):
+        from rest_framework.exceptions import ValidationError
+
+        from bkflow.label.serializers import LabelRefSerializer
+
+        ser = LabelRefSerializer()
+
+        # empty
+        with pytest.raises(ValidationError):
+            ser.validate_label_ids("")
+
+        # leading/trailing commas / illegal chars
+        for v in [",1,2", "1,2,", "1,a"]:
+            with pytest.raises(ValidationError):
+                ser.validate_label_ids(v)
