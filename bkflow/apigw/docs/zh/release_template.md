@@ -1,6 +1,6 @@
 ### 资源描述
 
-获取流程草稿版本（SDK接口）
+发布流程（纯后台接口）
 
 ### 输入通用参数说明
 
@@ -9,11 +9,6 @@
 | bk_app_code   | string | 是  | 应用ID(app id)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取     |
 | bk_app_secret | string | 是  | 安全秘钥(app secret)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取 |
 
-### HTTP Header 参数说明
-
-| 参数名称          | 参数类型   | 必须 | 参数说明                                                       |
-|---------------|--------|----|------------------------------------------------------------|
-| HTTP_BKFLOW_TOKEN | string | 是  | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 接口申请。该 token 用于验证用户对指定空间资源的访问权限（需要提供 template_id 或 task_id） |
 
 ### 路径参数
 
@@ -23,12 +18,17 @@
 
 ### 接口参数
 
-无
+| 字段        | 类型     | 必选 | 描述     |
+|-----------|--------|----|--------|
+| force     | bool   | 否  | 是否强制发布 |
+| version   | string | 是  | 发布版本号  |
+| desc      | string | 否  | 版本描述   |
+
 
 ### 请求参数示例
 
 ```
-GET /sdk/template/{template_id}/get_draft_template/
+POST /sdk/template/{template_id}/release_template/
 ```
 
 ### 返回结果示例
@@ -37,16 +37,6 @@ GET /sdk/template/{template_id}/get_draft_template/
 {
      "result": true,
      "data": {
-          "id": 123,
-          "create_time": "2025-05-08 16:59:50+0800",
-          "update_time": "2025-05-08 17:00:42+0800",
-          "version": null,
-          "template_id": 1793,
-          "desc": null,
-          "draft": true,
-          "creator": "",
-          "operator": "",
-          "md5sum": "ea0614839bd037b802163cbd60572298",
           "pipeline_tree": {
                "id": "pd0980c284042448380d29e046bf348fc",
                "start_event": {
@@ -100,10 +90,33 @@ GET /sdk/template/{template_id}/get_draft_template/
                          "id": "f520808740b9945f8b01fa1dd889945d9"
                     }
                }
-          }
+          },
+          "notify_config": {
+               "notify_type": {
+                    "fail": [],
+                    "success": []
+               },
+               "notify_receivers": {
+                    "more_receiver": "",
+                    "receiver_group": []
+               }
+          },
+          "version": "1.0.4",
+          "desc": null,
+          "subprocess_info": [],
+          "creator": "xxx",
+          "create_at": "2025-05-19T11:34:00.551630+08:00",
+          "update_at": "2025-05-22T12:13:42.270250+08:00",
+          "updated_by": "xxx",
+          "space_id": 1,
+          "name": "test",
+          "scope_type": null,
+          "scope_value": null,
+          "source": null,
+          "is_enabled": true,
+          "extra_info": {}
      },
-     "code": "0",
-     "message": ""
+     "code": 0
 }
 ```
 
@@ -112,21 +125,28 @@ GET /sdk/template/{template_id}/get_draft_template/
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | string | 返回码，0表示成功，其他值表示失败     |
-| message | string | 错误信息                  |
+| code    | int    | 返回码，0表示成功，其他值表示失败     |
 | data    | dict   | 返回数据                  |
 
-#### data 字段说明
 
-| 字段             | 类型     | 描述              |
-|----------------|--------|-----------------|
-| create_time    | string | 数据创建时间          |
-| update_time    | string | 数据更新时间          |
-| version        | string | 流程版本号（草稿版本无版本号） |
-| template_id    | string | 关联的模板id         |
-| desc           | string | 流程版本描述          |
-| draft          | bool   | 是否是草稿版本         |
-| creator        | string | 创建人             |
-| operator       | string | 操作人             |
-| md5sum         | string | 流程数据的md5值       |
-| pipeline_tree  | string | 草稿版本流程数据        |
+
+### data 包含字段说明
+
+| 字段              | 类型       | 描述       |
+|-----------------|----------|----------|
+| id              | string   | 流程ID     |
+| space_id        | string   | 流程所属空间ID |
+| name            | string   | 流程名称     |
+| desc            | string   | 流程描述     |
+| notify_config   | dict     | 通知配置     |
+| scope_type      | string   | 流程范围类型   |
+| scope_value     | string   | 流程范围ID   |
+| pipeline_tree   | dict     | 流程树详情    |
+| source          | string   | 流程来源     |
+| version         | string   | 流程版本     |
+| is_enabled      | bool     | 流程是否启用   |
+| extra_info      | dict     | 流程扩展信息   |
+| creator         | string   | 流程创建者    |
+| create_at       | string   | 流程创建时间   |
+| update_at       | string   | 流程更新时间   |
+| updated_by      | string   | 流程更新者    |

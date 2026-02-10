@@ -17,21 +17,26 @@
 
 ### 路径参数
 
-| 字段       | 类型     | 必选 | 描述    |
-|----------|--------|----|-------|
-| plugin_id | string | 是  | 插件代码  |
+| 字段       | 类型     | 必选 | 描述     |
+|----------|--------|----|--------|
+| plugin_id | string | 是  | 插件code |
 
 ### 接口参数
 
-| 字段       | 类型     | 必选 | 描述       |
-|----------|--------|----|----------|
-| space_id | int    | 否  | 空间ID     |
-| version  | string | 否  | 插件版本    |
+| 字段         | 类型      | 必选 | 描述        |
+|------------|---------|----|-----------|
+| space_id   | int     | 是  | 空间ID      |
+| version    | string  | 否  | 插件版本      |
 
 ### 请求参数示例
 
-```
-GET /sdk/plugin/{plugin_id}/?space_id=1&version=1.0.0
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "space_id": 1,
+    "version": "1.0.0"
+}
 ```
 
 ### 返回结果示例
@@ -60,7 +65,8 @@ GET /sdk/plugin/{plugin_id}/?space_id=1&version=1.0.0
         "group_name": "分组名称",
         "status": true
     },
-    "code": 0
+    "message": "",
+    "code": "0"
 }
 ```
 
@@ -69,7 +75,7 @@ GET /sdk/plugin/{plugin_id}/?space_id=1&version=1.0.0
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
 | data    | dict   | 返回数据                  |
 
