@@ -47,13 +47,14 @@ def update_credential(request, space_id, credential_id):
     :return: 更新后的凭证信息
     """
     data = json.loads(request.body)
-    ser = UpdateCredentialSerializer(data=data)
-    ser.is_valid(raise_exception=True)
 
     try:
         credential = Credential.objects.get(id=credential_id, space_id=space_id, is_deleted=False)
     except Credential.DoesNotExist:
         raise ValidationError(_("凭证不存在: space_id={}, credential_id={}").format(space_id, credential_id))
+
+    ser = UpdateCredentialSerializer(instance=credential, data=data, partial=True)
+    ser.is_valid(raise_exception=True)
 
     with transaction.atomic():
         # 更新凭证基本信息

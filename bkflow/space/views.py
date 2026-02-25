@@ -180,19 +180,26 @@ class CredentialConfigViewSet(AdminModelViewSet):
             logger.error(err_msg)
             return Response(err_msg, status=404)
 
-        serializer = UpdateCredentialSerializer(data=request.data)
+        serializer = UpdateCredentialSerializer(instance=instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
 
         try:
             with transaction.atomic():
                 # 更新凭证基本信息
                 scopes_data = serializer.validated_data.pop("scopes", None)
+                content_data = serializer.validated_data.pop("content", None)
+
                 for attr, value in serializer.validated_data.items():
                     setattr(instance, attr, value)
 
                 instance.updated_by = request.user.username
-                updated_keys = list(serializer.validated_data.keys()) + ["updated_by", "update_at"]
-                instance.save(update_fields=updated_keys)
+
+                if content_data is not None:
+                    # 使用 update_credential 方法更新，确保经过类型校验和数据转换（内部会 save）
+                    instance.update_credential(content_data)
+                else:
+                    updated_keys = list(serializer.validated_data.keys()) + ["updated_by", "update_at"]
+                    instance.save(update_fields=updated_keys)
 
                 self.update_scopes(instance, serializer.validated_data.get("scope_level"), scopes_data, update=True)
         except DatabaseError as e:

@@ -20,6 +20,7 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from bkflow.space.credential import CredentialDispatcher
+from bkflow.space.exceptions import CredentialTypeNotSupport
 from bkflow.space.models import Credential, CredentialScopeLevel
 from bkflow.space.serializers import CredentialScopeSerializer
 
@@ -69,7 +70,7 @@ class CreateCredentialSerializer(serializers.Serializer):
         try:
             credential = CredentialDispatcher(credential_type, data=content)
             credential.validate_data()
-        except Exception as e:
+        except (serializers.ValidationError, CredentialTypeNotSupport) as e:
             raise serializers.ValidationError({"content": str(e)})
 
         return attrs
@@ -96,7 +97,7 @@ class UpdateCredentialSerializer(serializers.Serializer):
         if "content" in attrs:
             # 如果有type字段使用type，否则需要从实例获取
             credential_type = attrs.get("type")
-            if not credential_type and hasattr(self, "instance"):
+            if not credential_type and self.instance is not None:
                 credential_type = self.instance.type
 
             if credential_type:
@@ -104,7 +105,7 @@ class UpdateCredentialSerializer(serializers.Serializer):
                 try:
                     credential = CredentialDispatcher(credential_type, data=content)
                     credential.validate_data()
-                except Exception as e:
+                except (serializers.ValidationError, CredentialTypeNotSupport) as e:
                     raise serializers.ValidationError({"content": str(e)})
 
         return attrs
