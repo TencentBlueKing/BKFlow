@@ -362,3 +362,7 @@ class TemplateSnapshotSerializer(serializers.ModelSerializer):
             "operator",
             "md5sum",
         ]
+
+
+class SimplifiedTemplateFileSerializer(serializers.Serializer):
+    file = serializers.FileField(help_text="uploaded file")

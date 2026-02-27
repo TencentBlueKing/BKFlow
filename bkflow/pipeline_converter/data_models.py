@@ -1,0 +1,113 @@
+# -*- coding: utf-8 -*-
+from typing import Any, Dict, List, Union
+
+from pydantic import BaseModel
+
+from bkflow.pipeline_converter.constants import NodeTypes
+
+
+class Node(BaseModel):
+    id: str
+    name: str = ""
+    type: str
+    next: Union[str, List[str], None]
+
+
+class EmptyStartNode(Node):
+    type: str = NodeTypes.START_EVENT.value
+
+
+class EmptyEndNode(Node):
+    type: str = NodeTypes.END_EVENT.value
+    next: None = None
+
+
+class ComponentField(BaseModel):
+    value: Any
+    key: str
+    need_render: bool = True
+
+
+class Component(BaseModel):
+    code: str
+    version: str
+    data: List[ComponentField]
+
+
+class AutoRetryConfig(BaseModel):
+    enable: bool = False
+    interval: int = 0
+    times: int = 1
+
+
+class TimeoutConfig(BaseModel):
+    enable: bool = False
+    seconds: int = 10
+    action: str = "forced_fail"
+
+
+class ComponentNode(Node):
+    type: str = NodeTypes.COMPONENT.value
+    component: Component
+    skippable: bool = True
+    retryable: bool = True
+    error_ignorable: bool = False
+    auto_retry: AutoRetryConfig = AutoRetryConfig()
+    timeout_config: TimeoutConfig = TimeoutConfig()
+
+
+class Flow(BaseModel):
+    id: str
+    source: str
+    target: str
+    is_default: bool = False
+
+
+class Gateway(Node):
+    pass
+
+
+class ParallelGateway(Gateway):
+    converge_gateway_id: str
+    type: str = NodeTypes.PARALLEL_GATEWAY.value
+
+
+class ConvergeGateway(Gateway):
+    type: str = NodeTypes.CONVERGE_GATEWAY.value
+
+
+class Condition(BaseModel):
+    name: str
+    expr: str
+
+
+class ExclusiveGateway(Gateway):
+    lang: str = "boolrule"
+    conditions: List[Condition]
+    type: str = NodeTypes.EXCLUSIVE_GATEWAY.value
+
+
+class ConditionalParallelGateway(ExclusiveGateway, ParallelGateway):
+    type: str = NodeTypes.CONDITIONAL_PARALLEL_GATEWAY.value
+
+
+class Constant(BaseModel):
+    name: str
+    type: str
+    key: str
+    value: Any
+    version: str = "legacy"
+    source_type: str
+    pre_render_mako: bool = False
+
+
+class Extensions(BaseModel):
+    nodes: Dict[str, Any]
+
+
+class Pipeline(BaseModel):
+    id: str
+    name: str
+    nodes: List[Node]
+    constants: List[Constant]
+    extensions: Extensions = None
