@@ -40,6 +40,12 @@ export const SPACE_LIST = [
     id: 'credential',
     disabled: false,
   },
+  {
+    name: i18n.t('标签管理'),
+    icon: 'common-icon-credential',
+    id: 'labelManage',
+    disabled: false,
+  },
 ];
 
 export const MODULES_LIST = [
