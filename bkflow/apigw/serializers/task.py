@@ -150,6 +150,7 @@ class CreateTaskWithoutTemplateSerializer(CredentialsValidationMixin, serializer
     scope_value = serializers.CharField(help_text=_("任务范围值"), max_length=128, required=False)
     description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    credentials = serializers.JSONField(help_text=_("任务凭证"), required=False, default={})
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
     notify_config = serializers.JSONField(help_text=_("通知配置"), required=False, default={})
     custom_span_attributes = serializers.DictField(

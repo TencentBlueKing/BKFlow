@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,8 +16,16 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from .bkapp import BkAppCredential  # noqa
+from .basic_auth import BasicAuthCredential  # noqa
+from .bk_access_token import BkAccessTokenCredential  # noqa
+from .bk_app import BkAppCredential  # noqa
+from .custom import CustomCredential  # noqa
 from .dispatcher import CredentialDispatcher  # noqa
 
-
-__ALL__ = ["BkAppCredential", "CredentialDispatcher"]
+__ALL__ = [
+    "BkAppCredential",
+    "BkAccessTokenCredential",
+    "BasicAuthCredential",
+    "CustomCredential",
+    "CredentialDispatcher",
+]

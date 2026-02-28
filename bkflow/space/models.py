@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -33,7 +32,7 @@ from bkflow.space.configs import (
 )
 from bkflow.space.credential import CredentialDispatcher
 from bkflow.space.exceptions import SpaceNotExists
-from bkflow.utils.models import CommonModel
+from bkflow.utils.models import CommonModel, SecretSingleJsonField
 
 
 class SpaceCreateType(Enum):
@@ -253,16 +252,44 @@ class SpaceConfig(models.Model):
 class CredentialType(Enum):
     # 蓝鲸应用凭证
     BK_APP = "BK_APP"
+    # 蓝鲸登录态凭证
+    BK_ACCESS_TOKEN = "BK_ACCESS_TOKEN"
+    # 用户名+密码
+    BASIC_AUTH = "BASIC_AUTH"
+    # 自定义凭证
+    CUSTOM = "CUSTOM"
+
+
+class CredentialScopeLevel(Enum):
+    """凭证作用域级别"""
+
+    ALL = "all"
+    PART = "part"
+    NONE = "none"
 
 
 class Credential(CommonModel):
-    CREDENTIAL_CHOICES = [(CredentialType.BK_APP.value, _("蓝鲸应用凭证"))]
+    CREDENTIAL_CHOICES = [
+        (CredentialType.BK_APP.value, _("蓝鲸应用凭证")),
+        (CredentialType.BK_ACCESS_TOKEN.value, _("蓝鲸登录态凭证")),
+        (CredentialType.BASIC_AUTH.value, _("用户名+密码")),
+        (CredentialType.CUSTOM.value, _("自定义")),
+    ]
+
+    CREDENTIAL_SCOPE_LEVEL_CHOICES = [
+        (CredentialScopeLevel.ALL.value, _("空间内开放")),
+        (CredentialScopeLevel.PART.value, _("设置作用域")),
+        (CredentialScopeLevel.NONE.value, _("不开放")),
+    ]
 
     space_id = models.IntegerField(_("空间ID"))
     name = models.CharField(_("凭证名"), max_length=32)
     desc = models.CharField(_("凭证描述"), max_length=128, null=True, blank=True)
     type = models.CharField(_("凭证类型"), max_length=32, choices=CREDENTIAL_CHOICES)
-    content = models.JSONField(_("凭证内容"), null=True, blank=True, default=dict)
+    scope_level = models.CharField(
+        _("作用域级别"), max_length=32, choices=CREDENTIAL_SCOPE_LEVEL_CHOICES, default=CredentialScopeLevel.NONE.value
+    )
+    content = SecretSingleJsonField(_("凭证内容"), null=True, blank=True, default=dict)
 
     def display_json(self):
         credential = CredentialDispatcher(self.type, data=self.content)
@@ -281,14 +308,26 @@ class Credential(CommonModel):
         return credential.value()
 
     @classmethod
-    def create_credential(cls, space_id, name, type, content, creator, desc=None):
+    def create_credential(cls, space_id, name, type, content, creator, desc=None, scope_level=None):
         """
         创建一个凭证
+
+        :param space_id: 空间ID
+        :param name: 凭证名称
+        :param type: 凭证类型
+        :param content: 凭证内容
+        :param creator: 创建者
+        :param desc: 凭证描述（可选）
+        :param scope_level: 作用域级别（可选，默认为 NONE）
+
+        :return: 创建的凭证实例
         """
         if not Space.exists(space_id):
             raise SpaceNotExists("space_id: {}".format(space_id))
         credential = CredentialDispatcher(type, data=content)
         validate_data = credential.validate_data()
+        if scope_level is None:
+            scope_level = CredentialScopeLevel.NONE.value
         credential = cls(
             space_id=space_id,
             name=name,
@@ -297,17 +336,95 @@ class Credential(CommonModel):
             content=validate_data,
             creator=creator,
             updated_by=creator,
+            scope_level=scope_level,
         )
         credential.save()
         return credential
 
     def update_credential(self, content):
+        """
+        更新凭证内容
+
+        :param content: 新的凭证内容
+        """
         credential = CredentialDispatcher(self.type, data=content)
         validate_data = credential.validate_data()
-        self.data = validate_data
+        self.content = validate_data
         self.save()
+
+    def get_scopes(self):
+        """
+        获取凭证的作用域列表
+
+        :return: 凭证作用域查询集
+        """
+        return CredentialScope.objects.filter(credential_id=self.id)
+
+    def has_scope(self):
+        """
+        检查凭证是否设置了作用域
+
+        :return: 如果设置了作用域返回 True，否则返回 False
+        """
+        return self.get_scopes().exists()
+
+    def can_use_in_scope(self, template_scope_type, template_scope_value):
+        """
+        检查凭证是否可以在指定作用域中使用
+
+        :param self: 凭证实例
+        :param template_scope_type: 作用域类型
+        :param template_scope_value: 作用域值
+        :return: 如果可以使用返回 True，否则返回 False
+        """
+        # scope_level == NONE 的凭证不能使用
+        if self.scope_level == CredentialScopeLevel.NONE.value:
+            return False
+
+        # scope_level == ALL 的凭证可以在任何地方使用
+        if self.scope_level == CredentialScopeLevel.ALL.value:
+            return True
+
+        # scope_level == PART 的凭证需要检查作用域匹配
+        if self.scope_level == CredentialScopeLevel.PART.value:
+            # 如果模板没有作用域，PART 类型的凭证不能使用
+            if not template_scope_type and not template_scope_value:
+                return False
+
+            # 检查是否有匹配的作用域
+            return (
+                self.get_scopes()
+                .filter(
+                    scope_type=template_scope_type,
+                    scope_value=template_scope_value,
+                )
+                .exists()
+            )
+
+        # 默认不允许使用（向后兼容旧逻辑）
+        return False
 
     class Meta:
         verbose_name = _("空间凭证")
         verbose_name_plural = _("空间凭证表")
         unique_together = ("space_id", "name")
+
+
+class CredentialScope(models.Model):
+    """
+    凭证作用域
+    用于控制凭证的使用范围
+    未关联任何作用域的凭证不受作用域限制，可以在任何地方使用
+    """
+
+    id = models.AutoField(primary_key=True)
+    credential_id = models.IntegerField(_("凭证ID"), db_index=True)
+    scope_type = models.CharField(_("作用域类型"), max_length=128, null=True, blank=True)
+    scope_value = models.CharField(_("作用域值"), max_length=128, null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("凭证作用域")
+        verbose_name_plural = _("凭证作用域表")
+        indexes = [
+            models.Index(fields=["credential_id", "scope_type", "scope_value"]),
+        ]

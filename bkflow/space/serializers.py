@@ -23,8 +23,7 @@ from rest_framework import serializers
 
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import SpaceConfigHandler, SpaceConfigValueType
-from bkflow.space.credential import CredentialDispatcher
-from bkflow.space.models import Credential, Space, SpaceConfig
+from bkflow.space.models import CredentialScope, Space, SpaceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +58,14 @@ class SpaceConfigBaseQuerySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
 
 
+class CredentialScopeSerializer(serializers.ModelSerializer):
+    """凭证作用域序列化器"""
+
+    class Meta:
+        model = CredentialScope
+        fields = ["scope_type", "scope_value"]
+
+
 class CredentialBaseQuerySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
 
@@ -74,23 +81,3 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
             logger.exception(f"[validate_configs] error: {e}")
             raise serializers.ValidationError(e.message)
         return configs
-
-
-class CredentialSerializer(serializers.ModelSerializer):
-    create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
-    update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        credential = CredentialDispatcher(credential_type=instance.type, data=instance.content)
-        if credential:
-            data["content"] = credential.display_value()
-            data["data"] = credential.display_value()
-        else:
-            data["data"] = {}
-
-        return data
-
-    class Meta:
-        model = Credential
-        fields = "__all__"
