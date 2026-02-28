@@ -81,6 +81,7 @@ class CreateTaskSerializer(CredentialsValidationMixin, serializers.Serializer):
     custom_span_attributes = serializers.DictField(
         help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
     )
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), child=serializers.IntegerField(), required=False)
 
 
 class CreateTaskByAppSerializer(serializers.Serializer):

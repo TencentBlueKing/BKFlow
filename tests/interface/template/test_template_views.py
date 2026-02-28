@@ -24,6 +24,7 @@ from blueapps.account.models import User
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from bkflow.decision_table.models import DecisionTable
+from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
@@ -1581,3 +1582,670 @@ class TestExceptionBranches:
             assert response.status_code in [400, 200]
         except Exception:
             pass
+
+
+@pytest.mark.django_db
+class TestTemplateFilterAndBranches:
+    def setup_method(self):
+        self.factory = APIRequestFactory()
+        self.user = User.objects.create_superuser(username="test_user", password="password")
+        self.admin_user, _ = User.objects.get_or_create(
+            username="admin", defaults={"is_superuser": True, "is_staff": True}
+        )
+        self.space = Space.objects.create(name="Test Space", app_code="test_app")
+        self.pipeline_tree = build_pipeline_tree()
+
+    def _create_template(self, name="t1"):
+        snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
+        template = Template.objects.create(
+            name=name,
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot.template_id = template.id
+        snapshot.save()
+        return template
+
+    def test_filter_by_labels_returns_queryset_when_no_match(self):
+        """Cover TemplateFilterSet.filter_by_labels empty label_ids branch (137-139)."""
+        template = self._create_template("t_no_label")
+
+        view = TemplateViewSet.as_view({"get": "list_template"})
+        request = self.factory.get(f"/templates/list_template/?space_id={self.space.id}&label=__not_exists__")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        assert response.status_code == 200
+        results = response.data.get("data", {}).get("results", [])
+        # should not error and should include created template
+        assert any(item.get("id") == template.id for item in results)
+
+    def test_filter_by_labels_filters_queryset(self):
+        """Cover TemplateFilterSet.filter_by_labels subquery filter branch (141-143)."""
+        label = Label.objects.create(
+            name="tag_1",
+            creator="test_user",
+            updated_by="test_user",
+            space_id=self.space.id,
+            label_scope=["template"],
+        )
+        template_hit = self._create_template("t_hit")
+        template_miss = self._create_template("t_miss")
+        TemplateLabelRelation.objects.create(template_id=template_hit.id, label_id=label.id)
+
+        view = TemplateViewSet.as_view({"get": "list_template"})
+        request = self.factory.get(f"/templates/list_template/?space_id={self.space.id}&label=tag_1")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        assert response.status_code == 200
+        results = response.data.get("data", {}).get("results", [])
+        ids = {item.get("id") for item in results}
+        assert template_hit.id in ids
+        assert template_miss.id not in ids
+
+    def test_admin_list_injects_labels_and_trigger_flag_false(self):
+        """Cover AdminTemplateViewSet.list label injection and trigger flag false branch."""
+        template = self._create_template("t_admin")
+        label = Label.objects.create(
+            name="tag_admin",
+            creator="test_user",
+            updated_by="test_user",
+            space_id=self.space.id,
+            label_scope=["template"],
+        )
+        TemplateLabelRelation.objects.create(template_id=template.id, label_id=label.id)
+
+        view = AdminTemplateViewSet.as_view({"get": "list"})
+        request = self.factory.get(f"/admin/templates/?space_id={self.space.id}")
+        force_authenticate(request, user=self.admin_user)
+        response = view(request)
+
+        assert response.status_code == 200
+        results = response.data.get("data", {}).get("results", [])
+        item = next((r for r in results if r.get("id") == template.id), None)
+        assert item is not None
+        assert item.get("has_interval_trigger") is False
+        assert any(_label.get("id") == label.id for _label in item.get("labels", []))
+
+    @mock.patch("bkflow.template.views.template.SpaceConfig.get_config")
+    @mock.patch("bkflow.template.views.template.build_default_pipeline_tree_with_space_id")
+    def test_create_template_flow_versioning_true_creates_draft_snapshot(self, mock_build_tree, mock_get_config):
+        """Cover create_template flow-versioning true branch (create_draft_snapshot)."""
+        mock_build_tree.return_value = self.pipeline_tree
+        mock_get_config.return_value = "true"
+
+        view = AdminTemplateViewSet.as_view({"post": "create_template"})
+        data = {"name": "New Template", "desc": "d", "label_ids": []}
+        request = self.factory.post(f"/admin/templates/create_default_template/{self.space.id}/", data, format="json")
+        force_authenticate(request, user=self.admin_user)
+        response = view(request, space_id=self.space.id)
+
+        assert response.status_code == 200
+        # NOTE: response payload is wrapped by SimpleGenericViewSet.finalize_response
+        template_id = response.data["data"]["data"]["id"]
+        template = Template.objects.get(id=template_id)
+        snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
+        assert snapshot.draft is True
+
+
+@pytest.mark.django_db
+class TestTemplateViewSetMoreExceptionBranches:
+    def setup_method(self):
+        self.factory = APIRequestFactory()
+        self.user = User.objects.create_superuser(username="test_user", password="password")
+        self.space = Space.objects.create(name="Test Space", app_code="test_app")
+        self.pipeline_tree = build_pipeline_tree()
+        SpaceConfig.objects.create(
+            space_id=self.space.id, name=FlowVersioning.name, value_type="TEXT", text_value="true"
+        )
+
+        snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
+        self.template = Template.objects.create(
+            name="Test Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot.template_id = self.template.id
+        snapshot.save()
+
+    def test_preview_task_tree_get_pipeline_tree_error_wrapped(self, monkeypatch):
+        """Cover preview_task_tree internal exception catch (579-604)."""
+
+        def _boom(_version):
+            raise Exception("boom")
+
+        monkeypatch.setattr(Template, "get_pipeline_tree_by_version", lambda _self, _version: _boom(_version))
+
+        view = TemplateViewSet.as_view({"post": "preview_task_tree"})
+        data = {"appoint_node_ids": [], "is_all_nodes": True, "version": "1.0.0", "is_draft": False}
+        request = self.factory.post(f"/templates/{self.template.id}/preview_task_tree/", data, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is False
+
+    @mock.patch("bkflow.template.views.template.TaskComponentClient")
+    def test_create_mock_task_raises_api_response_error(self, mock_client_class):
+        """Cover create_mock_task API failure branch (619-622)."""
+        mock_client = mock.Mock()
+        mock_client.create_task.return_value = {"result": False, "message": "api error"}
+        mock_client_class.return_value = mock_client
+
+        view = TemplateViewSet.as_view({"post": "create_mock_task"})
+        data = {
+            "name": "Mock Task",
+            "creator": "test_user",
+            "pipeline_tree": self.pipeline_tree,
+            "mock_data": {"nodes": [], "outputs": {}, "mock_data_ids": {}},
+            "include_node_ids": [],
+        }
+        request = self.factory.post(f"/templates/{self.template.id}/create_mock_task/", data, format="json")
+        force_authenticate(request, user=self.user)
+
+        with pytest.raises(Exception):
+            view(request, pk=self.template.id)
+
+    def test_get_draft_template_versioning_disabled(self):
+        """Cover get_draft_template versioning disabled branch (657)."""
+        space2 = Space.objects.create(name="No Version Space", app_code="test_app2")
+        # explicit disable versioning
+        SpaceConfig.objects.create(space_id=space2.id, name=FlowVersioning.name, value_type="TEXT", text_value="false")
+
+        snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
+        template = Template.objects.create(
+            name="t2",
+            space_id=space2.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot.template_id = template.id
+        snapshot.save()
+
+        view = TemplateViewSet.as_view({"get": "get_draft_template"})
+        request = self.factory.get(f"/templates/{template.id}/get_draft_template/")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is False
+
+    def test_calculate_version_invalid_version_returns_exception_response(self):
+        """Cover calculate_version ValueError branch (675-680)."""
+        # Template.version is a property derived from TemplateSnapshot.version when versioning is enabled,
+        # so only updating snapshot version is enough.
+        TemplateSnapshot.objects.filter(id=self.template.snapshot_id).update(version="invalid")
+
+        view = TemplateViewSet.as_view({"get": "calculate_version"})
+        request = self.factory.get(f"/templates/{self.template.id}/calculate_version/")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is False
+
+    def test_rollback_template_version_missing(self):
+        """Cover rollback_template missing version branch (723)."""
+        view = TemplateViewSet.as_view({"post": "rollback_template"})
+        request = self.factory.post(f"/templates/{self.template.id}/rollback_template/", {}, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert "version" in str(response.data)
+
+
+@pytest.mark.django_db
+class TestTemplateViewsMoreCoverage:
+    def setup_method(self):
+        self.factory = APIRequestFactory()
+        self.admin_user, _ = User.objects.get_or_create(
+            username="admin", defaults={"is_superuser": True, "is_staff": True}
+        )
+        self.user = User.objects.create_superuser(username="test_user", password="password")
+        self.space = Space.objects.create(name="Test Space", app_code="test_app")
+        self.pipeline_tree = build_pipeline_tree()
+
+        # enable flow versioning by default in this class
+        SpaceConfig.objects.create(
+            space_id=self.space.id, name=FlowVersioning.name, value_type="TEXT", text_value="true"
+        )
+
+        snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
+        self.template = Template.objects.create(
+            name="Test Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot.template_id = self.template.id
+        snapshot.save()
+
+    def test_admin_list_without_pagination_hits_return_response_183(self, monkeypatch):
+        """Cover AdminTemplateViewSet.list non-paginated return (183)."""
+        monkeypatch.setattr(AdminTemplateViewSet, "pagination_class", None)
+
+        view = AdminTemplateViewSet.as_view({"get": "list"})
+        request = self.factory.get(f"/admin/templates/?space_id={self.space.id}")
+        force_authenticate(request, user=self.admin_user)
+        response = view(request)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+        assert isinstance(response.data.get("data"), list)
+
+    def test_admin_update_proxy_to_super_update_211(self):
+        """Cover AdminTemplateViewSet.update -> super().update (211) without touching serializer validation."""
+        from rest_framework.response import Response
+
+        with mock.patch("rest_framework.viewsets.ModelViewSet.update", return_value=Response({"ok": True})):
+            view = AdminTemplateViewSet.as_view({"put": "update"})
+            request = self.factory.put(f"/admin/templates/{self.template.id}/", {}, format="json")
+            force_authenticate(request, user=self.admin_user)
+            response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+
+    @mock.patch("bkflow.template.views.template.event_broadcast_signal")
+    @mock.patch("bkflow.template.views.template.PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes")
+    @mock.patch("bkflow.template.views.template.TaskComponentClient")
+    def test_admin_create_task_success_hits_event_broadcast_250_263(self, mock_client_cls, _mock_preview, mock_signal):
+        """Cover AdminTemplateViewSet.create_task success branch and event broadcast (250-263)."""
+        mock_client = mock.Mock()
+        mock_client.create_task.return_value = {
+            "result": True,
+            "data": {"id": 1, "name": "task", "template_id": self.template.id, "parameters": {}},
+        }
+        mock_client_cls.return_value = mock_client
+
+        view = AdminTemplateViewSet.as_view({"post": "create_task"})
+        data = {"template_id": self.template.id, "name": "task", "creator": "test_user", "constants": {}}
+        request = self.factory.post(f"/admin/templates/create_task/{self.space.id}/", data, format="json")
+        force_authenticate(request, user=self.admin_user)
+        response = view(request, space_id=self.space.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+        mock_signal.send.assert_called_once()
+
+    def test_admin_batch_delete_continue_branch_311(self):
+        """Cover batch_delete 'continue' branch when root template is also in delete list (311)."""
+        snapshot2 = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.1")
+        root = Template.objects.create(
+            name="Root",
+            space_id=self.space.id,
+            snapshot_id=snapshot2.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot2.template_id = root.id
+        snapshot2.save()
+
+        # Mock TemplateReference queryset to make sure the loop runs and hits the `continue` line (311)
+        mocked_ref_qs = mock.Mock()
+        mocked_ref_qs.values_list.return_value = [str(root.id)]
+        mocked_ref_qs.values.return_value = [
+            {"subprocess_template_id": str(self.template.id), "root_template_id": str(root.id)}
+        ]
+
+        view = AdminTemplateViewSet.as_view({"post": "batch_delete"})
+        data = {"space_id": self.space.id, "is_full": False, "template_ids": [root.id, self.template.id]}
+        request = self.factory.post("/admin/templates/batch_delete/", data, format="json")
+        force_authenticate(request, user=self.admin_user)
+
+        original_filter = Template.objects.filter
+
+        def _template_filter_side_effect(*args, **kwargs):
+            # Only affect the query that builds `templates_map` so that `root_id not in templates_map` is True
+            if "id__in" in kwargs and kwargs.get("is_deleted") is False and "space_id" not in kwargs:
+                return original_filter(id__in=[self.template.id], is_deleted=False)
+            return original_filter(*args, **kwargs)
+
+        with mock.patch(
+            "bkflow.template.views.template.TemplateReference.objects.filter", return_value=mocked_ref_qs
+        ), mock.patch(
+            "bkflow.template.views.template.Template.objects.filter", side_effect=_template_filter_side_effect
+        ), mock.patch(
+            "bkflow.template.views.template.Trigger.objects.batch_delete_by_ids"
+        ):
+            response = view(request)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+
+    def test_admin_batch_delete_is_full_hits_326(self):
+        """Cover batch_delete is_full=True update-all branch (326)."""
+        view = AdminTemplateViewSet.as_view({"post": "batch_delete"})
+        data = {"space_id": self.space.id, "is_full": True, "template_ids": [self.template.id]}
+        request = self.factory.post("/admin/templates/batch_delete/", data, format="json")
+        force_authenticate(request, user=self.admin_user)
+        with mock.patch("bkflow.template.views.template.Trigger.objects.batch_delete_by_ids"):
+            response = view(request)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+        assert Template.objects.filter(space_id=self.space.id, is_deleted=True).exists()
+
+    def test_template_version_list_without_pagination_hits_390(self, monkeypatch):
+        """Cover TemplateVersionViewSet.list non-paginated return (390)."""
+        monkeypatch.setattr(TemplateVersionViewSet, "pagination_class", None)
+
+        view = TemplateVersionViewSet.as_view({"get": "list"})
+        request = self.factory.get(f"/template_versions/?template_id={self.template.id}")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+        assert isinstance(response.data.get("data"), list)
+
+    def test_template_version_delete_snapshot_template_missing_397_398(self):
+        """Cover delete_snapshot when snapshot's template does not exist (397-398)."""
+        snap = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "9.9.9")
+        snap.template_id = 999999
+        snap.save(update_fields=["template_id"])
+
+        view = TemplateVersionViewSet.as_view({"post": "delete_snapshot"})
+        request = self.factory.post(f"/template_versions/{snap.id}/delete_snapshot/", {}, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=snap.id)
+
+        assert response.status_code == 400
+
+    def test_list_template_versioning_filters_draft_and_hits_456(self, monkeypatch):
+        """Cover list_template versioning filter branch (443-448) and non-pagination return (456)."""
+        monkeypatch.setattr(TemplateViewSet, "pagination_class", None)
+
+        # draft snapshot template should be filtered out
+        draft_snapshot = TemplateSnapshot.create_draft_snapshot(self.pipeline_tree, "test_user")
+        t_draft = Template.objects.create(
+            name="Draft",
+            space_id=self.space.id,
+            snapshot_id=draft_snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        draft_snapshot.template_id = t_draft.id
+        draft_snapshot.save(update_fields=["template_id"])
+
+        view = TemplateViewSet.as_view({"get": "list_template"})
+        request = self.factory.get(f"/templates/list_template/?space_id={self.space.id}")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        assert response.status_code == 200
+        results = response.data.get("data", [])
+        ids = {item.get("id") for item in results}
+        assert t_draft.id not in ids
+        assert self.template.id in ids
+
+    def test_get_space_related_configs_raises_when_default_not_exists_546_548(self):
+        """Cover get_space_related_configs catch and re-raise (546-548)."""
+        from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
+
+        def _boom(*args, **kwargs):
+            raise SpaceConfigDefaultValueNotExists("no default")
+
+        with mock.patch("bkflow.template.views.template.SpaceConfig.get_config", side_effect=_boom):
+            view = TemplateViewSet.as_view({"get": "get_space_related_configs"})
+            request = self.factory.get(f"/templates/{self.template.id}/get_space_related_configs/")
+            force_authenticate(request, user=self.user)
+            with pytest.raises(SpaceConfigDefaultValueNotExists):
+                view(request, pk=self.template.id)
+
+    def test_get_space_related_configs_uniform_api_branch_552(self):
+        """Cover uniform api config handler branch (552)."""
+        from bkflow.space.configs import GatewayExpressionConfig, UniformApiConfig
+
+        def _get_config(space_id=None, config_name=None, *args, **kwargs):
+            if config_name == GatewayExpressionConfig.name:
+                return "{}"
+            if config_name == UniformApiConfig.name:
+                return '{"token": "x"}'
+            return "true"
+
+        handler_ret = mock.Mock()
+        handler_ret.dict.return_value = {"handled": True}
+        with mock.patch("bkflow.template.views.template.SpaceConfig.get_config", side_effect=_get_config), mock.patch(
+            "bkflow.template.views.template.UniformAPIConfigHandler"
+        ) as handler_cls:
+            handler_cls.return_value.handle.return_value = handler_ret
+
+            view = TemplateViewSet.as_view({"get": "get_space_related_configs"})
+            request = self.factory.get(f"/templates/{self.template.id}/get_space_related_configs/")
+            force_authenticate(request, user=self.user)
+            response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        data = response.data.get("data", {})
+        assert UniformApiConfig.name in data
+        assert data[UniformApiConfig.name] == {"handled": True}
+
+    def test_template_update_injects_labels_460_468(self):
+        """Cover TemplateViewSet.update label injection (460-468) by stubbing serializer and perform_update."""
+        label = Label.objects.create(
+            name="tag_upd",
+            creator="test_user",
+            updated_by="test_user",
+            space_id=self.space.id,
+            label_scope=["template"],
+        )
+        TemplateLabelRelation.objects.set_labels(self.template.id, [label.id])
+
+        template_id = self.template.id
+
+        class _StubSerializer:
+            def __init__(self):
+                self.data = {"id": template_id, "name": "n"}
+
+            def is_valid(self, raise_exception=False):
+                return True
+
+        def _get_serializer(_self, *args, **kwargs):
+            return _StubSerializer()
+
+        with mock.patch.object(TemplateViewSet, "get_serializer", _get_serializer), mock.patch.object(
+            TemplateViewSet, "perform_update", lambda *_args, **_kwargs: None
+        ):
+            view = TemplateViewSet.as_view({"put": "update"})
+            request = self.factory.put(f"/templates/{self.template.id}/", {}, format="json")
+            force_authenticate(request, user=self.user)
+            response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+        assert any(_label.get("id") == label.id for _label in response.data.get("data", {}).get("labels", []))
+
+    def test_update_labels_action_473_477(self):
+        """Cover update_labels transaction block and return (473-477)."""
+        label = Label.objects.create(
+            name="tag2",
+            creator="test_user",
+            updated_by="test_user",
+            space_id=self.space.id,
+            label_scope=["template"],
+        )
+        view = TemplateViewSet.as_view({"post": "update_labels"})
+        request = self.factory.post(
+            f"/templates/{self.template.id}/update_labels/", {"label_ids": [label.id]}, format="json"
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("data") == [label.id]
+
+    def test_analysis_constants_ref_exception_489_491(self):
+        """Cover analysis_constants_ref exception branch (489-491)."""
+        from bkflow.template.exceptions import AnalysisConstantsRefException
+
+        with mock.patch(
+            "bkflow.template.views.template.analysis_pipeline_constants_ref", side_effect=Exception("boom")
+        ):
+            view = TemplateViewSet.as_view({"post": "analysis_constants_ref"})
+            request = self.factory.post("/templates/analysis_constants_ref/", {"constants": {}}, format="json")
+            force_authenticate(request, user=self.user)
+            with pytest.raises(AnalysisConstantsRefException):
+                view(request)
+
+    def test_analysis_constants_ref_nodefined_branch_500(self):
+        """Cover analysis_constants_ref nodefined assignment (500)."""
+        with mock.patch("bkflow.template.views.template.analysis_pipeline_constants_ref", return_value={"x": "y"}):
+            view = TemplateViewSet.as_view({"post": "analysis_constants_ref"})
+            request = self.factory.post("/templates/analysis_constants_ref/", {"constants": {}}, format="json")
+            force_authenticate(request, user=self.user)
+            response = view(request)
+
+        assert response.status_code == 200
+        assert response.data.get("data", {}).get("nodefined", {}).get("x") == "y"
+
+    def test_draw_pipeline_includes_position_kwargs_515(self):
+        """Cover draw_pipeline POSITION kwargs branch (515)."""
+        with mock.patch("bkflow.template.views.template.draw_pipeline_tree") as m:
+            view = TemplateViewSet.as_view({"post": "draw_pipeline"})
+            request = self.factory.post(
+                "/templates/draw_pipeline/",
+                {"pipeline_tree": self.pipeline_tree, "canvas_width": 1300, "activity_size": [150, 54]},
+                format="json",
+            )
+            force_authenticate(request, user=self.user)
+            response = view(request)
+
+        assert response.status_code == 200
+        m.assert_called_once()
+
+    @mock.patch("bkflow.template.views.template.preview_template_tree", return_value={"ok": True})
+    def test_preview_task_tree_draft_success_covers_569_604(self, _mock_preview):
+        """Cover preview_task_tree is_draft branch and success path (569, 579-604)."""
+        draft = TemplateSnapshot.create_draft_snapshot(self.pipeline_tree, "test_user")
+        draft.template_id = self.template.id
+        draft.save(update_fields=["template_id"])
+
+        with mock.patch.object(Template, "outputs", lambda *_args, **_kwargs: {}):
+            view = TemplateViewSet.as_view({"post": "preview_task_tree"})
+            data = {"appoint_node_ids": [], "is_all_nodes": True, "version": "1.0.0", "is_draft": True}
+            request = self.factory.post(f"/templates/{self.template.id}/preview_task_tree/", data, format="json")
+            force_authenticate(request, user=self.user)
+            response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+        assert response.data.get("data", {}).get("name") == self.template.name
+
+    def test_preview_task_tree_not_all_nodes_hits_exclude_task_nodes_585(self):
+        """Cover preview_task_tree not-all-nodes branch (585)."""
+        with mock.patch.object(
+            Template, "get_pipeline_tree_by_version", return_value=self.pipeline_tree
+        ), mock.patch.object(Template, "outputs", lambda *_args, **_kwargs: {}), mock.patch(
+            "bkflow.template.views.template.PipelineTemplateWebPreviewer."
+            "get_template_exclude_task_nodes_with_appoint_nodes",
+            return_value=["x"],
+        ) as m_get_exclude, mock.patch(
+            "bkflow.template.views.template.preview_template_tree", return_value={"ok": True}
+        ):
+            view = TemplateViewSet.as_view({"post": "preview_task_tree"})
+            data = {"appoint_node_ids": ["n1"], "is_all_nodes": False, "version": "1.0.0", "is_draft": False}
+            request = self.factory.post(f"/templates/{self.template.id}/preview_task_tree/", data, format="json")
+            force_authenticate(request, user=self.user)
+            response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+        m_get_exclude.assert_called_once()
+
+    def test_preview_task_tree_outer_exception_logged_591_594(self):
+        """Cover preview_task_tree outer exception handler logging (591-594)."""
+        with mock.patch.object(Template, "get_pipeline_tree_by_version", return_value=self.pipeline_tree), mock.patch(
+            "bkflow.template.views.template.preview_template_tree", side_effect=Exception("boom")
+        ):
+            view = TemplateViewSet.as_view({"post": "preview_task_tree"})
+            data = {"appoint_node_ids": [], "is_all_nodes": True, "version": "1.0.0", "is_draft": False}
+            request = self.factory.post(f"/templates/{self.template.id}/preview_task_tree/", data, format="json")
+            force_authenticate(request, user=self.user)
+            with pytest.raises(Exception):
+                view(request, pk=self.template.id)
+
+    @mock.patch("bkflow.template.views.template.PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes")
+    @mock.patch(
+        "bkflow.template.views.template.PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes"
+    )
+    @mock.patch("bkflow.template.views.template.TaskComponentClient")
+    def test_create_mock_task_include_node_ids_branch_619_622(self, mock_client_cls, mock_get_exclude, _mock_preview):
+        """Cover create_mock_task include_node_ids branch (619-622)."""
+        mock_get_exclude.return_value = []
+        mock_client = mock.Mock()
+        mock_client.create_task.return_value = {"result": True, "data": {"id": 11}}
+        mock_client_cls.return_value = mock_client
+
+        view = TemplateViewSet.as_view({"post": "create_mock_task"})
+        data = {
+            "name": "Mock Task",
+            "creator": "test_user",
+            "pipeline_tree": self.pipeline_tree,
+            "mock_data": {"nodes": [], "outputs": {}, "mock_data_ids": {}},
+            "include_node_ids": ["node1"],
+        }
+        request = self.factory.post(f"/templates/{self.template.id}/create_mock_task/", data, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+
+    def test_release_template_duplicate_version_693(self):
+        """Cover release_template duplicate version early return (693)."""
+        view = TemplateViewSet.as_view({"post": "release_template"})
+        request = self.factory.post(
+            f"/templates/{self.template.id}/release_template/", {"version": "1.0.0", "desc": "d"}, format="json"
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is False
+
+    def test_release_template_invalid_version_bump_custom_696_698(self):
+        """Cover release_template bump_custom ValueError branch (696-698)."""
+        with mock.patch("bkflow.template.views.template.bump_custom", side_effect=ValueError("bad")):
+            view = TemplateViewSet.as_view({"post": "release_template"})
+            request = self.factory.post(
+                f"/templates/{self.template.id}/release_template/", {"version": "bad", "desc": "d"}, format="json"
+            )
+            force_authenticate(request, user=self.user)
+            response = view(request, pk=self.template.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is False
+        assert "版本号不符合规范" in str(response.data)
+
+    def test_rollback_template_versioning_disabled_720(self):
+        """Cover rollback_template when versioning disabled (720)."""
+        space2 = Space.objects.create(name="No Version", app_code="app2")
+        SpaceConfig.objects.create(space_id=space2.id, name=FlowVersioning.name, value_type="TEXT", text_value="false")
+
+        snap = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
+        tpl = Template.objects.create(
+            name="t",
+            space_id=space2.id,
+            snapshot_id=snap.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snap.template_id = tpl.id
+        snap.save(update_fields=["template_id"])
+
+        view = TemplateViewSet.as_view({"post": "rollback_template"})
+        request = self.factory.post(f"/templates/{tpl.id}/rollback_template/", {"version": "1.0.0"}, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=tpl.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is False

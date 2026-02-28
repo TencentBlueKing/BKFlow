@@ -68,6 +68,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
     pipeline_tree = serializers.JSONField(required=True)
     constants = serializers.JSONField(required=False, default={})
     mock_data = serializers.JSONField(required=False, default={})
+    label_ids = serializers.ListField(required=False, child=serializers.IntegerField())
 
     def validate(self, value):
         if value.get("extra_info", {}).get("notify_config") is not None:
@@ -120,6 +121,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
             "scope_value",
             "constants",
             "extra_info",
+            "label_ids",
         ]
 
 
@@ -296,3 +298,12 @@ class UpdatePeriodicTaskSerializer(serializers.Serializer):
 
 class BatchDeletePeriodicTaskSerializer(serializers.Serializer):
     trigger_ids = serializers.ListField(child=serializers.IntegerField(), help_text="触发器ID列表", required=True)
+
+
+class LabelRefSerializer(serializers.Serializer):
+    label_ids = serializers.CharField(help_text="标签ID", required=True)
+    space_id = serializers.IntegerField(help_text="空间ID", required=True)
+
+
+class DeleteTaskLabelRelationSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(child=serializers.IntegerField(), help_text="标签ID", required=True)

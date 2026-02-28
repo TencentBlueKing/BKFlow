@@ -9,7 +9,7 @@
 * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 * specific language governing permissions and limitations under the License.
 */
-import Vue, {  ref } from 'vue';
+import Vue, { ref } from 'vue';
 import nodeFilter from '@/utils/nodeFilter.js';
 import { uuid, random4 } from '@/utils/uuid.js';
 import tools from '@/utils/tools.js';
@@ -186,7 +186,7 @@ const template = {
     category: '',
     description: '',
     executor_proxy: '',
-    template_labels: '',
+    template_labels: [],
     subprocess_info: {
       details: [],
       subproc_has_update: false,
@@ -201,6 +201,9 @@ const template = {
   mutations: {
     setTemplateName(state, name) {
       state.name = name;
+    },
+    setTemplateLabel(state, labels) {
+      state.template_labels = labels;
     },
     setReceiversGroup(state, data) {
       state.notify_receivers.receiver_group = data;
@@ -326,7 +329,6 @@ const template = {
         name,
         id: templateId,
         pipeline_tree: pipelineData,
-        template_labels: templateLabels,
         notify_config: notifyConfig,
         description,
         executor_proxy: executorProxy,
@@ -351,7 +353,6 @@ const template = {
       state.notify_type = typeof notifyType === 'string' ? { success: JSON.parse(notifyType), fail: [] } : notifyType;
       state.description = description;
       state.executor_proxy = executorProxy;
-      state.template_labels = templateLabels || [];
       state.time_out = timeOut;
       state.category = category;
       state.subprocess_info = subprocessInfo;
@@ -395,7 +396,6 @@ const template = {
       };
       state.description = '';
       state.executor_proxy = '';
-      state.template_labels = [];
       state.default_flow_type = 'common';
     },
     // 重置模板数据
@@ -1049,7 +1049,7 @@ const template = {
         timeout,
         description,
         executor_proxy,
-        template_labels,
+        labels: template_labels.map(label => label.id),
         default_flow_type,
         pipeline_tree: pipelineTree,
         space_id: spaceId,

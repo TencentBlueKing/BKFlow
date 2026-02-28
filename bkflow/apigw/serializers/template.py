@@ -47,6 +47,7 @@ class CreateTemplateSerializer(serializers.Serializer):
     )
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
+    label_ids = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
 
     def validate(self, attrs):
         # 将 bind_app_code 映射到 bk_app_code 字段（models 中的字段名）
