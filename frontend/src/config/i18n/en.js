@@ -1087,7 +1087,7 @@ const en = {
   '第n项凭证作用域格式错误, 仅支持字母、数字、下划线、连字符': 'The format of the {value} credential scope is incorrect, only supporting letters, numbers, underscores, and hyphens',
   '蓝鲸 Access Token 认证': 'BlueKing Access Token Authentication',
   '仅支持字母、数字、下划线、连字符': 'Only supports letters, numbers, underscores, and hyphens',
-  '中英文字符、数字或以下字符-)().，以中英文字符、数字开头，32个字符内': 'Chinese and English characters, numbers, or the following characters -) () Starting with Chinese and English characters or numbers, within 32 characters',
+  '英文字符、数字或以下字符-)().，以英文字符、数字开头，32个字符内': 'Chinese and English characters, numbers, or the following characters -) () Starting with Chinese and English characters or numbers, within 32 characters',
   登录态: 'Login state',
   选择凭证: 'Select credential',
   请选择凭证: 'Please select credential',
