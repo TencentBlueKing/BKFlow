@@ -35,6 +35,7 @@
         :render-header="renderTableHeader"
         :width="item.width"
         :show-overflow-tooltip="item.id !== 'label'"
+        :class-name="item.id === 'label' ? 'label-column' : ''"
         :min-width="item.min_width">
         <template slot-scope="props">
           <div v-if="item.id === 'name'">
@@ -56,7 +57,9 @@
               {{ props.row.name }}
             </router-link>
           </div>
-          <div v-else-if="item.id === 'label'">
+          <div
+            v-else-if="item.id === 'label'"
+            class="label-cell">
             <label-cascade
               :value="props.row.labels"
               scope="task"
@@ -574,5 +577,16 @@ export default {
             }
         }
     }
+}
+::v-deep .label-column {
+    .cell {
+        height: 100%;
+        &:hover {
+        background-color: #f0f1f5;
+    }
+    }
+}
+.label-cell {
+    height: 100%;
 }
 </style>

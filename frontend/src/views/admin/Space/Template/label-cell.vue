@@ -31,6 +31,7 @@
       </template>
     </bk-popover>
     <div
+      v-if="tags.length"
       ref="measure"
       class="measure">
       <span
@@ -41,6 +42,7 @@
         {{ tag.full_path }}
       </span>
     </div>
+    <span v-else>--</span>
   </div>
 </template>
 

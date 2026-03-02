@@ -1,5 +1,7 @@
 <template>
-  <div>
+  <div
+    class="label-cascade-wrap"
+    @click="isVisible(true)">
     <bk-popover
       ref="labelPopover"
       theme="light"
@@ -11,7 +13,7 @@
       ext-cls="label-cascade-popover"
       :arrow="false"
       :on-hide="hide">
-      <div @click="isVisible(true)">
+      <div>
         <slot
           name="trigger"
           :list="selectLabelList"
@@ -332,8 +334,14 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.label-cascade-wrap {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
 .search-input {
-    height: 32px;
+    height: 100%;
     :deep(.bk-form-input) {
         border: none;
     }
