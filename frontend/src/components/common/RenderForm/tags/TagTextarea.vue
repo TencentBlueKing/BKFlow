@@ -84,6 +84,10 @@
         type: Boolean,
         default: false,
       },
+      subflowLoopVars: {
+        type: Object,
+        default: () => ({}),
+      },
     },
     data() {
       return {
@@ -98,7 +102,7 @@
       }),
       constantArr: {
         get() {
-          return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow);
+          return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow, this.subflowLoopVars);
         },
         set(val) {
           this.varList = val;

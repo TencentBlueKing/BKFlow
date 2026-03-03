@@ -745,6 +745,7 @@ const template = {
             activity = {
               constants: {},
               hooked_constants: [],
+              error_ignorable: false,
               id: location.id,
               incoming: [],
               loop: null,
