@@ -729,6 +729,10 @@
         // 根据执行次数选择具体的数据
         let selectedData = null;
         selectedData = filteredHistories[currentExecute - 1];
+        if (!selectedData) {
+          this.isBreadCurmbLoading = false;
+          return;
+        }
         // 当前节点为子流程节点
         if (this.isShowSubflowOperationsWithinLoop) {
           this.onSelectExecuteRecord(1, [selectedData]);
@@ -736,11 +740,6 @@
           // 更新子节点的执行次数
           this.isBreadCurmbLoading = true;
           let taskId = '';
-
-          if (!selectedData) {
-            this.isBreadCurmbLoading = false;
-            return;
-          }
           const { outputs } = selectedData;
           if (outputs && outputs.task_id) {
             taskId = outputs.task_id;
@@ -787,7 +786,12 @@
       async selectBreadcrumExecuteCount(value, item) {
         this.isBreadCurmbLoading = true;
         let taskId = '';
-        const { outputs } = item.allExecutedInfo[value - 1];
+        const record = item.allExecutedInfo[value - 1];
+        if (!record) {
+          this.isBreadCurmbLoading = false;
+          return;
+        }
+        const { outputs } = record;
         if (outputs.task_id) {
           taskId = outputs.task_id;
         } else if (Array.isArray(outputs)) {
@@ -1527,7 +1531,10 @@
             }
             if (index === 0) {
               // 初始化breadcrumbData[0]的选项数据
-              if (!this.breadcrumbData[0] || !this.executeInfo) return;
+              if (!this.breadcrumbData[0] || !this.executeInfo) {
+                this.isBreadCurmbLoading = false;
+                return;
+              }
               this.breadcrumbData[0].retryLatestOptions = resp.data.retry;
               this.breadcrumbData[0].currentRetry = resp.data.retry + 1;
               // 初始化循环和执行次数选项
