@@ -1571,6 +1571,9 @@
           if (Array.isArray(loopConfig.loop_params) && loopConfig.loop_params.length > 0) {
             const result = loopConfig.loop_params.reduce((arr, item) => {
               if (item.name?.trim() && item.source?.trim()) {
+                if (!/^\$\{\w+\}$/.test(item.name)) {
+                  item.name = `\${${item.name}}`;
+                }
                 arr[item.name] = item.source;
               }
               return arr;

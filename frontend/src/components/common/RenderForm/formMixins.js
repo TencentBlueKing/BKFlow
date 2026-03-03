@@ -420,12 +420,19 @@ export const getFormMixins = (attrs = {}) => {
        * @param {Boolean} isSubflow - 是否为子流程，决定是否包含循环变量
        * @returns {Array} 返回分组的变量列表
        */
-      buildConstantArray(constants, internalVariable, isSubflow = false) {
+      buildConstantArray(constants, internalVariable, isSubflow = false, subflowLoopVars) {
         const constantArr = [...Object.values(constants)];
+        const subflowLoopVarArr = [];
+        Object.keys(subflowLoopVars).forEach((key) => {
+          subflowLoopVarArr.push({
+            key: !/^\$\{\w+\}$/.test(key) ? `\${${key}}` : key,
+            name: !/^\$\{\w+\}$/.test(key) ? `\${${key}}` : key,
+          });
+        });
         const inputVar = constantArr.filter(item => item.source_type === 'component_inputs');
         const outputVar = constantArr.filter(item => item.source_type === 'component_outputs');
         const custonVar = constantArr.filter(item => item.source_type === 'custom' && item.custom_type !== 'loop');
-        const loopVar = constantArr.filter(item => item.custom_type === 'loop');
+        // const loopVar = constantArr.filter(item => item.custom_type === 'loop');
         const keyList = [
           {
             name: '内置变量',
@@ -466,7 +473,7 @@ export const getFormMixins = (attrs = {}) => {
             type: 'loop',
             isCollapse: false,
             children: [
-              ...Object.values(loopVar),
+              ...subflowLoopVarArr,
             ],
           });
         }

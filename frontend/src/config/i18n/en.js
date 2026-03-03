@@ -1117,6 +1117,16 @@ const en = {
   变量名不能为空: 'Variable name cannot be empty',
   循环变量名称格式不正确: 'Loop variable name format is incorrect',
   数据来源不能为空: 'Data source cannot be empty',
+  循环失败控制: 'Loop Failure Control',
+  变量名不能重复: 'Variable names cannot be duplicated',
+  循环内重试: 'Retry within Loop',
+  循环内跳过: 'Skip within Loop',
+  当前节点内的循环次数: 'Loop count within current node',
+  当前循环的执行次数: 'Execution count of current loop',
+  执行次数: 'Execution Count',
+  循环变量不能为空: 'Loop variable cannot be empty',
+  '循环变量由英文字母、数字、下划线组成，且不能以数字开头': 'Loop variable must consist of letters, numbers, and underscores, and cannot start with a number',
+  循环变量不能重复: 'Loop variable names cannot be duplicated',
 };
 
 export default en;
