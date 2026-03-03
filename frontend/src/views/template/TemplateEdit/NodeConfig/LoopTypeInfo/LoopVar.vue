@@ -79,17 +79,17 @@ export default {
         name: [
           {
             required: true,
-            message: this.$t('变量名不能为空'),
+            message: this.$t('循环变量不能为空'),
             trigger: 'blur',
           },
           {
             validator: this.validateVarName,
-            message: this.$t('循环变量名称格式不正确'),
+            message: this.$t('循环变量由英文字母、数字、下划线组成，且不能以数字开头'),
             trigger: 'blur',
           },
           {
             validator: this.validateVarNameUnique,
-            message: this.$t('变量名不能重复'),
+            message: this.$t('循环变量不能重复'),
             trigger: 'blur',
           },
         ],
