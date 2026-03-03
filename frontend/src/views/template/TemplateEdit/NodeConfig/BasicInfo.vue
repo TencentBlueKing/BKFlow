@@ -557,45 +557,92 @@
             {{ $t('批量执行') }}
           </bk-button> -->
         </div>
-      </bk-form-item>
-      <bk-form-item
-        v-if="executeControlActive !== 'single'"
-        :label="$t('循环类型')"
-        :required="true"
-        property="loopType">
-        <div class="execute-control-config">
+        <bk-form
+          ref="loopForm"
+          :model="formData.loopConfig">
+          <bk-form-item
+            v-if="executeControlActive !== 'single'"
+            :label="$t('循环类型')"
+            ext-cls="loop-type"
+            :required="true"
+            :label-width="74"
+            property="loopType">
+            <div class="execute-control-config">
+              <bk-radio-group
+                v-model="formData.loopConfig.type"
+                ext-cls="loop-radio-group"
+                @change="onLoopTypeChange">
+                <bk-radio
+                  value="array_loop"
+                  ext-cls="loop-radio">
+                  {{ $t('按数组变量循环') }}
+                </bk-radio>
+                <!-- <bk-radio
+                    value="condition"
+                    ext-cls="loop-radio">
+                    {{ $t('按条件循环') }}
+                  </bk-radio> -->
+                <bk-radio
+                  value="time_loop"
+                  ext-cls="loop-radio">
+                  {{ $t('固定循环次数') }}
+                </bk-radio>
+              </bk-radio-group>
+              <!-- <div
+                  v-if="executeControlActive === 'batch'"
+                  class="batch-config">
+                  <div class="batch-config-count">
+                    <span class="count-label">{{ $t('最大并行数') }}</span>
+                    <bk-slider
+                      v-model="formData.loopConfig"
+                      class="count-slider"
+                      :show-input="true" />
+                  </div>
+                  <LoopVar
+                    :is-view-mode="isViewMode"
+                    :var-list="formData.loopConfig"
+                    @change="onBatchVarListChange" />
+                </div> -->
+            </div>
+          </bk-form-item>
           <LoopExecutionConfig
             v-if="executeControlActive === 'loop'"
             ref="loopExecutionConfigRef"
             :loop-config="formData.loopConfig"
             :is-view-mode="isViewMode"
             @change="onLoopConfigChange" />
-          <!-- <div
-            v-if="executeControlActive === 'batch'"
-            class="batch-config">
-            <div class="batch-config-count">
-              <span class="count-label">{{ $t('最大并行数') }}</span>
-              <bk-slider
-                v-model="formData.loopConfig"
-                class="count-slider"
-                :show-input="true" />
+          <bk-form-item
+            v-if="executeControlActive === 'loop'"
+            :label="$t('循环失败控制')"
+            :label-width="96">
+            <div class="loop-error-handle">
+              <bk-checkbox
+                v-model="formData.loopConfig.fail_skip"
+                :disabled="isViewMode || formData.loopConfig.skippable"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'ignorable')">
+                <span class="error-handle-icon"><span class="text">AS</span></span>
+                {{ $t('自动跳过') }}
+              </bk-checkbox>
+              <bk-checkbox
+                v-model="formData.loopConfig.skippable"
+                :disabled="isViewMode || formData.loopConfig.fail_skip"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'skippable')">
+                <span class="error-handle-icon"><span class="text">MS</span></span>
+                {{ $t('手动跳过') }}
+              </bk-checkbox>
+              <bk-checkbox
+                v-model="formData.loopConfig.retryable"
+                :disabled="isViewMode"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'retryable')">
+                <span class="error-handle-icon"><span class="text">MR</span></span>
+                {{ $t('手动重试') }}
+              </bk-checkbox>
             </div>
-            <LoopVar
-              :is-view-mode="isViewMode"
-              :var-list="formData.loopConfig"
-              @change="onBatchVarListChange" />
-          </div> -->
-        </div>
-      </bk-form-item>
-      <bk-form-item
-        v-if="executeControlActive === 'loop'"
-        :label="$t('循环控制')">
-        <div class="loop-control">
-          <bk-checkbox
-            v-model="formData.loopConfig.fail_skip"
-            @change="onLoopControlChange" />
-          <span class="control-text">{{ $t('循环内失败跳过') }}</span>
-        </div>
+          </bk-form-item>
+        </bk-form>
       </bk-form-item>
       <!-- <bk-form-item v-if="common" :label="$t('执行代理人')" data-test-id="templateEdit_form_executor_proxy">
         <bk-user-selector
@@ -814,6 +861,8 @@
               loop_times: 3, // 默认为3
               loop_params: [{ name: '', source: '' }],
               fail_skip: false,
+              retryable: false,
+              skippable: false,
             };
             this.executeControlActive = 'single';
           }
@@ -1044,6 +1093,7 @@
             schemeIdList,
             latestVersion: this.version,
             executor_proxy,
+            ignorable,
             retryable,
             autoRetry,
             timeoutConfig,
@@ -1118,12 +1168,23 @@
         }
         this.updateData();
       },
+      onLoopTypeChange() {
+        this.updateData();
+      },
       // 循环执行配置变化
       onLoopConfigChange(newConfig) {
         this.formData.loopConfig = newConfig;
         this.updateData();
       },
-      onLoopControlChange() {
+      onLoopErrorControlChange(val, type) {
+        if (val && type === 'ignorable') {
+          // 选择自动跳过时，取消手动跳过
+          this.formData.loopConfig.skippable = false;
+        }
+        if (val && type === 'skippable') {
+          // 选择手动跳过时，取消自动跳过
+          this.formData.loopConfig.fail_skip = false;
+        }
         this.updateData();
       },
       // 批量执行配置变化
@@ -1225,15 +1286,6 @@
             color: #999999;
             background: transparent;
         }
-    }
-    .loop-control{
-      display: flex;
-      align-items: center;
-      font-size: 12px;
-      color: #63656e;
-      .control-text{
-        margin-left: 5px;
-      }
     }
     .auto-retry-times,
     .timeout-setting-wrap {
@@ -1340,11 +1392,32 @@
                 cursor: not-allowed;
             }
         }
+        .loop-error-handle {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            height: 32px;
+            .loop-error-checkbox{
+              margin-right: 8px;
+            }
+            .error-handle-icon {
+                display: inline-block;
+                line-height: 12px;
+                color: #ffffff;
+                background: #979ba5;
+                border-radius: 2px;
+                .text {
+                    display: inline-block;
+                    font-size: 12px;
+                    transform: scale(0.8);
+                }
+            }
+        }
     }
 
     .bk-button-group {
         display: inline-flex;
-
+        margin-bottom: 16px;
         .bk-button {
             border-radius: 0;
             margin-left: -1px;
@@ -1363,7 +1436,12 @@
             }
         }
     }
-
+    .loop-type{
+      .bk-form-content{
+        min-height: 26px;
+        line-height: 26px;
+      }
+    }
     .execute-control-config {
         .batch-config {
           .batch-config-count {
@@ -1379,6 +1457,13 @@
               flex: 1;
             }
           }
+        }
+        .loop-radio-group{
+          margin-bottom: 16px;
+        }
+        .loop-radio{
+          margin-right: 24px;
+          font-size: 12px;
         }
     }
 

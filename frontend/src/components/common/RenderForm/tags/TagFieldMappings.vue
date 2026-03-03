@@ -97,6 +97,10 @@
         type: Boolean,
         default: false,
       },
+      subflowLoopVars: {
+        type: Object,
+        default: () => ({}),
+      },
     },
     data() {
       // 将对象转换为数组用于显示
@@ -115,7 +119,7 @@
         internalVariable: state => state.template.internalVariable,
       }),
       constantArr() {
-        return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow);
+        return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow, this.subflowLoopVars);
       },
       keyRules() {
         return [

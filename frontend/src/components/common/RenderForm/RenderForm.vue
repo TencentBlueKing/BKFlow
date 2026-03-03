@@ -22,6 +22,7 @@
       :render="renderConfig[atom.tag_code]"
       :constants="constants"
       :is-subflow="isSubflow"
+      :subflow-loop-vars="subflowLoopVars"
       @change="updateForm"
       @onHook="updateHook"
       @onRenderChange="updateRender" />
@@ -109,6 +110,10 @@
       isSubflow: {
         type: Boolean,
         default: false,
+      },
+      subflowLoopVars: {
+        type: Object,
+        default: () => ({}),
       },
     },
     data() {
