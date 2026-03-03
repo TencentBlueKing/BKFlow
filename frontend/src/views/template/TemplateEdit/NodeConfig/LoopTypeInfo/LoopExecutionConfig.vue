@@ -1,32 +1,12 @@
 <template>
   <div class="loop-execution-content">
-    <bk-radio-group
-      v-model="formData.type"
-      @change="onLoopTypeChange">
-      <bk-radio
-        value="array_loop"
-        ext-cls="loop-radio">
-        {{ $t('按数组变量循环') }}
-      </bk-radio>
-      <!-- <bk-radio
-        value="condition"
-        ext-cls="loop-radio">
-        {{ $t('按条件循环') }}
-      </bk-radio> -->
-      <bk-radio
-        value="time_loop"
-        ext-cls="loop-radio">
-        {{ $t('固定循环次数') }}
-      </bk-radio>
-    </bk-radio-group>
-    <div class="loop-config-contnet">
-      <LoopVar
-        v-if="formData.type === 'array_loop'"
-        ref="arrayLoopRef"
-        :var-list="formData.loop_params"
-        :is-view-mode="isViewMode"
-        @change="onLoopVarListChange" />
-      <!-- <FullCodeEditor
+    <LoopVar
+      v-if="formData.type === 'array_loop'"
+      ref="arrayLoopRef"
+      :var-list="formData.loop_params"
+      :is-view-mode="isViewMode"
+      @change="onLoopVarListChange" />
+    <!-- <FullCodeEditor
         v-if="formData.loopType === 'condition'"
         ref="fullCodeEditor"
         v-model="formData.conditionCode"
@@ -34,16 +14,15 @@
         class="loop-config-editor"
         :options="{ language: 'python', readOnly: isViewMode }"
         @input="onDataChange" /> -->
-      <div
-        v-if="formData.type === 'time_loop'"
-        class="loop-config-count">
-        <span class="count-label">{{ $t('循环次数') }}</span>
-        <bk-slider
-          v-model="formData.loop_times"
-          class="count-slider"
-          :show-input="true"
-          @input="onLoopTimesChange" />
-      </div>
+    <div
+      v-if="formData.type === 'time_loop'"
+      class="loop-config-count">
+      <span class="count-label">{{ $t('循环次数') }}</span>
+      <bk-slider
+        v-model="formData.loop_times"
+        class="count-slider"
+        :show-input="true"
+        @input="onLoopTimesChange" />
     </div>
   </div>
 </template>
@@ -111,9 +90,6 @@ export default {
       this.formData.loop_params = list;
       this.$emit('change', this.formData);
     },
-    onLoopTypeChange() {
-      this.$emit('change', this.formData);
-    },
     onLoopTimesChange() {
       this.debounceEmitChange();
     },
@@ -138,7 +114,7 @@ export default {
 
 <style lang="scss" scoped>
   .loop-execution-content{
-    margin-top: 6px;
+    margin: 17px 0;
     .loop-config-editor{
       height: 350px !important;
     }
@@ -155,10 +131,5 @@ export default {
         flex: 1;
       }
     }
-  }
-  .loop-radio{
-    margin-right: 24px;
-    margin-bottom: 16px;
-    font-size: 12px;
   }
 </style>
