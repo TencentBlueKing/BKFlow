@@ -199,6 +199,9 @@ class OperateTaskNodeSerializer(serializers.Serializer):
 class GetTaskNodeDetailSerializer(serializers.Serializer):
     loop = serializers.IntegerField(help_text=_("循环次数"), required=False)
     component_code = serializers.CharField(help_text=_("组件code"), max_length=128, required=False)
+    include_snapshot_config = serializers.BooleanField(
+        help_text=_("是否在返回结果中包含节点配置快照(snapshot_config)，默认不返回"), required=False, default=False
+    )
 
 
 class BatchTaskSerializer(serializers.Serializer):

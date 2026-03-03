@@ -127,31 +127,58 @@ jobs:
           echo "📦 PR 编号: $PR_NUMBER"
           echo "📦 Head SHA: $HEAD_SHA"
           echo "📦 Base SHA: $BASE_SHA"
-          # 构建审查提示词（使用 printf 避免 YAML 解析问题）
-          REVIEW_PROMPT=$(printf '%s\n\n%s\n- %s：%s\n- %s：%s\n- %s：%s\n- %s：%s\n\n%s\n%s\n%s\n%s\n\n%s\n- %s：gh pr view %s --json comments\n- %s：gh pr diff %s\n- %s\n- %s\n\n%s\n- %s\n- %s\n- %s\n- %s\n\n%s\n- %s\n- %s：gh pr review %s --comment\n- %s' \
-            "你当前在 GitHub Actions runner 中执行自动化代码审查。gh CLI 可用并已通过 GH_TOKEN 认证。你可以在拉取请求上发表评论。" \
-            "上下文：" \
-            "仓库" "$REPO" \
-            "PR 编号" "$PR_NUMBER" \
-            "PR Head SHA" "$HEAD_SHA" \
-            "PR Base SHA" "$BASE_SHA" \
-            "目标：" \
-            "1) 复核已有审查评论，若已处理则回复：已解决" \
-            "2) 审查当前 PR diff，仅标注明确且高严重度的问题" \
-            "3) 只在变更的行留下非常简短的行内评论（1-2 句），并在末尾给出简要总结" \
-            "流程：" \
-            "获取已有评论" "$PR_NUMBER" \
-            "获取 diff" "$PR_NUMBER" \
-            "若先前报告的问题似乎已被附近的更改修复，回复：✅ 此问题似乎已被最近的更改解决" \
-            "避免重复：如果同类反馈已在相同行或附近存在，则跳过" \
-            "评论规则：" \
-            "最多 10 条行内评论；优先处理最关键的问题" \
-            "每条评论只包含一个问题；放在准确的变更行" \
-            "语气自然，具体且可执行；不要提及自动化或高置信度" \
-            "使用表情：🚨 严重 🔒 安全 ⚡ 性能 ⚠️ 逻辑 ✅ 已解决 ✨ 改进" \
-            "提交：" \
-            "提交一次审查，包含行内评论与简明总结" \
-            "仅使用" "$PR_NUMBER" \
-            "不要使用：gh pr review --approve 或 --request-changes")
+          # 读取项目专属 code review 规范
+          REVIEW_STANDARDS=""
+          STANDARDS_FILE=".ai/skills/requesting-code-review/bkflow-review-standards.md"
+          if [ -f "$STANDARDS_FILE" ]; then
+            REVIEW_STANDARDS=$(cat "$STANDARDS_FILE")
+            echo "✅ 已加载项目 code review 规范"
+          else
+            echo "⚠️ 未找到项目 code review 规范文件: $STANDARDS_FILE"
+          fi
+          # 构建审查提示词
+          REVIEW_PROMPT=$(cat <<EOF
+          你当前在 GitHub Actions runner 中执行自动化代码审查。gh CLI 可用并已通过 GH_TOKEN 认证。你可以在拉取请求上发表评论。
+
+          ## 项目 Code Review 规范
+
+          以下是本项目基于历史 PR 评审记录提炼的规范，审查时必须遵循：
+
+          ${REVIEW_STANDARDS}
+
+          ## 上下文
+
+          - 仓库：${REPO}
+          - PR 编号：${PR_NUMBER}
+          - PR Head SHA：${HEAD_SHA}
+          - PR Base SHA：${BASE_SHA}
+
+          ## 目标
+
+          1) 复核已有审查评论，若已处理则回复：已解决
+          2) 对照上方项目规范审查当前 PR diff，重点关注规范中列出的高频问题
+          3) 只在变更的行留下非常简短的行内评论（1-2 句），并在末尾给出简要总结
+
+          ## 流程
+
+          - 获取已有评论：gh pr view ${PR_NUMBER} --json comments
+          - 获取 diff：gh pr diff ${PR_NUMBER}
+          - 若先前报告的问题似乎已被附近的更改修复，回复：✅ 此问题似乎已被最近的更改解决
+          - 避免重复：如果同类反馈已在相同行或附近存在，则跳过
+
+          ## 评论规则
+
+          - 最多 10 条行内评论；优先处理规范中 Critical 和 Important 级别的问题
+          - 每条评论只包含一个问题；放在准确的变更行
+          - 语气自然，具体且可执行；不要提及自动化或高置信度
+          - 使用表情：🚨 严重 🔒 安全 ⚡ 性能 ⚠️ 逻辑 ✅ 已解决 ✨ 改进
+
+          ## 提交
+
+          - 提交一次审查，包含行内评论与简明总结
+          - 仅使用：gh pr review ${PR_NUMBER} --comment
+          - 不要使用：gh pr review --approve 或 --request-changes
+          EOF
+          )
           # 执行 CodeBuddy 审查
           $CODEBUDDY_CMD "$REVIEW_PROMPT"

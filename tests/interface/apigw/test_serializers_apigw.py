@@ -5,7 +5,10 @@ from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
 from bkflow.apigw.serializers.apigw import ApigwPermissionGrantSerializer
-from bkflow.apigw.serializers.task import PipelineTreeSerializer
+from bkflow.apigw.serializers.task import (
+    GetTaskNodeDetailSerializer,
+    PipelineTreeSerializer,
+)
 
 
 class TestPipelineTreeSerializer:
@@ -165,3 +168,35 @@ paths:
 
         serializer = ApigwPermissionGrantSerializer(data=data)
         assert serializer.is_valid(raise_exception=True)
+
+
+class TestGetTaskNodeDetailSerializer:
+    """Test GetTaskNodeDetailSerializer"""
+
+    def test_include_snapshot_config_defaults_to_false(self):
+        """When include_snapshot_config is not passed, it defaults to False"""
+        serializer = GetTaskNodeDetailSerializer(data={})
+        assert serializer.is_valid(raise_exception=True)
+        assert serializer.validated_data["include_snapshot_config"] is False
+
+    def test_include_snapshot_config_accepts_true(self):
+        """include_snapshot_config=true is accepted"""
+        serializer = GetTaskNodeDetailSerializer(data={"include_snapshot_config": "true"})
+        assert serializer.is_valid(raise_exception=True)
+        assert serializer.validated_data["include_snapshot_config"] is True
+
+    def test_include_snapshot_config_accepts_false(self):
+        """include_snapshot_config=false is accepted"""
+        serializer = GetTaskNodeDetailSerializer(data={"include_snapshot_config": "false"})
+        assert serializer.is_valid(raise_exception=True)
+        assert serializer.validated_data["include_snapshot_config"] is False
+
+    def test_include_snapshot_config_with_other_params(self):
+        """include_snapshot_config works alongside loop and component_code"""
+        serializer = GetTaskNodeDetailSerializer(
+            data={"loop": 1, "component_code": "example", "include_snapshot_config": True}
+        )
+        assert serializer.is_valid(raise_exception=True)
+        assert serializer.validated_data["loop"] == 1
+        assert serializer.validated_data["component_code"] == "example"
+        assert serializer.validated_data["include_snapshot_config"] is True
