@@ -696,7 +696,11 @@
         const loopSet = new Set();
         currentRetryHistories.forEach(item => loopSet.add(item.loop));
         this.breadcrumbData[0].loopOptions = Array.from(loopSet).sort((a, b) => a - b);
-        this.breadcrumbData[0].currentLoop = Math.max(...this.breadcrumbData[0].loopOptions);
+        if (this.breadcrumbData[0].loopOptions.length > 0) {
+          this.breadcrumbData[0].currentLoop = Math.max(...this.breadcrumbData[0].loopOptions);
+        } else {
+          this.breadcrumbData[0].currentLoop = 1;
+        }
         this.updateExecuteOptions();
       },
       // 更新执行次数选项
@@ -710,7 +714,11 @@
           executeOptions.push(index + 1);
         });
         this.breadcrumbData[0].executeOptions = executeOptions;
-        this.breadcrumbData[0].currentExecute = Math.max(...executeOptions);
+        if (executeOptions.length > 0) {
+          this.breadcrumbData[0].currentExecute = Math.max(...executeOptions);
+        } else {
+          this.breadcrumbData[0].currentExecute = 1;
+        }
       },
       // 根据选择过滤历史数据
       async filterHistoryData() {
@@ -728,8 +736,13 @@
           // 更新子节点的执行次数
           this.isBreadCurmbLoading = true;
           let taskId = '';
+
+          if (!selectedData) {
+            this.isBreadCurmbLoading = false;
+            return;
+          }
           const { outputs } = selectedData;
-          if (outputs.task_id) {
+          if (outputs && outputs.task_id) {
             taskId = outputs.task_id;
           } else if (Array.isArray(outputs)) {
             const taskInfo = outputs.find(item => item.key === 'task_id') || {};

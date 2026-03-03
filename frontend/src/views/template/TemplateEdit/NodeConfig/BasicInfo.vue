@@ -620,7 +620,7 @@
                 v-model="formData.loopConfig.fail_skip"
                 :disabled="isViewMode || formData.loopConfig.skippable"
                 ext-cls="loop-error-checkbox"
-                @change="onLoopErrorControlChange($event, 'ignorable')">
+                @change="onLoopErrorControlChange($event, 'fail_skip')">
                 <span class="error-handle-icon"><span class="text">AS</span></span>
                 {{ $t('自动跳过') }}
               </bk-checkbox>
@@ -1177,7 +1177,7 @@
         this.updateData();
       },
       onLoopErrorControlChange(val, type) {
-        if (val && type === 'ignorable') {
+        if (val && type === 'fail_skip') {
           // 选择自动跳过时，取消手动跳过
           this.formData.loopConfig.skippable = false;
         }
