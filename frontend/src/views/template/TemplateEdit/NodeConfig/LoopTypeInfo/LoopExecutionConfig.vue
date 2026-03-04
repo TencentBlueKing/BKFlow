@@ -5,6 +5,7 @@
       ref="arrayLoopRef"
       :var-list="formData.loop_params"
       :is-view-mode="isViewMode"
+      :subflow-forms="subflowForms"
       @change="onLoopVarListChange" />
     <!-- <FullCodeEditor
         v-if="formData.loopType === 'condition'"
@@ -49,6 +50,10 @@ export default {
     isViewMode: {
       type: Boolean,
       default: false,
+    },
+    subflowForms: {
+      type: Object,
+      default: () => ({}),
     },
   },
   data() {

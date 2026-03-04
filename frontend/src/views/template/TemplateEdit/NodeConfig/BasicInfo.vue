@@ -610,6 +610,7 @@
             ref="loopExecutionConfigRef"
             :loop-config="formData.loopConfig"
             :is-view-mode="isViewMode"
+            :subflow-forms="subflowForms"
             @change="onLoopConfigChange" />
           <bk-form-item
             v-if="executeControlActive === 'loop'"
@@ -710,6 +711,10 @@
         type: [String, Number],
         default: '',
       },
+      subflowForms: {
+        type: Object,
+        default: () => ({}),
+      }, // 子流程模板输入参数
     },
     data() {
       return {
