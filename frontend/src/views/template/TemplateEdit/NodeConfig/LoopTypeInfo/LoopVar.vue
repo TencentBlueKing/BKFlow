@@ -133,7 +133,7 @@ export default {
       return count <= 1;
     },
     validateVarNameNotInSubflowForms(value) {
-      if (!value || !this.subflowForms) return true;
+      if (!value) return true;
       const subflowKeys = Object.keys(this.subflowForms);
       const checkValue = /^\$\{\w+\}$/.test(value) ? value : `\${${value}}`;
       return !subflowKeys.includes(checkValue);
