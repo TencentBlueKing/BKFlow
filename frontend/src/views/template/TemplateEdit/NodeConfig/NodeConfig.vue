@@ -105,6 +105,7 @@
                 :is-subflow-need-to-update="isSubflowNeedToUpdate"
                 :is-enable-version-manage="isEnableVersionManage"
                 :space-id="spaceId"
+                :subflow-forms="subflowForms"
                 @openSelectorPanel="isSelectorPanelShow = true"
                 @versionChange="versionChange"
                 @viewSubflow="onViewSubflow"
