@@ -140,6 +140,10 @@ class TemplateSerializer(serializers.ModelSerializer):
                 _(f"更新失败，子流程节点【{data['node_name']}】引用的模板 {data['template_id']} 与当前流程存在循环引用")
             )
 
+        validate_data = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
+        if not validate_data["has_loop"]:
+            raise serializers.ValidationError(_(validate_data["error_message"]))
+
         return pipeline_tree
 
     @transaction.atomic()
