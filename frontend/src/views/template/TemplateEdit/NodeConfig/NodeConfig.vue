@@ -1530,35 +1530,35 @@
             const loopKeys = Object.keys(loopConfig.loop_params);
             Object.keys(this.inputsParamValue).forEach((inputKey) => {
               const inputValue = this.inputsParamValue[inputKey];
-                loopKeys.forEach((loopKey) => {
-                  if (inputValue.includes(loopKey) && !constants[loopKey]) {
-                    constants[loopKey] = {
-                      custom_type: 'loop',
-                      desc: '',
-                      form_schema: {
-                          type: 'input',
-                          attrs: {
-                              name: '循环变量',
-                              hookable: true,
-                              validation: [],
-                          },
-                      },
-                      index: 0,
-                      key: loopKey,
-                      name: loopKey,
-                      show_type: 'show',
-                      source_info: {},
-                      source_tag: 'loop.loop',
-                      source_type: 'custom',
-                      validation: '',
-                      is_condition_hide: 'false',
-                      pre_render_mako: false,
-                      value: loopConfig.loop_params[loopKey],
-                      version: 'legacy',
-                      is_meta: false,
-                    };
-                  }
-                });
+              loopKeys.forEach((loopKey) => {
+                if (inputValue.includes(loopKey) && !constants[loopKey]) {
+                  constants[loopKey] = {
+                    custom_type: 'loop',
+                    desc: '',
+                    form_schema: {
+                        type: 'input',
+                        attrs: {
+                            name: '循环变量',
+                            hookable: true,
+                            validation: [],
+                        },
+                    },
+                    index: 0,
+                    key: loopKey,
+                    name: loopKey,
+                    show_type: 'show',
+                    source_info: {},
+                    source_tag: 'loop.loop',
+                    source_type: 'custom',
+                    validation: '',
+                    is_condition_hide: false,
+                    pre_render_mako: false,
+                    value: loopConfig.loop_params[loopKey],
+                    version: 'legacy',
+                    is_meta: false,
+                  };
+                }
+              });
             });
           }
           Object.keys(this.subflowForms).forEach((key) => {
