@@ -424,9 +424,10 @@ export const getFormMixins = (attrs = {}) => {
         const constantArr = [...Object.values(constants)];
         const subflowLoopVarArr = [];
         Object.keys(subflowLoopVars).forEach((key) => {
+          const normalized = !/^\$\{\w+\}$/.test(key) ? `\${${key}}` : key;
           subflowLoopVarArr.push({
-            key: !/^\$\{\w+\}$/.test(key) ? `\${${key}}` : key,
-            name: !/^\$\{\w+\}$/.test(key) ? `\${${key}}` : key,
+            key: normalized,
+            name: normalized,
           });
         });
         const inputVar = constantArr.filter(item => item.source_type === 'component_inputs');

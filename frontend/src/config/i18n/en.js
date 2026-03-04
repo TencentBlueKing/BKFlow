@@ -1128,6 +1128,7 @@ const en = {
   循环变量不能为空: 'Loop variable cannot be empty',
   '循环变量由英文字母、数字、下划线组成，且不能以数字开头': 'Loop variable must consist of letters, numbers, and underscores, and cannot start with a number',
   循环变量不能重复: 'Loop variable names cannot be duplicated',
+  循环变量不能与输入参数key相同: 'Loop variable cannot be the same as input parameter key',
 };
 
 export default en;
