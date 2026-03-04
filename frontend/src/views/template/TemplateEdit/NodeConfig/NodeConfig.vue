@@ -105,6 +105,7 @@
                 :is-subflow-need-to-update="isSubflowNeedToUpdate"
                 :is-enable-version-manage="isEnableVersionManage"
                 :space-id="spaceId"
+                :subflow-forms="subflowForms"
                 @openSelectorPanel="isSelectorPanelShow = true"
                 @versionChange="versionChange"
                 @viewSubflow="onViewSubflow"
@@ -1525,6 +1526,40 @@
               return arr;
             }, {});
             loopConfig.loop_params = result;
+            // 节点循环变量如若被输入参数引用则需存入节点constants
+            const loopKeys = Object.keys(loopConfig.loop_params);
+            Object.keys(this.inputsParamValue).forEach((inputKey) => {
+              const inputValue = this.inputsParamValue[inputKey];
+                loopKeys.forEach((loopKey) => {
+                  if (inputValue.includes(loopKey) && !constants[loopKey]) {
+                    constants[loopKey] = {
+                      custom_type: 'loop',
+                      desc: '',
+                      form_schema: {
+                          type: 'input',
+                          attrs: {
+                              name: '循环变量',
+                              hookable: true,
+                              validation: [],
+                          },
+                      },
+                      index: 0,
+                      key: loopKey,
+                      name: loopKey,
+                      show_type: 'show',
+                      source_info: {},
+                      source_tag: 'loop.loop',
+                      source_type: 'custom',
+                      validation: '',
+                      is_condition_hide: 'false',
+                      pre_render_mako: false,
+                      value: loopConfig.loop_params[loopKey],
+                      version: 'legacy',
+                      is_meta: false,
+                    };
+                  }
+                });
+            });
           }
           Object.keys(this.subflowForms).forEach((key) => {
             const constant = tools.deepClone(this.subflowForms[key]);
