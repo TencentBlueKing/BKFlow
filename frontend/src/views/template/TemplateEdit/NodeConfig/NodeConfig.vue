@@ -1540,7 +1540,9 @@
             Object.keys(this.inputsParamValue).forEach((key) => {
               const paramValue = this.inputsParamValue[key];
               loopParamKeys.forEach((loopKey) => {
-                if (paramValue.includes(loopKey)) {
+                const escapedKey = loopKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const pattern = new RegExp(`(?:^|[^\\w])${escapedKey}(?:[^\\w]|$)`);
+                if (pattern.test(paramValue)) {
                   loopConfig.loop_params[loopKey].is_quote = true;
                 }
               });
