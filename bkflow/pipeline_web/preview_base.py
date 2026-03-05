@@ -423,8 +423,10 @@ class PipelineTemplateWebPreviewer:
         """
         loop_variable_usage = {}
         global_variable_keys = set(pipeline_tree["constants"].keys())
+
         conflicting_variables = []
         conflicting_global_variables = []
+        loop_variables = []
 
         for node_name, activity in pipeline_tree["activities"].items():
             loop_config = activity.get("loop_config", {})
@@ -441,11 +443,11 @@ class PipelineTemplateWebPreviewer:
 
             # 如果没有有效的循环参数，跳过该节点的循环验证
             if not valid_loop_params and loop_times != 1:
-                return {"has_loop": False, "error_message": f"节点 {node_name} 的循环次数与循环变量参数不匹配"}
+                loop_variables.append(node_name)
 
             # 验证循环次数与循环变量数量匹配
             if valid_loop_params and loop_times != min(valid_loop_params):
-                return {"has_loop": False, "error_message": f"节点 {node_name} 的循环次数与循环变量参数不匹配"}
+                loop_variables.append(node_name)
 
             # 统计循环变量使用情况
             for param_key, param_value in loop_params.items():
@@ -459,10 +461,11 @@ class PipelineTemplateWebPreviewer:
                 else:
                     loop_variable_usage[param_key] = node_name
 
+        if loop_variables:
+            return {"has_loop": False, "error_message": f"节点 {'; '.join(loop_variables)} 的循环次数与循环变量参数不匹配"}
         # 返回验证结果
         if conflicting_variables:
             return {"has_loop": False, "error_message": f"循环变量被多个节点使用: {'; '.join(conflicting_variables)}"}
-
         if conflicting_global_variables:
             return {"has_loop": False, "error_message": f"循环变量与全局变量冲突: {'; '.join(conflicting_global_variables)}"}
 
