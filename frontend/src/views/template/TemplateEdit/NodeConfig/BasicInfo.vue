@@ -574,7 +574,8 @@
                 @change="onLoopTypeChange">
                 <bk-radio
                   value="array_loop"
-                  ext-cls="loop-radio">
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
                   {{ $t('按数组变量循环') }}
                 </bk-radio>
                 <!-- <bk-radio
@@ -584,7 +585,8 @@
                   </bk-radio> -->
                 <bk-radio
                   value="time_loop"
-                  ext-cls="loop-radio">
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
                   {{ $t('固定循环次数') }}
                 </bk-radio>
               </bk-radio-group>
