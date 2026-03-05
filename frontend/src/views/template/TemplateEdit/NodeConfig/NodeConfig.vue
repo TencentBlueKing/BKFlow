@@ -1539,11 +1539,11 @@
             });
             Object.keys(this.inputsParamValue).forEach((key) => {
               const paramValue = this.inputsParamValue[key];
-                loopParamKeys.forEach((loopKey) => {
-                  if (paramValue.includes(loopKey)) {
-                    loopConfig.loop_params[loopKey].is_quote = true;
-                  }
-                });
+              loopParamKeys.forEach((loopKey) => {
+                if (paramValue.includes(loopKey)) {
+                  loopConfig.loop_params[loopKey].is_quote = true;
+                }
+              });
             });
             // 计算被引用变量的 value 长度最小值
             const quotedValueLengths = [];
