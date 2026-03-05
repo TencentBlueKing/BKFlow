@@ -574,7 +574,8 @@
                 @change="onLoopTypeChange">
                 <bk-radio
                   value="array_loop"
-                  ext-cls="loop-radio">
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
                   {{ $t('按数组变量循环') }}
                 </bk-radio>
                 <!-- <bk-radio
@@ -584,7 +585,8 @@
                   </bk-radio> -->
                 <bk-radio
                   value="time_loop"
-                  ext-cls="loop-radio">
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
                   {{ $t('固定循环次数') }}
                 </bk-radio>
               </bk-radio-group>
@@ -864,18 +866,25 @@
               enable: false,
               type: 'array_loop', // 数组循环array_loop 次数循环time_loop
               loop_times: 3, // 默认为3
-              loop_params: [{ name: '', source: '' }],
+              loop_params: [{ name: '', value: '', is_quote: false }],
               fail_skip: false,
               retryable: false,
               skippable: false,
             };
             this.executeControlActive = 'single';
           }
-          if (this.formData.loopConfig.loop_params && !Array.isArray(this.formData.loopConfig.loop_params)) {
-              this.formData.loopConfig.loop_params = Object.entries(this.formData.loopConfig.loop_params).map(([key, value]) => ({
-                name: key,
-                ...value
-              }));
+          // 兼容处理：undefined/null/空对象{}/空数组[]
+          const loopParams = this.formData.loopConfig.loop_params;
+          if (!loopParams
+              || (Array.isArray(loopParams) && loopParams.length === 0)
+              || (!Array.isArray(loopParams) && typeof loopParams === 'object' && Object.keys(loopParams).length === 0)) {
+            this.formData.loopConfig.loop_params = [{ name: '', value: '', is_quote: false }];
+          } else if (!Array.isArray(loopParams)) {
+            // 非空对象转数组
+            this.formData.loopConfig.loop_params = Object.entries(loopParams).map(([key, value]) => ({
+              name: key,
+              ...value
+            }));
           }
           // 如果有执行方案，默认选中<不使用执行方案>
           if (this.schemeList.length && !this.formData.schemeIdList.length) {
