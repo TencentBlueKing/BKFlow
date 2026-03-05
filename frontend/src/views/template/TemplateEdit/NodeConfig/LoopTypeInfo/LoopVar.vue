@@ -43,12 +43,12 @@
             type="plus-circle-shape"
             class="action-icon"
             :disabled="isViewMode"
-            @click="addParam" />
+            @click.prevent="addParam" />
           <bk-icon
             type="minus-circle-shape"
             class="action-icon"
             :disabled="isViewMode || curVarList.length <= 1"
-            @click="removeParam(index)" />
+            @click.prevent="removeParam(index)" />
         </div>
       </div>
     </div>
