@@ -1516,16 +1516,49 @@
           } = this.basicInfo;
           const constants = {};
           if (Array.isArray(loopConfig.loop_params) && loopConfig.loop_params.length > 0) {
-            const result = loopConfig.loop_params.reduce((arr, item) => {
-              if (item.name?.trim() && item.source?.trim()) {
+            const result = loopConfig.loop_params.reduce((obj, item) => {
+              if (item.name?.trim() && item.value?.trim()) {
                 if (!/^\$\{\w+\}$/.test(item.name)) {
                   item.name = `\${${item.name}}`;
                 }
-                arr[item.name] = item.source;
+                obj[item.name] = {
+                  value: item.value || '',
+                  is_quote: item.is_quote || false,
+                };
               }
-              return arr;
+              return obj;
             }, {});
             loopConfig.loop_params = result;
+          }
+          // 判断输入参数是否引用循环变量，并计算 loop_times
+          if (loopConfig.type === 'array_loop' && loopConfig.loop_params) {
+            const loopParamKeys = Object.keys(loopConfig.loop_params);
+            let minValueLength = 1;
+            loopParamKeys.forEach((loopKey) => {
+              loopConfig.loop_params[loopKey].is_quote = false;
+            });
+            Object.keys(this.inputsParamValue).forEach((key) => {
+              const paramValue = this.inputsParamValue[key];
+              loopParamKeys.forEach((loopKey) => {
+                const escapedKey = loopKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const pattern = new RegExp(`(?:^|[^\\w])${escapedKey}(?:[^\\w]|$)`);
+                if (pattern.test(paramValue)) {
+                  loopConfig.loop_params[loopKey].is_quote = true;
+                }
+              });
+            });
+            // 计算被引用变量的 value 长度最小值
+            const quotedValueLengths = [];
+            loopParamKeys.forEach((loopKey) => {
+              if (loopConfig.loop_params[loopKey].is_quote) {
+                const valueLength = loopConfig.loop_params[loopKey].value.split(',').length;
+                quotedValueLengths.push(valueLength);
+              }
+            });
+            if (quotedValueLengths.length > 0) {
+              minValueLength = Math.min(...quotedValueLengths);
+            }
+            loopConfig.loop_times = minValueLength;
           }
           Object.keys(this.subflowForms).forEach((key) => {
             const constant = tools.deepClone(this.subflowForms[key]);
