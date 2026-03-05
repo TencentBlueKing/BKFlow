@@ -41,12 +41,12 @@
         <div class="param-actions">
           <bk-icon
             type="plus-circle-shape"
-            class="action-icon"
+            :class="['action-icon', { 'is-disabled': isViewMode }]"
             :disabled="isViewMode"
             @click="addParam" />
           <bk-icon
             type="minus-circle-shape"
-            class="action-icon"
+            :class="['action-icon', { 'is-disabled': isViewMode || curVarList.length <= 1 }]"
             :disabled="isViewMode || curVarList.length <= 1"
             @click="removeParam(index)" />
         </div>
@@ -259,6 +259,9 @@ export default {
             color: #c4c6cc;
             cursor: pointer;
             margin-left: 12px;
+            &.is-disabled {
+              cursor: not-allowed !important;
+            }
           }
         }
       }
