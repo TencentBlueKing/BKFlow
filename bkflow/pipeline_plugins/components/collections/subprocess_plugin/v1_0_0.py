@@ -116,8 +116,12 @@ class SubprocessPluginService(BKFlowBaseService):
             key: inputs.value for key, inputs in self.runtime.get_data_inputs(self.top_pipeline_id).items()
         }
         if self.runtime.get_node(self.id).loop_strategy:
-            loop_params = parent_task.pipeline_tree["activities"][self.id].get("loop_config", {}).get("loop_params")
+            loop_params = (
+                parent_task.pipeline_tree["activities"][self.id].get("loop_config", {}).get("loop_params") or {}
+            )
             for param_key, param_value in loop_params.items():
+                if not param_value.get("is_quote"):
+                    continue
                 context_values.append(
                     ContextValue(
                         key=param_key, type=ContextValueType.COMPUTE, value=param_value.get("value"), code="loop"
