@@ -874,7 +874,7 @@
           if (this.formData.loopConfig.loop_params && !Array.isArray(this.formData.loopConfig.loop_params)) {
               this.formData.loopConfig.loop_params = Object.entries(this.formData.loopConfig.loop_params).map(([key, value]) => ({
                 name: key,
-                source: value,
+                ...value
               }));
           }
           // 如果有执行方案，默认选中<不使用执行方案>

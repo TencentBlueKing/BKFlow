@@ -27,11 +27,11 @@
               @change="onParamChange" />
           </bk-form-item>
           <bk-form-item
-            property="source"
+            property="value"
             class="param-source-form-item param-item"
             :label-width="1">
             <bk-input
-              v-model="item.source"
+              v-model="item.value"
               :placeholder="$t('请输入数据来源')"
               :readonly="isViewMode"
               class="param-source-input"
@@ -68,7 +68,7 @@ export default {
     varList: {
       type: Array,
       default: () => [
-        { name: '', source: '' },
+        { name: '', value: '', is_quote: false },
       ],
     },
     subflowForms: {
@@ -102,7 +102,7 @@ export default {
             trigger: 'blur',
           },
         ],
-        source: [
+        value: [
           {
             required: true,
             message: this.$t('数据来源不能为空'),
@@ -126,10 +126,14 @@ export default {
       return reg.test(value);
     },
     validateVarNameUnique(value) {
-      // 校验变量名是否重复
       if (!value) return true; // 空值由required校验处理
+      // 校验变量名是否重复，统一转换为 ${name} 格式后再比较
+      const normalizedValue = /^\$\{\w+\}$/.test(value) ? value : `\${${value}}`;
       const names = this.curVarList.map(item => item.name).filter(name => name);
-      const count = names.filter(name => name === value).length;
+      const count = names.filter((name) => {
+        const normalizedName = /^\$\{\w+\}$/.test(name) ? name : `\${${name}}`;
+        return normalizedName === normalizedValue;
+      }).length;
       return count <= 1;
     },
     validateVarNameNotInSubflowForms(value) {
@@ -145,14 +149,15 @@ export default {
       if (this.isViewMode) return;
       this.curVarList.push({
         name: '',
-        source: '',
+        value: '',
+        is_quote: false,
       });
-      this.$emit('change', this.curVarList);
+      this.onParamChange();
     },
     removeParam(index) {
       if (this.isViewMode || this.curVarList.length <= 1) return;
       this.curVarList.splice(index, 1);
-      this.$emit('change', this.curVarList);
+      this.onParamChange();
     },
     validate() {
       const promises = [];
