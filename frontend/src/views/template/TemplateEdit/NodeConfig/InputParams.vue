@@ -187,8 +187,8 @@
             // 数组格式转换为对象格式
             const result = {};
             loopParams.forEach((item) => {
-              if (item.name && item.source !== undefined && item.source !== '') {
-                result[item.name] = item.source;
+              if (item.name && item.value) {
+                result[item.name] = item.value;
               }
             });
             processedLoopVars = result;
