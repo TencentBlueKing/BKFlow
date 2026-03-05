@@ -866,20 +866,22 @@
               enable: false,
               type: 'array_loop', // 数组循环array_loop 次数循环time_loop
               loop_times: 3, // 默认为3
-              loop_params: [{ name: '', value: '', is_quote: false}],
+              loop_params: [{ name: '', value: '', is_quote: false }],
               fail_skip: false,
               retryable: false,
               skippable: false,
             };
             this.executeControlActive = 'single';
           }
-          // 兼容处理：空对象 {} 或空值
-          if (!this.formData.loopConfig.loop_params
-              || (typeof this.formData.loopConfig.loop_params === 'object'
-                  && Object.keys(this.formData.loopConfig.loop_params).length === 0)) {
+          // 兼容处理：undefined/null/空对象{}/空数组[]
+          const loopParams = this.formData.loopConfig.loop_params;
+          if (!loopParams
+              || (Array.isArray(loopParams) && loopParams.length === 0)
+              || (!Array.isArray(loopParams) && typeof loopParams === 'object' && Object.keys(loopParams).length === 0)) {
             this.formData.loopConfig.loop_params = [{ name: '', value: '', is_quote: false }];
-          } else if (this.formData.loopConfig.loop_params && !Array.isArray(this.formData.loopConfig.loop_params)) {
-            this.formData.loopConfig.loop_params = Object.entries(this.formData.loopConfig.loop_params).map(([key, value]) => ({
+          } else if (!Array.isArray(loopParams)) {
+            // 非空对象转数组
+            this.formData.loopConfig.loop_params = Object.entries(loopParams).map(([key, value]) => ({
               name: key,
               ...value
             }));
