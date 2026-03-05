@@ -864,18 +864,23 @@
               enable: false,
               type: 'array_loop', // 数组循环array_loop 次数循环time_loop
               loop_times: 3, // 默认为3
-              loop_params: [{ name: '', source: '' }],
+              loop_params: [{ name: '', value: '', is_quote: false}],
               fail_skip: false,
               retryable: false,
               skippable: false,
             };
             this.executeControlActive = 'single';
           }
-          if (this.formData.loopConfig.loop_params && !Array.isArray(this.formData.loopConfig.loop_params)) {
-              this.formData.loopConfig.loop_params = Object.entries(this.formData.loopConfig.loop_params).map(([key, value]) => ({
-                name: key,
-                ...value
-              }));
+          // 兼容处理：空对象 {} 或空值
+          if (!this.formData.loopConfig.loop_params
+              || (typeof this.formData.loopConfig.loop_params === 'object'
+                  && Object.keys(this.formData.loopConfig.loop_params).length === 0)) {
+            this.formData.loopConfig.loop_params = [{ name: '', value: '', is_quote: false }];
+          } else if (this.formData.loopConfig.loop_params && !Array.isArray(this.formData.loopConfig.loop_params)) {
+            this.formData.loopConfig.loop_params = Object.entries(this.formData.loopConfig.loop_params).map(([key, value]) => ({
+              name: key,
+              ...value
+            }));
           }
           // 如果有执行方案，默认选中<不使用执行方案>
           if (this.schemeList.length && !this.formData.schemeIdList.length) {
