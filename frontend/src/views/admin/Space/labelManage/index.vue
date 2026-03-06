@@ -165,7 +165,7 @@
       :label-data="editLabel"
       :is-edit="isEdit"
       @close="showCreateLabelDialog = false"
-      @confirm="getLabelList" />
+      @refresh="getLabelList" />
   </div>
 </template>
 

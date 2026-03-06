@@ -570,6 +570,9 @@ export default {
             padding: 0 8px;
             border-radius: 11px;
             color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             .delete-icon {
                 font-size: 16px !important;
                 margin-left: 5px;

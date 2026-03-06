@@ -22,7 +22,6 @@
           <span
             v-for="tag in hiddenTags"
             :key="tag.id"
-            v-bk-overflow-tips
             class="tag"
             :style="tagStyle(tag)">
             {{ tag.full_path }}
@@ -143,6 +142,7 @@ export default {
     border-radius: 11px;
     font-size: 12px;
     line-height: 16px;
+    height: 16px;
 }
 
 .more {
@@ -161,16 +161,13 @@ export default {
     flex-direction: column;
     gap: 6px;
     color: #fff;
-    border-radius: 11px;
-    color: #ffffff;
-    font-size: 10px;
     max-height: 126px;
     overflow: auto;
     .tag {
         align-self: flex-start;
         margin: 0;
+        line-height: 16px;
         white-space: nowrap;
-        overflow: hidden;
     }
 }
 
@@ -184,10 +181,9 @@ export default {
 </style>
 
 <style>
-    .label-cell-popover {
+.label-cell-popover {
     .tippy-tooltip {
         padding: 8px;
-
     }
 }
 </style>

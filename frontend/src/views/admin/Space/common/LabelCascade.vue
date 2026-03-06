@@ -383,6 +383,9 @@ export default {
             height: 32px;
             width: 100%;
             cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             .angle-icon {
                 font-size: 16px !important;
                 color: #c4c6cc;
