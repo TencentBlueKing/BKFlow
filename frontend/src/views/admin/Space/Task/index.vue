@@ -567,7 +567,7 @@ export default {
             height: 16px;
             line-height: 16px;
             font-size: 12px;
-            padding: 0 6px;
+            padding: 0 8px;
             border-radius: 11px;
             color: #ffffff;
             .delete-icon {

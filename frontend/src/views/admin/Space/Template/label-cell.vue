@@ -137,7 +137,7 @@ export default {
 }
 
 .tag {
-    padding: 0 4px;
+    padding: 0 8px;
     margin-right: 4px;
     background: #f0f2f5;
     border-radius: 11px;

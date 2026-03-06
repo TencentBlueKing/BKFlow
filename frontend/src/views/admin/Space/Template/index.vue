@@ -1031,7 +1031,7 @@ export default {
             font-size: 12px;
             display: flex;
             align-items: center;
-            padding: 0 6px;
+            padding: 0 8px;
             border-radius: 11px;
             color: #ffffff;
             .delete-icon {

@@ -8,7 +8,7 @@
       placement="bottom-start"
       :is-show="true"
       trigger="manual"
-      width="350"
+      width="500"
       class="label-popover"
       ext-cls="label-cascade-popover"
       :arrow="false"
@@ -38,6 +38,7 @@
                 ]"
                 @click="handleClickFirstLabel(label)">
                 <bk-checkbox
+                  class="label-checkbox"
                   :value="labelIds.includes(label.id)"
                   @change="handleCheckChange(label, $event)">
                   {{ label.name }}
@@ -58,6 +59,7 @@
                 :key="label.id"
                 class="label-item">
                 <bk-checkbox
+                  class="label-checkbox"
                   :value="labelIds.includes(label.id)"
                   @change="handleCheckChange(label, $event)">
                   {{ label.name }}
@@ -84,7 +86,7 @@
           <div
             class="refresh-label"
             data-test-id="process_list__refreshLabel"
-            @click="getLabelList">
+            @click="getLabelList()">
             <i class="bk-icon icon-right-turn-line" />
           </div>
         </div>
@@ -357,16 +359,19 @@ export default {
 .cascade-content {
     display: flex;
     height: 205px;
-    overflow: auto;
     border: 1px solid #dcdee5;
     border-left: none;
     border-right: none;
     .first-label {
         border-right: 1px solid #dcdee5;
         width: 50%;
+        height: 100%;
+        overflow: auto;
     }
     .second-label {
         width: 50%;
+        height: 100%;
+        overflow: auto;
     }
     .label-list {
         padding-top: 9px;
@@ -374,7 +379,7 @@ export default {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px;
+            padding: 12px;
             height: 32px;
             width: 100%;
             cursor: pointer;
@@ -437,6 +442,16 @@ export default {
     }
     & > span {
         font-size: 12px;
+    }
+}
+::v-deep .label-checkbox {
+    display: flex;
+    align-items: center;
+    .bk-checkbox-text {
+        // 溢出隐藏，不换行
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 }
 </style>
