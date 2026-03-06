@@ -182,10 +182,9 @@ export default {
                         data: payload,
                     });
                 } else {
-                    await this.createLabel(payload);
+                    const res = await this.createLabel(payload);
+                    this.$emit('confirm', res.data);
                 }
-
-                this.$emit('updateList');
                 this.$emit('close');
             } catch (error) {
                 console.warn(error);

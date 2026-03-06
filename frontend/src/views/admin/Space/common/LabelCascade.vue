@@ -94,7 +94,7 @@
       :is-show="isShowCreate"
       :scope="scope"
       @close="isShowCreate = false"
-      @updateList="getLabelList" />
+      @confirm="onCreateLabelDone" />
   </div>
 </template>
 
@@ -242,7 +242,7 @@ export default {
         handleCheck(label) {
             this.addLabelId(label);
             // 选中一级 → 选中所有二级
-            if (label.has_children && Array.isArray(label.children)) {
+           if (label.has_children && Array.isArray(label.children)) {
                 label.children.forEach((child) => {
                     this.addLabelId(child);
                     this.addToSelect(child);
@@ -328,6 +328,11 @@ export default {
                 },
             });
             window.open(href, '_blank');
+        },
+        async onCreateLabelDone(label) {
+            // 新建后自动选中新建的标签
+            this.selectLabelList.push(label);
+            this.$emit('confirm', this.selectLabelList);
         },
     },
 };
