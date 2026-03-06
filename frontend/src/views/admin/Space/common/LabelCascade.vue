@@ -1,17 +1,19 @@
 <template>
-  <div>
+  <div
+    class="label-cascade-wrap"
+    @click="isVisible(true)">
     <bk-popover
       ref="labelPopover"
       theme="light"
       placement="bottom-start"
       :is-show="true"
       trigger="manual"
-      width="350"
+      width="500"
       class="label-popover"
       ext-cls="label-cascade-popover"
       :arrow="false"
       :on-hide="hide">
-      <div @click="isVisible(true)">
+      <div>
         <slot
           name="trigger"
           :list="selectLabelList"
@@ -36,6 +38,7 @@
                 ]"
                 @click="handleClickFirstLabel(label)">
                 <bk-checkbox
+                  class="label-checkbox"
                   :value="labelIds.includes(label.id)"
                   @change="handleCheckChange(label, $event)">
                   {{ label.name }}
@@ -56,6 +59,7 @@
                 :key="label.id"
                 class="label-item">
                 <bk-checkbox
+                  class="label-checkbox"
                   :value="labelIds.includes(label.id)"
                   @change="handleCheckChange(label, $event)">
                   {{ label.name }}
@@ -82,7 +86,7 @@
           <div
             class="refresh-label"
             data-test-id="process_list__refreshLabel"
-            @click="getLabelList">
+            @click="getLabelList()">
             <i class="bk-icon icon-right-turn-line" />
           </div>
         </div>
@@ -92,7 +96,7 @@
       :is-show="isShowCreate"
       :scope="scope"
       @close="isShowCreate = false"
-      @updateList="getLabelList" />
+      @confirm="onCreateLabelDone" />
   </div>
 </template>
 
@@ -240,7 +244,7 @@ export default {
         handleCheck(label) {
             this.addLabelId(label);
             // 选中一级 → 选中所有二级
-            if (label.has_children && Array.isArray(label.children)) {
+           if (label.has_children && Array.isArray(label.children)) {
                 label.children.forEach((child) => {
                     this.addLabelId(child);
                     this.addToSelect(child);
@@ -327,13 +331,24 @@ export default {
             });
             window.open(href, '_blank');
         },
+        async onCreateLabelDone(label) {
+            // 新建后自动选中新建的标签
+            this.selectLabelList.push(label);
+            this.$emit('confirm', this.selectLabelList);
+        },
     },
 };
 </script>
 
 <style lang="scss" scoped>
+.label-cascade-wrap {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
 .search-input {
-    height: 32px;
+    height: 100%;
     :deep(.bk-form-input) {
         border: none;
     }
@@ -344,16 +359,19 @@ export default {
 .cascade-content {
     display: flex;
     height: 205px;
-    overflow: auto;
     border: 1px solid #dcdee5;
     border-left: none;
     border-right: none;
     .first-label {
         border-right: 1px solid #dcdee5;
         width: 50%;
+        height: 100%;
+        overflow: auto;
     }
     .second-label {
         width: 50%;
+        height: 100%;
+        overflow: auto;
     }
     .label-list {
         padding-top: 9px;
@@ -361,10 +379,13 @@ export default {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px;
+            padding: 12px;
             height: 32px;
             width: 100%;
             cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             .angle-icon {
                 font-size: 16px !important;
                 color: #c4c6cc;
@@ -424,6 +445,16 @@ export default {
     }
     & > span {
         font-size: 12px;
+    }
+}
+::v-deep .label-checkbox {
+    display: flex;
+    align-items: center;
+    .bk-checkbox-text {
+        // 溢出隐藏，不换行
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 }
 </style>

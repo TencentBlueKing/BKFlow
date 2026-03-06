@@ -19,7 +19,8 @@
         :property="'name'">
         <bk-input
           v-model="labelFormData.name"
-          :maxlength="stringLength.TEMPLATE_NAME_MAX_LENGTH" />
+          :maxlength="41"
+          :placeholder="i18n.placeholder" />
       </bk-form-item>
       <bk-form-item
         :label="$t('标签颜色')"
@@ -78,6 +79,7 @@
 <script>
 import { STRING_LENGTH, LABEL_COLOR_LIST } from '@/constants/index.js';
 import { mapActions, mapState } from 'vuex';
+
 export default {
     name: 'CreateTemplateDialog',
     props: {
@@ -118,6 +120,22 @@ export default {
                         message: this.$t('必填项'),
                         trigger: 'blur',
                     },
+                    {
+                        message: this.$t('标签支持最大级层级为2层'),
+                        validator: (value) => {
+                            const nameParts = value.split('/');
+                            return nameParts.length <= 2;
+                        },
+                        trigger: 'blur',
+                    },
+                    {
+                        message: this.$t('单个标签名称支持最多20个字符'),
+                        validator: (value) => {
+                            const nameParts = value.split('/');
+                            return nameParts.every(part => part.length <= 20);
+                        },
+                        trigger: 'blur',
+                    },
                 ],
                 description: [
                     {
@@ -126,6 +144,9 @@ export default {
                         trigger: 'blur',
                     },
                 ],
+            },
+            i18n: {
+                placeholder: gettext('如需定义层级标签，以英文\"/\"进行分隔，最多支持二级'),
             },
         };
     },
@@ -182,10 +203,10 @@ export default {
                         data: payload,
                     });
                 } else {
-                    await this.createLabel(payload);
+                    const res = await this.createLabel(payload);
+                    this.$emit('confirm', res.data);
                 }
-
-                this.$emit('updateList');
+                this.$emit('refresh');
                 this.$emit('close');
             } catch (error) {
                 console.warn(error);

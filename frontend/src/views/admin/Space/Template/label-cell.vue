@@ -22,7 +22,6 @@
           <span
             v-for="tag in hiddenTags"
             :key="tag.id"
-            v-bk-overflow-tips
             class="tag"
             :style="tagStyle(tag)">
             {{ tag.full_path }}
@@ -31,6 +30,7 @@
       </template>
     </bk-popover>
     <div
+      v-if="tags.length"
       ref="measure"
       class="measure">
       <span
@@ -41,6 +41,7 @@
         {{ tag.full_path }}
       </span>
     </div>
+    <span v-else>--</span>
   </div>
 </template>
 
@@ -135,12 +136,13 @@ export default {
 }
 
 .tag {
-    padding: 0 4px;
+    padding: 0 8px;
     margin-right: 4px;
     background: #f0f2f5;
     border-radius: 11px;
     font-size: 12px;
     line-height: 16px;
+    height: 16px;
 }
 
 .more {
@@ -159,16 +161,13 @@ export default {
     flex-direction: column;
     gap: 6px;
     color: #fff;
-    border-radius: 11px;
-    color: #ffffff;
-    font-size: 10px;
     max-height: 126px;
     overflow: auto;
     .tag {
         align-self: flex-start;
         margin: 0;
+        line-height: 16px;
         white-space: nowrap;
-        overflow: hidden;
     }
 }
 
@@ -182,10 +181,9 @@ export default {
 </style>
 
 <style>
-    .label-cell-popover {
+.label-cell-popover {
     .tippy-tooltip {
         padding: 8px;
-
     }
 }
 </style>
