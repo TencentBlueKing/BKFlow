@@ -1048,6 +1048,9 @@ const en = {
   '标签删除成功！': 'Label deleted successfully!',
   编辑标签: 'Edit Label',
   标签颜色: 'Label Color',
+  标签支持最大级层级为2层: 'Label supports a maximum of 2 levels',
+  单个标签名称支持最多20个字符: 'Each label name supports up to 20 characters',
+  '如需定义层级标签，以英文\"/\"进行分隔，最多支持二级': 'To define hierarchical labels, use the English "\"/\"" to separate them, supporting a maximum of two levels',
 };
 
 export default en;
