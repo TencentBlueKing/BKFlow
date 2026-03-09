@@ -165,7 +165,7 @@
       :label-data="editLabel"
       :is-edit="isEdit"
       @close="showCreateLabelDialog = false"
-      @updateList="getLabelList" />
+      @refresh="getLabelList" />
   </div>
 </template>
 
@@ -359,7 +359,7 @@ export default {
 
 <style lang="scss" scoped>
 .label-name {
-    padding: 0 4px;
+    padding: 0 8px;
     border-radius: 11px;
     line-height: 16px;
     color: #ffffff;

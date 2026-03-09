@@ -4,7 +4,9 @@
       ref="tableOperate"
       :space-id="spaceId"
       :placeholder="
-        $t('ID/流程名称/标签/创建人/更新人/启用/所属作用域类型/所属作用域值')
+        $t(
+          'ID/流程名称/标签/创建人/更新人/启用/所属作用域类型/所属作用域值'
+        )
       "
       :search-list="searchList"
       @updateSearchValue="searchValue = $event"
@@ -52,7 +54,8 @@
         :render-header="renderTableHeader"
         :width="item.width"
         :show-overflow-tooltip="item.id !== 'label'"
-        :min-width="item.min_width">
+        :min-width="item.min_width"
+        :class-name="item.id === 'label' ? 'label-column' : ''">
         <template slot-scope="props">
           <div v-if="item.id === 'name'">
             <bk-button
@@ -62,7 +65,9 @@
               {{ props.row.name }}
             </bk-button>
           </div>
-          <div v-else-if="item.id === 'label'">
+          <div
+            v-else-if="item.id === 'label'"
+            class="label-cell">
             <label-cascade
               :value="props.row.labels"
               scope="template"
@@ -992,6 +997,17 @@ export default {
         color: #ff5757;
     }
 }
+::v-deep .label-column {
+    .cell {
+        height: 100%;
+        &:hover {
+        background-color: #f0f1f5;
+    }
+    }
+}
+.label-cell {
+    height: 100%;
+}
 .cascade-trigger {
     height: 32px;
     width: 242px;
@@ -1015,9 +1031,12 @@ export default {
             font-size: 12px;
             display: flex;
             align-items: center;
-            padding: 0 6px;
+            padding: 0 8px;
             border-radius: 11px;
             color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             .delete-icon {
                 font-size: 16px !important;
                 margin-left: 5px;
