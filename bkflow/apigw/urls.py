@@ -37,6 +37,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.create_template import create_template
     from bkflow.apigw.views.delete_task import delete_task
     from bkflow.apigw.views.delete_template import delete_template
+    from bkflow.apigw.views.get_plugin_outputs import get_plugin_outputs
     from bkflow.apigw.views.get_space_configs import get_space_configs
     from bkflow.apigw.views.get_task_detail import get_task_detail
     from bkflow.apigw.views.get_task_list import get_task_list
@@ -101,4 +102,5 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^template/(?P<template_id>\d+)/create_task_by_app/$", create_task_by_app),
         url(r"^task/(?P<task_id>\d+)/operate_task_by_app/(?P<operation>\w+)/$", operate_task_by_app),
         url(r"^task/(?P<task_id>\d+)/get_task_states_by_app/$", get_task_states_by_app),
+        url(r"^space/(?P<space_id>\d+)/get_plugin_outputs/$", get_plugin_outputs),
     ]
