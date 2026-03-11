@@ -1101,7 +1101,7 @@ const en = {
   循环执行: 'Loop Execution',
   批量执行: 'Batch Execution',
   暂无匹配的变量: 'No Matching Variables',
-  请输入数据来源: 'Please Enter Data Source',
+  "请输入数据来源, 如: 1,2,3": 'Enter data source, eg: 1,2,3',
   数据来源: 'Data Source',
   按数组变量循环: 'Loop by Array Variable',
   按条件循环: 'Loop by Condition',
