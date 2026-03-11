@@ -36,6 +36,9 @@ def get_task_detail(request, space_id, task_id):
     client = TaskComponentClient(space_id=space_id)
     result = client.get_task_detail(task_id)
     template_id = result["data"]["template_id"]
-    template = Template.objects.get(id=template_id)
-    result["data"]["template_name"] = template.name
+    try:
+        template_name = Template.objects.get(id=template_id).name
+    except Template.DoesNotExist:
+        template_name = None
+    result["data"]["template_name"] = template_name
     return result
