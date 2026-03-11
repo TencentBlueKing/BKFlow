@@ -1371,6 +1371,35 @@ paths:
         descriptionEn: Get states of a task
         enableWebsocket: false
         pluginConfigs: []
+  /space/{space_id}/get_plugin_outputs/:
+    post:
+      operationId: get_plugin_outputs
+      description: 获取插件输出
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_plugin_outputs/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get plugin outputs
+        enableWebsocket: false
+        pluginConfigs: [ ]
   /space/{space_id}/get_tasks_states/:
     post:
       operationId: get_tasks_states
