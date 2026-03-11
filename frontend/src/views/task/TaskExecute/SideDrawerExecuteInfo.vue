@@ -754,44 +754,50 @@
               taskId = taskInfo.value;
             }
           }
-          // 获取当前节点在对应任务实例里面的节点id
-          const resp = await this.getTaskInstanceData(taskId);
-          const { activities,  end_event, start_event } = resp.pipeline_tree;
-          const activitiesArray = Object.values(activities);
-          let curNewNodeId;
-          if (!this.subCanvsActivityCollection[this.nodeDetailConfig.node_id]) {
-            if (this.nodeDetailConfig.nodeType === 'empty-end-event') {
-              curNewNodeId = end_event.id;
-            } else if (this.nodeDetailConfig.nodeType === 'empty-start-event') {
-              curNewNodeId = start_event.id;
-            }
-          } else {
-            const { template_node_id: templateNodeId } = this.subCanvsActivityCollection[this.nodeDetailConfig.node_id];
-            curNewNodeId = activitiesArray.find(item => item.template_node_id === templateNodeId).id;
-          }
-
-          const query = {
-            space_id: this.spaceId,
-            instance_id: taskId,
-            node_id: curNewNodeId,
-            component_code: this.nodeDetailConfig.component_code,
-          };
-          const res = await this.getNodeActDetail(query);
-           this.breadcrumbData.forEach(async (item) => {
-            if (item.id === this.nodeDetailConfig.node_id) {
-              item.allExecutedInfo = res.data?.skip ? [] : [res.data];
-              if (res.data.histories) {
-                item.allExecutedInfo.unshift(...res.data.histories);
-                item.curSelectCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
-                item.totalCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
-              } else {
-                item.curSelectCount = item.allExecutedInfo.length;
-                item.totalCount = item.allExecutedInfo.length;
+          try {
+            // 获取当前节点在对应任务实例里面的节点id
+            const resp = await this.getTaskInstanceData(taskId);
+            const { activities, end_event, start_event } = resp.pipeline_tree;
+            const activitiesArray = Object.values(activities);
+            let curNewNodeId;
+            if (!this.subCanvsActivityCollection[this.nodeDetailConfig.node_id]) {
+              if (this.nodeDetailConfig.nodeType === 'empty-end-event') {
+                curNewNodeId = end_event.id;
+              } else if (this.nodeDetailConfig.nodeType === 'empty-start-event') {
+                curNewNodeId = start_event.id;
               }
-              this.historyInfo = item.allExecutedInfo;
-              this.onSelectExecuteRecord(item.totalCount, item.allExecutedInfo);
+            } else {
+              const { template_node_id: templateNodeId } = this.subCanvsActivityCollection[this.nodeDetailConfig.node_id];
+              curNewNodeId = activitiesArray.find(item => item.template_node_id === templateNodeId).id;
             }
-           });
+
+            const query = {
+              space_id: this.spaceId,
+              instance_id: taskId,
+              node_id: curNewNodeId,
+              component_code: this.nodeDetailConfig.component_code,
+            };
+            const res = await this.getNodeActDetail(query);
+            this.breadcrumbData.forEach(async (item) => {
+              if (item.id === this.nodeDetailConfig.node_id) {
+                item.allExecutedInfo = res.data?.skip ? [] : [res.data];
+                if (res.data.histories) {
+                  item.allExecutedInfo.unshift(...res.data.histories);
+                  item.curSelectCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
+                  item.totalCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
+                } else {
+                  item.curSelectCount = item.allExecutedInfo.length;
+                  item.totalCount = item.allExecutedInfo.length;
+                }
+                this.historyInfo = item.allExecutedInfo;
+                this.onSelectExecuteRecord(item.totalCount, item.allExecutedInfo);
+              }
+            });
+          } catch (error) {
+            console.warn(error);
+            this.isBreadCrumbLoading = false;
+            this.executeBodyLoading = false;
+          }
         }
         this.isBreadCrumbLoading = false;
         this.executeBodyLoading = false;
