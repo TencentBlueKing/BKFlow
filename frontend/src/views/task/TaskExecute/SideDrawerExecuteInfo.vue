@@ -32,7 +32,7 @@
         <div class="execute-head">
           <bk-breadcrumb
             v-if="isShowSubflowExceutedCount"
-            v-bkloading="{ isLoading: isBreadCurmbLoading, opacity: 1, zIndex: 100 }"
+            v-bkloading="{ isLoading: isBreadCrumbLoading, opacity: 1, zIndex: 100 }"
             class="node-name">
             <bk-breadcrumb-item v-if="breadcrumbData[0]">
               <span>{{ breadcrumbData[0].name }}</span>
@@ -445,7 +445,7 @@
           conditionalparallelgateway: i18n.t('条件并行网关'),
         },
         breadcrumbData: [],
-        isBreadCurmbLoading: false,
+        isBreadCrumbLoading: false,
         isInLatestExecuteNum: true,
         executeBodyLoading: false,
       };
@@ -734,7 +734,7 @@
         let selectedData = null;
         selectedData = filteredHistories[currentExecute - 1];
         if (!selectedData) {
-          this.isBreadCurmbLoading = false;
+          this.isBreadCrumbLoading = false;
           this.executeBodyLoading = false;
           return;
         }
@@ -743,7 +743,7 @@
           this.onSelectExecuteRecord(1, [selectedData]);
         } else {
           // 更新子节点的执行次数
-          this.isBreadCurmbLoading = true;
+          this.isBreadCrumbLoading = true;
           let taskId = '';
           const { outputs } = selectedData;
           if (outputs && outputs.task_id) {
@@ -793,17 +793,17 @@
             }
            });
         }
-        this.isBreadCurmbLoading = false;
+        this.isBreadCrumbLoading = false;
         this.executeBodyLoading = false;
       },
 
       // 切换子流程子节点循环次数
       async selectBreadcrumExecuteCount(value, item) {
-        this.isBreadCurmbLoading = true;
+        this.isBreadCrumbLoading = true;
         let taskId = '';
         const record = item.allExecutedInfo[value - 1];
         if (!record) {
-          this.isBreadCurmbLoading = false;
+          this.isBreadCrumbLoading = false;
           return;
         }
         const { outputs } = record;
@@ -830,7 +830,7 @@
         item.curSelectCount = value;
         item.taskId = taskId;
         this.onSelectExecuteRecord(value, this.historyInfo);
-        this.isBreadCurmbLoading = false;
+        this.isBreadCrumbLoading = false;
       },
       // 递归查找目标节点并收集路径
       findNodePath(nodes, targetId, currentPath = []) {
@@ -1523,7 +1523,7 @@
       // 初始化节点循环/执行次数
       async loadBreadCrumbData() {
         if (this.isShowSubflowExceutedCount) {
-          this.isBreadCurmbLoading = true;
+          this.isBreadCrumbLoading = true;
           this.breadcrumbData = this.findNodePath(this.curNodeData[0].children, this.nodeDetailConfig.node_id);
           this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
           this.breadcrumbData.forEach(async (item, index) => {
@@ -1547,7 +1547,7 @@
             if (index === 0) {
               // 初始化breadcrumbData[0]的选项数据
               if (!this.breadcrumbData[0] || !this.executeInfo) {
-                this.isBreadCurmbLoading = false;
+                this.isBreadCrumbLoading = false;
                 return;
               }
               this.breadcrumbData[0].retryLatestOptions = resp.data.retry;
@@ -1558,7 +1558,7 @@
           }
           });
         }
-        this.isBreadCurmbLoading = false;
+        this.isBreadCrumbLoading = false;
       },
       async loadNodeInfo(isChangeExecuteLoop = false) {
         this.loading = true;
@@ -1838,7 +1838,7 @@
         display: flex;
         align-items: center;
         .bk-tooltip, .bk-tooltip-ref {
-            vertical-align: middle;
+          vertical-align: middle;
         }
         .bk-select {
           height: 22px;
