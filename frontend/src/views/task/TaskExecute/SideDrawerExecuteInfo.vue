@@ -133,7 +133,9 @@
             </JumpLinkBKFlowOrExternal>
           </div>
         </div>
-        <div class="execute-body">
+        <div
+          v-bkloading="{ isLoading: executeBodyLoading}"
+          class="execute-body">
           <!-- 子流程画布 -->
           <div
             v-if="isShowSubflowCanvas"
@@ -445,6 +447,7 @@
         breadcrumbData: [],
         isBreadCurmbLoading: false,
         isInLatestExecuteNum: true,
+        executeBodyLoading: false,
       };
     },
     computed: {
@@ -541,10 +544,10 @@
         return this.isSubProcessNode ? this.nodeActivity.component.data.subprocess.value : {};
       },
       isShowLoopSkipBtn() {
-        return this.nodeActivity.loop_config?.skippable;
+        return this.isSubProcessNode && this.nodeActivity.loop_config?.skippable;
       },
       isShowLoopRetryBtn() {
-        return this.nodeActivity.loop_config?.retryable;
+        return this.isSubProcessNode && this.nodeActivity.loop_config?.retryable;
       },
       isShowActionWrap() {
         // 任务终止时禁止节点操作
@@ -723,6 +726,7 @@
       // 根据选择过滤历史数据
       async filterHistoryData() {
         if (!this.breadcrumbData[0]) return;
+        this.executeBodyLoading = true;
         const { currentRetry, currentLoop, currentExecute, allExecutedInfo } = this.breadcrumbData[0];
         // 过滤出符合条件的历史数据
         const filteredHistories = allExecutedInfo.filter(item => item.retry === (currentRetry - 1) && item.loop === currentLoop);
@@ -731,6 +735,7 @@
         selectedData = filteredHistories[currentExecute - 1];
         if (!selectedData) {
           this.isBreadCurmbLoading = false;
+          this.executeBodyLoading = false;
           return;
         }
         // 当前节点为子流程节点
@@ -751,10 +756,19 @@
           }
           // 获取当前节点在对应任务实例里面的节点id
           const resp = await this.getTaskInstanceData(taskId);
-          const { activities } = resp.pipeline_tree;
+          const { activities,  end_event, start_event } = resp.pipeline_tree;
           const activitiesArray = Object.values(activities);
-          const { template_node_id: templateNodeId } = this.subCanvsActivityCollection[this.nodeDetailConfig.node_id];
-          const curNewNodeId = activitiesArray.find(item => item.template_node_id === templateNodeId).id;
+          let curNewNodeId;
+          if (!this.subCanvsActivityCollection[this.nodeDetailConfig.node_id]) {
+            if (this.nodeDetailConfig.nodeType === 'empty-end-event') {
+              curNewNodeId = end_event.id;
+            } else if (this.nodeDetailConfig.nodeType === 'empty-start-event') {
+              curNewNodeId = start_event.id;
+            }
+          } else {
+            const { template_node_id: templateNodeId } = this.subCanvsActivityCollection[this.nodeDetailConfig.node_id];
+            curNewNodeId = activitiesArray.find(item => item.template_node_id === templateNodeId).id;
+          }
 
           const query = {
             space_id: this.spaceId,
@@ -778,8 +792,9 @@
               this.onSelectExecuteRecord(item.totalCount, item.allExecutedInfo);
             }
            });
-          this.isBreadCurmbLoading = false;
         }
+        this.isBreadCurmbLoading = false;
+        this.executeBodyLoading = false;
       },
 
       // 切换子流程子节点循环次数
@@ -1822,6 +1837,9 @@
       .bk-breadcrumb-item {
         display: flex;
         align-items: center;
+        .bk-tooltip, .bk-tooltip-ref {
+            vertical-align: middle;
+        }
         .bk-select {
           height: 22px;
           line-height: 22px !important;
