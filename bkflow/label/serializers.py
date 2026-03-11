@@ -99,6 +99,10 @@ class LabelSerializer(serializers.ModelSerializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError(_("标签名称不能为空"))
+        if len(value.split("/")) > 2:
+            raise serializers.ValidationError(_("标签名称层级不能超过两层"))
+        if len(value) > 20:
+            raise serializers.ValidationError(_("标签名称长度不能超过20个字符"))
         # 新增时：检查同一 space_id 下名称是否重复
         if self.instance is None:
             space_id = self.initial_data.get("space_id", -1)

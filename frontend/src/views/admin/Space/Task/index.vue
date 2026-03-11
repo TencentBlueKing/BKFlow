@@ -35,6 +35,7 @@
         :render-header="renderTableHeader"
         :width="item.width"
         :show-overflow-tooltip="item.id !== 'label'"
+        :class-name="item.id === 'label' ? 'label-column' : ''"
         :min-width="item.min_width">
         <template slot-scope="props">
           <div v-if="item.id === 'name'">
@@ -56,7 +57,9 @@
               {{ props.row.name }}
             </router-link>
           </div>
-          <div v-else-if="item.id === 'label'">
+          <div
+            v-else-if="item.id === 'label'"
+            class="label-cell">
             <label-cascade
               :value="props.row.labels"
               scope="task"
@@ -564,9 +567,12 @@ export default {
             height: 16px;
             line-height: 16px;
             font-size: 12px;
-            padding: 0 6px;
+            padding: 0 8px;
             border-radius: 11px;
             color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             .delete-icon {
                 font-size: 16px !important;
                 margin-left: 5px;
@@ -574,5 +580,16 @@ export default {
             }
         }
     }
+}
+::v-deep .label-column {
+    .cell {
+        height: 100%;
+        &:hover {
+        background-color: #f0f1f5;
+    }
+    }
+}
+.label-cell {
+    height: 100%;
 }
 </style>
