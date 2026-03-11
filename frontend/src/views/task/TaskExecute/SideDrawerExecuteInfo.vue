@@ -32,7 +32,7 @@
         <div class="execute-head">
           <bk-breadcrumb
             v-if="isShowSubflowExceutedCount"
-            v-bkloading="{ isLoading: isBreadCurmbLoading, opacity: 1, zIndex: 100 }"
+            v-bkloading="{ isLoading: isBreadCrumbLoading, opacity: 1, zIndex: 100 }"
             class="node-name">
             <bk-breadcrumb-item v-if="breadcrumbData[0]">
               <span>{{ breadcrumbData[0].name }}</span>
@@ -133,7 +133,9 @@
             </JumpLinkBKFlowOrExternal>
           </div>
         </div>
-        <div class="execute-body">
+        <div
+          v-bkloading="{ isLoading: executeBodyLoading}"
+          class="execute-body">
           <!-- 子流程画布 -->
           <div
             v-if="isShowSubflowCanvas"
@@ -443,8 +445,9 @@
           conditionalparallelgateway: i18n.t('条件并行网关'),
         },
         breadcrumbData: [],
-        isBreadCurmbLoading: false,
+        isBreadCrumbLoading: false,
         isInLatestExecuteNum: true,
+        executeBodyLoading: false,
       };
     },
     computed: {
@@ -541,10 +544,10 @@
         return this.isSubProcessNode ? this.nodeActivity.component.data.subprocess.value : {};
       },
       isShowLoopSkipBtn() {
-        return this.nodeActivity.loop_config?.skippable;
+        return this.isSubProcessNode && this.nodeActivity.loop_config?.skippable;
       },
       isShowLoopRetryBtn() {
-        return this.nodeActivity.loop_config?.retryable;
+        return this.isSubProcessNode && this.nodeActivity.loop_config?.retryable;
       },
       isShowActionWrap() {
         // 任务终止时禁止节点操作
@@ -723,6 +726,7 @@
       // 根据选择过滤历史数据
       async filterHistoryData() {
         if (!this.breadcrumbData[0]) return;
+        this.executeBodyLoading = true;
         const { currentRetry, currentLoop, currentExecute, allExecutedInfo } = this.breadcrumbData[0];
         // 过滤出符合条件的历史数据
         const filteredHistories = allExecutedInfo.filter(item => item.retry === (currentRetry - 1) && item.loop === currentLoop);
@@ -730,7 +734,8 @@
         let selectedData = null;
         selectedData = filteredHistories[currentExecute - 1];
         if (!selectedData) {
-          this.isBreadCurmbLoading = false;
+          this.isBreadCrumbLoading = false;
+          this.executeBodyLoading = false;
           return;
         }
         // 当前节点为子流程节点
@@ -738,7 +743,7 @@
           this.onSelectExecuteRecord(1, [selectedData]);
         } else {
           // 更新子节点的执行次数
-          this.isBreadCurmbLoading = true;
+          this.isBreadCrumbLoading = true;
           let taskId = '';
           const { outputs } = selectedData;
           if (outputs && outputs.task_id) {
@@ -749,46 +754,62 @@
               taskId = taskInfo.value;
             }
           }
-          // 获取当前节点在对应任务实例里面的节点id
-          const resp = await this.getTaskInstanceData(taskId);
-          const { activities } = resp.pipeline_tree;
-          const activitiesArray = Object.values(activities);
-          const { template_node_id: templateNodeId } = this.subCanvsActivityCollection[this.nodeDetailConfig.node_id];
-          const curNewNodeId = activitiesArray.find(item => item.template_node_id === templateNodeId).id;
-
-          const query = {
-            space_id: this.spaceId,
-            instance_id: taskId,
-            node_id: curNewNodeId,
-            component_code: this.nodeDetailConfig.component_code,
-          };
-          const res = await this.getNodeActDetail(query);
-           this.breadcrumbData.forEach(async (item) => {
-            if (item.id === this.nodeDetailConfig.node_id) {
-              item.allExecutedInfo = res.data?.skip ? [] : [res.data];
-              if (res.data.histories) {
-                item.allExecutedInfo.unshift(...res.data.histories);
-                item.curSelectCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
-                item.totalCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
-              } else {
-                item.curSelectCount = item.allExecutedInfo.length;
-                item.totalCount = item.allExecutedInfo.length;
+          try {
+            // 获取当前节点在对应任务实例里面的节点id
+            const resp = await this.getTaskInstanceData(taskId);
+            const { activities, end_event, start_event } = resp.pipeline_tree;
+            const activitiesArray = Object.values(activities);
+            let curNewNodeId;
+            if (!this.subCanvsActivityCollection[this.nodeDetailConfig.node_id]) {
+              if (this.nodeDetailConfig.nodeType === 'empty-end-event') {
+                curNewNodeId = end_event.id;
+              } else if (this.nodeDetailConfig.nodeType === 'empty-start-event') {
+                curNewNodeId = start_event.id;
               }
-              this.historyInfo = item.allExecutedInfo;
-              this.onSelectExecuteRecord(item.totalCount, item.allExecutedInfo);
+            } else {
+              const { template_node_id: templateNodeId } = this.subCanvsActivityCollection[this.nodeDetailConfig.node_id];
+              curNewNodeId = activitiesArray.find(item => item.template_node_id === templateNodeId).id;
             }
-           });
-          this.isBreadCurmbLoading = false;
+
+            const query = {
+              space_id: this.spaceId,
+              instance_id: taskId,
+              node_id: curNewNodeId,
+              component_code: this.nodeDetailConfig.component_code,
+            };
+            const res = await this.getNodeActDetail(query);
+            this.breadcrumbData.forEach(async (item) => {
+              if (item.id === this.nodeDetailConfig.node_id) {
+                item.allExecutedInfo = res.data?.skip ? [] : [res.data];
+                if (res.data.histories) {
+                  item.allExecutedInfo.unshift(...res.data.histories);
+                  item.curSelectCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
+                  item.totalCount = res.data?.skip ? res.data.histories.length : res.data.histories.length + 1;
+                } else {
+                  item.curSelectCount = item.allExecutedInfo.length;
+                  item.totalCount = item.allExecutedInfo.length;
+                }
+                this.historyInfo = item.allExecutedInfo;
+                this.onSelectExecuteRecord(item.totalCount, item.allExecutedInfo);
+              }
+            });
+          } catch (error) {
+            console.warn(error);
+            this.isBreadCrumbLoading = false;
+            this.executeBodyLoading = false;
+          }
         }
+        this.isBreadCrumbLoading = false;
+        this.executeBodyLoading = false;
       },
 
       // 切换子流程子节点循环次数
       async selectBreadcrumExecuteCount(value, item) {
-        this.isBreadCurmbLoading = true;
+        this.isBreadCrumbLoading = true;
         let taskId = '';
         const record = item.allExecutedInfo[value - 1];
         if (!record) {
-          this.isBreadCurmbLoading = false;
+          this.isBreadCrumbLoading = false;
           return;
         }
         const { outputs } = record;
@@ -815,7 +836,7 @@
         item.curSelectCount = value;
         item.taskId = taskId;
         this.onSelectExecuteRecord(value, this.historyInfo);
-        this.isBreadCurmbLoading = false;
+        this.isBreadCrumbLoading = false;
       },
       // 递归查找目标节点并收集路径
       findNodePath(nodes, targetId, currentPath = []) {
@@ -1508,7 +1529,7 @@
       // 初始化节点循环/执行次数
       async loadBreadCrumbData() {
         if (this.isShowSubflowExceutedCount) {
-          this.isBreadCurmbLoading = true;
+          this.isBreadCrumbLoading = true;
           this.breadcrumbData = this.findNodePath(this.curNodeData[0].children, this.nodeDetailConfig.node_id);
           this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
           this.breadcrumbData.forEach(async (item, index) => {
@@ -1532,7 +1553,7 @@
             if (index === 0) {
               // 初始化breadcrumbData[0]的选项数据
               if (!this.breadcrumbData[0] || !this.executeInfo) {
-                this.isBreadCurmbLoading = false;
+                this.isBreadCrumbLoading = false;
                 return;
               }
               this.breadcrumbData[0].retryLatestOptions = resp.data.retry;
@@ -1543,7 +1564,7 @@
           }
           });
         }
-        this.isBreadCurmbLoading = false;
+        this.isBreadCrumbLoading = false;
       },
       async loadNodeInfo(isChangeExecuteLoop = false) {
         this.loading = true;
@@ -1822,6 +1843,9 @@
       .bk-breadcrumb-item {
         display: flex;
         align-items: center;
+        .bk-tooltip, .bk-tooltip-ref {
+          vertical-align: middle;
+        }
         .bk-select {
           height: 22px;
           line-height: 22px !important;
