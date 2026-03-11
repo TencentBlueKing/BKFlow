@@ -435,19 +435,11 @@ export const getFormMixins = (attrs = {}) => {
         const custonVar = constantArr.filter(item => item.source_type === 'custom' && item.custom_type !== 'loop');
         const keyList = [
           {
-            name: '内置变量',
-            type: 'system',
+            name: '普通变量',
+            type: 'custom',
             isCollapse: false,
             children: [
-              ...Object.values(internalVariable),
-            ],
-          },
-          {
-            name: '输入变量',
-            type: 'input',
-            isCollapse: false,
-            children: [
-              ...Object.values(inputVar),
+              ...Object.values(custonVar),
             ],
           },
           {
@@ -459,16 +451,24 @@ export const getFormMixins = (attrs = {}) => {
             ],
           },
           {
-            name: '普通变量',
-            type: 'custom',
+            name: '输入变量',
+            type: 'input',
             isCollapse: false,
             children: [
-              ...Object.values(custonVar),
+              ...Object.values(inputVar),
+            ],
+          },
+          {
+            name: '内置变量',
+            type: 'system',
+            isCollapse: false,
+            children: [
+              ...Object.values(internalVariable),
             ],
           },
         ];
         if (isSubflow) {
-          keyList.push({
+          keyList.unshift({
             name: '循环变量',
             type: 'loop',
             isCollapse: false,
