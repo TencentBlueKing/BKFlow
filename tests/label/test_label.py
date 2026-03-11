@@ -560,6 +560,42 @@ class TestLabelSerializer:
             serializer.validate_name("   ")
         assert "标签名称不能为空" == str(exc.value.detail[0])
 
+    def test_validate_name_rejects_more_than_two_levels(self):
+        """validate_name should reject names with more than 2 levels separated by '/'."""
+        from rest_framework.test import APIRequestFactory
+
+        from bkflow.label.serializers import LabelSerializer
+
+        factory = APIRequestFactory()
+        request = factory.post("/api/label/", data={"space_id": 1})
+
+        serializer = LabelSerializer(
+            data={"space_id": 1, "name": "a/b/c", "color": "#ffffff", "label_scope": ["task"]},
+            context={"request": request},
+        )
+
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.is_valid(raise_exception=True)
+        assert "标签名称层级不能超过两层" == exc.value.detail["name"][0]
+
+    def test_validate_name_rejects_length_greater_than_20(self):
+        """validate_name should reject names longer than 20 characters."""
+        from rest_framework.test import APIRequestFactory
+
+        from bkflow.label.serializers import LabelSerializer
+
+        factory = APIRequestFactory()
+        request = factory.post("/api/label/", data={"space_id": 1})
+
+        serializer = LabelSerializer(
+            data={"space_id": 1, "name": "a" * 21, "color": "#ffffff", "label_scope": ["task"]},
+            context={"request": request},
+        )
+
+        with pytest.raises(DRFValidationError) as exc:
+            serializer.is_valid(raise_exception=True)
+        assert "标签名称长度不能超过20个字符" == exc.value.detail["name"][0]
+
 
 class TestLabelPermission:
     """Tests for bkflow.label.permissions.LabelPermission."""
