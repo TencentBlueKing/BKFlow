@@ -32,7 +32,7 @@
             :label-width="1">
             <bk-input
               v-model="item.value"
-              :placeholder="$t('请输入数据来源')"
+              :placeholder="$t('请输入数据来源, 如: 1,2,3')"
               :readonly="isViewMode"
               class="param-source-input"
               @change="onParamChange" />
