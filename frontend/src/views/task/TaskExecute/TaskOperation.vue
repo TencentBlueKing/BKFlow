@@ -271,13 +271,13 @@
       text: i18n.t('终止'),
     },
   };
-    // 执行按钮的变更
-    const STATE_OPERATIONS = {
-      RUNNING: 'pause',
-      SUSPENDED: 'resume',
-      CREATED: 'execute',
-      FAILED: 'pause',
-    };
+  // 执行按钮的变更
+  const STATE_OPERATIONS = {
+    RUNNING: 'pause',
+    SUSPENDED: 'resume',
+    CREATED: 'execute',
+    FAILED: 'pause',
+  };
   export default {
     name: 'TaskOperation',
     components: {
