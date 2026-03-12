@@ -35,6 +35,7 @@ from bkflow.constants import (
     WebhookEventType,
     WebhookScopeType,
 )
+from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.space.configs import FlowVersioning, TemplateTriggerConfig
@@ -95,6 +96,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     desc = serializers.CharField(help_text=_("流程说明"), required=False, allow_blank=True, allow_null=True)
     triggers = TriggerSerializer(many=True, required=True, allow_null=True)
     subprocess_info = serializers.JSONField(help_text=_("子流程信息"), read_only=True)
+    labels = serializers.CharField(help_text=_("模板标签"), required=False, allow_blank=True, allow_null=True)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
@@ -163,10 +165,26 @@ class TemplateSerializer(serializers.ModelSerializer):
         )
         return template
 
+    def _sync_template_lables(self, template_id, label_ids):
+        """
+        创建或更新模板时同步模板标签数据
+        """
+        label_ids = list(set(label_ids))
+        if not Label.objects.check_label_ids(label_ids):
+            message = _("流程保存失败: 流程设置的标签不存在, 请检查配置后重试")
+            logger.error(message)
+            raise serializers.ValidationError(message)
+        try:
+            TemplateLabelRelation.objects.set_labels(template_id, label_ids)
+        except Exception as e:
+            logger.error("TemplateLabelRelation set_labels error: {}".format(e))
+            raise serializers.ValidationError(_("流程保存失败: 标签设置失败, 请检查配置后重试"))
+
     @transaction.atomic()
     def update(self, instance, validated_data):
         # TODO: 需要校验哪些字段是不可以更新的
         pipeline_tree = validated_data.pop("pipeline_tree", None)
+        template_labels = validated_data.pop("labels", [])
         # 检查新建任务的流程中是否有未二次授权的蓝鲸插件
         try:
             exist_code_list = [
@@ -192,6 +210,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             snapshot.template_id = instance.id
             snapshot.save(update_fields=["template_id"])
         instance = super().update(instance, validated_data)
+        self._sync_template_lables(instance.id, template_labels)
         # 批量修改流程绑定的触发器:
         try:
             Trigger.objects.compare_constants(
@@ -362,3 +381,7 @@ class TemplateSnapshotSerializer(serializers.ModelSerializer):
             "operator",
             "md5sum",
         ]
+
+
+class TemplateUpdateLabelSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), required=True, child=serializers.IntegerField())
