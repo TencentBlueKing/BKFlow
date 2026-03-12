@@ -181,3 +181,29 @@ BAMBOO_DJANGO_ERI_NODE_RERUN_LIMIT = int(os.getenv("BAMBOO_DJANGO_ERI_NODE_RERUN
 
 TEMPLATE_MAX_RECURSIVE_NUMBER = int(os.getenv("TEMPLATE_MAX_RECURSIVE_NUMBER", 10))
 REQUEST_RETRY_NUMBER = int(os.getenv("REQUEST_RETRY_NUMBER", 3))
+
+# ============== 统计功能配置 ==============
+# 是否启用统计功能
+STATISTICS_ENABLED = os.getenv("STATISTICS_ENABLED", "true").lower() == "true"
+
+# 是否使用独立统计数据库
+STATISTICS_USE_SEPARATE_DB = os.getenv("STATISTICS_USE_SEPARATE_DB", "false").lower() == "true"
+
+# 统计数据库配置
+STATISTICS_DB_HOST = os.getenv("STATISTICS_DB_HOST", "")
+STATISTICS_DB_PORT = int(os.getenv("STATISTICS_DB_PORT", "3306")) if os.getenv("STATISTICS_DB_PORT") else 3306
+STATISTICS_DB_NAME = os.getenv("STATISTICS_DB_NAME", "bkflow_statistics")
+STATISTICS_DB_USER = os.getenv("STATISTICS_DB_USER", "")
+STATISTICS_DB_PASSWORD = os.getenv("STATISTICS_DB_PASSWORD", "")
+
+# 数据库连接池配置
+STATISTICS_DB_CONN_MAX_AGE = int(os.getenv("STATISTICS_DB_CONN_MAX_AGE", "300"))
+
+# 是否统计 Mock 任务
+STATISTICS_INCLUDE_MOCK = os.getenv("STATISTICS_INCLUDE_MOCK", "false").lower() == "true"
+
+# 是否统计已删除任务
+STATISTICS_INCLUDE_DELETED = os.getenv("STATISTICS_INCLUDE_DELETED", "false").lower() == "true"
+
+# 统计数据保留天数（用于清理，0 表示不清理）
+STATISTICS_RETENTION_DAYS = int(os.getenv("STATISTICS_RETENTION_DAYS", "365"))

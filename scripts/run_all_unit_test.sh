@@ -1,6 +1,4 @@
 #!/bin/bash
-source /root/.envs/bkflow/bin/activate
-
 set -e
 export $(cat tests/interface.env | xargs)
 echo "开始运行${BKFLOW_MODULE_TYPE}测试"
