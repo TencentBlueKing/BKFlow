@@ -271,13 +271,13 @@
       text: i18n.t('终止'),
     },
   };
-  // 执行按钮的变更
-  const STATE_OPERATIONS = {
-    RUNNING: 'pause',
-    SUSPENDED: 'resume',
-    CREATED: 'execute',
-    FAILED: 'pause',
-  };
+    // 执行按钮的变更
+    const STATE_OPERATIONS = {
+      RUNNING: 'pause',
+      SUSPENDED: 'resume',
+      CREATED: 'execute',
+      FAILED: 'pause',
+    };
   export default {
     name: 'TaskOperation',
     components: {
@@ -1848,6 +1848,9 @@
             confirmLoading: true,
             confirmFn: async () => {
               await this.taskRevoke();
+              if (window.parent) {
+                window.parent.postMessage({ eventName: 'bk-flow-task-operation-click', actionType: 'revoke' }, '*');
+              }
             },
           });
           return;
@@ -1855,6 +1858,9 @@
         this.pending.task = true;
         this.activeOperation = action;
         const actionType = `task${action.charAt(0).toUpperCase()}${action.slice(1)}`;
+        if (window.parent) {
+          window.parent.postMessage({ eventName: 'bk-flow-task-operation-click', actionType: action }, '*');
+        }
         this[actionType]();
       },
       // type表示第一个节点的类型
