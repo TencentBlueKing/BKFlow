@@ -32,6 +32,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from webhook.signals import event_broadcast_signal
 
+from bkflow.apigw.serializers.credential import CredentialSerializer
 from bkflow.apigw.serializers.task import (
     CreateMockTaskWithPipelineTreeSerializer,
     CreateTaskSerializer,
@@ -59,8 +60,9 @@ from bkflow.space.configs import (
     UniformApiConfig,
     UniformAPIConfigHandler,
 )
+from bkflow.space.credential.scope_validator import filter_credentials_by_scope
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
-from bkflow.space.models import SpaceConfig
+from bkflow.space.models import Credential, SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.space.utils import build_default_pipeline_tree_with_space_id
 from bkflow.template.exceptions import AnalysisConstantsRefException
@@ -695,6 +697,31 @@ class TemplateViewSet(UserModelViewSet):
             extra_info={"version": version},
         )
         return Response(data=draft_template.data)
+
+    @swagger_auto_schema(
+        method="get",
+        operation_description="获取流程有权限的凭证列表",
+    )
+    @action(methods=["GET"], detail=True, url_path="credentials")
+    def credentials(self, request, *args, **kwargs):
+        """
+        获取当前流程有权限的凭证列表
+        根据 Template 的 scope_type 和 scope_value 来过滤凭证
+        """
+        template = self.get_object()
+
+        # 获取当前空间下的所有凭证
+        credentials_queryset = Credential.objects.filter(space_id=template.space_id, is_deleted=False)
+
+        # 根据模板的作用域过滤凭证
+        filtered_credentials = filter_credentials_by_scope(
+            credentials_queryset, template.scope_type, template.scope_value
+        )
+
+        # 序列化凭证数据
+        serializer = CredentialSerializer(filtered_credentials, many=True)
+
+        return Response({"results": serializer.data, "count": len(serializer.data)})
 
 
 @method_decorator(login_exempt, name="dispatch")

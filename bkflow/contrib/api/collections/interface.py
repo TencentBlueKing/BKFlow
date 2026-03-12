@@ -39,11 +39,6 @@ class InterfaceModuleClient(BaseComponentClient):
     def _get_interface_url(self, api_name):
         return "{}/{}".format(settings.INTERFACE_APP_URL, api_name)
 
-    def get_apigw_credential(self, data):
-        return self._request(
-            method="get", url=self._get_interface_url("api/space/credential/get_api_gateway_credential/"), data=data
-        )
-
     def get_decision_table(self, decision_table_id, data):
         return self._request(
             method="get", url=self._get_interface_url(f"api/decision_table/internal/{decision_table_id}/"), data=data

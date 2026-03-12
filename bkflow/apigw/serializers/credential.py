@@ -19,7 +19,29 @@ to the current version of the project delivered to anyone in the future.
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from bkflow.space.credential import BkAppCredential
+from bkflow.space.credential import CredentialDispatcher
+from bkflow.space.exceptions import CredentialTypeNotSupport
+from bkflow.space.models import Credential, CredentialScopeLevel
+from bkflow.space.serializers import CredentialScopeSerializer
+
+
+class CredentialSerializer(serializers.ModelSerializer):
+    create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+    update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        credential = CredentialDispatcher(credential_type=instance.type, data=instance.content)
+        if credential:
+            data["content"] = credential.display_value()
+        else:
+            data["content"] = {}
+
+        return data
+
+    class Meta:
+        model = Credential
+        fields = "__all__"
 
 
 class CreateCredentialSerializer(serializers.Serializer):
@@ -27,11 +49,31 @@ class CreateCredentialSerializer(serializers.Serializer):
     desc = serializers.CharField(help_text=_("凭证描述"), max_length=128, required=False, allow_blank=True, allow_null=True)
     type = serializers.CharField(help_text=_("凭证类型"), max_length=32, required=True)
     content = serializers.JSONField(help_text=_("凭证内容"), required=True)
+    scope_level = serializers.ChoiceField(
+        help_text=_("作用域级别"),
+        required=False,
+        default=CredentialScopeLevel.NONE.value,
+        choices=Credential.CREDENTIAL_SCOPE_LEVEL_CHOICES,
+    )
+    scopes = serializers.ListField(
+        child=CredentialScopeSerializer(), help_text=_("凭证作用域列表"), required=False, default=list
+    )
 
-    def validate_content(self, value):
-        content_ser = BkAppCredential.BkAppSerializer(data=value)
-        content_ser.is_valid(raise_exception=True)
-        return value
+    def validate(self, attrs):
+        # 动态验证content根据type
+        credential_type = attrs.get("type")
+        content = attrs.get("content")
+
+        if attrs.get("scope_level") == CredentialScopeLevel.PART.value and not attrs.get("scopes"):
+            raise serializers.ValidationError(_("作用域不能为空"))
+
+        try:
+            credential = CredentialDispatcher(credential_type, data=content)
+            credential.validate_data()
+        except (serializers.ValidationError, CredentialTypeNotSupport) as e:
+            raise serializers.ValidationError({"content": str(e)})
+
+        return attrs
 
 
 class UpdateCredentialSerializer(serializers.Serializer):
@@ -39,8 +81,31 @@ class UpdateCredentialSerializer(serializers.Serializer):
     desc = serializers.CharField(help_text=_("凭证描述"), max_length=128, required=False, allow_blank=True, allow_null=True)
     type = serializers.CharField(help_text=_("凭证类型"), max_length=32, required=False)
     content = serializers.JSONField(help_text=_("凭证内容"), required=False)
+    scope_level = serializers.ChoiceField(
+        help_text=_("作用域级别"),
+        required=False,
+        default=CredentialScopeLevel.NONE.value,
+        choices=Credential.CREDENTIAL_SCOPE_LEVEL_CHOICES,
+    )
+    scopes = serializers.ListField(child=CredentialScopeSerializer(), help_text=_("凭证作用域列表"), required=False)
 
-    def validate_content(self, value):
-        content_ser = BkAppCredential.BkAppSerializer(data=value)
-        content_ser.is_valid(raise_exception=True)
-        return value
+    def validate(self, attrs):
+        if attrs.get("scope_level") == CredentialScopeLevel.PART.value and not attrs.get("scopes"):
+            raise serializers.ValidationError(_("作用域不能为空"))
+
+        # 如果提供了type和content，需要验证content
+        if "content" in attrs:
+            # 如果有type字段使用type，否则需要从实例获取
+            credential_type = attrs.get("type")
+            if not credential_type and self.instance is not None:
+                credential_type = self.instance.type
+
+            if credential_type:
+                content = attrs.get("content")
+                try:
+                    credential = CredentialDispatcher(credential_type, data=content)
+                    credential.validate_data()
+                except (serializers.ValidationError, CredentialTypeNotSupport) as e:
+                    raise serializers.ValidationError({"content": str(e)})
+
+        return attrs
