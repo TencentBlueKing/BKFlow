@@ -484,6 +484,95 @@ paths:
         descriptionEn: Validate a pipeline tree
         enableWebsocket: false
         pluginConfigs: []
+  /space/{space_id}/import_simple_flow/:
+    post:
+      operationId: import_simple_flow
+      description: 导入简化流程 JSON 并创建模板
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: object
+                    description: 返回数据
+                    additionalProperties: true
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              - simple_flow
+              properties:
+                name:
+                  type: string
+                  description: 模板名称
+                simple_flow:
+                  type: array
+                  description: 简化流程 JSON 数组
+                  items:
+                    type: object
+                    additionalProperties: true
+                creator:
+                  type: string
+                  description: 创建人
+                desc:
+                  type: string
+                  description: 模板描述
+                scope_type:
+                  type: string
+                  description: 流程范围类型
+                scope_value:
+                  type: string
+                  description: 流程范围值
+                auto_release:
+                  type: boolean
+                  description: 是否自动发布
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/import_simple_flow/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Import a simple flow JSON and create a template
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/create_mock_task/:
     post:
       operationId: create_mock_task

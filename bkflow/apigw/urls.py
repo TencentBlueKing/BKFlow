@@ -51,6 +51,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.grant_apigw_permissions_to_app import (
         grant_apigw_permissions_to_app,
     )
+    from bkflow.apigw.views.import_simple_flow import import_simple_flow
     from bkflow.apigw.views.operate_task import operate_task
     from bkflow.apigw.views.operate_task_by_app import operate_task_by_app
     from bkflow.apigw.views.operate_task_node import operate_task_node
@@ -79,6 +80,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/create_mock_task/$", create_mock_task),
         url(r"^space/(?P<space_id>\d+)/create_task_without_template/$", create_task_without_template),
         url(r"^space/(?P<space_id>\d+)/validate_pipeline_tree/$", validate_pipeline_tree),
+        url(r"^space/(?P<space_id>\d+)/import_simple_flow/$", import_simple_flow),
         url(r"^space/(?P<space_id>\d+)/create_credential/$", create_credential),
         url(r"^space/(?P<space_id>\d+)/credential/(?P<credential_id>\d+)/$", update_credential),
         url(r"^space/(?P<space_id>\d+)/get_task_list/$", get_task_list),
