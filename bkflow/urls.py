@@ -44,6 +44,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^api/label/", include("bkflow.label.urls")),
         url(r"^notice/", include("bk_notice_sdk.urls")),
         url(r"^version_log/", include("version_log.urls", namespace="version_log")),
+        url(r"^api/variable/", include("bkflow.variable_manager.urls")),
     ]
 elif settings.BKFLOW_MODULE.type == BKFLOWModuleType.engine:
     engine_admin_actions = [

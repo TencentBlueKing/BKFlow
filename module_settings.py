@@ -244,6 +244,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.bk_plugin",
         "bkflow.pipeline_web",
         "bkflow.label",
+        "bkflow.variable_manager",
     )
 
     VARIABLE_KEY_BLACKLIST = (

@@ -35,8 +35,10 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         create_task_without_template,
     )
     from bkflow.apigw.views.create_template import create_template
+    from bkflow.apigw.views.create_variable import create_variable
     from bkflow.apigw.views.delete_task import delete_task
     from bkflow.apigw.views.delete_template import delete_template
+    from bkflow.apigw.views.delete_variable import delete_variable
     from bkflow.apigw.views.get_plugin_outputs import get_plugin_outputs
     from bkflow.apigw.views.get_space_configs import get_space_configs
     from bkflow.apigw.views.get_task_detail import get_task_detail
@@ -49,6 +51,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.get_template_detail_by_app import get_template_detail_by_app
     from bkflow.apigw.views.get_template_list import get_template_list
     from bkflow.apigw.views.get_template_mock_data import get_template_mock_data
+    from bkflow.apigw.views.get_variable_list import get_variable_list
     from bkflow.apigw.views.grant_apigw_permissions_to_app import (
         grant_apigw_permissions_to_app,
     )
@@ -61,6 +64,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.rollback_template import rollback_template
     from bkflow.apigw.views.update_credential import update_credential
     from bkflow.apigw.views.update_template import update_template
+    from bkflow.apigw.views.update_variable import update_variable
     from bkflow.apigw.views.validate_pipeline_tree import validate_pipeline_tree
 
     urlpatterns += [
@@ -99,6 +103,10 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/delete_task/$", delete_task),
         url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/release_template/$", release_template),
         url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/rollback_template/$", rollback_template),
+        url(r"^space/(?P<space_id>\d+)/create_variable/$", create_variable),
+        url(r"^space/(?P<space_id>\d+)/variable/(?P<variable_id>\d+)/update_variable/$", update_variable),
+        url(r"^space/(?P<space_id>\d+)/get_variable_list/$", get_variable_list),
+        url(r"^space/(?P<space_id>\d+)/variable/(?P<variable_id>\d+)/delete_variable/$", delete_variable),
         # 基于 bk_app_code 权限控制的接口
         url(r"^template/(?P<template_id>\d+)/get_template_detail_by_app/$", get_template_detail_by_app),
         url(r"^template/(?P<template_id>\d+)/create_task_by_app/$", create_task_by_app),
