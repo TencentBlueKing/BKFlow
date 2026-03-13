@@ -16,12 +16,11 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-import json
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET
 
 from bkflow.apigw.decorators import return_json_response
 from bkflow.utils import err_code
@@ -31,16 +30,12 @@ from bkflow.variable_manager.serializers import VariableManagerSerializer
 
 @login_exempt
 @csrf_exempt
-@require_POST
+@require_GET
 @apigw_require
 @return_json_response
 def get_variable_list(request, space_id):
     try:
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError as e:
-            return {"result": False, "code": err_code.VALIDATION_ERROR.code, "message": f"JSON格式错误: {str(e)}"}
-
+        data = request.GET
         query_params = {"space_id": space_id, "is_deleted": False}
 
         # 支持按变量名过滤

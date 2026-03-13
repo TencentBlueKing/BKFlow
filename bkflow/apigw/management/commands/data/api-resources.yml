@@ -1488,7 +1488,7 @@ paths:
           enableWebsocket: false
           pluginConfigs: []
   /space/{space_id}/get_variable_list/:
-    post:
+    get:
       operationId: get_variable_list
       description: 获取变量列表
       tags: []
@@ -1503,7 +1503,7 @@ paths:
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          method: post
+          method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/get_variable_list/
           matchSubpath: false
           timeout: 0

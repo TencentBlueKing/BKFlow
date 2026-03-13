@@ -35,7 +35,7 @@ from bkflow.variable_manager.models import VariableManager
 def delete_variable(request, space_id, variable_id):
     try:
         try:
-            variable = VariableManager.objects.get(id=variable_id, space_id=space_id)
+            variable = VariableManager.objects.get(id=variable_id, space_id=space_id, is_deleted=False)
         except VariableManager.DoesNotExist:
             return {"result": False, "code": err_code.VALIDATION_ERROR.code, "message": "变量不存在"}
 

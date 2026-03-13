@@ -49,4 +49,4 @@ def create_variable(request, space_id):
         else:
             return {"result": False, "code": err_code.VALIDATION_ERROR.code, "message": serializer.errors}
     except Exception as e:
-        return {"code": err_code.ERROR.code, "message": f"创建变量失败: {str(e)}"}
+        return {"result": False, "code": err_code.ERROR.code, "message": f"创建变量失败: {str(e)}"}
