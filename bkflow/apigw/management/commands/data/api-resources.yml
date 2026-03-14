@@ -1400,6 +1400,122 @@ paths:
         descriptionEn: Get plugin outputs
         enableWebsocket: false
         pluginConfigs: [ ]
+  /space/{space_id}/create_variable/:
+    post:
+      operationId: create_variable
+      description: 创建变量
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/create_variable/
+          matchSubpath: false
+          timeout: 0
+          name: default
+          authConfig:
+            userVerifiedRequired: false
+            appVerifiedRequired: true
+            resourcePermissionRequired: true
+          disabledStages: []
+          descriptionEn: Create variable
+          enableWebsocket: false
+          pluginConfigs: []
+  /space/{space_id}/variable/{variable_id}/delete_variable/:
+    post:
+      operationId: delete_variable
+      description: 删除变量
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/variable/{variable_id}/delete_variable/
+          matchSubpath: false
+          timeout: 0
+          name: default
+          authConfig:
+            userVerifiedRequired: false
+            appVerifiedRequired: true
+            resourcePermissionRequired: true
+          disabledStages: []
+          descriptionEn: Delete variable
+          enableWebsocket: false
+          pluginConfigs: []
+  /space/{space_id}/variable/{variable_id}/update_variable/:
+    post:
+      operationId: update_variable
+      description: 更新变量
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/variable/{variable_id}/update_variable/
+          matchSubpath: false
+          timeout: 0
+          name: default
+          authConfig:
+            userVerifiedRequired: false
+            appVerifiedRequired: true
+            resourcePermissionRequired: true
+          disabledStages: []
+          descriptionEn: Update variable
+          enableWebsocket: false
+          pluginConfigs: []
+  /space/{space_id}/get_variable_list/:
+    get:
+      operationId: get_variable_list
+      description: 获取变量列表
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_variable_list/
+          matchSubpath: false
+          timeout: 0
+          name: default
+          authConfig:
+            userVerifiedRequired: false
+            appVerifiedRequired: true
+            resourcePermissionRequired: true
+          disabledStages: []
+          descriptionEn: Get variable list
+          enableWebsocket: false
+          pluginConfigs: []
   /space/{space_id}/get_tasks_states/:
     post:
       operationId: get_tasks_states

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -36,8 +35,10 @@ class TestTaskOperation:
         executor = "test_executor"
         task_operation = TaskOperation(task_instance, queue)
         mocker.patch("bamboo_engine.api.run_pipeline", return_value=EngineAPIResult(result=True, message="success"))
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {"result": True, "data": {}}
 
-        task_operation.start(executor)
+        task_operation.start(operator=executor)
 
         task_instance.refresh_from_db()
         assert task_instance.is_started is True
