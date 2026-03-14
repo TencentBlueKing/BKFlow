@@ -209,13 +209,11 @@ class TestTaskOperationComplete:
             "bkflow.task.operations.get_pipeline_context",
             return_value={"task_scope_type": "project", "task_scope_value": "123"},
         )
-        mocker.patch(
-            "bkflow.task.models.EngineSpaceConfig.get_space_var",
-            return_value={
-                "space": {"var1": "value1"},
-                "scope": {"project_123": {"var2": "value2"}},
-            },
-        )
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {
+            "result": True,
+            "data": {"${var1}": "value1", "${var2}": "value2"},
+        }
         mocker.patch("bamboo_engine.api.run_pipeline", return_value=EngineAPIResult(result=True, message="success"))
 
         task_operation = TaskOperation(task_instance)
@@ -231,7 +229,11 @@ class TestTaskOperationComplete:
 
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
-        mocker.patch("bkflow.task.models.EngineSpaceConfig.get_space_var", return_value={"space": {"var1": "value1"}})
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {
+            "result": True,
+            "data": {"${var1}": "value1"},
+        }
         mocker.patch("bamboo_engine.api.run_pipeline", return_value=EngineAPIResult(result=True, message="success"))
 
         task_operation = TaskOperation(task_instance)
@@ -681,7 +683,8 @@ class TestTaskOperationComplete:
 
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
-        mocker.patch("bkflow.task.models.EngineSpaceConfig.get_space_var", return_value={})
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {"result": True, "data": {}}
         mocker.patch("django.conf.settings.ENABLE_OTEL_TRACE", True)
 
         # Mock run_pipeline to capture root_pipeline_data
@@ -723,6 +726,8 @@ class TestTaskOperationComplete:
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
         mocker.patch("bkflow.task.models.EngineSpaceConfig.get_space_var", return_value={})
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {"result": True, "data": {}}
         mocker.patch("django.conf.settings.ENABLE_OTEL_TRACE", False)
 
         captured_data = {}
@@ -760,7 +765,8 @@ class TestTaskOperationComplete:
 
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
-        mocker.patch("bkflow.task.models.EngineSpaceConfig.get_space_var", return_value={})
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {"result": True, "data": {}}
         mocker.patch("django.conf.settings.ENABLE_OTEL_TRACE", True)
 
         captured_data = {}

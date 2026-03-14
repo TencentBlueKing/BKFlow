@@ -41,7 +41,7 @@ def update_variable(request, space_id, variable_id):
         try:
             variable = VariableManager.objects.get(id=variable_id, space_id=space_id, is_deleted=False)
         except VariableManager.DoesNotExist:
-            return {"code": err_code.VALIDATION_ERROR.code, "message": "变量不存在或已被删除"}
+            return {"result": False, "code": err_code.VALIDATION_ERROR.code, "message": "变量不存在或已被删除"}
 
         serializer = VariableManagerSerializer(instance=variable, data=data, partial=True, context={"request": request})
 
@@ -53,4 +53,4 @@ def update_variable(request, space_id, variable_id):
     except json.JSONDecodeError:
         return {"code": err_code.VALIDATION_ERROR.code, "message": "请求体JSON格式错误"}
     except Exception as e:
-        return {"code": err_code.ERROR.code, "message": str(e)}
+        return {"result": False, "code": err_code.ERROR.code, "message": str(e)}
