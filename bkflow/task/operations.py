@@ -188,7 +188,12 @@ class TaskOperation:
             root_pipeline_context = {"${_system}": system_obj}
             # 获取空间变量
             space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
-            root_pipeline_context.update(space_var["data"])
+            if not space_var.get("result"):
+                logger.error("get space variable failed: %s", space_var.get("message"))
+                space_var_data = {}
+            else:
+                space_var_data = space_var.get("data", {})
+            root_pipeline_context.update(space_var_data)
 
             # 捕获当前 trace context，传递给 pipeline 执行环境
             # 只有在启用 trace 的情况下才注入 trace 信息

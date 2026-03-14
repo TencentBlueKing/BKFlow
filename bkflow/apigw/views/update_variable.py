@@ -51,6 +51,6 @@ def update_variable(request, space_id, variable_id):
         else:
             return {"result": False, "code": err_code.VALIDATION_ERROR.code, "message": serializer.errors}
     except json.JSONDecodeError:
-        return {"code": err_code.VALIDATION_ERROR.code, "message": "请求体JSON格式错误"}
+        return {"result": False, "code": err_code.VALIDATION_ERROR.code, "message": "请求体JSON格式错误"}
     except Exception as e:
         return {"result": False, "code": err_code.ERROR.code, "message": str(e)}
