@@ -207,7 +207,7 @@ class TaskOperation:
                         root_pipeline_data["_trace_id"] = trace_id
                         root_pipeline_data["_parent_span_id"] = execution_span_id
                 except Exception as e:
-                    logger.debug(f"[plugin_span] Failed to create execution span: {e}")
+                    logger.warning(f"[plugin_span] Failed to create execution span: {e}")
 
             # run pipeline
             result = bamboo_engine_api.run_pipeline(
