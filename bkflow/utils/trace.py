@@ -37,7 +37,14 @@ logger = logging.getLogger("root")
 
 
 class _CustomSpan(SDKSpan):
-    """SDKSpan subclass to bypass direct instantiation check, allowing custom span_id creation"""
+    """SDKSpan subclass to bypass direct instantiation check, allowing custom span_id creation
+
+    WARNING: 此类与 OTel SDK 的私有实现细节耦合（SDKSpan 构造函数签名、
+    _active_span_processor、provider.resource 等）。SDK 小版本升级可能导致
+    兼容性问题。升级 opentelemetry-sdk 时需回归测试 _create_span_with_custom_id。
+    当前已有 fallback 机制：若 _CustomSpan 创建失败，end_plugin_span 会回退到
+    tracer.start_span() 普通方式创建（但 span_id 将不匹配预生成值）。
+    """
 
     pass
 
@@ -205,7 +212,7 @@ def create_execution_span(
         return trace_id_hex, span_id_hex
 
     except Exception as e:
-        logger.debug(f"[plugin_span] Failed to create execution span: {e}")
+        logger.warning(f"[plugin_span] Failed to create execution span: {e}")
         return None, None
 
 
@@ -493,15 +500,16 @@ def end_plugin_span(
         for key, value in attributes.items():
             span.set_attribute(f"{platform_code}.plugin.{key}", value)
 
+        span.set_attribute(f"{platform_code}.plugin.success", success)
         if success:
             span.set_status(Status(StatusCode.OK))
         else:
-            span.set_status(Status(StatusCode.ERROR, error_message or "Plugin execution failed"))
+            span.set_status(Status(StatusCode.ERROR, str(error_message or "Plugin execution failed")[:1000]))
 
         span.end(end_time=end_time_ns)
 
     except Exception as e:
-        logger.debug(f"[plugin_span] Failed to end plugin span: {e}")
+        logger.warning(f"[plugin_span] Failed to end plugin span: {e}")
 
 
 @contextmanager
@@ -569,11 +577,12 @@ def plugin_method_span(
                 if value is not None:
                     span.set_attribute(f"{platform_code}.plugin.{key}", str(value))
 
+            span.set_attribute(f"{platform_code}.plugin.success", result.success)
             if result.success:
                 span.set_status(Status(StatusCode.OK))
             else:
-                span.set_status(Status(StatusCode.ERROR, result.error_message or f"{method_name} failed"))
+                span.set_status(Status(StatusCode.ERROR, str(result.error_message or f"{method_name} failed")[:1000]))
 
             span.end(end_time=end_time_ns)
         except Exception as e:
-            logger.debug(f"[plugin_span] Failed to create method span: {e}")
+            logger.warning(f"[plugin_span] Failed to create method span: {e}")
