@@ -1,3 +1,10 @@
+"""任务维度统计数据采集器
+
+采集任务生命周期中两个阶段的统计数据：
+- 创建阶段（collect_on_create）：记录任务基本信息和 pipeline 节点构成
+- 归档阶段（collect_on_archive）：更新最终状态、耗时，并采集每个已执行节点的执行详情
+"""
+
 import logging
 from copy import deepcopy
 from typing import List, Optional
@@ -13,6 +20,8 @@ logger = logging.getLogger("celery")
 
 
 class TaskStatisticsCollector(BaseStatisticsCollector):
+    """任务统计数据采集器，支持通过 task_id 或 instance_id 定位任务"""
+
     def __init__(self, task_id: int = None, instance_id: str = None):
         super().__init__()
         self.task_id = task_id
@@ -37,6 +46,7 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
         return self.collect_on_create()
 
     def collect_on_create(self):
+        """任务创建时采集统计数据：pipeline 节点构成、创建方式等基础信息"""
         if not self.task:
             return False
 
@@ -72,6 +82,7 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
             return False
 
     def collect_on_archive(self):
+        """任务归档时采集统计数据：更新最终状态和耗时，并采集各节点的执行详情"""
         if not self.task:
             return False
 
@@ -104,6 +115,7 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
         )
 
     def _collect_node_statistics(self):
+        """通过 bamboo_engine API 获取节点执行状态，采集已执行节点的统计信息"""
         try:
             from bamboo_engine import api as bamboo_engine_api
             from pipeline.eri.runtime import BambooDjangoRuntime
@@ -141,6 +153,11 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
         subprocess_stack: list = None,
         is_sub: bool = False,
     ) -> List[TaskflowExecutedNodeStatistics]:
+        """递归遍历 pipeline tree 和对应的执行状态树，提取已执行的 ServiceActivity 节点
+
+        对于 SubProcess 节点，会进入其内部 pipeline 递归提取，
+        并通过 subprocess_stack 记录子流程嵌套路径。
+        """
         if subprocess_stack is None:
             subprocess_stack = []
 
@@ -174,6 +191,11 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
     def _create_node_statistics(
         self, activity: dict, status: dict, subprocess_stack: list, is_sub: bool
     ) -> Optional[TaskflowExecutedNodeStatistics]:
+        """根据节点定义和执行状态创建节点统计记录
+
+        仅处理已完成的节点（FINISHED/FAILED/REVOKED/SUSPENDED）。
+        对 remote_plugin 类型的节点，从 inputs 中提取实际的插件编码和版本。
+        """
         state = status.get("state", "")
         if state not in ("FINISHED", "FAILED", "REVOKED", "SUSPENDED"):
             return None

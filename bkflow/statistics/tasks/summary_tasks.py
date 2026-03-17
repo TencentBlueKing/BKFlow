@@ -1,3 +1,11 @@
+"""统计数据定时汇总任务
+
+包含三类 Celery 定时任务：
+- generate_daily_summary_task: 每日汇总各空间的任务执行概况（创建/完成/成功/失败数量）
+- generate_plugin_summary_task: 按周期（日/周/月）汇总各插件的执行统计
+- clean_expired_statistics_task: 清理过期的明细和汇总数据，按配置的保留天数执行
+"""
+
 import logging
 from datetime import date, timedelta
 
@@ -18,6 +26,7 @@ logger = logging.getLogger("celery")
 
 @shared_task(bind=True, ignore_result=True)
 def generate_daily_summary_task(self, target_date: str = None):
+    """按天汇总各空间的任务和节点执行统计，默认汇总前一天的数据"""
     if not StatisticsSettings.is_enabled():
         return
 
@@ -90,7 +99,7 @@ def _generate_daily_summary(summary_date: date):
             },
         )
 
-    # Fill zeros for spaces with no tasks that day
+    # 为当天没有任务的活跃空间填充零值记录，确保趋势图数据连续
     active_spaces = (
         TemplateStatistics.objects.using(db_alias).values_list("space_id", "scope_type", "scope_value").distinct()
     )
@@ -108,6 +117,7 @@ def _generate_daily_summary(summary_date: date):
 
 @shared_task(bind=True, ignore_result=True)
 def generate_plugin_summary_task(self, period_type: str = "day", target_date: str = None):
+    """按指定周期（day/week/month）汇总各插件的执行次数、成功率和耗时"""
     if not StatisticsSettings.is_enabled():
         return
 
@@ -166,6 +176,7 @@ def _generate_plugin_summary(period_type: str, period_start: date):
 
 @shared_task(bind=True, ignore_result=True)
 def clean_expired_statistics_task(self):
+    """清理过期统计数据，明细和汇总分别按各自的保留天数清理"""
     if not StatisticsSettings.is_enabled():
         return
 

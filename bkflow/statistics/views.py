@@ -1,3 +1,12 @@
+"""运营统计 API 视图
+
+提供两组 ViewSet：
+- SystemStatisticsViewSet: 全局维度的统计接口（概览、任务趋势、空间排名、插件排名、失败分析）
+- SpaceStatisticsViewSet: 空间维度的统计接口（概览、任务趋势、插件排名、模板排名、失败分析、每日汇总）
+
+所有接口支持 date_start/date_end 或 date_range（7d/14d/30d/90d）参数指定查询时间范围。
+"""
+
 import logging
 from datetime import date, timedelta
 
@@ -37,6 +46,7 @@ DATE_RANGE_MAP = {
 
 
 def _get_date_range(request):
+    """从请求参数中解析日期范围，支持 date_start/date_end 或 date_range 快捷方式"""
     param_ser = DateRangeParamSerializer(data=request.query_params)
     param_ser.is_valid(raise_exception=True)
 
@@ -56,6 +66,7 @@ def _get_date_range(request):
 
 
 def _validate_order_by(value, allowed):
+    """校验排序字段是否在允许列表中，不合法时回退到默认字段"""
     if not value:
         return allowed[0] if allowed else "id"
     clean = value.lstrip("-")
@@ -65,6 +76,7 @@ def _validate_order_by(value, allowed):
 
 
 def _get_limit(request, max_val=100):
+    """从请求参数获取分页限制，约束在 [1, max_val] 范围内"""
     try:
         limit = int(request.query_params.get("limit", 10))
     except (ValueError, TypeError):
@@ -73,6 +85,8 @@ def _get_limit(request, max_val=100):
 
 
 class SystemStatisticsViewSet(GenericViewSet):
+    """全局维度的运营统计接口，需要管理员或内部应用权限"""
+
     permission_classes = [AdminPermission | AppInternalPermission]
 
     @action(methods=["get"], detail=False, url_path="overview")
@@ -259,6 +273,8 @@ class SystemStatisticsViewSet(GenericViewSet):
 
 
 class SpaceStatisticsViewSet(GenericViewSet):
+    """空间维度的运营统计接口，按 space_id 过滤数据"""
+
     permission_classes = [AdminPermission | AppInternalPermission]
 
     def _get_space_id(self):

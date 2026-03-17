@@ -1,3 +1,5 @@
+"""统计数据采集器基类，定义数据采集的公共接口和工具方法"""
+
 import logging
 from abc import ABC, abstractmethod
 from typing import Tuple
@@ -8,6 +10,12 @@ logger = logging.getLogger("celery")
 
 
 class BaseStatisticsCollector(ABC):
+    """统计数据采集器的抽象基类
+
+    所有具体的采集器（模板、任务）需要继承此类并实现 collect() 方法。
+    提供了 pipeline tree 节点计数和时间解析等公共工具方法。
+    """
+
     def __init__(self):
         self.db_alias = StatisticsSettings.get_db_alias()
         self.engine_id = StatisticsSettings.get_engine_id()
@@ -18,6 +26,13 @@ class BaseStatisticsCollector(ABC):
 
     @staticmethod
     def count_pipeline_tree_nodes(pipeline_tree: dict) -> Tuple[int, int, int]:
+        """递归统计 pipeline tree 中各类型节点的数量
+
+        遍历 activities 区分 ServiceActivity（标准插件）和 SubProcess（子流程），
+        子流程会递归进入其内部 pipeline 继续计数。
+
+        :return: (atom_total, subprocess_total, gateways_total)
+        """
         activities = pipeline_tree.get("activities", {})
         gateways = pipeline_tree.get("gateways", {})
 
@@ -42,6 +57,7 @@ class BaseStatisticsCollector(ABC):
 
     @staticmethod
     def parse_datetime(time_str):
+        """解析时间字符串，兼容带时区偏移的格式（如 "2024-01-01 12:00:00 +0800"）"""
         if not time_str:
             return None
         from django.utils.dateparse import parse_datetime
