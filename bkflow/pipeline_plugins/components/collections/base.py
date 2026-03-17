@@ -22,12 +22,15 @@ from django.conf import settings
 from pipeline.core.flow import AbstractIntervalGenerator, StaticIntervalGenerator
 from pipeline.core.flow.activity import Service
 
-from bkflow.utils.trace import end_plugin_span, plugin_method_span, start_plugin_span
-
-# 标记 Span 是否已结束的 key
-PLUGIN_SPAN_ENDED_KEY = "_plugin_span_ended"
-# 记录 schedule 调用次数的 key
-PLUGIN_SCHEDULE_COUNT_KEY = "_plugin_schedule_count"
+from bkflow.utils.trace import (
+    PLUGIN_SCHEDULE_COUNT_KEY,
+    PLUGIN_SPAN_ENDED_KEY,
+    PLUGIN_SPAN_ID_KEY,
+    clean_plugin_span_outputs,
+    end_plugin_span,
+    plugin_method_span,
+    start_plugin_span,
+)
 
 
 class BKFlowBaseService(Service):
@@ -80,7 +83,7 @@ class BKFlowBaseService(Service):
     def _get_span_name(self):
         """获取 Span 名称，使用 PLATFORM_CODE 前缀加上插件名称"""
         platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
-        return f"{platform_code}.{self.plugin_name}"
+        return f"{platform_code}.plugin.{self.plugin_name}"
 
     def _get_span_attributes(self, data, parent_data):
         """获取 Span 属性，子类可以覆盖此方法来添加自定义属性"""
@@ -99,11 +102,12 @@ class BKFlowBaseService(Service):
 
         return attributes
 
-    def _get_trace_context(self, parent_data):
+    def _get_trace_context(self, data, parent_data):
         """从 parent_data 中获取 trace context"""
         return {
             "trace_id": parent_data.get_one_of_inputs("_trace_id"),
             "parent_span_id": parent_data.get_one_of_inputs("_parent_span_id"),
+            "plugin_span_id": data.get_one_of_outputs(PLUGIN_SPAN_ID_KEY),
         }
 
     def _get_method_span_attributes(self, data, parent_data):
@@ -144,7 +148,7 @@ class BKFlowBaseService(Service):
             return
 
         end_plugin_span(data, success=success, error_message=error_message)
-        data.set_outputs(PLUGIN_SPAN_ENDED_KEY, True)
+        clean_plugin_span_outputs(data)
 
     def _get_error_message(self, data):
         """从 data 中获取错误信息"""
@@ -159,7 +163,7 @@ class BKFlowBaseService(Service):
 
         self._start_plugin_span(data, parent_data)
 
-        trace_context = self._get_trace_context(parent_data)
+        trace_context = self._get_trace_context(data, parent_data)
         method_attrs = self._get_method_span_attributes(data, parent_data)
         if self.enable_plugin_span and settings.ENABLE_OTEL_TRACE:
             data.set_outputs(PLUGIN_SCHEDULE_COUNT_KEY, 0)
@@ -167,6 +171,7 @@ class BKFlowBaseService(Service):
                 method_name="execute",
                 trace_id=trace_context.get("trace_id"),
                 parent_span_id=trace_context.get("parent_span_id"),
+                plugin_span_id=trace_context.get("plugin_span_id"),
                 **method_attrs,
             ) as span_result:
                 result = self.plugin_execute(data, parent_data)
@@ -189,7 +194,7 @@ class BKFlowBaseService(Service):
         ):
             return self.mock_schedule(data, parent_data)
 
-        trace_context = self._get_trace_context(parent_data)
+        trace_context = self._get_trace_context(data, parent_data)
         method_attrs = self._get_method_span_attributes(data, parent_data)
         if self.enable_plugin_span and settings.ENABLE_OTEL_TRACE:
             schedule_count = data.get_one_of_outputs(PLUGIN_SCHEDULE_COUNT_KEY, 0) + 1
@@ -199,6 +204,7 @@ class BKFlowBaseService(Service):
                 method_name="schedule",
                 trace_id=trace_context.get("trace_id"),
                 parent_span_id=trace_context.get("parent_span_id"),
+                plugin_span_id=trace_context.get("plugin_span_id"),
                 **method_attrs,
             ) as span_result:
                 result = self.plugin_schedule(data, parent_data, callback_data)
