@@ -196,7 +196,7 @@ class TestCreateTemplateWithA2FlowView(TestCase):
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
     def test_create_template_with_a2flow_missing_name(self):
-        """测试缺少 name 字段返回 400"""
+        """测试缺少 name 字段返回校验失败"""
         space = self.create_space()
 
         data = {
@@ -205,14 +205,16 @@ class TestCreateTemplateWithA2FlowView(TestCase):
 
         url = "/apigw/space/{}/create_template_with_a2flow/".format(space.id)
         resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+        resp_data = json.loads(resp.content)
 
-        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp_data["result"])
 
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
     def test_create_template_with_a2flow_empty_a2flow(self):
-        """测试空 a2flow 数组返回 400"""
+        """测试空 a2flow 数组返回校验失败"""
         space = self.create_space()
 
         data = {
@@ -222,8 +224,10 @@ class TestCreateTemplateWithA2FlowView(TestCase):
 
         url = "/apigw/space/{}/create_template_with_a2flow/".format(space.id)
         resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+        resp_data = json.loads(resp.content)
 
-        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp_data["result"])
 
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
