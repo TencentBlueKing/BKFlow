@@ -17,77 +17,13 @@ from bkflow.space.models import (
     SpaceCreateType,
 )
 from bkflow.space.views import (
-    CredentialConfigAdminViewSet,
-    CredentialViewSet,
+    CredentialConfigViewSet,
     SpaceConfigAdminViewSet,
     SpaceConfigViewSet,
     SpaceFilterSet,
     SpaceInternalViewSet,
     SpaceViewSet,
 )
-
-
-@pytest.mark.django_db
-class TestCredentialViewSet:
-    def setup_method(self):
-        self.factory = APIRequestFactory()
-        self.user = User.objects.create_superuser(username="testuser", password="password")
-        self.space = Space.objects.create(name="Test Space", app_code="test_app")
-
-    def test_get_api_gateway_credential_success(self):
-        """Test get_api_gateway_credential with existing credential"""
-        # Create credential
-        Credential.objects.create(
-            space_id=self.space.id,
-            name="test_credential",
-            type=CredentialType.BK_APP.value,
-            content={"app_code": "test", "app_secret": "secret"},
-        )
-
-        # Create space config
-        SpaceConfig.objects.create(
-            space_id=self.space.id, name=ApiGatewayCredentialConfig.name, text_value="test_credential"
-        )
-
-        view = CredentialViewSet.as_view({"get": "get_api_gateway_credential"})
-        request = self.factory.get(f"/credentials/get_api_gateway_credential/?space_id={self.space.id}")
-        force_authenticate(request, user=self.user)
-
-        response = view(request)
-
-        assert response.status_code == 200
-        # Response is wrapped by SimpleGenericViewSet.finalize_response
-        assert response.data.get("data") == {"app_code": "test", "app_secret": "secret"}
-
-    def test_get_api_gateway_credential_not_found(self):
-        """Test get_api_gateway_credential when credential does not exist"""
-        # Don't create credential, only create space config pointing to non-existent credential
-        SpaceConfig.objects.create(
-            space_id=self.space.id, name=ApiGatewayCredentialConfig.name, text_value="nonexistent_credential"
-        )
-
-        view = CredentialViewSet.as_view({"get": "get_api_gateway_credential"})
-        request = self.factory.get(f"/credentials/get_api_gateway_credential/?space_id={self.space.id}")
-        force_authenticate(request, user=self.user)
-
-        response = view(request)
-
-        assert response.status_code == 200
-        # Should return empty dict when credential not found
-        assert response.data.get("data") == {}
-
-    def test_get_api_gateway_credential_config_not_exists(self):
-        """Test get_api_gateway_credential when space config does not exist"""
-        # Don't create space config
-        view = CredentialViewSet.as_view({"get": "get_api_gateway_credential"})
-        request = self.factory.get(f"/credentials/get_api_gateway_credential/?space_id={self.space.id}")
-        force_authenticate(request, user=self.user)
-
-        response = view(request)
-
-        assert response.status_code == 200
-        # Should return empty dict when config not found
-        assert response.data.get("data") == {}
 
 
 @pytest.mark.django_db
@@ -598,7 +534,7 @@ class TestSpaceConfigAdminViewSet:
 
 
 @pytest.mark.django_db
-class TestCredentialConfigAdminViewSet:
+class TestCredentialConfigViewSet:
     def setup_method(self):
         self.factory = APIRequestFactory()
         self.user, _ = User.objects.get_or_create(
@@ -609,7 +545,7 @@ class TestCredentialConfigAdminViewSet:
     def test_crud_operations(self):
         """Test create, update, and delete credential"""
         # Create success
-        view = CredentialConfigAdminViewSet.as_view({"post": "create"})
+        view = CredentialConfigViewSet.as_view({"post": "create"})
         data = {
             "name": "new_cred",
             "type": CredentialType.BK_APP.value,
@@ -651,9 +587,12 @@ class TestCredentialConfigAdminViewSet:
 
         # Update
         credential = Credential.objects.create(
-            space_id=self.space.id, name="test_cred", type=CredentialType.BK_APP.value, content={"key": "old_value"}
+            space_id=self.space.id,
+            name="test_cred",
+            type=CredentialType.CUSTOM.value,
+            content={"key": "old_value"},
         )
-        view = CredentialConfigAdminViewSet.as_view({"patch": "partial_update"})
+        view = CredentialConfigViewSet.as_view({"patch": "partial_update"})
         data = {"content": {"key": "new_value"}}
         request = self.factory.patch(f"/credentials/{credential.id}/?space_id={self.space.id}", data, format="json")
         force_authenticate(request, user=self.user)
@@ -664,7 +603,7 @@ class TestCredentialConfigAdminViewSet:
         credential = Credential.objects.create(
             space_id=self.space.id, name="test_cred2", type=CredentialType.BK_APP.value, content={"key": "value"}
         )
-        view = CredentialConfigAdminViewSet.as_view({"delete": "destroy"})
+        view = CredentialConfigViewSet.as_view({"delete": "destroy"})
         request = self.factory.delete(f"/credentials/{credential.id}/?space_id={self.space.id}")
         force_authenticate(request, user=self.user)
         response = view(request, pk=credential.id)
@@ -681,7 +620,7 @@ class TestCredentialConfigAdminViewSet:
             space_id=other_space.id, name="cred2", type=CredentialType.BK_APP.value, content={"key": "value2"}
         )
 
-        viewset = CredentialConfigAdminViewSet()
+        viewset = CredentialConfigViewSet()
         viewset.request = type("Request", (), {"query_params": {"space_id": self.space.id}})()
         queryset = viewset.get_queryset()
 
@@ -692,7 +631,7 @@ class TestCredentialConfigAdminViewSet:
         """Test create credential with DatabaseError"""
         from django.db import DatabaseError
 
-        view = CredentialConfigAdminViewSet.as_view({"post": "create"})
+        view = CredentialConfigViewSet.as_view({"post": "create"})
         data = {
             "name": "new_cred",
             "type": CredentialType.BK_APP.value,
@@ -708,7 +647,7 @@ class TestCredentialConfigAdminViewSet:
 
     def test_partial_update_credential_not_found(self):
         """Test partial update credential when credential does not exist"""
-        view = CredentialConfigAdminViewSet.as_view({"patch": "partial_update"})
+        view = CredentialConfigViewSet.as_view({"patch": "partial_update"})
         data = {"content": {"key": "new_value"}}
         request = self.factory.patch(f"/credentials/99999/?space_id={self.space.id}", data, format="json")
         force_authenticate(request, user=self.user)
@@ -725,7 +664,7 @@ class TestCredentialConfigAdminViewSet:
             type=CredentialType.BK_APP.value,
             content={"bk_app_code": "test", "bk_app_secret": "secret"},
         )
-        view = CredentialConfigAdminViewSet.as_view({"patch": "partial_update"})
+        view = CredentialConfigViewSet.as_view({"patch": "partial_update"})
         data = {"content": {"bk_app_code": "new_test", "bk_app_secret": "new_secret"}}
         request = self.factory.patch(f"/credentials/{credential.id}/?space_id={self.space.id}", data, format="json")
         force_authenticate(request, user=self.user)
@@ -738,7 +677,7 @@ class TestCredentialConfigAdminViewSet:
 
     def test_destroy_credential_not_found(self):
         """Test destroy credential when credential does not exist"""
-        view = CredentialConfigAdminViewSet.as_view({"delete": "destroy"})
+        view = CredentialConfigViewSet.as_view({"delete": "destroy"})
         request = self.factory.delete(f"/credentials/99999/?space_id={self.space.id}")
         force_authenticate(request, user=self.user)
         response = view(request, pk=99999)

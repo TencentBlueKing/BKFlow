@@ -417,6 +417,9 @@ CORS_ALLOW_METHODS = ["GET", "OPTIONS"]
 # 允许 static、openapi 路径跨域访问
 CORS_URLS_REGEX = r"^/(static\/components|openapi)/.*$"
 
+# 加密字段配置
+PRIVATE_SECRET = env.PRIVATE_SECRET or SECRET_KEY
+
 """
 以下为框架代码 请勿修改
 """
