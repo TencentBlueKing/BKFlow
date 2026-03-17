@@ -27,10 +27,10 @@ class VariableManager(CommonModel):
     id = models.BigAutoField(primary_key=True)
     space_id = models.BigIntegerField(verbose_name=_("空间 ID"), blank=False)
     name = models.CharField(verbose_name=_("变量名"), max_length=255)
-    type = models.CharField(verbose_name=_("变量类型"), max_length=255)
+    variable_type = models.CharField(verbose_name=_("变量类型"), max_length=255)
     key = models.CharField(verbose_name=_("变量唯一键"), max_length=255)
     value = models.TextField(verbose_name=_("变量值"))
-    desc = models.TextField(verbose_name=_("变量描述"))
+    desc = models.TextField(verbose_name=_("变量描述"), null=True, blank=True)
 
     class Meta:
         unique_together = (("space_id", "key"),)

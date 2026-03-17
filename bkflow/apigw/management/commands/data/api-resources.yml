@@ -1430,7 +1430,7 @@ paths:
           enableWebsocket: false
           pluginConfigs: []
   /space/{space_id}/variable/{variable_id}/delete_variable/:
-    delete:
+    post:
       operationId: delete_variable
       description: 删除空间变量
       tags: []
@@ -1445,7 +1445,7 @@ paths:
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          method: delete
+          method: post
           path: /{env.api_sub_path}apigw/space/{space_id}/variable/{variable_id}/delete_variable/
           matchSubpath: false
           timeout: 0

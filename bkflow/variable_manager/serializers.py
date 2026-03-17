@@ -28,7 +28,7 @@ class VariableManagerSerializer(serializers.ModelSerializer):
 
     name = serializers.CharField(required=True)
     key = serializers.CharField(required=True)
-    type = serializers.CharField(required=True)
+    variable_type = serializers.CharField(required=True)
     value = serializers.CharField(required=True)
     desc = serializers.CharField(required=False)
     creator = serializers.CharField(read_only=True)
@@ -44,7 +44,7 @@ class VariableManagerSerializer(serializers.ModelSerializer):
             "space_id",
             "name",
             "key",
-            "type",
+            "variable_type",
             "value",
             "desc",
             "creator",

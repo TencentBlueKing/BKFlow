@@ -37,7 +37,7 @@ class VariableFilterSet(FilterSet):
         fields = {
             "id": ["exact"],
             "space_id": ["exact"],
-            "type": ["exact"],
+            "variable_type": ["exact"],
             "key": ["exact"],
             "name": ["icontains"],
             "creator": ["exact"],
@@ -60,8 +60,8 @@ class VariableInternalViewSet(AdminModelViewSet):
     @action(methods=["GET"], detail=False)
     def get_variable(self, request):
         space_id = request.query_params["space_id"]
-        variables = self.queryset.filter(space_id=space_id, type=VariableType.SPACE.value, is_deleted=False).only(
-            "key", "value"
-        )
+        variables = self.queryset.filter(
+            space_id=space_id, variable_type=VariableType.SPACE.value, is_deleted=False
+        ).only("key", "value")
         data = {"${_space_%s}" % c.key: c.value for c in variables}
         return Response(data)

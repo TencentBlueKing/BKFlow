@@ -43,8 +43,8 @@ def get_variable_list(request, space_id):
             query_params["name__icontains"] = data["name"]
 
         # 支持按变量类型过滤
-        if "type" in data and data["type"]:
-            query_params["type"] = data["type"]
+        if "variable_type" in data and data["variable_type"]:
+            query_params["variable_type"] = data["variable_type"]
 
         # 支持按变量键过滤
         if "key" in data and data["key"]:

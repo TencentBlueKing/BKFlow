@@ -17,18 +17,18 @@
 
 #### 请求体参数
 
-| 字段     | 类型      | 必选  | 描述     |
-|--------|---------|-----|--------|
-| name   | string  | 否   | 变量名    |
-| type   | string  | 否   | 变量类型   |
-| key    | string  | 否   | 变量唯一键  |
+| 字段            | 类型      | 必选  | 描述     |
+|---------------|---------|-----|--------|
+| name          | string  | 否   | 变量名    |
+| variable_type | string  | 否   | 变量类型   |
+| key           | string  | 否   | 变量唯一键  |
 
 ### 请求参数示例
 
 ```json
 {
     "key": "db_host",
-    "type": "space"
+    "variable_type": "space"
 }
 ```
 
@@ -44,7 +44,7 @@
             "space_id": 6,
             "name": "数据库连接地址",
             "key": "db_host",
-            "type": "space",
+            "variable_type": "space",
             "value": "localhost:3306",
             "desc": "主数据库连接地址",
             "creator": "admin",
@@ -68,16 +68,16 @@
 
 #### data[item]
 
-| 字段          | 类型       | 描述          |
-|-------------|----------|-------------|
-| id          | int      | 变量ID        |
-| space_id    | int      | 空间ID        |
-| name        | string   | 变量名         |
-| key         | string   | 变量唯一键       |
-| type        | string   | 变量类型        |
-| value       | string   | 变量值         |
-| desc        | string   | 变量描述        |
-| creator     | string   | 创建者         |
-| create_at   | string   | 创建时间        |
-| updated_by  | string   | 最后更新者       |
-| update_at   | string   | 最后更新时间      |
+| 字段            | 类型       | 描述          |
+|---------------|----------|-------------|
+| id            | int      | 变量ID        |
+| space_id      | int      | 空间ID        |
+| name          | string   | 变量名         |
+| key           | string   | 变量唯一键       |
+| variable_type | string   | 变量类型        |
+| value         | string   | 变量值         |
+| desc          | string   | 变量描述        |
+| creator       | string   | 创建者         |
+| create_at     | string   | 创建时间        |
+| updated_by    | string   | 最后更新者       |
+| update_at     | string   | 最后更新时间      |

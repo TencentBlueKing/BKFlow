@@ -20,7 +20,7 @@ to the current version of the project delivered to anyone in the future.
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import return_json_response
 from bkflow.utils import err_code
@@ -29,7 +29,7 @@ from bkflow.variable_manager.models import VariableManager
 
 @login_exempt
 @csrf_exempt
-@require_http_methods(["DELETE"])
+@require_POST
 @apigw_require
 @return_json_response
 def delete_variable(request, space_id, variable_id):
