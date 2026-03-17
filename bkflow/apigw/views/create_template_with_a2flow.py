@@ -27,14 +27,16 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.serializers.flow_converter import ImportSimpleFlowSerializer
+from bkflow.apigw.serializers.a2flow import CreateTemplateWithA2FlowSerializer
+from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
+from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.utils import err_code
+from bkflow.utils.a2flow import A2FlowConverter
 from bkflow.utils.canvas import OperateType
-from bkflow.utils.flow_converter import SimpleFlowConverter
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
 
 logger = logging.getLogger("root")
@@ -46,28 +48,34 @@ logger = logging.getLogger("root")
 @apigw_require
 @check_jwt_and_space
 @return_json_response
-def import_simple_flow(request, space_id):
+@record_operation(
+    RecordType.template.name,
+    TemplateOperationType.create.name,
+    TemplateOperationSource.api.name,
+    extra_info={"tag": "apigw"},
+)
+def create_template_with_a2flow(request, space_id):
     """
     导入简化流程 JSON 并创建模板
     """
 
     data = json.loads(request.body)
 
-    ser = ImportSimpleFlowSerializer(data=data)
+    ser = CreateTemplateWithA2FlowSerializer(data=data)
     ser.is_valid(raise_exception=True)
 
     validated_data = dict(ser.validated_data)
-    simple_flow = validated_data.pop("simple_flow")
+    a2flow = validated_data.pop("a2flow")
     auto_release = validated_data.pop("auto_release", False)
     name = validated_data.pop("name")
     desc = validated_data.pop("desc", "")
 
     # 转换简化流程为 pipeline_tree
     try:
-        converter = SimpleFlowConverter(simple_flow)
+        converter = A2FlowConverter(a2flow)
         pipeline_tree = converter.convert()
     except (KeyError, ValueError) as e:
-        logger.exception("import_simple_flow: conversion failed - {}".format(str(e)))
+        logger.exception("create_template_with_a2flow: conversion failed - {}".format(str(e)))
         return {
             "result": False,
             "data": {},
@@ -79,7 +87,7 @@ def import_simple_flow(request, space_id):
     try:
         draw_pipeline(pipeline_tree)
     except Exception as e:
-        logger.exception("import_simple_flow: draw_pipeline failed - {}".format(str(e)))
+        logger.exception("create_template_with_a2flow: draw_pipeline failed - {}".format(str(e)))
         return {
             "result": False,
             "data": {},

@@ -484,9 +484,9 @@ paths:
         descriptionEn: Validate a pipeline tree
         enableWebsocket: false
         pluginConfigs: []
-  /space/{space_id}/import_simple_flow/:
+  /space/{space_id}/create_template_with_a2flow/:
     post:
-      operationId: import_simple_flow
+      operationId: create_template_with_a2flow
       description: 导入简化流程 JSON 并创建模板
       tags: []
       responses:
@@ -527,12 +527,12 @@ paths:
               type: object
               required:
               - name
-              - simple_flow
+              - a2flow
               properties:
                 name:
                   type: string
                   description: 模板名称
-                simple_flow:
+                a2flow:
                   type: array
                   description: 简化流程 JSON 数组
                   items:
@@ -561,7 +561,7 @@ paths:
         matchSubpath: false
         backend:
           method: post
-          path: /{env.api_sub_path}apigw/space/{space_id}/import_simple_flow/
+          path: /{env.api_sub_path}apigw/space/{space_id}/create_template_with_a2flow/
           matchSubpath: false
           timeout: 0
           name: default
@@ -570,7 +570,7 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
-        descriptionEn: Import a simple flow JSON and create a template
+        descriptionEn: Import a a2flow JSON and create a template
         enableWebsocket: false
         pluginConfigs: []
   /space/{space_id}/create_mock_task/:

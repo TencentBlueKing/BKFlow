@@ -22,20 +22,20 @@ from rest_framework import serializers
 from bkflow.constants import MAX_LEN_OF_TEMPLATE_NAME, USER_NAME_MAX_LENGTH
 
 
-class ImportSimpleFlowSerializer(serializers.Serializer):
+class CreateTemplateWithA2FlowSerializer(serializers.Serializer):
     name = serializers.CharField(help_text=_("模板名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=True)
-    simple_flow = serializers.JSONField(help_text=_("简化流程 JSON 数组"))
+    a2flow = serializers.JSONField(help_text=_("简化流程 JSON 数组"))
     creator = serializers.CharField(help_text=_("创建人"), max_length=USER_NAME_MAX_LENGTH, required=False)
     scope_type = serializers.CharField(help_text=_("流程范围类型"), max_length=128, required=False)
     scope_value = serializers.CharField(help_text=_("流程范围值"), max_length=128, required=False)
     auto_release = serializers.BooleanField(help_text=_("是否自动发布"), required=False, default=False)
     desc = serializers.CharField(help_text=_("描述"), max_length=256, required=False, allow_blank=True, allow_null=True)
 
-    def validate_simple_flow(self, value):
+    def validate_a2flow(self, value):
         if not isinstance(value, list):
-            raise serializers.ValidationError(_("simple_flow 必须是 JSON 数组"))
+            raise serializers.ValidationError(_("a2flow 必须是 JSON 数组"))
         if not value:
-            raise serializers.ValidationError(_("simple_flow 不能为空"))
+            raise serializers.ValidationError(_("a2flow 不能为空"))
         return value
 
     def validate(self, attrs):

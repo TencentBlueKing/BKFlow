@@ -20,13 +20,14 @@ to the current version of the project delivered to anyone in the future.
 import logging
 import re
 import uuid
+from collections import deque
 
 from pipeline.component_framework.models import ComponentModel
 
 logger = logging.getLogger("root")
 
 
-class SimpleFlowConverter:
+class A2FlowConverter:
     """
     将简化流程 JSON 格式转换为 BKFlow pipeline_tree
 
@@ -50,8 +51,8 @@ class SimpleFlowConverter:
         "loop": None,
     }
 
-    def __init__(self, simple_flow: list):
-        self.simple_flow = simple_flow
+    def __init__(self, a2flow: list):
+        self.a2flow = a2flow
         self.nodes = {}
         self.links = []
         self.variables = []
@@ -60,7 +61,7 @@ class SimpleFlowConverter:
         self._parse_input()
 
     def _parse_input(self):
-        for item in self.simple_flow:
+        for item in self.a2flow:
             item_type = item.get("type")
             if item_type == "Link":
                 self.links.append(item)
@@ -78,6 +79,7 @@ class SimpleFlowConverter:
                     self.nodes[new_id] = item
 
         self._validate_links()
+        self._infer_converge_gateway_ids()
 
     def _generate_node_id(self):
         return "n{}".format(uuid.uuid4().hex[:31])
@@ -94,6 +96,76 @@ class SimpleFlowConverter:
 
         if missing_nodes:
             raise KeyError("Link 引用了未定义的节点: {}".format(", ".join(sorted(missing_nodes))))
+
+    def _infer_converge_gateway_ids(self):
+        """
+        自动推断 ParallelGateway / ConditionalParallelGateway 对应的 ConvergeGateway。
+        使用栈模型：遍历从 start 到 end 的拓扑序，遇到分支网关入栈，遇到汇聚网关出栈配对。
+        """
+        # 构建邻接表（使用原始 ID）
+        adj = {}
+        in_degree = {}
+        for node_id, node in self.nodes.items():
+            original_id = node.get("_original_id", node_id)
+            adj.setdefault(original_id, [])
+            in_degree.setdefault(original_id, 0)
+
+        for link in self.links:
+            source = link["source"]
+            target = link["target"]
+            adj.setdefault(source, [])
+            adj[source].append(target)
+            in_degree.setdefault(target, 0)
+            in_degree[target] += 1
+
+        # 找到 type 映射（原始 ID -> type）
+        original_id_to_type = {}
+        original_id_to_new_id = {}
+        for node_id, node in self.nodes.items():
+            original_id = node.get("_original_id", node_id)
+            original_id_to_type[original_id] = node["type"]
+            original_id_to_new_id[original_id] = node_id
+
+        # 已有 converge_gateway_id 的节点不需要推断
+        needs_infer = {}
+        for node_id, node in self.nodes.items():
+            if node["type"] in ("ParallelGateway", "ConditionalParallelGateway"):
+                if not node.get("converge_gateway_id"):
+                    original_id = node.get("_original_id", node_id)
+                    needs_infer[original_id] = node_id
+
+        if not needs_infer:
+            return
+
+        # BFS 拓扑排序
+        queue = deque()
+        for oid, deg in in_degree.items():
+            if deg == 0:
+                queue.append(oid)
+
+        topo_order = []
+        while queue:
+            curr = queue.popleft()
+            topo_order.append(curr)
+            for nxt in adj.get(curr, []):
+                in_degree[nxt] -= 1
+                if in_degree[nxt] == 0:
+                    queue.append(nxt)
+
+        # 栈配对：遇到 Parallel/ConditionalParallel 入栈，遇到 Converge 出栈
+        parallel_types = ("ParallelGateway", "ConditionalParallelGateway")
+        stack = []
+        for oid in topo_order:
+            ntype = original_id_to_type.get(oid)
+            if ntype in parallel_types:
+                stack.append(oid)
+            elif ntype == "ConvergeGateway" and stack:
+                parallel_oid = stack.pop()
+                if parallel_oid in needs_infer:
+                    new_node_id = needs_infer[parallel_oid]
+                    converge_new_id = original_id_to_new_id.get(oid, oid)
+                    self.nodes[new_node_id]["converge_gateway_id"] = converge_new_id
+                    logger.info("_infer_converge_gateway_ids: {} -> {}".format(parallel_oid, oid))
 
     def _generate_flow_id(self):
         return "l{}".format(uuid.uuid4().hex[:30])
@@ -174,8 +246,9 @@ class SimpleFlowConverter:
             source = self._map_id(link["source"])
             target = self._map_id(link["target"])
             flow_id = self._generate_flow_id()
+            is_default = link.get("is_default", False)
 
-            flows[flow_id] = {"id": flow_id, "is_default": False, "source": source, "target": target}
+            flows[flow_id] = {"id": flow_id, "is_default": is_default, "source": source, "target": target}
 
             if source in node_outgoing:
                 node_outgoing[source].append(flow_id)
@@ -203,6 +276,7 @@ class SimpleFlowConverter:
                     node_incoming.get(node_id, []),
                     node_outgoing.get(node_id, []),
                     source_to_flows.get(node_id, []),
+                    flows,
                 )
 
         for idx, var in enumerate(self.variables):
@@ -222,6 +296,7 @@ class SimpleFlowConverter:
             "end_event": end_event,
             "constants": constants,
             "outputs": [],
+            "canvas_mode": "horizontal",
         }
 
     def _build_activity(self, node, incoming, outgoing) -> dict:
@@ -249,7 +324,7 @@ class SimpleFlowConverter:
         activity.update(self.DEFAULT_ACTIVITY_CONFIG)
         return activity
 
-    def _build_gateway(self, node, incoming, outgoing, outgoing_flows=None) -> dict:
+    def _build_gateway(self, node, incoming, outgoing, outgoing_flows=None, flows=None) -> dict:
         node_type = node["type"]
         outgoing_flows = outgoing_flows or []
 
@@ -268,6 +343,14 @@ class SimpleFlowConverter:
 
         if node_type == "ExclusiveGateway":
             gateway["conditions"] = self._build_gateway_conditions(node.get("conditions", {}), outgoing_flows)
+            # 从 flows 中找到 is_default=True 的 flow，设置 default_condition
+            default_flow_id = ""
+            if flows:
+                for flow_id, _, _ in outgoing_flows:
+                    if flows.get(flow_id, {}).get("is_default", False):
+                        default_flow_id = flow_id
+                        break
+            gateway["default_condition"] = {"flow_id": default_flow_id, "name": "默认分支"} if default_flow_id else {}
 
         if node_type in ("ParallelGateway", "ConditionalParallelGateway"):
             converge_id = node.get("converge_gateway_id", "")
