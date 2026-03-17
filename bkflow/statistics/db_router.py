@@ -1,4 +1,11 @@
 class StatisticsDBRouter:
+    """统计模块的数据库路由器
+
+    将 statistics app 的所有 Model 路由到独立的 statistics 数据库。
+    若 settings.DATABASES 中未配置 statistics 数据库，则回退到 default。
+    同时禁止 statistics Model 与其他 app Model 的跨库关联。
+    """
+
     APP_LABEL = "statistics"
     DB_ALIAS = "statistics"
 

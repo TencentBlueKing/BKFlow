@@ -1,9 +1,13 @@
+"""运营统计 API 的序列化器，定义各统计接口的响应和请求参数格式"""
+
 from rest_framework import serializers
 
 from bkflow.statistics.models import DailyStatisticsSummary
 
 
 class StatisticsOverviewSerializer(serializers.Serializer):
+    """统计概览响应"""
+
     total_templates = serializers.IntegerField()
     total_tasks = serializers.IntegerField()
     total_tasks_finished = serializers.IntegerField()
@@ -87,6 +91,8 @@ class DailyStatisticsSummarySerializer(serializers.ModelSerializer):
 
 
 class DateRangeParamSerializer(serializers.Serializer):
+    """日期范围查询参数，date_start/date_end 和 date_range 至少提供一个"""
+
     date_start = serializers.DateField(required=False)
     date_end = serializers.DateField(required=False)
     date_range = serializers.ChoiceField(

@@ -1,3 +1,13 @@
+"""运营统计数据模型
+
+数据分为两层：
+- 明细层：TaskflowStatistics（任务）、TaskflowExecutedNodeStatistics（节点）、
+          TemplateStatistics（模板）、TemplateNodeStatistics（模板节点）
+- 汇总层：DailyStatisticsSummary（每日汇总）、PluginExecutionSummary（插件执行汇总）
+
+所有模型通过 StatisticsDBRouter 路由到独立的 statistics 数据库（或 default）。
+"""
+
 from django.db import models
 
 
@@ -8,6 +18,8 @@ class StatisticsBaseModel(models.Model):
 
 
 class TaskflowStatistics(StatisticsBaseModel):
+    """任务统计明细，记录每个任务的基本信息、节点构成和执行状态"""
+
     id = models.BigAutoField(primary_key=True)
     task_id = models.BigIntegerField("任务ID", unique=True, db_index=True)
     space_id = models.BigIntegerField("空间ID", db_index=True)
@@ -49,6 +61,8 @@ class TaskflowStatistics(StatisticsBaseModel):
 
 
 class TaskflowExecutedNodeStatistics(StatisticsBaseModel):
+    """已执行节点统计明细，记录每个插件节点的执行结果、耗时和重试信息"""
+
     id = models.BigAutoField(primary_key=True)
     task_id = models.BigIntegerField("任务ID", db_index=True)
     space_id = models.BigIntegerField("空间ID", db_index=True)
@@ -86,6 +100,8 @@ class TaskflowExecutedNodeStatistics(StatisticsBaseModel):
 
 
 class TemplateStatistics(StatisticsBaseModel):
+    """模板统计，记录模板的节点构成和元信息"""
+
     id = models.BigAutoField(primary_key=True)
     template_id = models.BigIntegerField("模板ID", unique=True, db_index=True)
     space_id = models.BigIntegerField("空间ID", db_index=True)
@@ -113,6 +129,8 @@ class TemplateStatistics(StatisticsBaseModel):
 
 
 class TemplateNodeStatistics(StatisticsBaseModel):
+    """模板节点统计，记录模板中每个插件节点的编码、版本和在子流程中的位置"""
+
     id = models.BigAutoField(primary_key=True)
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
     version = models.CharField("插件版本", max_length=255, default="legacy")
@@ -143,6 +161,8 @@ class TemplateNodeStatistics(StatisticsBaseModel):
 
 
 class DailyStatisticsSummary(StatisticsBaseModel):
+    """每日统计汇总，按空间和范围聚合任务和节点的执行概况"""
+
     id = models.BigAutoField(primary_key=True)
     date = models.DateField("统计日期", db_index=True)
     space_id = models.BigIntegerField("空间ID", db_index=True)
@@ -178,6 +198,8 @@ class DailyStatisticsSummary(StatisticsBaseModel):
 
 
 class PluginExecutionSummary(StatisticsBaseModel):
+    """插件执行汇总，按周期（日/周/月）聚合各插件的执行次数、成功率和耗时"""
+
     id = models.BigAutoField(primary_key=True)
     period_type = models.CharField("周期类型", max_length=16, db_index=True)
     period_start = models.DateField("周期开始日期", db_index=True)

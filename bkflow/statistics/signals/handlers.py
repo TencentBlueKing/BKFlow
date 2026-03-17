@@ -1,3 +1,12 @@
+"""统计模块的 Django 信号处理器
+
+根据模块类型注册不同的信号：
+- interface 模块：监听 Template 的 pre_save/post_save，在模板保存时异步采集模板统计
+- engine 模块：监听 TaskInstance 的 post_save（任务创建时采集）和 post_set_state（任务归档时采集）
+
+信号注册是幂等的，通过 _signals_registered 标志确保只注册一次。
+"""
+
 import logging
 
 from django.db.models.signals import post_save, pre_save
@@ -11,6 +20,7 @@ _signals_registered = False
 
 
 def register_statistics_signals():
+    """根据当前模块类型注册对应的统计信号，幂等调用"""
     global _signals_registered
     if _signals_registered:
         return
@@ -31,11 +41,17 @@ def register_statistics_signals():
 
 
 def _register_template_signals():
+    """注册模板相关的统计信号
+
+    pre_save: 记录保存前的 snapshot_id，用于 post_save 时判断 pipeline 结构是否变化
+    post_save: 异步触发模板统计采集任务
+    """
     try:
         from bkflow.template.models import Template
 
         @receiver(pre_save, sender=Template, dispatch_uid="template_statistics_pre_save")
         def template_pre_save_handler(sender, instance, **kwargs):
+            # 记录保存前的 snapshot_id，用于判断 pipeline 是否有结构变更
             if instance.pk:
                 try:
                     old = Template.objects.filter(pk=instance.pk).values_list("snapshot_id", flat=True).first()
@@ -64,6 +80,11 @@ def _register_template_signals():
 
 
 def _register_task_signals():
+    """注册任务相关的统计信号
+
+    post_save: 任务创建时触发统计采集
+    post_set_state: 任务进入终态（FINISHED/REVOKED）时触发归档统计采集
+    """
     try:
         from bkflow.task.models import TaskInstance
 
@@ -82,6 +103,7 @@ def _register_task_signals():
 
             @receiver(post_set_state, dispatch_uid="task_statistics_state_change")
             def task_state_change_handler(sender, node_id, to_state, version, root_id, **kwargs):
+                # 只在根节点（node_id == root_id）进入终态时触发归档统计
                 if node_id == root_id and to_state in ("FINISHED", "REVOKED"):
                     try:
                         from bkflow.statistics.tasks import task_archive_statistics_task
