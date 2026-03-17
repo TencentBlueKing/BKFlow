@@ -20,7 +20,7 @@ to the current version of the project delivered to anyone in the future.
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods
 
 from bkflow.apigw.decorators import return_json_response
 from bkflow.utils import err_code
@@ -29,7 +29,7 @@ from bkflow.variable_manager.models import VariableManager
 
 @login_exempt
 @csrf_exempt
-@require_POST
+@require_http_methods(["DELETE"])
 @apigw_require
 @return_json_response
 def delete_variable(request, space_id, variable_id):
@@ -37,7 +37,7 @@ def delete_variable(request, space_id, variable_id):
         try:
             variable = VariableManager.objects.get(id=variable_id, space_id=space_id, is_deleted=False)
         except VariableManager.DoesNotExist:
-            return {"result": False, "code": err_code.VALIDATION_ERROR.code, "message": "变量不存在"}
+            return {"result": False, "code": err_code.VALIDATION_ERROR.code, "message": "变量不存在或已被删除"}
 
         variable.delete()
         return {"result": True, "code": err_code.SUCCESS.code, "message": "变量删除成功"}

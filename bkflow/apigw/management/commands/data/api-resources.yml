@@ -1403,7 +1403,7 @@ paths:
   /space/{space_id}/create_variable/:
     post:
       operationId: create_variable
-      description: 创建变量
+      description: 创建空间变量
       tags: []
       responses:
         default:
@@ -1430,9 +1430,9 @@ paths:
           enableWebsocket: false
           pluginConfigs: []
   /space/{space_id}/variable/{variable_id}/delete_variable/:
-    post:
+    delete:
       operationId: delete_variable
-      description: 删除变量
+      description: 删除空间变量
       tags: []
       responses:
         default:
@@ -1445,7 +1445,7 @@ paths:
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          method: post
+          method: delete
           path: /{env.api_sub_path}apigw/space/{space_id}/variable/{variable_id}/delete_variable/
           matchSubpath: false
           timeout: 0
@@ -1459,9 +1459,9 @@ paths:
           enableWebsocket: false
           pluginConfigs: []
   /space/{space_id}/variable/{variable_id}/update_variable/:
-    post:
+    put:
       operationId: update_variable
-      description: 更新变量
+      description: 更新空间变量
       tags: []
       responses:
         default:
@@ -1474,7 +1474,7 @@ paths:
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          method: post
+          method: put
           path: /{env.api_sub_path}apigw/space/{space_id}/variable/{variable_id}/update_variable/
           matchSubpath: false
           timeout: 0
@@ -1490,7 +1490,7 @@ paths:
   /space/{space_id}/get_variable_list/:
     get:
       operationId: get_variable_list
-      description: 获取变量列表
+      description: 获取空间变量列表
       tags: []
       responses:
         default:
