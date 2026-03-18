@@ -42,7 +42,7 @@ class CreateTemplateWithA2FlowSerializer(serializers.Serializer):
         scope_type = attrs.get("scope_type")
         scope_value = attrs.get("scope_value")
 
-        if (scope_type is not None) != (scope_value is not None):
+        if bool(scope_type) != bool(scope_value):
             raise serializers.ValidationError(_("作用域类型和作用域值必须同时填写，或同时不填写"))
 
         return attrs
