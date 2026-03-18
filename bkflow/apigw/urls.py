@@ -35,6 +35,9 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         create_task_without_template,
     )
     from bkflow.apigw.views.create_template import create_template
+    from bkflow.apigw.views.create_template_with_a2flow import (
+        create_template_with_a2flow,
+    )
     from bkflow.apigw.views.delete_task import delete_task
     from bkflow.apigw.views.delete_template import delete_template
     from bkflow.apigw.views.get_plugin_outputs import get_plugin_outputs
@@ -80,6 +83,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/create_mock_task/$", create_mock_task),
         url(r"^space/(?P<space_id>\d+)/create_task_without_template/$", create_task_without_template),
         url(r"^space/(?P<space_id>\d+)/validate_pipeline_tree/$", validate_pipeline_tree),
+        url(r"^space/(?P<space_id>\d+)/create_template_with_a2flow/$", create_template_with_a2flow),
         url(r"^space/(?P<space_id>\d+)/create_credential/$", create_credential),
         url(r"^space/(?P<space_id>\d+)/credential/(?P<credential_id>\d+)/$", update_credential),
         url(r"^space/(?P<space_id>\d+)/get_task_list/$", get_task_list),
