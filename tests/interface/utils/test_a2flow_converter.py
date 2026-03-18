@@ -64,7 +64,9 @@ class TestA2FlowConverterBasic(TestCase):
     @patch("bkflow.utils.a2flow.ComponentModel")
     def test_activity_fields_complete(self, mock_cm):
         """测试 Activity 节点字段完整性"""
-        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0"]
+        mock_cm.objects.filter.return_value.values_list.side_effect = lambda *args, **kwargs: (
+            [("job_fast_execute_script", "v1.0")] if "flat" not in kwargs else ["v1.0"]
+        )
         A2FlowConverter = self._get_converter_class()
 
         converter = A2FlowConverter(self._simple_linear_flow())
@@ -780,7 +782,11 @@ class TestA2FlowConverterVersionLookup(TestCase):
     @patch("bkflow.utils.a2flow.ComponentModel")
     def test_latest_version_selected(self, mock_cm):
         """测试选择最新版本"""
-        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0", "v2.0", "v1.5"]
+        mock_cm.objects.filter.return_value.values_list.side_effect = lambda *args, **kwargs: (
+            [("test_component", "v1.0"), ("test_component", "v2.0"), ("test_component", "v1.5")]
+            if "flat" not in kwargs
+            else ["v1.0", "v2.0", "v1.5"]
+        )
         A2FlowConverter = self._get_converter_class()
 
         a2flow = [
