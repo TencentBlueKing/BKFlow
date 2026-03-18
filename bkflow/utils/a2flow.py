@@ -20,7 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 import re
 import uuid
-from collections import deque
+from collections import defaultdict, deque
 
 from pipeline.component_framework.models import ComponentModel
 
@@ -202,7 +202,7 @@ class A2FlowConverter:
             return "legacy"
 
         try:
-            versions = ComponentModel.objects.filter(code=code, status=1).values_list("version", flat=True)
+            versions = list(ComponentModel.objects.filter(code=code, status=1).values_list("version", flat=True))
 
             if not versions:
                 logger.warning("_get_latest_component_version: No component found for code={}".format(code))
@@ -228,6 +228,50 @@ class A2FlowConverter:
         except Exception as e:
             logger.exception("_get_latest_component_version: Error getting version for code={}: {}".format(code, e))
             return "legacy"
+
+    def _batch_get_latest_component_versions(self, codes):
+        """批量查询所有 code 的最新版本，返回 {code: version} 映射字典。"""
+        version_map = {}
+        codes = {c for c in codes if c}
+        if not codes:
+            return version_map
+
+        try:
+            # 单次查询获取所有相关 code 的版本
+            rows = ComponentModel.objects.filter(code__in=codes, status=1).values_list("code", "version")
+
+            # 按 code 分组
+            code_versions = defaultdict(list)
+            for code, version in rows:
+                code_versions[code].append(version)
+
+            for code in codes:
+                versions = code_versions.get(code)
+                if not versions:
+                    logger.warning("_batch_get_latest_component_versions: No component found for code={}".format(code))
+                    version_map[code] = "legacy"
+                    continue
+
+                latest_version = None
+                latest_tuple = (0, 0, 0)
+                for version in versions:
+                    version_tuple = self._parse_version_number(version)
+                    if version_tuple > latest_tuple:
+                        latest_tuple = version_tuple
+                        latest_version = version
+
+                version_map[code] = latest_version or "legacy"
+
+            logger.info(
+                "_batch_get_latest_component_versions: queried {} codes, result={}".format(len(codes), version_map)
+            )
+        except Exception as e:
+            logger.exception("_batch_get_latest_component_versions: Error batch querying versions: {}".format(e))
+            # 出错时所有 code 回退到 legacy
+            for code in codes:
+                version_map.setdefault(code, "legacy")
+
+        return version_map
 
     def convert(self) -> dict:
         activities = {}
@@ -259,6 +303,10 @@ class A2FlowConverter:
                 original_target = link["target"]
                 source_to_flows[source].append((flow_id, target, original_target))
 
+        # 批量查询所有 Activity 节点的 component version
+        activity_codes = {node.get("code", "") for node in self.nodes.values() if node.get("type") == "Activity"}
+        component_version_map = self._batch_get_latest_component_versions(activity_codes)
+
         for node_id, node in self.nodes.items():
             node_type = node["type"]
 
@@ -268,7 +316,7 @@ class A2FlowConverter:
                 end_event = self._build_end_event(node, node_incoming.get(node_id, []))
             elif node_type == "Activity":
                 activities[node_id] = self._build_activity(
-                    node, node_incoming.get(node_id, []), node_outgoing.get(node_id, [])
+                    node, node_incoming.get(node_id, []), node_outgoing.get(node_id, []), component_version_map
                 )
             elif node_type in ("ParallelGateway", "ConditionalParallelGateway", "ExclusiveGateway", "ConvergeGateway"):
                 gateways[node_id] = self._build_gateway(
@@ -299,14 +347,17 @@ class A2FlowConverter:
             "canvas_mode": "horizontal",
         }
 
-    def _build_activity(self, node, incoming, outgoing) -> dict:
+    def _build_activity(self, node, incoming, outgoing, component_version_map=None) -> dict:
         outgoing_value = outgoing[0] if len(outgoing) == 1 else outgoing
 
         raw_data = node.get("data", {})
         normalized_data = self._normalize_component_data(raw_data)
 
         code = node.get("code", "")
-        version = self._get_latest_component_version(code)
+        if component_version_map is not None:
+            version = component_version_map.get(code, "legacy") if code else "legacy"
+        else:
+            version = self._get_latest_component_version(code)
 
         activity = {
             "id": node["id"],
