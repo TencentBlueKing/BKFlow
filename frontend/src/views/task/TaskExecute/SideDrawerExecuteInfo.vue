@@ -71,7 +71,7 @@
             <bk-breadcrumb-item
               v-if="nodeDetailActivityPanel === 'record' && breadcrumbData && breadcrumbData[0].executeOptions && breadcrumbData[0].executeOptions.length > 1">
               <span
-                v-if="breadcrumbData.length > 1"
+                v-if="breadcrumbData.length > 0"
                 class="separator">/</span>
               <span>{{ $t('执行次数') }}</span>
               <bk-popover :content="$t('当前循环的执行次数')">
@@ -740,7 +740,7 @@
         }
         // 当前节点为子流程节点
         if (this.isShowSubflowOperationsWithinLoop) {
-          this.onSelectExecuteRecord(1, [selectedData]);
+          await this.onSelectExecuteRecord(1, [selectedData]);
         } else {
           // 更新子节点的执行次数
           this.isBreadCrumbLoading = true;
@@ -806,10 +806,12 @@
       // 切换子流程子节点循环次数
       async selectBreadcrumExecuteCount(value, item) {
         this.isBreadCrumbLoading = true;
+        this.executeBodyLoading = true;
         let taskId = '';
         const record = item.allExecutedInfo[value - 1];
         if (!record) {
           this.isBreadCrumbLoading = false;
+          this.executeBodyLoading = false;
           return;
         }
         const { outputs } = record;
@@ -835,8 +837,9 @@
         }
         item.curSelectCount = value;
         item.taskId = taskId;
-        this.onSelectExecuteRecord(value, this.historyInfo);
+        await this.onSelectExecuteRecord(value, this.historyInfo);
         this.isBreadCrumbLoading = false;
+        this.executeBodyLoading = false;
       },
       // 递归查找目标节点并收集路径
       findNodePath(nodes, targetId, currentPath = []) {
