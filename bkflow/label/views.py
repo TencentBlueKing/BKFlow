@@ -191,26 +191,51 @@ class LabelViewSet(AdminModelViewSet):
         ser.is_valid(raise_exception=True)
         validated_params = ser.validated_data
 
+        label_ids = validated_params["label_ids"].split(",")
+        # 过滤所有子标签
+        all_child_label_ids = Label.objects.filter(
+            space_id=validated_params["space_id"], parent_id__in=label_ids
+        ).values("id", "parent_id")
+        label_child_map = {}
+        for item in all_child_label_ids:
+            if not str(item["parent_id"]) in label_child_map:
+                label_child_map[str(item["parent_id"])] = [str(item["id"])]
+            else:
+                label_child_map[str(item["parent_id"])].append(str(item["id"]))
+
+        all_query_label_ids = list(
+            set(label_ids + [str(num) for value_list in label_child_map.values() for num in value_list])
+        )
         # 调用任务组件接口获取任务引用数量
         client = TaskComponentClient(space_id=validated_params["space_id"])
-        result = client.get_task_label_ref_count(validated_params["space_id"], validated_params["label_ids"])
+        result = client.get_task_label_ref_count(validated_params["space_id"], ",".join(all_query_label_ids))
         if not result["result"]:
             return Response(result)
         label_task_ref_count_map = result["data"]
 
         # 获取模板引用数量
-        label_ids = validated_params["label_ids"].split(",")
         aggregation_qs = (
-            TemplateLabelRelation.objects.filter(label_id__in=label_ids).values("label_id").annotate(count=Count("id"))
+            TemplateLabelRelation.objects.filter(label_id__in=all_query_label_ids)
+            .values("label_id")
+            .annotate(count=Count("id"))
         )
         label_template_count_map = {item["label_id"]: item["count"] for item in aggregation_qs}
 
         # 合并结果
         ref_result = {}
         for label_id in label_ids:
+            if label_id in label_child_map:
+                # 如果存在子标签，统计子标签的引用数量
+                child_label_ids = label_child_map[label_id]
+                template_count = sum(label_template_count_map.get(int(child_id), 0) for child_id in child_label_ids)
+                task_count = sum(label_task_ref_count_map.get(str(child_id), 0) for child_id in child_label_ids)
+            else:
+                template_count = label_template_count_map.get(int(label_id), 0)
+                task_count = label_task_ref_count_map.get(label_id, 0)
+
             ref_result[label_id] = {
-                "template_count": label_template_count_map.get(int(label_id), 0),
-                "task_count": label_task_ref_count_map.get(label_id, 0),
+                "template_count": template_count,
+                "task_count": task_count,
             }
 
         return Response(ref_result)
