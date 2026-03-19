@@ -96,7 +96,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     desc = serializers.CharField(help_text=_("流程说明"), required=False, allow_blank=True, allow_null=True)
     triggers = TriggerSerializer(many=True, required=True, allow_null=True)
     subprocess_info = serializers.JSONField(help_text=_("子流程信息"), read_only=True)
-    labels = serializers.CharField(help_text=_("模板标签"), required=False, allow_blank=True, allow_null=True)
+    labels = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
