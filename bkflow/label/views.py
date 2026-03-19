@@ -215,7 +215,7 @@ class LabelViewSet(AdminModelViewSet):
 
         # 获取模板引用数量
         aggregation_qs = (
-            TemplateLabelRelation.objects.filter(abel_id__in=all_query_label_ids)
+            TemplateLabelRelation.objects.filter(label_id__in=all_query_label_ids)
             .values("label_id")
             .annotate(count=Count("id"))
         )
