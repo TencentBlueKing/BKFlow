@@ -172,6 +172,9 @@ class Label(models.Model):
                 q_objects |= Q(name__icontains=keyword)
             label_ids = list(Label.objects.filter(q_objects).values_list("id", flat=True))
 
+        all_child_label_ids = list(Label.objects.filter(parent_id__in=label_ids).values_list("id", flat=True))
+        label_ids = list(set(label_ids + all_child_label_ids))
+
         return label_ids
 
     @property

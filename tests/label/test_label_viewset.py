@@ -253,6 +253,49 @@ class TestLabelViewSet:
             assert ref_data[str(l1.id)]["task_count"] == 3
             assert ref_data[str(l2.id)]["task_count"] == 1
 
+    def test_get_label_ref_count_parent_sums_children(self):
+        """If a label has children, get_label_ref_count should return sum of all children refs."""
+        parent = make_label("parent", space_id=1)
+        child1 = make_label("child1", space_id=1, parent_id=parent.id)
+        child2 = make_label("child2", space_id=1, parent_id=parent.id)
+
+        # Template refs exist only on children
+        TemplateLabelRelation.objects.create(template_id=200, label_id=child1.id)
+        TemplateLabelRelation.objects.create(template_id=201, label_id=child1.id)
+        TemplateLabelRelation.objects.create(template_id=202, label_id=child2.id)
+
+        with patch("bkflow.label.views.TaskComponentClient") as mock_client:
+            mock_instance = mock_client.return_value
+            mock_instance.get_task_label_ref_count.return_value = {
+                "result": True,
+                "data": {
+                    str(child1.id): 5,
+                    str(child2.id): 7,
+                },
+            }
+
+            request = self.factory.get(
+                f"/api/label/get_label_ref_count/?space_id=1&label_ids={parent.id}"
+            )
+            request.user = self.admin_user
+
+            response = self.get_label_ref_count_view(request)
+            assert response.status_code == status.HTTP_200_OK
+
+            ref_data = response.data["data"]
+            assert str(parent.id) in ref_data
+
+            # Parent counts should be the sum of children counts
+            assert ref_data[str(parent.id)]["template_count"] == 3
+            assert ref_data[str(parent.id)]["task_count"] == 12
+
+            # Ensure task client was called with both parent and child ids
+            called_args = mock_instance.get_task_label_ref_count.call_args[0]
+            assert called_args[0] == 1
+            assert called_args[1].startswith(f"{parent.id},")
+            assert str(child1.id) in called_args[1]
+            assert str(child2.id) in called_args[1]
+
     def test_get_label_ref_count_client_error(self):
         """get_label_ref_count should handle TaskComponentClient errors gracefully."""
         l1 = make_label("label1", space_id=1)
