@@ -3356,6 +3356,103 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
+  /sdk/space/config/get_control_config/:
+    get:
+      operationId: sdk_get_control_config
+      description: 获取空间下触发器控制配置
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/space/config/get_control_config/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/space/config/{space_id}/check_space_config/:
+    get:
+      operationId: sdk_check_space_config
+      description: 检查空间配置
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: query
+        name: name
+        schema:
+          type: string
+        required: true
+        description: 配置名称
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/space/config/{space_id}/check_space_config/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/draw_pipeline/:
+    post:
+      operationId: sdk_draw_pipeline
+      description: 画布自动排版
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/draw_pipeline/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/template/{template_id}/release_template/:
     post:
       operationId: release_template
