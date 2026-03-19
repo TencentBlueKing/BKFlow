@@ -198,12 +198,14 @@ class LabelViewSet(AdminModelViewSet):
         ).values("id", "parent_id")
         label_child_map = {}
         for item in all_child_label_ids:
-            if str(item["parent_id"]) not in label_child_map:    
+            if not str(item["parent_id"]) in label_child_map:    
                 label_child_map[str(item["parent_id"])] = [str(item["id"])]
             else:
                 label_child_map[str(item["parent_id"])].append(str(item["id"]))
 
-        all_query_label_ids = label_ids + [str(num) for value_list in label_child_map.values() for num in value_list]
+        all_query_label_ids = list(set(
+            label_ids + [str(num) for value_list in label_child_map.values() for num in value_list]
+        ))
         # 调用任务组件接口获取任务引用数量
         client = TaskComponentClient(space_id=validated_params["space_id"])
         result = client.get_task_label_ref_count(validated_params["space_id"], ",".join(all_query_label_ids))
@@ -212,9 +214,10 @@ class LabelViewSet(AdminModelViewSet):
         label_task_ref_count_map = result["data"]
 
         # 获取模板引用数量
-        label_ids = validated_params["label_ids"].split(",")
         aggregation_qs = (
-            TemplateLabelRelation.objects.filter(label_id__in=all_query_label_ids).values("label_id").annotate(count=Count("id"))
+            TemplateLabelRelation.objects.filter(
+                abel_id__in=all_query_label_ids
+            ).values("label_id").annotate(count=Count("id"))
         )
         label_template_count_map = {item["label_id"]: item["count"] for item in aggregation_qs}
 
@@ -236,4 +239,3 @@ class LabelViewSet(AdminModelViewSet):
             }
 
         return Response(ref_result)
-    
