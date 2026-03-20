@@ -1421,14 +1421,14 @@ paths:
           matchSubpath: false
           timeout: 0
           name: default
-          authConfig:
-            userVerifiedRequired: false
-            appVerifiedRequired: true
-            resourcePermissionRequired: true
-          disabledStages: []
-          descriptionEn: Create variable
-          enableWebsocket: false
-          pluginConfigs: []
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Create variable
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/variable/{variable_id}/delete_variable/:
     post:
       operationId: delete_variable
@@ -1450,14 +1450,14 @@ paths:
           matchSubpath: false
           timeout: 0
           name: default
-          authConfig:
-            userVerifiedRequired: false
-            appVerifiedRequired: true
-            resourcePermissionRequired: true
-          disabledStages: []
-          descriptionEn: Delete variable
-          enableWebsocket: false
-          pluginConfigs: []
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Delete variable
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/variable/{variable_id}/update_variable/:
     put:
       operationId: update_variable
@@ -1479,14 +1479,14 @@ paths:
           matchSubpath: false
           timeout: 0
           name: default
-          authConfig:
-            userVerifiedRequired: false
-            appVerifiedRequired: true
-            resourcePermissionRequired: true
-          disabledStages: []
-          descriptionEn: Update variable
-          enableWebsocket: false
-          pluginConfigs: []
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Update variable
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/get_variable_list/:
     get:
       operationId: get_variable_list
@@ -1508,14 +1508,14 @@ paths:
           matchSubpath: false
           timeout: 0
           name: default
-          authConfig:
-            userVerifiedRequired: false
-            appVerifiedRequired: true
-            resourcePermissionRequired: true
-          disabledStages: []
-          descriptionEn: Get variable list
-          enableWebsocket: false
-          pluginConfigs: []
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Get variable list
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/get_tasks_states/:
     post:
       operationId: get_tasks_states
