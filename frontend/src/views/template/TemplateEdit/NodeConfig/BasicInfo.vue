@@ -635,7 +635,7 @@
               </bk-checkbox>
               <bk-checkbox
                 v-model="formData.loopConfig.retryable"
-                :disabled="isViewMode"
+                :disabled="isViewMode || formData.loopConfig.fail_skip"
                 ext-cls="loop-error-checkbox"
                 @change="onLoopErrorControlChange($event, 'retryable')">
                 <span class="error-handle-icon"><span class="text">MR</span></span>

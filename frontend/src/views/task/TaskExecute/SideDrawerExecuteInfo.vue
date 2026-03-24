@@ -34,79 +34,49 @@
             v-if="isShowSubflowExceutedCount"
             v-bkloading="{ isLoading: isBreadCrumbLoading, opacity: 1, zIndex: 100 }"
             class="node-name">
+            <!-- 子流程重试次数(外循环) -->
             <bk-breadcrumb-item v-if="breadcrumbData[0]">
               <span>{{ breadcrumbData[0].name }}</span>
-              <bk-popover :content="$t('当前执行次数')">
-                <bk-select
-                  v-if="nodeDetailActivityPanel === 'record' && breadcrumbData && breadcrumbData[0]?.retryLatestOptions > 0"
-                  :clearable="false"
-                  :value="breadcrumbData[0].currentRetry"
-                  @selected="selectRetryCount($event, breadcrumbData[0])">
-                  <bk-option
-                    v-for="retry in breadcrumbData[0].retryLatestOptions + 1"
-                    :id="retry"
-                    :key="retry"
-                    :name="retry" />
-                </bk-select>
-              </bk-popover>
+              <LoopCountSelector
+                v-if="nodeDetailActivityPanel === 'record' && breadcrumbData && breadcrumbData[0]?.retryLatestOptions > 0"
+                :tooltip="$t('当前执行次数')"
+                :options="breadcrumbData[0].retryLatestOptions + 1"
+                :value="breadcrumbData[0].currentRetry"
+                @selected="selectRetryCount($event, breadcrumbData[0])" />
             </bk-breadcrumb-item>
+            <!-- 子流程内循环次数 -->
             <bk-breadcrumb-item
               v-if="nodeDetailActivityPanel === 'record' && breadcrumbData && breadcrumbData[0].loopOptions && breadcrumbData[0].loopOptions.length > 1">
-              <span
-                class="separator">/</span>
-              <span>{{ $t('循环') }}</span>
-              <bk-popover :content="$t('当前节点内的循环次数')">
-                <bk-select
-                  :clearable="false"
-                  :value="breadcrumbData[0].currentLoop"
-                  @selected="selectLoopCount($event, breadcrumbData[0])">
-                  <bk-option
-                    v-for="loopItem in breadcrumbData[0].loopOptions"
-                    :id="loopItem"
-                    :key="loopItem"
-                    :name="loopItem" />
-                </bk-select>
-              </bk-popover>
+              <LoopCountSelector
+                :tooltip="$t('当前节点内的循环次数')"
+                :options="breadcrumbData[0].loopOptions"
+                :value="breadcrumbData[0].currentLoop"
+                @selected="selectLoopCount($event, breadcrumbData[0])" />
             </bk-breadcrumb-item>
+            <!-- 子流程内循环的执行次数 -->
             <bk-breadcrumb-item
               v-if="nodeDetailActivityPanel === 'record' && breadcrumbData && breadcrumbData[0].executeOptions && breadcrumbData[0].executeOptions.length > 1">
-              <span
-                v-if="breadcrumbData.length > 0"
-                class="separator">/</span>
-              <span>{{ $t('执行次数') }}</span>
-              <bk-popover :content="$t('当前循环的执行次数')">
-                <bk-select
-                  :clearable="false"
-                  :value="breadcrumbData[0].currentExecute"
-                  @selected="selectExecuteCount($event)">
-                  <bk-option
-                    v-for="execute in breadcrumbData[0].executeOptions"
-                    :id="execute"
-                    :key="execute"
-                    :name="execute" />
-                </bk-select>
-              </bk-popover>
+              <LoopCountSelector
+                :tooltip="$t('当前循环的执行次数')"
+                :options="breadcrumbData[0].executeOptions"
+                :value="breadcrumbData[0].currentExecute"
+                :suffix-text="$t('执行')"
+                @selected="selectExecuteCount($event)" />
             </bk-breadcrumb-item>
+            <!-- 子流程子节点循环次数 -->
             <bk-breadcrumb-item
               v-for="(item,index) in breadcrumbData.slice(1)"
               :key="index">
               <span
                 v-if="breadcrumbData.length > 1"
-                class="separator">/</span>
+                class="separator"> &gt; </span>
               <span>{{ item.name }}</span>
-              <bk-popover :content="$t('当前执行次数')">
-                <bk-select
-                  v-if=" nodeDetailActivityPanel === 'record' && item.totalCount > 1"
-                  :clearable="false"
-                  :value="item.curSelectCount"
-                  @selected="selectBreadcrumExecuteCount($event, item)">
-                  <bk-option
-                    v-for="count in item.totalCount"
-                    :id="count"
-                    :key="count"
-                    :name="count" />
-                </bk-select>
-              </bk-popover>
+              <LoopCountSelector
+                v-if="item.totalCount > 1 && nodeDetailActivityPanel === 'record'"
+                :tooltip="$t('当前执行次数')"
+                :options="item.totalCount"
+                :value="item.curSelectCount"
+                @selected="selectBreadcrumExecuteCount($event, item)" />
             </bk-breadcrumb-item>
           </bk-breadcrumb>
           <span
@@ -274,9 +244,11 @@
   import axios from 'axios';
   import SubflowCanvas from '@/components/canvas/ProcessCanvas/SubflowCanvas.vue';
   import OptionsPanel from './ExecuteInfoCompoment/OptionsPanel.vue';
+  import LoopCountSelector from './ExecuteInfoCompoment/LoopCountSelector.vue';
   import { getOrderNodeToNodeTree } from '@/utils/orderCanvasNodeToNodeTree.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import SubStageCanvas from '../../../components/canvas/StageCanvas/SubStageCanvas.vue';
+import TemplateData from './TemplateData.vue';
   const { CancelToken } = axios;
   let source = CancelToken.source();
 
@@ -286,8 +258,10 @@
       NodeTree,
       SubflowCanvas,
       OptionsPanel,
+      LoopCountSelector,
       JumpLinkBKFlowOrExternal,
       SubStageCanvas,
+        TemplateData,
     },
     props: {
       adminView: {
@@ -492,7 +466,12 @@
         // 如果整体任务执行完毕但有的节点没执行的话不展示描述
         if (['FAILED', 'FINISHED'].includes(this.state) && this.realTimeState.state === 'READY') return i18n.t('未执行');
         const { state, skip, error_ignored: errorIgnored } = this.realTimeState;
-        return skip || errorIgnored ? i18n.t('失败后跳过') : state && TASK_STATE_DICT[state];
+        const isErrorAfterSkip = skip || errorIgnored;
+        if (isErrorAfterSkip) {
+          this.isShowSkipBtn = false;
+          this.isShowRetryBtn = false;
+        }
+        return isErrorAfterSkip ? i18n.t('失败后跳过') : state && TASK_STATE_DICT[state];
       },
       // 节点位置
       location() {
@@ -1554,6 +1533,7 @@
               item.totalCount = item.allExecutedInfo.length;
             }
             if (index === 0) {
+              this.isBreadCrumbLoading = true;
               // 初始化breadcrumbData[0]的选项数据
               if (!this.breadcrumbData[0] || !this.executeInfo) {
                 this.isBreadCrumbLoading = false;
@@ -1563,6 +1543,7 @@
               this.breadcrumbData[0].currentRetry = resp.data.retry + 1;
               // 初始化循环和执行次数选项
               this.updateLoopAndExecuteOptions();
+              this.isBreadCrumbLoading = false;
             }
           }
           });
@@ -1637,7 +1618,6 @@
               // }
             }
           }
-
           // 获取执行失败节点是否允许跳过，重试状态
           if (this.realTimeState.state === 'FAILED') {
             const activityCollection = Object.assign({}, this.subCanvsActivityCollection, this.pipelineData.activities);
@@ -1870,9 +1850,10 @@
            display: none !important;
         }
         .separator {
-          margin: 0px;
+          margin: 5px;
           color: #313238;
         }
+
       }
       .bk-breadcrumb-item-inner {
         display: flex;
