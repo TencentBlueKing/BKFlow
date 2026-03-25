@@ -61,7 +61,7 @@ jobs:
       - name: 配置 CodeBuddy CLI
         env:
           CODEBUDDY_API_KEY: ${{ secrets.CODEBUDDY_API_KEY }}
-          CODEBUDDY_INTERNET_ENVIRONMENT: iOA
+          CODEBUDDY_INTERNET_ENVIRONMENT: internal
           GH_TOKEN: ${{ github.token }}
         run: |
           # 验证 API Key 是否存在
@@ -104,7 +104,7 @@ jobs:
       - name: 执行代码审查
         env:
           CODEBUDDY_API_KEY: ${{ secrets.CODEBUDDY_API_KEY }}
-          CODEBUDDY_INTERNET_ENVIRONMENT: iOA
+          CODEBUDDY_INTERNET_ENVIRONMENT: internal
           GH_TOKEN: ${{ github.token }}
           CI: true
         run: |
@@ -174,6 +174,26 @@ jobs:
           1) 代码变更是否与已有架构设计一致
           2) 是否有需要同步更新的文档
           3) 新增功能是否遵循了文档中描述的设计模式
+
+          ## 权限体系
+
+          本项目采用四层鉴权架构，审查涉及 API / ViewSet 的变更时必须参考：
+          - .ai/rules/bkflow-permission.mdc — 完整权限体系文档
+
+          审查要点：
+          1) 新增 ViewSet 是否正确配置了 permission_classes（AdminPermission / ScopePermission / TokenPermission 等）
+          2) permission_classes 的鉴权 scope 是否与视图中过滤数据集的 scope 一致（防止权限泄露）
+          3) 面向第三方的接口（无用户态）应使用 default backend + apigw/ 路径，面向 SDK/画布的应使用 sdk backend + api/ 路径
+          4) 需要 BKFLOW-TOKEN 的场景（TemplatePermission / ScopePermission 等）是否正确传递了 token
+
+          ## API 网关同步规则
+
+          若 PR 涉及 bkflow/apigw/ 下的变更，需检查以下同步项：
+          1) 新增/修改 API 视图 → 对应文档 bkflow/apigw/docs/zh/{api_name}.md 是否已同步更新
+          2) 新增 API → bkflow/apigw/management/commands/data/api-resources.yml 是否已添加资源定义
+          3) api-resources.yml 中的 authConfig 是否正确（appVerifiedRequired / userVerifiedRequired / resourcePermissionRequired）
+          4) 文档更新后 → apigw-docs.zip 是否已重新生成（通过 bash scripts/apigw_docs.sh）
+          5) 修改了 Serializer 字段 → 文档中的接口参数表格是否同步更新
 
           ## 目标
 

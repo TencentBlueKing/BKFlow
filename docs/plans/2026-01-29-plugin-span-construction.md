@@ -4,7 +4,7 @@
 >
 > **⚠️ 注意：** 本文档描述的是初版实现方案。后续在标准运维(bk-sops)中进行了更深入的迭代，
 > 增强了 span 层级关系、预生成 plugin_span_id、execution span 等能力，
-> 并已同步回 bkflow。最新方案详见 [plugin-span-sync-from-sops-design](../plans/2026-03-17-plugin-span-sync-from-sops-design.md)
+> 并已同步回 bkflow。最新方案详见 [plugin-span-sync-from-sops-design](./2026-03-17-plugin-span-sync-from-sops-design.md)
 > 和 [PR #637](https://github.com/TencentBlueKing/BKFlow/pull/637)。
 
 **Goal:** 为节点（插件）执行建立完整的 OpenTelemetry Span 构建与链路追踪能力，支持跨 schedule 调用的 trace 连续性。

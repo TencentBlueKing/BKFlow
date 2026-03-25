@@ -1,7 +1,7 @@
 # Plugin Span 增强 — 从 bk-sops 同步实现
 
 > **Date:** 2026-03-17
-> **Related:** [原始设计文档](../design/2026-01-29-plugin-span-construction.md)
+> **Related:** [原始设计文档](./2026-01-29-plugin-span-construction.md)
 
 ## 背景
 
