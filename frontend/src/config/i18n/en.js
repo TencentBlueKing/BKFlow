@@ -1128,6 +1128,8 @@ const en = {
   '循环变量由英文字母、数字、下划线组成，且不能以数字开头': 'Loop variable must consist of letters, numbers, and underscores, and cannot start with a number',
   循环变量不能重复: 'Loop variable names cannot be duplicated',
   循环变量不能与输入参数key相同: 'Loop variable cannot be the same as input parameter key',
+  当前重试次数: 'Current Retry Count',
+  次重试: 'Retry',
 };
 
 export default en;
