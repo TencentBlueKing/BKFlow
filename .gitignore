@@ -152,5 +152,6 @@ pre-*-bkcodeai
 ### PreCI ###
 .codecc
 
-# CodeBuddy project data
+# ide project data
 .codebuddy/
+.cursor/
