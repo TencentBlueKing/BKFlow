@@ -16,17 +16,3 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from django.apps import AppConfig
-
-
-class AdminConfig(AppConfig):
-    name = "bkflow.admin"
-    label = "bkflow_admin"
-
-    def ready(self):
-        from django.contrib import admin
-
-        admin.site.index_template = "admin/bkflow_index.html"
-        admin.site.site_header = "BKFlow 管理后台"
-        admin.site.site_title = "BKFlow Admin"
-        admin.site.index_title = "管理首页"

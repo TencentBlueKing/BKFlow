@@ -44,3 +44,4 @@
 | 权限体系 | `.ai/rules/bkflow-permission.mdc` | 四层鉴权架构、permission_classes 配置指南 |
 | Git 提交规范 | `.ai/rules/git-commit-convention.mdc` | commit message 格式、type 枚举、TAPD 关联 |
 | Git 工作流 | `.ai/rules/git-workflow.mdc` | 功能分支、PR 提交流程、remote 约定 |
+| 文档管理 | `.ai/rules/docs-management.mdc` | 文档目录规范、命名规则、归属判断 |
