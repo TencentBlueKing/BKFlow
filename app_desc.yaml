@@ -117,9 +117,6 @@ modules:
       - <<: *DEFAULT_CALLBACK_KEY
       - <<: *ENV_APP_INTERNAL_TOKEN
         value: *DEFAULT_ENGINE_INTERNAL_TOKEN
-      - key: BKFLOW_INIT_SUPERUSERS
-        value: ""
-        description: Django Admin 管理员用户名列表（逗号分隔）
     processes: &default_engine_processes
       er-e:
         command: celery -A blueapps.core.celery worker -P threads -Q er_execute_${BKFLOW_MODULE_CODE} -n er_e_worker@%h -c 100 -l info
