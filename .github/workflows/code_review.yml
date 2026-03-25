@@ -168,7 +168,7 @@ jobs:
           - docs/guide/ — 用户指南（架构、快速入门、系统接入、插件等）
           - docs/design/ — 技术设计文档
           - .ai/docs/architecture/ — 架构概览与核心概念
-          - .ai/docs/design/ — 设计模式、插件系统、任务执行等
+          - .ai/docs/specs/ — 设计模式、插件系统、任务执行等
 
           审查时应结合这些文档判断：
           1) 代码变更是否与已有架构设计一致
