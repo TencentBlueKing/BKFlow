@@ -61,7 +61,7 @@ jobs:
       - name: 配置 CodeBuddy CLI
         env:
           CODEBUDDY_API_KEY: ${{ secrets.CODEBUDDY_API_KEY }}
-          CODEBUDDY_INTERNET_ENVIRONMENT: internal
+          CODEBUDDY_INTERNET_ENVIRONMENT: iOA
           GH_TOKEN: ${{ github.token }}
         run: |
           # 验证 API Key 是否存在
@@ -104,7 +104,7 @@ jobs:
       - name: 执行代码审查
         env:
           CODEBUDDY_API_KEY: ${{ secrets.CODEBUDDY_API_KEY }}
-          CODEBUDDY_INTERNET_ENVIRONMENT: internal
+          CODEBUDDY_INTERNET_ENVIRONMENT: iOA
           GH_TOKEN: ${{ github.token }}
           CI: true
         run: |
@@ -166,14 +166,17 @@ jobs:
 
           在审查代码时，请参考以下项目文档以理解架构设计和业务上下文：
           - docs/guide/ — 用户指南（架构、快速入门、系统接入、插件等）
-          - docs/design/ — 技术设计文档
-          - .ai/docs/architecture/ — 架构概览与核心概念
-          - .ai/docs/specs/ — 设计模式、插件系统、任务执行等
+          - docs/specs/ — 设计文档（brainstorming 输出）
+          - docs/plans/ — 实现计划（writing-plans 输出）
+          - .ai/docs/architecture/ — 系统架构（部署、模块职责、通信协议）
+          - .ai/docs/specs/ — 技术设计参考（设计模式、插件系统、任务执行等）
+          - .ai/rules/docs-management.mdc — 文档目录管理规范
 
           审查时应结合这些文档判断：
           1) 代码变更是否与已有架构设计一致
           2) 是否有需要同步更新的文档
           3) 新增功能是否遵循了文档中描述的设计模式
+          4) 文档是否放在了正确的目录（参考 docs-management.mdc）
 
           ## 权限体系
 
