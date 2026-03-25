@@ -39,9 +39,10 @@
               <span>{{ breadcrumbData[0].name }}</span>
               <LoopCountSelector
                 v-if="nodeDetailActivityPanel === 'record' && breadcrumbData && breadcrumbData[0]?.retryLatestOptions > 0"
-                :tooltip="$t('当前执行次数')"
+                :tooltip="$t('当前重试次数')"
                 :options="breadcrumbData[0].retryLatestOptions + 1"
                 :value="breadcrumbData[0].currentRetry"
+                :suffix-text="$t('次重试')"
                 @selected="selectRetryCount($event, breadcrumbData[0])" />
             </bk-breadcrumb-item>
             <!-- 子流程内循环次数 -->
@@ -60,7 +61,7 @@
                 :tooltip="$t('当前循环的执行次数')"
                 :options="breadcrumbData[0].executeOptions"
                 :value="breadcrumbData[0].currentExecute"
-                :suffix-text="$t('执行')"
+                :suffix-text="$t('次执行')"
                 @selected="selectExecuteCount($event)" />
             </bk-breadcrumb-item>
             <!-- 子流程子节点循环次数 -->
