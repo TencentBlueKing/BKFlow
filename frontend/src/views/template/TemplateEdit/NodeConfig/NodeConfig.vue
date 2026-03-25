@@ -73,6 +73,8 @@
             :common="common"
             :constants="localConstants"
             :template-id="$route.params.templateId"
+            :skip-mutation="variableData.isLoopOutput"
+            :extra-forbidden-keys="usedOutputsKeys"
             @closeEditingPanel="isVariablePanelShow = false"
             @onSaveEditing="onVariableSaveEditing" />
         </div>
@@ -174,13 +176,16 @@
                   v-bkloading="{ isLoading: outputLoading, zIndex: 100 }"
                   class="outputs-wrapper"
                   :constants="localConstants"
-                  :params="outputs"
+                  :params="filteredOutputs"
                   :version="basicInfo.version"
                   :node-id="nodeId"
                   :is-third-party="isThirdParty"
                   :is-view-mode="isViewMode"
                   :uniform-outputs="uniformOutputs"
+                  :loop-outputs-key="basicInfo.loopConfig ? (basicInfo.loopConfig.outputs_key || '') : ''"
+                  :used-outputs-keys="usedOutputsKeys"
                   @hookChange="onHookChange"
+                  @outputsHookChange="onOutputsHookChange"
                   @openVariablePanel="openVariablePanel" />
               </div>
             </section>
@@ -339,6 +344,17 @@
       isSubflow() {
         return this.nodeConfig.type !== 'ServiceActivity';
       },
+      // 单次执行时不展示循环输出
+      filteredOutputs() {
+        if (this.basicInfo.loopConfig && this.basicInfo.loopConfig.enable) {
+          return this.outputs;
+        }
+        return this.outputs.filter(item => item.key !== 'outputs');
+      },
+      // 其他子流程节点已使用的outputsKey
+      usedOutputsKeys() {
+        return this.getUsedOutputsKeys();
+      },
       atomGroup() { // 某一标准插件下所有版本分组
         return this.atomList.find(item => item.code === this.basicInfo.plugin);
       },
@@ -450,6 +466,7 @@
         'loadPluginServiceMeta',
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
+        'loadSubprocessOutput',
       ]),
       ...mapActions('template/', [
         'loadTemplateData',
@@ -721,17 +738,26 @@
           } else {
             this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version });
           }
-          // 输出变量
-          const has = Object.prototype.hasOwnProperty;
-          this.outputs = Object.keys(resp.data.outputs).map((item) => {
-            const output = resp.data.outputs[item];
-            return {
-              plugin_code: output.plugin_code,
-              name: output.name,
-              key: output.key,
-              version: has.call(output, 'version') ? output.version : 'legacy',
-            };
-          });
+        // 输出变量
+        const has = Object.prototype.hasOwnProperty;
+        // 从接口获取子流程标准输出参数
+        const subprocessPlugin = this.atomList.find(item => item.code === 'subprocess_plugin');
+        const subprocessPluginVersion = subprocessPlugin?.list?.[0]?.version || '';
+        const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion });
+        const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
+          acc[item.key] = item;
+          return acc;
+        }, {});
+        const mockOutputs = Object.assign({}, resp.data.outputs, subBuiltInOutputs);
+        this.outputs = Object.keys(mockOutputs).map((item) => {
+          const output = mockOutputs[item];
+          return {
+            plugin_code: output?.plugin_code || '',
+            name: output.name,
+            key: output.key,
+            version: has.call(output, 'version') ? output.version : 'legacy',
+          };
+        });
         } catch (e) {
           console.log(e);
         } finally {
@@ -1009,8 +1035,18 @@
       // 变量编辑确认
       onVariableSaveEditing(variable) {
         this.isVariablePanelShow = false;
+        const { key, isLoopOutput } = this.variableData;
+        // 循环输出变量
+        if (isLoopOutput) {
+          if (!key) {
+            this.onOutputsHookChange('create', variable.key);
+          } else if (key !== variable.key) {
+            this.onOutputsHookChange('edit', variable.key);
+          }
+          this.variableData = {};
+          return;
+        }
 
-        const { key } = this.variableData;
         if (!key || key === variable.key) return;
 
         this.onHookChange('delete', this.variableData);
@@ -1202,6 +1238,13 @@
        */
       updateBasicInfo(data) {
         this.isDataChange = true;
+        // 当循环执行切换为单次执行时，清除 loopConfig.outputs_key
+        if (data.loopConfig
+          && this.basicInfo.loopConfig
+          && !data.loopConfig.enable
+          && this.basicInfo.loopConfig.outputs_key) {
+          data.loopConfig.outputs_key = '';
+        }
         this.basicInfo = Object.assign({}, this.basicInfo, data);
       },
       // 输入参数表单值更新
@@ -1350,6 +1393,34 @@
           this.setVariableSourceInfo(data);
         }
         // 如果全局变量数据有变，需要更新popover
+        this.randomKey = new Date().getTime();
+      },
+      // 获取其他子流程节点已使用的 outputs_key 值
+      getUsedOutputsKeys() {
+        const usedKeys = [];
+        if (!this.activities) return usedKeys;
+        Object.keys(this.activities).forEach((id) => {
+          if (id === this.nodeId) return; // 排除当前节点
+          const activity = this.activities[id];
+          if (activity.type === 'ServiceActivity') return; // 只检查子流程节点
+          const loopConfig = activity.loop_config || {};
+          if (loopConfig.outputs_key) {
+            usedKeys.push(loopConfig.outputs_key);
+          }
+        });
+        return usedKeys;
+      },
+      // 循环输出变量勾选/取消勾选/编辑
+      onOutputsHookChange(type, key) {
+        this.isDataChange = true;
+        if (type === 'create') {
+          // 存入 loopConfig.outputs_key
+          this.$set(this.basicInfo.loopConfig, 'outputs_key', key);
+        } else if (type === 'edit') {
+          this.$set(this.basicInfo.loopConfig, 'outputs_key', key);
+        } else if (type === 'delete') {
+          this.$delete(this.basicInfo.loopConfig, 'outputs_key');
+        }
         this.randomKey = new Date().getTime();
       },
       // 更新全局变量的 source_info
@@ -1819,6 +1890,26 @@
       },
       // 打开全局变量编辑面板
       async openVariablePanel(variable = {}) {
+        // 循环输出变量编辑
+        if (variable.sourceKey === 'outputs') {
+          this.variableData = {
+            custom_type: 'input',
+            desc: '',
+            index: Object.keys(this.constants).length + this.usedOutputsKeys.length + 1,
+            key: variable.key,
+            name: variable.name,
+            show_type: 'hide',
+            source_info: {},
+            source_tag: '',
+            source_type: 'component_outputs',
+            validation: '',
+            value: '',
+            version: 'legacy',
+            isLoopOutput: true, // 标记为循环输出变量
+          };
+          this.isVariablePanelShow = true;
+          return;
+        }
         if (variable.key) {
           const variableData = this.variableList.find(item => item.key === variable.key);
           const variableCited = await this.getVariableCitedData() || {};
