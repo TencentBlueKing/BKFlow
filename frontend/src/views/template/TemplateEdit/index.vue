@@ -632,7 +632,9 @@
             common: this.common,
           };
           const templateData = await this.loadTemplateData(data);
-          console.log(templateData, 'templateData');
+          await this.checkoutSpace(templateData.space_id);
+          this.lastedPipelineTree = tools.deepClone(templateData.pipeline_tree);
+          // 保存最新版本的流程树数据
           this.tplActions = templateData.auth;
           if (this.type === 'clone') {
             templateData.name = `${templateData.name.slice(0, STRING_LENGTH.TEMPLATE_NAME_MAX_LENGTH - 6)}_clone`;
