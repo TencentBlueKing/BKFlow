@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+import env
 from bkflow.statistics.models import (
     DailyStatisticsSummary,
     PluginExecutionSummary,
@@ -10,7 +11,6 @@ from bkflow.statistics.models import (
 )
 
 
-@admin.register(TaskflowStatistics)
 class TaskflowStatisticsAdmin(admin.ModelAdmin):
     list_display = [
         "task_id",
@@ -28,7 +28,6 @@ class TaskflowStatisticsAdmin(admin.ModelAdmin):
     readonly_fields = [f.name for f in TaskflowStatistics._meta.get_fields()]
 
 
-@admin.register(TaskflowExecutedNodeStatistics)
 class TaskflowExecutedNodeStatisticsAdmin(admin.ModelAdmin):
     list_display = [
         "task_id",
@@ -45,7 +44,6 @@ class TaskflowExecutedNodeStatisticsAdmin(admin.ModelAdmin):
     readonly_fields = [f.name for f in TaskflowExecutedNodeStatistics._meta.get_fields()]
 
 
-@admin.register(TemplateStatistics)
 class TemplateStatisticsAdmin(admin.ModelAdmin):
     list_display = [
         "template_id",
@@ -61,7 +59,6 @@ class TemplateStatisticsAdmin(admin.ModelAdmin):
     readonly_fields = [f.name for f in TemplateStatistics._meta.get_fields()]
 
 
-@admin.register(TemplateNodeStatistics)
 class TemplateNodeStatisticsAdmin(admin.ModelAdmin):
     list_display = [
         "template_id",
@@ -77,7 +74,6 @@ class TemplateNodeStatisticsAdmin(admin.ModelAdmin):
     readonly_fields = [f.name for f in TemplateNodeStatistics._meta.get_fields()]
 
 
-@admin.register(DailyStatisticsSummary)
 class DailyStatisticsSummaryAdmin(admin.ModelAdmin):
     list_display = [
         "date",
@@ -94,7 +90,6 @@ class DailyStatisticsSummaryAdmin(admin.ModelAdmin):
     readonly_fields = [f.name for f in DailyStatisticsSummary._meta.get_fields()]
 
 
-@admin.register(PluginExecutionSummary)
 class PluginExecutionSummaryAdmin(admin.ModelAdmin):
     list_display = [
         "period_type",
@@ -108,3 +103,21 @@ class PluginExecutionSummaryAdmin(admin.ModelAdmin):
     list_filter = ["period_type", "period_start"]
     search_fields = ["component_code", "space_id"]
     readonly_fields = [f.name for f in PluginExecutionSummary._meta.get_fields()]
+
+
+module_type = getattr(env, "BKFLOW_MODULE_TYPE", "")
+
+if module_type == "engine":
+    admin.site.register(TaskflowStatistics, TaskflowStatisticsAdmin)
+    admin.site.register(TaskflowExecutedNodeStatistics, TaskflowExecutedNodeStatisticsAdmin)
+elif module_type == "interface":
+    admin.site.register(TemplateStatistics, TemplateStatisticsAdmin)
+    admin.site.register(TemplateNodeStatistics, TemplateNodeStatisticsAdmin)
+else:
+    admin.site.register(TaskflowStatistics, TaskflowStatisticsAdmin)
+    admin.site.register(TaskflowExecutedNodeStatistics, TaskflowExecutedNodeStatisticsAdmin)
+    admin.site.register(TemplateStatistics, TemplateStatisticsAdmin)
+    admin.site.register(TemplateNodeStatistics, TemplateNodeStatisticsAdmin)
+
+admin.site.register(DailyStatisticsSummary, DailyStatisticsSummaryAdmin)
+admin.site.register(PluginExecutionSummary, PluginExecutionSummaryAdmin)
