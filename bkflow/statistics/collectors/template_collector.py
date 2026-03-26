@@ -95,7 +95,7 @@ class TemplateStatisticsCollector(BaseStatisticsCollector):
     def _collect_nodes(self, pipeline_tree: dict, subprocess_stack: list, is_sub: bool) -> List[TemplateNodeStatistics]:
         """递归遍历 pipeline tree，为每个 ServiceActivity 创建节点统计记录
 
-        对 remote_plugin 类型的节点，从 data（或 inputs）中提取实际的插件编码和版本。
+        通过 resolve_component_info 提取实际的插件编码、名称和版本，
         SubProcess 节点会递归进入其内部 pipeline，通过 subprocess_stack 记录嵌套路径。
         """
         component_list = []
@@ -106,21 +106,14 @@ class TemplateStatisticsCollector(BaseStatisticsCollector):
 
             if act_type == "ServiceActivity":
                 component = act.get("component", {})
-                code = component.get("code", "")
-                version = component.get("version", "legacy")
-                is_remote = False
-
-                if code == "remote_plugin":
-                    params = component.get("data") or component.get("inputs") or {}
-                    code = params.get("plugin_code", {}).get("value", code)
-                    version = params.get("plugin_version", {}).get("value", version)
-                    is_remote = True
+                info = self.resolve_component_info(component)
 
                 component_list.append(
                     TemplateNodeStatistics(
-                        component_code=code,
-                        version=version,
-                        is_remote=is_remote,
+                        component_code=info.code,
+                        component_name=info.name,
+                        version=info.version,
+                        is_remote=info.is_remote,
                         template_id=self.template_id,
                         space_id=self.template.space_id,
                         scope_type=self.template.scope_type or "",

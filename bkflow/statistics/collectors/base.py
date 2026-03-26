@@ -2,6 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Tuple
 
 from bkflow.statistics.conf import StatisticsSettings
@@ -66,3 +67,39 @@ class BaseStatisticsCollector(ABC):
             time_str = time_str.replace(" +", "+").replace(" -", "-")
             return parse_datetime(time_str)
         return time_str
+
+    @staticmethod
+    def resolve_component_info(component: dict) -> "ComponentInfo":
+        """从 pipeline_tree 的 component 字典中解析出实际的插件编码、名称和版本
+
+        对 remote_plugin 和 uniform_api 进行特殊处理，提取被代理的实际插件信息。
+        """
+        code = component.get("code", "")
+        version = component.get("version", "legacy")
+        name = ""
+        is_remote = False
+
+        if code == "remote_plugin":
+            params = component.get("data") or component.get("inputs") or {}
+            code = params.get("plugin_code", {}).get("value", code)
+            version = params.get("plugin_version", {}).get("value", version)
+            name = params.get("plugin_name", {}).get("value", "")
+            is_remote = True
+        elif code == "uniform_api":
+            api_meta = component.get("api_meta") or {}
+            if api_meta:
+                code = api_meta.get("id", code)
+                name = api_meta.get("name", "")
+                category = api_meta.get("category") or {}
+                if category.get("name") and name:
+                    name = f"{category['name']}-{name}"
+
+        return ComponentInfo(code=code, name=name, version=version, is_remote=is_remote)
+
+
+@dataclass
+class ComponentInfo:
+    code: str
+    name: str
+    version: str
+    is_remote: bool

@@ -69,6 +69,7 @@ class TaskflowExecutedNodeStatistics(StatisticsBaseModel):
     engine_id = models.CharField("Engine标识", max_length=64, default="")
 
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
+    component_name = models.CharField("组件名称", max_length=255, default="")
     version = models.CharField("插件版本", max_length=255, default="legacy")
     is_remote = models.BooleanField("是否第三方插件", default=False)
 
@@ -133,6 +134,7 @@ class TemplateNodeStatistics(StatisticsBaseModel):
 
     id = models.BigAutoField(primary_key=True)
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
+    component_name = models.CharField("组件名称", max_length=255, default="")
     version = models.CharField("插件版本", max_length=255, default="legacy")
     is_remote = models.BooleanField("是否第三方插件", default=False)
 
@@ -206,6 +208,7 @@ class PluginExecutionSummary(StatisticsBaseModel):
     space_id = models.BigIntegerField("空间ID", db_index=True)
 
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
+    component_name = models.CharField("组件名称", max_length=255, default="")
     version = models.CharField("插件版本", max_length=255, default="legacy")
     is_remote = models.BooleanField("是否第三方插件", default=False)
 

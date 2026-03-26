@@ -261,3 +261,40 @@ class TestTaskStatisticsCollector(TestCase):
         assert node.component_code == "bk-sops-plugin", f"Expected 'bk-sops-plugin', got '{node.component_code}'"
         assert node.version == "1.0.0"
         assert node.is_remote is True
+
+    @patch("bkflow.statistics.collectors.task_collector.TaskStatisticsCollector.task", new_callable=PropertyMock)
+    def test_create_node_statistics_uniform_api_with_api_meta(self, mock_task_prop):
+        """验证 _create_node_statistics 从 api_meta 提取 uniform_api 的实际插件编码和名称"""
+        mock_task_prop.return_value = self._make_mock_task()
+        collector = TaskStatisticsCollector(task_id=1)
+
+        activity = {
+            "type": "ServiceActivity",
+            "id": "node1",
+            "name": "调用API",
+            "component": {
+                "code": "uniform_api",
+                "version": "v2.0.0",
+                "data": {"uniform_api_plugin_url": {"hook": False, "value": "http://example.com"}},
+                "api_meta": {
+                    "id": "sops_execute",
+                    "name": "流程执行",
+                    "api_key": "sops_key",
+                    "meta_url": "http://example.com/meta",
+                    "category": {"id": "cat_1", "name": "标准运维"},
+                },
+            },
+        }
+        status = {
+            "state": "FINISHED",
+            "started_time": timezone.now(),
+            "archived_time": timezone.now(),
+            "retry": 0,
+            "skip": False,
+        }
+
+        node = collector._create_node_statistics(activity, status, [], False)
+        assert node is not None
+        assert node.component_code == "sops_execute"
+        assert node.component_name == "标准运维-流程执行"
+        assert node.is_remote is False

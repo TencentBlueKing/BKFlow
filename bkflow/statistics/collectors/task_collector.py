@@ -195,22 +195,14 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
         """根据节点定义和执行状态创建节点统计记录
 
         仅处理已完成的节点（FINISHED/FAILED/REVOKED/SUSPENDED）。
-        对 remote_plugin 类型的节点，从 data（或 inputs）中提取实际的插件编码和版本。
+        通过 resolve_component_info 提取实际的插件编码、名称和版本。
         """
         state = status.get("state", "")
         if state not in ("FINISHED", "FAILED", "REVOKED", "SUSPENDED"):
             return None
 
         component = activity.get("component", {})
-        component_code = component.get("code", "")
-        version = component.get("version", "legacy")
-        is_remote = False
-
-        if component_code == "remote_plugin":
-            params = component.get("data") or component.get("inputs") or {}
-            component_code = params.get("plugin_code", {}).get("value", component_code)
-            version = params.get("plugin_version", {}).get("value", version)
-            is_remote = True
+        info = self.resolve_component_info(component)
 
         started_time = self.parse_datetime(status.get("started_time"))
         archived_time = self.parse_datetime(status.get("archived_time"))
@@ -225,9 +217,10 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
             task_id=self.task.id,
             space_id=self.task.space_id,
             engine_id=self.engine_id,
-            component_code=component_code,
-            version=version,
-            is_remote=is_remote,
+            component_code=info.code,
+            component_name=info.name,
+            version=info.version,
+            is_remote=info.is_remote,
             node_id=activity.get("id", ""),
             started_time=started_time or timezone.now(),
             archived_time=archived_time,
