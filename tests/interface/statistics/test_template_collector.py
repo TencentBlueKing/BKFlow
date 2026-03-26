@@ -140,3 +140,43 @@ class TestTemplateStatisticsCollector(TestCase):
         node = TemplateNodeStatistics.objects.get(template_id=1, is_remote=True)
         assert node.component_code == "bk-sops-plugin", f"Expected 'bk-sops-plugin', got '{node.component_code}'"
         assert node.version == "1.0.0"
+
+    @patch(
+        "bkflow.statistics.collectors.template_collector.TemplateStatisticsCollector.template",
+        new_callable=PropertyMock,
+    )
+    def test_collect_uniform_api_with_api_meta(self, mock_template_prop):
+        """验证 uniform_api 从 api_meta.id 提取插件编码，从 api_meta.name 提取名称"""
+        mock = self._make_mock_template()
+        mock.pipeline_tree = {
+            "activities": {
+                "node1": {
+                    "type": "ServiceActivity",
+                    "name": "调用标准运维API",
+                    "component": {
+                        "code": "uniform_api",
+                        "version": "v2.0.0",
+                        "data": {
+                            "uniform_api_plugin_url": {"hook": False, "value": "http://example.com/api"},
+                            "uniform_api_plugin_method": {"hook": False, "value": "POST"},
+                        },
+                        "api_meta": {
+                            "id": "sops_execute",
+                            "name": "流程执行",
+                            "meta_url": "http://example.com/meta",
+                            "api_key": "sops_key",
+                            "category": {"id": "cat_1", "name": "标准运维"},
+                        },
+                    },
+                },
+            },
+            "gateways": {},
+        }
+        mock_template_prop.return_value = mock
+        collector = TemplateStatisticsCollector(template_id=1, snapshot_id=10)
+        collector.collect()
+
+        node = TemplateNodeStatistics.objects.get(template_id=1)
+        assert node.component_code == "sops_execute", f"Expected 'sops_execute', got '{node.component_code}'"
+        assert node.component_name == "标准运维-流程执行"
+        assert node.is_remote is False

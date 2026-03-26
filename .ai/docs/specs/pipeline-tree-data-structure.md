@@ -136,6 +136,42 @@
 - 统计采集时需从 `data.plugin_code.value` 获取实际插件编码，而非使用 `"remote_plugin"` 作为插件标识
 - `data` 是标准参数路径；部分旧代码可能错误使用了 `inputs` 路径，已修正为优先读 `data`，兼容 `inputs`
 - `plugin_version` 同理，从 `data.plugin_version.value` 获取
+- `data.plugin_name.value` 可选，存放插件的中文名称
+
+### uniform_api 类型的特殊处理
+
+当 `component.code` 为 `"uniform_api"` 时，新版 API 插件会在 `component.api_meta` 中存放实际的 API 插件信息：
+
+```json
+{
+  "component": {
+    "code": "uniform_api",
+    "version": "v2.0.0",
+    "data": {
+      "uniform_api_plugin_url": { "hook": false, "value": "http://example.com/api" },
+      "uniform_api_plugin_method": { "hook": false, "value": "POST" }
+    },
+    "api_meta": {
+      "id": "实际的API插件ID",
+      "name": "API插件名称",
+      "meta_url": "元数据地址",
+      "api_key": "API标识键",
+      "category": {
+        "id": "分类ID",
+        "name": "分类名称"
+      }
+    }
+  }
+}
+```
+
+**注意事项：**
+
+- 统计采集时需从 `api_meta.id` 获取实际插件编码，而非使用 `"uniform_api"`
+- `api_meta.name` 存放插件名称，`api_meta.category.name` 存放分类名称
+- 完整的展示名称格式为 `"分类名称-插件名称"`
+- 旧版 uniform_api（v1.0.0）没有 `api_meta` 字段，此时保持 `"uniform_api"` 作为编码
+- `api_meta` 是 `component` 的直接子字段，不在 `data` 内部
 
 ## 常见 Component 类型示例
 

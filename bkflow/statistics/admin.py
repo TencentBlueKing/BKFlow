@@ -32,6 +32,7 @@ class TaskflowExecutedNodeStatisticsAdmin(admin.ModelAdmin):
     list_display = [
         "task_id",
         "component_code",
+        "component_name",
         "node_id",
         "status",
         "state",
@@ -63,6 +64,7 @@ class TemplateNodeStatisticsAdmin(admin.ModelAdmin):
     list_display = [
         "template_id",
         "component_code",
+        "component_name",
         "version",
         "is_remote",
         "node_id",
@@ -96,6 +98,7 @@ class PluginExecutionSummaryAdmin(admin.ModelAdmin):
         "period_start",
         "space_id",
         "component_code",
+        "component_name",
         "execution_count",
         "success_count",
         "failed_count",
