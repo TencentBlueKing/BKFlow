@@ -49,9 +49,8 @@ def _register_template_signals():
     try:
         from bkflow.template.models import Template
 
-        @receiver(pre_save, sender=Template, dispatch_uid="template_statistics_pre_save")
+        @receiver(pre_save, sender=Template, dispatch_uid="template_statistics_pre_save", weak=False)
         def template_pre_save_handler(sender, instance, **kwargs):
-            # 记录保存前的 snapshot_id，用于判断 pipeline 是否有结构变更
             if instance.pk:
                 try:
                     old = Template.objects.filter(pk=instance.pk).values_list("snapshot_id", flat=True).first()
@@ -61,7 +60,7 @@ def _register_template_signals():
             else:
                 instance._pre_save_snapshot_id = None
 
-        @receiver(post_save, sender=Template, dispatch_uid="template_statistics_post_save")
+        @receiver(post_save, sender=Template, dispatch_uid="template_statistics_post_save", weak=False)
         def template_post_save_handler(sender, instance, created, **kwargs):
             try:
                 from bkflow.statistics.tasks import template_post_save_statistics_task
@@ -88,7 +87,7 @@ def _register_task_signals():
     try:
         from bkflow.task.models import TaskInstance
 
-        @receiver(post_save, sender=TaskInstance, dispatch_uid="task_statistics_post_save")
+        @receiver(post_save, sender=TaskInstance, dispatch_uid="task_statistics_post_save", weak=False)
         def task_post_save_handler(sender, instance, created, **kwargs):
             if created:
                 try:
@@ -101,9 +100,8 @@ def _register_task_signals():
         try:
             from pipeline.eri.signals import post_set_state
 
-            @receiver(post_set_state, dispatch_uid="task_statistics_state_change")
+            @receiver(post_set_state, dispatch_uid="task_statistics_state_change", weak=False)
             def task_state_change_handler(sender, node_id, to_state, version, root_id, **kwargs):
-                # 只在根节点（node_id == root_id）进入终态时触发归档统计
                 if node_id == root_id and to_state in ("FINISHED", "REVOKED"):
                     try:
                         from bkflow.statistics.tasks import task_archive_statistics_task
