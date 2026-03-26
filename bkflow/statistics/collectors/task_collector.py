@@ -220,7 +220,7 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
             component_code=info.code,
             component_name=info.name,
             version=info.version,
-            is_remote=info.is_remote,
+            plugin_type=info.plugin_type,
             node_id=activity.get("id", ""),
             started_time=started_time or timezone.now(),
             archived_time=archived_time,

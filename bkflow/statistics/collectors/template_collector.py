@@ -113,7 +113,7 @@ class TemplateStatisticsCollector(BaseStatisticsCollector):
                         component_code=info.code,
                         component_name=info.name,
                         version=info.version,
-                        is_remote=info.is_remote,
+                        plugin_type=info.plugin_type,
                         template_id=self.template_id,
                         space_id=self.template.space_id,
                         scope_type=self.template.scope_type or "",
