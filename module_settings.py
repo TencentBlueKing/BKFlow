@@ -127,6 +127,18 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
             },
         }
 
+    if env.STATISTICS_DB_HOST and env.STATISTICS_DB_NAME:
+        DATABASES["statistics"] = {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": env.STATISTICS_DB_NAME,
+            "USER": env.STATISTICS_DB_USER,
+            "PASSWORD": env.STATISTICS_DB_PASSWORD,
+            "HOST": env.STATISTICS_DB_HOST,
+            "PORT": env.STATISTICS_DB_PORT,
+        }
+
+    DATABASE_ROUTERS = ["bkflow.statistics.db_router.StatisticsDBRouter"]
+
     from pipeline.celery.settings import CELERY_QUEUES, CELERY_ROUTES  # noqa
     from pipeline.eri.celery import queues as eri_queues  # noqa
 
@@ -302,6 +314,16 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
 
     # ban 掉 admin 权限
     BLOCK_ADMIN_PERMISSION = env.BLOCK_ADMIN_PERMISSION
+
+    if env.STATISTICS_DB_HOST and env.STATISTICS_DB_NAME:
+        DATABASES["statistics"] = {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": env.STATISTICS_DB_NAME,
+            "USER": env.STATISTICS_DB_USER,
+            "PASSWORD": env.STATISTICS_DB_PASSWORD,
+            "HOST": env.STATISTICS_DB_HOST,
+            "PORT": env.STATISTICS_DB_PORT,
+        }
 
     DATABASE_ROUTERS = ["bkflow.statistics.db_router.StatisticsDBRouter"]
 

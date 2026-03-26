@@ -110,6 +110,50 @@ print("PluginExecutionSummary:", PluginExecutionSummary.objects.count())
 - `DailyStatisticsSummary`：`update_or_create`（date + space_id + scope 联合唯一）
 - `PluginExecutionSummary`：`update_or_create`（period + space_id + component 联合唯一）
 
+## 共享统计数据库配置
+
+在分模块部署（engine + interface 独立进程）场景下，需要配置共享统计数据库使两个模块读写同一份统计数据。
+
+### 环境变量
+
+在 engine 和 interface 两个模块上都配置以下环境变量：
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `STATISTICS_DB_HOST` | 统计数据库地址 | （空，不配则使用 default 库） |
+| `STATISTICS_DB_PORT` | 统计数据库端口 | `3306` |
+| `STATISTICS_DB_NAME` | 统计数据库名 | （空） |
+| `STATISTICS_DB_USER` | 统计数据库用户名 | （空） |
+| `STATISTICS_DB_PASSWORD` | 统计数据库密码 | （空） |
+
+> **关键点**：只有同时配置了 `STATISTICS_DB_HOST` 和 `STATISTICS_DB_NAME` 时，才会在 `settings.DATABASES` 中注入 `"statistics"` 数据库，数据库路由器才会将统计模型路由到独立库。否则回退到 `default` 库。
+
+### 验证配置是否生效
+
+```bash
+python manage.py shell -c "
+from django.conf import settings
+from bkflow.statistics.conf import StatisticsSettings
+print('DATABASES keys:', list(settings.DATABASES.keys()))
+print('get_db_alias():', StatisticsSettings.get_db_alias())
+if 'statistics' in settings.DATABASES:
+    db = settings.DATABASES['statistics']
+    print(f'statistics DB -> {db[\"USER\"]}@{db[\"HOST\"]}:{db[\"PORT\"]}/{db[\"NAME\"]}')
+else:
+    print('WARNING: statistics DB 未配置，使用 default 库')
+"
+```
+
+预期输出（已配置）：`get_db_alias()` 返回 `"statistics"`，连接信息指向共享库。
+
+### 迁移
+
+配置统计数据库后，需在对应模块上执行：
+
+```bash
+python manage.py migrate statistics --database=statistics
+```
+
 ## 定时任务调度
 
 汇总任务由 Celery Beat 自动调度，无需手动干预：
