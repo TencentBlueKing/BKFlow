@@ -45,7 +45,7 @@ class TestPluginRankingSerializer:
         data = {
             "component_code": "bk_http",
             "version": "v1",
-            "is_remote": False,
+            "plugin_type": "component",
             "execution_count": 100,
             "success_count": 95,
             "failed_count": 5,
@@ -90,7 +90,7 @@ class TestFailureAnalysisSerializer:
         data = {
             "component_code": "bk_http",
             "version": "v1",
-            "is_remote": False,
+            "plugin_type": "component",
             "failed_count": 10,
             "total_count": 100,
             "failure_rate": 0.1,

@@ -80,7 +80,7 @@ class TestTemplateStatisticsCollector(TestCase):
         mock_template_prop.return_value = self._make_mock_template()
         collector = TemplateStatisticsCollector(template_id=1, snapshot_id=10)
         collector.collect()
-        remote_node = TemplateNodeStatistics.objects.get(template_id=1, is_remote=True)
+        remote_node = TemplateNodeStatistics.objects.get(template_id=1, plugin_type="remote_plugin")
         assert remote_node.component_code == "my_plugin"
         assert remote_node.version == "1.0.0"
 
@@ -137,7 +137,7 @@ class TestTemplateStatisticsCollector(TestCase):
         collector = TemplateStatisticsCollector(template_id=1, snapshot_id=10)
         collector.collect()
 
-        node = TemplateNodeStatistics.objects.get(template_id=1, is_remote=True)
+        node = TemplateNodeStatistics.objects.get(template_id=1, plugin_type="remote_plugin")
         assert node.component_code == "bk-sops-plugin", f"Expected 'bk-sops-plugin', got '{node.component_code}'"
         assert node.version == "1.0.0"
 
@@ -179,4 +179,4 @@ class TestTemplateStatisticsCollector(TestCase):
         node = TemplateNodeStatistics.objects.get(template_id=1)
         assert node.component_code == "sops_execute", f"Expected 'sops_execute', got '{node.component_code}'"
         assert node.component_name == "标准运维-流程执行"
-        assert node.is_remote is False
+        assert node.plugin_type == "uniform_api"

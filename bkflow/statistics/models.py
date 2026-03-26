@@ -11,6 +11,12 @@
 from django.db import models
 
 
+class PluginType(models.TextChoices):
+    COMPONENT = "component", "内置插件"
+    REMOTE_PLUGIN = "remote_plugin", "第三方插件"
+    UNIFORM_API = "uniform_api", "API插件"
+
+
 class StatisticsBaseModel(models.Model):
     class Meta:
         abstract = True
@@ -71,7 +77,9 @@ class TaskflowExecutedNodeStatistics(StatisticsBaseModel):
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
     component_name = models.CharField("组件名称", max_length=255, default="")
     version = models.CharField("插件版本", max_length=255, default="legacy")
-    is_remote = models.BooleanField("是否第三方插件", default=False)
+    plugin_type = models.CharField(
+        "插件类型", max_length=32, choices=PluginType.choices, default=PluginType.COMPONENT, db_index=True
+    )
 
     node_id = models.CharField("节点ID", max_length=64)
     started_time = models.DateTimeField("执行开始时间", db_index=True)
@@ -136,7 +144,9 @@ class TemplateNodeStatistics(StatisticsBaseModel):
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
     component_name = models.CharField("组件名称", max_length=255, default="")
     version = models.CharField("插件版本", max_length=255, default="legacy")
-    is_remote = models.BooleanField("是否第三方插件", default=False)
+    plugin_type = models.CharField(
+        "插件类型", max_length=32, choices=PluginType.choices, default=PluginType.COMPONENT, db_index=True
+    )
 
     template_id = models.BigIntegerField("模板ID", db_index=True)
     space_id = models.BigIntegerField("空间ID", db_index=True)
@@ -210,7 +220,9 @@ class PluginExecutionSummary(StatisticsBaseModel):
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
     component_name = models.CharField("组件名称", max_length=255, default="")
     version = models.CharField("插件版本", max_length=255, default="legacy")
-    is_remote = models.BooleanField("是否第三方插件", default=False)
+    plugin_type = models.CharField(
+        "插件类型", max_length=32, choices=PluginType.choices, default=PluginType.COMPONENT, db_index=True
+    )
 
     execution_count = models.IntegerField("执行次数", default=0)
     success_count = models.IntegerField("成功次数", default=0)

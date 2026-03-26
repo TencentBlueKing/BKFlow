@@ -214,7 +214,7 @@ class SystemStatisticsViewSet(GenericViewSet):
         stats = (
             PluginExecutionSummary.objects.using(db_alias)
             .filter(period_type="day", period_start__gte=date_start, period_start__lte=date_end)
-            .values("component_code", "version", "is_remote")
+            .values("component_code", "version", "plugin_type")
             .annotate(
                 execution_count=Sum("execution_count"),
                 success_count=Sum("success_count"),
@@ -247,7 +247,7 @@ class SystemStatisticsViewSet(GenericViewSet):
         stats = (
             TaskflowExecutedNodeStatistics.objects.using(db_alias)
             .filter(started_time__date__gte=date_start, started_time__date__lte=date_end, is_retry=False)
-            .values("component_code", "version", "is_remote")
+            .values("component_code", "version", "plugin_type")
             .annotate(
                 total_count=Count("id"),
                 failed_count=Count("id", filter=Q(status=False)),
@@ -378,7 +378,7 @@ class SpaceStatisticsViewSet(GenericViewSet):
                 period_start__lte=date_end,
                 space_id=space_id,
             )
-            .values("component_code", "version", "is_remote")
+            .values("component_code", "version", "plugin_type")
             .annotate(
                 execution_count=Sum("execution_count"),
                 success_count=Sum("success_count"),
@@ -463,7 +463,7 @@ class SpaceStatisticsViewSet(GenericViewSet):
                 space_id=space_id,
                 is_retry=False,
             )
-            .values("component_code", "version", "is_remote")
+            .values("component_code", "version", "plugin_type")
             .annotate(
                 total_count=Count("id"),
                 failed_count=Count("id", filter=Q(status=False)),

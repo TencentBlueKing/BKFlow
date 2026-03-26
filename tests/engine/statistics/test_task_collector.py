@@ -260,7 +260,7 @@ class TestTaskStatisticsCollector(TestCase):
         assert node is not None
         assert node.component_code == "bk-sops-plugin", f"Expected 'bk-sops-plugin', got '{node.component_code}'"
         assert node.version == "1.0.0"
-        assert node.is_remote is True
+        assert node.plugin_type == "remote_plugin"
 
     @patch("bkflow.statistics.collectors.task_collector.TaskStatisticsCollector.task", new_callable=PropertyMock)
     def test_create_node_statistics_uniform_api_with_api_meta(self, mock_task_prop):
@@ -297,4 +297,4 @@ class TestTaskStatisticsCollector(TestCase):
         assert node is not None
         assert node.component_code == "sops_execute"
         assert node.component_name == "标准运维-流程执行"
-        assert node.is_remote is False
+        assert node.plugin_type == "uniform_api"

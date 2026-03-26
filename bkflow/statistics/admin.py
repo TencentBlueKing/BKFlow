@@ -40,7 +40,7 @@ class TaskflowExecutedNodeStatisticsAdmin(admin.ModelAdmin):
         "elapsed_time",
         "started_time",
     ]
-    list_filter = ["status", "state", "is_retry", "is_remote"]
+    list_filter = ["status", "state", "is_retry", "plugin_type"]
     search_fields = ["task_id", "component_code", "node_id"]
     readonly_fields = [f.name for f in TaskflowExecutedNodeStatistics._meta.get_fields()]
 
@@ -66,12 +66,12 @@ class TemplateNodeStatisticsAdmin(admin.ModelAdmin):
         "component_code",
         "component_name",
         "version",
-        "is_remote",
+        "plugin_type",
         "node_id",
         "node_name",
         "is_sub",
     ]
-    list_filter = ["is_remote", "is_sub"]
+    list_filter = ["plugin_type", "is_sub"]
     search_fields = ["template_id", "component_code", "node_id"]
     readonly_fields = [f.name for f in TemplateNodeStatistics._meta.get_fields()]
 

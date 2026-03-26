@@ -1,6 +1,7 @@
 from django.test import TestCase
 
 from bkflow.statistics.collectors.base import BaseStatisticsCollector, ComponentInfo
+from bkflow.statistics.models import PluginType
 
 
 class TestResolveComponentInfo(TestCase):
@@ -9,7 +10,7 @@ class TestResolveComponentInfo(TestCase):
     def test_regular_component(self):
         component = {"code": "bk_http_request", "version": "v1.0"}
         info = BaseStatisticsCollector.resolve_component_info(component)
-        assert info == ComponentInfo(code="bk_http_request", name="", version="v1.0", is_remote=False)
+        assert info == ComponentInfo(code="bk_http_request", name="", version="v1.0", plugin_type=PluginType.COMPONENT)
 
     def test_remote_plugin_with_data(self):
         component = {
@@ -25,7 +26,7 @@ class TestResolveComponentInfo(TestCase):
         assert info.code == "bk-sops-plugin"
         assert info.name == "标准运维插件"
         assert info.version == "2.0.0"
-        assert info.is_remote is True
+        assert info.plugin_type == PluginType.REMOTE_PLUGIN
 
     def test_remote_plugin_without_name(self):
         component = {
@@ -38,7 +39,7 @@ class TestResolveComponentInfo(TestCase):
         info = BaseStatisticsCollector.resolve_component_info(component)
         assert info.code == "my-plugin"
         assert info.name == ""
-        assert info.is_remote is True
+        assert info.plugin_type == PluginType.REMOTE_PLUGIN
 
     def test_remote_plugin_with_inputs_fallback(self):
         component = {
@@ -51,7 +52,7 @@ class TestResolveComponentInfo(TestCase):
         info = BaseStatisticsCollector.resolve_component_info(component)
         assert info.code == "legacy-plugin"
         assert info.version == "0.1"
-        assert info.is_remote is True
+        assert info.plugin_type == PluginType.REMOTE_PLUGIN
 
     def test_uniform_api_with_api_meta(self):
         component = {
@@ -72,7 +73,7 @@ class TestResolveComponentInfo(TestCase):
         assert info.code == "sops_api_001"
         assert info.name == "标准运维-流程执行"
         assert info.version == "v2.0.0"
-        assert info.is_remote is False
+        assert info.plugin_type == PluginType.UNIFORM_API
 
     def test_uniform_api_without_api_meta(self):
         """旧版 uniform_api 没有 api_meta，保持原始 code"""
@@ -86,7 +87,7 @@ class TestResolveComponentInfo(TestCase):
         info = BaseStatisticsCollector.resolve_component_info(component)
         assert info.code == "uniform_api"
         assert info.name == ""
-        assert info.is_remote is False
+        assert info.plugin_type == PluginType.UNIFORM_API
 
     def test_uniform_api_with_api_meta_no_category(self):
         component = {
@@ -103,4 +104,4 @@ class TestResolveComponentInfo(TestCase):
         assert info.code == ""
         assert info.name == ""
         assert info.version == "legacy"
-        assert info.is_remote is False
+        assert info.plugin_type == PluginType.COMPONENT
