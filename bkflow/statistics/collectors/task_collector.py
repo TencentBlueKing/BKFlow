@@ -133,7 +133,8 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
             status_tree = status_result.data
             pipeline_tree = self.task.execution_data or {}
 
-            executed_nodes = self._extract_executed_nodes(pipeline_tree, status_tree)
+            root_data = status_tree.get(self.task.instance_id, {})
+            executed_nodes = self._extract_executed_nodes(pipeline_tree, root_data)
 
             with transaction.atomic(using=self.db_alias):
                 TaskflowExecutedNodeStatistics.objects.using(self.db_alias).filter(task_id=self.task.id).delete()
@@ -211,9 +212,11 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
             version = inputs.get("plugin_version", {}).get("value", version)
             is_remote = True
 
-        started_time = self.parse_datetime(status.get("start_time"))
-        archived_time = self.parse_datetime(status.get("finish_time"))
-        elapsed_time = status.get("elapsed_time")
+        started_time = self.parse_datetime(status.get("started_time"))
+        archived_time = self.parse_datetime(status.get("archived_time"))
+        elapsed_time = None
+        if started_time and archived_time:
+            elapsed_time = int((archived_time - started_time).total_seconds())
 
         retry_count = status.get("retry", 0)
         is_retry = False  # current execution is not a retry; historical retries are not stored individually
