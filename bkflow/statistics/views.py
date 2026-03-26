@@ -15,7 +15,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from bkflow.statistics.conf import StatisticsSettings
+from bkflow.statistics.conf import StatisticsSettings, date_to_datetime_range
 from bkflow.statistics.models import (
     DailyStatisticsSummary,
     PluginExecutionSummary,
@@ -65,6 +65,17 @@ def _get_date_range(request):
     return date_start, date_end
 
 
+def _get_datetime_range(request):
+    """解析日期范围并转换为 timezone-aware datetime 对，用于 DateTimeField 过滤。
+
+    避免使用 ``__date`` lookup（MySQL 未加载时区数据时 ``CONVERT_TZ`` 返回 NULL）。
+    """
+    date_start, date_end = _get_date_range(request)
+    dt_start, _ = date_to_datetime_range(date_start)
+    _, dt_end = date_to_datetime_range(date_end)
+    return dt_start, dt_end
+
+
 def _validate_order_by(value, allowed):
     """校验排序字段是否在允许列表中，不合法时回退到默认字段"""
     if not value:
@@ -91,14 +102,12 @@ class SystemStatisticsViewSet(GenericViewSet):
 
     @action(methods=["get"], detail=False, url_path="overview")
     def overview(self, request):
-        date_start, date_end = _get_date_range(request)
+        dt_start, dt_end = _get_datetime_range(request)
         db_alias = StatisticsSettings.get_db_alias()
 
         total_templates = TemplateStatistics.objects.using(db_alias).count()
 
-        task_qs = TaskflowStatistics.objects.using(db_alias).filter(
-            create_time__date__gte=date_start, create_time__date__lte=date_end
-        )
+        task_qs = TaskflowStatistics.objects.using(db_alias).filter(create_time__gte=dt_start, create_time__lt=dt_end)
         task_agg = task_qs.aggregate(
             total_tasks=Count("id"),
             total_finished=Count("id", filter=Q(is_finished=True)),
@@ -109,8 +118,8 @@ class SystemStatisticsViewSet(GenericViewSet):
         node_agg = (
             TaskflowExecutedNodeStatistics.objects.using(db_alias)
             .filter(
-                started_time__date__gte=date_start,
-                started_time__date__lte=date_end,
+                started_time__gte=dt_start,
+                started_time__lt=dt_end,
                 is_retry=False,
             )
             .aggregate(total_nodes=Count("id"))
@@ -240,13 +249,13 @@ class SystemStatisticsViewSet(GenericViewSet):
 
     @action(methods=["get"], detail=False, url_path="failure-analysis")
     def failure_analysis(self, request):
-        date_start, date_end = _get_date_range(request)
+        dt_start, dt_end = _get_datetime_range(request)
         db_alias = StatisticsSettings.get_db_alias()
         limit = _get_limit(request)
 
         stats = (
             TaskflowExecutedNodeStatistics.objects.using(db_alias)
-            .filter(started_time__date__gte=date_start, started_time__date__lte=date_end, is_retry=False)
+            .filter(started_time__gte=dt_start, started_time__lt=dt_end, is_retry=False)
             .values("component_code", "version", "plugin_type")
             .annotate(
                 total_count=Count("id"),
@@ -292,15 +301,15 @@ class SpaceStatisticsViewSet(GenericViewSet):
 
     @action(methods=["get"], detail=False, url_path="overview")
     def overview(self, request, **kwargs):
-        date_start, date_end = _get_date_range(request)
+        dt_start, dt_end = _get_datetime_range(request)
         db_alias = StatisticsSettings.get_db_alias()
         scope_filters = self._get_scope_filters(request)
 
         total_templates = TemplateStatistics.objects.using(db_alias).filter(**scope_filters).count()
 
         task_qs = TaskflowStatistics.objects.using(db_alias).filter(
-            create_time__date__gte=date_start,
-            create_time__date__lte=date_end,
+            create_time__gte=dt_start,
+            create_time__lt=dt_end,
             **scope_filters,
         )
         task_agg = task_qs.aggregate(
@@ -313,8 +322,8 @@ class SpaceStatisticsViewSet(GenericViewSet):
         node_agg = (
             TaskflowExecutedNodeStatistics.objects.using(db_alias)
             .filter(
-                started_time__date__gte=date_start,
-                started_time__date__lte=date_end,
+                started_time__gte=dt_start,
+                started_time__lt=dt_end,
                 space_id=self._get_space_id(),
                 is_retry=False,
             )
@@ -404,7 +413,7 @@ class SpaceStatisticsViewSet(GenericViewSet):
 
     @action(methods=["get"], detail=False, url_path="template-ranking")
     def template_ranking(self, request, **kwargs):
-        date_start, date_end = _get_date_range(request)
+        dt_start, dt_end = _get_datetime_range(request)
         db_alias = StatisticsSettings.get_db_alias()
         space_id = self._get_space_id()
         limit = _get_limit(request)
@@ -413,8 +422,8 @@ class SpaceStatisticsViewSet(GenericViewSet):
         stats = (
             TaskflowStatistics.objects.using(db_alias)
             .filter(
-                create_time__date__gte=date_start,
-                create_time__date__lte=date_end,
+                create_time__gte=dt_start,
+                create_time__lt=dt_end,
                 space_id=space_id,
                 template_id__isnull=False,
             )
@@ -450,7 +459,7 @@ class SpaceStatisticsViewSet(GenericViewSet):
 
     @action(methods=["get"], detail=False, url_path="failure-analysis")
     def failure_analysis(self, request, **kwargs):
-        date_start, date_end = _get_date_range(request)
+        dt_start, dt_end = _get_datetime_range(request)
         db_alias = StatisticsSettings.get_db_alias()
         space_id = self._get_space_id()
         limit = _get_limit(request)
@@ -458,8 +467,8 @@ class SpaceStatisticsViewSet(GenericViewSet):
         stats = (
             TaskflowExecutedNodeStatistics.objects.using(db_alias)
             .filter(
-                started_time__date__gte=date_start,
-                started_time__date__lte=date_end,
+                started_time__gte=dt_start,
+                started_time__lt=dt_end,
                 space_id=space_id,
                 is_retry=False,
             )
