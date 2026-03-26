@@ -128,6 +128,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         }
 
     if env.STATISTICS_DB_HOST and env.STATISTICS_DB_NAME:
+        DATABASES = globals().get("DATABASES", {})
         DATABASES["statistics"] = {
             "ENGINE": "django.db.backends.mysql",
             "NAME": env.STATISTICS_DB_NAME,
@@ -316,6 +317,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
     BLOCK_ADMIN_PERMISSION = env.BLOCK_ADMIN_PERMISSION
 
     if env.STATISTICS_DB_HOST and env.STATISTICS_DB_NAME:
+        DATABASES = globals().get("DATABASES", {})
         DATABASES["statistics"] = {
             "ENGINE": "django.db.backends.mysql",
             "NAME": env.STATISTICS_DB_NAME,
