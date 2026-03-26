@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 import env
+from bkflow.statistics.conf import StatisticsSettings
 from bkflow.statistics.models import (
     DailyStatisticsSummary,
     PluginExecutionSummary,
@@ -11,7 +12,23 @@ from bkflow.statistics.models import (
 )
 
 
-class TaskflowStatisticsAdmin(admin.ModelAdmin):
+def _is_engine_module():
+    return getattr(env, "BKFLOW_MODULE_TYPE", "") == "engine"
+
+
+class EngineFilterMixin:
+    """engine 模块下自动按 engine_id 过滤，仅展示本实例管理的数据"""
+
+    engine_id_field = "engine_id"
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if _is_engine_module():
+            qs = qs.filter(**{self.engine_id_field: StatisticsSettings.get_engine_id()})
+        return qs
+
+
+class TaskflowStatisticsAdmin(EngineFilterMixin, admin.ModelAdmin):
     list_display = [
         "task_id",
         "space_id",
@@ -28,7 +45,7 @@ class TaskflowStatisticsAdmin(admin.ModelAdmin):
     readonly_fields = [f.name for f in TaskflowStatistics._meta.get_fields()]
 
 
-class TaskflowExecutedNodeStatisticsAdmin(admin.ModelAdmin):
+class TaskflowExecutedNodeStatisticsAdmin(EngineFilterMixin, admin.ModelAdmin):
     list_display = [
         "task_id",
         "component_code",
@@ -108,19 +125,10 @@ class PluginExecutionSummaryAdmin(admin.ModelAdmin):
     readonly_fields = [f.name for f in PluginExecutionSummary._meta.get_fields()]
 
 
-module_type = getattr(env, "BKFLOW_MODULE_TYPE", "")
-
-if module_type == "engine":
-    admin.site.register(TaskflowStatistics, TaskflowStatisticsAdmin)
-    admin.site.register(TaskflowExecutedNodeStatistics, TaskflowExecutedNodeStatisticsAdmin)
-elif module_type == "interface":
-    admin.site.register(TemplateStatistics, TemplateStatisticsAdmin)
-    admin.site.register(TemplateNodeStatistics, TemplateNodeStatisticsAdmin)
-else:
-    admin.site.register(TaskflowStatistics, TaskflowStatisticsAdmin)
-    admin.site.register(TaskflowExecutedNodeStatistics, TaskflowExecutedNodeStatisticsAdmin)
-    admin.site.register(TemplateStatistics, TemplateStatisticsAdmin)
-    admin.site.register(TemplateNodeStatistics, TemplateNodeStatisticsAdmin)
+admin.site.register(TaskflowStatistics, TaskflowStatisticsAdmin)
+admin.site.register(TaskflowExecutedNodeStatistics, TaskflowExecutedNodeStatisticsAdmin)
+admin.site.register(TemplateStatistics, TemplateStatisticsAdmin)
+admin.site.register(TemplateNodeStatistics, TemplateNodeStatisticsAdmin)
 
 admin.site.register(DailyStatisticsSummary, DailyStatisticsSummaryAdmin)
 admin.site.register(PluginExecutionSummary, PluginExecutionSummaryAdmin)

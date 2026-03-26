@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from celery import shared_task
 from django.db.models import Avg, Count, Max, Q
 
-from bkflow.statistics.conf import StatisticsSettings
+from bkflow.statistics.conf import StatisticsSettings, date_to_datetime_range
 from bkflow.statistics.models import (
     DailyStatisticsSummary,
     PluginExecutionSummary,
@@ -44,10 +44,11 @@ def generate_daily_summary_task(self, target_date: str = None):
 
 def _generate_daily_summary(summary_date: date):
     db_alias = StatisticsSettings.get_db_alias()
+    day_start, day_end = date_to_datetime_range(summary_date)
 
     task_stats = (
         TaskflowStatistics.objects.using(db_alias)
-        .filter(create_time__date=summary_date)
+        .filter(create_time__gte=day_start, create_time__lt=day_end)
         .values("space_id", "scope_type", "scope_value")
         .annotate(
             task_created=Count("id"),
@@ -67,7 +68,8 @@ def _generate_daily_summary(summary_date: date):
             TaskflowExecutedNodeStatistics.objects.using(db_alias)
             .filter(
                 space_id=stat["space_id"],
-                started_time__date=summary_date,
+                started_time__gte=day_start,
+                started_time__lt=day_end,
                 is_retry=False,
             )
             .aggregate(
@@ -137,15 +139,18 @@ def _generate_plugin_summary(period_type: str, period_start: date):
     db_alias = StatisticsSettings.get_db_alias()
 
     if period_type == "day":
-        period_end = period_start + timedelta(days=1)
+        period_end_date = period_start + timedelta(days=1)
     elif period_type == "week":
-        period_end = period_start + timedelta(weeks=1)
+        period_end_date = period_start + timedelta(weeks=1)
     else:
-        period_end = period_start + timedelta(days=30)
+        period_end_date = period_start + timedelta(days=30)
+
+    range_start, _ = date_to_datetime_range(period_start)
+    _, range_end = date_to_datetime_range(period_end_date - timedelta(days=1))
 
     node_stats = (
         TaskflowExecutedNodeStatistics.objects.using(db_alias)
-        .filter(started_time__date__gte=period_start, started_time__date__lt=period_end, is_retry=False)
+        .filter(started_time__gte=range_start, started_time__lt=range_end, is_retry=False)
         .values("space_id", "component_code", "version", "plugin_type")
         .annotate(
             execution=Count("id"),
@@ -187,12 +192,11 @@ def clean_expired_statistics_task(self):
     try:
         if detail_days > 0:
             detail_cutoff = date.today() - timedelta(days=detail_days)
+            cutoff_start, _ = date_to_datetime_range(detail_cutoff)
             d1, _ = (
-                TaskflowExecutedNodeStatistics.objects.using(db_alias)
-                .filter(started_time__date__lt=detail_cutoff)
-                .delete()
+                TaskflowExecutedNodeStatistics.objects.using(db_alias).filter(started_time__lt=cutoff_start).delete()
             )
-            d2, _ = TaskflowStatistics.objects.using(db_alias).filter(create_time__date__lt=detail_cutoff).delete()
+            d2, _ = TaskflowStatistics.objects.using(db_alias).filter(create_time__lt=cutoff_start).delete()
             logger.info(f"[clean_statistics] Detail cleaned: nodes={d1}, tasks={d2}")
 
         if summary_days > 0:

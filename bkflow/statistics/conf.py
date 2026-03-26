@@ -11,9 +11,25 @@
 - STATISTICS_SUMMARY_RETENTION_DAYS: 汇总数据保留天数（默认 365）
 """
 
+from datetime import date, datetime, time
+
 from django.conf import settings
+from django.utils import timezone
 
 import env
+
+
+def date_to_datetime_range(d: date) -> tuple:
+    """将 date 转为当天 00:00:00 ~ 次日 00:00:00 的 timezone-aware datetime 范围。
+
+    用于替代 Django ORM 的 ``__date`` lookup，避免 MySQL 未加载时区数据时
+    ``CONVERT_TZ`` 返回 NULL 导致查询失效的问题。
+
+    :return: (day_start, day_end) 均为 aware datetime
+    """
+    day_start = timezone.make_aware(datetime.combine(d, time.min))
+    day_end = timezone.make_aware(datetime.combine(d, time.min)) + timezone.timedelta(days=1)
+    return day_start, day_end
 
 
 class StatisticsSettings:
