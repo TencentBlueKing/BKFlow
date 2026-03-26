@@ -33,9 +33,9 @@ class TestTemplateStatisticsCollector(TestCase):
                     "component": {
                         "code": "remote_plugin",
                         "version": "legacy",
-                        "inputs": {
-                            "plugin_code": {"value": "my_plugin"},
-                            "plugin_version": {"value": "1.0.0"},
+                        "data": {
+                            "plugin_code": {"hook": False, "value": "my_plugin"},
+                            "plugin_version": {"hook": False, "value": "1.0.0"},
                         },
                     },
                 },
@@ -105,3 +105,38 @@ class TestTemplateStatisticsCollector(TestCase):
         collector = TemplateStatisticsCollector(template_id=999, snapshot_id=10)
         result = collector.collect()
         assert result is False
+
+    @patch(
+        "bkflow.statistics.collectors.template_collector.TemplateStatisticsCollector.template",
+        new_callable=PropertyMock,
+    )
+    def test_collect_remote_plugin_with_data_field(self, mock_template_prop):
+        """验证 remote_plugin 从 component.data 中提取实际插件编码
+
+        pipeline_tree 中 component 的参数存放在 data 字段而非 inputs。
+        """
+        mock = self._make_mock_template()
+        mock.pipeline_tree = {
+            "activities": {
+                "node1": {
+                    "type": "ServiceActivity",
+                    "name": "标准运维流程执行",
+                    "component": {
+                        "code": "remote_plugin",
+                        "data": {
+                            "plugin_code": {"hook": False, "value": "bk-sops-plugin"},
+                            "plugin_version": {"hook": False, "value": "1.0.0"},
+                        },
+                        "version": "1.0.0",
+                    },
+                },
+            },
+            "gateways": {},
+        }
+        mock_template_prop.return_value = mock
+        collector = TemplateStatisticsCollector(template_id=1, snapshot_id=10)
+        collector.collect()
+
+        node = TemplateNodeStatistics.objects.get(template_id=1, is_remote=True)
+        assert node.component_code == "bk-sops-plugin", f"Expected 'bk-sops-plugin', got '{node.component_code}'"
+        assert node.version == "1.0.0"

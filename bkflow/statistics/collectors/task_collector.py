@@ -195,7 +195,7 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
         """根据节点定义和执行状态创建节点统计记录
 
         仅处理已完成的节点（FINISHED/FAILED/REVOKED/SUSPENDED）。
-        对 remote_plugin 类型的节点，从 inputs 中提取实际的插件编码和版本。
+        对 remote_plugin 类型的节点，从 data（或 inputs）中提取实际的插件编码和版本。
         """
         state = status.get("state", "")
         if state not in ("FINISHED", "FAILED", "REVOKED", "SUSPENDED"):
@@ -207,9 +207,9 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
         is_remote = False
 
         if component_code == "remote_plugin":
-            inputs = component.get("inputs", {})
-            component_code = inputs.get("plugin_code", {}).get("value", component_code)
-            version = inputs.get("plugin_version", {}).get("value", version)
+            params = component.get("data") or component.get("inputs") or {}
+            component_code = params.get("plugin_code", {}).get("value", component_code)
+            version = params.get("plugin_version", {}).get("value", version)
             is_remote = True
 
         started_time = self.parse_datetime(status.get("started_time"))

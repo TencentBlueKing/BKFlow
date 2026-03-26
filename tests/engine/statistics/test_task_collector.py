@@ -228,3 +228,36 @@ class TestTaskStatisticsCollector(TestCase):
         assert node.started_time == started, f"started_time mismatch: expected {started}, got {node.started_time}"
         assert node.archived_time == archived, f"archived_time mismatch: expected {archived}, got {node.archived_time}"
         assert node.elapsed_time == 180, f"elapsed_time should be 180s, got {node.elapsed_time}"
+
+    @patch("bkflow.statistics.collectors.task_collector.TaskStatisticsCollector.task", new_callable=PropertyMock)
+    def test_create_node_statistics_remote_plugin_data_field(self, mock_task_prop):
+        """验证 _create_node_statistics 从 component.data 提取 remote_plugin 的实际插件编码"""
+        mock_task_prop.return_value = self._make_mock_task()
+        collector = TaskStatisticsCollector(task_id=1)
+
+        activity = {
+            "type": "ServiceActivity",
+            "id": "node1",
+            "name": "标准运维流程执行",
+            "component": {
+                "code": "remote_plugin",
+                "data": {
+                    "plugin_code": {"hook": False, "value": "bk-sops-plugin"},
+                    "plugin_version": {"hook": False, "value": "1.0.0"},
+                },
+                "version": "1.0.0",
+            },
+        }
+        status = {
+            "state": "FINISHED",
+            "started_time": timezone.now(),
+            "archived_time": timezone.now(),
+            "retry": 0,
+            "skip": False,
+        }
+
+        node = collector._create_node_statistics(activity, status, [], False)
+        assert node is not None
+        assert node.component_code == "bk-sops-plugin", f"Expected 'bk-sops-plugin', got '{node.component_code}'"
+        assert node.version == "1.0.0"
+        assert node.is_remote is True
