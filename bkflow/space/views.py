@@ -67,6 +67,7 @@ from bkflow.space.serializers import (
     CredentialScopeSerializer,
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
+    SpaceConfigBatchDeleteSerializer,
     SpaceConfigSerializer,
     SpaceSerializer,
 )
@@ -434,6 +435,24 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
             err_msg = f"删除空间配置失败: {str(e)}"
             logger.error(err_msg)
             return Response(exception=True, data={"detail": err_msg})
+
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="批量删除空间配置",
+        request_body=SpaceConfigBatchDeleteSerializer,
+    )
+    @action(detail=False, methods=["POST"])
+    def batch_delete(self, request, *args, **kwargs):
+        ser = SpaceConfigBatchDeleteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        ids = ser.validated_data["ids"]
+        try:
+            SpaceConfig.objects.filter(id__in=ids).delete()
+        except Exception as e:
+            err_msg = f"批量删除空间配置失败: {str(e)}"
+            logger.error(err_msg)
+            return Response(exception=True, data={"detail": err_msg})
+        return Response(ids)
 
 
 class SpaceConfigViewSet(ModelViewSet, SimpleGenericViewSet):
