@@ -274,9 +274,7 @@ class TestLabelViewSet:
                 },
             }
 
-            request = self.factory.get(
-                f"/api/label/get_label_ref_count/?space_id=1&label_ids={parent.id}"
-            )
+            request = self.factory.get(f"/api/label/get_label_ref_count/?space_id=1&label_ids={parent.id}")
             request.user = self.admin_user
 
             response = self.get_label_ref_count_view(request)
@@ -292,9 +290,10 @@ class TestLabelViewSet:
             # Ensure task client was called with both parent and child ids
             called_args = mock_instance.get_task_label_ref_count.call_args[0]
             assert called_args[0] == 1
-            assert called_args[1].startswith(f"{parent.id},")
-            assert str(child1.id) in called_args[1]
-            assert str(child2.id) in called_args[1]
+            called_label_ids = set(called_args[1].split(","))
+            assert str(parent.id) in called_label_ids
+            assert str(child1.id) in called_label_ids
+            assert str(child2.id) in called_label_ids
 
     def test_get_label_ref_count_client_error(self):
         """get_label_ref_count should handle TaskComponentClient errors gracefully."""

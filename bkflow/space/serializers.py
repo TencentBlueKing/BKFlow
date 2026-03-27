@@ -84,4 +84,5 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
 
 
 class SpaceConfigBatchDeleteSerializer(serializers.Serializer):
-    ids = serializers.ListField(child=serializers.IntegerField(), help_text=_("空间配置ID列表"))
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    ids = serializers.ListField(child=serializers.IntegerField(), help_text=_("空间配置ID列表"), min_length=1)

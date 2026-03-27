@@ -446,8 +446,9 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         ser = SpaceConfigBatchDeleteSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         ids = ser.validated_data["ids"]
+        space_id = ser.validated_data["space_id"]
         try:
-            SpaceConfig.objects.filter(id__in=ids).delete()
+            SpaceConfig.objects.batch_delete(inst_ids=ids, space_id=space_id)
         except Exception as e:
             err_msg = f"批量删除空间配置失败: {str(e)}"
             logger.error(err_msg)

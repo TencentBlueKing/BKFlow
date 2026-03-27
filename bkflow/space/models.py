@@ -173,6 +173,26 @@ class SpaceConfigManager(models.Manager):
                     transaction.set_rollback(True)
                     raise APIResponseError(resp["message"])
 
+    def batch_delete(self, inst_ids: list, space_id: int):
+        instances = self.filter(id__in=inst_ids)
+        if not instances:
+            return
+        ref_instances_ids = [
+            inst.id
+            for inst in instances
+            if SpaceConfigHandler.get_config(inst.name).value_type == SpaceConfigValueType.REF.value
+        ]
+
+        with transaction.atomic():
+            instances.delete()
+
+            if ref_instances_ids:
+                client = TaskComponentClient(space_id=space_id)
+                resp = client.delete_engine_config(data={"interface_config_ids": ref_instances_ids})
+                if not resp["result"]:
+                    transaction.set_rollback(True)
+                    raise APIResponseError(resp["message"])
+
     def batch_update(self, space_id: int, configs: dict):
         existing_space_configs = list(self.filter(space_id=space_id, name__in=list(configs.keys())))
         existing_space_config_keys = [space_config.name for space_config in existing_space_configs]
