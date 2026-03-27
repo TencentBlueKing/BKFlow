@@ -50,14 +50,36 @@ class SleepTimerComponentTest(TestCase, ComponentTestMixin):
         return SleepTimerComponent
 
     def cases(self):
-        return [INVALID_SECONDS_TEST_CASE, VALID_DATETIME_TEST_CASE]
+        # 动态生成时间，避免模块加载时计算导致的时间竞争问题
+        business_tz = timezone.pytz.timezone(settings.TIME_ZONE)
+        valid_datetime_str = (datetime.datetime.now() + datetime.timedelta(seconds=3600)).strftime("%Y-%m-%d %H:%M:%S")
+        valid_datetime_input = {"bk_timing": valid_datetime_str, "force_check": True}
+        timing_time = business_tz.localize(datetime.datetime.strptime(valid_datetime_str, "%Y-%m-%d %H:%M:%S"))
+
+        valid_datetime_test_case = ComponentTestCase(
+            name="valid datetime input test case",
+            inputs=valid_datetime_input,
+            parent_data={},
+            execute_assertion=ExecuteAssertion(
+                success=True,
+                outputs={
+                    "business_tz": business_tz,
+                    "timing_time": timing_time,
+                },
+            ),
+            schedule_assertion=ScheduleAssertion(
+                success=True,
+                outputs={
+                    "business_tz": business_tz,
+                    "timing_time": timing_time,
+                },
+                callback_data={},
+            ),
+        )
+        return [INVALID_SECONDS_TEST_CASE, valid_datetime_test_case]
 
 
 INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 60, "force_check": True}
-VALID_DATETIME_INPUT = {
-    "bk_timing": (datetime.datetime.now() + datetime.timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M:%S"),
-    "force_check": True,
-}
 VALID_SECONDS_INPUT = {"bk_timing": 10, "force_check": True}
 BUSINESS_TIMEZONE = timezone.pytz.timezone(settings.TIME_ZONE)
 
@@ -73,29 +95,4 @@ INVALID_SECONDS_TEST_CASE = ComponentTestCase(
         },
     ),
     schedule_assertion=None,
-)
-
-VALID_DATETIME_TEST_CASE = ComponentTestCase(
-    name="valid datetime input test case",
-    inputs=VALID_DATETIME_INPUT,
-    parent_data={},
-    execute_assertion=ExecuteAssertion(
-        success=True,
-        outputs={
-            "business_tz": BUSINESS_TIMEZONE,
-            "timing_time": BUSINESS_TIMEZONE.localize(
-                datetime.datetime.strptime(VALID_DATETIME_INPUT["bk_timing"], "%Y-%m-%d %H:%M:%S")
-            ),
-        },
-    ),
-    schedule_assertion=ScheduleAssertion(
-        success=True,
-        outputs={
-            "business_tz": BUSINESS_TIMEZONE,
-            "timing_time": BUSINESS_TIMEZONE.localize(
-                datetime.datetime.strptime(VALID_DATETIME_INPUT["bk_timing"], "%Y-%m-%d %H:%M:%S")
-            ),
-        },
-        callback_data={},
-    ),
 )
