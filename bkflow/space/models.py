@@ -174,7 +174,7 @@ class SpaceConfigManager(models.Manager):
                     raise APIResponseError(resp["message"])
 
     def batch_delete(self, inst_ids: list, space_id: int):
-        instances = self.filter(id__in=inst_ids)
+        instances = self.filter(id__in=inst_ids, space_id=space_id)
         if not instances:
             return
         ref_instances_ids = [
