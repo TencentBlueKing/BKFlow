@@ -302,7 +302,7 @@ class SubprocessPluginService(BKFlowBaseService):
             for key in filter(lambda x: x in subprocess_execution_data_outputs, node_outputs.keys()):
                 data.set_outputs(key, subprocess_execution_data_outputs[key])
         else:
-            outputs = {}
+            outputs = {"task_id": task_id}
             if not task_success:
                 outputs["ex_data"] = "子流程执行失败，请检查失败节点"
                 data.set_outputs("ex_data", "子流程执行失败，请检查失败节点")
@@ -310,8 +310,6 @@ class SubprocessPluginService(BKFlowBaseService):
                 # 遍历子流程的输出，判断该输出是否在节点的输出变量中，在则加入
                 for key, value in subprocess_execution_data_outputs.items():
                     data.set_outputs(key, subprocess_execution_data_outputs[key])
-                    if key not in node_outputs.keys():
-                        continue
                     key = key.removeprefix("${").removesuffix("}")
                     outputs[key] = value
             # 无论成功失败，都将 outputs 字典设置到输出中，由 extract_outputs 统一追加到列表
