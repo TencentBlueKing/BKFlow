@@ -153,7 +153,7 @@
             message: `${this.$t('以下配置项数据格式不正确,应为JSON格式:')}${invalidItems.join('、')}`,
             theme: 'error',
             ellipsisLine: 2,
-            ellipsisCopy: true
+            ellipsisCopy: true,
           });
           return;
         }
@@ -223,36 +223,27 @@
   };
 </script>
 <style lang="scss" scoped>
+@import '@/scss/mixins/scrollbar.scss';
   .space-config-page {
     min-height: 200px;
     padding: 0 24px 24px;
     .space-config-form {
-      background: #fff;
-      border-radius: 2px;
-      box-shadow: 0 2px 6px 0 rgba(0, 0, 0, 0.1);
-      .space-config-title {
-        padding: 16px 32px;
-        font-size: 16px;
-        font-weight: 700;
-        color: #313238;
-        line-height: 24px;
-        text-align: center;
-        border-bottom: 1px solid #f0f1f5;
-      }
       .space-config-header {
-        position: sticky;
-        top: 0;
         z-index: 100;
         display: flex;
         align-items: center;
         justify-content: flex-start;
         gap: 8px;
-        padding: 16px 32px;
-        border-bottom: 1px solid #f0f1f5;
-        background: #fff;
+        margin-bottom: 15px;
       }
       .space-config-body {
+        max-height: calc(-160px + 100vh);
+        overflow-y: auto;
+        @include scrollbar;
         padding: 8px 0;
+        background: #fff;
+        border-radius: 2px;
+        box-shadow: 0 2px 6px 0 rgba(0, 0, 0, 0.1);
       }
     }
   }
