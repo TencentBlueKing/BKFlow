@@ -132,10 +132,12 @@ jobs:
           REPO="${{ github.repository }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          EVENT_ACTION="${{ github.event.action }}"
           echo "📦 仓库: $REPO"
           echo "📦 PR 编号: $PR_NUMBER"
           echo "📦 Head SHA: $HEAD_SHA"
           echo "📦 Base SHA: $BASE_SHA"
+          echo "📦 事件类型: $EVENT_ACTION"
           # 读取项目专属 code review 规范
           REVIEW_STANDARDS=""
           STANDARDS_FILE=".ai/skills/requesting-code-review/bkflow-review-standards.md"
@@ -145,7 +147,41 @@ jobs:
           else
             echo "⚠️ 未找到项目 code review 规范文件: $STANDARDS_FILE"
           fi
+          # 收集已有 review comments（用于去重和跟踪已解决问题）
+          EXISTING_COMMENTS=""
+          EXISTING_COMMENTS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments,reviews --jq '
+            [
+              (.comments[]? | "PR comment by \(.author.login): \(.body[:200])"),
+              (.reviews[]? | "Review by \(.author.login) (\(.state)): \(.body[:200])")
+            ] | join("\n---\n")
+          ' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_COMMENTS" ]; then
+            echo "✅ 已收集 $(echo "$EXISTING_COMMENTS" | grep -c '---' || echo 0) 条已有评论"
+          fi
           # 构建审查提示词
+          # 判断是否为增量审查
+          IS_INCREMENTAL="false"
+          if [ "$EVENT_ACTION" = "synchronize" ] && [ -n "$EXISTING_COMMENTS" ]; then
+            IS_INCREMENTAL="true"
+          fi
+
+          INCREMENTAL_INSTRUCTION=""
+          if [ "$IS_INCREMENTAL" = "true" ]; then
+            INCREMENTAL_INSTRUCTION="
+          ## 增量审查模式
+
+          这是一次增量审查（PR 有新的提交推送）。以下是之前的审查评论摘要：
+
+          ${EXISTING_COMMENTS}
+
+          增量审查规则：
+          1) 如果之前报告的问题已在新提交中被修复，回复：✅ 此问题已在最新提交中解决
+          2) 不要重复报告已有评论中已经提出过的相同问题
+          3) 重点关注新增/修改的代码行，而非已审查过的部分
+          4) 只对新发现的问题留下评论
+          "
+          fi
+
           REVIEW_PROMPT=$(cat <<EOF
           你当前在 GitHub Actions runner 中执行自动化代码审查。gh CLI 可用并已通过 GH_TOKEN 认证。你可以在拉取请求上发表评论。
 
@@ -155,12 +191,15 @@ jobs:
 
           ${REVIEW_STANDARDS}
 
+          ${INCREMENTAL_INSTRUCTION}
+
           ## 上下文
 
           - 仓库：${REPO}
           - PR 编号：${PR_NUMBER}
           - PR Head SHA：${HEAD_SHA}
           - PR Base SHA：${BASE_SHA}
+          - 事件类型：${EVENT_ACTION}
 
           ## 项目文档
 
@@ -178,6 +217,13 @@ jobs:
           3) 新增功能是否遵循了文档中描述的设计模式
           4) 文档是否放在了正确的目录（参考 docs-management.mdc）
 
+          ## 部署架构
+
+          BKFlow 是多模块部署架构，审查前必须理解：
+          - module_settings.py 通过 BKFLOW_MODULE_TYPE 控制 INSTALLED_APPS，不同模块只加载对应的 Django apps
+          - 如果某段代码只存在于特定模块才加载的 app 中，不需要考虑该代码在其他模块下的行为
+          - 审查权限、信号注册等问题时，先确认该 app 在哪些部署模式下会被加载
+
           ## 权限体系
 
           本项目采用四层鉴权架构，审查涉及 API / ViewSet 的变更时必须参考：
@@ -185,9 +231,10 @@ jobs:
 
           审查要点：
           1) 新增 ViewSet 是否正确配置了 permission_classes（AdminPermission / ScopePermission / TokenPermission 等）
-          2) permission_classes 的鉴权 scope 是否与视图中过滤数据集的 scope 一致（防止权限泄露）
-          3) 面向第三方的接口（无用户态）应使用 default backend + apigw/ 路径，面向 SDK/画布的应使用 sdk backend + api/ 路径
-          4) 需要 BKFLOW-TOKEN 的场景（TemplatePermission / ScopePermission 等）是否正确传递了 token
+          2) permission_classes 的鉴权 scope 是否与视图中过滤数据集的 scope 一致（防止权限泄露）——仅针对面向外部消费方的接口
+          3) 内部管理接口（admin portal / 模块间调用）使用 AdminPermission | AppInternalPermission 即可，不要建议添加 ScopePermission
+          4) 面向第三方的接口（无用户态）应使用 default backend + apigw/ 路径，面向 SDK/画布的应使用 sdk backend + api/ 路径
+          5) 需要 BKFLOW-TOKEN 的场景（TemplatePermission / ScopePermission 等）是否正确传递了 token
 
           ## API 网关同步规则
 
@@ -201,15 +248,16 @@ jobs:
           ## 目标
 
           1) 复核已有审查评论，若已处理则回复：已解决
-          2) 对照上方项目规范审查当前 PR diff，重点关注规范中列出的高频问题
+          2) 对照上方项目规范审查当前 PR diff，重点关注规范中 Critical 和 Important 级别的问题
           3) 结合项目文档判断代码变更的合理性，检查是否需要更新文档
           4) 只在变更的行留下非常简短的行内评论（1-2 句），并在末尾给出简要总结
+          5) 报告问题前，先验证你的理解是否正确（例如检查相关的 module_settings.py、permission 配置、编码规范等），避免误报
 
           ## 流程
 
-          - 获取已有评论：gh pr view ${PR_NUMBER} --json comments
           - 获取 diff：gh pr diff ${PR_NUMBER}
-          - 按需阅读项目文档：cat docs/guide/architecture.md 等
+          - 按需阅读项目文档和代码：cat module_settings.py、cat .ai/rules/bkflow-permission.mdc 等
+          - 在报告权限/部署/架构相关问题前，先阅读相关配置文件确认理解
           - 若先前报告的问题似乎已被附近的更改修复，回复：✅ 此问题似乎已被最近的更改解决
           - 避免重复：如果同类反馈已在相同行或附近存在，则跳过
 
@@ -219,6 +267,7 @@ jobs:
           - 每条评论只包含一个问题；放在准确的变更行
           - 语气自然，具体且可执行；不要提及自动化或高置信度
           - 使用表情：🚨 严重 🔒 安全 ⚡ 性能 ⚠️ 逻辑 ✅ 已解决 ✨ 改进
+          - 对于 Minor 级别的问题，只在新引入的代码中报告，不对存量代码挑刺
 
           ## 提交
 
