@@ -1749,7 +1749,7 @@
           icon,
           code,
           type,
-          mode: mode || this.type
+          mode: mode || this.type,
         });
       },
       async jumpToTemplateMock() {

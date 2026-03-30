@@ -112,10 +112,6 @@
         type: String,
         default: '',
       }, // 循环输出变量key，存储在loopConfig中
-      usedOutputsKeys: {
-        type: Array,
-        default: () => ([]),
-      }, // 其他子流程节点已使用的outputsKey
     },
     data() {
       const list = this.getOutputsList(this.params);

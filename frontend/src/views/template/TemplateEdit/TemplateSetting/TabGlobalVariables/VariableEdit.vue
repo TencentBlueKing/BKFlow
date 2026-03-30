@@ -296,11 +296,6 @@
         type: Boolean,
         default: false,
       },
-      // 已存在的循环输出的key
-      extraForbiddenKeys: {
-        type: Array,
-        default: () => [],
-      },
     },
     data() {
       const theEditingData = tools.deepClone(this.variableData);
@@ -689,10 +684,6 @@
           }
           // 检查全局变量和内置变量
           if (value in this.constants || value in this.internalVariable) {
-            return false;
-          }
-          // 检查其他节点已使用的outputsKey
-          if (this.extraForbiddenKeys.includes(value)) {
             return false;
           }
           return true;

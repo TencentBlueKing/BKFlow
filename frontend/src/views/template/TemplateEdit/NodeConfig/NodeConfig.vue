@@ -74,7 +74,6 @@
             :constants="localConstants"
             :template-id="$route.params.templateId"
             :skip-mutation="variableData.isLoopOutput"
-            :extra-forbidden-keys="usedOutputsKeys"
             @closeEditingPanel="isVariablePanelShow = false"
             @onSaveEditing="onVariableSaveEditing" />
         </div>
@@ -183,7 +182,6 @@
                   :is-view-mode="isViewMode"
                   :uniform-outputs="uniformOutputs"
                   :loop-outputs-key="basicInfo.loopConfig ? (basicInfo.loopConfig.outputs_key || '') : ''"
-                  :used-outputs-keys="usedOutputsKeys"
                   @hookChange="onHookChange"
                   @outputsHookChange="onOutputsHookChange"
                   @openVariablePanel="openVariablePanel" />
@@ -350,10 +348,6 @@
           return this.outputs.filter(item => item.key === 'outputs');
         }
         return this.outputs.filter(item => item.key !== 'outputs');
-      },
-      // 其他子流程节点已使用的outputsKey
-      usedOutputsKeys() {
-        return this.getUsedOutputsKeys();
       },
       atomGroup() { // 某一标准插件下所有版本分组
         return this.atomList.find(item => item.code === this.basicInfo.plugin);
@@ -1042,7 +1036,7 @@
 
         this.onHookChange('delete', this.variableData);
         this.onHookChange('create', variable);
-        if (sourceKey === 'outputs' && this.basicInfo.loopConfig) {
+        if (sourceKey === 'outputs' && this.basicInfo.loopConfig?.enable) {
           this.onOutputsHookChange('edit', variable.key);
         }
 
@@ -1233,11 +1227,15 @@
        */
       updateBasicInfo(data) {
         this.isDataChange = true;
-        // 当循环执行切换为单次执行时，清除 loopConfig.outputs_key
+        // 当循环执行切换为单次执行时，清除循环输出变量及 loopConfig.outputs_key
         if (data.loopConfig
           && this.basicInfo.loopConfig
           && !data.loopConfig.enable
           && this.basicInfo.loopConfig.outputs_key) {
+          const outputsKey = this.basicInfo.loopConfig.outputs_key;
+          if (outputsKey && this.localConstants[outputsKey]) {
+            this.deleteVariable(outputsKey);
+          }
           data.loopConfig.outputs_key = '';
         }
         this.basicInfo = Object.assign({}, this.basicInfo, data);
