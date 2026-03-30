@@ -83,7 +83,7 @@
         </div>
         <!-- 验证规则 -->
         <div
-          v-show="['input', 'textarea'].includes(theEditingData.custom_type) && !isInternalVal && !(variableData && variableData.isLoopOutput)"
+          v-show="['input', 'textarea'].includes(theEditingData.custom_type) && !isInternalVal"
           class="form-item clearfix">
           <label class="form-label">{{ $t('正则校验') }}</label>
           <div class="form-content">
@@ -204,7 +204,6 @@
         </div> -->
         <!-- 描述 -->
         <div
-          v-if="!(variableData && variableData.isLoopOutput)"
           class="form-item clearfix">
           <label class="form-label">{{ $t('说明') }}</label>
           <div class="form-content">
@@ -291,16 +290,6 @@
       templateId: {
         type: [String, Number],
         default: '',
-      },
-      // 是否跳过(循环输出变量不写入全局变量store)
-      skipMutation: {
-        type: Boolean,
-        default: false,
-      },
-      // 已存在的循环输出的key
-      extraForbiddenKeys: {
-        type: Array,
-        default: () => [],
       },
     },
     data() {
@@ -692,10 +681,6 @@
           if (value in this.constants || value in this.internalVariable) {
             return false;
           }
-          // 检查其他节点已使用的outputsKey
-          if (this.extraForbiddenKeys.includes(value)) {
-            return false;
-          }
           return true;
         });
         // 注册变量 key 长度规则
@@ -954,23 +939,21 @@
           // 移除变量冗余字段
           delete variable.cited;
 
-          if (!this.skipMutation) {
-            if (!this.variableData.key) { // 新增变量
-              if (!this.isHookedVar) { // 自定义变量
-                variable.version = 'legacy';
-                variable.form_schema = formSchema.getSchema(
-                  variable.custom_type,
-                  this.atomFormConfig[this.atomTypeKey][variable.version]
-                );
-              }
-              this.$emit('setNewCloneKeys', variable.key);
-              this.addVariable(tools.deepClone(variable));
-            } else { // 编辑变量
-              this.editVariable({ key: this.variableData.key, variable });
-              // 如果全局变量有被勾选为输出，修改变量 key 后需要更新 outputs 字段
-              if (this.variableData.key !== this.theEditingData.key && this.outputs.includes(this.variableData.key)) {
-                this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
-              }
+          if (!this.variableData.key) { // 新增变量
+            if (!this.isHookedVar) { // 自定义变量
+              variable.version = 'legacy';
+              variable.form_schema = formSchema.getSchema(
+                variable.custom_type,
+                this.atomFormConfig[this.atomTypeKey][variable.version]
+              );
+            }
+            this.$emit('setNewCloneKeys', variable.key);
+            this.addVariable(tools.deepClone(variable));
+          } else { // 编辑变量
+            this.editVariable({ key: this.variableData.key, variable });
+            // 如果全局变量有被勾选为输出，修改变量 key 后需要更新 outputs 字段
+            if (this.variableData.key !== this.theEditingData.key && this.outputs.includes(this.variableData.key)) {
+              this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
             }
           }
           this.$emit('onSaveEditing', this.theEditingData);
