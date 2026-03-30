@@ -73,7 +73,6 @@
             :common="common"
             :constants="localConstants"
             :template-id="$route.params.templateId"
-            :skip-mutation="variableData.isLoopOutput"
             @closeEditingPanel="isVariablePanelShow = false"
             @onSaveEditing="onVariableSaveEditing" />
         </div>
@@ -1387,21 +1386,6 @@
         }
         // 如果全局变量数据有变，需要更新popover
         this.randomKey = new Date().getTime();
-      },
-      // 获取其他子流程节点已使用的 outputs_key 值
-      getUsedOutputsKeys() {
-        const usedKeys = [];
-        if (!this.activities) return usedKeys;
-        Object.keys(this.activities).forEach((id) => {
-          if (id === this.nodeId) return; // 排除当前节点
-          const activity = this.activities[id];
-          if (activity.type === 'ServiceActivity') return; // 只检查子流程节点
-          const loopConfig = activity.loop_config || {};
-          if (loopConfig.outputs_key) {
-            usedKeys.push(loopConfig.outputs_key);
-          }
-        });
-        return usedKeys;
       },
       // 循环输出变量勾选/取消勾选/编辑
       onOutputsHookChange(type, key) {

@@ -291,11 +291,6 @@
         type: [String, Number],
         default: '',
       },
-      // 是否跳过(循环输出变量不写入全局变量store)
-      skipMutation: {
-        type: Boolean,
-        default: false,
-      },
     },
     data() {
       const theEditingData = tools.deepClone(this.variableData);
@@ -944,23 +939,21 @@
           // 移除变量冗余字段
           delete variable.cited;
 
-          if (!this.skipMutation) {
-            if (!this.variableData.key) { // 新增变量
-              if (!this.isHookedVar) { // 自定义变量
-                variable.version = 'legacy';
-                variable.form_schema = formSchema.getSchema(
-                  variable.custom_type,
-                  this.atomFormConfig[this.atomTypeKey][variable.version]
-                );
-              }
-              this.$emit('setNewCloneKeys', variable.key);
-              this.addVariable(tools.deepClone(variable));
-            } else { // 编辑变量
-              this.editVariable({ key: this.variableData.key, variable });
-              // 如果全局变量有被勾选为输出，修改变量 key 后需要更新 outputs 字段
-              if (this.variableData.key !== this.theEditingData.key && this.outputs.includes(this.variableData.key)) {
-                this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
-              }
+          if (!this.variableData.key) { // 新增变量
+            if (!this.isHookedVar) { // 自定义变量
+              variable.version = 'legacy';
+              variable.form_schema = formSchema.getSchema(
+                variable.custom_type,
+                this.atomFormConfig[this.atomTypeKey][variable.version]
+              );
+            }
+            this.$emit('setNewCloneKeys', variable.key);
+            this.addVariable(tools.deepClone(variable));
+          } else { // 编辑变量
+            this.editVariable({ key: this.variableData.key, variable });
+            // 如果全局变量有被勾选为输出，修改变量 key 后需要更新 outputs 字段
+            if (this.variableData.key !== this.theEditingData.key && this.outputs.includes(this.variableData.key)) {
+              this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
             }
           }
           this.$emit('onSaveEditing', this.theEditingData);
