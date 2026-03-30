@@ -1095,6 +1095,7 @@ const en = {
   选择调试凭证: 'Select debug credential',
   凭证: 'Credential',
   请选择调试凭证: 'Please select debug credential',
+  '以下配置项数据格式不正确,应为JSON格式:': 'The following configuration item data format is incorrect and should be in JSON format:',
   labelReference: '{0} template is being referenced，{1} task is being referenced',
   '搜索标签名称、标签范围、系统默认标签': 'Search Label Name, Label Scope, System Default Label',
   新增标签: 'Add Label',

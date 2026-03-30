@@ -1,155 +1,49 @@
 <template>
-  <div class="space-config-list">
-    <bk-table
-      v-bkloading="{ isLoading: listLoading }"
-      :data="spaceConfigList"
-      :max-height="tableMaxHeight">
-      <bk-table-column
-        v-for="item in tableFields"
-        :key="item.id"
-        :label="item.label"
-        :prop="item.id"
-        show-overflow-tooltip>
-        <template slot-scope="{ row }">
-          <span :class="['table-cell', { 'is-disabled': row.isDefault }]">{{ row[item.id] || '--' }}</span>
-        </template>
-      </bk-table-column>
-      <bk-table-column
-        :label="$t('操作')"
-        fixed="right"
-        width="200">
-        <template slot-scope="{ row }">
-          <bk-button
-            theme="primary"
-            class="mr10"
-            text
-            @click="handleEdit(row)">
-            {{ $t('编辑') }}
-          </bk-button>
-          <bk-button
-            theme="primary"
-            :disabled="row.isDefault"
-            text
-            @click="handleDelete(row)">
-            {{ $t('恢复默认值') }}
-          </bk-button>
-        </template>
-      </bk-table-column>
-      <NoData
-        slot="empty"
-        type="empty" />
-    </bk-table>
-    <bk-dialog
-      v-model="editDialogShow"
-      theme="primary"
-      :mask-close="false"
-      header-position="left"
-      :width="600"
-      :esc-close="false"
-      :show-footer="false"
-      render-directive="if"
-      :title="$t('编辑配置')">
-      <bk-form
-        ref="editConfigForm"
-        :label-width="100"
-        :rules="rules"
-        :model="configFormData">
-        <bk-form-item :label="$t('名称')">
-          {{ selectedRow.name }}
-        </bk-form-item>
-        <bk-form-item :label="$t('说明')">
-          {{ selectedRow.desc }}
-        </bk-form-item>
-        <bk-form-item
-          v-if="selectedRow.is_mix_type"
-          :label="$t('值类型')">
-          <bk-select
-            v-model="localValueType"
-            :clearable="false"
-            @selected="configFormData.formValue = ''">
-            <bk-option
-              id="TEXT"
-              name="TEXT" />
-            <bk-option
-              id="JSON"
-              name="JSON" />
-          </bk-select>
-        </bk-form-item>
-        <bk-form-item
-          :label="$t('值')"
-          :property="'formValue'"
-          :required="true"
-          :class="{ 'code-form-item': isJsonValueType }">
-          <div
-            v-if="isJsonValueType"
-            class="code-wrapper">
-            <FullCodeEditor
-              ref="fullCodeEditor"
-              v-model="configFormData.formValue"
-              style="height: 300px;"
-              :options="{ language: 'json', placeholder: selectedRow.example }" />
-          </div>
-          <bk-select
-            v-else-if="configFormData.formType === 'select'"
-            v-model="configFormData.formValue"
-            :placeholder="selectedRow.example">
-            <bk-option
-              v-for="option in selectedRow.choices"
-              :id="option"
-              :key="option"
-              :name="option" />
-          </bk-select>
-          <bk-input
-            v-else
-            v-model="configFormData.formValue"
-            :placeholder="inputPlaceholder" />
-        </bk-form-item>
-        <bk-form-item class="mt20">
-          <bk-button
-            theme="primary"
-            :loading="editLoading"
-            @click="handleEditConfirm">
-            {{ $t('提交') }}
-          </bk-button>
-          <bk-button
-            ext-cls="mr5"
-            theme="default"
-            :disabled="editLoading"
-            @click="editDialogShow = false">
-            {{ $t('取消') }}
-          </bk-button>
-        </bk-form-item>
-      </bk-form>
-    </bk-dialog>
+  <div
+    v-bkloading="{ isLoading: listLoading }"
+    class="space-config-page">
+    <div
+      v-if="spaceConfigList.length"
+      class="space-config-form">
+      <div class="space-config-header">
+        <bk-button
+          theme="primary"
+          :loading="saving"
+          :disabled="!hasAnyChange"
+          @click="handleGlobalSave">
+          {{ $t('保存') }}
+        </bk-button>
+        <bk-button
+          :disabled="!hasAnyNonDefault || saving"
+          @click="handleGlobalRestore">
+          {{ $t('恢复默认值') }}
+        </bk-button>
+      </div>
+      <div class="space-config-body">
+        <SpaceConfigItem
+          v-for="item in spaceConfigList"
+          ref="configItems"
+          :key="item.name"
+          :config-item="item"
+          :space-id="spaceId"
+          @change="onItemChange(item.name, $event)" />
+      </div>
+    </div>
+    <NoData
+      v-else-if="!listLoading"
+      type="empty" />
   </div>
 </template>
 <script>
   import NoData from '@/components/common/base/NoData.vue';
-  import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
+  import SpaceConfigItem from './SpaceConfigItem.vue';
   import { mapActions } from 'vuex';
-  import i18n from '@/config/i18n/index.js';
-  import tools from '@/utils/tools.js';
-
-  const TABLE_FIELDS = [
-    {
-      id: 'name',
-      label: i18n.t('名字'),
-    },
-    {
-      id: 'desc',
-      label: i18n.t('说明'),
-    },
-    {
-      id: 'valueText',
-      label: i18n.t('值'),
-    },
-  ];
 
   export default {
     name: 'SpaceConfigList',
     components: {
       NoData,
-      FullCodeEditor,
+      SpaceConfigItem,
     },
     props: {
       spaceId: {
@@ -165,41 +59,16 @@
       return {
         listLoading: false,
         spaceConfigList: [],
-        tableFields: TABLE_FIELDS,
-        selectedRow: {},
-        deleting: false,
-        editDialogShow: false,
-        configFormData: {
-          formType: '',
-          formValue: '',
-        },
-        editLoading: false,
-        rules: {
-          formValue: [{
-            required: true,
-            message: this.$t('必填项'),
-            trigger: 'change',
-          }],
-        },
-        localValueType: 'TEXT',
+        saving: false,
+        changedSet: new Set(),
       };
     },
     computed: {
-      tableMaxHeight() {
-        let maxHeight = window.innerHeight - 154;
-        if (this.hasAlertNotice) {
-          maxHeight -= 40;
-        }
-        return maxHeight;
+      hasAnyChange() {
+        return this.changedSet.size > 0;
       },
-      isJsonValueType() {
-        return this.selectedRow.is_mix_type ? this.localValueType === 'JSON' : this.configFormData.formType === 'json';
-      },
-      inputPlaceholder() {
-        const { example = '' } = this.selectedRow;
-        let placeholder = typeof example === 'string' ? example : JSON.stringify(example);
-        placeholder = this.selectedRow.is_mix_type ? this.$t('请输入') : placeholder;
-        return placeholder;
+      hasAnyNonDefault() {
+        return this.spaceConfigList.some(item => !item.isDefault);
       },
     },
     watch: {
@@ -209,22 +78,25 @@
         },
         immediate: true,
       },
-      editDialogShow(val) {
-        if (!val) {
-          this.configFormData = {
-            formType: '',
-            formValue: '',
-          };
-        }
-      },
     },
     methods: {
       ...mapActions('spaceConfig/', [
         'getSpaceConfigData',
+        'getSpaceConfigMeta',
         'updateSpaceConfig',
         'deleteSpaceConfig',
-        'getSpaceConfigMeta',
+        'batchDeleteSpaceConfig',
+        'batchApplySpaceConfig',
       ]),
+      onItemChange(name, isChanged) {
+        if (isChanged) {
+          this.changedSet.add(name);
+        } else {
+          this.changedSet.delete(name);
+        }
+        // 触发响应式更新
+        this.changedSet = new Set(this.changedSet);
+      },
       // 空间配置列表
       async getSpaceConfigList() {
         if (!this.spaceId) return;
@@ -259,102 +131,69 @@
             return result;
           });
           this.spaceConfigList = list;
+          this.changedSet = new Set();
         } catch (error) {
           console.warn(error);
         } finally {
           this.listLoading = false;
         }
       },
-      // 编辑
-      handleEdit(row) {
-        this.selectedRow = row;
-        const {
-          value_type: valueType,
-          choices,
-          value,
-          json_value: jsonValue = {},
-          isDefault,
-        } = row;
-        this.localValueType = valueType;
-        // 表单类型
-        let formType = valueType === 'JSON' ? 'json' : 'input';
-        formType = choices ? 'select' : formType;
-        // 表单值
-        let formValue;
-        if (isDefault) {
-          const { default_value: defaultValue } = row;
-          formValue = formType === 'json' && defaultValue ? JSON.stringify(defaultValue, null, 4) : defaultValue;
-        } else {
-          formValue = formType === 'json' && jsonValue ? JSON.stringify(jsonValue, null, 4) : value;
+      async handleGlobalSave() {
+        const items = this.$refs.configItems || [];
+        // 校验所有配置项
+        const invalidItems = [];
+        items.forEach((comp) => {
+          const validation = comp.validate();
+          if (!validation.valid) {
+            invalidItems.push(validation.desc);
+          }
+        });
+        if (invalidItems.length) {
+          this.$bkMessage({
+            message: `${this.$t('以下配置项数据格式不正确,应为JSON格式:')}${invalidItems.join('、')}`,
+            theme: 'error',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
+          });
+          return;
         }
-        formValue = formValue || '';
-        this.configFormData = {
-          formType,
-          formValue,
-        };
-        this.editDialogShow = true;
-        setTimeout(() => {
-          const editorInstance = this.$refs.fullCodeEditor;
-          if (editorInstance) {
-            editorInstance.layoutCodeEditorInstance();
-          }
+        // 只收集有变更的配置项，避免将未修改的配置（如含占位符的默认值）提交给后端
+        const configs = {};
+        items.forEach((comp) => {
+          const data = comp.getChangedData();
+          if (!data) return; // 未变更，跳过
+          const value = data.json_value !== undefined ? data.json_value : data.text_value;
+          if (value === '' || value === null || value === undefined) return;
+          configs[data.name] = value;
         });
+        if (!Object.keys(configs).length) return;
+        try {
+          this.saving = true;
+          const resp = await this.batchApplySpaceConfig({
+            space_id: this.spaceId,
+            configs,
+          });
+          if (resp.result === false) return;
+          this.$bkMessage({
+            message: this.$t('保存成功！'),
+            theme: 'success',
+          });
+          await this.getSpaceConfigList();
+        } catch (error) {
+          console.warn(error);
+        } finally {
+          this.saving = false;
+        }
       },
-      // 确认修改
-      async handleEditConfirm() {
-        this.$refs.editConfigForm.validate().then(async (validator) => {
-          if (!validator) return;
-          // 检查值数据类型
-          const { formValue } = this.configFormData;
-          if (this.isJsonValueType && !tools.checkIsJSON(formValue)) {
-            this.$bkMessage({
-              message: this.$t('数据格式不正确，应为JSON格式'),
-              theme: 'error',
-            });
-            return;
-          }
-
-          try {
-            this.editLoading = true;
-            const { id, name, value_type: valueType, is_mix_type: isMixType  } = this.selectedRow;
-            const data = {
-              id,
-              name,
-              space_id: this.spaceId,
-              value_type: isMixType ? this.localValueType : valueType,
-            };
-            if (this.isJsonValueType) {
-              data.json_value = JSON.parse(formValue);
-            } else {
-              data.text_value = formValue;
-            }
-            const resp = await this.updateSpaceConfig(data);
-            if (resp.result === false) return;
-
-            this.editDialogShow = false;
-            this.getSpaceConfigList();
-            this.$bkMessage({
-              message: this.$t('修改成功！'),
-              theme: 'success',
-            });
-          } catch (error) {
-            console.warn(error);
-          } finally {
-            this.editLoading = false;
-          }
-        });
-      },
-      // 删除
-      handleDelete(row) {
+      handleGlobalRestore() {
+        const nonDefaultItems = this.spaceConfigList.filter(item => !item.isDefault && item.id);
+        if (!nonDefaultItems.length) return;
         const h = this.$createElement;
         this.$bkInfo({
           subHeader: h('div', { class: 'custom-header' }, [
             h('div', {
               class: 'custom-header-title',
-              directives: [{
-                name: 'bk-overflow-tips',
-              }],
-            }, [this.$t('确认" {0} "恢复默认值?', [row.name])]),
+            }, [this.$t('确认将所有配置项恢复为默认值？')]),
           ]),
           extCls: 'dialog-custom-header-title',
           maskClose: false,
@@ -362,61 +201,49 @@
           confirmLoading: true,
           cancelText: this.$t('取消'),
           confirmFn: async () => {
-            await this.onDeleteConfirm(row.id);
+            try {
+              const ids = nonDefaultItems.map(item => item.id);
+              const resp = await this.batchDeleteSpaceConfig({
+                space_id: this.spaceId,
+                ids,
+              });
+              if (resp.result === false) return;
+              this.$bkMessage({
+                message: this.$t('恢复默认值成功！'),
+                theme: 'success',
+              });
+              await this.getSpaceConfigList();
+            } catch (error) {
+              console.warn(error);
+            }
           },
         });
-      },
-      // 确认删除
-      async onDeleteConfirm(configId) {
-        this.deleting = true;
-        try {
-          const resp = await this.deleteSpaceConfig({ id: configId });
-          if (resp.result === false) return;
-
-          this.getSpaceConfigList();
-          this.$bkMessage({
-            message: this.$t('删除成功！'),
-            theme: 'success',
-          });
-        } catch (e) {
-          console.log(e);
-        } finally {
-          this.deleting = false;
-        }
-      },
-      handlePageChange(val) {
-        this.pagination.current = val;
-        this.getSpaceConfigList();
-      },
-      handlePageLimitChange(val) {
-        this.pagination.limit = val;
-        this.pagination.current = 1;
-        this.getSpaceConfigList();
       },
     },
   };
 </script>
 <style lang="scss" scoped>
-::v-deep .code-form-item {
-    .bk-form-content {
-      height: 300px;
-      .code-wrapper {
-        position: relative;
-        height: 100%;
+@import '@/scss/mixins/scrollbar.scss';
+  .space-config-page {
+    min-height: 200px;
+    padding: 0 24px 24px;
+    .space-config-form {
+      .space-config-header {
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 8px;
+        margin-bottom: 15px;
       }
-    }
-  }
-  .space-config-list {
-    ::v-deep .bk-table-empty-text {
-      width: 100%;
-    }
-    ::v-deep .table-cell {
-      display: inline-block;
-      overflow : hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      &.is-disabled {
-        color: #dcdee5;
+      .space-config-body {
+        max-height: calc(-160px + 100vh);
+        overflow-y: auto;
+        @include scrollbar;
+        padding: 8px 0;
+        background: #fff;
+        border-radius: 2px;
+        box-shadow: 0 2px 6px 0 rgba(0, 0, 0, 0.1);
       }
     }
   }
