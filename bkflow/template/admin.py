@@ -19,14 +19,53 @@ to the current version of the project delivered to anyone in the future.
 from django.contrib import admin
 
 from bkflow.contrib.operation_record.admin import BaseOperateRecordAdmin
-from bkflow.template.models import Template, TemplateOperationRecord, Trigger
+from bkflow.template.models import (
+    Template,
+    TemplateMockData,
+    TemplateMockScheme,
+    TemplateOperationRecord,
+    TemplateReference,
+    TemplateSnapshot,
+    Trigger,
+)
 
 
 @admin.register(Template)
 class TemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "space_id", "name", "source", "is_enabled")
+    list_display = ("id", "space_id", "name", "source", "is_enabled", "snapshot_id")
     search_fields = ("space_id", "name", "source")
     list_filter = ("space_id", "source")
+    ordering = ["-id"]
+
+
+@admin.register(TemplateSnapshot)
+class TemplateSnapshotAdmin(admin.ModelAdmin):
+    list_display = ("id", "template_id", "version", "draft", "creator", "update_time", "is_deleted")
+    search_fields = ("template_id", "version", "creator")
+    list_filter = ("draft", "is_deleted")
+    ordering = ["-id"]
+
+
+@admin.register(TemplateReference)
+class TemplateReferenceAdmin(admin.ModelAdmin):
+    list_display = ("id", "root_template_id", "subprocess_template_id", "subprocess_node_id", "always_use_latest")
+    search_fields = ("root_template_id", "subprocess_template_id")
+    ordering = ["-id"]
+
+
+@admin.register(TemplateMockData)
+class TemplateMockDataAdmin(admin.ModelAdmin):
+    list_display = ("id", "space_id", "template_id", "node_id", "name", "is_default", "operator", "update_at")
+    search_fields = ("template_id", "node_id", "name")
+    list_filter = ("space_id", "is_default")
+    ordering = ["-id"]
+
+
+@admin.register(TemplateMockScheme)
+class TemplateMockSchemeAdmin(admin.ModelAdmin):
+    list_display = ("id", "space_id", "template_id", "operator", "update_at")
+    search_fields = ("template_id",)
+    list_filter = ("space_id",)
     ordering = ["-id"]
 
 

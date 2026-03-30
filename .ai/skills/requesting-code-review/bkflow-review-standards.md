@@ -23,6 +23,7 @@
 ### 3. ORM 查询
 
 - **避免 N+1**：循环内不能出现 ORM 查询；改用 `filter()` 批量查询 + `bulk_create()` / `bulk_update()`。
+  - **例外**：低频定时任务（如 nightly batch job）中使用 `update_or_create` 保证幂等性是合理的，数据量小（< 1000 条）时无需强制改为 bulk 操作。
 - **减少冗余查询**：同一次请求中对同一数据集的查询合并为一次，避免重复 `.filter()`。
 - 查询结果只需要特定字段时，使用 `.values()` 或 `.values_list()` 降低内存开销。
 - 排序须显式指定（`order_by(...)`），不依赖模型的默认 `Meta.ordering`，防止行为随模型变更而变化。
@@ -38,6 +39,7 @@
 
 - **权限校验放在类级别**：`permission_classes` 优先在 ViewSet 类属性中声明，不在方法内临时判断。
 - **过滤与鉴权使用同一 scope**：View 中过滤数据集所用的 `space_id` / `scope` 必须与鉴权时使用的一致，防止权限泄露。
+  - **注意区分接口类型**：内部管理接口（admin portal / 模块间调用）使用 `AdminPermission | AppInternalPermission` 即可，不需要额外添加 `ScopePermission`。只有面向外部消费方/终端用户的接口才需要配置 `ScopePermission` / `TemplatePermission`。参考 `.ai/rules/bkflow-permission.mdc` 中的决策指南。
 - **敏感字段脱敏日志**：打印 headers 或 data 时，`X-Bkapi-Authorization`、`bk_app_secret` 等敏感字段必须替换为 `"******"`，使用 `copy.deepcopy` 复制后再替换，不污染原始对象。
 
 ### 6. 异步任务（Celery）
@@ -52,6 +54,7 @@
 - 日志信息加前缀上下文，例如 `"get context values error: {e}"`，而非只打 `str(e)`。
 - 异常类命名需准确体现业务含义，不用含糊缩写（如 `BKPluginUnAuthorized` 而非 `BKPluginUnAu...`）。
 - 清理/批量操作日志全部使用英文，保持一致性。
+- **注意**：此处"日志"特指 `logging` 模块输出的运行时日志，不包括面向用户的 `ValidationError` 消息。`ValidationError` 消息遵循编码规范"中文描述为主"，或使用 `ugettext_lazy` 做国际化。
 
 ### 8. 代码整洁
 
@@ -99,7 +102,16 @@
 
 ---
 
-## 四、通用原则
+## 四、部署架构注意事项
+
+审查时需理解 BKFlow 的多模块部署架构，避免误报：
+
+- BKFlow 按 `BKFLOW_MODULE_TYPE` 环境变量拆分为多个模块（`engine`、`interface`、`pipeline` 等），每个模块只加载对应的 Django apps。
+- `module_settings.py` 中通过 `MODULE_APPS` 字典和 `BKFLOW_MODULE_TYPE` 控制 `INSTALLED_APPS`，某些 app（如 `bkflow.statistics`）仅在特定模块类型下才被加载。
+- 如果一段代码只在特定模块下加载的 app 中运行，则不需要考虑该代码在其他模块下的行为（因为根本不会执行）。
+- **单模块部署**（`BKFLOW_MODULE_TYPE == ""`）有独立的 app 列表，不一定包含所有 app。
+
+## 五、通用原则
 
 | 维度 | 要求 |
 |------|------|
@@ -113,14 +125,14 @@
 
 ---
 
-## 五、Review 严重级别判断标准
+## 六、Review 严重级别判断标准
 
 ### Critical（必须修复）
 
-- 权限泄露（鉴权 scope 与过滤 scope 不一致）
+- 权限泄露（鉴权 scope 与过滤 scope 不一致）——仅针对面向外部消费方的接口
 - 敏感信息明文写入日志
 - 缺少迁移文件但新增了 Model 字段
-- N+1 查询在高频接口上
+- N+1 查询在高频 API 接口上
 
 ### Important（应当修复）
 
@@ -128,7 +140,7 @@
 - 校验逻辑散落在 View 而非 Serializer
 - 缺少关键操作日志（异步任务）
 - API 文档未同步（对接方会依赖）
-- 批量数据未使用 `bulk_create` / `bulk_update`
+- 高频接口中循环内单条 DB 操作未使用 `bulk_create` / `bulk_update`
 
 ### Minor（建议优化）
 
@@ -137,3 +149,4 @@
 - 注释冗余或过时
 - 函数可用 lambda 简化
 - 日志信息缺乏上下文前缀
+- 低频批量任务中的 `update_or_create` 循环（数据量可控时无需强制优化）

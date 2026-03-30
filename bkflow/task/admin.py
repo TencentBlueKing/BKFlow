@@ -42,6 +42,24 @@ class TaskInstanceAdmin(admin.ModelAdmin):
     ordering = ("-create_time",)
 
 
+@admin.register(models.TaskTreeInfo)
+class TaskTreeInfoAdmin(admin.ModelAdmin):
+    list_display = ("id",)
+    ordering = ["-id"]
+
+
+@admin.register(models.TaskSnapshot)
+class TaskSnapshotAdmin(admin.ModelAdmin):
+    list_display = ("id",)
+    ordering = ["-id"]
+
+
+@admin.register(models.TaskExecutionSnapshot)
+class TaskExecutionSnapshotAdmin(admin.ModelAdmin):
+    list_display = ("id",)
+    ordering = ["-id"]
+
+
 @admin.register(models.PeriodicTask)
 class PeriodicTaskAdmin(admin.ModelAdmin):
     list_display = (
@@ -69,6 +87,33 @@ class AutoRetryNodeStrategyAdmin(admin.ModelAdmin):
 class TaskMockDataAdmin(admin.ModelAdmin):
     list_display = ["id", "taskflow_id", "mock_data_ids", "data"]
     search_fields = ["taskflow_id", "mock_data_ids"]
+
+
+@admin.register(models.TimeoutNodeConfig)
+class TimeoutNodeConfigAdmin(admin.ModelAdmin):
+    list_display = ("node_id", "task_id", "root_pipeline_id", "action", "timeout")
+    search_fields = ("node_id", "root_pipeline_id", "task_id")
+
+
+@admin.register(models.TimeoutNodesRecord)
+class TimeoutNodesRecordAdmin(admin.ModelAdmin):
+    list_display = ("id",)
+    ordering = ["-id"]
+
+
+@admin.register(models.EngineSpaceConfig)
+class EngineSpaceConfigAdmin(admin.ModelAdmin):
+    list_display = ("id", "space_id", "name", "is_public", "value_type", "text_value", "interface_config_id")
+    search_fields = ("space_id", "name")
+    list_filter = ("space_id", "is_public", "value_type")
+    ordering = ["-id"]
+
+
+@admin.register(models.TaskFlowRelation)
+class TaskFlowRelationAdmin(admin.ModelAdmin):
+    list_display = ("id", "task_id", "parent_task_id", "root_task_id", "create_time")
+    search_fields = ("task_id", "parent_task_id", "root_task_id")
+    ordering = ["-id"]
 
 
 admin.site.register(TaskOperationRecord, BaseOperateRecordAdmin)

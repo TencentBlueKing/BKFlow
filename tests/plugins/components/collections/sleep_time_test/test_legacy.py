@@ -53,13 +53,16 @@ class SleepTimerComponentTest(TestCase, ComponentTestMixin):
         return [INVALID_SECONDS_TEST_CASE, VALID_DATETIME_TEST_CASE]
 
 
-INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 60, "force_check": True}
+BUSINESS_TIMEZONE = timezone.pytz.timezone(settings.TIME_ZONE)
+
+INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 600, "force_check": True}
 VALID_DATETIME_INPUT = {
-    "bk_timing": (datetime.datetime.now() + datetime.timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M:%S"),
+    "bk_timing": (datetime.datetime.now(tz=BUSINESS_TIMEZONE) + datetime.timedelta(seconds=600)).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    ),
     "force_check": True,
 }
 VALID_SECONDS_INPUT = {"bk_timing": 10, "force_check": True}
-BUSINESS_TIMEZONE = timezone.pytz.timezone(settings.TIME_ZONE)
 
 INVALID_SECONDS_TEST_CASE = ComponentTestCase(
     name="invalid seconds input test case",
