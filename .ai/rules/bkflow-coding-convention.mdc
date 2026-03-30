@@ -38,6 +38,13 @@ alwaysApply: true
 - 定义 `class Meta` 包含 verbose_name、verbose_name_plural、ordering 等
 - 复杂业务逻辑放在 Manager 中
 
+### Migrations
+
+- **禁止手写或手动修改 migration 文件内容**（包括自定义 Operation 子类）
+- 修改 models 后，必须使用 `python manage.py makemigrations` 自动生成 migration
+- 生成后只允许做项目规范的格式化（如 Black 格式化、调整 import 顺序），不得修改操作逻辑
+- 如果需要数据迁移，单独创建 `RunPython` migration（`makemigrations --empty`），不混入 schema migration
+
 ### 响应格式
 
 - 成功：`Response(data, status=status.HTTP_200_OK)` 或 `status.HTTP_201_CREATED`

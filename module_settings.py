@@ -41,6 +41,18 @@ from config.default import (  # noqa; noqa、
 )
 
 
+def _parse_crontab(cron_expr: str) -> crontab:
+    """将标准 cron 表达式（minute hour day_of_month month_of_year day_of_week）解析为 celery crontab 对象"""
+    parts = cron_expr.strip().split()
+    return crontab(
+        minute=parts[0] if len(parts) > 0 else "*",
+        hour=parts[1] if len(parts) > 1 else "*",
+        day_of_month=parts[2] if len(parts) > 2 else "*",
+        month_of_year=parts[3] if len(parts) > 3 else "*",
+        day_of_week=parts[4] if len(parts) > 4 else "*",
+    )
+
+
 class BKFLOWModuleType(str, Enum):
     """模块类型"""
 
@@ -127,6 +139,8 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
             },
         }
 
+    DATABASE_ROUTERS = ["bkflow.statistics.db_router.StatisticsDBRouter"]
+
     from pipeline.celery.settings import CELERY_QUEUES, CELERY_ROUTES  # noqa
     from pipeline.eri.celery import queues as eri_queues  # noqa
 
@@ -156,6 +170,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
         "bkflow.contrib.expired_cleaner",
+        "bkflow.statistics",
     )
 
     BKFLOW_CELERY_ROUTES = {
@@ -170,6 +185,24 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "expired_task_cleaning": {
             "task": "bkflow.contrib.expired_cleaner.tasks.clean_task",
             "schedule": crontab(env.CLEAN_TASK_CRONTAB),
+        },
+        "generate_daily_summary": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_daily_summary_task",
+            "schedule": _parse_crontab(env.STATISTICS_DAILY_SUMMARY_CRONTAB),
+        },
+        "generate_plugin_summary_day": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["day"],
+            "schedule": _parse_crontab(env.STATISTICS_PLUGIN_SUMMARY_DAY_CRONTAB),
+        },
+        "generate_plugin_summary_week": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["week"],
+            "schedule": _parse_crontab(env.STATISTICS_PLUGIN_SUMMARY_WEEK_CRONTAB),
+        },
+        "clean_expired_statistics": {
+            "task": "bkflow.statistics.tasks.summary_tasks.clean_expired_statistics_task",
+            "schedule": _parse_crontab(env.STATISTICS_CLEAN_CRONTAB),
         },
     }
 
@@ -244,6 +277,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bk_notice_sdk",
         "bkflow.bk_plugin",
         "bkflow.pipeline_web",
+        "bkflow.statistics",
     )
 
     TEMPLATES[0]["OPTIONS"]["context_processors"] += ("bkflow.interface.context_processors.bkflow_settings",)
@@ -283,11 +317,31 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
     # ban 掉 admin 权限
     BLOCK_ADMIN_PERMISSION = env.BLOCK_ADMIN_PERMISSION
 
+    DATABASE_ROUTERS = ["bkflow.statistics.db_router.StatisticsDBRouter"]
+
     # 添加定时任务
     app.conf.beat_schedule = {
         # 同步蓝鲸插件任务
         "sync_bk_plugins": {
             "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",
             "schedule": crontab(env.SYNC_BK_PLUGINS_CRONTAB),
-        }
+        },
+        "generate_daily_summary": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_daily_summary_task",
+            "schedule": _parse_crontab(env.STATISTICS_DAILY_SUMMARY_CRONTAB),
+        },
+        "generate_plugin_summary_day": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["day"],
+            "schedule": _parse_crontab(env.STATISTICS_PLUGIN_SUMMARY_DAY_CRONTAB),
+        },
+        "generate_plugin_summary_week": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["week"],
+            "schedule": _parse_crontab(env.STATISTICS_PLUGIN_SUMMARY_WEEK_CRONTAB),
+        },
+        "clean_expired_statistics": {
+            "task": "bkflow.statistics.tasks.summary_tasks.clean_expired_statistics_task",
+            "schedule": _parse_crontab(env.STATISTICS_CLEAN_CRONTAB),
+        },
     }
