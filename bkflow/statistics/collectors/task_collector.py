@@ -1,16 +1,30 @@
-"""任务维度统计数据采集器
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
 
-采集任务生命周期中两个阶段的统计数据：
-- 创建阶段（collect_on_create）：记录任务基本信息和 pipeline 节点构成
-- 归档阶段（collect_on_archive）：更新最终状态、耗时，并采集每个已执行节点的执行详情
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
 """
 
 import logging
 from copy import deepcopy
 from typing import List, Optional
 
+from bamboo_engine import states as bamboo_states
 from django.db import transaction
 from django.utils import timezone
+from pipeline.core.constants import PE
 
 from bkflow.statistics.collectors.base import BaseStatisticsCollector
 from bkflow.statistics.conf import StatisticsSettings
@@ -73,7 +87,7 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
                     "trigger_method": getattr(self.task, "trigger_method", "manual"),
                     "is_started": self.task.is_started,
                     "is_finished": False,
-                    "final_state": "CREATED",
+                    "final_state": bamboo_states.CREATED,
                 },
             )
             return True
@@ -95,11 +109,11 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
             return False
 
     def _update_task_statistics(self):
-        final_state = "FINISHED"
+        final_state = bamboo_states.FINISHED
         if self.task.is_revoked:
-            final_state = "REVOKED"
+            final_state = bamboo_states.REVOKED
         elif not self.task.is_finished:
-            final_state = "RUNNING"
+            final_state = bamboo_states.RUNNING
 
         elapsed_time = None
         if self.task.start_time and self.task.finish_time:
@@ -173,12 +187,12 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
             node_status = children[act_id]
             act_type = act.get("type", "")
 
-            if act_type == "ServiceActivity":
+            if act_type == PE.ServiceActivity:
                 node = self._create_node_statistics(act, node_status, subprocess_stack, is_sub)
                 if node:
                     nodes.append(node)
 
-            elif act_type == "SubProcess":
+            elif act_type == PE.SubProcess:
                 sub_pipeline = act.get("pipeline", {})
                 sub_status = node_status.get("children", {})
                 if sub_pipeline and sub_status:
@@ -198,7 +212,7 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
         通过 resolve_component_info 提取实际的插件编码、名称和版本。
         """
         state = status.get("state", "")
-        if state not in ("FINISHED", "FAILED", "REVOKED", "SUSPENDED"):
+        if state not in (bamboo_states.FINISHED, bamboo_states.FAILED, bamboo_states.REVOKED, bamboo_states.SUSPENDED):
             return None
 
         component = activity.get("component", {})
@@ -225,7 +239,7 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
             started_time=started_time or timezone.now(),
             archived_time=archived_time,
             elapsed_time=elapsed_time,
-            status=(state == "FINISHED"),
+            status=(state == bamboo_states.FINISHED),
             state=state,
             is_skip=status.get("skip", False),
             is_retry=is_retry,

@@ -1,11 +1,20 @@
-"""运营统计数据模型
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
 
-数据分为两层：
-- 明细层：TaskflowStatistics（任务）、TaskflowExecutedNodeStatistics（节点）、
-          TemplateStatistics（模板）、TemplateNodeStatistics（模板节点）
-- 汇总层：DailyStatisticsSummary（每日汇总）、PluginExecutionSummary（插件执行汇总）
+We undertake not to change the open source license (MIT license) applicable
 
-所有模型通过 StatisticsDBRouter 路由到独立的 statistics 数据库（或 default）。
+to the current version of the project delivered to anyone in the future.
 """
 
 from django.db import models

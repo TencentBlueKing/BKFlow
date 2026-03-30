@@ -1,17 +1,23 @@
-"""统计模块配置管理
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
 
-通过环境变量和 Django settings 控制统计模块的行为：
-- STATISTICS_ENABLED: 是否启用统计（默认 True）
-- BKFLOW_MODULE_TYPE: 模块类型，决定采集哪些维度的数据
-  - "interface": 采集模板统计（模板管理接口所在模块）
-  - "engine": 采集任务统计（引擎执行所在模块）
-  - "": 同时采集模板和任务统计（单模块部署）
-- STATISTICS_INCLUDE_MOCK: 是否统计 Mock 任务
-- STATISTICS_DETAIL_RETENTION_DAYS: 明细数据保留天数（默认 90）
-- STATISTICS_SUMMARY_RETENTION_DAYS: 汇总数据保留天数（默认 365）
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
 """
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from django.conf import settings
 from django.utils import timezone
@@ -28,7 +34,7 @@ def date_to_datetime_range(d: date) -> tuple:
     :return: (day_start, day_end) 均为 aware datetime
     """
     day_start = timezone.make_aware(datetime.combine(d, time.min))
-    day_end = timezone.make_aware(datetime.combine(d, time.min)) + timezone.timedelta(days=1)
+    day_end = timezone.make_aware(datetime.combine(d, time.min)) + timedelta(days=1)
     return day_start, day_end
 
 

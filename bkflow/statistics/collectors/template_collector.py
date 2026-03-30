@@ -1,7 +1,20 @@
-"""模板维度统计数据采集器
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
 
-采集模板的 pipeline 节点构成信息和各节点的插件详情。
-在模板保存时触发，当 snapshot_id 发生变化（即 pipeline 结构有修改）时会重新采集节点统计。
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
 """
 
 import logging
@@ -10,6 +23,7 @@ from typing import List
 
 import ujson as json
 from django.db import transaction
+from pipeline.core.constants import PE
 
 from bkflow.statistics.collectors.base import BaseStatisticsCollector
 from bkflow.statistics.models import TemplateNodeStatistics, TemplateStatistics
@@ -104,7 +118,7 @@ class TemplateStatisticsCollector(BaseStatisticsCollector):
         for act_id, act in activities.items():
             act_type = act.get("type", "")
 
-            if act_type == "ServiceActivity":
+            if act_type == PE.ServiceActivity:
                 component = act.get("component", {})
                 info = self.resolve_component_info(component)
 
@@ -125,7 +139,7 @@ class TemplateStatisticsCollector(BaseStatisticsCollector):
                     )
                 )
 
-            elif act_type == "SubProcess":
+            elif act_type == PE.SubProcess:
                 sub_pipeline = act.get("pipeline", {})
                 if sub_pipeline:
                     new_stack = deepcopy(subprocess_stack)

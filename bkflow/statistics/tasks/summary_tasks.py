@@ -1,14 +1,26 @@
-"""统计数据定时汇总任务
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
 
-包含三类 Celery 定时任务：
-- generate_daily_summary_task: 每日汇总各空间的任务执行概况（创建/完成/成功/失败数量）
-- generate_plugin_summary_task: 按周期（日/周/月）汇总各插件的执行统计
-- clean_expired_statistics_task: 清理过期的明细和汇总数据，按配置的保留天数执行
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
 """
 
 import logging
 from datetime import date, timedelta
 
+from bamboo_engine import states as bamboo_states
 from celery import shared_task
 from django.db.models import Avg, Count, Max, Q
 
@@ -53,38 +65,40 @@ def _generate_daily_summary(summary_date: date):
         .annotate(
             task_created=Count("id"),
             task_finished=Count("id", filter=Q(is_finished=True)),
-            task_success=Count("id", filter=Q(final_state="FINISHED")),
-            task_failed=Count("id", filter=Q(is_finished=True) & ~Q(final_state="FINISHED")),
-            task_revoked=Count("id", filter=Q(final_state="REVOKED")),
+            task_success=Count("id", filter=Q(final_state=bamboo_states.FINISHED)),
+            task_failed=Count("id", filter=Q(is_finished=True) & ~Q(final_state=bamboo_states.FINISHED)),
+            task_revoked=Count("id", filter=Q(final_state=bamboo_states.REVOKED)),
             avg_elapsed=Avg("elapsed_time", filter=Q(elapsed_time__isnull=False)),
             max_elapsed=Max("elapsed_time"),
         )
     )
 
+    node_stats_by_space = {}
+    for ns in (
+        TaskflowExecutedNodeStatistics.objects.using(db_alias)
+        .filter(started_time__gte=day_start, started_time__lt=day_end, is_retry=False)
+        .values("space_id")
+        .annotate(
+            node_executed=Count("id"),
+            node_success=Count("id", filter=Q(status=True)),
+            node_failed=Count("id", filter=Q(status=False)),
+        )
+    ):
+        node_stats_by_space[ns["space_id"]] = ns
+
     processed_spaces = set()
 
     for stat in task_stats:
-        node_stats = (
-            TaskflowExecutedNodeStatistics.objects.using(db_alias)
-            .filter(
-                space_id=stat["space_id"],
-                started_time__gte=day_start,
-                started_time__lt=day_end,
-                is_retry=False,
-            )
-            .aggregate(
-                node_executed=Count("id"),
-                node_success=Count("id", filter=Q(status=True)),
-                node_failed=Count("id", filter=Q(status=False)),
-            )
-        )
+        space_id = stat["space_id"]
+        node_stats = node_stats_by_space.get(space_id, {})
+        space_key = (space_id, stat["scope_type"] or "", stat["scope_value"] or "")
 
-        space_key = (stat["space_id"], stat["scope_type"] or "", stat["scope_value"] or "")
+        is_first_scope_for_space = space_id not in {k[0] for k in processed_spaces}
         processed_spaces.add(space_key)
 
         DailyStatisticsSummary.objects.using(db_alias).update_or_create(
             date=summary_date,
-            space_id=stat["space_id"],
+            space_id=space_id,
             scope_type=stat["scope_type"] or "",
             scope_value=stat["scope_value"] or "",
             defaults={
@@ -95,9 +109,9 @@ def _generate_daily_summary(summary_date: date):
                 "task_revoked_count": stat["task_revoked"],
                 "avg_task_elapsed_time": stat["avg_elapsed"] or 0,
                 "max_task_elapsed_time": stat["max_elapsed"] or 0,
-                "node_executed_count": node_stats["node_executed"] or 0,
-                "node_success_count": node_stats["node_success"] or 0,
-                "node_failed_count": node_stats["node_failed"] or 0,
+                "node_executed_count": (node_stats.get("node_executed") or 0) if is_first_scope_for_space else 0,
+                "node_success_count": (node_stats.get("node_success") or 0) if is_first_scope_for_space else 0,
+                "node_failed_count": (node_stats.get("node_failed") or 0) if is_first_scope_for_space else 0,
             },
         )
 

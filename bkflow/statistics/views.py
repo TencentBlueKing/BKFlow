@@ -1,15 +1,26 @@
-"""运营统计 API 视图
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
 
-提供两组 ViewSet：
-- SystemStatisticsViewSet: 全局维度的统计接口（概览、任务趋势、空间排名、插件排名、失败分析）
-- SpaceStatisticsViewSet: 空间维度的统计接口（概览、任务趋势、插件排名、模板排名、失败分析、每日汇总）
+We undertake not to change the open source license (MIT license) applicable
 
-所有接口支持 date_start/date_end 或 date_range（7d/14d/30d/90d）参数指定查询时间范围。
+to the current version of the project delivered to anyone in the future.
 """
 
 import logging
 from datetime import date, timedelta
 
+from bamboo_engine import states as bamboo_states
 from django.db.models import Avg, Count, Q, Sum
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -111,7 +122,7 @@ class SystemStatisticsViewSet(GenericViewSet):
         task_agg = task_qs.aggregate(
             total_tasks=Count("id"),
             total_finished=Count("id", filter=Q(is_finished=True)),
-            total_failed=Count("id", filter=Q(is_finished=True) & ~Q(final_state="FINISHED")),
+            total_failed=Count("id", filter=Q(is_finished=True) & ~Q(final_state=bamboo_states.FINISHED)),
             avg_elapsed=Avg("elapsed_time", filter=Q(elapsed_time__isnull=False)),
         )
 
@@ -315,7 +326,7 @@ class SpaceStatisticsViewSet(GenericViewSet):
         task_agg = task_qs.aggregate(
             total_tasks=Count("id"),
             total_finished=Count("id", filter=Q(is_finished=True)),
-            total_failed=Count("id", filter=Q(is_finished=True) & ~Q(final_state="FINISHED")),
+            total_failed=Count("id", filter=Q(is_finished=True) & ~Q(final_state=bamboo_states.FINISHED)),
             avg_elapsed=Avg("elapsed_time", filter=Q(elapsed_time__isnull=False)),
         )
 
@@ -430,8 +441,8 @@ class SpaceStatisticsViewSet(GenericViewSet):
             .values("template_id")
             .annotate(
                 task_count=Count("id"),
-                task_success_count=Count("id", filter=Q(final_state="FINISHED")),
-                task_failed_count=Count("id", filter=Q(is_finished=True) & ~Q(final_state="FINISHED")),
+                task_success_count=Count("id", filter=Q(final_state=bamboo_states.FINISHED)),
+                task_failed_count=Count("id", filter=Q(is_finished=True) & ~Q(final_state=bamboo_states.FINISHED)),
             )
             .order_by(f"-{order_by.lstrip('-')}")[:limit]
         )

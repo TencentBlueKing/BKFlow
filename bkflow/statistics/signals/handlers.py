@@ -1,10 +1,20 @@
-"""统计模块的 Django 信号处理器
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
 
-根据模块类型注册不同的信号：
-- interface 模块：监听 Template 的 pre_save/post_save，在模板保存时异步采集模板统计
-- engine 模块：监听 TaskInstance 的 post_save（任务创建时采集）和 post_set_state（任务归档时采集）
+We undertake not to change the open source license (MIT license) applicable
 
-信号注册是幂等的，通过 _signals_registered 标志确保只注册一次。
+to the current version of the project delivered to anyone in the future.
 """
 
 import logging
@@ -102,7 +112,9 @@ def _register_task_signals():
 
             @receiver(post_set_state, dispatch_uid="task_statistics_state_change", weak=False)
             def task_state_change_handler(sender, node_id, to_state, version, root_id, **kwargs):
-                if node_id == root_id and to_state in ("FINISHED", "REVOKED"):
+                from bamboo_engine import states as bamboo_states
+
+                if node_id == root_id and to_state in (bamboo_states.FINISHED, bamboo_states.REVOKED):
                     try:
                         from bkflow.statistics.tasks import task_archive_statistics_task
 
