@@ -379,8 +379,6 @@ INIT_SUPERUSER = ["admin"]
 # AJAX 请求弹窗续期登陆设置
 IS_AJAX_PLAIN_MODE = True
 
-TEMPLATES[0]["OPTIONS"]["context_processors"] += ("bkflow.interface.context_processors.bkflow_settings",)
-
 PAGE_NOT_FOUND_URL_KEY = "page_not_found"
 BLUEAPPS_SPECIFIC_REDIRECT_KEY = "page_not_found"
 

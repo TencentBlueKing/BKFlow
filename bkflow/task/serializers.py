@@ -20,6 +20,7 @@ import copy
 import logging
 
 import jsonschema
+from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
@@ -68,6 +69,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
     pipeline_tree = serializers.JSONField(required=True)
     constants = serializers.JSONField(required=False, default={})
     mock_data = serializers.JSONField(required=False, default={})
+    label_ids = serializers.ListField(required=False, child=serializers.IntegerField())
 
     def validate(self, value):
         if value.get("extra_info", {}).get("notify_config") is not None:
@@ -120,6 +122,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
             "scope_value",
             "constants",
             "extra_info",
+            "label_ids",
         ]
 
 
@@ -159,6 +162,7 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
 class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
     pipeline_tree = serializers.SerializerMethodField()
     outputs = serializers.SerializerMethodField()
+    elapsed_time = serializers.SerializerMethodField()
 
     def get_pipeline_tree(self, obj):
         return obj.pipeline_tree
@@ -166,6 +170,9 @@ class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
     def get_outputs(self, obj):
         outputs_result = TaskNodeOperation(task_instance=obj, node_id=obj.instance_id).get_outputs()
         return [{"key": key, "value": value} for key, value in outputs_result.data.items()]
+
+    def get_elapsed_time(self, obj):
+        return calculate_elapsed_time(obj.start_time, obj.finish_time)
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -296,3 +303,12 @@ class UpdatePeriodicTaskSerializer(serializers.Serializer):
 
 class BatchDeletePeriodicTaskSerializer(serializers.Serializer):
     trigger_ids = serializers.ListField(child=serializers.IntegerField(), help_text="触发器ID列表", required=True)
+
+
+class LabelRefSerializer(serializers.Serializer):
+    label_ids = serializers.CharField(help_text="标签ID", required=True)
+    space_id = serializers.IntegerField(help_text="空间ID", required=True)
+
+
+class DeleteTaskLabelRelationSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(child=serializers.IntegerField(), help_text="标签ID", required=True)

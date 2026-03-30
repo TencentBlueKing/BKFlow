@@ -37,6 +37,7 @@ from config.default import (  # noqa; noqa、
     BKSAAS_DEFAULT_MODULE_NAME,
     INSTALLED_APPS,
     MIDDLEWARE,
+    TEMPLATES,
 )
 
 
@@ -126,6 +127,8 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
             },
         }
 
+    DATABASE_ROUTERS = ["bkflow.statistics.db_router.StatisticsDBRouter"]
+
     from pipeline.celery.settings import CELERY_QUEUES, CELERY_ROUTES  # noqa
     from pipeline.eri.celery import queues as eri_queues  # noqa
 
@@ -155,6 +158,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
         "bkflow.contrib.expired_cleaner",
+        "bkflow.statistics",
     )
 
     BKFLOW_CELERY_ROUTES = {
@@ -169,6 +173,24 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "expired_task_cleaning": {
             "task": "bkflow.contrib.expired_cleaner.tasks.clean_task",
             "schedule": crontab(env.CLEAN_TASK_CRONTAB),
+        },
+        "generate_daily_summary": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_daily_summary_task",
+            "schedule": crontab(hour=2, minute=0),
+        },
+        "generate_plugin_summary_day": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["day"],
+            "schedule": crontab(hour=2, minute=30),
+        },
+        "generate_plugin_summary_week": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["week"],
+            "schedule": crontab(hour=3, minute=0, day_of_week="monday"),
+        },
+        "clean_expired_statistics": {
+            "task": "bkflow.statistics.tasks.summary_tasks.clean_expired_statistics_task",
+            "schedule": crontab(hour=4, minute=0),
         },
     }
 
@@ -243,7 +265,11 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bk_notice_sdk",
         "bkflow.bk_plugin",
         "bkflow.pipeline_web",
+        "bkflow.label",
+        "bkflow.statistics",
     )
+
+    TEMPLATES[0]["OPTIONS"]["context_processors"] += ("bkflow.interface.context_processors.bkflow_settings",)
 
     VARIABLE_KEY_BLACKLIST = (
         env.VARIABLE_KEY_BLACKLIST.strip().strip(",").split(",") if env.VARIABLE_KEY_BLACKLIST else []
@@ -280,11 +306,31 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
     # ban 掉 admin 权限
     BLOCK_ADMIN_PERMISSION = env.BLOCK_ADMIN_PERMISSION
 
+    DATABASE_ROUTERS = ["bkflow.statistics.db_router.StatisticsDBRouter"]
+
     # 添加定时任务
     app.conf.beat_schedule = {
         # 同步蓝鲸插件任务
         "sync_bk_plugins": {
             "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",
             "schedule": crontab(env.SYNC_BK_PLUGINS_CRONTAB),
-        }
+        },
+        "generate_daily_summary": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_daily_summary_task",
+            "schedule": crontab(hour=2, minute=0),
+        },
+        "generate_plugin_summary_day": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["day"],
+            "schedule": crontab(hour=2, minute=30),
+        },
+        "generate_plugin_summary_week": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["week"],
+            "schedule": crontab(hour=3, minute=0, day_of_week="monday"),
+        },
+        "clean_expired_statistics": {
+            "task": "bkflow.statistics.tasks.summary_tasks.clean_expired_statistics_task",
+            "schedule": crontab(hour=4, minute=0),
+        },
     }
