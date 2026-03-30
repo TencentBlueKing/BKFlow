@@ -83,7 +83,7 @@
         </div>
         <!-- 验证规则 -->
         <div
-          v-show="['input', 'textarea'].includes(theEditingData.custom_type) && !isInternalVal && !(variableData && variableData.isLoopOutput)"
+          v-show="['input', 'textarea'].includes(theEditingData.custom_type) && !isInternalVal"
           class="form-item clearfix">
           <label class="form-label">{{ $t('正则校验') }}</label>
           <div class="form-content">
@@ -204,7 +204,6 @@
         </div> -->
         <!-- 描述 -->
         <div
-          v-if="!(variableData && variableData.isLoopOutput)"
           class="form-item clearfix">
           <label class="form-label">{{ $t('说明') }}</label>
           <div class="form-content">
