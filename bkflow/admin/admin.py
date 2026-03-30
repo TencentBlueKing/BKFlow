@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,13 +17,22 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 from django.contrib import admin
+from django.utils.html import format_html
 
 from bkflow.admin.models import ModuleInfo
 
 
 @admin.register(ModuleInfo)
 class ModuleInfoAdmin(admin.ModelAdmin):
-    list_display = ("code", "space_id", "type", "url", "isolation_level")
+    list_display = ("code", "space_id", "type", "url", "isolation_level", "admin_link")
     search_fields = ("space_id", "url", "type", "isolation_level", "code")
     list_filter = ("space_id", "url", "type", "isolation_level", "code")
     ordering = ["space_id"]
+
+    def admin_link(self, obj):
+        if not obj.url:
+            return "-"
+        admin_url = f"{obj.url.rstrip('/')}/bkflow_admin/"
+        return format_html('<a href="{}" target="_blank">打开 Django Admin</a>', admin_url)
+
+    admin_link.short_description = "Engine Admin"

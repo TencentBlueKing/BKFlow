@@ -57,7 +57,7 @@ from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.canvas import get_variable_mapping
 from bkflow.utils.dates import format_datetime
 from bkflow.utils.handlers import mask_sensitive_data_for_display
-from bkflow.utils.trace import get_current_trace_context, start_trace
+from bkflow.utils.trace import create_execution_span, start_trace
 
 logger = logging.getLogger("root")
 
@@ -113,31 +113,20 @@ def trace_task_operation(operation_name: str, operation_type: str = "task"):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
-            # 只有在启用 trace 的情况下才创建 span
             if not settings.ENABLE_OTEL_TRACE:
                 return func(self, *args, **kwargs)
-
-            # 在创建新 span 之前，先获取外部的 trace context（如果有的话）
-            # 这样方法内部可以区分是外部的 trace context 还是装饰器创建的 span 的 context
-            external_trace_context = get_current_trace_context()
 
             platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
             span_name = f"{platform_code}.{operation_type}.{operation_name}"
 
-            # 提取任务相关信息作为属性
             attributes = {
                 "task_id": getattr(self.task_instance, "id", None),
                 "space_id": getattr(self.task_instance, "space_id", None),
                 "operator": kwargs.get("operator") or (args[0] if args else None),
             }
 
-            # 如果是节点操作，添加 node_id
             if operation_type == "task_node" and hasattr(self, "node_id"):
                 attributes["node_id"] = self.node_id
-
-            # 将外部的 trace context 传递给方法，以便方法内部可以使用
-            # 注意：这里使用一个特殊的 key，避免与正常的 kwargs 冲突
-            kwargs["_external_trace_context"] = external_trace_context
 
             with start_trace(span_name=span_name, propagate=False, **attributes):
                 return func(self, *args, **kwargs)
@@ -204,17 +193,21 @@ class TaskOperation:
                 space_obj = SystemObject(space_var)
                 root_pipeline_context.update({"${_space}": space_obj})
 
-            # 捕获当前 trace context，传递给 pipeline 执行环境
-            # 只有在启用 trace 的情况下才注入 trace 信息
-            # 使用装饰器传递的外部 trace context（如果有），而不是装饰器创建的 span 的 context
+            # 创建执行级根 Span，将 trace context 注入 pipeline data，
+            # 后续插件 Span 通过这些 ID 建立父子关系
             if settings.ENABLE_OTEL_TRACE:
-                # 优先使用外部传入的 trace context（在装饰器创建 span 之前获取的）
-                trace_context = kwargs.get("_external_trace_context")
-                # 如果没有外部的 trace context，则不注入（避免使用装饰器创建的 span 的 context）
-                if trace_context:
-                    root_pipeline_data["_trace_id"] = trace_context["trace_id"]
-                    root_pipeline_data["_parent_span_id"] = trace_context["span_id"]
-                    logger.debug(f"[TaskOperation.start] Captured trace context | task_id={self.task_instance.id}")
+                try:
+                    trace_id, execution_span_id = create_execution_span(
+                        task_id=self.task_instance.id,
+                        space_id=self.task_instance.space_id,
+                        pipeline_instance_id=self.task_instance.instance_id,
+                        operator=operator,
+                    )
+                    if trace_id and execution_span_id:
+                        root_pipeline_data["_trace_id"] = trace_id
+                        root_pipeline_data["_parent_span_id"] = execution_span_id
+                except Exception as e:
+                    logger.warning(f"[plugin_span] Failed to create execution span: {e}")
 
             # run pipeline
             result = bamboo_engine_api.run_pipeline(

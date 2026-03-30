@@ -150,6 +150,7 @@ class CreateTaskWithoutTemplateSerializer(CredentialsValidationMixin, serializer
     scope_value = serializers.CharField(help_text=_("任务范围值"), max_length=128, required=False)
     description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    credentials = serializers.JSONField(help_text=_("任务凭证"), required=False, default={})
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
     notify_config = serializers.JSONField(help_text=_("通知配置"), required=False, default={})
     custom_span_attributes = serializers.DictField(
@@ -197,6 +198,9 @@ class OperateTaskNodeSerializer(serializers.Serializer):
 class GetTaskNodeDetailSerializer(serializers.Serializer):
     loop = serializers.IntegerField(help_text=_("循环次数"), required=False)
     component_code = serializers.CharField(help_text=_("组件code"), max_length=128, required=False)
+    include_snapshot_config = serializers.BooleanField(
+        help_text=_("是否在返回结果中包含节点配置快照(snapshot_config)，默认不返回"), required=False, default=False
+    )
 
 
 class BatchTaskSerializer(serializers.Serializer):

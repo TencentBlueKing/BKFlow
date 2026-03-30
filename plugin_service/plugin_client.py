@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -67,13 +66,11 @@ class PluginServiceApiClient:
         # 上传文件的情况
         if any([isinstance(data, UploadedFile) for data in request_params["data"].values()]):
             headers.pop("Content-Type")
-            files = dict(
-                [
-                    (key, (value.name, value.file.read()))
-                    for key, value in request_params["data"].items()
-                    if isinstance(value, UploadedFile)
-                ]
-            )
+            files = {
+                key: (value.name, value.file.read())
+                for key, value in request_params["data"].items()
+                if isinstance(value, UploadedFile)
+            }
             request_params.pop("data")
             return PluginServiceApiClient._request_api_and_error_retry(
                 url, method="post", data=request_params, headers=headers, files=files
@@ -152,7 +149,7 @@ class PluginServiceApiClient:
         result = PluginServiceApiClient.get_paas_plugin_tags(environment="prod", **kwargs)
         if isinstance(result, dict) and result.get("result") is False:
             return result
-        return {"result": True, "message": None, "data": result}
+        return {"result": True, "message": None, "data": result, "code": "0"}
 
     @staticmethod
     def get_plugin_detail_list(search_term=None, **kwargs):

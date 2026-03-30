@@ -385,8 +385,6 @@ INIT_SUPERUSER = ["admin"]
 # AJAX 请求弹窗续期登陆设置
 IS_AJAX_PLAIN_MODE = True
 
-TEMPLATES[0]["OPTIONS"]["context_processors"] += ("bkflow.interface.context_processors.bkflow_settings",)
-
 PAGE_NOT_FOUND_URL_KEY = "page_not_found"
 BLUEAPPS_SPECIFIC_REDIRECT_KEY = "page_not_found"
 
@@ -422,6 +420,9 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = ["GET", "OPTIONS"]
 # 允许 static、openapi 路径跨域访问
 CORS_URLS_REGEX = r"^/(static\/components|openapi)/.*$"
+
+# 加密字段配置
+PRIVATE_SECRET = env.PRIVATE_SECRET or SECRET_KEY
 
 """
 以下为框架代码 请勿修改

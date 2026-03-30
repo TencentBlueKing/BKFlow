@@ -1,0 +1,93 @@
+---
+description: 文档目录规范：规定各类文档的存放位置和命名规则，AI 生成文档时必须遵循
+alwaysApply: true
+---
+
+# 文档管理规范
+
+## 目录结构
+
+```
+docs/                              ← 面向版本控制、随代码提交的文档
+├── guide/                         ← 用户指南（面向接入方/运维/最终用户）
+├── specs/                         ← AI brainstorming 输出的设计文档
+├── plans/                         ← AI writing-plans 输出的实现计划
+├── roadmap/                       ← 产品路线图
+└── pics/                          ← 文档配图
+
+.ai/docs/                          ← AI Agent 上下文文档（面向 AI 理解项目）
+├── architecture/                  ← 系统架构（部署模式、模块职责、通信协议）
+├── specs/                         ← 技术设计参考（设计模式、插件体系、任务执行等）
+└── guides/                        ← 开发指南（开发环境搭建、调试技巧等）
+```
+
+## 各目录用途与规则
+
+### `docs/guide/` — 用户指南
+
+- **内容**：面向接入方和运维人员的文档（快速入门、系统接入、插件开发、空间配置等）
+- **命名**：`<topic>.md`（英文，下划线分隔）
+- **示例**：`quick_start.md`、`api_plugin.md`、`system_access.md`
+- **不放**：内部架构细节、AI 生成的迭代文档
+
+### `docs/specs/` — 设计文档（AI 生成）
+
+- **内容**：brainstorming skill 输出的设计规格文档
+- **命名**：`YYYY-MM-DD-<topic>-design.md`
+- **示例**：`2026-03-25-engine-admin-portal-design.md`
+- **来源**：brainstorming skill 自动生成
+
+### `docs/plans/` — 实现计划（AI 生成）
+
+- **内容**：writing-plans skill 输出的分步实现计划
+- **命名**：`YYYY-MM-DD-<feature-name>.md`
+- **示例**：`2026-03-25-engine-admin-portal.md`
+- **来源**：writing-plans skill 自动生成
+- **约束**：计划中引用的 spec 文档路径必须指向 `docs/specs/`
+
+### `docs/roadmap/` — 产品路线图
+
+- **内容**：产品规划和版本路线图
+- **命名**：自由命名
+- **示例**：`product_roadmap.md`
+
+### `.ai/docs/architecture/` — 系统架构
+
+- **内容**：系统级架构文档（部署架构、模块职责划分、核心概念、通信协议）
+- **特征**：长期稳定、不随迭代频繁变更
+- **示例**：`overview.md`、`deployment_architecture.md`、`core-concepts.md`
+
+### `.ai/docs/specs/` — 技术设计参考
+
+- **内容**：面向 AI Agent 的技术参考文档（设计模式、子系统详解）
+- **特征**：描述"系统是怎么工作的"，帮助 AI 理解代码
+- **示例**：`plugin-architecture.md`、`task-execution.md`、`design-patterns.md`
+
+### `.ai/docs/guides/` — 开发指南
+
+- **内容**：面向开发者（含 AI）的操作指南
+- **示例**：`dev-guide.md`
+
+## 判断文档归属的决策树
+
+```
+文档是 AI skill 自动生成的吗？
+  ├── 是，brainstorming 的 spec → docs/specs/
+  ├── 是，writing-plans 的 plan → docs/plans/
+  └── 否，人工编写
+       ├── 面向接入方/用户？ → docs/guide/
+       ├── 产品路线图？ → docs/roadmap/
+       ├── 系统架构级（部署/模块/通信）？ → .ai/docs/architecture/
+       ├── 技术设计参考（子系统/设计模式）？ → .ai/docs/specs/
+       └── 开发操作指南？ → .ai/docs/guides/
+```
+
+## Code Review 检查项
+
+审查 PR 时，若涉及文档变更，需检查：
+
+1. 文档是否放在了正确的目录
+2. AI 生成的文档是否使用了 `YYYY-MM-DD-` 前缀命名
+3. `docs/plans/` 中引用的 spec 路径是否指向 `docs/specs/`
+4. 不应将 AI 生成的迭代文档放入 `docs/guide/` 或 `.ai/docs/`
+5. 不应将人工编写的架构文档放入 `docs/specs/` 或 `docs/plans/`

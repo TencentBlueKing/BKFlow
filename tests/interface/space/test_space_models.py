@@ -454,12 +454,7 @@ class TestCredential:
             content={"bk_app_code": "old", "bk_app_secret": "old_secret"},
         )
 
-        # Note: update_credential uses self.data instead of self.content
-        # This appears to be a bug in the code (should be self.content)
-        # The method will set a dynamic attribute 'data' on the instance
-        # but it won't be saved to the database since 'data' is not a model field
         credential.update_credential({"bk_app_code": "new", "bk_app_secret": "new_secret"})
-        # Verify that 'data' attribute was set (even though it's not a model field)
-        assert hasattr(credential, "data")
-        # The save() call will complete, but content field won't be updated
-        # because 'data' is not a model field, so save() won't persist it
+        credential.refresh_from_db()
+        assert credential.content["bk_app_code"] == "new"
+        assert credential.content["bk_app_secret"] == "new_secret"

@@ -58,6 +58,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.renew_space_config import renew_space_config
     from bkflow.apigw.views.revoke_token import revoke_token
     from bkflow.apigw.views.rollback_template import rollback_template
+    from bkflow.apigw.views.update_credential import update_credential
     from bkflow.apigw.views.update_template import update_template
     from bkflow.apigw.views.validate_pipeline_tree import validate_pipeline_tree
 
@@ -79,6 +80,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/create_task_without_template/$", create_task_without_template),
         url(r"^space/(?P<space_id>\d+)/validate_pipeline_tree/$", validate_pipeline_tree),
         url(r"^space/(?P<space_id>\d+)/create_credential/$", create_credential),
+        url(r"^space/(?P<space_id>\d+)/credential/(?P<credential_id>\d+)/$", update_credential),
         url(r"^space/(?P<space_id>\d+)/get_task_list/$", get_task_list),
         url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/get_task_detail/$", get_task_detail),
         url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/get_task_states/$", get_task_states),

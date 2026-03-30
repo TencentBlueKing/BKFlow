@@ -93,10 +93,6 @@ POST /sdk/template/{template_id}/release_template/
                          "target": "e17aef95ed6934a428215b2a7a3fa4184",
                          "id": "f520808740b9945f8b01fa1dd889945d9"
                     }
-               },
-               "data": {
-                    "inputs": {},
-                    "outputs": []
                }
           },
           "snapshot_id": 283,
@@ -142,7 +138,7 @@ POST /sdk/template/{template_id}/release_template/
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
 | data    | dict   | 返回数据                  |
 
@@ -168,5 +164,7 @@ POST /sdk/template/{template_id}/release_template/
 | create_at       | string   | 流程创建时间   |
 | update_at       | string   | 流程更新时间   |
 | updated_by      | string   | 流程更新者    |
+| is_deleted      | bool     | 流程是否删除   |
 | triggers        | list     | 触发器信息    |
 | subprocess_info | list     | 子流程信息    |
+| auth            | list     | 流程权限     |

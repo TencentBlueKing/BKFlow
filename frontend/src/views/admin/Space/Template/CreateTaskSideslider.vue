@@ -20,6 +20,19 @@
             :maxlength="stringLength.TASK_NAME_MAX_LENGTH"
             :show-word-limit="true" />
         </bk-form-item>
+        <!-- <bk-form-item
+          :label="$t('任务凭证')"
+          property="constants">
+          <RenderForm
+            ref="renderForm"
+            v-model="renderCredentialData"
+            :scheme="renderCredentialConfig"
+            :constants="credentialVariables"
+            :form-option="renderCredentialOption" />
+          <NoData
+            v-if="isNoCredentialData"
+            :message="$t('暂无凭证')" />
+        </bk-form-item> -->
         <bk-form-item
           ref="codeFormItem"
           :label="$t('请求参数')"
@@ -96,12 +109,14 @@
   import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
   import TaskParamEdit from '../../../template/TemplateMock/MockExecute/components/TaskParamEdit.vue';
   import tools from '@/utils/tools.js';
+  // import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
 
   export default {
     name: 'CreateTaskSideslider',
     components: {
       FullCodeEditor,
       TaskParamEdit,
+      // RenderForm,
     },
     props: {
       isShow: {
@@ -129,6 +144,11 @@
         stringLength: STRING_LENGTH,
         createLoading: false,
         unReferencedConstants: {},
+        // renderCredentialOption: {},
+        // renderCredentialConfig: {},
+        // credentialVariables: {},
+        // renderCredentialData: {},
+        // isNoCredentialData: false,
       };
     },
     computed: {

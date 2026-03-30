@@ -1,0 +1,35 @@
+---
+description: Git 工作流规范：功能分支、PR 提交流程
+alwaysApply: true
+---
+
+# Git 工作流规范
+
+**绝对不要直接在 master 分支上提交功能代码。** 所有功能开发必须遵循以下流程：
+
+## 提交流程
+
+1. **同步 upstream**：`git fetch upstream master && git rebase upstream/master`
+2. **创建功能分支**：`git checkout -b feat/<feature-name>`
+3. **开发并提交**：在功能分支上 commit（遵循 git-commit-convention 规范）
+4. **推送到 origin**：`git push -u origin feat/<feature-name>`
+5. **创建 PR**：`gh pr create --repo TencentBlueKing/bkflow`，PR 目标为 upstream 的 master
+
+## Remote 约定
+
+| Remote | 用途 |
+|---|---|
+| `upstream` | 上游主仓库（TencentBlueKing/bkflow），只读 |
+| `origin` | 个人 fork 仓库，推送功能分支到这里 |
+
+## 分支命名
+
+- 功能：`feat/<feature-name>`
+- 修复：`fix/<bug-description>`
+- 重构：`refactor/<scope>`
+
+## 禁止事项
+
+- 不要直接 push 到 upstream
+- 不要在 master 上 commit 功能代码
+- 不要跳过 PR 直接合并

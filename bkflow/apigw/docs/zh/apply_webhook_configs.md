@@ -15,13 +15,13 @@
 | webhooks | list | 是  | webhook 列表，列表中的每个元素对应一份 webhook 配置，每次调用会对当前空间的 webhook 配置进行覆盖 |
 
 #### webhook 配置说明
-| 字段         | 类型     | 必选 | 描述                                                                                 |
-|------------|--------|----|------------------------------------------------------------------------------------|
-| code       | string | 是  | webhook 编码，需唯一                                                                     |
-| name       | string | 是  | webhook 名称                                                                         |
-| endpoint   | string | 是  | webhook 请求地址                                                                       |
-| events     | list   | 是  | webhook 订阅的事件列表, 支持的事件有: template_update，template_create，task_failed，task_finished |
-| extra_info | json   | 否  | 额外扩展信息                                                                             |
+| 字段         | 类型     | 必选 | 描述                                                                                                                                                    |
+|------------|--------|----|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| code       | string | 是  | webhook 编码，需唯一                                                                                                                                        |
+| name       | string | 是  | webhook 名称                                                                                                                                            |
+| endpoint   | string | 是  | webhook 请求地址                                                                                                                                          |
+| events     | list   | 是  | webhook 订阅的事件列表, 支持的事件有: template_update，template_create，template_release，task_failed，task_finished，task_create，task_paused，task_resumed，task_revoked |
+| extra_info | json   | 否  | 额外扩展信息                                                                                                                                                |
 
 ### 请求参数示例
 
@@ -32,14 +32,13 @@
             "code": "webhook1",
             "name": "webhook1",
             "endpoint": "http://webhook1.com",
-            "events": ["template_update", "template_create"]
+            "events": ["template_update", "template_create", "template_release"]
         },
         {
             "code": "webhook2",
             "name": "webhook2",
             "endpoint": "http://webhook2.com",
-            "events": ["task_failed", "task_finished"]
-        
+            "events": ["task_failed", "task_finished", "task_create", "task_paused", "task_resumed", "task_revoked"]
         }
     ]
 }

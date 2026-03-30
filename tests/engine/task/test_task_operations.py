@@ -672,12 +672,11 @@ class TestTaskOperationComplete:
         assert result.result is False
 
     def test_start_captures_trace_context_when_enabled(self, mocker):
-        """测试启动任务时，trace启用时捕获trace context"""
+        """测试启动任务时，trace启用时创建execution span"""
         space_id = 1
         pipeline_tree = build_default_pipeline_tree()
         task_instance = TaskInstance.objects.create_instance(space_id=space_id, pipeline_tree=pipeline_tree)
 
-        # Setup tracer provider
         provider = TracerProvider()
         trace.set_tracer_provider(provider)
 
@@ -686,7 +685,6 @@ class TestTaskOperationComplete:
         mocker.patch("bkflow.task.operations.EngineSpaceConfig.get_space_var", return_value={})
         mocker.patch("django.conf.settings.ENABLE_OTEL_TRACE", True)
 
-        # Mock run_pipeline to capture root_pipeline_data
         captured_data = {}
 
         def mock_run_pipeline(*args, **kwargs):
@@ -696,24 +694,18 @@ class TestTaskOperationComplete:
         mocker.patch("bamboo_engine.api.run_pipeline", side_effect=mock_run_pipeline)
 
         task_operation = TaskOperation(task_instance)
-
-        # Create a span to simulate trace context
-        tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span("test_span"):
-            result = task_operation.start(operator="test_user")
+        result = task_operation.start(operator="test_user")
 
         assert result.result is True
 
-        # Verify trace context was captured and passed to pipeline
         if captured_data.get("root_pipeline_data"):
             assert "_trace_id" in captured_data["root_pipeline_data"]
             assert "_parent_span_id" in captured_data["root_pipeline_data"]
             trace_id = captured_data["root_pipeline_data"]["_trace_id"]
             parent_span_id = captured_data["root_pipeline_data"]["_parent_span_id"]
-            assert len(trace_id) == 32  # 16 bytes = 32 hex chars
-            assert len(parent_span_id) == 16  # 8 bytes = 16 hex chars
+            assert len(trace_id) == 32
+            assert len(parent_span_id) == 16
 
-        # Cleanup
         trace.set_tracer_provider(None)
 
     def test_start_no_trace_context_when_disabled(self, mocker):
@@ -754,11 +746,14 @@ class TestTaskOperationComplete:
         # Cleanup
         trace.set_tracer_provider(None)
 
-    def test_start_no_trace_context_when_no_span(self, mocker):
-        """测试启动任务时没有trace context的情况（trace启用但无span）"""
+    def test_start_creates_execution_span_without_parent(self, mocker):
+        """测试启动任务时，即使没有父span也会创建execution span"""
         space_id = 1
         pipeline_tree = build_default_pipeline_tree()
         task_instance = TaskInstance.objects.create_instance(space_id=space_id, pipeline_tree=pipeline_tree)
+
+        provider = TracerProvider()
+        trace.set_tracer_provider(provider)
 
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
@@ -774,17 +769,12 @@ class TestTaskOperationComplete:
         mocker.patch("bamboo_engine.api.run_pipeline", side_effect=mock_run_pipeline)
 
         task_operation = TaskOperation(task_instance)
-
-        # No active span
         result = task_operation.start(operator="test_user")
 
         assert result.result is True
 
-        # Trace context should not be in pipeline data when no span exists
         if captured_data.get("root_pipeline_data"):
-            # Should not have trace context if no span was active
-            # (get_current_trace_context returns None)
-            assert (
-                "_trace_id" not in captured_data["root_pipeline_data"]
-                or captured_data["root_pipeline_data"]["_trace_id"] is None
-            )
+            assert "_trace_id" in captured_data["root_pipeline_data"]
+            assert "_parent_span_id" in captured_data["root_pipeline_data"]
+
+        trace.set_tracer_provider(None)

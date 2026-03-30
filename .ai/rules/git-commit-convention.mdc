@@ -1,0 +1,74 @@
+---
+description: Git commit message 规范，适用于 AI agent 自动提交代码时
+alwaysApply: true
+---
+
+# Git Commit 规范
+
+参考：https://iwiki.woa.com/p/1655401058
+
+## 格式
+
+```
+<type>(<scope>): <subject> --story=<tapdId>
+```
+
+或缺陷类型：
+
+```
+<type>(<scope>): <subject> --bug=<tapdId>
+```
+
+### 字段说明
+
+- **type**（必填）：变更类别，见下方枚举
+- **scope**（可选）：影响范围，填模块名或文件名，如 `apigw`、`task`、`credential`
+- **subject**（必填）：简短描述，中文为主，动宾结构
+- **--story=xxx** 或 **--bug=xxx**（必填）：TAPD 单据短 ID，放在 subject 之后
+
+> `--story=xxx` 或 `--bug=xxx` 只要出现在 commit message 中即可，无需放在开头。
+
+### Type 枚举
+
+| type | 含义 |
+|------|------|
+| feat | 新功能 |
+| fix | Bug 修复 |
+| docs | 仅文档变更 |
+| style | 不影响代码含义的格式调整（空白、分号等） |
+| refactor | 既不修 bug 也不加功能的代码重构 |
+| perf | 性能优化 |
+| test | 新增或修正测试 |
+| chore | 构建流程、辅助工具或依赖库的变更 |
+
+## 示例
+
+```
+feat(apigw): 新增获取任务节点详情接口 --story=131972327
+fix(task): 修复并发执行时状态更新错误 --bug=132000001
+refactor(credential): 拆分凭证分发器逻辑 --story=131972327
+```
+
+## TAPD 单据复用规则
+
+**同一个开发任务内的所有 commit，必须使用同一个 TAPD 单据 ID。**
+
+- 在 `tapd-workitem-sync` skill 执行后，会返回本次任务的 TAPD 单据 ID
+- 后续所有 commit 均引用该 ID，直到任务完成
+- 若本次会话未执行 tapd-workitem-sync，需先执行该 skill 获取单据 ID 再提交
+
+## Body / Footer（可选）
+
+- **Body**：详细说明变更原因、前后对比，可多行
+- **Footer**：不兼容变动以 `BREAKING CHANGE:` 开头；关闭 Issue 用 `Close #123`
+
+完整示例：
+
+```
+feat(task): 支持节点循环执行 --story=131972327
+
+新增循环执行模式，允许单个节点根据输出条件重复执行，
+最大循环次数由空间配置控制，默认为 100 次。
+
+BREAKING CHANGE: node_execute API 新增 loop_config 必填字段
+```

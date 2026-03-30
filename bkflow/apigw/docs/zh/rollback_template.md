@@ -25,10 +25,6 @@
 
 ### 请求参数示例
 
-```
-POST /space/{space_id}/template/{template_id}/rollback_template/
-```
-
 ```json
 {
     "version": "1.0.0"
@@ -92,10 +88,6 @@ POST /space/{space_id}/template/{template_id}/rollback_template/
                     "target": "e17aef95ed6934a428215b2a7a3fa4184",
                     "id": "f520808740b9945f8b01fa1dd889945d9"
                }
-          },
-          "data": {
-               "inputs": {},
-               "outputs": []
           }
      },
      "code": "0",

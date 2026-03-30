@@ -1,0 +1,29 @@
+{% extends "admin/index.html" %}
+{% load engine_admin_tags %}
+
+{% block content %}
+{% get_engine_modules as engine_modules %}
+<div id="engine-modules" style="margin-bottom: 30px;">
+    <h2 style="margin-bottom: 12px;">Engine 模块</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+        {% for module in engine_modules %}
+        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 16px 20px; min-width: 220px; background: #f9f9f9;">
+            <h3 style="margin: 0 0 8px; font-size: 16px;">{{ module.code }}</h3>
+            <p style="margin: 4px 0; color: #666; font-size: 13px;">空间 ID: {{ module.space_id }}</p>
+            <p style="margin: 4px 0; color: #666; font-size: 13px;">隔离级别: {{ module.isolation_level }}</p>
+            {% if module.admin_url %}
+            <a href="{{ module.admin_url }}" target="_blank"
+               style="display: inline-block; margin-top: 10px; padding: 6px 16px; background: #417690; color: #fff; border-radius: 4px; text-decoration: none; font-size: 13px;">
+                打开 Django Admin ↗
+            </a>
+            {% else %}
+            <span style="display: inline-block; margin-top: 10px; color: #999; font-size: 13px;">未配置地址</span>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p style="color: #999;">暂无已注册的 Engine 模块</p>
+        {% endfor %}
+    </div>
+</div>
+{{ block.super }}
+{% endblock %}

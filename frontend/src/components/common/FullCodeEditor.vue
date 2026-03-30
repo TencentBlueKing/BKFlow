@@ -128,13 +128,13 @@ limitations under the License. */
         text-align: right;
         background: #202024;
         .zoom-icon {
-            font-size: 14px;
-            color: #ffffff;
+            font-size: 12px;
+            color: #979ba5;
             cursor: pointer;
         }
         .icon-copy {
-            font-size: 18px;
-            color: #ffffff;
+            font-size: 14px;
+            color: #979ba5;
             cursor: pointer;
         }
     }

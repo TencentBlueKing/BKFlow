@@ -25,9 +25,15 @@ from django.db import transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.constants import TemplateOperationSource, TemplateOperationType
+from bkflow.constants import (
+    TemplateOperationSource,
+    TemplateOperationType,
+    WebhookEventType,
+    WebhookScopeType,
+)
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
@@ -79,6 +85,16 @@ def release_template(request, space_id, template_id):
         instance_id=instance.id,
         operator=request.user.username,
         extra_info={"version": new_version},
+    )
+
+    event_broadcast_signal.send(
+        sender=WebhookEventType.TEMPLATE_RELEASE.value,
+        scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
+        extra_info={
+            "template_id": template_id,
+            "version": new_version,
+            "username": request.user.username,
+        },
     )
 
     return JsonResponse({"result": True, "data": instance.to_json(), "code": err_code.SUCCESS.code})

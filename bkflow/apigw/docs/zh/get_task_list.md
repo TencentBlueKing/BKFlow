@@ -21,6 +21,18 @@
 | create_at_start | string | 否  | 创建起始时间，如 2023-08-25 07:49:45 |
 | create_at_end   | string | 否  | 创建结束时间，如 2023-08-25 07:49:46 |
 
+### 请求参数示例
+
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "bk_username or bk_token": "xxxx",
+    "limit": 20,
+    "offset": 0
+}
+```
+
 ### 返回结果示例
 
 ```json

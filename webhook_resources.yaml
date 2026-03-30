@@ -4,9 +4,17 @@ events:
     name: 模板更新
   - code: template_create
     name: 模板创建
+  - code: template_release
+    name: 模板发布
   - code: task_failed
     name: 任务失败
   - code: task_finished
     name: 任务完成
   - code: task_create
     name: 任务创建
+  - code: task_paused
+    name: 任务暂停
+  - code: task_resumed
+    name: 任务恢复
+  - code: task_revoked
+    name: 任务撤销

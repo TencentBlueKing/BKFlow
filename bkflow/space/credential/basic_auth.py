@@ -21,26 +21,50 @@ from rest_framework import serializers
 from bkflow.space.credential.base import BaseCredential
 
 
-class BkAppCredential(BaseCredential):
-    class BkAppSerializer(serializers.Serializer):
-        bk_app_code = serializers.CharField(required=True)
-        bk_app_secret = serializers.CharField(required=True)
+class BasicAuthCredential(BaseCredential):
+    """
+    用户名+密码凭证
+    """
 
-        def validate_bk_app_secret(self, value):
-            # 验证字段 bk_app_secret 的值，确保它不是全为 '*'
+    class BasicAuthSerializer(serializers.Serializer):
+        username = serializers.CharField(required=True)
+        password = serializers.CharField(required=True)
+
+        def validate_password(self, value):
+            """
+            验证字段 password 的值，确保它不是全为 '*'
+
+            :param value: password 值
+            :return: 验证后的值
+            """
             if all(char == "*" for char in value):
-                raise serializers.ValidationError("bk_app_secret 格式有误 不应全为 * 字符")
+                raise serializers.ValidationError("password 格式有误 不应全为 * 字符")
             return value
 
     def value(self):
+        """
+        获取凭证真实值
+
+        :return: 凭证的实际内容
+        """
         # todo 这里会涉及到加解密的操作
         return self.data
 
     def display_value(self):
-        self.data["bk_app_secret"] = "*********"
+        """
+        获取凭证脱敏后的值
+
+        :return: 脱敏后的凭证内容（password 替换为星号）
+        """
+        self.data["password"] = "*********"
         return self.data
 
     def validate_data(self):
-        ser = self.BkAppSerializer(data=self.data)
+        """
+        校验凭证数据格式
+
+        :return: 验证后的数据
+        """
+        ser = self.BasicAuthSerializer(data=self.data)
         ser.is_valid(raise_exception=True)
         return ser.validated_data

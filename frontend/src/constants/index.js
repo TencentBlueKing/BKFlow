@@ -165,6 +165,42 @@ const COLOR_BLOCK_LIST = [
   },
 ];
 
+// 凭证类型
+const CREDENTIAL_TYPE_LIST = [
+  {
+    text: i18n.t('蓝鲸应用认证'),
+    value: 'BK_APP',
+  },
+  {
+    text: i18n.t('蓝鲸 Access Token 认证'),
+    value: 'BK_ACCESS_TOKEN',
+  },
+  {
+    text: 'Basic Auth',
+    value: 'BASIC_AUTH',
+  },
+  {
+    text: i18n.t('自定义'),
+    value: 'CUSTOM',
+  },
+];
+
+// 凭证开放范围
+const CREDENTIAL_OPEN_SCOPE_LIST = [
+  {
+    text: i18n.t('全部流程'),
+    value: 'all',
+  },
+  {
+    text: i18n.t('按作用域开放'),
+    value: 'part',
+  },
+  {
+    text: i18n.t('不开放'),
+    value: 'none',
+  },
+];
+
 const NAME_REG = /^[^'"‘’“”$<>]+$/;
 const PACKAGE_NAME_REG = /^[^\d][\w]*?$/;
 // celery的crontab时间表达式正则表达式（分钟 小时 星期 日 月）（以空格分割）
@@ -176,7 +212,19 @@ const URL_REG = new RegExp('^(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-
 /* eslint-enable */
 
 export {
-  TASK_STATE_DICT, NODE_DICT, SYSTEM_GROUP_ICON, BK_PLUGIN_ICON, NAME_REG,
-  INVALID_NAME_CHAR, PACKAGE_NAME_REG, URL_REG, PERIODIC_REG, STRING_LENGTH,
-  LABEL_COLOR_LIST, DARK_COLOR_LIST, TASK_CATEGORIES, COLOR_BLOCK_LIST,
+  TASK_STATE_DICT,
+  NODE_DICT,
+  SYSTEM_GROUP_ICON,
+  BK_PLUGIN_ICON, NAME_REG,
+  INVALID_NAME_CHAR,
+  PACKAGE_NAME_REG,
+  URL_REG,
+  PERIODIC_REG,
+  STRING_LENGTH,
+  LABEL_COLOR_LIST,
+  DARK_COLOR_LIST,
+  TASK_CATEGORIES,
+  COLOR_BLOCK_LIST,
+  CREDENTIAL_TYPE_LIST,
+  CREDENTIAL_OPEN_SCOPE_LIST,
 };

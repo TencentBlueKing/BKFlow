@@ -17,18 +17,16 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import pytest
-from django.conf import settings
 from django.test import override_settings
 from pipeline.core.data.base import DataObject
 
-from bkflow.pipeline_plugins.components.collections.base import (
-    PLUGIN_SCHEDULE_COUNT_KEY,
-    PLUGIN_SPAN_ENDED_KEY,
-    BKFlowBaseService,
-)
+from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 from bkflow.task.models import TaskMockData
 from bkflow.utils.trace import (
+    PLUGIN_SCHEDULE_COUNT_KEY,
     PLUGIN_SPAN_ATTRIBUTES_KEY,
+    PLUGIN_SPAN_ENDED_KEY,
+    PLUGIN_SPAN_ID_KEY,
     PLUGIN_SPAN_NAME_KEY,
     PLUGIN_SPAN_START_TIME_KEY,
 )
@@ -110,11 +108,10 @@ class TestBKFlowBaseService:
         result = service.execute(data=data, parent_data=parent_data)
         assert result is True
 
-        # Verify span was started
-        platform_code = getattr(settings, "PLATFORM_CODE", "bkflow")
-        assert data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY) == f"{platform_code}.test_plugin"
-        assert data.get_one_of_outputs(PLUGIN_SPAN_START_TIME_KEY) is not None
-        assert data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY) is True  # Should be ended for sync plugin
+        # After span ends, clean_plugin_span_outputs removes all span keys
+        assert data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY) is None
+        assert data.get_one_of_outputs(PLUGIN_SPAN_START_TIME_KEY) is None
+        assert data.get_one_of_outputs(PLUGIN_SPAN_ID_KEY) is None
 
     def test_execute_with_trace_disabled(self):
         """Test execute with trace disabled"""
@@ -165,14 +162,14 @@ class TestBKFlowBaseService:
         result = service.execute(data=data, parent_data=parent_data)
         assert result is True
 
-        # Verify trace context was saved
+        # For sync plugins (no schedule), span is ended and all span keys are cleaned
         from bkflow.utils.trace import (
             PLUGIN_SPAN_PARENT_SPAN_ID_KEY,
             PLUGIN_SPAN_TRACE_ID_KEY,
         )
 
-        assert data.get_one_of_outputs(PLUGIN_SPAN_TRACE_ID_KEY) == trace_id
-        assert data.get_one_of_outputs(PLUGIN_SPAN_PARENT_SPAN_ID_KEY) == parent_span_id
+        assert data.get_one_of_outputs(PLUGIN_SPAN_TRACE_ID_KEY) is None
+        assert data.get_one_of_outputs(PLUGIN_SPAN_PARENT_SPAN_ID_KEY) is None
 
     @override_settings(ENABLE_OTEL_TRACE=True)
     def test_execute_failure_ends_span(self):
@@ -195,8 +192,9 @@ class TestBKFlowBaseService:
         result = service.execute(data=data, parent_data=parent_data)
         assert result is False
 
-        # Verify span was ended
-        assert data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY) is True
+        # After span ends on failure, all span keys are cleaned
+        assert data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY) is None
+        assert data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY) is None
 
     @override_settings(ENABLE_OTEL_TRACE=True)
     def test_schedule_with_trace(self):
@@ -230,14 +228,14 @@ class TestBKFlowBaseService:
         execute_result = service.execute(data=data, parent_data=parent_data)
         assert execute_result is True
         assert data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY) is False  # Not ended yet
+        assert data.get_one_of_outputs(PLUGIN_SPAN_ID_KEY) is not None  # Span ID was set
 
-        # Schedule should end the span
+        # Schedule should end the span and clean all span keys
         schedule_result = service.schedule(data=data, parent_data=parent_data)
         assert schedule_result is True
-        assert data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY) is True
-
-        # Verify schedule count
-        assert data.get_one_of_outputs(PLUGIN_SCHEDULE_COUNT_KEY) == 1
+        assert data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY) is None  # Cleaned
+        assert data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY) is None  # Cleaned
+        assert data.get_one_of_outputs(PLUGIN_SCHEDULE_COUNT_KEY) is None  # Cleaned
 
     @override_settings(ENABLE_OTEL_TRACE=True)
     def test_schedule_multiple_times(self):
@@ -274,7 +272,7 @@ class TestBKFlowBaseService:
 
     @override_settings(ENABLE_OTEL_TRACE=True)
     def test_span_attributes(self):
-        """Test that span attributes are set correctly"""
+        """Test that span attributes are set correctly (async plugin, span not ended yet)"""
         data = DataObject(inputs={})
         parent_data = DataObject(
             inputs={
@@ -293,9 +291,11 @@ class TestBKFlowBaseService:
 
         service = TestService()
         setattr(service, "id", "node_789")
+        setattr(service, "__need_schedule__", True)
 
         service.execute(data=data, parent_data=parent_data)
 
+        # Span data persists because async plugin doesn't end span after execute
         attributes = data.get_one_of_outputs(PLUGIN_SPAN_ATTRIBUTES_KEY)
         assert attributes["task_id"] == "task_123"
         assert attributes["space_id"] == "space_456"
@@ -305,7 +305,9 @@ class TestBKFlowBaseService:
     def test_end_plugin_span_idempotent(self):
         """Test that _end_plugin_span is idempotent"""
         data = DataObject(inputs={})
-        parent_data = DataObject(inputs={"task_id": self.taskflow_id, "task_space_id": "space_1"})
+        parent_data = DataObject(
+            inputs={"task_id": self.taskflow_id, "task_space_id": "space_1", "_trace_id": "a" * 32}
+        )
 
         class TestService(BKFlowBaseService):
             plugin_name = "test_plugin"
@@ -316,13 +318,54 @@ class TestBKFlowBaseService:
 
         service = TestService()
         setattr(service, "id", "node1")
+        setattr(service, "__need_schedule__", True)
+
+        service.execute(data=data, parent_data=parent_data)
+        assert data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY) is False  # Not ended yet
+
+        # First end cleans all span keys
+        service._end_plugin_span(data, success=True)
+        assert data.get_one_of_outputs(PLUGIN_SPAN_NAME_KEY) is None
+        assert data.get_one_of_outputs(PLUGIN_SPAN_START_TIME_KEY) is None
+
+        # Subsequent calls are no-ops (start_time and span_name are cleaned,
+        # so end_plugin_span returns early)
+        service._end_plugin_span(data, success=True)
+        service._end_plugin_span(data, success=True)
+
+    @override_settings(ENABLE_OTEL_TRACE=True)
+    def test_plugin_span_id_in_trace_context(self):
+        """Test that plugin_span_id is set after _start_plugin_span and included in trace context"""
+        data = DataObject(inputs={})
+        parent_data = DataObject(
+            inputs={
+                "task_id": self.taskflow_id,
+                "task_space_id": "space_1",
+                "_trace_id": "a" * 32,
+                "_parent_span_id": "b" * 16,
+            }
+        )
+
+        class TestService(BKFlowBaseService):
+            plugin_name = "test_plugin"
+            enable_plugin_span = True
+
+            def plugin_execute(self, data, parent_data):
+                return True
+
+        service = TestService()
+        setattr(service, "id", "node1")
+        setattr(service, "__need_schedule__", True)
 
         service.execute(data=data, parent_data=parent_data)
 
-        # Try to end span multiple times
-        service._end_plugin_span(data, success=True)
-        service._end_plugin_span(data, success=True)
-        service._end_plugin_span(data, success=True)
+        # Verify plugin_span_id was set
+        plugin_span_id = data.get_one_of_outputs(PLUGIN_SPAN_ID_KEY)
+        assert plugin_span_id is not None
+        assert len(plugin_span_id) == 16  # hex-encoded 64-bit span id
 
-        # Should only be ended once
-        assert data.get_one_of_outputs(PLUGIN_SPAN_ENDED_KEY) is True
+        # Verify _get_trace_context includes plugin_span_id
+        trace_context = service._get_trace_context(data, parent_data)
+        assert trace_context["plugin_span_id"] == plugin_span_id
+        assert trace_context["trace_id"] == "a" * 32
+        assert trace_context["parent_span_id"] == "b" * 16

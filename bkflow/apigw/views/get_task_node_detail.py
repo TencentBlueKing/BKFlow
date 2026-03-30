@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -38,7 +37,14 @@ def get_task_node_detail(request, space_id, task_id, node_id):
     ser.is_valid(raise_exception=True)
 
     data = dict(ser.data)
+    include_snapshot_config = data.pop("include_snapshot_config", False)
 
     client = TaskComponentClient(space_id=space_id)
     result = client.get_task_node_detail(task_id, node_id, data=data)
+
+    if include_snapshot_config and result.get("result"):
+        snapshot_result = client.get_node_snapshot_config(task_id, data={"node_id": node_id})
+        snapshot_config = snapshot_result["data"] if snapshot_result.get("result") else None
+        result.setdefault("data", {})["snapshot_config"] = snapshot_config
+
     return result

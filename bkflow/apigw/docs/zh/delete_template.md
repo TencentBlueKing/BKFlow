@@ -9,14 +9,13 @@
 | bk_app_secret | string | 是 | 安全秘钥(app secret)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取 |
 
 
-
 ### 请求参数示例
 
 ```json
 {
     "bk_app_code": "xxxx",
     "bk_app_secret": "xxxx",
-    "bk_username or bk_token": "xxxx",
+    "bk_username or bk_token": "xxxx"
 }
 ```
 
