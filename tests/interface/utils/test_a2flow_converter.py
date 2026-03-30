@@ -551,6 +551,46 @@ class TestA2FlowConverterGateway(TestCase):
         self.assertEqual(eg["default_condition"], {})
 
     @patch("bkflow.utils.a2flow.ComponentModel")
+    def test_conditional_parallel_gateway_builds_conditions(self, mock_cm):
+        """测试条件并行网关会生成 schema 要求的 conditions 字段"""
+        mock_cm.objects.filter.return_value.values_list.return_value = []
+        A2FlowConverter = self._get_converter_class()
+
+        a2flow = [
+            {"type": "StartEvent", "id": "start", "name": "开始"},
+            {
+                "type": "ConditionalParallelGateway",
+                "id": "cpg1",
+                "name": "条件并行",
+                "conditions": [
+                    {"evaluate": "${score} > 60", "target": "n1", "name": "通过"},
+                    {"evaluate": "${score} <= 60", "target": "n2", "name": "未通过"},
+                ],
+            },
+            {"type": "Activity", "id": "n1", "name": "分支1", "code": "test"},
+            {"type": "Activity", "id": "n2", "name": "分支2", "code": "test"},
+            {"type": "ConvergeGateway", "id": "cg1", "name": "汇聚"},
+            {"type": "EndEvent", "id": "end", "name": "结束"},
+            {"type": "Link", "source": "start", "target": "cpg1"},
+            {"type": "Link", "source": "cpg1", "target": "n1"},
+            {"type": "Link", "source": "cpg1", "target": "n2"},
+            {"type": "Link", "source": "n1", "target": "cg1"},
+            {"type": "Link", "source": "n2", "target": "cg1"},
+            {"type": "Link", "source": "cg1", "target": "end"},
+        ]
+
+        converter = A2FlowConverter(a2flow)
+        result = converter.convert()
+
+        cpg = [gw for gw in result["gateways"].values() if gw["type"] == "ConditionalParallelGateway"][0]
+
+        self.assertIn("conditions", cpg)
+        self.assertEqual(len(cpg["conditions"]), 2)
+        expressions = [condition["evaluate"] for condition in cpg["conditions"].values()]
+        self.assertIn("${score} > 60", expressions)
+        self.assertIn("${score} <= 60", expressions)
+
+    @patch("bkflow.utils.a2flow.ComponentModel")
     def test_link_is_default_propagated_to_flow(self, mock_cm):
         """测试 Link 的 is_default 正确传递到 flow"""
         mock_cm.objects.filter.return_value.values_list.return_value = []
@@ -769,6 +809,50 @@ class TestA2FlowConverterComplex(TestCase):
         for flow in result["flows"].values():
             self.assertIn(flow["source"], all_node_ids, "flow source {} not in nodes".format(flow["source"]))
             self.assertIn(flow["target"], all_node_ids, "flow target {} not in nodes".format(flow["target"]))
+
+    @patch("bkflow.utils.a2flow.ComponentModel")
+    def test_nested_exclusive_gateway_does_not_break_parallel_converge_inference(self, mock_cm):
+        """测试并行网关内嵌排他网关时不会误将内层汇聚配给外层并行网关"""
+        mock_cm.objects.filter.return_value.values_list.return_value = []
+        A2FlowConverter = self._get_converter_class()
+
+        a2flow = [
+            {"type": "StartEvent", "id": "start", "name": "开始"},
+            {"type": "ParallelGateway", "id": "pg1", "name": "外层并行"},
+            {
+                "type": "ExclusiveGateway",
+                "id": "eg1",
+                "name": "内层判断",
+                "conditions": [
+                    {"evaluate": "${flag}", "target": "n1"},
+                    {"evaluate": "!${flag}", "target": "n2"},
+                ],
+            },
+            {"type": "Activity", "id": "n1", "name": "分支1", "code": "test"},
+            {"type": "Activity", "id": "n2", "name": "分支2", "code": "test"},
+            {"type": "ConvergeGateway", "id": "cg1", "name": "内层汇聚"},
+            {"type": "Activity", "id": "n3", "name": "并行旁路", "code": "test"},
+            {"type": "ConvergeGateway", "id": "cg2", "name": "外层汇聚"},
+            {"type": "EndEvent", "id": "end", "name": "结束"},
+            {"type": "Link", "source": "start", "target": "pg1"},
+            {"type": "Link", "source": "pg1", "target": "eg1"},
+            {"type": "Link", "source": "pg1", "target": "n3"},
+            {"type": "Link", "source": "eg1", "target": "n1"},
+            {"type": "Link", "source": "eg1", "target": "n2", "is_default": True},
+            {"type": "Link", "source": "n1", "target": "cg1"},
+            {"type": "Link", "source": "n2", "target": "cg1"},
+            {"type": "Link", "source": "cg1", "target": "cg2"},
+            {"type": "Link", "source": "n3", "target": "cg2"},
+            {"type": "Link", "source": "cg2", "target": "end"},
+        ]
+
+        converter = A2FlowConverter(a2flow)
+        result = converter.convert()
+
+        pg = [gw for gw in result["gateways"].values() if gw["type"] == "ParallelGateway"][0]
+        cg_map = {gw["name"]: gw["id"] for gw in result["gateways"].values() if gw["type"] == "ConvergeGateway"}
+
+        self.assertEqual(pg["converge_gateway_id"], cg_map["外层汇聚"])
 
 
 class TestA2FlowConverterVersionLookup(TestCase):

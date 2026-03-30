@@ -101,6 +101,7 @@ class A2FlowConverter:
         """
         自动推断 ParallelGateway / ConditionalParallelGateway 对应的 ConvergeGateway。
         使用栈模型：遍历从 start 到 end 的拓扑序，遇到分支网关入栈，遇到汇聚网关出栈配对。
+        ExclusiveGateway 参与栈配对，避免错误弹出外层并行网关。
         """
         # 构建邻接表（使用原始 ID）
         adj = {}
@@ -152,20 +153,20 @@ class A2FlowConverter:
                 if in_degree[nxt] == 0:
                     queue.append(nxt)
 
-        # 栈配对：遇到 Parallel/ConditionalParallel 入栈，遇到 Converge 出栈
-        parallel_types = ("ParallelGateway", "ConditionalParallelGateway")
+        # 栈配对：所有分支型网关都需要入栈，ConvergeGateway 按 LIFO 规则闭合最近的分支网关
+        branch_gateway_types = ("ParallelGateway", "ConditionalParallelGateway", "ExclusiveGateway")
         stack = []
         for oid in topo_order:
             ntype = original_id_to_type.get(oid)
-            if ntype in parallel_types:
+            if ntype in branch_gateway_types:
                 stack.append(oid)
             elif ntype == "ConvergeGateway" and stack:
-                parallel_oid = stack.pop()
-                if parallel_oid in needs_infer:
-                    new_node_id = needs_infer[parallel_oid]
+                branch_oid = stack.pop()
+                if branch_oid in needs_infer:
+                    new_node_id = needs_infer[branch_oid]
                     converge_new_id = original_id_to_new_id.get(oid, oid)
                     self.nodes[new_node_id]["converge_gateway_id"] = converge_new_id
-                    logger.info("_infer_converge_gateway_ids: {} -> {}".format(parallel_oid, oid))
+                    logger.info("_infer_converge_gateway_ids: {} -> {}".format(branch_oid, oid))
 
     def _generate_flow_id(self):
         return "l{}".format(uuid.uuid4().hex[:30])
@@ -392,8 +393,10 @@ class A2FlowConverter:
             "outgoing": outgoing_value,
         }
 
-        if node_type == "ExclusiveGateway":
+        if node_type in ("ExclusiveGateway", "ConditionalParallelGateway"):
             gateway["conditions"] = self._build_gateway_conditions(node.get("conditions", {}), outgoing_flows)
+
+        if node_type == "ExclusiveGateway":
             # 从 flows 中找到 is_default=True 的 flow，设置 default_condition
             default_flow_id = ""
             if flows:
