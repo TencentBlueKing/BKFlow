@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,21 +16,14 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from django.conf.urls import include, url
+from rest_framework.routers import DefaultRouter
 
-import os
+from .views import LabelViewSet
 
-from django.apps import apps
-from django.core.management.base import BaseCommand
+router = DefaultRouter()
+router.register(r"", LabelViewSet)
 
-
-class Command(BaseCommand):
-    def handle(self, *args, **kwargs):
-        User = apps.get_model("account", "User")
-        INIT_SUPERUSERS = os.getenv("BKFLOW_INIT_SUPERUSERS", "")
-        if not INIT_SUPERUSERS:
-            return
-
-        for username in INIT_SUPERUSERS.split(","):
-            User.objects.update_or_create(
-                username=username, defaults={"is_staff": True, "is_active": True, "is_superuser": True}
-            )
+urlpatterns = [
+    url("^", include(router.urls)),
+]

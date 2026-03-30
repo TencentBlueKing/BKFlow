@@ -61,6 +61,7 @@ jobs:
       - name: 配置 CodeBuddy CLI
         env:
           CODEBUDDY_API_KEY: ${{ secrets.CODEBUDDY_API_KEY }}
+          CODEBUDDY_INTERNET_ENVIRONMENT: iOA
           GH_TOKEN: ${{ github.token }}
         run: |
           # 验证 API Key 是否存在
@@ -108,15 +109,23 @@ jobs:
           CI: true
         run: |
           echo "🚀 开始执行 CodeBuddy 代码审查..."
-          # 检查 codebuddy 是否可用
           if ! command -v codebuddy &> /dev/null && ! command -v cbc &> /dev/null; then
             echo "❌ codebuddy 命令未找到"
             exit 1
           fi
-          # 使用 codebuddy 或 cbc 命令（两者等价）
-          CODEBUDDY_CMD="codebuddy -p --dangerously-skip-permissions"
+          CODEBUDDY_CMD="codebuddy -p --dangerously-skip-permissions --model claude-opus-4.6"
           if ! command -v codebuddy &> /dev/null; then
-            CODEBUDDY_CMD="cbc"
+            CODEBUDDY_CMD="cbc -p --dangerously-skip-permissions --model claude-opus-4.6"
+          fi
+          echo "🔍 验证 CodeBuddy CLI 连通性..."
+          VERIFY_RESULT=$($CODEBUDDY_CMD "回复ok" 2>&1) || true
+          echo "验证结果: $VERIFY_RESULT"
+          if echo "$VERIFY_RESULT" | grep -qi "ok"; then
+            echo "✅ CodeBuddy CLI 验证通过"
+          else
+            echo "❌ CodeBuddy CLI 验证失败，请检查 API Key 和网络配置"
+            echo "详细输出: $VERIFY_RESULT"
+            exit 1
           fi
           # 获取 PR 信息
           PR_NUMBER="${{ github.event.pull_request.number }}"
@@ -153,16 +162,54 @@ jobs:
           - PR Head SHA：${HEAD_SHA}
           - PR Base SHA：${BASE_SHA}
 
+          ## 项目文档
+
+          在审查代码时，请参考以下项目文档以理解架构设计和业务上下文：
+          - docs/guide/ — 用户指南（架构、快速入门、系统接入、插件等）
+          - docs/specs/ — 设计文档（brainstorming 输出）
+          - docs/plans/ — 实现计划（writing-plans 输出）
+          - .ai/docs/architecture/ — 系统架构（部署、模块职责、通信协议）
+          - .ai/docs/specs/ — 技术设计参考（设计模式、插件系统、任务执行等）
+          - .ai/rules/docs-management.mdc — 文档目录管理规范
+
+          审查时应结合这些文档判断：
+          1) 代码变更是否与已有架构设计一致
+          2) 是否有需要同步更新的文档
+          3) 新增功能是否遵循了文档中描述的设计模式
+          4) 文档是否放在了正确的目录（参考 docs-management.mdc）
+
+          ## 权限体系
+
+          本项目采用四层鉴权架构，审查涉及 API / ViewSet 的变更时必须参考：
+          - .ai/rules/bkflow-permission.mdc — 完整权限体系文档
+
+          审查要点：
+          1) 新增 ViewSet 是否正确配置了 permission_classes（AdminPermission / ScopePermission / TokenPermission 等）
+          2) permission_classes 的鉴权 scope 是否与视图中过滤数据集的 scope 一致（防止权限泄露）
+          3) 面向第三方的接口（无用户态）应使用 default backend + apigw/ 路径，面向 SDK/画布的应使用 sdk backend + api/ 路径
+          4) 需要 BKFLOW-TOKEN 的场景（TemplatePermission / ScopePermission 等）是否正确传递了 token
+
+          ## API 网关同步规则
+
+          若 PR 涉及 bkflow/apigw/ 下的变更，需检查以下同步项：
+          1) 新增/修改 API 视图 → 对应文档 bkflow/apigw/docs/zh/{api_name}.md 是否已同步更新
+          2) 新增 API → bkflow/apigw/management/commands/data/api-resources.yml 是否已添加资源定义
+          3) api-resources.yml 中的 authConfig 是否正确（appVerifiedRequired / userVerifiedRequired / resourcePermissionRequired）
+          4) 文档更新后 → apigw-docs.zip 是否已重新生成（通过 bash scripts/apigw_docs.sh）
+          5) 修改了 Serializer 字段 → 文档中的接口参数表格是否同步更新
+
           ## 目标
 
           1) 复核已有审查评论，若已处理则回复：已解决
           2) 对照上方项目规范审查当前 PR diff，重点关注规范中列出的高频问题
-          3) 只在变更的行留下非常简短的行内评论（1-2 句），并在末尾给出简要总结
+          3) 结合项目文档判断代码变更的合理性，检查是否需要更新文档
+          4) 只在变更的行留下非常简短的行内评论（1-2 句），并在末尾给出简要总结
 
           ## 流程
 
           - 获取已有评论：gh pr view ${PR_NUMBER} --json comments
           - 获取 diff：gh pr diff ${PR_NUMBER}
+          - 按需阅读项目文档：cat docs/guide/architecture.md 等
           - 若先前报告的问题似乎已被附近的更改修复，回复：✅ 此问题似乎已被最近的更改解决
           - 避免重复：如果同类反馈已在相同行或附近存在，则跳过
 
@@ -180,5 +227,13 @@ jobs:
           - 不要使用：gh pr review --approve 或 --request-changes
           EOF
           )
-          # 执行 CodeBuddy 审查
-          $CODEBUDDY_CMD "$REVIEW_PROMPT"
+          # 执行 CodeBuddy 审查并打印结果
+          echo "========== CodeBuddy 审查开始 =========="
+          $CODEBUDDY_CMD "$REVIEW_PROMPT" 2>&1 | tee /tmp/review_output.txt
+          REVIEW_EXIT_CODE=${PIPESTATUS[0]}
+          echo "========== CodeBuddy 审查结束 =========="
+          echo "退出码: $REVIEW_EXIT_CODE"
+          if [ $REVIEW_EXIT_CODE -ne 0 ]; then
+            echo "❌ CodeBuddy 审查异常退出"
+            exit $REVIEW_EXIT_CODE
+          fi

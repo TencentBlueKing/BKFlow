@@ -1,0 +1,69 @@
+---
+description: BKFlow 项目编码规范：Python 代码风格、Django/DRF 约定、测试、前端
+alwaysApply: true
+---
+
+# BKFlow 编码规范
+
+本项目为蓝鲸流程引擎服务 (BlueKing Flow Engine Service)，基于 Django + DRF 架构。
+
+## Python 代码风格
+
+### 导入顺序
+
+1. 标准库 (json, logging, enum 等)
+2. 第三方库 (django, rest_framework, pipeline 等)
+3. 项目内部模块 (bkflow.*)
+4. 使用 `from django.utils.translation import ugettext_lazy as _` 做国际化
+
+### 文档字符串
+
+- 类和方法需有 docstring
+- 推荐使用 reStructuredText 风格：`:param`, `:return`, `:raises`
+- 或使用 `@summary`, `@param`, `@return` 风格
+- 中文描述为主
+
+### 格式化与 Lint
+
+- **Black**: line-length = 120
+- **Flake8**: max-line-length = 120, max-complexity = 12
+- 忽略: C901, W503, F405, E203
+
+## Django / DRF 约定
+
+### Model
+
+- 继承 `CommonModel` 获得 creator、create_at、update_at、is_deleted 等通用字段
+- 使用 `ugettext_lazy` 做 verbose_name
+- 定义 `class Meta` 包含 verbose_name、verbose_name_plural、ordering 等
+- 复杂业务逻辑放在 Manager 中
+
+### Migrations
+
+- **禁止手写或手动修改 migration 文件内容**（包括自定义 Operation 子类）
+- 修改 models 后，必须使用 `python manage.py makemigrations` 自动生成 migration
+- 生成后只允许做项目规范的格式化（如 Black 格式化、调整 import 顺序），不得修改操作逻辑
+- 如果需要数据迁移，单独创建 `RunPython` migration（`makemigrations --empty`），不混入 schema migration
+
+### 响应格式
+
+- 成功：`Response(data, status=status.HTTP_200_OK)` 或 `status.HTTP_201_CREATED`
+- 错误：`Response(exception=True, data={"detail": err_msg})`
+
+### 数据安全
+
+- 敏感数据使用 `SecretSingleJsonField`、`SecretField` 等加密字段
+- 软删除使用 `is_deleted` 字段，物理删除用 `hard_delete()`
+- 凭证类型通过 `CredentialDispatcher` 分发到具体实现类
+
+## 测试规范
+
+- 使用 **pytest**
+- 测试类命名：`TestXxx` 或 `TestXxxYyy`
+- 测试方法命名：`test_xxx` 或 `test_xxx_when_yyy`
+- 每个测试方法有简短 docstring 说明测试目的
+
+## 前端约定
+
+- 文案通过 i18n 配置（`frontend/src/config/i18n/cn.js`, `en.js`）
+- 键值对格式：`'中文原文': '中文原文'` 或 `'英文key': '中文翻译'`

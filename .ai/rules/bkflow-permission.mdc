@@ -1,0 +1,131 @@
+# BKFlow 权限管理体系
+
+本文档描述 bkflow 项目的多层权限管理架构，供 AI 编码代理在新增/修改接口时参考。
+
+## 架构总览
+
+请求经过四层鉴权，每层独立生效，使用 OR 语义组合（任一 permission class 通过即放行）。
+
+```
+消费方 → [1] API Gateway 鉴权 → [2] Django 中间件 → [3] DRF permission_classes → [4] 视图业务逻辑
+```
+
+## 第 1 层：API Gateway（网关资源级）
+
+配置位于 `bkflow/apigw/management/commands/data/api-resources.yml`，每个资源的 `authConfig`：
+
+| 字段 | 含义 |
+|---|---|
+| `appVerifiedRequired` | 是否校验 `bk_app_code + bk_app_secret` |
+| `userVerifiedRequired` | 是否校验用户身份（JWT） |
+| `resourcePermissionRequired` | 应用是否需要提前申请该 API 资源的访问权限 |
+
+### SDK 与非 SDK 资源差异
+
+| 类型 | 网关路径前缀 | backend | 后端路由前缀 | `userVerifiedRequired` |
+|---|---|---|---|---|
+| SDK 资源 | `/sdk/...` | `sdk` | `api/...` | 通常 `true` |
+| 非 SDK 资源 | `/space/{id}/...` | `default` | `apigw/...` | 通常 `false` |
+
+两个 backend 指向同一台主机（`api-definition.yml`），仅路径不同。
+
+## 第 2 层：Django 中间件
+
+interface 模块的中间件链（`module_settings.py`）：
+
+```
+TokenMiddleware → ApiGatewayJWTGenericMiddleware → ApiGatewayJWTAppMiddleware → ApiGatewayJWTUserMiddleware
+```
+
+| 中间件 | 作用 |
+|---|---|
+| `TokenMiddleware` | 从 `HTTP_BKFLOW_TOKEN` 读取 token，设置 `request.token`（默认空字符串） |
+| `ApiGatewayJWTGenericMiddleware` | 解析网关 JWT |
+| `ApiGatewayJWTAppMiddleware` | 从 JWT 提取应用信息 |
+| `ApiGatewayJWTUserMiddleware` | 从 JWT 提取用户信息，设置 `request.user` |
+
+另有 `AppInfoInjectMiddleware` 设置 `request.app_internal_token`（从 `HTTP_BKFLOW_INTERNAL_TOKEN`），用于模块间内部调用。
+
+## 第 3 层：DRF Permission Classes
+
+### 核心权限类速查
+
+| 权限类 | 位置 | 检查机制 | 依赖 |
+|---|---|---|---|
+| `AdminPermission` | `bkflow/utils/permissions.py` | `request.user.is_superuser` | JWT 用户 |
+| `SpaceSuperuserPermission` | `bkflow/space/permissions.py` | `request.user.username` in `SpaceConfig(SuperusersConfig)` | JWT 用户 + space_id |
+| `TemplatePermission` | `bkflow/template/permissions.py` | `Token.verify(TEMPLATE, VIEW/EDIT)` | `request.token` |
+| `ScopePermission` | `bkflow/template/permissions.py` | `Token.verify(SCOPE, VIEW/EDIT/MOCK/OPERATE)` | `request.token` |
+| `TemplateMockPermission` | `bkflow/template/permissions.py` | `Token.verify(TEMPLATE, MOCK)` | `request.token` |
+| `SpaceConfigExemptionPermission` | `bkflow/space/permissions.py` | 指定 action 无条件放行 | 无 |
+| `SpaceExemptionPermission` | `bkflow/space/permissions.py` | `create` / `list` action 无条件放行 | 无 |
+| `AppInternalPermission` | `bkflow/utils/permissions.py` | `request.app_internal_token == APP_INTERNAL_TOKEN` | 内部 token |
+| `TaskTokenPermission` | `bkflow/permission/permissions.py` | `Token.verify(TASK, ...)` | `request.token` |
+
+### 各 ViewSet 的权限配置
+
+| ViewSet | permission_classes |
+|---|---|
+| `TemplateViewSet` | `AdminPermission \| SpaceSuperuserPermission \| TemplatePermission \| TemplateMockPermission \| ScopePermission` |
+| `SpaceConfigViewSet` | `SpaceConfigExemptionPermission \| AdminPermission \| SpaceSuperuserPermission` |
+| `SpaceViewSet` | `AdminPermission \| SpaceSuperuserPermission \| SpaceExemptionPermission` |
+| `TaskInterfaceViewSet` | `AdminPermission \| SpaceSuperuserPermission \| TaskTokenPermission \| TaskMockTokenPermission \| ScopePermission` |
+| `TemplateInternalViewSet` | `AdminPermission \| AppInternalPermission` |
+
+### ExemptionPermission 放行规则
+
+| Exemption 类 | 放行的 action |
+|---|---|
+| `SpaceConfigExemptionPermission` | `get_control_config`, `check_space_config` |
+| `SpaceExemptionPermission` | `create`, `list` |
+
+## 第 4 层：视图业务逻辑
+
+部分视图在 DRF permission 通过后，仍在代码中做额外校验。例如 `check_space_config` 检查用户是否为空间 superuser 或配置是否为 control 类型。这层不走 permission_classes 机制，而是在视图函数内直接判断并返回错误响应。
+
+## BKFLOW-TOKEN 生命周期
+
+### 创建
+
+- 端点：`POST /space/{space_id}/apply_token/`（`bkflow/apigw/views/apply_token.py`）
+- 参数：`resource_type`（TEMPLATE / SCOPE / TASK）、`resource_id`、`permission_type`（VIEW / EDIT / OPERATE / MOCK）
+- 过期时间：由 `SpaceConfig(TokenExpirationConfig)` 控制
+- 自动续期：由 `SpaceConfig(TokenAutoRenewalConfig)` 控制
+
+### 存储
+
+`Token` model（`bkflow/permission/models.py`）：
+- 主键：32 位 UUID hex（`uuid.uuid3(uuid.uuid1(), uuid.uuid4().hex).hex`）
+- 字段：`space_id`, `user`, `resource_type`, `resource_id`, `permission_type`, `expired_time`
+
+### 校验
+
+`Token.verify(space_id, user, resource_type, resource_id, permission_type, token)` 查询数据库验证 token 是否存在、是否过期、资源是否匹配。
+
+### 传递路径
+
+```
+消费方请求头 HTTP_BKFLOW_TOKEN → TokenMiddleware → request.token → Permission.has_object_permission() → Token.verify()
+```
+
+## 新增接口时的决策指南
+
+### 1. 选择 backend（api-resources.yml）
+
+- **面向第三方应用直接调用**（无用户态）→ `default` backend，路径 `apigw/...`，`userVerifiedRequired: false`
+- **面向 SDK / 画布等有用户态场景** → `sdk` backend，路径 `api/...`，`userVerifiedRequired: true`
+
+### 2. 选择 permission_classes
+
+```
+需要操作特定模板/空间资源？
+  ├─ 是 → 包含 TemplatePermission / ScopePermission（依赖 request.token）
+  └─ 否 → 仅用 AdminPermission / SpaceSuperuserPermission 或 ExemptionPermission
+```
+
+### 3. 判断是否需要 BKFLOW-TOKEN
+
+**核心标准：后端 permission_classes 是否调用 `Token.verify()`（即是否使用 `request.token`）**
+
+- `TemplatePermission` / `ScopePermission` / `TemplateMockPermission` / `TaskTokenPermission` → 需要 token
+- `AdminPermission` / `SpaceSuperuserPermission` / `ExemptionPermission` → 不需要 token
