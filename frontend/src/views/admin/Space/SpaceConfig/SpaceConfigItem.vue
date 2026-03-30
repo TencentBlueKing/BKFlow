@@ -205,22 +205,6 @@
         }
         return data;
       },
-      getCurrentData() {
-        const { id, name, value_type: valueType, is_mix_type: isMixType } = this.configItem;
-        const data = {
-          id,
-          name,
-          space_id: this.spaceId,
-          value_type: isMixType ? this.localValueType : valueType,
-        };
-        if (this.isJsonType) {
-          const val = this.formValue;
-          data.json_value = (val !== undefined && val !== null && val !== '') ? JSON.parse(val) : null;
-        } else {
-          data.text_value = this.formValue;
-        }
-        return data;
-      },
     },
   };
 </script>

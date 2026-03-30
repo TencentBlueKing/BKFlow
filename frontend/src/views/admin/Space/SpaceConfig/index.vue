@@ -166,6 +166,7 @@
           if (value === '' || value === null || value === undefined) return;
           configs[data.name] = value;
         });
+        if (!Object.keys(configs).length) return;
         try {
           this.saving = true;
           const resp = await this.batchApplySpaceConfig({
