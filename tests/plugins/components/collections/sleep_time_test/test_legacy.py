@@ -55,9 +55,9 @@ class SleepTimerComponentTest(TestCase, ComponentTestMixin):
 
 BUSINESS_TIMEZONE = timezone.pytz.timezone(settings.TIME_ZONE)
 
-INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 60, "force_check": True}
+INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 600, "force_check": True}
 VALID_DATETIME_INPUT = {
-    "bk_timing": (datetime.datetime.now(tz=BUSINESS_TIMEZONE) + datetime.timedelta(seconds=60)).strftime(
+    "bk_timing": (datetime.datetime.now(tz=BUSINESS_TIMEZONE) + datetime.timedelta(seconds=600)).strftime(
         "%Y-%m-%d %H:%M:%S"
     ),
     "force_check": True,
