@@ -1338,8 +1338,16 @@ git commit -m "feat(statistics): 新增统计模型 Admin 配置 --story=<TAPD_I
 
 **逻辑：**
 - template 回填: 遍历 Template.objects.all()，逐个调用 TemplateStatisticsCollector
-- task 回填: 遍历最近 N 天的 TaskInstance，调用 TaskStatisticsCollector
-- summary 回填: 遍历最近 N 天，调用 _generate_daily_summary + _generate_plugin_summary
+- task 回填: 遍历当前模块 default 库的 TaskInstance，调用 TaskStatisticsCollector，自动写入 engine_id 标识
+- summary 回填: 遍历指定日期范围，调用 _generate_daily_summary + _generate_plugin_summary
+
+**多 engine 部署注意事项：**
+- 各 engine 模块的 TaskInstance 存储在各自独立的数据库中
+- `--type=template` 只需在 interface 模块执行一次（模板数据仅在 interface 库）
+- `--type=task` 需要在**每个 engine 模块分别执行**（各自只能查到自己库中的任务）
+- `--type=summary` 需在 template 和 task 回填全部完成后，在 interface 模块执行一次
+- `--type=all` 不建议使用，会在非对应模块上产生无效的回填（0 条）
+- 推荐执行顺序：interface 跑 template → 每个 engine 跑 task → interface 跑 summary
 
 **Commit:**
 ```bash

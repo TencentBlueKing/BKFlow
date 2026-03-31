@@ -42,6 +42,27 @@ def task_created_statistics_task(self, task_id: int):
 
 
 @shared_task(bind=True, ignore_result=True)
+def task_backfill_statistics_task(self, task_id: int):
+    """回填专用：先采集创建信息，再根据任务终态补充归档信息"""
+    if not StatisticsSettings.is_enabled():
+        return
+
+    try:
+        from bkflow.statistics.collectors import TaskStatisticsCollector
+
+        collector = TaskStatisticsCollector(task_id=task_id)
+        collector.collect_on_create()
+
+        task = collector.task
+        if task and (task.is_finished or task.is_revoked):
+            collector.collect_on_archive()
+
+        logger.info(f"[task_statistics] task_id={task_id} backfill completed")
+    except Exception as e:
+        logger.exception(f"[task_statistics] task_id={task_id} backfill error: {e}")
+
+
+@shared_task(bind=True, ignore_result=True)
 def task_archive_statistics_task(self, instance_id: str):
     if not StatisticsSettings.is_enabled():
         return

@@ -1,0 +1,508 @@
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
+"""
+
+import logging
+import re
+import uuid
+from collections import defaultdict, deque
+
+from pipeline.component_framework.models import ComponentModel
+
+logger = logging.getLogger("root")
+
+
+class A2FlowConverter:
+    """
+    将简化流程 JSON 格式转换为 BKFlow pipeline_tree
+
+    输入格式示例 (JSONL，每行一个 JSON 对象):
+    {"type": "name", "value": "流程名称"}
+    {"type": "StartEvent", "id": "start", "name": "流程开始"}
+    {"type": "Activity", "id": "n1", "name": "数据库备份", "code": "job_fast_execute_script"}
+    {"type": "Link", "source": "start", "target": "n1"}
+    {"type": "Variable", "key": "${db_server}", "name": "数据库IP"}
+    ...
+    """
+
+    DEFAULT_ACTIVITY_CONFIG = {
+        "auto_retry": {"enable": False, "interval": 0, "times": 1},
+        "timeout_config": {"action": "forced_fail", "enable": False, "seconds": 10},
+        "error_ignorable": False,
+        "retryable": True,
+        "skippable": True,
+        "optional": True,
+        "labels": [],
+        "loop": None,
+    }
+
+    def __init__(self, a2flow: list):
+        self.a2flow = a2flow
+        self.nodes = {}
+        self.links = []
+        self.variables = []
+        self.template_name = ""
+        self.id_mapping = {}
+        self._parse_input()
+
+    def _parse_input(self):
+        for item in self.a2flow:
+            item_type = item.get("type")
+            if item_type == "Link":
+                self.links.append(item)
+            elif item_type == "Variable":
+                self.variables.append(item)
+            elif item_type == "name":
+                self.template_name = item.get("value", "")
+            else:
+                node_id = item.get("id")
+                if node_id:
+                    new_id = self._generate_node_id()
+                    self.id_mapping[node_id] = new_id
+                    item["_original_id"] = node_id
+                    item["id"] = new_id
+                    self.nodes[new_id] = item
+
+        self._validate_links()
+        self._infer_converge_gateway_ids()
+
+    def _generate_node_id(self):
+        return "n{}".format(uuid.uuid4().hex[:31])
+
+    def _validate_links(self):
+        missing_nodes = set()
+        for link in self.links:
+            source = link.get("source")
+            target = link.get("target")
+            if source and source not in self.id_mapping:
+                missing_nodes.add(source)
+            if target and target not in self.id_mapping:
+                missing_nodes.add(target)
+
+        if missing_nodes:
+            raise KeyError("Link 引用了未定义的节点: {}".format(", ".join(sorted(missing_nodes))))
+
+    def _infer_converge_gateway_ids(self):
+        """
+        自动推断 ParallelGateway / ConditionalParallelGateway 对应的 ConvergeGateway。
+        使用栈模型：遍历从 start 到 end 的拓扑序，遇到分支网关入栈，遇到汇聚网关出栈配对。
+        ExclusiveGateway 参与栈配对，避免错误弹出外层并行网关。
+        """
+        # 构建邻接表（使用原始 ID）
+        adj = {}
+        in_degree = {}
+        for node_id, node in self.nodes.items():
+            original_id = node.get("_original_id", node_id)
+            adj.setdefault(original_id, [])
+            in_degree.setdefault(original_id, 0)
+
+        for link in self.links:
+            source = link["source"]
+            target = link["target"]
+            adj.setdefault(source, [])
+            adj[source].append(target)
+            in_degree.setdefault(target, 0)
+            in_degree[target] += 1
+
+        # 找到 type 映射（原始 ID -> type）
+        original_id_to_type = {}
+        original_id_to_new_id = {}
+        for node_id, node in self.nodes.items():
+            original_id = node.get("_original_id", node_id)
+            original_id_to_type[original_id] = node["type"]
+            original_id_to_new_id[original_id] = node_id
+
+        # 已有 converge_gateway_id 的节点不需要推断
+        needs_infer = {}
+        for node_id, node in self.nodes.items():
+            if node["type"] in ("ParallelGateway", "ConditionalParallelGateway"):
+                if not node.get("converge_gateway_id"):
+                    original_id = node.get("_original_id", node_id)
+                    needs_infer[original_id] = node_id
+
+        if not needs_infer:
+            return
+
+        # BFS 拓扑排序
+        queue = deque()
+        for oid, deg in in_degree.items():
+            if deg == 0:
+                queue.append(oid)
+
+        topo_order = []
+        while queue:
+            curr = queue.popleft()
+            topo_order.append(curr)
+            for nxt in adj.get(curr, []):
+                in_degree[nxt] -= 1
+                if in_degree[nxt] == 0:
+                    queue.append(nxt)
+
+        # 栈配对：所有分支型网关都需要入栈，ConvergeGateway 按 LIFO 规则闭合最近的分支网关
+        branch_gateway_types = ("ParallelGateway", "ConditionalParallelGateway", "ExclusiveGateway")
+        stack = []
+        for oid in topo_order:
+            ntype = original_id_to_type.get(oid)
+            if ntype in branch_gateway_types:
+                stack.append(oid)
+            elif ntype == "ConvergeGateway" and stack:
+                branch_oid = stack.pop()
+                if branch_oid in needs_infer:
+                    new_node_id = needs_infer[branch_oid]
+                    converge_new_id = original_id_to_new_id.get(oid, oid)
+                    self.nodes[new_node_id]["converge_gateway_id"] = converge_new_id
+                    logger.info("_infer_converge_gateway_ids: {} -> {}".format(branch_oid, oid))
+
+    def _generate_flow_id(self):
+        return "l{}".format(uuid.uuid4().hex[:30])
+
+    def _map_id(self, old_id):
+        return self.id_mapping.get(old_id, old_id)
+
+    def _wrap_data_value(self, value):
+        if isinstance(value, dict) and "hook" in value and "value" in value:
+            return value
+        return {"hook": False, "need_render": True, "value": value}
+
+    def _normalize_component_data(self, data):
+        if not isinstance(data, dict):
+            return {}
+        return {key: self._wrap_data_value(value) for key, value in data.items()}
+
+    def _parse_version_number(self, version_str):
+        if not version_str or version_str == "legacy":
+            return (0, 0, 0)
+
+        version_str = version_str.lstrip("vV")
+        match = re.match(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", version_str)
+        if match:
+            major = int(match.group(1)) if match.group(1) else 0
+            minor = int(match.group(2)) if match.group(2) else 0
+            patch = int(match.group(3)) if match.group(3) else 0
+            return (major, minor, patch)
+
+        return (0, 0, 0)
+
+    def _get_latest_component_version(self, code):
+        if not code:
+            return "legacy"
+
+        try:
+            versions = list(ComponentModel.objects.filter(code=code, status=1).values_list("version", flat=True))
+
+            if not versions:
+                logger.warning("_get_latest_component_version: No component found for code={}".format(code))
+                return "legacy"
+
+            latest_version = None
+            latest_tuple = (0, 0, 0)
+
+            for version in versions:
+                version_tuple = self._parse_version_number(version)
+                if version_tuple > latest_tuple:
+                    latest_tuple = version_tuple
+                    latest_version = version
+
+            logger.info(
+                "_get_latest_component_version: code={}, versions={}, latest={}".format(
+                    code, list(versions), latest_version
+                )
+            )
+
+            return latest_version or "legacy"
+
+        except Exception as e:
+            logger.exception("_get_latest_component_version: Error getting version for code={}: {}".format(code, e))
+            return "legacy"
+
+    def _batch_get_latest_component_versions(self, codes):
+        """批量查询所有 code 的最新版本，返回 {code: version} 映射字典。"""
+        version_map = {}
+        codes = {c for c in codes if c}
+        if not codes:
+            return version_map
+
+        try:
+            # 单次查询获取所有相关 code 的版本
+            rows = ComponentModel.objects.filter(code__in=codes, status=1).values_list("code", "version")
+
+            # 按 code 分组
+            code_versions = defaultdict(list)
+            for code, version in rows:
+                code_versions[code].append(version)
+
+            for code in codes:
+                versions = code_versions.get(code)
+                if not versions:
+                    logger.warning("_batch_get_latest_component_versions: No component found for code={}".format(code))
+                    version_map[code] = "legacy"
+                    continue
+
+                latest_version = None
+                latest_tuple = (0, 0, 0)
+                for version in versions:
+                    version_tuple = self._parse_version_number(version)
+                    if version_tuple > latest_tuple:
+                        latest_tuple = version_tuple
+                        latest_version = version
+
+                version_map[code] = latest_version or "legacy"
+
+            logger.info(
+                "_batch_get_latest_component_versions: queried {} codes, result={}".format(len(codes), version_map)
+            )
+        except Exception as e:
+            logger.exception("_batch_get_latest_component_versions: Error batch querying versions: {}".format(e))
+            # 出错时所有 code 回退到 legacy
+            for code in codes:
+                version_map.setdefault(code, "legacy")
+
+        return version_map
+
+    def convert(self) -> dict:
+        activities = {}
+        gateways = {}
+        flows = {}
+        constants = {}
+
+        start_event = None
+        end_event = None
+
+        node_incoming = {nid: [] for nid in self.nodes}
+        node_outgoing = {nid: [] for nid in self.nodes}
+        source_to_flows = {nid: [] for nid in self.nodes}
+
+        for link in self.links:
+            source = self._map_id(link["source"])
+            target = self._map_id(link["target"])
+            flow_id = self._generate_flow_id()
+            is_default = link.get("is_default", False)
+
+            flows[flow_id] = {"id": flow_id, "is_default": is_default, "source": source, "target": target}
+
+            if source in node_outgoing:
+                node_outgoing[source].append(flow_id)
+            if target in node_incoming:
+                node_incoming[target].append(flow_id)
+
+            if source in source_to_flows:
+                original_target = link["target"]
+                source_to_flows[source].append((flow_id, target, original_target))
+
+        # 批量查询所有 Activity 节点的 component version
+        activity_codes = {node.get("code", "") for node in self.nodes.values() if node.get("type") == "Activity"}
+        component_version_map = self._batch_get_latest_component_versions(activity_codes)
+
+        for node_id, node in self.nodes.items():
+            node_type = node["type"]
+
+            if node_type == "StartEvent":
+                start_event = self._build_start_event(node, node_outgoing.get(node_id, []))
+            elif node_type == "EndEvent":
+                end_event = self._build_end_event(node, node_incoming.get(node_id, []))
+            elif node_type == "Activity":
+                activities[node_id] = self._build_activity(
+                    node, node_incoming.get(node_id, []), node_outgoing.get(node_id, []), component_version_map
+                )
+            elif node_type in ("ParallelGateway", "ConditionalParallelGateway", "ExclusiveGateway", "ConvergeGateway"):
+                gateways[node_id] = self._build_gateway(
+                    node,
+                    node_incoming.get(node_id, []),
+                    node_outgoing.get(node_id, []),
+                    source_to_flows.get(node_id, []),
+                    flows,
+                )
+
+        for idx, var in enumerate(self.variables):
+            key = var.get("key")
+            if not key:
+                raise KeyError('Variable 缺少必填字段 \'key\'，请确保格式为: {"type": "Variable", "key": "${变量名}", "name": "显示名"}')
+            constants[key] = self._build_constant(var, idx)
+
+        if not start_event or not end_event:
+            raise ValueError("缺少开始/结束事件节点")
+
+        return {
+            "activities": activities,
+            "gateways": gateways,
+            "flows": flows,
+            "start_event": start_event,
+            "end_event": end_event,
+            "constants": constants,
+            "outputs": [],
+            "canvas_mode": "horizontal",
+        }
+
+    def _build_activity(self, node, incoming, outgoing, component_version_map=None) -> dict:
+        outgoing_value = outgoing[0] if len(outgoing) == 1 else outgoing
+
+        raw_data = node.get("data", {})
+        normalized_data = self._normalize_component_data(raw_data)
+
+        code = node.get("code", "")
+        if component_version_map is not None:
+            version = component_version_map.get(code, "legacy") if code else "legacy"
+        else:
+            version = self._get_latest_component_version(code)
+
+        activity = {
+            "id": node["id"],
+            "name": node.get("name", ""),
+            "type": "ServiceActivity",
+            "incoming": incoming,
+            "outgoing": outgoing_value,
+            "stage_name": node.get("stage_name", node.get("name", "")),
+            "component": {
+                "code": code,
+                "version": version,
+                "data": normalized_data,
+            },
+        }
+        activity.update(self.DEFAULT_ACTIVITY_CONFIG)
+        return activity
+
+    def _build_gateway(self, node, incoming, outgoing, outgoing_flows=None, flows=None) -> dict:
+        node_type = node["type"]
+        outgoing_flows = outgoing_flows or []
+
+        if node_type == "ConvergeGateway":
+            outgoing_value = outgoing[0] if outgoing else ""
+        else:
+            outgoing_value = outgoing
+
+        gateway = {
+            "id": node["id"],
+            "name": node.get("name", ""),
+            "type": node_type,
+            "incoming": incoming,
+            "outgoing": outgoing_value,
+        }
+
+        if node_type in ("ExclusiveGateway", "ConditionalParallelGateway"):
+            gateway["conditions"] = self._build_gateway_conditions(node.get("conditions", {}), outgoing_flows)
+
+        if node_type == "ExclusiveGateway":
+            # 从 flows 中找到 is_default=True 的 flow，设置 default_condition
+            default_flow_id = ""
+            if flows:
+                for flow_id, _, _ in outgoing_flows:
+                    if flows.get(flow_id, {}).get("is_default", False):
+                        default_flow_id = flow_id
+                        break
+            gateway["default_condition"] = {"flow_id": default_flow_id, "name": "默认分支"} if default_flow_id else {}
+
+        if node_type in ("ParallelGateway", "ConditionalParallelGateway"):
+            converge_id = node.get("converge_gateway_id", "")
+            if converge_id:
+                converge_id = self._map_id(converge_id)
+            gateway["converge_gateway_id"] = converge_id
+
+        return gateway
+
+    def _build_gateway_conditions(self, raw_conditions, outgoing_flows) -> dict:
+        if not raw_conditions or not outgoing_flows:
+            conditions = {}
+            for idx, (flow_id, target_new_id, target_original_id) in enumerate(outgoing_flows):
+                conditions[flow_id] = {
+                    "evaluate": "True",
+                    "name": "分支{}".format(idx + 1),
+                    "tag": "branch_{}".format(flow_id),
+                }
+            return conditions
+
+        target_to_flow = {}
+        for flow_id, target_new_id, target_original_id in outgoing_flows:
+            target_to_flow[target_original_id] = flow_id
+            target_to_flow[target_new_id] = flow_id
+
+        conditions = {}
+        used_flows = set()
+
+        if isinstance(raw_conditions, list):
+            condition_items = []
+            for cond in raw_conditions:
+                if isinstance(cond, dict):
+                    target_key = cond.get("target") or cond.get("target_id") or cond.get("id")
+                    condition_items.append((target_key, cond))
+        else:
+            condition_items = list(raw_conditions.items())
+
+        for cond_key, cond_value in condition_items:
+            flow_id = target_to_flow.get(cond_key) if cond_key else None
+
+            if not flow_id:
+                for fid, _, _ in outgoing_flows:
+                    if fid not in used_flows:
+                        flow_id = fid
+                        break
+
+            if flow_id:
+                used_flows.add(flow_id)
+                expression = (
+                    cond_value.get("evaluate") or cond_value.get("expression") or cond_value.get("expr") or "True"
+                )
+                conditions[flow_id] = {
+                    "evaluate": expression,
+                    "name": cond_value.get("name", ""),
+                    "tag": "branch_{}".format(flow_id),
+                }
+
+        for flow_id, _, _ in outgoing_flows:
+            if flow_id not in conditions:
+                conditions[flow_id] = {"evaluate": "True", "name": "", "tag": "branch_{}".format(flow_id)}
+
+        return conditions
+
+    def _build_start_event(self, node, outgoing) -> dict:
+        return {
+            "id": node["id"],
+            "name": node.get("name", ""),
+            "type": "EmptyStartEvent",
+            "incoming": "",
+            "outgoing": outgoing[0] if outgoing else "",
+            "labels": [],
+        }
+
+    def _build_end_event(self, node, incoming) -> dict:
+        return {
+            "id": node["id"],
+            "name": node.get("name", ""),
+            "type": "EmptyEndEvent",
+            "incoming": incoming,
+            "outgoing": "",
+            "labels": [],
+        }
+
+    def _build_constant(self, var, index) -> dict:
+        return {
+            "key": var["key"],
+            "name": var.get("name", ""),
+            "value": var.get("value", ""),
+            "desc": var.get("description", ""),
+            "custom_type": var.get("custom_type", "input"),
+            "source_type": var.get("source_type", "custom"),
+            "source_tag": "",
+            "source_info": {},
+            "show_type": var.get("show_type", "show"),
+            "validation": var.get("validation", ""),
+            "index": index,
+            "version": "legacy",
+            "form_schema": {},
+            "hook": False,
+            "need_render": True,
+        }

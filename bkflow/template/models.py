@@ -576,13 +576,17 @@ class TriggerManager(models.Manager):
         return trigger
 
     def batch_delete_by_ids(self, space_id, trigger_ids, is_full=False):
-        client = TaskComponentClient(space_id=space_id)
         if is_full:
-            trigger_ids = self.filter(space_id=space_id).values_list("id", flat=True)
-        result = client.batch_delete_periodic_task(data={"trigger_ids": list(trigger_ids)})
+            trigger_ids = list(self.filter(space_id=space_id).values_list("id", flat=True))
+        else:
+            trigger_ids = list(trigger_ids)
+        if not trigger_ids:
+            return
+        client = TaskComponentClient(space_id=space_id)
+        result = client.batch_delete_periodic_task(data={"trigger_ids": trigger_ids})
         if not result.get("result"):
             raise APIResponseError(f"delete periodic_task error: {result.get('message')}")
-        self.filter(id__in=list(trigger_ids)).delete()
+        self.filter(id__in=trigger_ids).delete()
 
     def _get_handler(self, trigger_type):
         handlers = {
