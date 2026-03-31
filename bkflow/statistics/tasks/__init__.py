@@ -23,6 +23,7 @@ from bkflow.statistics.tasks.summary_tasks import (  # noqa
 )
 from bkflow.statistics.tasks.task_tasks import (  # noqa
     task_archive_statistics_task,
+    task_backfill_statistics_task,
     task_created_statistics_task,
 )
 from bkflow.statistics.tasks.template_tasks import (  # noqa
