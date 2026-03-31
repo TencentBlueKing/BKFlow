@@ -1,18 +1,11 @@
 <template>
-  <div
-    class="space-config-item"
-    :class="{ 'is-default': isCurrentValueDefault }">
+  <div class="space-config-item">
     <div class="config-item-row">
       <div class="config-item-label">
         <span
           v-bk-overflow-tips
           class="label-text">
           {{ configItem.desc }}
-        </span>
-        <span
-          v-if="isCurrentValueDefault"
-          class="default-tag">
-          {{ $t('默认值') }}
         </span>
       </div>
       <div class="config-item-control">
@@ -89,8 +82,6 @@
         formValue: '',
         localValueType: 'TEXT',
         initialValue: '',
-        defaultFormValue: '', // 用于存储默认值的格式化版本
-        hasDefaultValue: false, // 标记配置项是否有默认值
       };
     },
     computed: {
@@ -113,15 +104,6 @@
       },
       isValueChanged() {
         return this.formValue !== this.initialValue;
-      },
-      // 动态判断当前值是否为默认值
-      isCurrentValueDefault() {
-        // 如果配置项没有默认值，则不显示默认值标签
-        if (!this.hasDefaultValue) {
-          return false;
-        }
-        // 比较当前值与默认值（两者都是字符串类型）
-        return String(this.formValue) === String(this.defaultFormValue);
       },
     },
     watch: {
@@ -149,18 +131,11 @@
         this.localValueType = valueType || 'TEXT';
         let formType = valueType === 'JSON' ? 'json' : 'input';
         formType = choices ? 'select' : formType;
-        this.hasDefaultValue = defaultValue !== null && defaultValue !== undefined;
-        // 格式化默认值用于比较（确保始终为字符串类型）
-        let formattedDefaultValue = '';
-        if (this.hasDefaultValue) {
-          formattedDefaultValue = formType === 'json' && defaultValue
-            ? JSON.stringify(defaultValue, null, 4)
-            : String(defaultValue);
-        }
-        this.defaultFormValue = formattedDefaultValue;
         let formValue;
         if (isDefault) {
-          formValue = formattedDefaultValue;
+          formValue = formType === 'json' && defaultValue
+            ? JSON.stringify(defaultValue, null, 4)
+            : String(defaultValue || '');
         } else {
           formValue = formType === 'json' && jsonValue ? JSON.stringify(jsonValue, null, 4) : value;
         }
@@ -219,11 +194,6 @@
     &:hover {
       background-color: #fafbfd;
     }
-    &.is-default {
-      .config-item-label .label-text {
-        color: #979ba5;
-      }
-    }
     .config-item-row {
       display: flex;
       align-items: flex-start;
@@ -244,16 +214,6 @@
         line-height: 22px;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .default-tag {
-        margin-left: 6px;
-        padding: 0 6px;
-        font-size: 12px;
-        line-height: 18px;
-        color: #979ba5;
-        background: #f0f1f5;
-        border-radius: 2px;
         white-space: nowrap;
       }
       .label-icon {
