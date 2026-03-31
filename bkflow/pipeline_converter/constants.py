@@ -51,6 +51,16 @@ class A2FlowVersion(str, Enum):
     V2 = "2.0"
 
 
+SUPPORTED_V2_ALIASES = (None, "", "2", "2.0", 2, 2.0)
+
+
+def normalize_a2flow_version(version):
+    """将各种 v2 版本表示统一为 '2.0'，非 v2 版本原样返回字符串形式"""
+    if version in SUPPORTED_V2_ALIASES:
+        return "2.0"
+    return str(version)
+
+
 DEFAULT_ACTIVITY_CONFIG = {
     "auto_retry": {"enable": False, "interval": 0, "times": 1},
     "timeout_config": {"action": "forced_fail", "enable": False, "seconds": 10},

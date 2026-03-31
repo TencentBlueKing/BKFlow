@@ -95,8 +95,9 @@ def validate_a2flow(request, space_id):
             "data": None,
         }
 
+    nodes = a2flow_data.get("nodes", [])
+    plugin_codes = list({node["code"] for node in nodes if node.get("code")})
     activities = pipeline_tree.get("activities", {})
-    plugin_codes = list({act["component"]["code"] for act in activities.values()})
 
     return {
         "result": True,

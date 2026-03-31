@@ -31,6 +31,7 @@ from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.a2flow import CreateTemplateWithA2FlowSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.decorators import record_operation
+from bkflow.pipeline_converter.constants import normalize_a2flow_version
 from bkflow.pipeline_converter.exceptions import (
     A2FlowConvertError,
     A2FlowValidationError,
@@ -65,7 +66,7 @@ def create_template_with_a2flow(request, space_id):
 
     a2flow_raw = data.get("a2flow")
     a2flow_version = a2flow_raw.get("version", "2.0") if isinstance(a2flow_raw, dict) else None
-    normalized_version = "2.0" if a2flow_version in (None, "", "2", "2.0", 2, 2.0) else str(a2flow_version)
+    normalized_version = normalize_a2flow_version(a2flow_version)
     is_v2 = isinstance(a2flow_raw, dict) and normalized_version == "2.0"
 
     if is_v2:

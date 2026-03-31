@@ -25,6 +25,7 @@ from bkflow.pipeline_converter.constants import (
     GATEWAY_TYPES,
     RESERVED_IDS,
     NodeType,
+    normalize_a2flow_version,
 )
 from bkflow.pipeline_converter.converters.a2flow_v2.data_models import (
     A2FlowNode,
@@ -76,9 +77,7 @@ class A2FlowV2Converter:
 
     def convert(self) -> dict:
         pipeline = A2FlowPipeline(**self.a2flow_data)
-        normalized_version = str(pipeline.version)
-        if normalized_version in ("2", "2.0"):
-            pipeline.version = "2.0"
+        pipeline.version = normalize_a2flow_version(pipeline.version)
         if pipeline.version != "2.0":
             raise A2FlowValidationError(
                 A2FlowConvertError(

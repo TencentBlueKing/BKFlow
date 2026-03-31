@@ -20,6 +20,7 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TEMPLATE_NAME, USER_NAME_MAX_LENGTH
+from bkflow.pipeline_converter.constants import normalize_a2flow_version
 
 
 class CreateTemplateWithA2FlowSerializer(serializers.Serializer):
@@ -59,7 +60,7 @@ class CreateTemplateWithA2FlowV2Serializer(serializers.Serializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError(_("a2flow v2 必须是 JSON 对象"))
         version = value.get("version", "2.0")
-        normalized_version = "2.0" if version in (None, "", "2", "2.0", 2, 2.0) else str(version)
+        normalized_version = normalize_a2flow_version(version)
         if normalized_version not in ("2.0",):
             raise serializers.ValidationError(_("不支持的 a2flow 版本: {}").format(version))
         value["version"] = normalized_version
