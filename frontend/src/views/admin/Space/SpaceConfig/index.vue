@@ -5,7 +5,16 @@
     <div
       v-if="spaceConfigList.length"
       class="space-config-form">
-      <div class="space-config-header">
+      <div class="space-config-body">
+        <SpaceConfigItem
+          v-for="item in spaceConfigList"
+          ref="configItems"
+          :key="item.name"
+          :config-item="item"
+          :space-id="spaceId"
+          @change="onItemChange(item.name, $event)" />
+      </div>
+      <div class="space-config-footer">
         <bk-button
           theme="primary"
           :loading="saving"
@@ -18,15 +27,6 @@
           @click="handleGlobalRestore">
           {{ $t('恢复默认值') }}
         </bk-button>
-      </div>
-      <div class="space-config-body">
-        <SpaceConfigItem
-          v-for="item in spaceConfigList"
-          ref="configItems"
-          :key="item.name"
-          :config-item="item"
-          :space-id="spaceId"
-          @change="onItemChange(item.name, $event)" />
       </div>
     </div>
     <NoData
@@ -228,16 +228,15 @@
     min-height: 200px;
     padding: 0 24px 24px;
     .space-config-form {
-      .space-config-header {
-        z-index: 100;
+      .space-config-footer {
         display: flex;
         align-items: center;
         justify-content: flex-start;
         gap: 8px;
-        margin-bottom: 15px;
+        margin-top: 16px;
       }
       .space-config-body {
-        max-height: calc(-160px + 100vh);
+        max-height: calc(-175px + 100vh);
         overflow-y: auto;
         @include scrollbar;
         padding: 8px 0;
