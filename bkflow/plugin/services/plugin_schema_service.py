@@ -20,6 +20,7 @@ import logging
 import re
 
 from django.conf import settings
+from pipeline.component_framework.library import ComponentLibrary
 from pipeline.component_framework.models import ComponentModel
 
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
@@ -149,6 +150,51 @@ class PluginSchemaService:
             info["_component_version"] = obj.version
             results.append(info)
         return results
+
+    def _get_component_schema(self, code, version=None):
+        """从 ComponentLibrary 提取 inputs_format / outputs_format"""
+        versions = list(ComponentModel.objects.filter(code=code, status=True).values_list("version", flat=True))
+        if not versions:
+            raise ValueError("未找到内置插件 code '{}'".format(code))
+
+        if version and version in versions:
+            target_version = version
+        else:
+            target_version = self._pick_latest_version(versions)
+
+        try:
+            component_cls = ComponentLibrary.get_component_class(code, target_version)
+        except Exception as e:
+            raise ValueError("获取内置插件 '{}' v{} 的组件类失败: {}".format(code, target_version, e))
+
+        inputs = self._normalize_io_fields(component_cls.inputs_format())
+        outputs = self._normalize_io_fields(component_cls.outputs_format(), is_output=True)
+
+        return {
+            "inputs": inputs,
+            "outputs": outputs,
+            "description": getattr(component_cls, "desc", "") or "",
+        }
+
+    @staticmethod
+    def _normalize_io_fields(fields, is_output=False):
+        """将各类型的 IO 字段列表标准化为统一格式"""
+        result = []
+        for f in fields:
+            item = {
+                "key": f.get("key", ""),
+                "name": f.get("name", ""),
+                "type": f.get("type", "string"),
+                "description": f.get("description", f.get("desc", "")),
+            }
+            if not is_output:
+                item["required"] = f.get("required", False)
+            if "default" in f:
+                item["default"] = f["default"]
+            if f.get("schema"):
+                item["schema"] = f["schema"]
+            result.append(item)
+        return result
 
     def _list_remote_plugins(self, keyword=None):
         raise NotImplementedError("Task 3")

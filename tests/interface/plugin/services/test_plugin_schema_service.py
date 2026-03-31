@@ -81,3 +81,48 @@ class TestListComponentPlugins:
 
         assert count == 1
         assert plugins[0]["code"] == "job_fast_execute_script"
+
+
+class TestComponentSchema:
+    """测试内置插件 schema 提取"""
+
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_component_schema(self, mock_cm, mock_lib):
+        """测试从 ComponentLibrary 提取 inputs/outputs"""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0"]
+
+        mock_component = MagicMock()
+        mock_component.desc = "执行脚本"
+        mock_component.inputs_format.return_value = [
+            {"key": "script_content", "name": "脚本内容", "type": "string", "required": True, "schema": {}},
+        ]
+        mock_component.outputs_format.return_value = [
+            {"key": "_result", "name": "执行结果", "type": "bool", "schema": {}},
+        ]
+        mock_lib.get_component_class.return_value = mock_component
+
+        service = PluginSchemaService(space_id=1)
+        schema = service._get_component_schema("job_fast_execute_script")
+
+        assert schema["inputs"][0]["key"] == "script_content"
+        assert schema["outputs"][0]["key"] == "_result"
+        assert schema["description"] == "执行脚本"
+
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_component_schema_with_version(self, mock_cm, mock_lib):
+        """测试指定版本查询"""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0", "v2.0.0"]
+
+        mock_component = MagicMock()
+        mock_component.desc = "v2 版本"
+        mock_component.inputs_format.return_value = []
+        mock_component.outputs_format.return_value = []
+        mock_lib.get_component_class.return_value = mock_component
+
+        service = PluginSchemaService(space_id=1)
+        schema = service._get_component_schema("test_code", version="v2.0.0")
+
+        assert schema["description"] == "v2 版本"
+        mock_lib.get_component_class.assert_called_with("test_code", "v2.0.0")
