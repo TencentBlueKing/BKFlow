@@ -20,13 +20,17 @@ import logging
 import re
 
 from django.conf import settings
+from django.core.cache import cache
 from pipeline.component_framework.library import ComponentLibrary
 from pipeline.component_framework.models import ComponentModel
 
+from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
+from bkflow.constants import ALL_SPACE
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.space.configs import SpacePluginConfig
 from bkflow.space.models import SpaceConfig
+from plugin_service.plugin_client import PluginServiceApiClient
 
 logger = logging.getLogger("root")
 
@@ -197,7 +201,59 @@ class PluginSchemaService:
         return result
 
     def _list_remote_plugins(self, keyword=None):
-        raise NotImplementedError("Task 3")
+        plugins = BKPlugin.objects.filter()
+        authorized = BKPluginAuthorization.objects.filter(status=AuthStatus.authorized.value)
+        auth_map = {a.code: a.white_list for a in authorized}
+
+        results = []
+        for plugin in plugins:
+            white_list = auth_map.get(plugin.code)
+            if white_list is None:
+                continue
+            if ALL_SPACE not in white_list and str(self.space_id) not in white_list:
+                continue
+
+            info = {
+                "code": plugin.code,
+                "name": plugin.name,
+                "plugin_type": "remote_plugin",
+                "version": "",
+                "description": plugin.introduction or "",
+                "group_name": "",
+            }
+
+            if keyword and not self._match_keyword(info, keyword):
+                continue
+
+            results.append(info)
+        return results
+
+    def _get_remote_plugin_schema(self, code):
+        """从 PluginServiceApiClient.get_meta() 提取 schema，带缓存"""
+        cache_key = "plugin_schema:remote_plugin:{}".format(code)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        client = PluginServiceApiClient(code)
+        result = client.get_meta()
+        if not result.get("result"):
+            raise ValueError("查询蓝鲸标准插件 '{}' meta 失败: {}".format(code, result.get("message")))
+
+        data = result.get("data", {})
+        versions = data.get("versions") or []
+        latest_version = versions[-1] if versions else ""
+
+        inputs = self._normalize_io_fields(data.get("inputs", []))
+        outputs = self._normalize_io_fields(data.get("outputs", []), is_output=True)
+
+        schema_result = {
+            "version": latest_version,
+            "inputs": inputs,
+            "outputs": outputs,
+        }
+        cache.set(cache_key, schema_result, PLUGIN_SCHEMA_CACHE_TTL)
+        return schema_result
 
     def _list_uniform_api_plugins(self, keyword=None):
         raise NotImplementedError("Task 4")

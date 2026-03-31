@@ -126,3 +126,81 @@ class TestComponentSchema:
 
         assert schema["description"] == "v2 版本"
         mock_lib.get_component_class.assert_called_with("test_code", "v2.0.0")
+
+
+class TestRemotePlugins:
+    """测试蓝鲸标准插件查询"""
+
+    @patch("bkflow.plugin.services.plugin_schema_service.BKPluginAuthorization")
+    @patch("bkflow.plugin.services.plugin_schema_service.BKPlugin")
+    def test_list_remote_plugins(self, mock_bp, mock_auth):
+        """测试蓝鲸插件列表"""
+        mock_plugin = MagicMock()
+        mock_plugin.code = "my_plugin"
+        mock_plugin.name = "我的插件"
+        mock_plugin.introduction = "自定义插件"
+
+        mock_bp.objects.filter.return_value = [mock_plugin]
+
+        mock_auth_obj = MagicMock()
+        mock_auth_obj.code = "my_plugin"
+        mock_auth_obj.white_list = ["*"]
+        mock_auth.objects.filter.return_value = [mock_auth_obj]
+
+        service = PluginSchemaService(space_id=1)
+        results = service._list_remote_plugins()
+
+        assert len(results) == 1
+        assert results[0]["code"] == "my_plugin"
+        assert results[0]["plugin_type"] == "remote_plugin"
+        assert results[0]["description"] == "自定义插件"
+
+    @patch("bkflow.plugin.services.plugin_schema_service.BKPluginAuthorization")
+    @patch("bkflow.plugin.services.plugin_schema_service.BKPlugin")
+    def test_list_remote_plugins_auth_filter(self, mock_bp, mock_auth):
+        """测试蓝鲸插件授权过滤 — 非授权空间的插件不展示"""
+        mock_plugin = MagicMock()
+        mock_plugin.code = "restricted_plugin"
+        mock_plugin.name = "受限插件"
+        mock_plugin.introduction = ""
+
+        mock_bp.objects.filter.return_value = [mock_plugin]
+
+        mock_auth_obj = MagicMock()
+        mock_auth_obj.code = "restricted_plugin"
+        mock_auth_obj.white_list = ["999"]
+        mock_auth.objects.filter.return_value = [mock_auth_obj]
+
+        service = PluginSchemaService(space_id=1)
+        results = service._list_remote_plugins()
+
+        assert len(results) == 0
+
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.PluginServiceApiClient")
+    def test_get_remote_plugin_schema(self, mock_client_cls, mock_cache):
+        """测试蓝鲸插件 schema 获取"""
+        mock_cache.get.return_value = None
+
+        mock_client = MagicMock()
+        mock_client.get_meta.return_value = {
+            "result": True,
+            "data": {
+                "versions": ["1.0.0", "1.2.0"],
+                "inputs": [
+                    {"key": "param1", "name": "参数1", "type": "string", "required": True},
+                ],
+                "outputs": [
+                    {"key": "result_data", "name": "结果", "type": "string"},
+                ],
+            },
+        }
+        mock_client_cls.return_value = mock_client
+
+        service = PluginSchemaService(space_id=1)
+        schema = service._get_remote_plugin_schema("my_plugin")
+
+        assert schema["inputs"][0]["key"] == "param1"
+        assert schema["outputs"][0]["key"] == "result_data"
+        assert schema["version"] == "1.2.0"
+        mock_cache.set.assert_called_once()
