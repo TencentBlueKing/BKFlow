@@ -417,6 +417,7 @@ CORS_URLS_REGEX = r"^/(static\/components|openapi)/.*$"
 
 # BK-Vision 仪表盘嵌入 SDK
 INSTALLED_APPS += ("django_bkvision",)
+BKAPP_BKVISION_APIGW_URL = env.BKAPP_BKVISION_APIGW_URL
 
 # 加密字段配置
 PRIVATE_SECRET = env.PRIVATE_SECRET or SECRET_KEY
