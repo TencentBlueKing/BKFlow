@@ -204,3 +204,98 @@ class TestRemotePlugins:
         assert schema["outputs"][0]["key"] == "result_data"
         assert schema["version"] == "1.2.0"
         mock_cache.set.assert_called_once()
+
+
+class TestUniformApiPlugins:
+    """测试 API 插件查询"""
+
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIConfigHandler")
+    def test_list_uniform_api_plugins(self, mock_handler, mock_sc, mock_client_cls, mock_cred, mock_cache):
+        """测试 API 插件列表查询"""
+        mock_cache.get.return_value = None
+
+        mock_sc.get_config.side_effect = lambda space_id, config_name, scope=None: {
+            "uniform_api": {"api": {"default": {"meta_apis": "http://example.com/meta_apis"}}},
+            "api_gateway_credential_name": "test_cred",
+        }.get(config_name)
+
+        mock_model = MagicMock()
+        mock_model.api = {"default": MagicMock(meta_apis="http://example.com/meta_apis")}
+        mock_handler.return_value.handle.return_value = mock_model
+
+        mock_cred_obj = MagicMock()
+        mock_cred_obj.content = {"bk_app_code": "app", "bk_app_secret": "secret"}
+        mock_cred.objects.filter.return_value.first.return_value = mock_cred_obj
+
+        mock_client = MagicMock()
+        list_resp = MagicMock()
+        list_resp.json_resp = {
+            "data": {
+                "total": 1,
+                "apis": [{"id": "sops_execute", "name": "标准运维执行", "meta_url": "http://example.com/meta/sops"}],
+            }
+        }
+        mock_client.request.return_value = list_resp
+        mock_client_cls.return_value = mock_client
+
+        service = PluginSchemaService(space_id=1)
+        results = service._list_uniform_api_plugins()
+
+        assert len(results) == 1
+        assert results[0]["code"] == "sops_execute"
+        assert results[0]["plugin_type"] == "uniform_api"
+
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIConfigHandler")
+    def test_get_uniform_api_schema(self, mock_handler, mock_sc, mock_client_cls, mock_cred, mock_cache):
+        """测试 API 插件 schema 获取"""
+        mock_cache.get.return_value = None
+
+        mock_sc.get_config.side_effect = lambda space_id, config_name, scope=None: {
+            "uniform_api": {"api": {"default": {"meta_apis": "http://example.com/meta_apis"}}},
+            "api_gateway_credential_name": "test_cred",
+        }.get(config_name)
+
+        mock_model = MagicMock()
+        mock_model.api = {"default": MagicMock(meta_apis="http://example.com/meta_apis")}
+        mock_handler.return_value.handle.return_value = mock_model
+
+        mock_cred_obj = MagicMock()
+        mock_cred_obj.content = {"bk_app_code": "app", "bk_app_secret": "secret"}
+        mock_cred.objects.filter.return_value.first.return_value = mock_cred_obj
+
+        mock_client = MagicMock()
+        list_resp = MagicMock()
+        list_resp.json_resp = {
+            "data": {
+                "total": 1,
+                "apis": [{"id": "sops_execute", "name": "标准运维执行", "meta_url": "http://example.com/meta/sops"}],
+            }
+        }
+        meta_resp = MagicMock()
+        meta_resp.json_resp = {
+            "data": {
+                "id": "sops_execute",
+                "name": "标准运维执行",
+                "desc": "执行标准运维流程",
+                "inputs": [
+                    {"key": "biz_id", "name": "业务ID", "type": "int", "required": True},
+                ],
+            }
+        }
+        mock_client.request.side_effect = [list_resp, meta_resp]
+        mock_client_cls.return_value = mock_client
+
+        service = PluginSchemaService(space_id=1)
+        schema = service._get_uniform_api_schema("sops_execute")
+
+        assert schema["inputs"][0]["key"] == "biz_id"
+        assert schema["description"] == "执行标准运维流程"
+        mock_cache.set.assert_called()

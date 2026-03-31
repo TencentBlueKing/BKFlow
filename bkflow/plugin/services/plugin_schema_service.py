@@ -26,10 +26,16 @@ from pipeline.component_framework.models import ComponentModel
 
 from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
 from bkflow.constants import ALL_SPACE
+from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
-from bkflow.space.configs import SpacePluginConfig
-from bkflow.space.models import SpaceConfig
+from bkflow.space.configs import (
+    ApiGatewayCredentialConfig,
+    SpacePluginConfig,
+    UniformApiConfig,
+    UniformAPIConfigHandler,
+)
+from bkflow.space.models import Credential, SpaceConfig
 from plugin_service.plugin_client import PluginServiceApiClient
 
 logger = logging.getLogger("root")
@@ -256,7 +262,112 @@ class PluginSchemaService:
         return schema_result
 
     def _list_uniform_api_plugins(self, keyword=None):
-        raise NotImplementedError("Task 4")
+        cache_key = "plugin_list:uniform_api:{}".format(self.space_id)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            api_list = cached
+        else:
+            uniform_api_config = SpaceConfig.get_config(space_id=self.space_id, config_name=UniformApiConfig.name)
+            if not uniform_api_config:
+                return []
+
+            config = UniformAPIConfigHandler(uniform_api_config).handle()
+            api_key = UniformApiConfig.Keys.DEFAULT_API_KEY.value
+            api_entry = config.api.get(api_key)
+            if not api_entry:
+                return []
+            meta_apis_url = api_entry.meta_apis if hasattr(api_entry, "meta_apis") else api_entry.get("meta_apis")
+            if not meta_apis_url:
+                return []
+
+            credential = self._get_apigw_credential()
+            if not credential:
+                return []
+
+            client = UniformAPIClient()
+            headers = client.gen_default_apigw_header(
+                app_code=credential.content["bk_app_code"],
+                app_secret=credential.content["bk_app_secret"],
+                username=self.username or "admin",
+            )
+            list_result = client.request(
+                url=meta_apis_url,
+                method="GET",
+                data={"limit": 200, "offset": 0},
+                headers=headers,
+                username=self.username or "admin",
+            )
+            api_list = list_result.json_resp.get("data", {}).get("apis", [])
+            cache.set(cache_key, api_list, PLUGIN_SCHEMA_CACHE_TTL)
+
+        results = []
+        for api_item in api_list:
+            info = {
+                "code": api_item["id"],
+                "name": api_item["name"],
+                "plugin_type": "uniform_api",
+                "version": "",
+                "description": api_item.get("description", ""),
+                "group_name": api_item.get("category", ""),
+                "_meta_url": api_item.get("meta_url", ""),
+            }
+            if keyword and not self._match_keyword(info, keyword):
+                continue
+            results.append(info)
+        return results
+
+    def _get_uniform_api_schema(self, code):
+        """从 meta_url 提取 schema，带缓存"""
+        cache_key = "plugin_schema:uniform_api:{}:{}".format(self.space_id, code)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        api_list = self._list_uniform_api_plugins()
+        api_item = next((a for a in api_list if a["code"] == code), None)
+        if not api_item or not api_item.get("_meta_url"):
+            raise ValueError("未找到 API 插件 '{}'".format(code))
+
+        credential = self._get_apigw_credential()
+        if not credential:
+            raise ValueError("空间缺少 API Gateway 凭证，无法查询 API 插件 '{}'".format(code))
+
+        client = UniformAPIClient()
+        headers = client.gen_default_apigw_header(
+            app_code=credential.content["bk_app_code"],
+            app_secret=credential.content["bk_app_secret"],
+            username=self.username or "admin",
+        )
+        meta_result = client.request(
+            url=api_item["_meta_url"],
+            method="GET",
+            data={},
+            headers=headers,
+            username=self.username or "admin",
+        )
+        meta = meta_result.json_resp.get("data", {})
+
+        inputs = self._normalize_io_fields(meta.get("inputs", []))
+        outputs = self._normalize_io_fields(meta.get("outputs", []), is_output=True)
+
+        schema_result = {
+            "version": meta.get("version", ""),
+            "description": meta.get("desc", ""),
+            "inputs": inputs,
+            "outputs": outputs,
+        }
+        cache.set(cache_key, schema_result, PLUGIN_SCHEMA_CACHE_TTL)
+        return schema_result
+
+    def _get_apigw_credential(self):
+        """获取空间的 API Gateway 凭证"""
+        scope = "{}_{}".format(self.scope_type, self.scope_id) if self.scope_type and self.scope_id else None
+        credential_name = SpaceConfig.get_config(
+            space_id=self.space_id, config_name=ApiGatewayCredentialConfig.name, scope=scope
+        )
+        if not credential_name:
+            return None
+        return Credential.objects.filter(space_id=self.space_id, name=credential_name).first()
 
     def _get_single_by_type(self, code, plugin_type, version=None):
         raise NotImplementedError("Task 5")
