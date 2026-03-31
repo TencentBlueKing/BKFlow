@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import concurrent.futures
 import logging
 import re
 
@@ -370,16 +371,121 @@ class PluginSchemaService:
         return Credential.objects.filter(space_id=self.space_id, name=credential_name).first()
 
     def _get_single_by_type(self, code, plugin_type, version=None):
-        raise NotImplementedError("Task 5")
+        if plugin_type == "component":
+            obj = ComponentModel.objects.filter(code=code, status=True).first()
+            if not obj:
+                raise ValueError("未找到内置插件 '{}'".format(code))
+            parts = obj.name.split("-", 1) if "-" in obj.name else ["", obj.name]
+            return {
+                "code": obj.code,
+                "name": (parts[1].strip() if len(parts) > 1 else parts[0].strip()),
+                "plugin_type": "component",
+                "version": obj.version,
+                "description": "",
+                "group_name": (parts[0].strip() if len(parts) > 1 else ""),
+                "_component_version": version or obj.version,
+            }
+        elif plugin_type == "remote_plugin":
+            obj = BKPlugin.objects.filter(code=code).first()
+            if not obj:
+                raise ValueError("未找到蓝鲸标准插件 '{}'".format(code))
+            return {
+                "code": obj.code,
+                "name": obj.name,
+                "plugin_type": "remote_plugin",
+                "version": "",
+                "description": obj.introduction or "",
+                "group_name": "",
+            }
+        elif plugin_type == "uniform_api":
+            api_list = self._list_uniform_api_plugins()
+            api_item = next((a for a in api_list if a["code"] == code), None)
+            if not api_item:
+                raise ValueError("未找到 API 插件 '{}'".format(code))
+            return api_item
+        else:
+            raise ValueError("不支持的 plugin_type: {}".format(plugin_type))
 
     def _get_single_auto_resolve(self, code, version=None):
-        raise NotImplementedError("Task 5")
+        is_component = ComponentModel.objects.filter(code=code, status=True).exists()
+        is_bk_plugin = BKPlugin.objects.filter(code=code).exists()
+
+        is_uniform_api = False
+        api_item = None
+        try:
+            api_list = self._list_uniform_api_plugins()
+            api_item = next((a for a in api_list if a["code"] == code), None)
+            is_uniform_api = api_item is not None
+        except Exception:
+            pass
+
+        hits = []
+        if is_component:
+            hits.append("component")
+        if is_bk_plugin:
+            hits.append("remote_plugin")
+        if is_uniform_api:
+            hits.append("uniform_api")
+
+        if len(hits) > 1:
+            raise ValueError("插件 code '{}' 在多个注册表中同时存在，请指定 plugin_type 参数消歧。可选值: {}".format(code, hits))
+        if not hits:
+            raise ValueError("未找到插件 code '{}'".format(code))
+
+        resolved_type = hits[0]
+        if resolved_type == "uniform_api":
+            return api_item
+        return self._get_single_by_type(code, resolved_type, version=version)
 
     def _fill_schema_batch(self, plugins):
-        raise NotImplementedError("Task 5")
+        component_plugins = [p for p in plugins if p["plugin_type"] == "component"]
+        for p in component_plugins:
+            self._fill_schema_single(p)
+
+        remote_plugins = [p for p in plugins if p["plugin_type"] in ("remote_plugin", "uniform_api")]
+        if not remote_plugins:
+            return
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {executor.submit(self._fill_schema_single, p): p for p in remote_plugins}
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception:
+                    plugin = futures[future]
+                    logger.exception("并发获取插件 '%s' schema 失败", plugin.get("code"))
 
     def _fill_schema_single(self, plugin_info, strict=False):
-        raise NotImplementedError("Task 5")
+        """填充单个插件的 schema"""
+        ptype = plugin_info["plugin_type"]
+        try:
+            if ptype == "component":
+                schema = self._get_component_schema(
+                    plugin_info["code"],
+                    version=plugin_info.get("_component_version"),
+                )
+            elif ptype == "remote_plugin":
+                schema = self._get_remote_plugin_schema(plugin_info["code"])
+            elif ptype == "uniform_api":
+                schema = self._get_uniform_api_schema(plugin_info["code"])
+            else:
+                schema = {"inputs": [], "outputs": []}
+
+            plugin_info["inputs"] = schema.get("inputs", [])
+            plugin_info["outputs"] = schema.get("outputs", [])
+            if schema.get("description") and not plugin_info.get("description"):
+                plugin_info["description"] = schema["description"]
+            if schema.get("version") and not plugin_info.get("version"):
+                plugin_info["version"] = schema["version"]
+        except Exception:
+            if strict:
+                raise
+            logger.exception("获取插件 '%s' schema 失败", plugin_info["code"])
+            plugin_info["inputs"] = []
+            plugin_info["outputs"] = []
+
+        plugin_info.pop("_component_version", None)
+        plugin_info.pop("_meta_url", None)
 
     @staticmethod
     def _match_keyword(info, keyword):

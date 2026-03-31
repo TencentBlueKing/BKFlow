@@ -19,6 +19,8 @@ to the current version of the project delivered to anyone in the future.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
 
 
@@ -299,3 +301,74 @@ class TestUniformApiPlugins:
         assert schema["inputs"][0]["key"] == "biz_id"
         assert schema["description"] == "执行标准运维流程"
         mock_cache.set.assert_called()
+
+
+class TestGetPluginSchema:
+    """测试统一 get_plugin_schema 方法"""
+
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_plugin_schema_component(self, mock_cm, mock_lib):
+        """测试指定 plugin_type=component 查询"""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0"]
+        mock_cm.objects.filter.return_value.first.return_value = MagicMock(
+            code="test_code", name="分组-插件", version="v1.0.0"
+        )
+
+        mock_component = MagicMock()
+        mock_component.desc = "测试描述"
+        mock_component.inputs_format.return_value = []
+        mock_component.outputs_format.return_value = []
+        mock_lib.get_component_class.return_value = mock_component
+
+        service = PluginSchemaService(space_id=1)
+        result = service.get_plugin_schema(code="test_code", plugin_type="component")
+
+        assert result["code"] == "test_code"
+        assert result["plugin_type"] == "component"
+        assert "inputs" in result
+        assert "outputs" in result
+
+    @patch("bkflow.plugin.services.plugin_schema_service.BKPlugin")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_plugin_schema_auto_resolve_not_found(self, mock_cm, mock_bp):
+        """测试自动解析失败 — 所有注册表未命中"""
+        mock_cm.objects.filter.return_value.values_list.return_value = []
+        mock_cm.objects.filter.return_value.exists.return_value = False
+        mock_bp.objects.filter.return_value.exists.return_value = False
+
+        service = PluginSchemaService(space_id=1)
+        with pytest.raises(ValueError, match="未找到插件"):
+            service.get_plugin_schema(code="nonexistent")
+
+    @patch("bkflow.plugin.services.plugin_schema_service.BKPlugin")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_plugin_schema_auto_resolve_ambiguous(self, mock_cm, mock_bp):
+        """测试自动解析歧义"""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0"]
+        mock_cm.objects.filter.return_value.exists.return_value = True
+        mock_bp.objects.filter.return_value.exists.return_value = True
+
+        service = PluginSchemaService(space_id=1)
+        with pytest.raises(ValueError, match="请指定 plugin_type"):
+            service.get_plugin_schema(code="ambiguous_code")
+
+
+class TestCaching:
+    """测试缓存行为"""
+
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.PluginServiceApiClient")
+    def test_cache_hit_skips_remote_call(self, mock_client_cls, mock_cache):
+        """缓存命中时不触发远程调用"""
+        mock_cache.get.return_value = {
+            "version": "1.0.0",
+            "inputs": [{"key": "p1", "name": "P1", "type": "string", "required": True, "description": ""}],
+            "outputs": [],
+        }
+
+        service = PluginSchemaService(space_id=1)
+        schema = service._get_remote_plugin_schema("cached_plugin")
+
+        assert schema["version"] == "1.0.0"
+        mock_client_cls.assert_not_called()
