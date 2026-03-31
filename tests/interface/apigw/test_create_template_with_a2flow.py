@@ -17,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 
@@ -355,3 +355,180 @@ class TestCreateTemplateWithA2FlowView(TestCase):
         url = "/apigw/space/{}/create_template_with_a2flow/".format(space.id)
         resp = self.client.get(path=url)
         self.assertEqual(resp.status_code, 405)
+
+
+class TestCreateTemplateWithA2FlowV2Serializer(TestCase):
+    """v2 序列化器测试"""
+
+    def _get_serializer_class(self):
+        from bkflow.apigw.serializers.a2flow import CreateTemplateWithA2FlowV2Serializer
+
+        return CreateTemplateWithA2FlowV2Serializer
+
+    def test_valid_v2_input(self):
+        Ser = self._get_serializer_class()
+        data = {
+            "a2flow": {
+                "version": "2.0",
+                "name": "测试流程",
+                "nodes": [{"id": "n1", "name": "步骤", "code": "sleep_timer", "next": "end"}],
+            }
+        }
+        ser = Ser(data=data)
+        self.assertTrue(ser.is_valid(), ser.errors)
+
+    def test_a2flow_must_be_dict(self):
+        Ser = self._get_serializer_class()
+        data = {"a2flow": [{"type": "name", "value": "test"}]}
+        ser = Ser(data=data)
+        self.assertFalse(ser.is_valid())
+
+    def test_a2flow_must_have_nodes(self):
+        Ser = self._get_serializer_class()
+        data = {"a2flow": {"version": "2.0", "name": "空流程"}}
+        ser = Ser(data=data)
+        self.assertFalse(ser.is_valid())
+
+    def test_a2flow_name_required(self):
+        Ser = self._get_serializer_class()
+        data = {
+            "a2flow": {
+                "version": "2.0",
+                "nodes": [{"id": "n1", "name": "步骤", "code": "sleep_timer", "next": "end"}],
+            }
+        }
+        ser = Ser(data=data)
+        self.assertFalse(ser.is_valid())
+
+    def test_optional_fields(self):
+        Ser = self._get_serializer_class()
+        data = {
+            "a2flow": {
+                "version": "2.0",
+                "name": "测试",
+                "nodes": [{"id": "n1", "name": "步骤", "code": "x", "next": "end"}],
+            },
+            "creator": "admin",
+            "auto_release": True,
+            "scope_type": "biz",
+            "scope_value": "123",
+        }
+        ser = Ser(data=data)
+        self.assertTrue(ser.is_valid(), ser.errors)
+
+
+class TestCreateTemplateWithA2FlowV2View(TestCase):
+    """v2 API 视图测试"""
+
+    def create_space(self):
+        return Space.objects.create(app_code="test_v2", platform_url="http://test.com", name="space_v2")
+
+    def _mock_component_model(self, mock_cm, codes_versions=None):
+        codes_versions = codes_versions or {}
+
+        def filter_side_effect(**kwargs):
+            result = MagicMock()
+            code = kwargs.get("code") or kwargs.get("code__in", [None])
+            if isinstance(code, (list, set)):
+                all_versions = []
+                for c in code:
+                    all_versions.extend(codes_versions.get(c, []))
+                result.values_list.return_value = all_versions
+            else:
+                result.values_list.return_value = codes_versions.get(code, [])
+            result.exists.return_value = bool(result.values_list.return_value)
+            return result
+
+        mock_cm.objects.filter.side_effect = filter_side_effect
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.BKPlugin")
+    @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.ComponentModel")
+    def test_v2_create_template_success(self, mock_cm, mock_bkp):
+        self._mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"]})
+        mock_bkp.objects.filter.return_value.exists.return_value = False
+        space = self.create_space()
+
+        data = {
+            "a2flow": {
+                "version": "2.0",
+                "name": "v2测试流程",
+                "nodes": [{"id": "n1", "name": "等待", "code": "sleep_timer", "data": {"bk_timing": 5}, "next": "end"}],
+            }
+        }
+        resp = self.client.post(
+            "/apigw/space/{}/create_template_with_a2flow/".format(space.id),
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+        result = resp.json()
+        self.assertTrue(result.get("result"), result)
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.BKPlugin")
+    @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.ComponentModel")
+    def test_v2_missing_version_defaults_to_success(self, mock_cm, mock_bkp):
+        self._mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"]})
+        mock_bkp.objects.filter.return_value.exists.return_value = False
+        space = self.create_space()
+
+        data = {
+            "a2flow": {
+                "name": "v2默认版本流程",
+                "nodes": [{"id": "n1", "name": "等待", "code": "sleep_timer", "data": {"bk_timing": 5}, "next": "end"}],
+            }
+        }
+        resp = self.client.post(
+            "/apigw/space/{}/create_template_with_a2flow/".format(space.id),
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+        result = resp.json()
+        self.assertTrue(result.get("result"), result)
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    def test_v2_validation_error_returns_structured(self):
+        space = self.create_space()
+        data = {
+            "a2flow": {
+                "version": "2.0",
+                "name": "错误流程",
+                "nodes": [{"id": "n1", "name": "x", "code": "y", "next": "nonexistent"}],
+            }
+        }
+        resp = self.client.post(
+            "/apigw/space/{}/create_template_with_a2flow/".format(space.id),
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+        result = resp.json()
+        self.assertFalse(result.get("result"))
+        self.assertIn("errors", result)
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    def test_v2_unsupported_version_returns_structured(self):
+        space = self.create_space()
+        data = {
+            "a2flow": {
+                "version": "9.9",
+                "name": "错误版本",
+                "nodes": [{"id": "n1", "name": "x", "code": "y", "next": "end"}],
+            }
+        }
+        resp = self.client.post(
+            "/apigw/space/{}/create_template_with_a2flow/".format(space.id),
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+        result = resp.json()
+        self.assertFalse(result.get("result"))
+        self.assertIn("errors", result)
+        self.assertEqual(result["errors"][0]["type"], "UNSUPPORTED_VERSION")
