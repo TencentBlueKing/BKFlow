@@ -16,3 +16,6 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from bkflow.pipeline_converter.converters.a2flow_v2.converter import A2FlowV2Converter
+
+__all__ = ["A2FlowV2Converter"]
