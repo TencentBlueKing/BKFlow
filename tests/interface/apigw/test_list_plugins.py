@@ -16,10 +16,16 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import json
+from unittest.mock import MagicMock, patch
+
+from django.test import RequestFactory, SimpleTestCase, override_settings
+
 from bkflow.apigw.serializers.plugin import (
     GetPluginSchemaSerializer,
     ListPluginsSerializer,
 )
+from bkflow.apigw.views.list_plugins import list_plugins
 
 
 class TestListPluginsSerializer:
@@ -49,3 +55,41 @@ class TestGetPluginSchemaSerializer:
     def test_valid(self):
         ser = GetPluginSchemaSerializer(data={"code": "test_code"})
         assert ser.is_valid()
+
+
+class TestListPluginsView(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
+    @patch("bkflow.plugin.services.plugin_schema_service.SpacePluginConfigModel")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    @patch("bkflow.plugin.services.plugin_schema_service.BKPlugin")
+    @patch("bkflow.plugin.services.plugin_schema_service.BKPluginAuthorization")
+    def test_list_plugins_success(self, mock_auth, mock_bp, mock_cm, mock_sc, mock_spcm):
+        """测试正常调用 list_plugins"""
+        mock_spcm.objects.get_space_allow_list.return_value = []
+        mock_sc.get_config.return_value = None
+
+        mock_obj = MagicMock()
+        mock_obj.code = "test_plugin"
+        mock_obj.name = "分组-测试插件"
+        mock_obj.version = "v1.0.0"
+
+        mock_qs = MagicMock()
+        mock_qs.__iter__ = MagicMock(return_value=iter([mock_obj]))
+        mock_qs.count.return_value = 1
+        mock_cm.objects.filter.return_value.exclude.return_value = mock_qs
+
+        mock_bp.objects.filter.return_value = []
+        mock_auth.objects.filter.return_value = []
+
+        request = self.factory.get("/space/1/list_plugins/", {"plugin_type": "component"})
+        request.user = MagicMock(username="admin")
+        response = list_plugins(request, space_id="1")
+
+        data = json.loads(response.content)
+        assert data["result"] is True
+        assert data["count"] == 1
+        assert data["data"][0]["code"] == "test_plugin"
