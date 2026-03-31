@@ -79,3 +79,7 @@ semver==3.0.4
 
 # Python code plugin - secure code execution
 RestrictedPython==8.1
+
+# BK-Vision 仪表盘嵌入 SDK
+# 仅腾讯内部 PyPI 源提供: https://mirrors.tencent.com/repository/pypi/tencent_pypi/simple/
+django-bkvision==1.2.0
