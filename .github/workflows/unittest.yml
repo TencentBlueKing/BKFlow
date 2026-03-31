@@ -25,7 +25,10 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install pip==24.0
+        # django-bkvision 仅腾讯内部 PyPI 源提供，CI 环境跳过安装
+        sed -i '/django-bkvision/d' requirements.txt
         pip install -r tests/requirements_test.txt
+        git checkout requirements.txt
 
     - name: Setup MySQL
       uses: shogo82148/actions-setup-mysql@v1
