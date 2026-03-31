@@ -29,7 +29,7 @@ class TestValidateA2FlowView(SimpleTestCase):
         self.factory = RequestFactory()
 
     @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
-    @patch("bkflow.apigw.views.validate_a2flow.A2FlowV2Converter")
+    @patch("bkflow.pipeline_converter.converters.a2flow_v2.A2FlowV2Converter")
     def test_validate_success(self, mock_converter_cls):
         """测试合法流程校验通过"""
         mock_converter = MagicMock()

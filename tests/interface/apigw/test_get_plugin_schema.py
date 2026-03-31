@@ -34,9 +34,9 @@ class TestGetPluginSchemaView(SimpleTestCase):
     def test_get_schema_success(self, mock_cm, mock_lib):
         """测试正常查询单个插件 schema"""
         mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0"]
-        mock_cm.objects.filter.return_value.first.return_value = MagicMock(
-            code="test_code", name="分组-插件", version="v1.0.0"
-        )
+        mock_obj = MagicMock(code="test_code", version="v1.0.0")
+        mock_obj.name = "分组-插件"
+        mock_cm.objects.filter.return_value.first.return_value = mock_obj
 
         mock_component = MagicMock()
         mock_component.desc = "测试描述"
