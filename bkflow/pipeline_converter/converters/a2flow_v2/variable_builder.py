@@ -16,16 +16,24 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from bkflow.statistics.tasks.summary_tasks import (  # noqa
-    clean_expired_statistics_task,
-    generate_daily_summary_task,
-    generate_plugin_summary_task,
-)
-from bkflow.statistics.tasks.task_tasks import (  # noqa
-    task_archive_statistics_task,
-    task_backfill_statistics_task,
-    task_created_statistics_task,
-)
-from bkflow.statistics.tasks.template_tasks import (  # noqa
-    template_post_save_statistics_task,
-)
+from bkflow.pipeline_converter.converters.a2flow_v2.data_models import A2FlowVariable
+
+
+def build_constant(var: A2FlowVariable, index: int) -> dict:
+    return {
+        "key": var.key,
+        "name": var.name,
+        "value": var.value,
+        "desc": var.description,
+        "custom_type": var.custom_type,
+        "source_type": var.source_type,
+        "source_tag": "",
+        "source_info": {},
+        "show_type": var.show_type,
+        "validation": "",
+        "index": index,
+        "version": "legacy",
+        "form_schema": {},
+        "hook": False,
+        "need_render": True,
+    }

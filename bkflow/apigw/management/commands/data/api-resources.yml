@@ -573,6 +573,401 @@ paths:
         descriptionEn: Import a a2flow JSON and create a template
         enableWebsocket: false
         pluginConfigs: []
+  /space/{space_id}/list_plugins/:
+    get:
+      operationId: list_plugins
+      description: 查询空间可用插件列表
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: array
+                    description: 插件列表
+                    items:
+                      type: object
+                      properties:
+                        code:
+                          type: string
+                          description: 插件 code
+                        name:
+                          type: string
+                          description: 插件名称
+                        plugin_type:
+                          type: string
+                          description: '插件类型: component / remote_plugin / uniform_api'
+                        version:
+                          type: string
+                          description: 插件版本
+                        description:
+                          type: string
+                          description: 插件描述
+                        group_name:
+                          type: string
+                          description: 分组名称
+                        inputs:
+                          type: array
+                          description: 输入参数列表（without_detail=false 时返回）
+                          items:
+                            type: object
+                            additionalProperties: true
+                        outputs:
+                          type: array
+                          description: 输出参数列表（without_detail=false 时返回）
+                          items:
+                            type: object
+                            additionalProperties: true
+                  count:
+                    type: integer
+                    description: 插件总数
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: query
+        name: keyword
+        schema:
+          type: string
+        required: false
+        description: 模糊搜索 code 或 name
+      - in: query
+        name: plugin_type
+        schema:
+          type: string
+          enum:
+          - component
+          - remote_plugin
+          - uniform_api
+        required: false
+        description: 按类型过滤
+      - in: query
+        name: without_detail
+        schema:
+          type: boolean
+          default: true
+        required: false
+        description: 默认 true 只返回摘要，false 返回完整 schema
+      - in: query
+        name: scope_type
+        schema:
+          type: string
+        required: false
+        description: scope 类型
+      - in: query
+        name: scope_id
+        schema:
+          type: string
+        required: false
+        description: scope ID
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 100
+          minimum: 1
+          maximum: 200
+        required: false
+        description: 分页大小
+      - in: query
+        name: offset
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+        required: false
+        description: 分页偏移
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/list_plugins/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: List available plugins for a space
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/get_plugin_schema/:
+    get:
+      operationId: get_plugin_schema
+      description: 查询单个插件的完整参数 schema
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: object
+                    description: 插件详细信息
+                    properties:
+                      code:
+                        type: string
+                        description: 插件 code
+                      name:
+                        type: string
+                        description: 插件名称
+                      plugin_type:
+                        type: string
+                        description: 插件类型
+                      version:
+                        type: string
+                        description: 插件版本
+                      description:
+                        type: string
+                        description: 插件描述
+                      group_name:
+                        type: string
+                        description: 分组名称
+                      inputs:
+                        type: array
+                        description: 输入参数列表
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              description: 参数标识
+                            name:
+                              type: string
+                              description: 参数名称
+                            type:
+                              type: string
+                              description: 参数类型
+                            required:
+                              type: boolean
+                              description: 是否必填
+                            description:
+                              type: string
+                              description: 参数描述
+                      outputs:
+                        type: array
+                        description: 输出参数列表
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              description: 参数标识
+                            name:
+                              type: string
+                              description: 参数名称
+                            type:
+                              type: string
+                              description: 参数类型
+                            description:
+                              type: string
+                              description: 参数描述
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: query
+        name: code
+        schema:
+          type: string
+        required: true
+        description: 插件 code
+      - in: query
+        name: version
+        schema:
+          type: string
+        required: false
+        description: 插件版本，不传取最新
+      - in: query
+        name: plugin_type
+        schema:
+          type: string
+          enum:
+          - component
+          - remote_plugin
+          - uniform_api
+        required: false
+        description: 消歧用，指定插件类型
+      - in: query
+        name: scope_type
+        schema:
+          type: string
+        required: false
+        description: scope 类型
+      - in: query
+        name: scope_id
+        schema:
+          type: string
+        required: false
+        description: scope ID
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_plugin_schema/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Get full parameter schema for a plugin
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/validate_a2flow/:
+    post:
+      operationId: validate_a2flow
+      description: 预校验 a2flow v2 流程定义（dry-run）
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 校验是否成功
+                  data:
+                    type: object
+                    description: 校验成功时返回数据
+                    properties:
+                      valid:
+                        type: boolean
+                        description: 流程是否合法
+                      version:
+                        type: string
+                        description: a2flow 版本
+                      node_count:
+                        type: integer
+                        description: 节点数量
+                      plugin_codes:
+                        type: array
+                        description: 使用的插件 code 列表
+                        items:
+                          type: string
+                  errors:
+                    type: array
+                    description: 校验失败时的错误列表
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          description: 错误类型
+                        node_id:
+                          type: string
+                          description: 出错的节点 ID
+                        field:
+                          type: string
+                          description: 出错字段
+                        value:
+                          type: string
+                          description: 出错值
+                        message:
+                          type: string
+                          description: 错误信息
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - a2flow
+              properties:
+                a2flow:
+                  type: object
+                  description: a2flow v2 JSON 定义
+                  additionalProperties: true
+                scope_type:
+                  type: string
+                  description: scope 类型
+                scope_value:
+                  type: string
+                  description: scope 值
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/validate_a2flow/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Validate an a2flow v2 workflow definition (dry-run)
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/create_mock_task/:
     post:
       operationId: create_mock_task

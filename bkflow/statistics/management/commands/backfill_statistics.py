@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 
 from django.core.management.base import BaseCommand
@@ -65,20 +66,29 @@ class Command(BaseCommand):
             action="store_true",
             help="使用 Celery 异步执行",
         )
+        parser.add_argument(
+            "--workers",
+            type=int,
+            default=1,
+            help="本地并发线程数（不依赖 Celery，默认 1 即串行）",
+        )
 
     def handle(self, *args, **options):
         backfill_type = options["type"]
         space_id = options.get("space_id")
         batch_size = options.get("batch_size", 100)
         use_parallel = options.get("parallel", False)
+        workers = options.get("workers", 1)
 
-        self.stdout.write(f"Starting backfill: type={backfill_type}, space_id={space_id}, batch_size={batch_size}")
+        self.stdout.write(
+            f"Starting backfill: type={backfill_type}, space_id={space_id}, batch_size={batch_size}, workers={workers}"
+        )
 
         if backfill_type in ("all", "template"):
-            self._backfill_templates(space_id, batch_size, use_parallel)
+            self._backfill_templates(space_id, batch_size, use_parallel, workers)
 
         if backfill_type in ("all", "task"):
-            self._backfill_tasks(space_id, batch_size, use_parallel)
+            self._backfill_tasks(space_id, batch_size, use_parallel, workers)
 
         if backfill_type in ("all", "summary"):
             date_start = options.get("date_start")
@@ -87,7 +97,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("Backfill completed."))
 
-    def _backfill_templates(self, space_id, batch_size, use_parallel):
+    def _backfill_templates(self, space_id, batch_size, use_parallel, workers=1):
         try:
             from bkflow.template.models import Template
         except ImportError:
@@ -101,34 +111,68 @@ class Command(BaseCommand):
         total = qs.count()
         self.stdout.write(f"Backfilling {total} templates...")
 
+        if use_parallel:
+            self._backfill_templates_celery(qs, batch_size, total)
+        elif workers > 1:
+            self._backfill_templates_threaded(qs, batch_size, total, workers)
+        else:
+            self._backfill_templates_serial(qs, batch_size, total)
+
+    def _backfill_single_template(self, template_id, snapshot_id):
+        from bkflow.statistics.collectors import TemplateStatisticsCollector
+
+        collector = TemplateStatisticsCollector(template_id=template_id, snapshot_id=snapshot_id)
+        collector.collect()
+
+    def _backfill_templates_serial(self, qs, batch_size, total):
         processed = 0
         for template in qs.iterator(chunk_size=batch_size):
             try:
-                if use_parallel:
-                    from bkflow.statistics.tasks import (
-                        template_post_save_statistics_task,
-                    )
-
-                    template_post_save_statistics_task.delay(
-                        template_id=template.id,
-                        old_snapshot_id=None,
-                        new_snapshot_id=template.snapshot_id,
-                    )
-                else:
-                    from bkflow.statistics.collectors import TemplateStatisticsCollector
-
-                    collector = TemplateStatisticsCollector(template_id=template.id, snapshot_id=template.snapshot_id)
-                    collector.collect()
-
+                self._backfill_single_template(template.id, template.snapshot_id)
                 processed += 1
                 if processed % batch_size == 0:
                     self.stdout.write(f"  Templates processed: {processed}/{total}")
             except Exception as e:
                 self.stderr.write(f"  Error processing template {template.id}: {e}")
-
         self.stdout.write(self.style.SUCCESS(f"  Templates backfill done: {processed}/{total}"))
 
-    def _backfill_tasks(self, space_id, batch_size, use_parallel):
+    def _backfill_templates_celery(self, qs, batch_size, total):
+        from bkflow.statistics.tasks import template_post_save_statistics_task
+
+        processed = 0
+        for template in qs.iterator(chunk_size=batch_size):
+            try:
+                template_post_save_statistics_task.delay(
+                    template_id=template.id, old_snapshot_id=None, new_snapshot_id=template.snapshot_id
+                )
+                processed += 1
+                if processed % batch_size == 0:
+                    self.stdout.write(f"  Templates dispatched: {processed}/{total}")
+            except Exception as e:
+                self.stderr.write(f"  Error dispatching template {template.id}: {e}")
+        self.stdout.write(self.style.SUCCESS(f"  Templates dispatched: {processed}/{total}"))
+
+    def _backfill_templates_threaded(self, qs, batch_size, total, workers):
+        processed = 0
+        errors = 0
+        template_ids = list(qs.values_list("id", "snapshot_id"))
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(self._backfill_single_template, tid, sid): tid for tid, sid in template_ids}
+            for future in as_completed(futures):
+                tid = futures[future]
+                try:
+                    future.result()
+                    processed += 1
+                    if processed % batch_size == 0:
+                        self.stdout.write(f"  Templates processed: {processed}/{total}")
+                except Exception as e:
+                    errors += 1
+                    self.stderr.write(f"  Error processing template {tid}: {e}")
+
+        self.stdout.write(self.style.SUCCESS(f"  Templates backfill done: {processed}/{total}, errors: {errors}"))
+
+    def _backfill_tasks(self, space_id, batch_size, use_parallel, workers=1):
         try:
             from bkflow.task.models import TaskInstance
         except ImportError:
@@ -142,29 +186,66 @@ class Command(BaseCommand):
         total = qs.count()
         self.stdout.write(f"Backfilling {total} tasks...")
 
+        if use_parallel:
+            self._backfill_tasks_celery(qs, batch_size, total)
+        elif workers > 1:
+            self._backfill_tasks_threaded(qs, batch_size, total, workers)
+        else:
+            self._backfill_tasks_serial(qs, batch_size, total)
+
+    def _backfill_single_task(self, task_id, is_finished, is_revoked):
+        from bkflow.statistics.collectors import TaskStatisticsCollector
+
+        collector = TaskStatisticsCollector(task_id=task_id)
+        collector.collect_on_create()
+        if is_finished or is_revoked:
+            collector.collect_on_archive()
+
+    def _backfill_tasks_serial(self, qs, batch_size, total):
         processed = 0
         for task in qs.iterator(chunk_size=batch_size):
             try:
-                if use_parallel:
-                    from bkflow.statistics.tasks import task_created_statistics_task
-
-                    task_created_statistics_task.delay(task_id=task.id)
-                else:
-                    from bkflow.statistics.collectors import TaskStatisticsCollector
-
-                    collector = TaskStatisticsCollector(task_id=task.id)
-                    collector.collect_on_create()
-
-                    if task.is_finished or task.is_revoked:
-                        collector.collect_on_archive()
-
+                self._backfill_single_task(task.id, task.is_finished, task.is_revoked)
                 processed += 1
                 if processed % batch_size == 0:
                     self.stdout.write(f"  Tasks processed: {processed}/{total}")
             except Exception as e:
                 self.stderr.write(f"  Error processing task {task.id}: {e}")
-
         self.stdout.write(self.style.SUCCESS(f"  Tasks backfill done: {processed}/{total}"))
+
+    def _backfill_tasks_celery(self, qs, batch_size, total):
+        from bkflow.statistics.tasks import task_backfill_statistics_task
+
+        processed = 0
+        for task in qs.iterator(chunk_size=batch_size):
+            try:
+                task_backfill_statistics_task.delay(task_id=task.id)
+                processed += 1
+                if processed % batch_size == 0:
+                    self.stdout.write(f"  Tasks dispatched: {processed}/{total}")
+            except Exception as e:
+                self.stderr.write(f"  Error dispatching task {task.id}: {e}")
+        self.stdout.write(self.style.SUCCESS(f"  Tasks dispatched: {processed}/{total}"))
+
+    def _backfill_tasks_threaded(self, qs, batch_size, total, workers):
+        processed = 0
+        errors = 0
+        task_rows = list(qs.values_list("id", "is_finished", "is_revoked"))
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(self._backfill_single_task, tid, fin, rev): tid for tid, fin, rev in task_rows}
+            for future in as_completed(futures):
+                tid = futures[future]
+                try:
+                    future.result()
+                    processed += 1
+                    if processed % batch_size == 0:
+                        self.stdout.write(f"  Tasks processed: {processed}/{total}")
+                except Exception as e:
+                    errors += 1
+                    self.stderr.write(f"  Error processing task {tid}: {e}")
+
+        self.stdout.write(self.style.SUCCESS(f"  Tasks backfill done: {processed}/{total}, errors: {errors}"))
 
     def _backfill_summaries(self, date_start_str, date_end_str):
         from bkflow.statistics.tasks.summary_tasks import (

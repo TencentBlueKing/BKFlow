@@ -1,6 +1,11 @@
 ### 资源描述
 
-导入简化流程 JSON 并创建模板
+导入简化流程 JSON 并创建模板。支持两种协议格式：
+
+- **v1（数组格式）**：`a2flow` 字段为 JSON 数组，需配合顶层 `name` 字段
+- **v2（对象格式）**：`a2flow` 字段为 JSON 对象，`name` 在 `a2flow` 内部，AI Agent 推荐使用
+
+接口自动根据 `a2flow` 字段的类型（数组 / 对象）路由到对应的转换器。
 
 ### 输入通用参数说明
 
@@ -9,6 +14,142 @@
 | bk_app_code   | string | 是  | 应用ID(app id)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取     |
 | bk_app_secret | string | 是  | 安全秘钥(app secret)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取 |
 | access_token  | string | 否  | 用户或应用 access_token，详情参考 AccessToken API                     |
+
+---
+
+## v2 协议（推荐）
+
+适用于 AI Agent / LLM 生成流程，token 更省、结构更简洁。
+
+#### 接口参数
+
+| 字段           | 类型     | 必选 | 描述                                |
+|--------------|--------|----|-----------------------------------|
+| a2flow       | object | 是  | a2flow v2 JSON 对象（详见下方结构）         |
+| creator      | string | 否  | 创建人                               |
+| scope_type   | string | 否  | 流程范围类型，与 scope_value 必须同时填写或同时不填写 |
+| scope_value  | string | 否  | 流程范围值，与 scope_type 必须同时填写或同时不填写   |
+| auto_release | bool   | 否  | 是否自动发布，默认为 false                  |
+
+#### a2flow 对象结构
+
+| 字段        | 类型     | 必选 | 描述                          |
+|-----------|--------|----|-----------------------------|
+| version   | string | 否  | 协议版本，默认 `"2.0"`             |
+| name      | string | 是  | 流程名称                        |
+| desc      | string | 否  | 流程描述                        |
+| nodes     | list   | 是  | 节点数组（不能为空）                  |
+| variables | list   | 否  | 全局变量数组                      |
+
+#### 节点结构（nodes 数组元素）
+
+| 字段                  | 类型          | 必选    | 描述                                                      |
+|---------------------|-------------|-------|---------------------------------------------------------|
+| id                  | string      | 是     | 节点唯一 ID                                                 |
+| name                | string      | 否     | 节点显示名称                                                  |
+| type                | string      | 否     | 节点类型，默认 `"Activity"`；可选值见下表                              |
+| code                | string      | Activity 是 | 插件 code                                                 |
+| data                | object      | 否     | 插件参数，扁平 `{"key": value}` 格式                             |
+| next                | string/list | 非 EndEvent 是 | 下一个节点 ID（Activity/ConvergeGateway 为字符串，分支网关为数组）         |
+| plugin_type         | string      | 否     | 插件类型提示：`component` / `remote_plugin` / `uniform_api`    |
+| conditions          | list        | ExclusiveGateway 是 | 条件数组 `[{"evaluate": "表达式"}]`，与 next 数组一一对应              |
+| default_next        | string      | 否     | ExclusiveGateway 默认分支目标 ID                               |
+| converge_gateway_id | string      | 否     | 手动指定汇聚网关 ID，不填时自动推断                                     |
+| stage_name          | string      | 否     | 步骤名称，默认与 name 相同                                        |
+
+#### 节点类型
+
+| type                        | 说明     | next 类型 |
+|-----------------------------|--------|---------|
+| Activity（默认）                | 活动节点   | string  |
+| StartEvent                  | 开始事件   | string  |
+| EndEvent                    | 结束事件   | 无       |
+| ParallelGateway             | 并行网关   | list    |
+| ConditionalParallelGateway  | 条件并行网关 | list    |
+| ExclusiveGateway            | 排他网关   | list    |
+| ConvergeGateway             | 汇聚网关   | string  |
+
+**隐式注入**：若 nodes 中没有 StartEvent / EndEvent，转换器会自动注入。
+
+#### 变量结构（variables 数组元素）
+
+| 字段          | 类型     | 必选 | 描述                                          |
+|-------------|--------|----|---------------------------------------------|
+| key         | string | 是  | 变量引用键，格式 `${变量名}`                           |
+| name        | string | 否  | 变量显示名称                                      |
+| value       | any    | 否  | 默认值                                         |
+| source_type | string | 否  | `custom`（默认） / `component_outputs` / `system` |
+| custom_type | string | 否  | `input`（默认） / `textarea`                     |
+| description | string | 否  | 变量描述                                        |
+| show_type   | string | 否  | `show`（默认） / `hide`                          |
+
+#### v2 请求示例
+
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "a2flow": {
+        "version": "2.0",
+        "name": "示例流程-v2",
+        "desc": "并行执行后条件判断",
+        "nodes": [
+            {"id": "n1", "name": "人工确认", "code": "pause_node", "data": {"description": "确认参数"}, "next": "pg1"},
+            {"type": "ParallelGateway", "id": "pg1", "name": "并行", "next": ["n2", "n3"]},
+            {"id": "n2", "name": "任务A", "code": "job_fast_execute_script", "data": {"script_content": "echo A"}, "next": "cg1"},
+            {"id": "n3", "name": "任务B", "code": "job_fast_execute_script", "data": {"script_content": "echo B"}, "next": "cg1"},
+            {"type": "ConvergeGateway", "id": "cg1", "name": "汇聚", "next": "eg1"},
+            {"type": "ExclusiveGateway", "id": "eg1", "name": "判断", "next": ["n4", "n5"], "conditions": [{"evaluate": "${result} == 'success'"}, {"evaluate": "${result} != 'success'"}], "default_next": "n5"},
+            {"id": "n4", "name": "成功通知", "code": "bk_notify", "data": {"bk_notify_title": "成功"}, "next": "cg2"},
+            {"id": "n5", "name": "失败处理", "code": "bk_notify", "data": {"bk_notify_title": "失败"}, "next": "cg2"},
+            {"type": "ConvergeGateway", "id": "cg2", "name": "条件汇聚", "next": "end"}
+        ],
+        "variables": [
+            {"key": "${result}", "name": "执行结果", "value": "success"}
+        ]
+    }
+}
+```
+
+#### v2 错误响应格式
+
+v2 协议返回结构化错误数组，便于 AI Agent 解析和修复：
+
+```json
+{
+    "result": false,
+    "errors": [
+        {
+            "type": "INVALID_REFERENCE",
+            "node_id": "n1",
+            "field": "next",
+            "value": "nonexistent",
+            "message": "节点 'n1' 的 next 引用了未定义的节点 'nonexistent'",
+            "hint": "可用的节点 ID: ['cg1', 'end', 'n1', 'n2', 'start']"
+        }
+    ],
+    "code": 1
+}
+```
+
+错误类型枚举：
+
+| type                     | 说明            |
+|--------------------------|---------------|
+| MISSING_REQUIRED_FIELD   | 缺少必填字段        |
+| INVALID_REFERENCE        | 引用了不存在的节点     |
+| DUPLICATE_NODE_ID        | 节点 ID 重复      |
+| CONDITIONS_MISMATCH      | conditions 数量与 next 不匹配 |
+| INVALID_DEFAULT_NEXT     | default_next 不在 next 中 |
+| UNKNOWN_PLUGIN_CODE      | 未找到插件 code    |
+| AMBIGUOUS_PLUGIN_CODE    | 多个注册表匹配，需指定 plugin_type |
+| CONVERGE_INFER_FAILED    | 无法自动推断汇聚网关    |
+| UNSUPPORTED_VERSION      | 不支持的协议版本      |
+| RESERVED_ID_CONFLICT     | 保留 ID 与节点类型冲突 |
+
+---
+
+## v1 协议（兼容）
 
 #### 接口参数
 
