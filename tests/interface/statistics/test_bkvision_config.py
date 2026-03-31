@@ -20,23 +20,29 @@ to the current version of the project delivered to anyone in the future.
 import importlib
 from unittest.mock import MagicMock, patch
 
+import env as real_env
+
+BKVISION_ENV_KEYS = [
+    "BKAPP_BKVISION_APIGW_URL",
+    "BKAPP_BKVISION_BASE_URL",
+    "BKAPP_BKVISION_SYSTEM_DASHBOARD_UID",
+    "BKAPP_BKVISION_SPACE_DASHBOARD_UID",
+]
+
 
 class TestBKVisionEnvConfig:
     """BK-Vision 环境变量配置测试"""
 
-    @patch.dict("os.environ", {}, clear=False)
+    @patch.dict(
+        "os.environ",
+        {k: "" for k in BKVISION_ENV_KEYS},
+        clear=False,
+    )
     def test_bkvision_env_defaults_are_empty(self):
         """未设置环境变量时，BK-Vision 配置应为空字符串"""
-        import env
-
-        for key in [
-            "BKAPP_BKVISION_APIGW_URL",
-            "BKAPP_BKVISION_BASE_URL",
-            "BKAPP_BKVISION_SYSTEM_DASHBOARD_UID",
-            "BKAPP_BKVISION_SPACE_DASHBOARD_UID",
-        ]:
-            assert hasattr(env, key), f"env.{key} should be defined"
-            assert isinstance(getattr(env, key), str), f"env.{key} should be a string"
+        env_module = importlib.reload(real_env)
+        for key in BKVISION_ENV_KEYS:
+            assert getattr(env_module, key) == "", f"env.{key} should default to empty string"
 
     @patch.dict(
         "os.environ",
@@ -49,18 +55,44 @@ class TestBKVisionEnvConfig:
     )
     def test_bkvision_env_reads_from_environ(self):
         """设置环境变量后，env 模块应读取到对应值"""
-        import env
-
-        env_module = importlib.reload(env)
+        env_module = importlib.reload(real_env)
         assert env_module.BKAPP_BKVISION_APIGW_URL == "https://gw.example.com"
         assert env_module.BKAPP_BKVISION_BASE_URL == "https://bkvision.example.com"
         assert env_module.BKAPP_BKVISION_SYSTEM_DASHBOARD_UID == "sys-uid-123"
         assert env_module.BKAPP_BKVISION_SPACE_DASHBOARD_UID == "space-uid-456"
 
 
+def _make_mock_env(**overrides):
+    """构造带 spec 约束的 env mock，拼错属性名会 AttributeError"""
+    mock = MagicMock(spec=real_env)
+    defaults = {
+        "BK_DOC_CENTER_HOST": "https://docs.example.com",
+        "BKPAAS_SHARED_RES_URL": "",
+        "BKFLOW_LOGIN_URL": "",
+        "MESSAGE_HELPER_URL": "",
+        "BKPAAS_BK_DOMAIN": "",
+        "BK_PAAS_ESB_HOST": "",
+        "BKAPP_BKVISION_SYSTEM_DASHBOARD_UID": "",
+        "BKAPP_BKVISION_SPACE_DASHBOARD_UID": "",
+        "BKAPP_BKVISION_BASE_URL": "",
+    }
+    defaults.update(overrides)
+    for k, v in defaults.items():
+        setattr(mock, k, v)
+    return mock
+
+
+def _make_mock_request():
+    request = MagicMock()
+    request.user.username = "admin"
+    request.COOKIES = {"blueking_language": "zh-cn"}
+    return request
+
+
 class TestBKVisionContextProcessor:
     """BK-Vision context processor 配置注入测试"""
 
+    @patch("bkflow.interface.context_processors.env", _make_mock_env())
     @patch("bkflow.interface.context_processors.EnvironmentVariables")
     @patch("bkflow.interface.context_processors.settings")
     def test_bkvision_keys_in_context(self, mock_settings, mock_env_vars):
@@ -74,22 +106,25 @@ class TestBKVisionContextProcessor:
         mock_settings.RUN_VER_NAME = "BKFlow"
         mock_env_vars.objects.get_var = MagicMock(return_value=0)
 
-        request = MagicMock()
-        request.user.username = "admin"
-        request.COOKIES = {"blueking_language": "zh-cn"}
-
         from bkflow.interface.context_processors import bkflow_settings
 
-        ctx = bkflow_settings(request)
+        ctx = bkflow_settings(_make_mock_request())
 
         assert "BKVISION_SYSTEM_DASHBOARD_UID" in ctx
         assert "BKVISION_SPACE_DASHBOARD_UID" in ctx
         assert "BKVISION_BASE_URL" in ctx
 
-    @patch("bkflow.interface.context_processors.env")
+    @patch(
+        "bkflow.interface.context_processors.env",
+        _make_mock_env(
+            BKAPP_BKVISION_SYSTEM_DASHBOARD_UID="test-system-uid",
+            BKAPP_BKVISION_SPACE_DASHBOARD_UID="test-space-uid",
+            BKAPP_BKVISION_BASE_URL="https://bkvision.example.com",
+        ),
+    )
     @patch("bkflow.interface.context_processors.EnvironmentVariables")
     @patch("bkflow.interface.context_processors.settings")
-    def test_bkvision_values_from_env(self, mock_settings, mock_env_vars, mock_env):
+    def test_bkvision_values_from_env(self, mock_settings, mock_env_vars):
         """BK-Vision 配置值应来自 env 模块"""
         mock_settings.STATIC_URL = "/static/"
         mock_settings.RUN_VER = "open"
@@ -100,23 +135,9 @@ class TestBKVisionContextProcessor:
         mock_settings.RUN_VER_NAME = "BKFlow"
         mock_env_vars.objects.get_var = MagicMock(return_value=0)
 
-        mock_env.BKAPP_BKVISION_SYSTEM_DASHBOARD_UID = "test-system-uid"
-        mock_env.BKAPP_BKVISION_SPACE_DASHBOARD_UID = "test-space-uid"
-        mock_env.BKAPP_BKVISION_BASE_URL = "https://bkvision.example.com"
-        mock_env.BK_DOC_CENTER_HOST = "https://docs.example.com"
-        mock_env.BKPAAS_SHARED_RES_URL = ""
-        mock_env.BKFLOW_LOGIN_URL = ""
-        mock_env.MESSAGE_HELPER_URL = ""
-        mock_env.BKPAAS_BK_DOMAIN = ""
-        mock_env.BK_PAAS_ESB_HOST = ""
-
-        request = MagicMock()
-        request.user.username = "admin"
-        request.COOKIES = {"blueking_language": "zh-cn"}
-
         from bkflow.interface.context_processors import bkflow_settings
 
-        ctx = bkflow_settings(request)
+        ctx = bkflow_settings(_make_mock_request())
 
         assert ctx["BKVISION_SYSTEM_DASHBOARD_UID"] == "test-system-uid"
         assert ctx["BKVISION_SPACE_DASHBOARD_UID"] == "test-space-uid"
