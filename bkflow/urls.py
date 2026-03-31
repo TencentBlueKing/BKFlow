@@ -42,7 +42,11 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^api/plugin_service/", include("plugin_service.urls")),
         url(r"^api/api_plugin_demo/", include("bkflow.api_plugin_demo.urls")),
         url(r"^api/statistics/", include("bkflow.statistics.urls")),
-        url(r"^bkvision/", include("django_bkvision.urls")),
+        *(
+            [url(r"^bkvision/", include("django_bkvision.urls"))]
+            if "django_bkvision" in settings.INSTALLED_APPS
+            else []
+        ),
         url(r"^notice/", include("bk_notice_sdk.urls")),
         url(r"^version_log/", include("version_log.urls", namespace="version_log")),
     ]
