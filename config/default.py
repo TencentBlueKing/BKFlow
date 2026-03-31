@@ -415,6 +415,9 @@ CORS_ALLOW_METHODS = ["GET", "OPTIONS"]
 # 允许 static、openapi 路径跨域访问
 CORS_URLS_REGEX = r"^/(static\/components|openapi)/.*$"
 
+# BK-Vision 仪表盘嵌入 SDK
+INSTALLED_APPS += ("django_bkvision",)
+
 # 加密字段配置
 PRIVATE_SECRET = env.PRIVATE_SECRET or SECRET_KEY
 
