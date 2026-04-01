@@ -55,24 +55,17 @@
       <div
         v-show="isTaskOperationBtnsShow"
         class="task-operation-btns">
-        <bk-button
-          v-for="operation in taskOperationBtns"
-          :key="operation.action"
-          v-bk-tooltips="{
-            content: operation.text,
-            placements: ['top']
-          }"
-          :class="[
-            'operation-btn',
-            operation.action === 'revoke' ? 'revoke-btn' : 'execute-btn'
-          ]"
-          theme="default"
-          hide-text="true"
-          :icon="'common-icon ' + operation.icon"
-          :loading="operation.loading"
-          :disabled="operation.disabled || !instanceActions.includes('OPERATE')"
-          :data-test-id="`taskExcute_form_${operation.action}Btn`"
-          @click="onOperationClick(operation.action)" />
+        <template v-for="operation in taskOperationBtns">
+            <div
+                v-if="!operation.disabled && instanceActions.includes('OPERATE')"
+                :key="operation.action"
+                :class="['action-button', 'operate-btn-item', operation.action]"
+                :data-test-id="`taskExcute_form_${operation.action}Btn`"
+                @click="onOperationClick(operation.action)">
+                <i :class="['common-icon', operation.icon]" />
+                <div class="operate-btn-item-text">{{ operation.text }}</div>
+            </div>
+        </template>
       </div>
       <div
         v-if="triggerMethod === 'subprocess' "
@@ -89,8 +82,6 @@
             {{ $t('查看父流程') }}
           </JumpLinkBKFlowOrExternal>
         </p>
-
-
         <span class="dividing-line" />
         <span :class="statusMap[parentTaskInfo.state].icon" />
         <span class="state-text">{{ statusMap[parentTaskInfo.state].text }}</span>
@@ -98,25 +89,18 @@
       </div>
       <div
         class="task-params-btns">
-        <i
-          v-bk-tooltips="{
-            content: $t('查看节点详情'),
-            placements: ['top']
-          }"
-          :class="[
-            'params-btn',
-            'solid-eye',
-            'common-icon-solid-eye',
-            {
-              actived: nodeInfoType === 'viewNodeDetails'
-            }
-          ]"
-          @click="onTaskParamsClick('viewNodeDetails', $t('节点详情'))" />
+        <div class="action-button view-node-details-btn" @click="onTaskParamsClick('viewNodeDetails', $t('节点详情'))" >
+            <i class="common-icon-file-setting" />
+            <div class="view-node-details-btn-text">{{ $t('节点详情') }}</div>
+        </div>
         <bk-popover
-          placement="bottom-left"
+          placement="bottom-end"
           theme="light"
-          ext-cls="operate-tip">
-          <i class="bk-icon icon-more drop-icon-ellipsis" />
+          ext-cls="task-operation-more-action-popover">
+          <div class="action-button more-action-btn">
+            <i class="bk-icon icon-more" />
+            <div class="more-action-btn-text">{{ $t('更多操作') }}</div>
+          </div>
           <template slot="content">
             <p
               class="operate-item"
@@ -214,11 +198,11 @@
         statusMap: {
           FINISHED: {
             icon: 'finished bk-icon icon-check-circle-shape',
-            text: i18n.t('完成'),
+            text: i18n.t('执行成功'),
           },
           FAILED: {
             icon: 'failed common-icon-dark-circle-close',
-            text: i18n.t('失败'),
+            text: i18n.t('执行失败'),
           },
           EXPIRED: {
             icon: 'expired bk-icon icon-clock-shape',
@@ -234,11 +218,11 @@
           },
           RUNNING: {
             icon: 'running common-icon-dark-circle-ellipsis',
-            text: i18n.t('执行中'),
+            text: i18n.t('正在执行'),
           },
           BLOCKED: {
             icon: 'running common-icon-dark-circle-ellipsis',
-            text: i18n.t('执行中'),
+            text: i18n.t('正在执行'),
           },
           READY: {
             icon: 'running common-icon-dark-circle-ellipsis',
@@ -349,7 +333,7 @@
     display: flex;
     justify-content: space-between;
     height: 48px;
-    padding: 0 20px 0 10px;
+    padding: 0 0 0 10px;
     border-bottom: 1px solid #dcdee5;
     box-shadow: 0 3px 4px 0 rgba(64, 112, 203, 0.06);
     background: #ffffff;
@@ -363,8 +347,10 @@
         }
     }
     .operation-title {
+        padding-right: 12px;
         font-size: 14px;
         color: #313238;
+        border-right: 1px solid #DCDEE5;
     }
     .bread-crumbs-wrapper {
         margin-left: 10px;
@@ -372,17 +358,14 @@
         .path-item {
             display: inline-block;
             font-size: 14px;
+            max-width: 480px;
             overflow: hidden;
-            &.name-ellipsis {
-                max-width: 190px;
-                overflow: hidden;
-                white-space: nowrap;
-                text-overflow: ellipsis;
-            }
+            white-space: nowrap;
+            text-overflow: ellipsis;
             .node-name {
                 margin: 0 4px;
                 font-size: 14px;
-                color: #3a84ff;
+                color: #979BA5;
                 cursor: pointer;
             }
             .node-ellipsis {
@@ -396,7 +379,6 @@
             &:last-child {
                 .node-name {
                     &:last-child {
-                        color: #313238;
                         cursor: text;
                     }
                 }
@@ -410,146 +392,102 @@
     .task-state {
         display: inline-block;
         margin-left: 10px;
-        padding: 0 6px;
+        padding: 0 8px;
         height: 20px;
         line-height: 20px;
         font-size: 12px;
-        color: #63656e;
-        border-radius: 10px;
-        background-color: #dcdee5;
-        &.EXPIRED,
-        &.CREATED {
-            color: #63656e;
-        }
+        color: #ffffff;
+        border-radius: 2px;
+        background-color: #C4C6CC;
         &.FINISHED {
-            background-color: #cceed9;
-            color: #2dcb56;
+            background-color: #2CAF5E;
         }
         &.RUNNING,
         &.READY {
-            background-color: #cfdffb;
-            color: #3a84ff;
+            background-color: #3A84FF;
         }
         &.SUSPENDED, &.NODE_SUSPENDED {
-            background-color: #ffe8c3;
-            color: #d78300;
+            background-color: #F59500;
         }
         &.FAILED {
-            background-color: #f2d0d3;
-            color: #ea3636;
+            background-color: #EA3636;
         }
         &.REVOKED {
-            background-color: #f2d0d3;
-            color: #ea3636;
+            background-color: #EA3636;
+        }
+    }
+    .action-button {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 0 12px;
+        min-width: 72px;
+        height: 100%;
+        color: #313238;
+        cursor: pointer;
+        &:hover {
+            color: #3a84ff;
         }
     }
     .operation-container {
         display: flex;
         align-items: center;
         height: 100%;
-        .task-operation-btns,
-        .task-params-btns {
-            margin-top: -5px;
-            float: left;
-            .bk-button {
-                border: none;
-                background: transparent;
-                cursor: pointer;
-            }
-            ::v-deep .bk-icon {
-                float: initial;
-                top: 0;
-                & + span {
-                    margin-left: 0;
-                }
-            }
-            .common-icon-branchs {
-                font-size: 16px;
-            }
-        }
         .task-operation-btns {
-            margin-top: 1px;
-            margin-right: 35px;
-            line-height: initial;
-            border-right: 1px solid #dde4eb;
-            .operation-btn {
-                margin-right: 35px;
-                height: 32px;
-                line-height: 32px;
-                font-size: 14px;
-                &.btn-permission-disable {
-                    background: transparent !important;
+            display: flex;
+            align-items: center;
+            height: 100%;
+            .operate-btn-item {
+                border-left: 1px solid #dde4eb;
+                &.revoke {
+                    i {
+                        color: #EA3636;
+                    }
                 }
-            }
-            .execute-btn {
-                width: 140px;
-                color: #ffffff;
-                background: #3a84ff; // 覆盖 bk-button important 规则
-                &:hover {
-                    background: #699df4; // 覆盖 bk-button important 规则
+                &.pause {
+                    i {
+                        font-size: 16px;
+                    }
                 }
-                &.is-disabled {
-                    color: #ffffff; // 覆盖 bk-button important 规则
-                    opacity: 0.4;
-                    cursor: no-drop;
-                }
-                &.btn-permission-disable {
-                    border: 1px solid #e6e6e6;
-                }
-                ::v-deep .bk-button-loading div {
-                    background: #ffffff;
-                }
-            }
-            .revoke-btn {
-                padding: 0;
-                background: transparent; // 覆盖 bk-button important 规则
-                color: #ea3636;
-                &:hover {
-                    color: #c32929;
-                }
-                &.is-disabled {
-                    color: #d8d8d8;
-                }
-                ::v-deep .common-icon-stop {
-                    font-size: 24px;
-                    margin-top: 10px;
+                .operate-btn-item-text {
+                    font-size: 12px;
+                    line-height: 20px;
                 }
             }
         }
         .task-params-btns {
-            .params-btn {
-                margin-right: 25px;
-                padding: 0;
-                color: #979ba5;
-                font-size: 14px;
+            display: flex;
+            align-items: center;
+            height: 100%;
+            border-left: 1px solid #dde4eb;
+            .view-node-details-btn {
+                width: 72px;
                 cursor: pointer;
-                &.actived {
-                    color: #63656e;
+                i {
+                    margin: 2px 0;
+                    font-size: 12px;
                 }
-                &:hover {
-                    color: #63656e;
+                .view-node-details-btn-text {
+                    font-size: 12px;
+                    line-height: 20px;
                 }
             }
-            .common-icon-enter-config {
-                font-size: 18px;
+            ::v-deep .bk-tooltip,
+            ::v-deep .bk-tooltip-ref {
+                height: 100%;
             }
-            .back-button {
-                background: #ffffff;
-                border: 1px solid #c4c6cc;
-            }
-            .drop-icon-ellipsis {
-                font-size: 18px;
-                font-weight: 600;
-                color: #979ba5;
-                cursor: pointer;
-                &:hover {
-                    color: #63656e;
+            .more-action-btn {
+                border-left: 1px solid #dde4eb;
+                i {
+                    font-size: 16px;
                 }
+            }
+            .more-action-btn-text {
+                font-size: 12px;
+                line-height: 20px;
             }
         }
-    }
-    ::v-deep .bk-button .bk-icon {
-        font-size: 14px;
     }
 }
 .link-icon{
@@ -630,12 +568,15 @@
 }
 </style>
 <style lang="scss">
-.operate-tip {
+.task-operation-more-action-popover {
     .tippy-tooltip {
         padding: 4px 0;
     }
+    .tippy-content {
+        padding: 0;
+    }
     .operate-item {
-        width: 160px;
+        width: 120px;
         height: 40px;
         display: block;
         line-height: 40px;

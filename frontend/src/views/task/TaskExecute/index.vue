@@ -29,7 +29,8 @@
         :canvas-mode="canvasMode"
         :instance-actions="instanceActions"
         :trigger-method="triggerMethod"
-        :parent-task-info="parentTaskInfo" />
+        :parent-task-info="parentTaskInfo"
+        :use-canvas-editor="useCanvasEditor" />
     </template>
   </div>
 </template>
@@ -75,6 +76,7 @@
         canvasMode: '',
         triggerMethod: '',
         parentTaskInfo: {},
+        useCanvasEditor: true,
       };
     },
     created() {
