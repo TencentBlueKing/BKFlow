@@ -31,6 +31,14 @@ export default {
 
       return axios[method](url, data).then(response => response.data);
     },
+    // 批量应用空间配置
+    batchApplySpaceConfig({}, data) {
+      return axios.post('api/space/admin/space_config/batch_apply/', data).then(response => response.data);
+    },
+    // 批量删除空间配置
+    batchDeleteSpaceConfig({}, data) {
+      return axios.post('api/space/admin/space_config/batch_delete/', data).then(response => response.data);
+    },
     deleteSpaceConfig({}, data) {
       return axios.delete(`api/space/admin/space_config/${data.id}/`).then(response => response.data);
     },
