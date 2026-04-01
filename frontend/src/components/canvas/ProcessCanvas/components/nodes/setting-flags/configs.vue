@@ -29,14 +29,14 @@
       <!-- 配置了循环的子流程 -->
       <div
         v-if="node.type === 'subflow' && node.loop_config?.enable"
-        class="loop-bacth-execute-icon">
+        class="loop-batch-execute-icon">
         <div class="commonicon-icon common-icon-loading-oval" />
       </div>
       <!-- 子流程循环与批量执行第一期先不做 -->
       <!-- 配置了批量执行的子流程 -->
       <!-- <div
         v-if="node.type === 'subflow'"
-        class="loop-bacth-execute-icon">
+        class="loop-batch-execute-icon">
         <svg
           class="batch-execute-svg"
           viewBox="0 0 1024 1024"
@@ -103,7 +103,7 @@
       transform: scale(0.8);
     }
   }
-  .loop-bacth-execute-icon{
+  .loop-batch-execute-icon{
     height: 16px;
     width: 16px;
     display: flex;

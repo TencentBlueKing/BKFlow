@@ -249,7 +249,7 @@
   import { getOrderNodeToNodeTree } from '@/utils/orderCanvasNodeToNodeTree.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import SubStageCanvas from '../../../components/canvas/StageCanvas/SubStageCanvas.vue';
-import TemplateData from './TemplateData.vue';
+  import TemplateData from './TemplateData.vue';
   const { CancelToken } = axios;
   let source = CancelToken.source();
 
@@ -262,7 +262,7 @@ import TemplateData from './TemplateData.vue';
       LoopCountSelector,
       JumpLinkBKFlowOrExternal,
       SubStageCanvas,
-        TemplateData,
+      TemplateData,
     },
     props: {
       adminView: {
