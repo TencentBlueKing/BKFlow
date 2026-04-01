@@ -36,7 +36,6 @@
 </template>
 <script>
   import '@/utils/i18n.js';
-  // import dom from '@/utils/dom.js';
   import { getFormMixins } from '../formMixins.js';
   import { mapState } from 'vuex';
   import VariableList from '../VariableList.vue';
