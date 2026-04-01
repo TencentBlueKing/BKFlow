@@ -883,7 +883,7 @@
             // 非空对象转数组
             this.formData.loopConfig.loop_params = Object.entries(loopParams).map(([key, value]) => ({
               name: key,
-              ...value
+              ...value,
             }));
           }
           // 如果有执行方案，默认选中<不使用执行方案>

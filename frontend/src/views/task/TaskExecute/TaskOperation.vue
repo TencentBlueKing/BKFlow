@@ -1598,7 +1598,7 @@
                 // 回退相关数据处理-callbackData
                 if (isLoopCondition) {
                   if (targetNode.length === 1) {
-                    callback = targetNode[0];
+                    [callback] = targetNode;
                   } else if (targetNode.length > 1) {
                     callback = targetNode[index];
                   }
