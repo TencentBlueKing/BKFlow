@@ -790,6 +790,7 @@
         this.outputs = Object.keys(mockOutputs).map((item) => {
           const output = mockOutputs[item];
           return {
+            // eslint-disable-next-line camelcase
             plugin_code: output?.plugin_code || '',
             name: output.name,
             key: output.key,
@@ -824,8 +825,10 @@
           const isThird = Boolean(variable.plugin_code);
           const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
           let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
-          if (variable.is_meta || formItemConfig?.meta_transform) {
-            formItemConfig = formItemConfig.meta_transform(variable.meta || variable);
+          // eslint-disable-next-line camelcase
+          const { meta_transform: metaTransform } = formItemConfig || {};
+          if (variable.is_meta || metaTransform) {
+            formItemConfig = metaTransform(variable.meta || variable);
             if (!variable.meta) {
               variable.meta = tools.deepClone(variable);
               variable.value = formItemConfig.attrs.value;
