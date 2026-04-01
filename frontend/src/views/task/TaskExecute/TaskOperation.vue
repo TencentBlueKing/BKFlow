@@ -952,7 +952,7 @@
           execInfoInstance.loading = false;
         }
       },
-      async nodeTaskSkip(id, subflowInfo, isTopSubflow) {
+      async nodeTaskSkip(id, subflowInfo, isTopSubflow, isLoopOperate) {
         if (this.pending.skip) {
           return;
         }
@@ -964,6 +964,9 @@
             instance_id: subflowInfo?.taskId || this.instanceId,
             node_id: id,
             operation: 'skip',
+            data: {
+              loop: isLoopOperate,
+            },
           };
           const res = await this.instanceNodeOperate(data);
           if (res.result) {
@@ -1194,7 +1197,7 @@
           }
         }
       },
-      async onRetryClick(id, subflowInfo, isTopSubflow = false) {
+      async onRetryClick(id, subflowInfo, isTopSubflow = false, isLoopOperate) {
         try {
           const h = this.$createElement;
           this.$bkInfo({
@@ -1220,7 +1223,9 @@
                 instance_id: subflowInfo?.taskId || this.instanceId,
                 node_id: id,
                 operation: 'retry',
-                data: {},
+                data: {
+                  loop: isLoopOperate,
+                },
               });
               if (resp.result) {
                 this.$bkMessage({
@@ -1310,14 +1315,14 @@
           console.warn(e);
         }
       },
-      onSkipClick(id, subflowInfo, isTopSubflow) {
+      onSkipClick(id, subflowInfo, isTopSubflow, isLoopOperate) {
         this.$bkInfo({
           title: i18n.t('确定跳过当前节点?'),
           subTitle: i18n.t('跳过节点将忽略当前失败节点继续往后执行'),
           maskClose: false,
           confirmLoading: true,
           confirmFn: async () => {
-            await this.nodeTaskSkip(id, subflowInfo, isTopSubflow);
+            await this.nodeTaskSkip(id, subflowInfo, isTopSubflow, isLoopOperate);
           },
         });
       },
@@ -1593,7 +1598,7 @@
                 // 回退相关数据处理-callbackData
                 if (isLoopCondition) {
                   if (targetNode.length === 1) {
-                    callback = targetNode[0];
+                    [callback] = targetNode;
                   } else if (targetNode.length > 1) {
                     callback = targetNode[index];
                   }

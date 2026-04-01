@@ -203,7 +203,8 @@
           </div>
         </div> -->
         <!-- 描述 -->
-        <div class="form-item clearfix">
+        <div
+          class="form-item clearfix">
           <label class="form-label">{{ $t('说明') }}</label>
           <div class="form-content">
             <bk-input
@@ -554,10 +555,11 @@
         const {
           source_tag: sourceTag,
           source_info: sourceInfo,
-          custom_type: customType,
+          custom_type: customType, // 对应code
           version = 'legacy',
           plugin_code: pluginCode,
         } = this.theEditingData;
+        // metaTage 对应meta_tag
         const tagStr = this.metaTag ? this.metaTag : sourceTag;
 
         // 兼容旧数据自定义变量勾选为输入参数 source_tag 为空
@@ -674,6 +676,7 @@
           if (this.variableData.key === value) {
             return true;
           }
+          // 检查全局变量和内置变量
           if (value in this.constants || value in this.internalVariable) {
             return false;
           }

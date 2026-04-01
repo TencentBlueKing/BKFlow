@@ -259,9 +259,8 @@
       showJumpToFlowIcon() {
         if (this.isIframe) {
             return this.$route.query.ifShowJumpToFlowBtn === 'true';
-        } else {
-            return this.isShowViewProcess;
         }
+        return this.isShowViewProcess;
       },
     },
     watch: {

@@ -105,6 +105,7 @@
                 :is-subflow-need-to-update="isSubflowNeedToUpdate"
                 :is-enable-version-manage="isEnableVersionManage"
                 :space-id="spaceId"
+                :subflow-forms="subflowForms"
                 @openSelectorPanel="isSelectorPanelShow = true"
                 @versionChange="versionChange"
                 @viewSubflow="onViewSubflow"
@@ -187,13 +188,15 @@
                   v-bkloading="{ isLoading: outputLoading, zIndex: 100 }"
                   class="outputs-wrapper"
                   :constants="localConstants"
-                  :params="outputs"
+                  :params="filteredOutputs"
                   :version="basicInfo.version"
                   :node-id="nodeId"
                   :is-third-party="isThirdParty"
                   :is-view-mode="isViewMode"
                   :uniform-outputs="uniformOutputs"
+                  :loop-outputs-key="basicInfo.loopConfig ? (basicInfo.loopConfig.outputs_key || '') : ''"
                   @hookChange="onHookChange"
+                  @outputsHookChange="onOutputsHookChange"
                   @openVariablePanel="openVariablePanel" />
               </div>
             </section>
@@ -355,6 +358,13 @@
       isSubflow() {
         return this.nodeConfig.type !== 'ServiceActivity';
       },
+      // 循环执行时只展示循环输出(outputs)，单次执行时只展示节点输出
+      filteredOutputs() {
+        if (this.basicInfo.loopConfig && this.basicInfo.loopConfig.enable) {
+          return this.outputs.filter(item => item.key === 'outputs');
+        }
+        return this.outputs.filter(item => item.key !== 'outputs');
+      },
       atomGroup() { // 某一标准插件下所有版本分组
         return this.atomList.find(item => item.code === this.basicInfo.plugin);
       },
@@ -466,6 +476,7 @@
         'loadPluginServiceMeta',
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
+        'loadSubprocessOutput',
       ]),
       ...mapActions('template/', [
         'loadTemplateData',
@@ -763,17 +774,29 @@
           } else {
             this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version });
           }
-          // 输出变量
-          const has = Object.prototype.hasOwnProperty;
-          this.outputs = Object.keys(resp.data.outputs).map((item) => {
-            const output = resp.data.outputs[item];
-            return {
-              plugin_code: output.plugin_code,
-              name: output.name,
-              key: output.key,
-              version: has.call(output, 'version') ? output.version : 'legacy',
-            };
-          });
+        // 输出变量
+        const has = Object.prototype.hasOwnProperty;
+        // 从接口获取子流程标准输出参数
+        const subprocessPlugin = this.atomList.find(item => item.code === 'subprocess_plugin');
+        const subprocessPluginVersion = subprocessPlugin?.list?.[0]?.version || '';
+        const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion });
+        const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
+          if (item.key === 'outputs') {
+            acc[item.key] = item;
+          }
+          return acc;
+        }, {});
+        const mockOutputs = Object.assign({}, resp.data.outputs, subBuiltInOutputs);
+        this.outputs = Object.keys(mockOutputs).map((item) => {
+          const output = mockOutputs[item];
+          return {
+            // eslint-disable-next-line camelcase
+            plugin_code: output?.plugin_code || '',
+            name: output.name,
+            key: output.key,
+            version: has.call(output, 'version') ? output.version : 'legacy',
+          };
+        });
         } catch (e) {
           console.log(e);
         } finally {
@@ -802,8 +825,10 @@
           const isThird = Boolean(variable.plugin_code);
           const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
           let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
-          if (variable.is_meta || formItemConfig.meta_transform) {
-            formItemConfig = formItemConfig.meta_transform(variable.meta || variable);
+          // eslint-disable-next-line camelcase
+          const { meta_transform: metaTransform } = formItemConfig || {};
+          if (variable.is_meta || metaTransform) {
+            formItemConfig = metaTransform(variable.meta || variable);
             if (!variable.meta) {
               variable.meta = tools.deepClone(variable);
               variable.value = formItemConfig.attrs.value;
@@ -946,6 +971,7 @@
           skippable,
           can_retry: canRetry,
           retryable,
+          loop_config: loopConfig,
         } = config;
         let templateName = i18n.t('请选择子流程');
 
@@ -986,6 +1012,7 @@
           autoRetry: Object.assign({}, { enable: false, interval: 0, times: 1 }, auto_retry),
           timeoutConfig: timeoutConfig || { enable: false, seconds: 10, action: 'forced_fail' },
           executor_proxy: executorProxy ? executorProxy.split(',') : [],
+          loopConfig: loopConfig || {},
           subLatestVersion: templateData.version,
         };
       },
@@ -1052,12 +1079,15 @@
       // 变量编辑确认
       onVariableSaveEditing(variable) {
         this.isVariablePanelShow = false;
-
-        const { key } = this.variableData;
+        const { key, sourceKey } = this.variableData;
         if (!key || key === variable.key) return;
 
         this.onHookChange('delete', this.variableData);
         this.onHookChange('create', variable);
+        if (sourceKey === 'outputs' && this.basicInfo.loopConfig?.enable) {
+          this.onOutputsHookChange('edit', variable.key);
+        }
+
         this.variableData = {};
       },
       // 标准插件（子流程）选择面板切换插件（子流程）
@@ -1248,6 +1278,17 @@
        */
       updateBasicInfo(data) {
         this.isDataChange = true;
+        // 当循环执行切换为单次执行时，清除循环输出变量及 loopConfig.outputs_key
+        if (data.loopConfig
+          && this.basicInfo.loopConfig
+          && !data.loopConfig.enable
+          && this.basicInfo.loopConfig.outputs_key) {
+          const outputsKey = this.basicInfo.loopConfig.outputs_key;
+          if (outputsKey && this.localConstants[outputsKey]) {
+            this.deleteVariable(outputsKey);
+          }
+          data.loopConfig.outputs_key = '';
+        }
         this.basicInfo = Object.assign({}, this.basicInfo, data);
       },
       // 输入参数表单值更新
@@ -1396,6 +1437,19 @@
           this.setVariableSourceInfo(data);
         }
         // 如果全局变量数据有变，需要更新popover
+        this.randomKey = new Date().getTime();
+      },
+      // 循环输出变量勾选/取消勾选/编辑
+      onOutputsHookChange(type, key) {
+        this.isDataChange = true;
+        if (type === 'create') {
+          // 存入 loopConfig.outputs_key
+          this.$set(this.basicInfo.loopConfig, 'outputs_key', key);
+        } else if (type === 'edit') {
+          this.$set(this.basicInfo.loopConfig, 'outputs_key', key);
+        } else if (type === 'delete') {
+          this.$delete(this.basicInfo.loopConfig, 'outputs_key');
+        }
         this.randomKey = new Date().getTime();
       },
       // 更新全局变量的 source_info
@@ -1563,8 +1617,54 @@
             ignorable,
             autoRetry,
             timeoutConfig,
+            loopConfig,
           } = this.basicInfo;
           const constants = {};
+          if (Array.isArray(loopConfig.loop_params) && loopConfig.loop_params.length > 0) {
+            const result = loopConfig.loop_params.reduce((obj, item) => {
+              if (item.name?.trim() && item.value?.trim()) {
+                if (!/^\$\{\w+\}$/.test(item.name)) {
+                  item.name = `\${${item.name}}`;
+                }
+                obj[item.name] = {
+                  value: item.value || '',
+                  is_quote: item.is_quote || false,
+                };
+              }
+              return obj;
+            }, {});
+            loopConfig.loop_params = result;
+          }
+          // 判断输入参数是否引用循环变量，并计算 loop_times
+          if (loopConfig.type === 'array_loop' && loopConfig.loop_params) {
+            const loopParamKeys = Object.keys(loopConfig.loop_params);
+            let minValueLength = 1;
+            loopParamKeys.forEach((loopKey) => {
+              loopConfig.loop_params[loopKey].is_quote = false;
+            });
+            Object.keys(this.inputsParamValue).forEach((key) => {
+              const paramValue = this.inputsParamValue[key];
+              loopParamKeys.forEach((loopKey) => {
+                const escapedKey = loopKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const pattern = new RegExp(`(?:^|[^\\w])${escapedKey}(?:[^\\w]|$)`);
+                if (pattern.test(paramValue)) {
+                  loopConfig.loop_params[loopKey].is_quote = true;
+                }
+              });
+            });
+            // 计算被引用变量的 value 长度最小值
+            const quotedValueLengths = [];
+            loopParamKeys.forEach((loopKey) => {
+              if (loopConfig.loop_params[loopKey].is_quote) {
+                const valueLength = loopConfig.loop_params[loopKey].value.split(',').length;
+                quotedValueLengths.push(valueLength);
+              }
+            });
+            if (quotedValueLengths.length > 0) {
+              minValueLength = Math.min(...quotedValueLengths);
+            }
+            loopConfig.loop_times = minValueLength;
+          }
           Object.keys(this.subflowForms).forEach((key) => {
             const constant = tools.deepClone(this.subflowForms[key]);
             if (constant.show_type === 'show') {
@@ -1590,6 +1690,7 @@
             error_ignorable: ignorable,
             auto_retry: autoRetry,
             timeout_config: timeoutConfig,
+            loop_config: loopConfig,
           });
           if (this.common) {
             config.executor_proxy = executor_proxy.join(',');
@@ -1835,6 +1936,7 @@
           this.variableData = {
             ...variableData,
             cited,
+            sourceKey: variable.sourceKey, // 保存原始参数 key，用于判断是否为循环输出变量
           };
         } else {
           this.variableData = {
@@ -1891,9 +1993,10 @@
               this.basicInfo[item] = this.basicInfo[item].trim();
             });
             const { alwaysUseLatest, latestVersion, version, skippable, retryable, selectable: optional,
-                    desc, nodeName, autoRetry, timeoutConfig, executor_proxy,
+                    desc, nodeName, autoRetry, timeoutConfig, executor_proxy, loopConfig,
             } = this.basicInfo;
-            const nodeData = { status: '', skippable, retryable, optional, auto_retry: autoRetry, timeout_config: timeoutConfig, isActived: false };
+            const nodeData = { status: '', skippable, retryable, optional, auto_retry: autoRetry,
+            timeout_config: timeoutConfig, isActived: false, loop_config: loopConfig };
             if (this.common) {
               nodeData.executor_proxy = executor_proxy.join(',');
             }
