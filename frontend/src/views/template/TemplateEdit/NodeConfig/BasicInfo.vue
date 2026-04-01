@@ -1149,8 +1149,8 @@
           }
           return this.$refs.subflowForm.validate();
         }
-          this.$refs.pluginForm.clearError();
-          return this.$refs.pluginForm.validate();
+        this.$refs.pluginForm.clearError();
+        return this.$refs.pluginForm.validate();
       },
       transformPluginDesc(data) {
         const info = data.replace(/\n/g, '<br>');

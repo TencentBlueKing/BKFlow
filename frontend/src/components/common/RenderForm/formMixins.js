@@ -432,14 +432,14 @@ export const getFormMixins = (attrs = {}) => {
         });
         const inputVar = constantArr.filter(item => item.source_type === 'component_inputs');
         const outputVar = constantArr.filter(item => item.source_type === 'component_outputs');
-        const custonVar = constantArr.filter(item => item.source_type === 'custom' && item.custom_type !== 'loop');
+        const customVar = constantArr.filter(item => item.source_type === 'custom' && item.custom_type !== 'loop');
         const keyList = [
           {
             name: '普通变量',
             type: 'custom',
             isCollapse: false,
             children: [
-              ...Object.values(custonVar),
+              ...Object.values(customVar),
             ],
           },
           {

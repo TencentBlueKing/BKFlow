@@ -94,16 +94,6 @@ export default {
       }
       const keyword = this.searchKeyword.toLowerCase();
       const filterList = this.varList.filter(group => group.name.toLowerCase().includes(keyword));
-          // if (group.name.toLowerCase().includes(keyword)) {
-          // }
-          // const filteredChildren = (group.children || []).filter(item => item.key.toLowerCase().includes(keyword)
-          //   || (item.name && item.name.toLowerCase().includes(keyword)));
-          // return {
-          //   ...group,
-          //   children: filteredChildren,
-          // };
-        // );
-        // .filter(group => group.children.length > 0);
       return filterList;
     },
   },
