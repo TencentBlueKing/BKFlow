@@ -8,19 +8,27 @@
     <body>
         <div id="app"></div>
         <script>
-            var SITE_URL = '/'
-            var BK_STATIC_URL = '/'
-            var REMOTE_STATIC_URL = ''
-            var MEMBER_SELECTOR_DATA_HOST = ''
-            var MAX_NODE_EXECUTE_TIMEOUT = 6000
-            var APP_CODE = ''
-            var USERNAME = 'admin'
-            var BK_DOC_URL = ''
+            var SITE_URL = "/";
+            var BK_STATIC_URL = "/";
+            var REMOTE_STATIC_URL = "";
+            var MEMBER_SELECTOR_DATA_HOST = '//open.woa.com/';
+            var MAX_NODE_EXECUTE_TIMEOUT = '86400';
+            var APP_CODE = 'bkflow-eng-svc'
+            var USERNAME = 'fannluo'
+            var BK_DOC_URL = 'https://bkdoc.bksaas.woa.com/markdown/ZH/BKFlow/1.8/UserGuide/Introduce/introduce.md'
+            var BK_PAAS_SHARED_RES_URL = 'https://staticfile.woa.com/bk-config'
+            var APP_NAME = 'BKFlow'
+            var RUN_VER_NAME = '蓝鲸智云'
+            var MESSAGE_HELPER_URL = ''
+            var LOGIN_URL = 'http://login.o.woa.com'
+            var BK_DOMAIN = 'woa.com';
+            var BK_PAAS_ESB_HOST = 'http://api.open.woa.com'
             var BKVISION_BASE_URL = ''
             var BKVISION_SYSTEM_DASHBOARD_UID = ''
             var BKVISION_SPACE_DASHBOARD_UID = ''
+
             // 是否开启通知中心
-            var ENABLE_NOTICE_CENTER = true
+            var ENABLE_NOTICE_CENTER = 1
             function getCookie(name) {
                 var arr, reg = new RegExp("(^| )" + name + "=([^;]*)(;|$)")
                 return (arr = document.cookie.match(reg)) ? unescape(arr[2]) : null
