@@ -408,6 +408,7 @@ class TaskInstanceViewSet(
 
         node_detail_result = node_operation.get_node_detail(
             subprocess_stack=query_ser.validated_data.get("subprocess_stack"),
+            component_code=query_ser.validated_data.get("component_code"),
             loop=query_ser.validated_data.get("loop"),
         )
         if not node_detail_result.result:

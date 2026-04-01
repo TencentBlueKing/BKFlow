@@ -57,9 +57,7 @@ class ComponentModelFilter(FilterSet):
 
 
 class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
-    queryset = ComponentModel.objects.filter(status=True).exclude(
-        code__in=["remote_plugin", "uniform_api", "subprocess_plugin"]
-    )
+    queryset = ComponentModel.objects.filter(status=True).exclude(code__in=["remote_plugin", "uniform_api"])
     retrieve_queryset = ComponentModel.objects.filter(status=True).order_by("name")
     serializer_class = ComponentModelListSerializer
     retrieve_serializer_class = ComponentModelDetailSerializer

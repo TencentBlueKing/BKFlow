@@ -412,3 +412,61 @@ class PipelineTemplateWebPreviewer:
                     }
 
         return {"has_cycle": False}
+
+    @staticmethod
+    def validate_loop_variables(pipeline_tree):
+        """
+        验证循环变量使用情况
+        - 检查循环次数与循环变量参数是否匹配
+        - 确保循环变量是否被多个节点使用
+        - 检查循环变量是否与全局变量冲突
+        """
+        loop_variable_usage = {}
+        global_variable_keys = set(pipeline_tree["constants"].keys())
+
+        conflicting_variables = []
+        conflicting_global_variables = []
+        loop_variables = []
+
+        for node_name, activity in pipeline_tree["activities"].items():
+            loop_config = activity.get("loop_config", {})
+            if not loop_config.get("enable", False) or loop_config.get("type") != "array_loop":
+                continue
+
+            loop_times = loop_config["loop_times"]
+            loop_params = loop_config.get("loop_params", {})
+
+            # 统计当前节点的循环变量
+            valid_loop_params = [
+                len(param.get("value", "").split(",")) for key, param in loop_params.items() if param.get("is_quote")
+            ]
+
+            # 如果没有有效的循环参数，跳过该节点的循环验证
+            if not valid_loop_params and loop_times != 1:
+                loop_variables.append(node_name)
+
+            # 验证循环次数与循环变量数量匹配
+            if valid_loop_params and loop_times != min(valid_loop_params):
+                loop_variables.append(node_name)
+
+            # 统计循环变量使用情况
+            for param_key, param_value in loop_params.items():
+                # 检查是否与全局变量冲突
+                if param_key in global_variable_keys:
+                    conflicting_global_variables.append(param_key)
+
+                # 检查是否被多个节点使用
+                if param_key in loop_variable_usage:
+                    conflicting_variables.append(param_key)
+                else:
+                    loop_variable_usage[param_key] = node_name
+
+        if loop_variables:
+            return {"has_loop": False, "error_message": f"节点 {'; '.join(loop_variables)} 的循环次数与循环变量参数不匹配"}
+        # 返回验证结果
+        if conflicting_variables:
+            return {"has_loop": False, "error_message": f"循环变量被多个节点使用: {'; '.join(conflicting_variables)}"}
+        if conflicting_global_variables:
+            return {"has_loop": False, "error_message": f"循环变量与全局变量冲突: {'; '.join(conflicting_global_variables)}"}
+
+        return {"has_loop": True}
