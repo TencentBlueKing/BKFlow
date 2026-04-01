@@ -13,7 +13,6 @@
           class="bk-select-search-input"
           @input="onSearch">
       </div>
-      <!-- </div> -->
       <div class="group-content">
         <div
           v-for="group in filteredGroupList"
