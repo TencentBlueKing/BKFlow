@@ -459,15 +459,17 @@ class TaskNodeOperation:
         api_result = bamboo_engine_api.get_data(runtime=self.runtime, node_id=self.node_id)
         if not api_result.result:
             return api_result
+        loop_retry = kwargs.get("loop", False)
         return bamboo_engine_api.retry_node(
-            runtime=self.runtime, node_id=self.node_id, data=kwargs.get("inputs") or None
+            runtime=self.runtime, node_id=self.node_id, data=kwargs.get("inputs") or None, loop_retry=loop_retry
         )
 
     @trace_task_operation("skip", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.skip.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def skip(self, operator: str, *args, **kwargs) -> OperationResult:
-        return bamboo_engine_api.skip_node(runtime=self.runtime, node_id=self.node_id)
+        loop_skip = kwargs.get("loop", False)
+        return bamboo_engine_api.skip_node(runtime=self.runtime, node_id=self.node_id, loop_skip=loop_skip)
 
     @trace_task_operation("callback", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.callback.name, TaskOperationSource.api.name)
@@ -512,7 +514,12 @@ class TaskNodeOperation:
     @trace_task_operation("get_node_detail", operation_type="task_node")
     @uniform_task_operation_result
     def get_node_detail(
-        self, subprocess_stack: List[str] = None, loop: Optional[int] = None, *args, **kwargs
+        self,
+        subprocess_stack: List[str] = None,
+        component_code: Optional[str] = None,
+        loop: Optional[int] = None,
+        *args,
+        **kwargs,
     ) -> OperationResult:
         if subprocess_stack is None:
             subprocess_stack = []
@@ -528,8 +535,9 @@ class TaskNodeOperation:
             detail = detail[self.node_id]
             # 默认只请求最后一次循环结果
             format_bamboo_engine_status(detail)
+            node_info = self.runtime.get_node(self.node_id)
             if loop is None or int(loop) >= detail["loop"]:
-                loop = detail["loop"]
+                loop = detail["loop"] if not node_info.loop_strategy else -1
                 hist_result = bamboo_engine_api.get_node_histories(runtime=runtime, node_id=self.node_id, loop=loop)
                 if not hist_result:
                     logger.exception("bamboo_engine_api.get_node_histories fail")
@@ -548,9 +556,42 @@ class TaskNodeOperation:
                 detail["history_id"] = hist_result.data[-1]["id"]
                 detail["version"] = hist_result.data[-1]["version"]
 
+            if node_info.loop_strategy and detail.get("histories"):
+                retry_max_loop = {detail["retry"]: detail["loop"]}
+                for h in detail["histories"]:
+                    retry = h.get("retry", 0)
+                    retry_max_loop[retry] = max(retry_max_loop.get(retry, 0), h.get("loop", 0))
+                for hist in detail["histories"]:
+                    hist["outputs"]["_loop"] = retry_max_loop[hist.get("retry", 0)]
+
             for hist in detail["histories"]:
-                # 重试记录必然是因为失败才重试
-                hist.setdefault("state", bamboo_engine_states.FAILED)
+                raw_inputs = hist["inputs"].get("subprocess")
+                raw_outputs = hist["outputs"]
+                if "outputs" in raw_outputs:
+                    raw_outputs.pop("outputs")
+                outputs = {"outputs": raw_outputs, "ex_data": raw_outputs.get("ex_data")}
+                if raw_inputs:
+                    inputs = raw_inputs["constants"]
+                    inputs = {key[2:-1]: value.get("value") for key, value in inputs.items()}
+                    hist["inputs"] = inputs
+
+                # 重试记录必然是因为失败才重试，设置了循环策略的节点只有成功才能接着循环
+                if node_info.loop_strategy:
+                    if hist["skip"] or hist["outputs"].get("_result"):
+                        state = bamboo_engine_states.FINISHED
+                    else:
+                        state = bamboo_engine_states.FAILED
+                else:
+                    state = bamboo_engine_states.FAILED
+                success, err, outputs_table = self._format_outputs(
+                    outputs=outputs,
+                    component_code=component_code,
+                    subprocess_stack=subprocess_stack,
+                )
+                if not success:
+                    return OperationResult(result=False, data={}, message=err)
+                hist["outputs"] = outputs_table
+                hist.setdefault("state", state)
                 hist["history_id"] = hist["id"]
                 format_bamboo_engine_status(hist)
         # 节点未执行
@@ -692,6 +733,8 @@ class TaskNodeOperation:
                 return OperationResult(result=False, data={}, message=err)
 
         # 根据传入的 component_code 对输出进行格式化
+        if "outputs" in outputs["outputs"]:
+            outputs["outputs"].pop("outputs")
         success, err, outputs_table = self._format_outputs(
             outputs=outputs,
             component_code=component_code,
@@ -773,6 +816,8 @@ class TaskNodeOperation:
                 # 在标准插件定义中的预设输出参数
                 archived_keys = []
                 for outputs_item in outputs_format:
+                    if outputs_item["key"] == "outputs":
+                        continue
                     value = outputs_data.get(outputs_item["key"], "")
                     outputs_table.append(
                         {"name": outputs_item["name"], "key": outputs_item["key"], "value": value, "preset": True}

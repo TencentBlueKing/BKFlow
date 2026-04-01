@@ -594,10 +594,14 @@ class TestTaskOperationComplete:
             "bamboo_engine.api.get_children_states",
             return_value=EngineAPIResult(result=True, data=mock_detail, message="success"),
         )
+        mock_node_info = mocker.MagicMock()
+        mock_node_info.loop_strategy = None
+        mocker.patch("pipeline.eri.runtime.BambooDjangoRuntime.get_node", return_value=mock_node_info)
         mock_histories = [
             {
                 "id": 1,
                 "version": "v1",
+                "inputs": {},
                 "outputs": {"ex_data": ""},
                 "state": bamboo_engine_states.FAILED,
                 "loop": 1,
@@ -608,6 +612,7 @@ class TestTaskOperationComplete:
             {
                 "id": 2,
                 "version": "v2",
+                "inputs": {},
                 "outputs": {"ex_data": ""},
                 "loop": 1,
                 "started_time": None,
