@@ -368,10 +368,6 @@
         type: Object,
         default: () => ({}),
       },
-      useCanvasEditor: {
-        type: Boolean,
-        default: false,
-      },
     },
     data() {
       const $this = this;
@@ -473,6 +469,7 @@
     computed: {
       ...mapState({
         view_mode: state => state.view_mode,
+        isIframe: state => state.isIframe,
         infoBasicConfig: state => state.infoBasicConfig,
         locations: state => state.template.location,
       }),
@@ -487,6 +484,12 @@
       },
       isBreadcrumbShow() {
         return this.completePipelineData.location.some(item => item.type === 'subflow');
+      },
+      useCanvasEditor() {
+        if (this.isIframe) {
+            return this.$route.query.useCanvasEditor === 'true';
+        }
+        return false;
       },
       canvasData() {
         const { line, location, activities } = { ... tools.deepClone(this.instanceFlow) };
