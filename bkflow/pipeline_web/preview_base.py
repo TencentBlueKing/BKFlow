@@ -422,7 +422,7 @@ class PipelineTemplateWebPreviewer:
         - 检查循环变量是否与全局变量冲突
         """
         loop_variable_usage = {}
-        global_variable_keys = set(pipeline_tree["constants"].keys())
+        global_variable_keys = set(pipeline_tree.get("constants", {}).keys())
 
         conflicting_variables = []
         conflicting_global_variables = []

@@ -55,7 +55,7 @@ class SleepTimerComponentTest(TestCase, ComponentTestMixin):
 
 INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 60, "force_check": True}
 VALID_DATETIME_INPUT = {
-    "bk_timing": (datetime.datetime.now() + datetime.timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M:%S"),
+    "bk_timing": (datetime.datetime.now() + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S"),
     "force_check": True,
 }
 VALID_SECONDS_INPUT = {"bk_timing": 10, "force_check": True}
