@@ -1003,7 +1003,7 @@
             operation: 'skip',
             data: {
               loop: isLoopOperate,
-            }
+            },
           };
           const res = await this.instanceNodeOperate(data);
           if (res.result) {
