@@ -562,7 +562,6 @@ class TaskNodeOperation:
                     retry = h.get("retry", 0)
                     retry_max_loop[retry] = max(retry_max_loop.get(retry, 0), h.get("loop", 0))
                 for hist in detail["histories"]:
-                    # hist["loop"] = retry_max_loop[hist.get("retry", 0)]
                     hist["outputs"]["_loop"] = retry_max_loop[hist.get("retry", 0)]
 
             for hist in detail["histories"]:

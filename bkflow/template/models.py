@@ -266,7 +266,7 @@ class Template(CommonModel):
         outputs = {}
         for key in outputs_key:
             if key in data["constants"]:
-                output = data["constants"][key]
+                output = deepcopy(data["constants"][key])
                 if output["key"].startswith("${") and output["key"].endswith("}"):
                     output["key"] = output["key"][2:-1]
                 outputs[key] = output
