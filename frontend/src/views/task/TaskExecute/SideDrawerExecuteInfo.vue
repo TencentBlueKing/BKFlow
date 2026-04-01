@@ -468,10 +468,6 @@
         if (['FAILED', 'FINISHED'].includes(this.state) && this.realTimeState.state === 'READY') return i18n.t('未执行');
         const { state, skip, error_ignored: errorIgnored } = this.realTimeState;
         const isErrorAfterSkip = skip || errorIgnored;
-        if (isErrorAfterSkip) {
-          this.isShowSkipBtn = false;
-          this.isShowRetryBtn = false;
-        }
         return isErrorAfterSkip ? i18n.t('失败后跳过') : state && TASK_STATE_DICT[state];
       },
       // 节点位置
@@ -588,6 +584,16 @@
       },
     },
     watch: {
+      realTimeState: {
+        handler(val) {
+          if (val.skip || val.error_ignored) {
+            this.isShowSkipBtn = false;
+            this.isShowRetryBtn = false;
+          }
+        },
+        deep: true,
+        immediate: true,
+      },
       nodeDetailConfig: {
         async handler(val, oldVal) {
           if (val.node_id !== undefined && !tools.isDataEqual(val, oldVal)) {
