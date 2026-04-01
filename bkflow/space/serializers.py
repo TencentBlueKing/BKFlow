@@ -81,3 +81,8 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
             logger.exception(f"[validate_configs] error: {e}")
             raise serializers.ValidationError(e.message)
         return configs
+
+
+class SpaceConfigBatchDeleteSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    ids = serializers.ListField(child=serializers.IntegerField(), help_text=_("空间配置ID列表"), min_length=1)
