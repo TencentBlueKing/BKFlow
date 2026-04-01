@@ -663,6 +663,9 @@
           // 内置插件
           const atomList = [];
           data.forEach((item) => {
+            if (item.code === 'subprocess_plugin') {
+              return;
+            }
             const atom = atomList.find(atom => atom.code === item.code);
             if (atom) {
               atom.list.push(item);
@@ -1737,7 +1740,7 @@
         const location = this.locations.find(item => item.id === id);
         const updatedLocation = Object.assign(location, data);
         this.setLocation({ type: 'edit', location: updatedLocation });
-        const { name, stage_name, group, icon, code } = location;
+        const { name, stage_name, group, icon, code, type, mode } = location;
         this.$refs.processCanvas.onUpdateNodeInfo(id, {
           ...data,
           name,
@@ -1745,6 +1748,8 @@
           group,
           icon,
           code,
+          type,
+          mode: mode || this.type,
         });
       },
       async jumpToTemplateMock() {

@@ -285,6 +285,7 @@ const template = {
                     seconds: 10,
                     action: 'forced_fail',
                   },
+                  loop_config: node.loop_config || {},
                 });
                 return loc;
               }
@@ -1259,7 +1260,7 @@ const template = {
     },
     // 获取凭证列表
     getCredentialList({}, data) {
-      return axios.get(`/api/template/${data.template_id}/credentials/`, {params: data }).then(response => response.data);
+      return axios.get(`/api/template/${data.template_id}/credentials/`, { params: data }).then(response => response.data);
     },
   },
   getters: {
