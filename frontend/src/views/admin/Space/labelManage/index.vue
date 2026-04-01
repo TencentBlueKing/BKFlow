@@ -241,13 +241,11 @@ export default {
 
                 // 1. 获取标签列表
                 const res = await this.loadLabelList(params);
-                const list = res.data?.results.map(item =>
-                        // 拼接 full_path
-                        ({
-                            ...item,
-                            childrenLoading: false,
-                        })
-                    ) || [];
+                // 拼接 full_path
+                const list = res.data?.results.map(item => ({
+                    ...item,
+                    childrenLoading: false,
+                })) || [];
 
                 // 2. 获取引用数据
                 let referenceMap = {};
