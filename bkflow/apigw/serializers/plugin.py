@@ -26,7 +26,7 @@ class ListPluginsSerializer(serializers.Serializer):
     plugin_type = serializers.ChoiceField(
         required=False, choices=[(t, t) for t in VALID_PLUGIN_TYPES], help_text="按类型过滤"
     )
-    without_detail = serializers.BooleanField(required=False, default=True, help_text="true 只返回摘要")
+    with_detail = serializers.BooleanField(required=False, default=False, help_text="true 返回完整 schema")
     scope_type = serializers.CharField(required=False, help_text="scope 类型")
     scope_id = serializers.CharField(required=False, help_text="scope ID")
     limit = serializers.IntegerField(required=False, default=100, min_value=1, max_value=200, help_text="分页大小")

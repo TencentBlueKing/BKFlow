@@ -615,13 +615,13 @@ paths:
                           description: 分组名称
                         inputs:
                           type: array
-                          description: 输入参数列表（without_detail=false 时返回）
+                          description: 输入参数列表（with_detail=true 时返回）
                           items:
                             type: object
                             additionalProperties: true
                         outputs:
                           type: array
-                          description: 输出参数列表（without_detail=false 时返回）
+                          description: 输出参数列表（with_detail=true 时返回）
                           items:
                             type: object
                             additionalProperties: true
@@ -661,12 +661,12 @@ paths:
         required: false
         description: 按类型过滤
       - in: query
-        name: without_detail
+        name: with_detail
         schema:
           type: boolean
-          default: true
+          default: false
         required: false
-        description: 默认 true 只返回摘要，false 返回完整 schema
+        description: 默认 false 只返回摘要，true 返回完整 schema
       - in: query
         name: scope_type
         schema:

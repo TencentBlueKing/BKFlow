@@ -51,7 +51,7 @@ class TestListComponentPlugins:
         mock_cm.objects.filter.return_value.exclude.return_value = mock_qs
 
         service = PluginSchemaService(space_id=1)
-        plugins, count = service.list_plugins(plugin_type="component", without_detail=True)
+        plugins, count = service.list_plugins(plugin_type="component")
 
         assert count == 2
         assert plugins[0]["code"] == "job_fast_execute_script"
@@ -79,7 +79,7 @@ class TestListComponentPlugins:
         mock_cm.objects.filter.return_value.exclude.return_value = mock_qs
 
         service = PluginSchemaService(space_id=1)
-        plugins, count = service.list_plugins(plugin_type="component", keyword="脚本", without_detail=True)
+        plugins, count = service.list_plugins(plugin_type="component", keyword="脚本")
 
         assert count == 1
         assert plugins[0]["code"] == "job_fast_execute_script"
