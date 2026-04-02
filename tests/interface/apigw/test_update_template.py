@@ -17,14 +17,9 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import json
+import uuid
 from unittest.mock import patch
 
-from bamboo_engine.builder import (
-    EmptyEndEvent,
-    EmptyStartEvent,
-    ServiceActivity,
-    build_tree,
-)
 from blueapps.account.models import User
 from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
@@ -40,15 +35,54 @@ class TestUpdateTemplate(TestCase):
         self.admin_user = User.objects.create_superuser(username="test_admin", password="password")
 
     def build_pipeline_tree(self):
-        start = EmptyStartEvent()
-        act_1 = ServiceActivity(component_code="example_component")
-        end = EmptyEndEvent()
+        start_id = "e" + uuid.uuid4().hex
+        end_id = "e" + uuid.uuid4().hex
+        act_id = "e" + uuid.uuid4().hex
+        flow1_id = "f" + uuid.uuid4().hex
+        flow2_id = "f" + uuid.uuid4().hex
 
-        start.extend(act_1).extend(end)
-
-        pipeline = build_tree(start, data={"test": "test"})
-
-        return pipeline
+        return {
+            "id": "p" + uuid.uuid4().hex,
+            "start_event": {
+                "id": start_id,
+                "name": "开始",
+                "type": "EmptyStartEvent",
+                "incoming": "",
+                "outgoing": flow1_id,
+            },
+            "end_event": {
+                "id": end_id,
+                "name": "结束",
+                "type": "EmptyEndEvent",
+                "incoming": flow2_id,
+                "outgoing": "",
+            },
+            "activities": {
+                act_id: {
+                    "id": act_id,
+                    "type": "ServiceActivity",
+                    "name": "示例节点",
+                    "incoming": flow1_id,
+                    "outgoing": flow2_id,
+                    "component": {
+                        "code": "example_component",
+                        "data": {},
+                    },
+                    "error_ignorable": False,
+                    "timeout": None,
+                    "skippable": True,
+                    "retryable": True,
+                    "optional": False,
+                }
+            },
+            "flows": {
+                flow1_id: {"id": flow1_id, "source": start_id, "target": act_id},
+                flow2_id: {"id": flow2_id, "source": act_id, "target": end_id},
+            },
+            "gateways": {},
+            "constants": {},
+            "outputs": [],
+        }
 
     def create_space(self):
         return Space.objects.create(app_code="test", platform_url="http://test.com", name="space")
