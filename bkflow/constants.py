@@ -144,3 +144,9 @@ class TriggerConstantsMode(Enum):
 
     FORM = "form"
     JSON = "json"
+
+
+class ValidateType(Enum):
+    TEMPLATE = "template"
+    TASK = "task"
+    GENERAL = "general"

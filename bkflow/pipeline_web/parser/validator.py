@@ -25,6 +25,7 @@ from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.eri.utils import CONTEXT_VALUE_TYPE_MAP
 from pipeline.validators import validate_pipeline_tree
 
+from bkflow.constants import ValidateType
 from bkflow.pipeline_web import exceptions
 from bkflow.pipeline_web.parser.format import classify_constants
 from bkflow.pipeline_web.parser.schemas import KEY_PATTERN_RE, WEB_PIPELINE_SCHEMA
@@ -95,3 +96,41 @@ def validate_web_pipeline_tree(web_pipeline_tree):
         raise exceptions.ParserWebTreeException(f"变量配置校验失败: {str(e)}")
 
     validate_pipeline_tree(web_pipeline_tree, cycle_tolerate=True)
+
+
+class ValidatorHandler:
+    """校验器处理器"""
+
+    __hub = {}
+
+    @classmethod
+    def register(cls, validator_cls) -> None:
+        """注册校验器类"""
+        if validator_cls.name is None:
+            raise ValueError(f"校验器 {validator_cls.__name__} 的 name 属性不能为 None")
+        cls.__hub[validator_cls.name] = validator_cls
+
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict, is_template: bool = False, is_task: bool = False):
+        validators_to_run = []
+        for validator_name, validator_cls in cls.__hub.items():
+            # 获取校验器的类型
+            validator_type = getattr(validator_cls, "validate_type", None)
+
+            if is_template:
+                # 模板类型：执行模板类型和通用类型的校验器
+                if validator_type in [ValidateType.TEMPLATE.value, ValidateType.GENERAL.value]:
+                    validators_to_run.append((validator_name, validator_cls))
+            elif is_task:
+                # 任务类型：执行任务类型和通用类型的校验器
+                if validator_type in [ValidateType.TASK.value, ValidateType.GENERAL.value]:
+                    validators_to_run.append((validator_name, validator_cls))
+            else:
+                # 默认行为：执行所有校验器
+                validators_to_run.append((validator_name, validator_cls))
+
+        for validator_name, validator_cls in validators_to_run:
+            validator = validator_cls()
+            result = validator.validate(web_pipeline_tree)
+            if not result.is_valid:
+                raise ValueError(result.error)

@@ -25,7 +25,7 @@ from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TASK_NAME, USER_NAME_MAX_LENGTH
-from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
+from bkflow.pipeline_web.parser.validator import ValidatorHandler
 from bkflow.template.models import TemplateMockData
 from bkflow.utils.strings import standardize_pipeline_node_name
 
@@ -164,7 +164,7 @@ class PipelineTreeSerializer(serializers.Serializer):
     def validate_pipeline_tree(self, pipeline_tree):
         try:
             standardize_pipeline_node_name(pipeline_tree)
-            validate_web_pipeline_tree(pipeline_tree)
+            ValidatorHandler.validate(pipeline_tree, is_task=True)
         except PipelineException as e:
             raise serializers.ValidationError(_("流程树校验失败: {}").format(str(e)))
 

@@ -19,10 +19,10 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.utils.translation import ugettext_lazy as _
-from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TEMPLATE_NAME, USER_NAME_MAX_LENGTH
+from bkflow.pipeline_web.parser.validator import ValidatorHandler
 from bkflow.space.models import Space
 from bkflow.template.models import Template
 
@@ -75,7 +75,7 @@ class CreateTemplateSerializer(serializers.Serializer):
 
         if pipeline_tree:
             try:
-                validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
+                ValidatorHandler.validate(pipeline_tree, is_template=True)
             except Exception as e:
                 logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
                 raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
@@ -130,7 +130,7 @@ class UpdateTemplateSerializer(serializers.Serializer):
 
         if pipeline_tree:
             try:
-                validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
+                ValidatorHandler.validate(pipeline_tree, is_template=True)
             except Exception as e:
                 logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
                 raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))

@@ -24,7 +24,7 @@ from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
 from bkflow.constants import TaskOperationSource, TaskOperationType
-from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
+from bkflow.pipeline_web.parser.validator import ValidatorHandler
 from bkflow.task.models import (
     EngineSpaceConfigValueType,
     PeriodicTask,
@@ -96,7 +96,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
                 pipeline_tree["credentials"] = credentials
 
             standardize_pipeline_node_name(pipeline_tree)
-            validate_web_pipeline_tree(pipeline_tree)
+            ValidatorHandler.validate(pipeline_tree, is_task=True)
         except PipelineException as e:
             msg = f"[API] create_task get invalid pipeline_tree: {e}"
             logger.exception(msg)
