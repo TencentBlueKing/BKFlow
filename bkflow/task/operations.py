@@ -47,11 +47,12 @@ from bkflow.constants import (
     TaskOperationType,
     TaskStates,
 )
+from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
 from bkflow.task.context import SystemObject
-from bkflow.task.models import EngineSpaceConfig, TaskInstance
+from bkflow.task.models import TaskInstance
 from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.canvas import get_variable_mapping
@@ -174,24 +175,14 @@ class TaskOperation:
             )
             system_obj = SystemObject(root_pipeline_data)
             root_pipeline_context = {"${_system}": system_obj}
-
-            # 读取 引擎模块配置 注入空间和域变量
-            engine_var = EngineSpaceConfig.get_space_var(space_id=self.task_instance.space_id)
-            space_var = engine_var.get("space", None)
-            scope_var = engine_var.get("scope", None)
-
-            scope_type, scope_id = root_pipeline_data.get("task_scope_type"), root_pipeline_data.get("task_scope_value")
-
-            if scope_type is not None and scope_id is not None and space_var is not None:
-                # 域变量 存在则加入
-                scope_var = scope_var.get(f"{scope_type}_{scope_id}", None)
-                if scope_var is not None:
-                    scope_obj = SystemObject(scope_var)
-                    root_pipeline_context.update({"${_scope}": scope_obj})
-            if space_var is not None:
-                # 空间变量 存在则加入
-                space_obj = SystemObject(space_var)
-                root_pipeline_context.update({"${_space}": space_obj})
+            # 获取空间变量
+            space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
+            if not space_var.get("result"):
+                logger.error("get space variable failed: %s", space_var.get("message"))
+                space_var_data = {}
+            else:
+                space_var_data = space_var.get("data", {})
+            root_pipeline_context.update(space_var_data)
 
             # 创建执行级根 Span，将 trace context 注入 pipeline data，
             # 后续插件 Span 通过这些 ID 建立父子关系
@@ -644,17 +635,14 @@ class TaskNodeOperation:
                 root_pipeline_data = get_pipeline_context(
                     self.task_instance, obj_type="instance", data_type="data", username=username
                 )
-                # TODO： 补充系统变量
-                # system_obj = SystemObject(root_pipeline_data)
-                # root_pipeline_context = {"${_system}": {"type": "plain", "value": system_obj}}
-                root_pipeline_context = {}
-                # TODO： 补充空间变量
-                # root_pipeline_context.update(
-                #     {
-                #         key: {"type": "plain", "value": value}
-                #         for key, value in get_project_constants_context(kwargs["project_id"]).items()
-                #     }
-                # )
+                # 补充系统变量
+                system_obj = SystemObject(root_pipeline_data)
+                root_pipeline_context = {"${_system}": {"type": "plain", "value": system_obj}}
+                # 补充空间变量
+                space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
+                root_pipeline_context.update(
+                    {key: {"type": "plain", "value": value} for key, value in space_var["data"].items()}
+                )
                 existing_context_values = runtime.get_context(self.task_instance.instance_id)
                 root_pipeline_context.update(
                     {
