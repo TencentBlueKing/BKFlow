@@ -58,7 +58,8 @@ class BasePipelineValidator:
 
         ValidatorHandler.register(cls)
 
-    def validate(self, web_pipeline_tree: Dict) -> ValidatorResult:
+    @classmethod
+    def validate(cls, web_pipeline_tree: Dict) -> ValidatorResult:
         raise NotImplementedError("子类必须实现 validate 方法")
 
 
