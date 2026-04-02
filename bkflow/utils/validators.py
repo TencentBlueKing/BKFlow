@@ -251,7 +251,7 @@ class MutualExclusionValidator(BasePipelineValidator):
             # 获取三个配置的状态
             timeout_enabled = act.get("timeout_config", {}).get("enable", False)
             auto_retry_enabled = act.get("auto_retry", {}).get("enable", False)
-            skip_enabled = act["error_ignorable"]
+            skip_enabled = act.get("error_ignorable", False)
 
             # 统计同时开启的配置数量
             enabled_count = sum([timeout_enabled, auto_retry_enabled, skip_enabled])
