@@ -46,7 +46,7 @@
         }"
         class="common-icon-jump-link"
         :target="isIframe ? '_self' : '_blank'"
-        :to="isIframe ? '#' : `/template/view/${templateId}/`"
+        :to="isIframe ? { path: '#', params: { ...$route.params }, query: { ...$route.query } } : `/template/view/${templateId}/`"
         @click.native="handleLinkClick" />
     </div>
     <div
