@@ -47,9 +47,6 @@ class BasePipelineValidator:
     def __init_subclass__(cls, *args, **kwargs):
         super().__init_subclass__(*args, **kwargs)
 
-        if cls.__name__ == "BasePipelineValidator":
-            return
-
         # 检查继承的类中是否有 validate 方法
         if not hasattr(cls, "validate"):
             raise ValueError(f"[{cls.__name__}] Missing required method: validate")
@@ -228,8 +225,13 @@ class MakoKeywordValidator(BasePipelineValidator):
 
         # 遍历所有常量变量
         for key, const in web_pipeline_tree["constants"].items():
-            # 检查变量key是否在Mako保留关键字列表中
-            if key in RESERVED_NAMES:
+            # key 格式为 ${variable_name}，需提取内部变量名再与 Mako 保留关键字比对
+            match = KEY_PATTERN_RE.match(key)
+            if not match:
+                continue
+            # 提取 ${ 和 } 之间的变量名
+            var_name = key[2:-1]
+            if var_name in RESERVED_NAMES:
                 validation_errors.append(key)
 
         if validation_errors:
