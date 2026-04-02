@@ -10,7 +10,7 @@
       <bk-button
         theme="primary"
         :disabled="!spaceId"
-        @click="showCreateLabelDialog = true">
+        @click="onCreateLabel">
         {{ $t("新增标签") }}
       </bk-button>
     </table-operate>
@@ -307,6 +307,11 @@ export default {
         onEditLabel(label) {
             this.editLabel = label;
             this.isEdit = true;
+            this.showCreateLabelDialog = true;
+        },
+        onCreateLabel() {
+            this.editLabel = {};
+            this.isEdit = false;
             this.showCreateLabelDialog = true;
         },
         onDeleteLabel(id) {

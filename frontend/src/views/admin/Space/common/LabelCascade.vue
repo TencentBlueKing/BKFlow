@@ -147,6 +147,7 @@ export default {
                 this.labelIds = val.map(item => item.id);
             },
             immediate: true,
+            deep: true,
         },
         searchStr() {
             tools.throttle(this.getLabelList, 300).call(this);
@@ -333,8 +334,10 @@ export default {
         },
         async onCreateLabelDone(label) {
             // 新建后自动选中新建的标签
-            this.selectLabelList.push(label);
+            this.handleCheck(label);
             this.$emit('confirm', this.selectLabelList);
+            this.isInitialized = false;
+            this.needReload = true;
         },
     },
 };
