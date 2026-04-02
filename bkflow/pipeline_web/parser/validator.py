@@ -23,6 +23,7 @@ from bamboo_engine.eri import ContextValue, ContextValueType
 from jsonschema import Draft4Validator
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.eri.utils import CONTEXT_VALUE_TYPE_MAP
+from pipeline.exceptions import PipelineException
 from pipeline.validators import validate_pipeline_tree
 
 from bkflow.constants import ValidateType
@@ -130,7 +131,6 @@ class ValidatorHandler:
                 validators_to_run.append((validator_name, validator_cls))
 
         for validator_name, validator_cls in validators_to_run:
-            validator = validator_cls()
-            result = validator.validate(web_pipeline_tree)
+            result = validator_cls.validate(web_pipeline_tree)
             if not result.is_valid:
-                raise ValueError(result.error)
+                raise PipelineException(result.error)

@@ -20,7 +20,6 @@ import copy
 import logging
 
 import jsonschema
-from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
 from bkflow.constants import TaskOperationSource, TaskOperationType
@@ -97,7 +96,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
 
             standardize_pipeline_node_name(pipeline_tree)
             ValidatorHandler.validate(pipeline_tree, is_task=True)
-        except PipelineException as e:
+        except Exception as e:
             msg = f"[API] create_task get invalid pipeline_tree: {e}"
             logger.exception(msg)
             raise serializers.ValidationError({"pipeline_tree": str(e)})

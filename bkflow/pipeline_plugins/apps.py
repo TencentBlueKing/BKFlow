@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -26,4 +25,4 @@ class PipelinePluginsConfig(AppConfig):
     name = "bkflow.pipeline_plugins"
 
     def ready(self):
-        pass
+        import bkflow.utils.validators  # noqa 触发 BasePipelineValidator 子类注册到 ValidatorHandler

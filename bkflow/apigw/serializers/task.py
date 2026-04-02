@@ -21,7 +21,6 @@ import binascii
 import json
 
 from django.utils.translation import ugettext_lazy as _
-from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TASK_NAME, USER_NAME_MAX_LENGTH
@@ -165,7 +164,7 @@ class PipelineTreeSerializer(serializers.Serializer):
         try:
             standardize_pipeline_node_name(pipeline_tree)
             ValidatorHandler.validate(pipeline_tree, is_task=True)
-        except PipelineException as e:
+        except Exception as e:
             raise serializers.ValidationError(_("流程树校验失败: {}").format(str(e)))
 
 

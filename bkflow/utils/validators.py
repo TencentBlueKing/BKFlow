@@ -16,8 +16,6 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-import re
-from collections import defaultdict
 from typing import Dict
 
 from bamboo_engine.context import Context
@@ -26,12 +24,14 @@ from jsonschema import Draft4Validator
 from mako.codegen import RESERVED_NAMES
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.eri.utils import CONTEXT_VALUE_TYPE_MAP
+from pipeline.exceptions import PipelineException
 from pipeline.validators import validate_pipeline_tree
 
 from bkflow.constants import ValidateType
 from bkflow.pipeline_web.parser.format import classify_constants
 from bkflow.pipeline_web.parser.schemas import KEY_PATTERN_RE, WEB_PIPELINE_SCHEMA
 from bkflow.pipeline_web.parser.validator import ValidatorHandler
+from bkflow.utils.pipeline import validate_pipeline_tree_constants
 
 
 class ValidatorResult:
@@ -77,7 +77,8 @@ class SchemaValidator(BasePipelineValidator):
     name = "schema_validator"
     validate_type = ValidateType.TEMPLATE.value
 
-    def validate(self, web_pipeline_tree: dict) -> ValidatorResult:
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
         valid = Draft4Validator(WEB_PIPELINE_SCHEMA)
         errors = []
         for error in sorted(valid.iter_errors(web_pipeline_tree), key=str):
@@ -94,7 +95,8 @@ class ConstantsKeyPatternValidator(BasePipelineValidator):
     name = "constants_key_pattern_validator"
     validate_type = ValidateType.TEMPLATE.value
 
-    def validate(self, web_pipeline_tree: dict) -> ValidatorResult:
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
         key_validation_errors = []
 
         for key, const in web_pipeline_tree["constants"].items():
@@ -119,7 +121,8 @@ class ConstantsSourceInfoValidator(BasePipelineValidator):
     name = "constants_source_info_validator"
     validate_type = ValidateType.TEMPLATE.value
 
-    def validate(self, web_pipeline_tree: dict) -> ValidatorResult:
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
         """执行Constants Source Info校验"""
         key_validation_errors = []
         classification = classify_constants(web_pipeline_tree["constants"], is_subprocess=False)
@@ -150,7 +153,8 @@ class OutputsKeyPatternValidator(BasePipelineValidator):
     name = "outputs_key_pattern_validator"
     validate_type = ValidateType.TEMPLATE.value
 
-    def validate(self, web_pipeline_tree: dict) -> ValidatorResult:
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
         key_validation_errors = []
 
         for output_key in web_pipeline_tree["outputs"]:
@@ -167,9 +171,16 @@ class ContextHydrateValidator(BasePipelineValidator):
     name = "context_hydrate_validator"
     validate_type = ValidateType.TASK.value
 
-    def validate(self, web_pipeline_tree: dict) -> ValidatorResult:
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
         context_values = []
         classification = classify_constants(web_pipeline_tree["constants"], is_subprocess=False)
+
+        try:
+            validate_pipeline_tree_constants(web_pipeline_tree["constants"])
+        except PipelineException as e:
+            error_message = f"变量预渲染失败: {str(e)}"
+            return ValidatorResult(is_valid=False, error=error_message)
 
         for key, const in web_pipeline_tree["constants"].items():
             key_value = const.get("key")
@@ -197,7 +208,8 @@ class PipelineTreeValidator(BasePipelineValidator):
     name = "pipeline_tree_validator"
     validate_type = ValidateType.GENERAL.value
 
-    def validate(self, web_pipeline_tree: dict) -> ValidatorResult:
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
         try:
             validate_pipeline_tree(web_pipeline_tree, cycle_tolerate=True)
             return ValidatorResult(is_valid=True)
@@ -206,81 +218,12 @@ class PipelineTreeValidator(BasePipelineValidator):
             return ValidatorResult(is_valid=False, error=error_message)
 
 
-class ConstantLoopReferenceValidator(BasePipelineValidator):
-    name = "constant_loop_reference_validator"
-    validate_type = ValidateType.TASK.value
-
-    def validate(self, web_pipeline_tree: dict) -> ValidatorResult:
-        validation_errors = []
-
-        graph = defaultdict(set)
-        constant_values = {}
-
-        # 首先构建参数值映射表
-        constants = web_pipeline_tree["constants"]
-        for key, const in constants.items():
-            value = const.get("value") if isinstance(const, dict) else const
-            constant_values[key] = str(value) if value is not None else ""
-
-        # 构建依赖关系图
-        for key, value in constant_values.items():
-            if not value:
-                continue
-
-            # 检查当前参数值中引用的所有参数
-            referenced_keys = set()
-            for other_key in constant_values:
-                if re.search(re.escape(other_key), value):
-                    referenced_keys.add(other_key)
-
-            # 分离出自引用和其他引用
-            if key in referenced_keys:
-                validation_errors.append(key)
-                referenced_keys.remove(key)
-
-            # 记录非自引用的依赖关系
-            if referenced_keys:
-                graph[key] = referenced_keys
-
-        # 如果发现自引用立即报错
-        if validation_errors:
-            error_message = "常量 {} 的值不能引用自身作为值".format(", ".join(validation_errors))
-            return ValidatorResult(is_valid=False, error=error_message)
-
-        visited = set()
-        recursion_stack = []
-
-        def has_cycle(node):
-            """深度优先搜索检测环路"""
-            visited.add(node)
-            recursion_stack.append(node)
-
-            # 遍历当前节点的所有依赖项
-            for neighbor in graph.get(node, set()):
-                if neighbor not in visited:
-                    if has_cycle(neighbor):
-                        return True
-                elif neighbor in recursion_stack:
-                    return True
-
-            recursion_stack.remove(node)
-            return False
-
-        # 对每个未访问的节点进行检查
-        for node in graph:
-            if node not in visited and has_cycle(node):
-                # 记录环路涉及到的节点
-                error_message = "检测到常量 {} 存在循环引用".format(", ".join(recursion_stack))
-                return ValidatorResult(is_valid=False, error=error_message)
-
-        return ValidatorResult(is_valid=True)
-
-
 class MakoKeywordValidator(BasePipelineValidator):
     name = "mako_keyword_validator"
     validate_type = ValidateType.TASK.value
 
-    def validate(self, web_pipeline_tree: dict) -> ValidatorResult:
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
         validation_errors = []
 
         # 遍历所有常量变量
@@ -300,7 +243,8 @@ class MutualExclusionValidator(BasePipelineValidator):
     name = "mutual_exclusion_validator"
     validate_type = ValidateType.TEMPLATE.value
 
-    def validate(self, web_pipeline_tree: dict) -> ValidatorResult:
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
         """校验节点配置：自动跳过、自动重试和超时控制不能同时打开两个或两个以上"""
 
         for act_id, act in list(web_pipeline_tree["activities"].items()):
