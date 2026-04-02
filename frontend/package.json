@@ -35,7 +35,7 @@
     "jquery": "^3.2.1",
     "js-cookie": "^3.0.1",
     "jsencrypt": "2.3.0",
-    "lodash": "^4.17.12",
+    "lodash": "^4.17.21",
     "marked": "^4.2.2",
     "monaco-editor": "^0.50.0",
     "monaco-editor-webpack-plugin": "^7.1.0",
