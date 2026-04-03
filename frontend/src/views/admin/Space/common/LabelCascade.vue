@@ -118,6 +118,11 @@ export default {
             type: String,
             default: '',
         },
+        // 外部点击标签删除，需要触发确认事件，刷新列表选中态
+        needUpdate: {
+            type: Boolean,
+            default: false,
+        },
     },
     data() {
         return {
@@ -315,7 +320,7 @@ export default {
         hide() {
             this.isShow = false;
             const isEqual = tools.isDataEqual(this.value, this.selectLabelList);
-            if (isEqual) return;
+            if (isEqual && !this.needUpdate) return;
             this.$emit('confirm', this.selectLabelList);
             this.needReload = true;
         },

@@ -71,6 +71,7 @@
             <label-cascade
               :value="props.row.labels"
               scope="template"
+              :need-update="needUpdate"
               @confirm="onConfirmEditLabel(props.row, $event)">
               <template #trigger="{ list, isShow }">
                 <div
@@ -479,6 +480,7 @@ export default {
             isSelectCopySubflow: false,
             copyTemplateId: null,
             referencedProcessList: [], // 引用的流程列表
+            needUpdate: false, // 是否需要更新标签
         };
     },
     computed: {
@@ -840,6 +842,7 @@ export default {
         onDeleteLabel(row, label) {
             const filterLabel = row.labels.filter(item => item.id !== label.id);
             this.$set(row, 'labels', filterLabel);
+            this.needUpdate = true;
         },
         async onConfirmEditLabel(template, labels) {
             const data = {
@@ -858,6 +861,7 @@ export default {
                     type: 'view',
                 },
             });
+            this.needUpdate = false;
         },
     },
 };
