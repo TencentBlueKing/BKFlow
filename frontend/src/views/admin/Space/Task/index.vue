@@ -63,6 +63,7 @@
             <label-cascade
               :value="props.row.labels"
               scope="task"
+              :need-update="needUpdate"
               @confirm="onConfirmEditLabel(props.row, $event)">
               <template #trigger="{ list, isShow }">
                 <div
@@ -307,6 +308,7 @@ export default {
             searchList: SEARCH_LIST,
             pageType: 'taskList', // 页面类型，在mixins中分页表格头显示使用
             triggerMethodName: TRIGGER_METHOD,
+            needUpdate: false,
         };
     },
     computed: {
@@ -521,6 +523,7 @@ export default {
             if (!row || !label) return;
             const filterLabel = row.labels.filter(item => item.id !== label.id);
             this.$set(row, 'labels', filterLabel);
+            this.needUpdate = true;
         },
         async onConfirmEditLabel(task, labels) {
             const data = {
@@ -530,6 +533,7 @@ export default {
             };
             await this.updateTaskLabel(data);
             this.getTaskList();
+            this.needUpdate = false;
         },
     },
 };
