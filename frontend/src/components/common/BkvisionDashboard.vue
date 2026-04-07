@@ -1,5 +1,5 @@
 <template>
-  <div class="bkvision-dashboard">
+  <div :class="['bkvision-dashboard', { 'is-empty': !dashboardUid || !sdkUrl }]">
     <div
       v-if="dashboardUid && sdkUrl"
       :id="containerId"
@@ -29,7 +29,6 @@
     data() {
       return {
         containerId: `bk-vision-${uuid()}`,
-        sdkLoaded: false,
       };
     },
     computed: {
@@ -97,14 +96,18 @@
 </script>
 
 <style lang="scss" scoped>
-  .bkvision-dashboard,
+  .bkvision-dashboard {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    &.is-empty {
+      min-height: calc(100vh - 100px);
+    }
+  }
   .dashboard-container {
     width: 100%;
     height: 100%;
-  }
-  .dashboard-empty {
-    margin-top: 50%;
-    margin-left: 50%;
-    transform: translate(-50%, -50%);
   }
 </style>
