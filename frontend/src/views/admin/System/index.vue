@@ -1,19 +1,29 @@
 <template>
   <div class="system-admin">
     <component
-      :is="activeTab === 'space' ? 'SpaceConfig' : 'ModuleList'"
-      :key="activeTab" />
+      :is="currentComponent"
+      :key="activeTab"
+      :dashboard-uid="systemDashboardUid" />
   </div>
 </template>
 
 <script>
   import ModuleList from './Module/index.vue';
   import SpaceConfig from './SpaceConfig/index.vue';
+  import StatisticsDashboard from '@/components/common/StatisticsDashboard.vue';
+
+  const TAB_COMPONENT_MAP = {
+    space: 'SpaceConfig',
+    module: 'ModuleList',
+    statistics: 'StatisticsDashboard',
+  };
+
   export default {
     name: 'SystemAdmin',
     components: {
       ModuleList,
       SpaceConfig,
+      StatisticsDashboard,
     },
     props: {
       hasAlertNotice: {
@@ -26,6 +36,14 @@
       return {
         activeTab,
       };
+    },
+    computed: {
+      systemDashboardUid() {
+        return window.BKVISION_SYSTEM_DASHBOARD_UID || '';
+      },
+      currentComponent() {
+        return TAB_COMPONENT_MAP[this.activeTab] || 'SpaceConfig';
+      },
     },
     watch: {
       '$route.query.activeTab'(val) {
