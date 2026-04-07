@@ -155,3 +155,4 @@ pre-*-bkcodeai
 # ide project data
 .codebuddy/
 .cursor/
+.bkui-knowledge.json
