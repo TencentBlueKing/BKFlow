@@ -54,7 +54,7 @@
 </script>
 <style lang="scss" scoped>
   .system-admin {
-    height: 100vh;
+    height: 100%;
   }
   ::v-deep .bk-table-pagination-wrapper {
     background: #fff;
