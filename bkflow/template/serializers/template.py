@@ -253,6 +253,18 @@ class TemplateSerializer(serializers.ModelSerializer):
 class DrawPipelineSerializer(serializers.Serializer):
     pipeline_tree = serializers.JSONField(help_text=_("pipeline tree"), required=True)
     canvas_width = serializers.IntegerField(help_text=_("画布宽度"), required=False)
+    activity_size = serializers.ListField(
+        child=serializers.IntegerField(), min_length=2, max_length=2, help_text=_("任务节点尺寸"), required=False
+    )
+    event_size = serializers.ListField(
+        child=serializers.IntegerField(), min_length=2, max_length=2, help_text=_("事件节点尺寸"), required=False
+    )
+    gateway_size = serializers.ListField(
+        child=serializers.IntegerField(), min_length=2, max_length=2, help_text=_("网关节点尺寸"), required=False
+    )
+    start = serializers.ListField(
+        child=serializers.IntegerField(), min_length=2, max_length=2, help_text=_("画布起始坐标"), required=False
+    )
 
 
 class TemplateOperationRecordSerializer(serializers.ModelSerializer):
