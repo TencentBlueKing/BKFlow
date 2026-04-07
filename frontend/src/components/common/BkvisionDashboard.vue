@@ -1,14 +1,13 @@
 <template>
   <div class="bkvision-dashboard">
     <div
-      v-if="dashboardUid"
+      v-if="dashboardUid && sdkUrl"
       :id="containerId"
       class="dashboard-container" />
     <bk-exception
       v-else
       class="dashboard-empty"
-      type="empty"
-      scene="part" />
+      type="empty" />
   </div>
 </template>
 
@@ -99,9 +98,13 @@
 
 <style lang="scss" scoped>
   .bkvision-dashboard,
-  .dashboard-container,
-  .dashboard-empty {
+  .dashboard-container {
     width: 100%;
     height: 100%;
+  }
+  .dashboard-empty {
+    margin-top: 50%;
+    margin-left: 50%;
+    transform: translate(-50%, -50%);
   }
 </style>
