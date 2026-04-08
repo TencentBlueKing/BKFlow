@@ -15,6 +15,12 @@ alwaysApply: true
 4. **推送到 origin**：`git push -u origin feat/<feature-name>`
 5. **创建 PR**：`gh pr create --repo TencentBlueKing/bkflow`，PR 目标为 upstream 的 master
 
+## PR 默认策略
+
+- **默认创建 Ready for review 的 PR**，不要默认创建 draft PR
+- **只有当用户明确要求“draft PR”时**，才创建 draft PR
+- 若用户未指定，PR 目标分支默认仍为 upstream 的 `master`
+
 ## Remote 约定
 
 | Remote | 用途 |
