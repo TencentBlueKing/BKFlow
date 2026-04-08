@@ -83,7 +83,7 @@
             `#${this.containerId}`,
             this.dashboardUid,
             {
-              filter: { ...this.extraParams },
+              constants: { ...this.extraParams },
               apiPrefix: '/bkvision/',
             },
           );
