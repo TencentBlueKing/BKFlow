@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 
 import importlib
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import env as real_env
@@ -27,6 +28,7 @@ BKVISION_ENV_KEYS = [
     "BKAPP_BKVISION_BASE_URL",
     "BKAPP_BKVISION_SYSTEM_DASHBOARD_UID",
     "BKAPP_BKVISION_SPACE_DASHBOARD_UID",
+    "BKAPP_BKVISION_MAIN_JS_SRC_URL",
 ]
 
 
@@ -51,6 +53,7 @@ class TestBKVisionEnvConfig:
             "BKAPP_BKVISION_BASE_URL": "https://bkvision.example.com",
             "BKAPP_BKVISION_SYSTEM_DASHBOARD_UID": "sys-uid-123",
             "BKAPP_BKVISION_SPACE_DASHBOARD_UID": "space-uid-456",
+            "BKAPP_BKVISION_MAIN_JS_SRC_URL": "https://bkvision.example.com/main.js",
         },
     )
     def test_bkvision_env_reads_from_environ(self):
@@ -60,6 +63,7 @@ class TestBKVisionEnvConfig:
         assert env_module.BKAPP_BKVISION_BASE_URL == "https://bkvision.example.com"
         assert env_module.BKAPP_BKVISION_SYSTEM_DASHBOARD_UID == "sys-uid-123"
         assert env_module.BKAPP_BKVISION_SPACE_DASHBOARD_UID == "space-uid-456"
+        assert env_module.BKAPP_BKVISION_MAIN_JS_SRC_URL == "https://bkvision.example.com/main.js"
 
 
 def _make_mock_env(**overrides):
@@ -75,6 +79,7 @@ def _make_mock_env(**overrides):
         "BKAPP_BKVISION_SYSTEM_DASHBOARD_UID": "",
         "BKAPP_BKVISION_SPACE_DASHBOARD_UID": "",
         "BKAPP_BKVISION_BASE_URL": "",
+        "BKAPP_BKVISION_MAIN_JS_SRC_URL": "",
     }
     defaults.update(overrides)
     for k, v in defaults.items():
@@ -113,6 +118,7 @@ class TestBKVisionContextProcessor:
         assert "BKVISION_SYSTEM_DASHBOARD_UID" in ctx
         assert "BKVISION_SPACE_DASHBOARD_UID" in ctx
         assert "BKVISION_BASE_URL" in ctx
+        assert "BKVISION_MAIN_JS_SRC_URL" in ctx
 
     @patch(
         "bkflow.interface.context_processors.env",
@@ -120,6 +126,7 @@ class TestBKVisionContextProcessor:
             BKAPP_BKVISION_SYSTEM_DASHBOARD_UID="test-system-uid",
             BKAPP_BKVISION_SPACE_DASHBOARD_UID="test-space-uid",
             BKAPP_BKVISION_BASE_URL="https://bkvision.example.com",
+            BKAPP_BKVISION_MAIN_JS_SRC_URL="https://bkvision.example.com/main.js",
         ),
     )
     @patch("bkflow.interface.context_processors.EnvironmentVariables")
@@ -142,3 +149,14 @@ class TestBKVisionContextProcessor:
         assert ctx["BKVISION_SYSTEM_DASHBOARD_UID"] == "test-system-uid"
         assert ctx["BKVISION_SPACE_DASHBOARD_UID"] == "test-space-uid"
         assert ctx["BKVISION_BASE_URL"] == "https://bkvision.example.com"
+        assert ctx["BKVISION_MAIN_JS_SRC_URL"] == "https://bkvision.example.com/main.js"
+
+
+class TestBKVisionFrontendTemplates:
+    """BK-Vision 前端模板变量注入测试"""
+
+    def test_bkvision_main_js_src_url_exists_in_frontend_templates(self):
+        """前端模板应暴露 BKVISION_MAIN_JS_SRC_URL 全局变量"""
+        for template in ("frontend/index.html", "frontend/index-dev.html"):
+            content = Path(template).read_text()
+            assert "var BKVISION_MAIN_JS_SRC_URL" in content
