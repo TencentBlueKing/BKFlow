@@ -151,4 +151,4 @@ class VariableType(Enum):
     SCOPE = "scope"
 
 
-VARIABLE_TYPE_SPACE = [VariableType.SPACE.value, VariableType.SCOPE.value]
+VARIABLE_TYPES = [VariableType.SPACE.value, VariableType.SCOPE.value]

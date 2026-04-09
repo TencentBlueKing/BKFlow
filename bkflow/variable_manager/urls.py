@@ -23,6 +23,6 @@ from bkflow.variable_manager import views
 
 router = DefaultRouter()
 router.register(r"", views.VariableViewSet)
-router.register(r"internal", views.VariableInternalViewSet)
+router.register(r"internal", views.VariableInternalViewSet, basename="internal")
 
 urlpatterns = router.urls

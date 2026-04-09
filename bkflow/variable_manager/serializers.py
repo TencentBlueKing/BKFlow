@@ -19,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from bkflow.constants import VARIABLE_TYPE_SPACE
+from bkflow.constants import VARIABLE_TYPES
 from bkflow.space.models import Space
 from bkflow.variable_manager.models import VariableManager
 
@@ -58,9 +58,9 @@ class VariableManagerSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(_("创建失败，对应的空间不存在"))
         return value
 
-    def validate_type(self, value):
-        if value not in VARIABLE_TYPE_SPACE:
-            raise serializers.ValidationError("类型必须在 {} 中".format(VARIABLE_TYPE_SPACE))
+    def validate_variable_type(self, value):
+        if value not in VARIABLE_TYPES:
+            raise serializers.ValidationError("类型必须在 {} 中".format(VARIABLE_TYPES))
         return value
 
     def create(self, validated_data):

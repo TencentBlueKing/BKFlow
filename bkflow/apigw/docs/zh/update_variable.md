@@ -37,7 +37,7 @@
 {
     "name": "新的数据库连接地址",
     "desc": "更新后的数据库连接地址描述",
-    "variable_type": "new_db_host",
+    "variable_type": "space",
     "value": "new-db-host:3306"
 }
 ```
