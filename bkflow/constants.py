@@ -142,3 +142,13 @@ class TriggerConstantsMode(Enum):
 
     FORM = "form"
     JSON = "json"
+
+
+class VariableType(Enum):
+    """变量类型"""
+
+    SPACE = "space"
+    SCOPE = "scope"
+
+
+VARIABLE_TYPES = [VariableType.SPACE.value, VariableType.SCOPE.value]
