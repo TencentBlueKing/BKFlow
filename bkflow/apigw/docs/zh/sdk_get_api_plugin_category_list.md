@@ -17,9 +17,12 @@
 
 ### 路径参数
 
-| 字段      | 类型     | 必选 | 描述   |
-|---------|--------|----|------|
-| space_id | string | 是  | 空间ID |
+| 字段            | 类型     | 必选 | 描述      |
+|---------------|--------|----|---------|
+| space_id      | string | 是  | 空间ID    |
+| template_id   | int    | 是  | 模板ID    |
+| task_id       | int    | 是  | 任务ID    |
+| api_name      | string | 是  | API_KEY |
 
 ### 接口参数
 
@@ -36,19 +39,16 @@ GET /sdk/plugin_query/uniform_api/category_list/{space_id}/
 ```json
 {
     "result": true,
-    "data": {
-        "categories": [
-            {
-                "category": "category1",
-                "plugins": [
-                    {
-                        "code": "plugin1",
-                        "name": "插件1"
-                    }
-                ]
+    "data": [
+        {
+            "id": 1,
+            "name": "model",
+            "alias": "模型",
+            "properties": {
+                "llm": "大模型"
             }
-        ]
-    },
+        }
+    ],
     "message": "",
     "code": "0"
 }
@@ -61,19 +61,15 @@ GET /sdk/plugin_query/uniform_api/category_list/{space_id}/
 | result  | bool   | 返回结果，true为成功，false为失败 |
 | code    | string | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
-| data    | dict   | 返回数据                  |
+| data    | list   | 返回数据                  |
 
-#### data 字段说明
+#### data[item] 字段说明
 
-| 字段        | 类型     | 描述       |
-|-----------|--------|----------|
-| categories | list   | 分类列表     |
-
-#### data.categories[item] 字段说明
-
-| 字段     | 类型     | 描述       |
-|--------|--------|----------|
-| category | string | 分类名称     |
-| plugins  | list   | 该分类下的插件列表 |
+| 字段         | 类型       | 描述   |
+|------------|----------|------|
+| id         | int      | 插件id |
+| name       | string   | 插件名称 |
+| alias      | string   | 插件别名 |
+| properties | dict     | 插件属性 |
 
 

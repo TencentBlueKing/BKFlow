@@ -146,25 +146,26 @@ POST /sdk/template/{template_id}/release_template/
 
 ### data 包含字段说明
 
-| 字段              | 类型       | 描述       |
-|-----------------|----------|----------|
-| id              | string   | 流程ID     |
-| space_id        | string   | 流程所属空间ID |
-| name            | string   | 流程名称     |
-| desc            | string   | 流程描述     |
-| notify_config   | dict     | 通知配置     |
-| scope_type      | string   | 流程范围类型   |
-| scope_value     | string   | 流程范围ID   |
-| pipeline_tree   | dict     | 流程树详情    |
-| source          | string   | 流程来源     |
-| version         | string   | 流程版本     |
-| is_enabled      | bool     | 流程是否启用   |
-| extra_info      | dict     | 流程扩展信息   |
-| creator         | string   | 流程创建者    |
-| create_at       | string   | 流程创建时间   |
-| update_at       | string   | 流程更新时间   |
-| updated_by      | string   | 流程更新者    |
-| is_deleted      | bool     | 流程是否删除   |
-| triggers        | list     | 触发器信息    |
-| subprocess_info | list     | 子流程信息    |
-| auth            | list     | 流程权限     |
+| 字段                | 类型       | 描述       |
+|-------------------|----------|----------|
+| id                | string   | 流程ID     |
+| space_id          | string   | 流程所属空间ID |
+| snapshot_id       | string   | 数据快照ID   |
+| name              | string   | 流程名称     |
+| desc              | string   | 流程描述     |
+| notify_config     | dict     | 通知配置     |
+| scope_type        | string   | 流程范围类型   |
+| scope_value       | string   | 流程范围ID   |
+| pipeline_tree     | dict     | 流程树详情    |
+| source            | string   | 流程来源     |
+| version           | string   | 流程版本     |
+| is_enabled        | bool     | 流程是否启用   |
+| extra_info        | dict     | 流程扩展信息   |
+| creator           | string   | 流程创建者    |
+| create_at         | string   | 流程创建时间   |
+| update_at         | string   | 流程更新时间   |
+| updated_by        | string   | 流程更新者    |
+| is_deleted        | bool     | 流程是否删除   |
+| triggers          | list     | 触发器信息    |
+| subprocess_info   | list     | 子流程信息    |
+| auth              | list     | 流程权限     |

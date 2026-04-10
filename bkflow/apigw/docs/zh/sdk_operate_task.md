@@ -51,30 +51,22 @@
 
 ```json
 {
-    "result": true,
-    "data": {
-        "task_id": 123,
-        "state": "RUNNING"
-    },
-    "code": "0",
-    "message": ""
+     "result": true,
+     "data": null,
+     "message": "success",
+     "exc": null,
+     "exc_trace": null
 }
 ```
 
 ### 返回结果参数说明
 
-| 字段      | 类型     | 描述                    |
-|---------|--------|-----------------------|
-| result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | string | 返回码，0表示成功，其他值表示失败     |
-| message | string | 错误信息                  |
-| data    | dict   | 返回数据                  |
-
-#### data 字段说明
-
-| 字段      | 类型     | 描述   |
-|---------|--------|------|
-| task_id | int    | 任务ID |
-| state   | string | 任务状态 |
+| 字段        | 类型                   | 描述                    |
+|-----------|----------------------|-----------------------|
+| result    | bool                 | 返回结果，true为成功，false为失败 |
+| message   | string               | 错误信息                  |
+| data      | dict                 | 返回数据                  |
+| exc       | Optional[Exception]) | 异常对象                  |
+| exc_trace | Optional[str]        | 异常堆栈跟踪信息              |
 
 
