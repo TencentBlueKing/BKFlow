@@ -126,7 +126,7 @@
     "result": true,
     "data": {
         "id": 4,
-        "space_id": "2",
+        "space_id": 2,
         "name": "更新后的模板名",
         "desc": "更新后的描述",
         "notify_config": {},

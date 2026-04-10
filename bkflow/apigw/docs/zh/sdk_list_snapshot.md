@@ -87,7 +87,7 @@ GET /sdk/template/snapshot/list_snapshot/
 | version     | string | 流程版本号（草稿版本无版本号） |
 | template_id | string | 关联的模板id         |
 | desc        | string | 流程版本描述          |
-| draft       | bool   | 是否是操作版本         |
+| draft       | bool   | 是否是草稿版本         |
 | creator     | string | 创建人             |
 | operator    | string | 操作人             |
 | md5sum      | string | 流程数据的md5值       |
