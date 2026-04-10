@@ -62,8 +62,6 @@ GET /sdk/template/snapshot/list_snapshot/
 
 ### 返回结果参数说明
 
-### 返回结果参数说明
-
 | 字段      | 类型     | 描述                    |
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
@@ -73,10 +71,10 @@ GET /sdk/template/snapshot/list_snapshot/
 
 #### data 字段说明
 
-| 字段       | 类型       | 描述       |
-|----------|----------|----------|
-| count    | int      | 分页返回数据总数 |
-| result   | list     | 返回数据     |
+| 字段      | 类型       | 描述       |
+|---------|----------|----------|
+| count   | int      | 分页返回数据总数 |
+| results | list     | 返回数据     |
 
 
 #### data[results] 字段说明

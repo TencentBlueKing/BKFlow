@@ -64,7 +64,7 @@ GET /sdk/template/{template_id}/get_template_operation_record/
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
 | message | string | 返回消息                  |
-| data    | list   | 返回数据，操作记录列表          |
+| data    | dict   | 返回数据，操作记录列表          |
 
 #### data[data][item] 字段说明
 

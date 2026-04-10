@@ -20,13 +20,17 @@
 | 字段            | 类型     | 必选 | 描述      |
 |---------------|--------|----|---------|
 | space_id      | string | 是  | 空间ID    |
-| template_id   | int    | 是  | 模板ID    |
-| task_id       | int    | 是  | 任务ID    |
-| api_name      | string | 是  | API_KEY |
+
 
 ### 接口参数
 
-无
+| 字段            | 类型     | 必选 | 描述      |
+|---------------|--------|----|---------|
+| template_id   | int    | 否  | 模板ID    |
+| task_id       | int    | 否  | 任务ID    |
+| api_name      | string | 否  | API_KEY |
+
+注意：template_id 和 task_id 参数至少需要传递一个
 
 ### 请求参数示例
 
