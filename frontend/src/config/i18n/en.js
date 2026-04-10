@@ -222,6 +222,7 @@ const en = {
   决策表: 'Decision Table',
   空间配置: 'Space Configuration',
   模块配置: 'Module Configuration',
+  运营统计: 'Operations Statistics',
   当前版本: 'Current',
   开始节点: 'Start Node',
   结束节点: 'End Node',
