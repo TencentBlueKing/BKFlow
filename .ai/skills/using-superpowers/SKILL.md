@@ -66,6 +66,7 @@ User message received
 | ui-prototype | When designing new pages, modifying page layouts, or prototyping UI changes |
 | api-doc-sync | When API views, serializers, or routes in bkflow/apigw are changed |
 | tapd-workitem-sync | When development requirements are confirmed, before implementation - ensure TAPD work item exists |
+| tapd-test-request-generator | When creating TAPD test request tickets from PR changes with a standardized template |
 
 ## Red Flags
 

@@ -459,17 +459,17 @@ class TemplateViewSet(UserModelViewSet):
     @swagger_auto_schema(methods=["post"], operation_description="画布排版", request_body=DrawPipelineSerializer)
     @action(methods=["POST"], detail=False)
     def draw_pipeline(self, request, *args, **kwargs):
+        serializer = DrawPipelineSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        pipeline_tree = validated_data["pipeline_tree"]
 
-        pipeline_tree = request.data["pipeline_tree"]
-        canvas_width = int(request.data.get("canvas_width", CANVAS_WIDTH))
-
-        kwargs = {"canvas_width": canvas_width}
-
-        for kw in list(POSITION.keys()):
-            if kw in request.data:
-                kwargs[kw] = request.data[kw]
+        draw_kwargs = {"canvas_width": validated_data.get("canvas_width", CANVAS_WIDTH)}
+        for kw in POSITION.keys():
+            if kw in validated_data:
+                draw_kwargs[kw] = tuple(validated_data[kw])
         try:
-            draw_pipeline_tree(pipeline_tree, **kwargs)
+            draw_pipeline_tree(pipeline_tree, **draw_kwargs)
         except Exception as e:
             message = _(f"流程自动排版失败: 流程排版发生异常: {e}, 请检查流程 | draw_pipeline")
             logger.exception(message)

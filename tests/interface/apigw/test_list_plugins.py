@@ -32,7 +32,7 @@ class TestListPluginsSerializer:
     def test_default_values(self):
         ser = ListPluginsSerializer(data={})
         assert ser.is_valid()
-        assert ser.validated_data["without_detail"] is True
+        assert ser.validated_data["with_detail"] is False
         assert ser.validated_data["limit"] == 100
         assert ser.validated_data["offset"] == 0
 

@@ -46,7 +46,7 @@
         }"
         class="common-icon-jump-link"
         :target="isIframe ? '_self' : '_blank'"
-        :to="isIframe ? '#' : `/template/view/${templateId}/`"
+        :to="isIframe ? { path: '#', params: { ...$route.params }, query: { ...$route.query } } : `/template/view/${templateId}/`"
         @click.native="handleLinkClick" />
     </div>
     <div
@@ -259,9 +259,8 @@
       showJumpToFlowIcon() {
         if (this.isIframe) {
             return this.$route.query.ifShowJumpToFlowBtn === 'true';
-        } else {
-            return this.isShowViewProcess;
         }
+        return this.isShowViewProcess;
       },
     },
     watch: {

@@ -49,7 +49,7 @@ def list_plugins(request, space_id):
     plugins, count = service.list_plugins(
         keyword=params.get("keyword"),
         plugin_type=params.get("plugin_type"),
-        without_detail=params.get("without_detail", True),
+        with_detail=params.get("with_detail", False),
         limit=params.get("limit", 100),
         offset=params.get("offset", 0),
     )

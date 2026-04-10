@@ -63,13 +63,13 @@ class PluginSchemaService:
         self.scope_type = scope_type
         self.scope_id = scope_id
 
-    def list_plugins(self, keyword=None, plugin_type=None, without_detail=True, limit=100, offset=0):
+    def list_plugins(self, keyword=None, plugin_type=None, with_detail=False, limit=100, offset=0):
         """
         查询空间可用插件列表，聚合三种来源。
 
         :param keyword: 模糊搜索 code 或 name
         :param plugin_type: 按类型过滤
-        :param without_detail: True 只返回摘要，False 返回完整 schema
+        :param with_detail: True 返回完整 schema，False 只返回摘要
         :param limit: 分页大小
         :param offset: 分页偏移
         :return: (plugins_list, total_count)
@@ -94,8 +94,12 @@ class PluginSchemaService:
             except Exception:
                 logger.exception("查询 %s 类型插件列表失败", ptype)
 
-        if not without_detail:
+        if with_detail:
             self._fill_schema_batch(all_plugins)
+        else:
+            for p in all_plugins:
+                p.pop("_component_version", None)
+                p.pop("_meta_url", None)
 
         total_count = len(all_plugins)
         limit = min(limit, 200)

@@ -145,5 +145,15 @@ class TriggerConstantsMode(Enum):
     JSON = "json"
 
 
+class VariableType(Enum):
+    """变量类型"""
+
+    SPACE = "space"
+    SCOPE = "scope"
+
+
+VARIABLE_TYPES = [VariableType.SPACE.value, VariableType.SCOPE.value]
+
+
 if settings.RUN_VER == "ieod":
     from .ieod_constants import *  # noqa: F403, F401

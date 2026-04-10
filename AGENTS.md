@@ -33,6 +33,7 @@
 | prototype-generator | `.ai/skills/prototype-generator/SKILL.md` | 需要快速出产品原型时，如"做个原型"、"设计页面" |
 | api-doc-sync | `.ai/skills/api-doc-sync/SKILL.md` | 修改 bkflow/apigw/ 下的 API 代码时 |
 | tapd-workitem-sync | `.ai/skills/tapd-workitem-sync/SKILL.md` | 开发需求确认后、开始实现前，需确保 TAPD 有对应单据 |
+| tapd-test-request-generator | `.ai/skills/tapd-test-request-generator/SKILL.md` | 需要根据 PR 或需求变更按模板创建/补全 TAPD 提测单时 |
 
 ## 项目编码规范
 

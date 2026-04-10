@@ -14,7 +14,7 @@ GET
 |------|------|------|------|
 | keyword | string | 否 | 模糊搜索 code 或 name |
 | plugin_type | string | 否 | 按类型过滤，可选值: component, remote_plugin, uniform_api |
-| without_detail | bool | 否 | 默认 true，只返回摘要信息；false 返回完整 schema |
+| with_detail | bool | 否 | 默认 false，只返回摘要信息；true 返回完整 schema |
 | scope_type | string | 否 | scope 类型 |
 | scope_id | string | 否 | scope ID |
 | limit | int | 否 | 分页大小，默认 100，最大 200 |
@@ -34,8 +34,8 @@ GET
 | data[].version | string | 插件版本 |
 | data[].description | string | 插件描述 |
 | data[].group_name | string | 分组名称 |
-| data[].inputs | array | 输入参数列表（without_detail=false 时返回） |
-| data[].outputs | array | 输出参数列表（without_detail=false 时返回） |
+| data[].inputs | array | 输入参数列表（with_detail=true 时返回） |
+| data[].outputs | array | 输出参数列表（with_detail=true 时返回） |
 
 #### 请求示例
 

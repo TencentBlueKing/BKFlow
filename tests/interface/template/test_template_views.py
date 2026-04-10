@@ -602,7 +602,14 @@ class TestTemplateViewSet:
     def test_draw_pipeline(self):
         """测试画布排版"""
         view = TemplateViewSet.as_view({"post": "draw_pipeline"})
-        data = {"pipeline_tree": self.pipeline_tree, "canvas_width": 1200}
+        data = {
+            "pipeline_tree": self.pipeline_tree,
+            "canvas_width": 1200,
+            "activity_size": [150, 54],
+            "event_size": [44, 44],
+            "gateway_size": [34, 34],
+            "start": [60, 100],
+        }
         request = self.factory.post("/templates/draw_pipeline/", data, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
