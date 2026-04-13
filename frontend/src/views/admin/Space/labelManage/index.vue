@@ -20,15 +20,14 @@
       :pagination="pagination"
       :max-height="tableMaxHeight"
       @page-change="handlePageChange"
-      @page-limit-change="handlePageLimitChange"
-      @expand-change="handleRowExpand">
+      @page-limit-change="handlePageLimitChange">
       <bk-table-column
         type="expand"
         disabled
-        width="30">
+        width="30"
+        :before-expand-change="beforeRowExpand">
         <template slot-scope="props">
           <bk-table
-            v-bkloading="{ isLoading: props.row.childrenLoading }"
             :data="props.row.children"
             :outer-border="false">
             <bk-table-column :label="$t('标签名称')">
@@ -233,22 +232,10 @@ export default {
             // 二级标签拉取全量数据
             const params = this.getQueryData(parentId);
             try {
-                if (parentId) {
-                    parent.childrenLoading = true;
-                } else {
-                    this.listLoading = true;
-                }
-
+                this.listLoading = true;
                 // 1. 获取标签列表
                 const res = await this.loadLabelList(params);
-                const list = res.data?.results.map(item =>
-                        // 拼接 full_path
-                        ({
-                            ...item,
-                            childrenLoading: false,
-                        })
-                    ) || [];
-
+                const list = res.data?.results || [];
                 // 2. 获取引用数据
                 let referenceMap = {};
                 if (list.length) {
@@ -278,11 +265,7 @@ export default {
             } catch (error) {
                 console.error(error);
             } finally {
-                if (parentId) {
-                    parent.childrenLoading = false;
-                } else {
-                    this.listLoading = false;
-                }
+                this.listLoading = false;
             }
         },
         getQueryData(parentId) {
@@ -354,9 +337,11 @@ export default {
                 this.deleting = false;
             }
         },
-        handleRowExpand(label) {
-            if (!label.has_children || label.children) return;
-            this.getLabelList(label);
+        async beforeRowExpand({ row }) {
+            if (row.has_children && !row.children) {
+                await this.getLabelList(row);
+            };
+            return true;
         },
     },
 };
