@@ -25,7 +25,6 @@
       :state-str="taskState"
       :state="state"
       :is-breadcrumb-show="isBreadcrumbShow"
-      :is-show-view-process="isShowViewProcess"
       :is-task-operation-btns-show="isTaskOperationBtnsShow"
       :params-can-be-modify="paramsCanBeModify"
       :trigger-method="triggerMethod"
@@ -555,10 +554,6 @@
       },
       paramsCanBeModify() {
         return this.isTopTask && !['FINISHED', 'REVOKED'].includes(this.state);
-      },
-      // 只有mock任务才可以跳转到流程
-      isShowViewProcess() {
-        return this.createMethod === 'MOCK';
       },
       adminView() {
         return false;
