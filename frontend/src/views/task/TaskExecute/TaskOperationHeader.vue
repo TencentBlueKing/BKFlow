@@ -197,7 +197,6 @@
         default: '',
       },
       isTaskOperationBtnsShow: Boolean,
-      isShowViewProcess: Boolean,
       triggerMethod: {
         type: String,
         default: '',
@@ -260,7 +259,7 @@
         if (this.isIframe) {
             return this.$route.query.ifShowJumpToFlowBtn === 'true';
         }
-        return this.isShowViewProcess;
+        return true;
       },
     },
     watch: {
