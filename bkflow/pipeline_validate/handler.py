@@ -33,6 +33,9 @@ class ValidatorHandler:
         """注册校验器类"""
         if validator_cls.name is None:
             raise ValueError(f"校验器 {validator_cls.__name__} 的 name 属性不能为 None")
+        if validator_cls.name in cls.__hub:
+            existing_cls = cls.__hub[validator_cls.name]
+            raise ValueError(f"校验器名称 '{validator_cls.name}' 已被 {existing_cls.__name__} 注册，")
         cls.__hub[validator_cls.name] = validator_cls
 
     @classmethod

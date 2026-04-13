@@ -117,7 +117,7 @@ class OutputsKeyPatternValidator(BasePipelineValidator):
                 key_validation_errors.append(output_key)
 
         if key_validation_errors:
-            return ValidatorResult(is_valid=False, error=f"输出变量 {''.join(key_validation_errors)} 的 key 格式不合法")
+            return ValidatorResult(is_valid=False, error=f"输出变量 {'，'.join(key_validation_errors)} 的 key 格式不合法")
 
         return ValidatorResult(is_valid=True)
 
@@ -130,6 +130,7 @@ class MutualExclusionValidator(BasePipelineValidator):
     def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
         """校验节点配置：自动跳过、自动重试和超时控制不能同时打开两个或两个以上"""
 
+        error_nodes = []
         for act_id, act in list(web_pipeline_tree["activities"].items()):
             # 获取三个配置的状态
             timeout_enabled = act.get("timeout_config", {}).get("enable", False)
@@ -140,12 +141,12 @@ class MutualExclusionValidator(BasePipelineValidator):
             enabled_count = sum([timeout_enabled, auto_retry_enabled, skip_enabled])
 
             # 如果同时开启两个或两个以上配置，则校验失败
-            error_nodes = []
+
             if enabled_count >= 2:
                 error_nodes.append(act_id)
 
-            if error_nodes:
-                error_message = "节点 {} 配置不合法：自动跳过、自动重试和超时控制不能同时开启两个或两个以上".format(", ".join(error_nodes))
-                return ValidatorResult(is_valid=False, error=error_message)
+        if error_nodes:
+            error_message = "节点 {} 配置不合法：自动跳过、自动重试和超时控制不能同时开启两个或两个以上".format(", ".join(error_nodes))
+            return ValidatorResult(is_valid=False, error=error_message)
 
         return ValidatorResult(is_valid=True)
