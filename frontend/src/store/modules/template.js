@@ -231,7 +231,7 @@ const template = {
       state.default_flow_type = data.default_flow_type;
       state.triggers = data.triggers;
       state.webhook_configs = data.webhook_configs;
-      state.enable_webhook = data.enable_webhook|| false;
+      state.enable_webhook = data.enable_webhook || false;
     },
     setSubprocessUpdated(state, subflow) {
       if (state.subprocess_info) {

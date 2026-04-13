@@ -175,7 +175,7 @@
               </template>
             </bk-table-column>
             <bk-table-column
-              label="操作"
+              :label="$t('操作')"
               width="80">
               <template slot-scope="props">
                 <bk-button
@@ -183,7 +183,7 @@
                   text
                   :disabled="isDisabled"
                   @click="delItemHeader(props.row,props.$index)">
-                  删除
+                  {{ $t('删除') }}
                 </bk-button>
               </template>
             </bk-table-column>
@@ -282,6 +282,7 @@
                     interval: 5,
                 },
             };
+            // eslint-disable-next-line camelcase
             const sourceExtraInfo = this.webhookData?.extra_info ? tools.deepClone(this.webhookData.extra_info) : defaultWebhookForm.extra_info;
             const { authorization, headers, timeout, retry_times, interval } = sourceExtraInfo;
             const localWebhookForm = {
@@ -524,15 +525,15 @@
                     this.$refs.tokenForm.clearError();
                 }
             },
-            onEnableWebhookChange (row) {
-                this.$emit('change', row, true)
+            onEnableWebhookChange(val) {
+                this.$emit('change', val, true);
                 // 关闭webhook情况下清空校验
-                if (!row) {
-                    this.$refs.addrForm.clearError()
+                if (!val) {
+                    this.$refs.addrForm.clearError();
                     if (this.activeTab === 'authentication') {
-                        this.clearAuthVertify()
+                        this.clearAuthVertify();
                     } else if (this.activeTab === 'settings') {
-                        this.$refs.settingForm.clearError()
+                        this.$refs.settingForm.clearError();
                     }
                 }
             },
