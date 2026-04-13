@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
 from bamboo_engine.context import Context
 from bamboo_engine.eri import ContextValue, ContextValueType
 from jsonschema import Draft4Validator

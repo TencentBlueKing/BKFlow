@@ -18,9 +18,10 @@ import logging
 
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
-from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
 
+from bkflow.constants import ValidateType
+from bkflow.pipeline_validate.handler import ValidatorHandler
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import Template, TemplateSnapshot
@@ -45,7 +46,7 @@ class TemplateSerializers(serializers.ModelSerializer):
     def validate_pipeline_tree(self, pipeline_tree):
         # 校验树的合法性
         try:
-            validate_pipeline_tree(pipeline_tree)
+            ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
         except Exception as e:
             logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
             raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={msg}").format(msg=e))
