@@ -518,27 +518,32 @@ def validate_pipeline_tree_constants(constants):
         logger.error(error_message)
         raise PipelineException(error_message)
 
-    visited = set()
+    # 三色标记：WHITE=未访问，GRAY=递归栈中（当前路径），BLACK=已完成
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {node: WHITE for node in graph}
 
     def has_cycle(node, path):
-        """深度优先搜索检测环路，path 为当前递归路径（每条路径独立，不共享）"""
-        visited.add(node)
+        """深度优先搜索检测环路，使用三色标记法避免跨路径误判"""
+        color[node] = GRAY
         path = path + [node]
 
-        # 遍历当前节点的所有依赖项
         for neighbor in graph.get(node, set()):
-            if neighbor not in visited:
+            if color.get(neighbor, WHITE) == WHITE:
+                # 未访问节点，继续递归
                 cycle_path = has_cycle(neighbor, path)
                 if cycle_path is not None:
                     return cycle_path
-            elif neighbor in path:
+            elif color.get(neighbor, WHITE) == GRAY:
+                # 邻居在当前递归栈中，发现环路
                 return path + [neighbor]
+            # BLACK 节点：已完全处理，该路径无环，跳过
 
+        color[node] = BLACK
         return None
 
     # 对每个未访问的节点进行检查
     for node in graph:
-        if node not in visited:
+        if color.get(node, WHITE) == WHITE:
             cycle_path = has_cycle(node, [])
             if cycle_path is not None:
                 error_message = "检测到常量{}存在循环引用".format(", ".join(cycle_path))
