@@ -538,7 +538,7 @@ export default {
             window.open(href, '_blank');
         },
         getTemplateConfig() {
-          const {
+            const {
                 name,
                 category,
                 description,
@@ -550,28 +550,28 @@ export default {
                 defaultFlowType,
                 triggers,
                 webhookConfigs,
-          } = this.formData;
-          if (webhookConfigs?.extra_info) {
-            webhookConfigs.extra_info.interval = typeof webhookConfigs.extra_info.interval !== 'number' ? parseInt(webhookConfigs.extra_info.interval) : webhookConfigs.extra_info.interval;
-            webhookConfigs.extra_info.retry_times = typeof webhookConfigs.extra_info.retry_times !== 'number' ? parseInt(webhookConfigs.extra_info.retry_times) : webhookConfigs.extra_info.retry_times;
-            webhookConfigs.extra_info.timeout = typeof webhookConfigs.extra_info.timeout !== 'number' ? parseInt(webhookConfigs.extra_info.timeout) : webhookConfigs.extra_info.timeout;
-            webhookConfigs.extra_info.headers = webhookConfigs.extra_info.headers.filter(item => item.key !== '');
-        }
-        return {
-            name,
-            category,
-            description,
-            template_labels,
-            executor_proxy:
-            executorProxy.length === 1 ? executorProxy[0] : '',
-            more_receiver: notifyReceiver,
-            receiver_group: receiverGroup,
-            notify_type: { success: notifyType[0], fail: notifyType[1] },
-            default_flow_type: defaultFlowType,
-            triggers,
-            webhook_configs: webhookConfigs,
-            enable_webhook: this.enableWebhook,
-          };
+            } = this.formData;
+            // eslint-disable-next-line camelcase
+            if (webhookConfigs?.extra_info) {
+                webhookConfigs.extra_info.interval = typeof webhookConfigs.extra_info.interval !== 'number' ? parseInt(webhookConfigs.extra_info.interval) : webhookConfigs.extra_info.interval;
+                webhookConfigs.extra_info.retry_times = typeof webhookConfigs.extra_info.retry_times !== 'number' ? parseInt(webhookConfigs.extra_info.retry_times) : webhookConfigs.extra_info.retry_times;
+                webhookConfigs.extra_info.timeout = typeof webhookConfigs.extra_info.timeout !== 'number' ? parseInt(webhookConfigs.extra_info.timeout) : webhookConfigs.extra_info.timeout;
+                webhookConfigs.extra_info.headers = webhookConfigs.extra_info.headers.filter(item => item.key !== '');
+            }
+            return {
+                name,
+                category,
+                description,
+                template_labels,
+                executor_proxy: executorProxy.length === 1 ? executorProxy[0] : '',
+                more_receiver: notifyReceiver,
+                receiver_group: receiverGroup,
+                notify_type: { success: notifyType[0], fail: notifyType[1] },
+                default_flow_type: defaultFlowType,
+                triggers,
+                webhook_configs: webhookConfigs,
+                enable_webhook: this.enableWebhook,
+            };
         },
         jumpProjectManagement() {
             if (this.isViewMode) return;
@@ -607,26 +607,26 @@ export default {
             this.formData.triggers = triggers;
         },
         onHttpCallbackChange(val, isEnableWebhook = false) {
-          if (isEnableWebhook) {
-              this.enableWebhook = val;
-          } else {
-              this.formData.webhookConfigs = val;
-          }
-      },
-      onSaveConfig() {
-        this.$refs.configForm.validate().then(async (result) => {
-            if (!result) {
-              return;
+            if (isEnableWebhook) {
+                this.enableWebhook = val;
+            } else {
+                this.formData.webhookConfigs = val;
             }
-            const validation = this.$refs.httpCallbackForm ? await this.$refs.httpCallbackForm.validate() : true;
-            if (!validation) {
-              return;
-            }
-            const data = this.getTemplateConfig();
-            this.setTplConfig(data);
-            this.closeTab();
-            this.$emit('templateDataChanged');
-          });
+        },
+        onSaveConfig() {
+            this.$refs.configForm.validate().then(async (result) => {
+                if (!result) {
+                    return;
+                }
+                const validation = this.$refs.httpCallbackForm ? await this.$refs.httpCallbackForm.validate() : true;
+                if (!validation) {
+                    return;
+                }
+                const data = this.getTemplateConfig();
+                this.setTplConfig(data);
+                this.closeTab();
+                this.$emit('templateDataChanged');
+            });
         },
         beforeClose() {
             if (this.isViewMode) {
@@ -642,6 +642,8 @@ export default {
                 notify_receivers,
                 notify_type,
                 default_flow_type,
+                webhook_configs,
+                enable_webhook
             } = this.$store.state.template;
             const originData = {
                 name,
@@ -653,6 +655,8 @@ export default {
                 receiver_group: notify_receivers.receiver_group,
                 notify_type,
                 default_flow_type,
+                webhook_configs,
+                enable_webhook
             };
             const editingData = this.getTemplateConfig();
             if (tools.isDataEqual(originData, editingData)) {
