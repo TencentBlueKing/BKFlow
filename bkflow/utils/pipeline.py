@@ -18,11 +18,14 @@ to the current version of the project delivered to anyone in the future.
 """
 import copy
 import logging
+import re
+from collections import defaultdict
 from typing import Optional
 
 from bamboo_engine.utils.boolrule import BoolRule
 from bkflow_feel.api import parse_expression
 from pipeline.core.constants import PE
+from pipeline.exceptions import PipelineException
 from pipeline.parser.utils import replace_all_id
 from pipeline.utils.uniqid import node_uniqid
 
@@ -467,3 +470,84 @@ def replace_subprocess_version(pipeline_tree, flow_version_config) -> dict:
                 continue
 
     return pipeline_tree
+
+
+def validate_pipeline_tree_constants(constants):
+    """
+    校验流水线常量定义，禁止自引用和循环引用
+    Args:
+        constants: 待校验的参数字典，格式为 {参数名: 参数值或参数字典}
+    Returns:
+        校验通过的参数字典
+    Raises:
+        PipelineException: 当检测到自引用或循环引用时抛出
+    """
+    validation_errors = []
+
+    graph = defaultdict(set)
+    constant_values = {}
+
+    # 首先构建参数值映射表
+    for key, const in constants.items():
+        value = const.get("value") if isinstance(const, dict) else const
+        constant_values[key] = str(value) if value is not None else ""
+
+    # 构建依赖关系图
+    for key, value in constant_values.items():
+        if not value:
+            continue
+
+        # 检查当前参数值中引用的所有参数
+        referenced_keys = set()
+        for other_key in constant_values:
+            if re.search(re.escape(other_key), value):
+                referenced_keys.add(other_key)
+
+        # 分离出自引用和其他引用
+        if key in referenced_keys:
+            validation_errors.append(key)
+            referenced_keys.remove(key)
+
+        # 记录非自引用的依赖关系
+        if referenced_keys:
+            graph[key] = referenced_keys
+
+    # 如果发现自引用立即报错
+    if validation_errors:
+        error_message = "常量 {} 的值不能引用自身作为值".format(", ".join(validation_errors))
+        logger.error(error_message)
+        raise PipelineException(error_message)
+
+    # 三色标记：WHITE=未访问，GRAY=递归栈中（当前路径），BLACK=已完成
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {node: WHITE for node in graph}
+
+    def has_cycle(node, path):
+        """深度优先搜索检测环路，使用三色标记法避免跨路径误判"""
+        color[node] = GRAY
+        path = path + [node]
+
+        for neighbor in graph.get(node, set()):
+            if color.get(neighbor, WHITE) == WHITE:
+                # 未访问节点，继续递归
+                cycle_path = has_cycle(neighbor, path)
+                if cycle_path is not None:
+                    return cycle_path
+            elif color.get(neighbor, WHITE) == GRAY:
+                # 邻居在当前递归栈中，发现环路
+                return path + [neighbor]
+            # BLACK 节点：已完全处理，该路径无环，跳过
+
+        color[node] = BLACK
+        return None
+
+    # 对每个未访问的节点进行检查
+    for node in graph:
+        if color.get(node, WHITE) == WHITE:
+            cycle_path = has_cycle(node, [])
+            if cycle_path is not None:
+                error_message = "检测到常量{}存在循环引用".format(", ".join(cycle_path))
+                logger.error(error_message)
+                raise PipelineException(error_message)
+
+    return constants

@@ -171,6 +171,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "django_dbconn_retry",
         "bkflow.contrib.expired_cleaner",
         "bkflow.statistics",
+        "bkflow.pipeline_validate",
     )
 
     BKFLOW_CELERY_ROUTES = {
@@ -278,6 +279,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.bk_plugin",
         "bkflow.pipeline_web",
         "bkflow.statistics",
+        "bkflow.pipeline_validate",
     )
 
     TEMPLATES[0]["OPTIONS"]["context_processors"] += ("bkflow.interface.context_processors.bkflow_settings",)
