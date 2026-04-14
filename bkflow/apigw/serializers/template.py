@@ -89,6 +89,7 @@ class CreateTemplateSerializer(serializers.Serializer):
 
 class CreateTemplateApigwSerializer(CreateTemplateSerializer):
     auto_release = serializers.BooleanField(help_text=_("是否自动发布"), required=False, default=False)
+    webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
 
 
 class DeleteTemplateSerializer(serializers.Serializer):
@@ -114,6 +115,8 @@ class UpdateTemplateSerializer(serializers.Serializer):
     extra_info = serializers.JSONField(help_text=_("额外扩展信息"), required=False)
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=False)
     auto_release = serializers.BooleanField(help_text=_("是否自动发布"), required=False, default=False)
+    webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
+    enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
 
     def validate(self, attrs):
         operator = attrs.get("operator")

@@ -36,6 +36,7 @@ from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
 from bkflow.utils.version import bump_custom
+from bkflow.utils.webhook import apply_webhook_configs, clear_scope_webhooks
 
 
 @login_exempt
@@ -133,6 +134,16 @@ def update_template(request, space_id, template_id):
             template.save()
         except Exception as e:
             raise UpdateTemplateException(_(f"保存模板失败，错误: {str(e)}"))
+
+        enable_webhook = validated_data_dict.pop("enable_webhook", None)
+        webhook_configs = validated_data_dict.pop("webhook_configs", [])
+        if enable_webhook is True and webhook_configs:
+            apply_result = apply_webhook_configs(webhook_configs, str(template.id))
+            if not apply_result["result"]:
+                message = apply_result["message"]
+                raise UpdateTemplateException(_(f"保存模板失败，错误: {str(message)}"))
+        elif enable_webhook is False:
+            clear_scope_webhooks([str(template.id)])
 
     template = Template.objects.get(id=template_id)
 
