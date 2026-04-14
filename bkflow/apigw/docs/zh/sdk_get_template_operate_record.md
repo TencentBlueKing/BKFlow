@@ -35,18 +35,26 @@ GET /sdk/template/{template_id}/get_template_operation_record/
 
 ```json
 {
-    "result": true,
-    "message": "success",
-    "data": [
-        {
-            "id": 1,
-            "instance_id": 123,
-            "operation_type": "CREATE",
-            "operator": "admin",
-            "operation_time": "2024-01-01T00:00:00Z",
-            "operation_source": "WEB"
-        }
-    ]
+     "result": true,
+     "data": {
+          "result": true,
+          "message": "success",
+          "data": [
+               {
+                    "id": 1,
+                    "instance_id": 123,
+                    "operate_type": "CREATE",
+                    "operator": "admin",
+                    "operate_source": "WEB",
+                    "operate_date": "2024-12-15T21:10:43.284071+08:00",
+                    "operate_type_name": "创建",
+                    "operate_source_name": "app 页面",
+                    "version": ""
+               }
+          ]
+     },
+     "code": "0",
+     "message": ""
 }
 ```
 
@@ -56,17 +64,21 @@ GET /sdk/template/{template_id}/get_template_operation_record/
 |---------|--------|-----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
 | message | string | 返回消息                  |
-| data    | list   | 返回数据，操作记录列表          |
+| data    | dict   | 返回数据，操作记录列表           |
+| code    | string | 返回状态码                 |
 
-#### data[item] 字段说明
+#### data[data][item] 字段说明
 
-| 字段             | 类型     | 描述       |
-|----------------|--------|----------|
-| id             | int    | 记录ID     |
-| instance_id    | int    | 实例ID     |
-| operation_type | string | 操作类型     |
-| operator       | string | 操作人      |
-| operation_time | string | 操作时间     |
-| operation_source | string | 操作来源     |
+| 字段                  | 类型      | 描述     |
+|---------------------|---------|--------|
+| id                  | int     | 记录ID   |
+| instance_id         | int     | 实例ID   |
+| operate_type        | string  | 操作类型   |
+| operator            | string  | 操作人    |
+| operate_date        | string  | 操作时间   |
+| operate_source      | string  | 操作来源   |
+| operate_type_name   | string  | 操作类型说明 |
+| operate_source_name | string  | 操作来源说明 |
+| version             | string  | 流程版本   |
 
 
