@@ -307,7 +307,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
             update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
                 is_deleted=True
             )
-        clear_result = clear_scope_webhooks(to_delete_ids)
+        clear_result = clear_scope_webhooks([str(tid) for tid in to_delete_ids])
         if not clear_result["result"]:
             message = clear_result["message"]
             logger.error(message)

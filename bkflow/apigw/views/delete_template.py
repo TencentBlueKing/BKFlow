@@ -52,5 +52,5 @@ def delete_template(request, space_id, template_id):
     Template.objects.filter(space_id=space_id, id=template_id).update(is_deleted=True)
     trigger_ids = Trigger.objects.filter(template_id=template_id).values_list("id", flat=True)
     Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
-    clear_scope_webhooks([template_id])
+    clear_scope_webhooks([str(template_id)])
     return {"result": True, "data": {}, "code": err_code.SUCCESS.code}

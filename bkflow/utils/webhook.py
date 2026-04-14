@@ -104,7 +104,8 @@ def apply_webhook_configs(webhook_configs, scope_code):
     # 避免修改调用方传入的原始数据
     webhook_configs = {**webhook_configs, "code": webhook_code, "name": webhook_name}
     serializer = WebhookSerializer(data=webhook_configs)
-    serializer.is_valid(raise_exception=True)
+    if not serializer.is_valid():
+        return {"result": False, "message": str(serializer.errors)}
     extra_info = webhook_configs.get("extra_info", {})
     extra_info_mappings = {
         "retry_times": {"name": "重试次数", "max_value": settings.MAX_WEBHOOK_RETRY_TIMES, "unit": "次"},
