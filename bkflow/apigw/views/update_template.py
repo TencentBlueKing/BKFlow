@@ -26,9 +26,14 @@ from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.exceptions import UpdateTemplateException
-from bkflow.apigw.serializers.template import UpdateTemplateSerializer
+from bkflow.apigw.serializers.template import (
+    UpdateTemplateLabelsSerializer,
+    UpdateTemplateSerializer,
+)
 from bkflow.constants import TemplateOperationSource, TemplateOperationType
 from bkflow.exceptions import ValidationError
+from bkflow.label.models import Label, TemplateLabelRelation
+from bkflow.label.serializers import LabelSerializer
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
@@ -61,6 +66,12 @@ def update_template(request, space_id, template_id):
     pipeline_tree = validated_data_dict.pop("pipeline_tree", None)
     if pipeline_tree:
         replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
+
+    label_ids = validated_data_dict.pop("label_ids", None)
+    if label_ids is not None:
+        label_ids = list(set(label_ids))
+        if label_ids and not Label.objects.check_label_ids(label_ids):
+            raise UpdateTemplateException(_("标签不存在，请检查 label_ids"))
 
     validated_data_dict["updated_by"] = validated_data_dict.pop("operator", None) or request.user.username
     with transaction.atomic():
@@ -134,6 +145,41 @@ def update_template(request, space_id, template_id):
         except Exception as e:
             raise UpdateTemplateException(_(f"保存模板失败，错误: {str(e)}"))
 
+        if label_ids is not None:
+            TemplateLabelRelation.objects.set_labels(template.id, label_ids)
+
     template = Template.objects.get(id=template_id)
 
-    return {"result": True, "data": template.to_json(), "code": err_code.SUCCESS.code}
+    resp_data = template.to_json()
+    current_label_ids = list(
+        TemplateLabelRelation.objects.filter(template_id=template.id).values_list("label_id", flat=True)
+    )
+    resp_data["labels"] = (
+        LabelSerializer(Label.objects.filter(id__in=current_label_ids), many=True).data if current_label_ids else []
+    )
+
+    return {"result": True, "data": resp_data, "code": err_code.SUCCESS.code}
+
+
+@login_exempt
+@csrf_exempt
+@require_POST
+@check_jwt_and_space
+@return_json_response
+def update_template_labels(request, space_id, template_id):
+    data = json.loads(request.body or "{}")
+    ser = UpdateTemplateLabelsSerializer(data=data)
+    ser.is_valid(raise_exception=True)
+
+    label_ids = list(set(ser.validated_data.get("label_ids", [])))
+    if label_ids and not Label.objects.check_label_ids(label_ids):
+        raise UpdateTemplateException(_("标签不存在，请检查 label_ids"))
+
+    with transaction.atomic():
+        try:
+            template = Template.objects.get(id=template_id, space_id=space_id, is_deleted=False)
+        except Template.DoesNotExist:
+            raise UpdateTemplateException(_(f"模板不存在，template_id:{template_id}"))
+        TemplateLabelRelation.objects.set_labels(template.id, label_ids)
+
+    return {"result": True, "data": label_ids, "code": err_code.SUCCESS.code}

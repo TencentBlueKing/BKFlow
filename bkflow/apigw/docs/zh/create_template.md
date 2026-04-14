@@ -26,6 +26,7 @@
 | extra_info           | string   | 否   | 模板额外信息           |
 | pipeline_tree        | string   | 否   | 模板信息             |
 | auto_release         | bool     | 否   | 是否自动发布           |
+| label_ids            | list     | 否   | 标签ID列表 |
 
 当存在 source_template_id, 创建模板的pipeline_tree 将使用source_template_id对应流程的pipeline_tree。
 达到基于某个模板新建模板的效果。当前只允许指定同一个空间下的模板。
@@ -64,7 +65,8 @@
   "bk_app_code": "xxxx",
   "bk_app_secret": "xxxx",
   "bk_username or bk_token": "xxxx",
-  "name": "模板名"
+  "name": "模板名",
+  "label_ids": [1, 2, 3]
 }
 ```
 
@@ -77,6 +79,7 @@
     "id": 4,
     "space_id": "2",
     "name": "模板名",
+    "labels": [],
     "desc": null,
     "notify_config": {},
     "scope_type": null,
@@ -181,3 +184,4 @@
 | create_at     | string | 流程创建时间   |
 | update_at     | string | 流程更新时间   |
 | updated_by    | string | 流程更新者    |
+| labels        | list   | 标签列表（标签对象数组） |

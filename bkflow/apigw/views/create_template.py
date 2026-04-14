@@ -23,13 +23,17 @@ import logging
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.db import transaction
+from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from rest_framework import serializers
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.template import CreateTemplateApigwSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.decorators import record_operation
+from bkflow.label.models import Label, TemplateLabelRelation
+from bkflow.label.serializers import LabelSerializer
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.space.utils import build_default_pipeline_tree_with_space_id
@@ -59,13 +63,18 @@ def create_template(request, space_id):
     data = {}
     """
 
-    data = json.loads(request.body)
+    data = json.loads(request.body or "{}")
 
     ser = CreateTemplateApigwSerializer(data=data, context={"space_id": int(space_id), "request": request})
     ser.is_valid(raise_exception=True)
 
     validate_data = dict(ser.validated_data)
     auto_release = validate_data.pop("auto_release", False)
+
+    label_ids = validate_data.pop("label_ids", [])
+    label_ids = list(set(label_ids))
+    if label_ids and not Label.objects.check_label_ids(label_ids):
+        raise serializers.ValidationError(_("标签不存在，请检查 label_ids"))
 
     source_template_id = validate_data.pop("source_template_id", None)
     pipeline_tree = validate_data.pop("pipeline_tree", None)
@@ -94,5 +103,9 @@ def create_template(request, space_id):
         )
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
+        TemplateLabelRelation.objects.set_labels(template.id, label_ids)
 
-    return {"result": True, "data": template.to_json(), "code": err_code.SUCCESS.code}
+    resp_data = template.to_json()
+    resp_data["labels"] = LabelSerializer(Label.objects.filter(id__in=label_ids), many=True).data if label_ids else []
+
+    return {"result": True, "data": resp_data, "code": err_code.SUCCESS.code}
