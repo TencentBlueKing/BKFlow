@@ -66,7 +66,5 @@
 | result    | bool     | 返回结果，true为成功，false为失败 |
 | message   | string   | 错误信息                  |
 | data      | dict     | 返回数据                  |
-| exc       | string   | 异常对象                  |
+| exc       | string   | 异常信息                  |
 | exc_trace | string   | 异常堆栈跟踪信息              |
-
-
