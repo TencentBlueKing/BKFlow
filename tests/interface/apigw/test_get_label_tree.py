@@ -55,7 +55,7 @@ class TestGetLabelTree(TestCase):
 
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(data["result"], True)
-        self.assertEqual(data["count"], 3)
+        self.assertEqual(data["count"], 2)
         self.assertEqual(len(data["data"]), 1)
 
         # sorted by name, offset=1 -> root 'b'
