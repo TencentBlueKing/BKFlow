@@ -27,6 +27,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
+from bkflow.apigw.exceptions import CreateTemplateException
 from bkflow.apigw.serializers.template import CreateTemplateApigwSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.decorators import record_operation
@@ -37,6 +38,7 @@ from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
+from bkflow.utils.webhook import apply_webhook_configs
 
 logger = logging.getLogger("root")
 
@@ -65,6 +67,7 @@ def create_template(request, space_id):
     ser.is_valid(raise_exception=True)
 
     validate_data = dict(ser.validated_data)
+    webhook_configs = validate_data.pop("webhook_configs", [])
     auto_release = validate_data.pop("auto_release", False)
 
     source_template_id = validate_data.pop("source_template_id", None)
@@ -94,5 +97,12 @@ def create_template(request, space_id):
         )
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
+
+        if webhook_configs:
+            apply_result = apply_webhook_configs(webhook_configs, str(template.id))
+            if not apply_result["result"]:
+                message = apply_result["message"]
+                logger.error(message)
+                raise CreateTemplateException(f"创建模板失败，错误: {str(message)}")
 
     return {"result": True, "data": template.to_json(), "code": err_code.SUCCESS.code}

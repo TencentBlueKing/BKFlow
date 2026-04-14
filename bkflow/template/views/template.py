@@ -30,6 +30,7 @@ from rest_framework import mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
+from webhook.api import verify_webhook_endpoint
 from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.serializers.credential import CredentialSerializer
@@ -98,6 +99,7 @@ from bkflow.template.serializers.template import (
     TemplateReleaseSerializer,
     TemplateSerializer,
     TemplateSnapshotSerializer,
+    WebhookConfigQuerySerializer,
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
@@ -105,6 +107,7 @@ from bkflow.utils.permissions import AdminPermission, AppInternalPermission
 from bkflow.utils.pipeline import replace_subprocess_version
 from bkflow.utils.version import bump_custom
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet, UserModelViewSet
+from bkflow.utils.webhook import clear_scope_webhooks
 
 logger = logging.getLogger("root")
 
@@ -296,11 +299,19 @@ class AdminTemplateViewSet(AdminModelViewSet):
             return Response(exception=True, data=failed_data)
 
         if is_full:
-            update_num = Template.objects.filter(space_id=space_id, is_deleted=False).update(is_deleted=True)
+            to_delete_qs = Template.objects.filter(space_id=space_id, is_deleted=False)
+            to_delete_ids = list(to_delete_qs.values_list("id", flat=True))
+            update_num = to_delete_qs.update(is_deleted=True)
         else:
+            to_delete_ids = template_ids
             update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
                 is_deleted=True
             )
+        clear_result = clear_scope_webhooks(to_delete_ids)
+        if not clear_result["result"]:
+            message = clear_result["message"]
+            logger.error(message)
+            return Response(exception=True, data={"detail": message})
         trigger_ids = Trigger.objects.filter(template_id__in=ser.validated_data["template_ids"]).values_list(
             "id", flat=True
         )
@@ -722,6 +733,35 @@ class TemplateViewSet(UserModelViewSet):
         serializer = CredentialSerializer(filtered_credentials, many=True)
 
         return Response({"results": serializer.data, "count": len(serializer.data)})
+
+    @swagger_auto_schema(method="POST", operation_summary="验证Webhook配置", request_body=WebhookConfigQuerySerializer)
+    @action(methods=["POST"], detail=False)
+    def verify_webhook_configuration(self, request, *args, **kwargs):
+        serializer = WebhookConfigQuerySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        verify_data = serializer.validated_data.copy()
+        verify_data["url"] = verify_data.pop("endpoint")
+
+        try:
+            verify_result = verify_webhook_endpoint(verify_data)
+        except Exception as e:
+            message = str(e)
+            return Response({"detail": message}, exception=True)
+
+        if verify_result.exe_data:
+            message = "HTTP请求处理失败：请求URL错误"
+            return Response({"detail": message}, exception=True)
+
+        if verify_result.ok:
+            return Response({"detail": "success"})
+        else:
+            verify_response = verify_result.json_response()
+            error_content = (
+                verify_response.get("message") if isinstance(verify_response, dict) else str(verify_response)
+            )
+            message = f"HTTP请求处理失败：status_code={verify_result.response_status_code}, content={error_content}"
+            return Response({"detail": message}, exception=True)
 
 
 @method_decorator(login_exempt, name="dispatch")
