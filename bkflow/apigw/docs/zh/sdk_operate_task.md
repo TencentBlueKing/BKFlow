@@ -61,12 +61,12 @@
 
 ### 返回结果参数说明
 
-| 字段        | 类型                  | 描述                    |
-|-----------|---------------------|-----------------------|
-| result    | bool                | 返回结果，true为成功，false为失败 |
-| message   | string              | 错误信息                  |
-| data      | dict                | 返回数据                  |
-| exc       | Optional[Exception] | 异常对象                  |
-| exc_trace | Optional[str]       | 异常堆栈跟踪信息              |
+| 字段        | 类型       | 描述                    |
+|-----------|----------|-----------------------|
+| result    | bool     | 返回结果，true为成功，false为失败 |
+| message   | string   | 错误信息                  |
+| data      | dict     | 返回数据                  |
+| exc       | string   | 异常对象                  |
+| exc_trace | string   | 异常堆栈跟踪信息              |
 
 

@@ -43,12 +43,12 @@ GET /sdk/template/{template_id}/get_template_operation_record/
                {
                     "id": 1,
                     "instance_id": 123,
-                    "operation_type": "CREATE",
+                    "operate_type": "CREATE",
                     "operator": "admin",
-                    "operation_source": "WEB",
-                    "operation_date": "2024-12-15T21:10:43.284071+08:00",
-                    "operation_type_name": "创建",
-                    "operation_source_name": "app 页面",
+                    "operate_source": "WEB",
+                    "operate_date": "2024-12-15T21:10:43.284071+08:00",
+                    "operate_type_name": "创建",
+                    "operate_source_name": "app 页面",
                     "version": ""
                }
           ]
@@ -69,16 +69,16 @@ GET /sdk/template/{template_id}/get_template_operation_record/
 
 #### data[data][item] 字段说明
 
-| 字段                    | 类型      | 描述     |
-|-----------------------|---------|--------|
-| id                    | int     | 记录ID   |
-| instance_id           | int     | 实例ID   |
-| operation_type        | string  | 操作类型   |
-| operator              | string  | 操作人    |
-| operation_date        | string  | 操作时间   |
-| operation_source      | string  | 操作来源   |
-| operation_type_name   | string  | 操作类型说明 |
-| operation_source_name | string  | 操作来源说明 |
-| version               | string  | 流程版本   |
+| 字段                  | 类型      | 描述     |
+|---------------------|---------|--------|
+| id                  | int     | 记录ID   |
+| instance_id         | int     | 实例ID   |
+| operate_type        | string  | 操作类型   |
+| operator            | string  | 操作人    |
+| operate_date        | string  | 操作时间   |
+| operate_source      | string  | 操作来源   |
+| operate_type_name   | string  | 操作类型说明 |
+| operate_source_name | string  | 操作来源说明 |
+| version             | string  | 流程版本   |
 
 
