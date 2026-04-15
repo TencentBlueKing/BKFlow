@@ -561,7 +561,7 @@
             },
             validate() {
                 if (this.isEnable) {
-                    const { type } = this.localWebhookForm.extra_info?.authorization || '';
+                    const { type } = this.localWebhookForm.extra_info?.authorization || {};
                     const validations = [
                         this.$refs.settingForm.validate(),
                         this.$refs.addrForm.validate(),
