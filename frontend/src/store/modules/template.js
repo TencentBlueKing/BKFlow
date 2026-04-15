@@ -1273,7 +1273,7 @@ const template = {
     },
     // 获取凭证列表
     getCredentialList({}, data) {
-      return axios.get(`/api/template/${data.template_id}/credentials/`, {  params: data }).then(response => response.data);
+      return axios.get(`/api/template/${data.template_id}/credentials/`, { params: data }).then(response => response.data);
     },
     debugWebhook({}, data) {
       return axios.post('/api/template/verify_webhook_configuration/', data).then(response => response.data);
