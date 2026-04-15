@@ -233,6 +233,7 @@
       <bk-button
         theme="primary"
         :outline="true"
+        :loading="isDebugging"
         :disabled="isViewMode || !localWebhookForm.method || !localWebhookForm.endpoint || !isEnable"
         @click="debugMock">
         {{ $t('调试') }}
@@ -466,6 +467,7 @@
                         },
                     ],
                 },
+                isDebugging: false,
             };
         },
         computed: {
@@ -595,23 +597,28 @@
                 if (!isHaveCorrectInfoParams) {
                     return;
                 }
-                const params = {
-                    method: this.localWebhookForm.method,
-                    endpoint: this.localWebhookForm.endpoint,
-                    authorization: authorization.type === 'basic' ? basicAuth : authorization,
-                    headers: headers.filter(item => item.key !== ''),
-                    timeout,
-                    retry_times,
-                    interval,
-                };
-                const res = await this.debugWebhook(params);
-                if (res.result) {
-                    this.$bkNotify({
-                        type: 'success',
-                        title: i18n.t('调试结果'),
-                        message: i18n.t('请求发送成功'),
-                        theme: 'success',
-                    });
+                this.isDebugging = true;
+                try {
+                    const params = {
+                        method: this.localWebhookForm.method,
+                        endpoint: this.localWebhookForm.endpoint,
+                        authorization: authorization.type === 'basic' ? basicAuth : authorization,
+                        headers: headers.filter(item => item.key !== ''),
+                        timeout,
+                        retry_times,
+                        interval,
+                    };
+                    const res = await this.debugWebhook(params);
+                    if (res.result) {
+                        this.$bkNotify({
+                            type: 'success',
+                            title: i18n.t('调试结果'),
+                            message: i18n.t('请求发送成功'),
+                            theme: 'success',
+                        });
+                    }
+                } finally {
+                    this.isDebugging = false;
                 }
             },
         },
