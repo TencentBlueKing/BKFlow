@@ -405,7 +405,7 @@
         publishFormRules: {
           version: [{ required: true, message: i18n.t('请输入版本号'), trigger: 'blur' }],
         },
-        keysToRemove: ['optional', 'error_ignorable', 'retryable', 'skippable', 'auto_retry', 'timeout_config'],
+        keysToRemove: ['optional', 'error_ignorable', 'retryable', 'skippable', 'auto_retry', 'timeout_config', 'loop_config'],
         isHaveDraft: false,
         versionListData: [],
         versionListLoading: false,
