@@ -285,7 +285,6 @@
       // 更新连线
       updateConnector({ lineInfo, nodeId }) {
         const { id, source, target } = lineInfo;
-        console.log('lineInfo', lineInfo);
         // 新联连线配置
         const edges = [
           {
