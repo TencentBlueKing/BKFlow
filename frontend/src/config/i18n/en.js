@@ -1132,6 +1132,7 @@ const en = {
   循环变量不能与输入参数key相同: 'Loop variable cannot be the same as input parameter key',
   当前重试次数: 'Current Retry Count',
   次重试: 'Retry',
+  最大循环次数为100: 'Maximum loop count is 100',
   labelReference: '{0} template is being referenced，{1} task is being referenced',
   '搜索标签名称、标签范围、系统默认标签': 'Search Label Name, Label Scope, System Default Label',
   新增标签: 'Add Label',
