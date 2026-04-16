@@ -20,7 +20,7 @@
       class="loop-config-count">
       <span
         v-bk-tooltips="loopCountTipsConfig"
-        class="count-label count-laberl-tips">{{ $t('循环次数') }}</span>
+        class="count-label count-label-tips">{{ $t('循环次数') }}</span>
       <bk-slider
         v-model="formData.loop_times"
         class="count-slider"
@@ -67,7 +67,6 @@ export default {
       formData: tools.deepClone(this.loopConfig),
       debounceTimer: null,
       loopCountTipsConfig: {
-        allowHtml: true,
         theme: 'light',
         extCls: 'info-label-tips',
         content: i18n.t('最大循环次数为100'),
@@ -144,15 +143,10 @@ export default {
         font-size: 12px;
         margin-right: 8px;
       }
-      .count-tip{
-        font-size: 12px;
-        color: #979BA5;
-        margin-right: 8px;
-      }
       .count-slider{
         flex: 1;
       }
-      .count-laberl-tips{
+      .count-label-tips{
         position: relative;
         line-height: 21px;
         &::after {
