@@ -18,11 +18,15 @@
     <div
       v-if="formData.type === 'time_loop'"
       class="loop-config-count">
-      <span class="count-label">{{ $t('循环次数') }}</span>
+      <span
+        v-bk-tooltips="loopCountTipsConfig"
+        class="count-label count-label-tips">{{ $t('循环次数') }}</span>
       <bk-slider
         v-model="formData.loop_times"
         class="count-slider"
         :show-input="true"
+        :min-value="1"
+        :max-value="100"
         @input="onLoopTimesChange" />
     </div>
   </div>
@@ -31,6 +35,7 @@
 <script>
 import tools from '@/utils/tools.js';
 import LoopVar from './LoopVar.vue';
+import i18n from '@/config/i18n/index.js';
 // import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
 
 export default {
@@ -61,6 +66,12 @@ export default {
     return {
       formData: tools.deepClone(this.loopConfig),
       debounceTimer: null,
+      loopCountTipsConfig: {
+        theme: 'light',
+        extCls: 'info-label-tips',
+        content: i18n.t('最大循环次数为100'),
+        placement: 'top-start',
+      },
     };
   },
   watch: {
@@ -134,6 +145,18 @@ export default {
       }
       .count-slider{
         flex: 1;
+      }
+      .count-label-tips{
+        position: relative;
+        line-height: 21px;
+        &::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -3px;
+            border-top: 1px dashed #979ba5;
+            width: 100%
+        }
       }
     }
   }
