@@ -285,6 +285,7 @@
       // 更新连线
       updateConnector({ lineInfo, nodeId }) {
         const { id, source, target } = lineInfo;
+        console.log('lineInfo', lineInfo);
         // 新联连线配置
         const edges = [
           {
@@ -294,13 +295,13 @@
             },
             target: {
               cell: nodeId,
-              port: `port_${target.arrow.toLowerCase()}`,
+              port: 'port_left',
             },
           },
           {
             source: {
               cell: nodeId,
-              port: `port_${source.arrow.toLowerCase()}`,
+              port: 'port_right',
             },
             target: {
               cell: target.id,

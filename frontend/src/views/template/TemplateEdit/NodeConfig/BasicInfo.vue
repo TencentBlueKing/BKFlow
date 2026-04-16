@@ -886,6 +886,7 @@
               ...value,
             }));
           }
+          this.subVersionSelectValue = this.basicInfo.version;
           // 如果有执行方案，默认选中<不使用执行方案>
           if (this.schemeList.length && !this.formData.schemeIdList.length) {
             this.formData.schemeIdList = [0];

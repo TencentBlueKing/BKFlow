@@ -1270,13 +1270,11 @@
                   message: i18n.t('重试成功'),
                   theme: 'success',
                 });
-                if (subflowInfo?.taskId || isTopSubflow) {
-                  this.updateExecuteInfo();
-                }
                 // 重新轮询任务状态
                 this.isFailedSubproceeNodeInfo = null;
                 this.setTaskStatusTimer();
                 this.updateNodeActived(id, false);
+                this.updateExecuteInfo();
               }
             },
           });
