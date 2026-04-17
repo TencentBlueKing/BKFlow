@@ -636,7 +636,7 @@ class TaskNodeOperation:
         state = result.data
         # 已执行的节点直接获取执行数据
         inputs = {}
-        outputs = {}
+        outputs_wrapper = {}
         node_info = self._get_node_info(
             node_id=self.node_id, pipeline=self.task_instance.execution_data, subprocess_stack=subprocess_stack
         )
@@ -663,8 +663,8 @@ class TaskNodeOperation:
                     inputs = {key[2:-1]: value.get("value") for key, value in raw_inputs.items()}
                 else:
                     inputs = data["inputs"]
-                outputs = data["outputs"]
-                outputs = {"outputs": outputs, "ex_data": outputs.get("ex_data")}
+                raw_outputs = data["outputs"]
+                outputs_wrapper = {"outputs": raw_outputs, "ex_data": raw_outputs.get("ex_data")}
             # 读取历史记录
             else:
                 result = bamboo_engine_api.get_node_histories(runtime=runtime, node_id=self.node_id, loop=loop)
@@ -675,8 +675,12 @@ class TaskNodeOperation:
                 hist = result.data
                 if hist:
                     inputs = hist[-1]["inputs"]
-                    outputs = hist[-1]["outputs"]
-                    outputs = {"outputs": outputs, "ex_data": outputs.get("ex_data")}
+                    raw_outputs = hist[-1]["outputs"]
+                    outputs_wrapper = {"outputs": raw_outputs, "ex_data": raw_outputs.get("ex_data")}
+
+            if "outputs" in outputs_wrapper["outputs"]:
+                outputs_wrapper["outputs"].pop("outputs")
+
         # 未执行节点需要实时渲染
         else:
             if node_info["type"] not in {"ServiceActivity", "SubProcess"}:
@@ -733,10 +737,8 @@ class TaskNodeOperation:
                 return OperationResult(result=False, data={}, message=err)
 
         # 根据传入的 component_code 对输出进行格式化
-        if "outputs" in outputs["outputs"]:
-            outputs["outputs"].pop("outputs")
         success, err, outputs_table = self._format_outputs(
-            outputs=outputs,
+            outputs=outputs_wrapper,
             component_code=component_code,
             subprocess_stack=subprocess_stack,
         )
@@ -745,7 +747,7 @@ class TaskNodeOperation:
 
         # 对 inputs 中的敏感信息进行脱敏处理（如 credentials）
         masked_inputs = mask_sensitive_data_for_display(inputs)
-        data = {"inputs": masked_inputs, "outputs": outputs_table, "ex_data": outputs.pop("ex_data", "")}
+        data = {"inputs": masked_inputs, "outputs": outputs_table, "ex_data": outputs_wrapper.pop("ex_data", "")}
         return OperationResult(result=True, data=data, message="")
 
     @staticmethod
