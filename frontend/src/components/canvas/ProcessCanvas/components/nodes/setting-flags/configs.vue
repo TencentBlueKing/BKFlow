@@ -3,7 +3,7 @@
   <div class="node-config-flags">
     <template v-if="node.optional">
       <span
-        v-if="node.mode === 'edit'"
+        v-if="!['execute', 'select'].includes(node.mode)"
         class="dark-circle common-icon-dark-circle-checkbox" />
       <bk-checkbox
         v-else-if="node.mode === 'select'"
@@ -11,7 +11,7 @@
         :disabled="node.checkDisable"
         @change="onNodeCheckClick" />
     </template>
-    <template v-if="node.mode === 'edit'">
+    <template v-if="!['execute', 'select'].includes(node.mode)">
       <span
         v-if="node.error_ignorable"
         class="error-handle-icon"><span class="text">AS</span></span>

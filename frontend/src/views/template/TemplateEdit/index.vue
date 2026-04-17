@@ -592,7 +592,7 @@
         if (isNeedRefresh) {
           this.onRefreshVersionList(draftInfo);
         }
-        this.lastedPipelineTree = pipelineTree;
+        this.lastedPipelineTree = tools.deepClone(pipelineTree);
         this.compVersion = null;
         this.setPipelineTree(draftTplData.data.pipeline_tree);
         this.isChangeTplVersionTime = new Date().getTime();
