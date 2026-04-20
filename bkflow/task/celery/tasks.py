@@ -100,7 +100,13 @@ def send_task_message(task_id, msg_type):
         event = WebhookEventType.TASK_FAILED.value if msg_type == ATOM_FAILED else WebhookEventType.TASK_FINISHED.value
         interface_client = InterfaceModuleClient()
         interface_client.broadcast_task_events(
-            data={"space_id": task_instance.space_id, "event": event, "extra_info": {"task_id": task_instance.id}}
+            data={
+                "space_id": task_instance.space_id,
+                "template_id": task_instance.template_id,
+                "task_id": task_instance.id,
+                "event": event,
+                "extra_info": {"task_id": task_instance.id},
+            }
         )
     except Exception as e:
         logger.exception(f"[send_task_message] task({task_id}) send message({msg_type}) error: {e}")
