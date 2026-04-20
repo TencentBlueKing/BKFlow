@@ -23,6 +23,7 @@ import logging
 import traceback
 from copy import deepcopy
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from pipeline.component_framework.constant import ConstantPool
 from pipeline.core.constants import PE
@@ -427,13 +428,21 @@ class PipelineTemplateWebPreviewer:
         conflicting_variables = []
         conflicting_global_variables = []
         loop_variables = []
+        exceeded_loop_times_nodes = []
 
         for node_name, activity in pipeline_tree["activities"].items():
             loop_config = activity.get("loop_config", {})
-            if not loop_config.get("enable", False) or loop_config.get("type") != "array_loop":
+            if not loop_config.get("enable", False):
                 continue
 
             loop_times = loop_config["loop_times"]
+            # 校验循环次数是否超过最大值
+            if loop_times > settings.MAX_LOOP_TIMES:
+                exceeded_loop_times_nodes.append(node_name)
+
+            if loop_config.get("type") != "array_loop":
+                continue
+
             loop_params = loop_config.get("loop_params", {})
 
             # 统计当前节点的循环变量
@@ -461,6 +470,11 @@ class PipelineTemplateWebPreviewer:
                 else:
                     loop_variable_usage[param_key] = node_name
 
+        if exceeded_loop_times_nodes:
+            return {
+                "has_loop": False,
+                "error_message": f"节点 {'; '.join(exceeded_loop_times_nodes)} 的循环次数超过最大值{settings.MAX_LOOP_TIMES}",
+            }
         if loop_variables:
             return {"has_loop": False, "error_message": f"节点 {'; '.join(loop_variables)} 的循环次数与循环变量参数不匹配"}
         # 返回验证结果
