@@ -572,7 +572,7 @@
         return this.createMethod === 'MOCK' || this.isShowCallbackHistoryAndViewTpl;
       },
       isShowCallbackHistoryAndViewTpl() {
-        return  ['EDIT', 'VIEW', 'MOCK'].some(perm => this.templateActions.includes(perm));
+        return ['EDIT', 'VIEW', 'MOCK'].some(perm => this.templateActions.includes(perm));
       },
       adminView() {
         return false;
