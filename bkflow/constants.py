@@ -116,6 +116,7 @@ class WebhookScopeType(Enum):
     """webhook作用域类型"""
 
     SPACE = "space"
+    TEMPLATE = "template"
 
 
 class WebhookEventType(Enum):

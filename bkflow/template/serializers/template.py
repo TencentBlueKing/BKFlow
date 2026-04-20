@@ -52,6 +52,11 @@ from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.template.utils import send_callback
 from bkflow.utils.pipeline import replace_subprocess_version
 from bkflow.utils.version import bump_custom
+from bkflow.utils.webhook import (
+    apply_webhook_configs,
+    clear_scope_webhooks,
+    get_webhook_configs,
+)
 
 logger = logging.getLogger("root")
 
@@ -97,6 +102,8 @@ class TemplateSerializer(serializers.ModelSerializer):
     triggers = TriggerSerializer(many=True, required=True, allow_null=True)
     subprocess_info = serializers.JSONField(help_text=_("子流程信息"), read_only=True)
     labels = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
+    webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
+    enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
@@ -227,6 +234,17 @@ class TemplateSerializer(serializers.ModelSerializer):
             logger.exception("Triggers update or create failed,{}".format(e))
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
 
+        enable_webhook = validated_data.get("enable_webhook")
+        webhook_configs = validated_data.get("webhook_configs", [])
+        if enable_webhook is True and webhook_configs:
+            apply_result = apply_webhook_configs(webhook_configs, str(instance.id))
+            if not apply_result["result"]:
+                message = apply_result["message"]
+                logger.error(message)
+                raise serializers.ValidationError(message)
+        elif enable_webhook is False:
+            clear_scope_webhooks([str(instance.id)])
+
         send_callback(instance.space_id, "template", instance.build_callback_data(operate_type="update"))
         event_broadcast_signal.send(
             sender=WebhookEventType.TEMPLATE_UPDATE.value,
@@ -261,6 +279,9 @@ class TemplateSerializer(serializers.ModelSerializer):
         )
         pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
         data["pipeline_tree"] = pipeline_tree
+        webhook_configs = get_webhook_configs(scope_code=str(instance.id))
+        data["webhook_configs"] = webhook_configs
+        data["enable_webhook"] = True if webhook_configs else False
         return data
 
     class Meta:
@@ -401,3 +422,10 @@ class TemplateSnapshotSerializer(serializers.ModelSerializer):
 
 class TemplateUpdateLabelSerializer(serializers.Serializer):
     label_ids = serializers.ListField(help_text=_("标签ID列表"), required=True, child=serializers.IntegerField())
+
+
+class WebhookConfigQuerySerializer(serializers.Serializer):
+    method = serializers.CharField(help_text=_("webhook method"), max_length=255, required=True)
+    endpoint = serializers.URLField(help_text=_("webhook endpoint"), max_length=255, required=True)
+    headers = serializers.JSONField(help_text=_("webhook headers"), required=False)
+    authorization = serializers.JSONField(help_text=_("webhook authorization"), required=False)
