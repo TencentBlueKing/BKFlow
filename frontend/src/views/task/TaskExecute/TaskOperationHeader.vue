@@ -135,7 +135,7 @@
               {{ 'Code' }}
             </p>
             <p
-              v-if="templateActions.includes('EDIT')"
+              v-if="isShowCallbackHistoryAndViewTpl"
               class="operate-item"
               @click="onTaskParamsClick('webhook', $t('回调记录'))">
               {{ $t('回调记录') }}
@@ -189,10 +189,6 @@
         type: Array,
         default: () => ({}),
       },
-      templateActions: {
-        type: Array,
-        default: () => ([]),
-      },
       taskOperationBtns: {
         type: Array,
         default: () => ({}),
@@ -208,6 +204,10 @@
       },
       isTaskOperationBtnsShow: Boolean,
       isShowViewProcess: Boolean,
+      isShowCallbackHistoryAndViewTpl: {
+        type: Boolean,
+        default: false,
+      },
       triggerMethod: {
         type: String,
         default: '',

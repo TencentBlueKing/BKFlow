@@ -498,15 +498,15 @@
             ...mapActions('template', [
                 'debugWebhook',
             ]),
-            renderLabel(h, name) {
+            renderLabel (h, name) {
                 return h('div', { class: 'tab-name-badge' }, [
                     h('div', { class: 'panel-name' }, [
-                        name === 'headers' ? this.$t('头信息') : (name === 'settings' ? this.$t('设置') : this.$t('认证')),
+                        name === 'headers' ? this.$t('头信息') : (name === 'settings' ? this.$t('设置') : this.$t('认证'))
                     ]),
                     h('div', {
-                        class: ['badge', ({ headers: this.isAccessHeaders, settings: this.isAccessSettings, auth: this.isAccessAuth }[name]) ? 'badge-success' : 'badge-error'],
-                    }),
-                ]);
+                        class: ['badge', (name === 'headers' ? this.isAccessHeaders : (name === 'settings' ? this.isAccessSettings : this.isAccessAuth)) ? 'badge-success' : 'badge-error']
+                    })
+                ])
             },
             requestTypetabChange(tabName) {
                 this.activeTab = tabName;
