@@ -118,6 +118,12 @@
               @click="onTaskParamsClick('templateData', 'Code')">
               {{ 'Code' }}
             </p>
+            <p
+              v-if="templateActions.includes('EDIT')"
+              class="operate-item"
+              @click="onTaskParamsClick('webhook', $t('回调记录'))">
+              {{ $t('回调记录') }}
+            </p>
           </template>
         </bk-popover>
       </div>
@@ -166,6 +172,10 @@
       instanceActions: {
         type: Array,
         default: () => ({}),
+      },
+      templateActions: {
+        type: Array,
+        default: () => ([]),
       },
       taskOperationBtns: {
         type: Array,

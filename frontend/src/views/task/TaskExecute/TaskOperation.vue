@@ -21,6 +21,7 @@
       :node-info-type="nodeInfoType"
       :task-operation-btns="taskOperationBtns"
       :instance-actions="instanceActions"
+      :template-actions="templateActions"
       :admin-view="adminView"
       :state-str="taskState"
       :state="state"
@@ -176,6 +177,10 @@
           v-if="nodeInfoType === 'templateData'"
           :template-data="templateData"
           @onshutDown="onshutDown" />
+        <WebhookCallback
+          v-if="nodeInfoType === 'webhook'"
+          :webhook-history="webhookHistory"
+          class="wehhook-callback" />
       </div>
     </bk-sideslider>
     <gatewaySelectDialog
@@ -259,6 +264,7 @@
   import { checkConditionLoop, findLoopTarget, findNearestGatewayByIncoming } from '@/utils/orderCanvasNodeToNodeTree.js';
   import { FlowExecuteBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-execute';
   import '@blueking/bkflow-canvas-editor-vue2/style';
+  import WebhookCallback from './WebhookCallback.vue';
 
   const { CancelToken } = axios;
   let source = CancelToken.source();
@@ -310,6 +316,7 @@
       VerticalCanvas,
       StageCanvas,
       FlowExecuteBridge,
+      WebhookCallback
     },
     mixins: [permission, tplPerspective],
     props: {
@@ -342,6 +349,10 @@
         default: '',
       },
       instanceActions: {
+        type: Array,
+        default: () => ([]),
+      },
+      templateActions: {
         type: Array,
         default: () => ([]),
       },
@@ -469,6 +480,7 @@
           SubProcess: 'task',
         },
         subflowInfo: {}, // 子流程根节点id和任务id
+        webhookHistory: [],
       };
     },
     computed: {
@@ -578,6 +590,10 @@
       paramsCanBeModify() {
         return this.isTopTask && !['FINISHED', 'REVOKED'].includes(this.state);
       },
+      isShowViewProcess() {
+        // 根据流程权限判断：MOCK调试任务 或 流程拥有 EDIT/OPERATE 权限时展示查看流程按钮
+        return this.createMethod === 'MOCK' || ['EDIT', 'VIEW'].some(perm => this.templateActions.includes(perm));
+      },
       adminView() {
         return false;
       },
@@ -660,6 +676,7 @@
         'subflowNodeRetry',
         'loadSubflowConfig',
         'getNodeActDetail',
+        'getTaskInstanceData'
       ]),
       ...mapActions('atomForm/', [
         'loadSingleAtomList',
@@ -722,6 +739,11 @@
             this.state = instanceStatus.data.state;
             this.instanceStatus = instanceStatus.data;
             this.pollErrorTimes = 0;
+            // 请求获取回调记录
+            if (['FINISHED', 'FAILED'].includes(this.state)) {
+                const instanceData = await this.getTaskInstanceData(this.taskId);
+                this.webhookHistory = instanceData.webhook_delivery_history;
+            }
             if (this.isTopTask) {
               this.rootState = this.state;
             }
@@ -2273,7 +2295,7 @@
 }
 .node-info-panel {
     height: 100%;
-    .operation-flow {
+    .operation-flow, .wehhook-callback{
         padding: 20px 30px;
     }
 }
