@@ -1062,7 +1062,7 @@ const template = {
         timeout,
         description,
         executor_proxy,
-        labels: template_labels.length > 0 ? template_labels.map(label => label.id) : [],
+        labels: Array.isArray(template_labels) && template_labels.length > 0 ? template_labels.map(label => label.id) : [],
         default_flow_type,
         pipeline_tree: pipelineTree,
         space_id: spaceId,
