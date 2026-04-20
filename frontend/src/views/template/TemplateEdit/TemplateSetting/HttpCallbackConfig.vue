@@ -504,7 +504,7 @@
                         name === 'headers' ? this.$t('头信息') : (name === 'settings' ? this.$t('设置') : this.$t('认证')),
                     ]),
                     h('div', {
-                        class: ['badge', (name === 'headers' ? this.isAccessHeaders : (name === 'settings' ? this.isAccessSettings : this.isAccessAuth)) ? 'badge-success' : 'badge-error'],
+                        class: ['badge', ({ headers: this.isAccessHeaders, settings: this.isAccessSettings, auth: this.isAccessAuth }[name]) ? 'badge-success' : 'badge-error'],
                     }),
                 ]);
             },

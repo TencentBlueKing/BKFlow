@@ -508,9 +508,9 @@ import HttpCallbackConfig from './HttpCallbackConfig.vue';
             } = this.formData;
             // eslint-disable-next-line camelcase
             if (webhookConfigs?.extra_info) {
-                webhookConfigs.extra_info.interval = typeof webhookConfigs.extra_info.interval !== 'number' ? parseInt(webhookConfigs.extra_info.interval) : webhookConfigs.extra_info.interval;
-                webhookConfigs.extra_info.retry_times = typeof webhookConfigs.extra_info.retry_times !== 'number' ? parseInt(webhookConfigs.extra_info.retry_times) : webhookConfigs.extra_info.retry_times;
-                webhookConfigs.extra_info.timeout = typeof webhookConfigs.extra_info.timeout !== 'number' ? parseInt(webhookConfigs.extra_info.timeout) : webhookConfigs.extra_info.timeout;
+                webhookConfigs.extra_info.interval = typeof webhookConfigs.extra_info.interval !== 'number' ? parseInt(webhookConfigs.extra_info.interval, 10) : webhookConfigs.extra_info.interval;
+                webhookConfigs.extra_info.retry_times = typeof webhookConfigs.extra_info.retry_times !== 'number' ? parseInt(webhookConfigs.extra_info.retry_times, 10) : webhookConfigs.extra_info.retry_times;
+                webhookConfigs.extra_info.timeout = typeof webhookConfigs.extra_info.timeout !== 'number' ? parseInt(webhookConfigs.extra_info.timeout, 10) : webhookConfigs.extra_info.timeout;
                 webhookConfigs.extra_info.headers = webhookConfigs.extra_info.headers.filter(item => item.key !== '');
             }
             return {

@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/camelcase -->
 <template>
   <div class="wehhook-callback">
     <bk-table
@@ -69,7 +70,6 @@
 </template>
 
 <script>
-    import { mapActions } from 'vuex';
     import NoData from '@/components/common/base/NoData.vue';
     import Vue from 'vue';
     import { bkTooltips } from 'bk-magic-vue';
@@ -82,7 +82,7 @@
             webhookHistory: {
                 type: Array,
                 default: () => [],
-            }
+            },
         },
         data() {
             return {
@@ -98,19 +98,7 @@
                 },
             };
         },
-        watch: {
-            webhookHistory: {
-                handler(val) {
-                    console.log('监听回调记录', val);
-                },
-                deep: true,
-                immediate: true,
-            },
-        },
         methods: {
-            ...mapActions('task/', [
-                'getOperationRecordTask',
-            ]),
             parseResponse(response) {
                 if (!response) return '--';
                 try {
@@ -133,10 +121,10 @@
         @include scrollbar;
     }
     .true-icon{
-        color: #2dcb56,
+        color: #2dcb56;
     }
     .false-icon{
-        color: #ea3636,
+        color: #ea3636;
     }
 }
 </style>
