@@ -636,7 +636,7 @@
         'subflowNodeRetry',
         'loadSubflowConfig',
         'getNodeActDetail',
-        'getTaskInstanceData'
+        'getTaskInstanceData',
       ]),
       ...mapActions('atomForm/', [
         'loadSingleAtomList',
