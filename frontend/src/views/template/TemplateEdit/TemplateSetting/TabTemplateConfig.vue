@@ -438,10 +438,11 @@ import HttpCallbackConfig from './HttpCallbackConfig.vue';
     },
     methods: {
         ...mapMutations('template/', [
-          'setTplConfig'
+          'setTplConfig',
         ]),
         ...mapActions('project', [
-          'getProjectConfig', 'createTemplateLabel'
+          'getProjectConfig',
+          'createTemplateLabel',
         ]),
         ...mapActions('spaceConfig/', [
             'getNotAuthSpaceConfig',
@@ -611,7 +612,7 @@ import HttpCallbackConfig from './HttpCallbackConfig.vue';
                 notify_type,
                 default_flow_type,
                 webhook_configs,
-                enable_webhook
+                enable_webhook,
             };
             const editingData = this.getTemplateConfig();
             if (tools.isDataEqual(originData, editingData)) {

@@ -21,11 +21,12 @@
       :node-info-type="nodeInfoType"
       :task-operation-btns="taskOperationBtns"
       :instance-actions="instanceActions"
-      :template-actions="templateActions"
       :admin-view="adminView"
       :state-str="taskState"
       :state="state"
       :is-breadcrumb-show="isBreadcrumbShow"
+      :is-show-view-process="isShowViewProcess"
+      :is-show-callback-history-and-view-tpl="isShowCallbackHistoryAndViewTpl"
       :is-task-operation-btns-show="isTaskOperationBtnsShow"
       :params-can-be-modify="paramsCanBeModify"
       :trigger-method="triggerMethod"
@@ -591,8 +592,10 @@
         return this.isTopTask && !['FINISHED', 'REVOKED'].includes(this.state);
       },
       isShowViewProcess() {
-        // 根据流程权限判断：MOCK调试任务 或 流程拥有 EDIT/OPERATE 权限时展示查看流程按钮
-        return this.createMethod === 'MOCK' || ['EDIT', 'VIEW'].some(perm => this.templateActions.includes(perm));
+        return this.createMethod === 'MOCK' || this.isShowCallbackHistoryAndViewTpl;
+      },
+      isShowCallbackHistoryAndViewTpl() {
+        return ['EDIT', 'VIEW', 'MOCK'].some(perm => this.templateActions.includes(perm));
       },
       adminView() {
         return false;
