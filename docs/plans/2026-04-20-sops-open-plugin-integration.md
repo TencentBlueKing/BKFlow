@@ -69,20 +69,17 @@ BKFlow
     ├── interface/apigw/test_operate_task.py
     └── interface/apigw/test_operate_task_node.py
 
-Frontend
-├── frontend/src/views/template/TemplateEdit/NodeConfig/SelectPanel/apiPlugin.vue
-│   └── 展示开放插件来源别名、plugin_version 与失效态提示
-├── frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue
-│   └── 节点配置面板接入 plugin_version 与不可用提示
-├── frontend/src/store/modules/template.js
-│   └── 扩展 uniform_api 列表 / 详情 / 节点快照字段处理
-├── frontend/src/views/admin/Space/index.vue
-├── frontend/src/views/admin/Space/OpenPlugin/index.vue
-│   └── 新增空间级开放插件管理页
-├── frontend/src/store/modules/openPlugin.js
-├── frontend/src/store/index.js
-├── frontend/src/config/i18n/cn.js
-└── frontend/src/config/i18n/en.js
+Frontend collaboration artifacts
+├── docs/specs/2026-04-20-sops-open-plugin-frontend-interaction-design.md
+│   └── 前端交互说明与页面状态覆盖
+├── docs/guide/sops_open_plugin_frontend_contract.md
+│   └── 前后端对接字段、状态与展示规则
+└── prototypes/output/
+    ├── sops-open-plugin-main-flow.html
+    ├── sops-open-plugin-space-open-plugin-management.html
+    ├── sops-open-plugin-template-plugin-selection.html
+    └── sops-open-plugin-task-plugin-error-state.html
+        └── 主流程与三组独立页面原型，供前端实现对齐
 
 Standard Ops (`../bk-sops`)
 ├── gcloud/open_plugins/
@@ -824,73 +821,64 @@ git commit -m "feat(plugin): 新增开放插件快照与版本迁移能力 --sto
 
 ---
 
-### Task 8: 前端插件选择与空间开放管理
+### Task 8: 前端协作交付物对齐
 
 **Files:**
-- Modify: `frontend/src/views/template/TemplateEdit/NodeConfig/SelectPanel/apiPlugin.vue`
-- Modify: `frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue`
-- Modify: `frontend/src/store/modules/template.js`
-- Modify: `frontend/src/views/admin/Space/index.vue`
-- Create: `frontend/src/views/admin/Space/OpenPlugin/index.vue`
-- Create: `frontend/src/store/modules/openPlugin.js`
-- Modify: `frontend/src/store/index.js`
-- Modify: `frontend/src/config/i18n/cn.js`
-- Modify: `frontend/src/config/i18n/en.js`
+- Create: `docs/specs/2026-04-20-sops-open-plugin-frontend-interaction-design.md`
+- Create: `docs/guide/sops_open_plugin_frontend_contract.md`
+- Create: `prototypes/output/sops-open-plugin-main-flow.html`
+- Create: `prototypes/output/sops-open-plugin-space-open-plugin-management.html`
+- Create: `prototypes/output/sops-open-plugin-template-plugin-selection.html`
+- Create: `prototypes/output/sops-open-plugin-task-plugin-error-state.html`
 
-- [ ] **Step 1: 写前端联调清单**
+- [ ] **Step 1: 交付主流程与三组独立页面原型**
 
-明确至少覆盖：
+至少覆盖：
 
-- 插件选择面板展示开放插件来源别名
-- 节点表单展示 `plugin_version`
-- 模板加载时对已关闭 / `unavailable` 插件给出只读提示
-- 空间管理员可在空间管理页开/关插件、按来源一键关闭、对当前可见插件一键全开
+- 主流程原型
+- 空间开放插件管理页原型
+- 模板编辑插件选择与版本展示页原型
+- 任务页异常提示原型
 
-- [ ] **Step 2: 调整模板编辑页插件选择体验**
+- [ ] **Step 2: 编写前端交互说明文档**
 
-在 `apiPlugin.vue` / `template.js` 中：
+文档至少覆盖：
 
-- 展示来源别名与当前 `plugin_version`
-- 当 `plugin_version` 失效时展示只读态和切换入口
-- 保留现有 `uniform_api` 选择交互，不新增第四类插件面板
+- 页面范围
+- 信息结构
+- 状态覆盖
+- 关键交互
+- MVP 与增强态边界
 
-- [ ] **Step 3: 新增空间开放插件管理页**
+- [ ] **Step 3: 编写前后端协议文档**
 
-在 `frontend/src/views/admin/Space/OpenPlugin/index.vue` 与 `frontend/src/views/admin/Space/index.vue` 中：
+协议至少覆盖：
 
-- 新增空间管理 Tab
-- 展示当前空间开放插件目录索引
-- 提供单个开关、当前可见插件一键全开、按来源一键关闭
+- 页面到接口映射
+- 前端必需字段
+- 状态枚举
+- 错误态与建议动作映射
+- 跳转与只读规则
 
-- [ ] **Step 4: 接入前端 store 与文案**
+- [ ] **Step 4: 完成评审材料自查**
 
-在 `frontend/src/store/modules/openPlugin.js` / `store/index.js` 中增加 API 调用；
-文案更新放到：
+确认：
 
-- `frontend/src/config/i18n/cn.js`
-- `frontend/src/config/i18n/en.js`
+- `plugin_version` 为显式字段
+- 任务页异常提示不承载原地修复
+- 一键全开仅作用于当前已发现插件
+- 历史失效版本可回看、不可继续新用
 
-- [ ] **Step 5: 跑前端校验**
-
-Run:
-- `npm --prefix frontend run lint`
-- `npm --prefix frontend run build`
-
-Expected: PASS
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add frontend/src/views/template/TemplateEdit/NodeConfig/SelectPanel/apiPlugin.vue \
-  frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue \
-  frontend/src/store/modules/template.js \
-  frontend/src/views/admin/Space/index.vue \
-  frontend/src/views/admin/Space/OpenPlugin/index.vue \
-  frontend/src/store/modules/openPlugin.js \
-  frontend/src/store/index.js \
-  frontend/src/config/i18n/cn.js \
-  frontend/src/config/i18n/en.js
-git commit -m "feat(frontend): 接入开放插件选择与空间管理界面 --story=133649781"
+git add docs/specs/2026-04-20-sops-open-plugin-frontend-interaction-design.md \
+  docs/guide/sops_open_plugin_frontend_contract.md \
+  prototypes/output/sops-open-plugin-main-flow.html \
+  prototypes/output/sops-open-plugin-space-open-plugin-management.html \
+  prototypes/output/sops-open-plugin-template-plugin-selection.html \
+  prototypes/output/sops-open-plugin-task-plugin-error-state.html
+git commit -m "docs(frontend): 补充开放插件前端交付物 --story=133649781"
 ```
 
 ---
@@ -1011,6 +999,6 @@ git commit -m "feat(statistics): 扩展开放插件统计维度 --story=13364978
 
 ## Notes For Executor
 
-- 推荐执行顺序：Task 1 → Task 2 → Task 4 → Task 3 → Task 5 → Task 6 → Task 7 → Task 8 → Task 9。先稳定跨仓协议与目录契约，再补运行时与前端，最后做迁移和联调，能明显减少 mock 与真实契约的返工。
+- 推荐执行顺序：Task 1 → Task 2 → Task 4 → Task 3 → Task 5 → Task 6 → Task 7 → Task 8 → Task 9。先稳定跨仓协议与目录契约，再补运行时与前端协作交付物，最后做迁移和联调，能明显减少 mock 与真实契约的返工。
 - 任何修改 `bkflow/apigw/` 的任务，必须同步执行 `bash scripts/apigw_docs.sh`。
 - 若标准运维开放层实现后发现 `default_project_id` 无法覆盖某类插件，请不要临时扩充 BKFlow 运行时上下文；先把该插件加入一期不开放白名单，并回写 spec。
