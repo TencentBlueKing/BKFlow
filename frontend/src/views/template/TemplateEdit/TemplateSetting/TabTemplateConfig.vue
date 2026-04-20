@@ -656,7 +656,7 @@ export default {
                 notify_type,
                 default_flow_type,
                 webhook_configs,
-                enable_webhook
+                enable_webhook,
             };
             const editingData = this.getTemplateConfig();
             if (tools.isDataEqual(originData, editingData)) {
