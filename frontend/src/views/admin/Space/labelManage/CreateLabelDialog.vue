@@ -198,12 +198,14 @@ export default {
                 };
 
                 if (this.isEdit) {
-                    await this.updateLabel({
+                    const res = await this.updateLabel({
                         id: this.editLabelId,
                         data: payload,
                     });
+                    if (!res.result) return;
                 } else {
                     const res = await this.createLabel(payload);
+                    if (!res.result) return;
                     this.$emit('confirm', res.data);
                 }
                 this.$emit('refresh');
