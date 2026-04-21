@@ -1198,6 +1198,8 @@ const en = {
   重试次数: 'Retry Count',
   请输入数字: 'Please enter a number',
   密码: 'Password',
+  循环失败处理: 'Loop Failure Handling',
+  执行方式: 'Execution Method',
 };
 
 export default en;

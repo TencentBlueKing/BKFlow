@@ -96,11 +96,6 @@ export default {
             message: this.$t('循环变量不能重复'),
             trigger: 'blur',
           },
-          {
-            validator: this.validateVarNameNotInSubflowForms,
-            message: this.$t('循环变量不能与输入参数key相同'),
-            trigger: 'blur',
-          },
         ],
         value: [
           {
@@ -135,12 +130,6 @@ export default {
         return normalizedName === normalizedValue;
       }).length;
       return count <= 1;
-    },
-    validateVarNameNotInSubflowForms(value) {
-      if (!value) return true;
-      const subflowKeys = Object.keys(this.subflowForms);
-      const checkValue = /^\$\{\w+\}$/.test(value) ? value : `\${${value}}`;
-      return !subflowKeys.includes(checkValue);
     },
     onParamChange() {
       this.$emit('change', this.curVarList);

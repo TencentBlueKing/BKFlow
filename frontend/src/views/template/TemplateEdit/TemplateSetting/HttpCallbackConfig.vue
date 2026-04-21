@@ -499,12 +499,12 @@
                 'debugWebhook',
             ]),
             renderLabel(h, name) {
+                const labelMap = { headers: this.$t('头信息'), settings: this.$t('设置'), authentication: this.$t('认证') };
+                const accessMap = { headers: this.isAccessHeaders, settings: this.isAccessSettings, authentication: this.isAccessAuth };
                 return h('div', { class: 'tab-name-badge' }, [
-                    h('div', { class: 'panel-name' }, [
-                        name === 'headers' ? this.$t('头信息') : (name === 'settings' ? this.$t('设置') : this.$t('认证')),
-                    ]),
+                    h('div', { class: 'panel-name' }, [labelMap[name]]),
                     h('div', {
-                        class: ['badge', ({ headers: this.isAccessHeaders, settings: this.isAccessSettings, auth: this.isAccessAuth }[name]) ? 'badge-success' : 'badge-error'],
+                        class: ['badge', accessMap[name] ? 'badge-success' : 'badge-error'],
                     }),
                 ]);
             },
