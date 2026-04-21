@@ -71,13 +71,58 @@
           v-else
           class="td">{{ '--' }}</span>
       </li>
-
       <li v-if="isSubProcessNode || isTemSubflowNode">
         <span class="th">{{ $t('总是使用最新版本') }}</span>
         <span class="td">
           {{ !('always_use_latest' in componentValue) ? '--' : componentValue.always_use_latest ? $t('是') : $t('否') }}
         </span>
       </li>
+      <li>
+        <span class="th">{{ $t('执行方式') }}</span>
+        <span class="td">{{ loopTypeText }}</span>
+      </li>
+      <template v-if="loopConfig && loopConfig.enable">
+        <li>
+          <span class="th">{{ $t('循环类型') }}</span>
+          <span class="td">{{ loopConfigTypeText }}</span>
+        </li>
+        <li v-if="loopConfig.type === 'time_loop'">
+          <span class="th">{{ $t('循环次数') }}</span>
+          <span class="td">{{ loopConfig.loop_times || '--' }}</span>
+        </li>
+        <li
+          v-if="loopConfig.type === 'array_loop' && loopParamsList.length > 0"
+          class=" loop-params-item">
+          <span class="th">{{ $t('循环变量') }}</span>
+          <div class="loop-params-td td">
+            <div
+              v-for="item in loopParamsList"
+              :key="item.key"
+              class="loop-param-row">
+              <span class="param-name-text">{{ item.key + ':' }}</span>
+              <span class="param-data-text">{{ item.value }}</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <span class="th">{{ $t('循环失败处理') }}</span>
+          <span class="error-handle-td td">
+            <template v-if="loopConfig.fail_skip">
+              <span class="error-handle-icon"><span class="text">AS</span></span>
+              {{ $t('自动跳过') }};
+            </template>
+            <template v-if="loopConfig.skippable">
+              <span class="error-handle-icon"><span class="text">MS</span></span>
+              {{ $t('手动跳过') }};
+            </template>
+            <template v-if="loopConfig.retryable">
+              <span class="error-handle-icon"><span class="text">MR</span></span>
+              {{ $t('手动重试') }};
+            </template>
+            <span v-if="!loopConfig.fail_skip && !loopConfig.skippable && !loopConfig.retryable">{{ '--' }}</span>
+          </span>
+        </li>
+      </template>
     </ul>
     <!-- v-if="inputAndOutputWrapShow" -->
     <template>
@@ -310,6 +355,7 @@
       outputList() {
         return this.getOutputsList();
       },
+
       // inputAndOutputWrapShow() {
       //   const { original_template_id: originTplId } = this.nodeActivity;
       //   // 普通任务节点展示/该功能上线后的独立子流程任务展示
@@ -332,6 +378,29 @@
       variableList() {
         const constants = this.isSubProcessNode ? this.subflowForms : this.constants;
         return [...Object.values(constants)];
+      },
+      loopConfig() {
+        const { loop_config: loopConfig } = this.nodeActivity || {};
+        return loopConfig || null;
+      },
+      loopTypeText() {
+        if (this.loopConfig?.enable) {
+          return i18n.t('循环执行');
+        }
+        return i18n.t('单次执行');
+      },
+      loopConfigTypeText() {
+        const typeMap = { time_loop: i18n.t('固定循环次数'), array_loop: i18n.t('按数组变量循环') };
+        return typeMap[this.loopConfig?.type] || '--';
+      },
+      loopParamsList() {
+        // eslint-disable-next-line camelcase
+        const params = this.loopConfig?.loop_params;
+        if (!params || typeof params !== 'object') return [];
+        return Object.keys(params).map(key => ({
+          key,
+          value: params[key]?.value || '--',
+        }));
       },
     },
     watch: {
@@ -371,6 +440,7 @@
         'loadAtomConfig',
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
+        'loadSubprocessOutput',
       ]),
       // 初始化节点数据
       async initData() {
@@ -477,16 +547,33 @@
             ...resp.data.constants_not_referred,
           };
           // 输出变量
-          this.outputs = Object.keys(resp.data.outputs).map((item) => {
-            const output = resp.data.outputs[item];
-            const has = Object.prototype.hasOwnProperty;
-            return {
-              plugin_code: output.plugin_code,
-              name: output.name,
-              key: output.key,
-              version: has.call(output, 'version') ? output.version : 'legacy',
-            };
-          });
+          if (this.loopConfig?.enable) {
+            try {
+              const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: '' });
+              const loopOutput = res.data.output.find(item => item.key === 'outputs');
+              if (loopOutput) {
+                this.outputs = [{
+                  plugin_code: '',
+                  name: loopOutput.name,
+                  key: loopOutput.key,
+                  version: loopOutput.version || 'legacy',
+                }];
+              }
+            } catch (e) {
+              console.warn(e);
+            }
+          } else {
+            this.outputs = Object.keys(resp.data.outputs).map((item) => {
+              const output = resp.data.outputs[item];
+              const has = Object.prototype.hasOwnProperty;
+              return {
+                plugin_code: output.plugin_code,
+                name: output.name,
+                key: output.key,
+                version: has.call(output, 'version') ? output.version : 'legacy',
+              };
+            });
+          }
         } catch (e) {
           console.log(e);
         } finally {
@@ -824,6 +911,24 @@
             transform: scale(0.8);
         }
     }
+        .loop-params-item {
+            height: auto !important;
+        }
+        .loop-params-td {
+            .loop-param-row {
+                display: flex;
+                align-items: center;
+                line-height: 28px;
+            }
+            .param-name-text {
+                color: #63656e;
+                margin-right: 4px;
+            }
+            .param-data-text {
+                color: #63656e;
+                word-break: break-all;
+            }
+        }
     .common-icon-jump-link {
         position: absolute;
         top: 15px;
@@ -892,6 +997,10 @@
     }
     .no-data-wrapper {
         padding-top: 20px;
+    }
+    .loop-config-value {
+        color: #63656e;
+        word-break: break-all;
     }
 
 </style>
