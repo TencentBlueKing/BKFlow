@@ -28,7 +28,11 @@ from pipeline.component_framework.models import ComponentModel
 from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
 from bkflow.constants import ALL_SPACE
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
-from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
+from bkflow.plugin.models import (
+    OpenPluginCatalogIndex,
+    SpaceOpenPluginAvailability,
+    SpacePluginConfig as SpacePluginConfigModel,
+)
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
@@ -100,6 +104,7 @@ class PluginSchemaService:
             for p in all_plugins:
                 p.pop("_component_version", None)
                 p.pop("_meta_url", None)
+                p.pop("_meta_url_template", None)
 
         total_count = len(all_plugins)
         limit = min(limit, 200)
@@ -267,6 +272,10 @@ class PluginSchemaService:
         return schema_result
 
     def _list_uniform_api_plugins(self, keyword=None):
+        local_catalog_plugins = self._list_uniform_api_plugins_from_catalog(keyword=keyword)
+        if local_catalog_plugins is not None:
+            return local_catalog_plugins
+
         cache_key = "plugin_list:uniform_api:{}".format(self.space_id)
         cached = cache.get(cache_key)
         if cached is not None:
@@ -321,15 +330,64 @@ class PluginSchemaService:
             results.append(info)
         return results
 
-    def _get_uniform_api_schema(self, code):
+    def _list_uniform_api_plugins_from_catalog(self, keyword=None):
+        catalog_qs = OpenPluginCatalogIndex.objects.filter(space_id=self.space_id)
+        if not catalog_qs.exists():
+            return None
+
+        enabled_pairs = set(
+            SpaceOpenPluginAvailability.objects.filter(space_id=self.space_id, enabled=True).values_list(
+                "source_key", "plugin_id"
+            )
+        )
+        results = []
+        for item in catalog_qs.filter(status=OpenPluginCatalogIndex.Status.AVAILABLE):
+            if (item.source_key, item.plugin_id) not in enabled_pairs:
+                continue
+
+            version = item.latest_version or item.default_version or ""
+            info = {
+                "code": item.plugin_id,
+                "plugin_id": item.plugin_id,
+                "name": item.plugin_name,
+                "plugin_type": "uniform_api",
+                "version": version,
+                "plugin_version": version,
+                "description": item.description,
+                "group_name": item.group_name,
+                "plugin_source": item.plugin_source,
+                "plugin_code": item.plugin_code,
+                "wrapper_version": item.wrapper_version,
+                "default_version": item.default_version,
+                "latest_version": item.latest_version,
+                "versions": item.versions,
+                "source_key": item.source_key,
+                "_meta_url_template": item.meta_url_template,
+                "_meta_url": item.meta_url_template.format(version=version) if version and item.meta_url_template else "",
+            }
+            if keyword and not self._match_keyword(info, keyword):
+                continue
+            results.append(info)
+        return results
+
+    def _get_uniform_api_schema(self, code, version=None, api_item=None):
         """从 meta_url 提取 schema，带缓存"""
-        cache_key = "plugin_schema:uniform_api:{}:{}".format(self.space_id, code)
+        cache_key = "plugin_schema:uniform_api:{}:{}:{}".format(self.space_id, code, version or "latest")
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
-        api_list = self._list_uniform_api_plugins()
-        api_item = next((a for a in api_list if a["code"] == code), None)
+        if api_item is None:
+            api_list = self._list_uniform_api_plugins()
+            api_item = next((a for a in api_list if a["code"] == code), None)
+        else:
+            api_item = dict(api_item)
+
+        if version:
+            api_item["version"] = version
+            api_item["plugin_version"] = version
+            api_item["_meta_url"] = self._build_uniform_api_meta_url(api_item, version)
+
         if not api_item or not api_item.get("_meta_url"):
             raise ValueError("未找到 API 插件 '{}'".format(code))
 
@@ -356,8 +414,11 @@ class PluginSchemaService:
         outputs = self._normalize_io_fields(meta.get("outputs", []), is_output=True)
 
         schema_result = {
-            "version": meta.get("version", ""),
-            "description": meta.get("desc", ""),
+            "version": meta.get("plugin_version") or meta.get("version") or api_item.get("version") or version or "",
+            "description": meta.get("desc", "") or meta.get("description", ""),
+            "plugin_source": api_item.get("plugin_source", ""),
+            "plugin_code": api_item.get("plugin_code", ""),
+            "wrapper_version": api_item.get("wrapper_version", ""),
             "inputs": inputs,
             "outputs": outputs,
         }
@@ -406,6 +467,12 @@ class PluginSchemaService:
             api_item = next((a for a in api_list if a["code"] == code), None)
             if not api_item:
                 raise ValueError("未找到 API 插件 '{}'".format(code))
+            if version:
+                api_item = dict(api_item)
+                api_item["version"] = version
+                api_item["plugin_version"] = version
+                if api_item.get("default_version") or api_item.get("latest_version"):
+                    api_item["_meta_url"] = self._build_uniform_api_meta_url(api_item, version)
             return api_item
         else:
             raise ValueError("不支持的 plugin_type: {}".format(plugin_type))
@@ -471,7 +538,9 @@ class PluginSchemaService:
             elif ptype == "remote_plugin":
                 schema = self._get_remote_plugin_schema(plugin_info["code"])
             elif ptype == "uniform_api":
-                schema = self._get_uniform_api_schema(plugin_info["code"])
+                schema = self._get_uniform_api_schema(
+                    plugin_info["code"], version=plugin_info.get("version"), api_item=plugin_info
+                )
             else:
                 schema = {"inputs": [], "outputs": []}
 
@@ -481,6 +550,14 @@ class PluginSchemaService:
                 plugin_info["description"] = schema["description"]
             if schema.get("version") and not plugin_info.get("version"):
                 plugin_info["version"] = schema["version"]
+            if schema.get("version") and not plugin_info.get("plugin_version"):
+                plugin_info["plugin_version"] = schema["version"]
+            if schema.get("plugin_source") and not plugin_info.get("plugin_source"):
+                plugin_info["plugin_source"] = schema["plugin_source"]
+            if schema.get("plugin_code") and not plugin_info.get("plugin_code"):
+                plugin_info["plugin_code"] = schema["plugin_code"]
+            if schema.get("wrapper_version") and not plugin_info.get("wrapper_version"):
+                plugin_info["wrapper_version"] = schema["wrapper_version"]
         except Exception:
             if strict:
                 raise
@@ -490,6 +567,15 @@ class PluginSchemaService:
 
         plugin_info.pop("_component_version", None)
         plugin_info.pop("_meta_url", None)
+        plugin_info.pop("_meta_url_template", None)
+
+    @staticmethod
+    def _build_uniform_api_meta_url(api_item, version):
+        if api_item.get("_meta_url_template"):
+            return api_item["_meta_url_template"].format(version=version)
+        if api_item.get("meta_url_template"):
+            return api_item["meta_url_template"].format(version=version)
+        return api_item.get("_meta_url", "")
 
     @staticmethod
     def _match_keyword(info, keyword):

@@ -604,6 +604,12 @@ paths:
                         plugin_type:
                           type: string
                           description: '插件类型: component / remote_plugin / uniform_api'
+                        plugin_id:
+                          type: string
+                          description: 开放插件 ID，仅 uniform_api 类型返回
+                        plugin_source:
+                          type: string
+                          description: 开放插件来源类型，仅 uniform_api 类型返回
                         version:
                           type: string
                           description: 插件版本
@@ -660,6 +666,12 @@ paths:
           - uniform_api
         required: false
         description: 按类型过滤
+      - in: query
+        name: plugin_source
+        schema:
+          type: string
+        required: false
+        description: 开放插件来源类型
       - in: query
         name: with_detail
         schema:
@@ -737,12 +749,18 @@ paths:
                       code:
                         type: string
                         description: 插件 code
+                      plugin_id:
+                        type: string
+                        description: 开放插件 ID，仅 uniform_api 类型返回
                       name:
                         type: string
                         description: 插件名称
                       plugin_type:
                         type: string
                         description: 插件类型
+                      plugin_source:
+                        type: string
+                        description: 开放插件来源类型，仅 uniform_api 类型返回
                       version:
                         type: string
                         description: 插件版本
@@ -814,11 +832,29 @@ paths:
         required: true
         description: 插件 code
       - in: query
+        name: plugin_id
+        schema:
+          type: string
+        required: false
+        description: 开放插件 ID，查询开放插件时可替代 code
+      - in: query
         name: version
         schema:
           type: string
         required: false
         description: 插件版本，不传取最新
+      - in: query
+        name: plugin_version
+        schema:
+          type: string
+        required: false
+        description: 开放插件业务版本，查询开放插件时优先使用
+      - in: query
+        name: plugin_source
+        schema:
+          type: string
+        required: false
+        description: 开放插件来源类型
       - in: query
         name: plugin_type
         schema:
@@ -1932,7 +1968,7 @@ paths:
   /space/{space_id}/task/{task_id}/operate_task/{operation}/:
     post:
       operationId: operate_task
-      description: 操作任务
+      description: 操作任务（start 操作会在运行前再次校验开放插件是否仍可执行）
       tags: []
       responses:
         '200':
@@ -2011,7 +2047,7 @@ paths:
   /space/{space_id}/task/{task_id}/node/{node_id}/operate_node/{operation}/:
     post:
       operationId: operate_task_node
-      description: 操作任务节点
+      description: 操作任务节点（开放插件 callback 时需携带 X-Callback-Token 请求头）
       tags: []
       responses:
         default:
@@ -2044,6 +2080,12 @@ paths:
           type: string
         required: true
         description: ''
+      - in: header
+        name: X-Callback-Token
+        schema:
+          type: string
+        required: false
+        description: 开放插件 callback 场景使用的回调鉴权 token
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true

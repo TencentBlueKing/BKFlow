@@ -28,6 +28,7 @@ from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import OperateTaskSerializer
 from bkflow.constants import OPERATE_EVENT_MAP, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 
 
@@ -46,6 +47,13 @@ def operate_task(request, space_id, task_id, operation):
     ):
         append_attributes({"operation": operation})
         client = TaskComponentClient(space_id=space_id)
+        if operation == "start":
+            task_detail = client.get_task_detail(task_id)
+            if not task_detail.get("result"):
+                return task_detail
+            pipeline_tree = task_detail.get("data", {}).get("pipeline_tree")
+            if pipeline_tree:
+                OpenPluginSnapshotService.validate_pipeline_tree(space_id=int(space_id), pipeline_tree=pipeline_tree)
         result = client.operate_task(task_id, operation, data=ser.data)
 
         if operation in ["pause", "resume", "revoke"]:

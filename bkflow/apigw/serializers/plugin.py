@@ -26,6 +26,7 @@ class ListPluginsSerializer(serializers.Serializer):
     plugin_type = serializers.ChoiceField(
         required=False, choices=[(t, t) for t in VALID_PLUGIN_TYPES], help_text="按类型过滤"
     )
+    plugin_source = serializers.CharField(required=False, help_text="开放插件来源类型")
     with_detail = serializers.BooleanField(required=False, default=False, help_text="true 返回完整 schema")
     scope_type = serializers.CharField(required=False, help_text="scope 类型")
     scope_id = serializers.CharField(required=False, help_text="scope ID")
@@ -35,7 +36,10 @@ class ListPluginsSerializer(serializers.Serializer):
 
 class GetPluginSchemaSerializer(serializers.Serializer):
     code = serializers.CharField(required=True, help_text="插件 code")
+    plugin_id = serializers.CharField(required=False, help_text="开放插件 ID")
     version = serializers.CharField(required=False, help_text="插件版本，不传取最新")
+    plugin_version = serializers.CharField(required=False, help_text="开放插件业务版本")
+    plugin_source = serializers.CharField(required=False, help_text="开放插件来源类型")
     plugin_type = serializers.ChoiceField(required=False, choices=[(t, t) for t in VALID_PLUGIN_TYPES], help_text="消歧用")
     scope_type = serializers.CharField(required=False, help_text="scope 类型")
     scope_id = serializers.CharField(required=False, help_text="scope ID")

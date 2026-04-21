@@ -151,6 +151,9 @@ class TestTaskNodeOperation:
 
         node_id = node_ids[0]
         node_operation = TaskNodeOperation(task_instance, node_id)
+        cancel_open_plugin_runs = mocker.patch(
+            "bkflow.task.operations.cancel_open_plugin_runs_for_node", create=True
+        )
         mocker.patch(
             "bamboo_engine.api.forced_fail_activity",
             return_value=EngineAPIResult(result=True, message="success"),
@@ -159,6 +162,7 @@ class TestTaskNodeOperation:
         result = node_operation.forced_fail(operator="test_operator", ex_data="test error")
         assert isinstance(result, OperationResult)
         assert result.result is True
+        cancel_open_plugin_runs.assert_called_once_with(task_instance=task_instance, node_id=node_id, operator="test_operator")
 
     def test_get_node_detail_not_executed(self, mocker):
         """测试获取未执行节点详情"""

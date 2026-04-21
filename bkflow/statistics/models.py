@@ -85,6 +85,7 @@ class TaskflowExecutedNodeStatistics(StatisticsBaseModel):
 
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
     component_name = models.CharField("组件名称", max_length=255, default="")
+    plugin_source = models.CharField("插件来源", max_length=64, default="", db_index=True)
     version = models.CharField("插件版本", max_length=255, default="legacy")
     plugin_type = models.CharField(
         "插件类型", max_length=32, choices=PluginType.choices, default=PluginType.COMPONENT, db_index=True
@@ -152,6 +153,7 @@ class TemplateNodeStatistics(StatisticsBaseModel):
     id = models.BigAutoField(primary_key=True)
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
     component_name = models.CharField("组件名称", max_length=255, default="")
+    plugin_source = models.CharField("插件来源", max_length=64, default="", db_index=True)
     version = models.CharField("插件版本", max_length=255, default="legacy")
     plugin_type = models.CharField(
         "插件类型", max_length=32, choices=PluginType.choices, default=PluginType.COMPONENT, db_index=True
@@ -228,6 +230,7 @@ class PluginExecutionSummary(StatisticsBaseModel):
 
     component_code = models.CharField("组件编码", max_length=255, db_index=True)
     component_name = models.CharField("组件名称", max_length=255, default="")
+    plugin_source = models.CharField("插件来源", max_length=64, default="", db_index=True)
     version = models.CharField("插件版本", max_length=255, default="legacy")
     plugin_type = models.CharField(
         "插件类型", max_length=32, choices=PluginType.choices, default=PluginType.COMPONENT, db_index=True
@@ -246,7 +249,7 @@ class PluginExecutionSummary(StatisticsBaseModel):
     class Meta(StatisticsBaseModel.Meta):
         verbose_name = "插件执行汇总"
         verbose_name_plural = "插件执行汇总"
-        unique_together = ["period_type", "period_start", "space_id", "component_code", "version"]
+        unique_together = ["period_type", "period_start", "space_id", "plugin_source", "component_code", "version"]
         indexes = [
             models.Index(fields=["space_id", "component_code", "period_start"]),
         ]

@@ -8,6 +8,7 @@ from blueapps.account.models import User
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, force_authenticate
 
+from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.space.configs import ApiGatewayCredentialConfig, SuperusersConfig
 from bkflow.space.models import (
     Credential,
@@ -744,3 +745,168 @@ class TestSpaceConfigViewSet:
             assert response.status_code == 200
             assert response.data.get("result") is False
             assert "detail" in response.data.get("data", {})
+
+
+@pytest.mark.django_db
+class TestSpaceOpenPluginAdminActions:
+    def setup_method(self):
+        self.factory = APIRequestFactory()
+        self.superuser, _ = User.objects.get_or_create(
+            username="spaceadmin", defaults={"is_superuser": True, "is_staff": True}
+        )
+        self.space = Space.objects.create(name="Open Plugin Space", app_code="open_plugin_app")
+        OpenPluginCatalogIndex.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=False,
+        )
+
+    def test_list_open_plugins(self):
+        """测试空间管理员获取开放插件列表"""
+        view = SpaceConfigAdminViewSet.as_view({"get": "list_open_plugins"})
+        request = self.factory.get("/spaces/admin/space_config/open_plugins/", {"space_id": self.space.id})
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        data = response.data.get("data", [])
+        assert len(data) == 1
+        assert data[0]["plugin_id"] == "open_plugin_001"
+        assert data[0]["enabled"] is False
+
+    def test_toggle_open_plugin(self):
+        """测试空间管理员切换单个开放插件状态"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "toggle_open_plugin"})
+        request = self.factory.post(
+            "/spaces/admin/space_config/open_plugins/toggle/",
+            {"space_id": self.space.id, "source_key": "sops", "plugin_id": "open_plugin_001", "enabled": True},
+            format="json",
+        )
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        availability = SpaceOpenPluginAvailability.objects.get(
+            space_id=self.space.id, source_key="sops", plugin_id="open_plugin_001"
+        )
+        assert availability.enabled is True
+
+    def test_enable_all_open_plugins_only_affects_current_visible_plugins(self):
+        """测试一键全开只作用于当前可见插件，后续新增插件仍默认关闭"""
+        OpenPluginCatalogIndex.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_002",
+            plugin_code="job_fast_execute_script",
+            plugin_name="JOB 快速执行脚本",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.0.0",
+            latest_version="1.0.0",
+            versions=["1.0.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_002?version={version}",
+            status="available",
+        )
+
+        view = SpaceConfigAdminViewSet.as_view({"post": "enable_all_open_plugins"})
+        request = self.factory.post(
+            "/spaces/admin/space_config/open_plugins/enable_all/",
+            {"space_id": self.space.id, "source_key": "sops"},
+            format="json",
+        )
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        availability_map = {
+            item.plugin_id: item.enabled
+            for item in SpaceOpenPluginAvailability.objects.filter(space_id=self.space.id, source_key="sops")
+        }
+        assert availability_map["open_plugin_001"] is True
+        assert availability_map["open_plugin_002"] is True
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_003",
+            plugin_code="job_execute_script",
+            plugin_name="JOB 执行脚本",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="2.0.0",
+            latest_version="2.0.0",
+            versions=["2.0.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_003?version={version}",
+            status="available",
+        )
+
+        list_view = SpaceConfigAdminViewSet.as_view({"get": "list_open_plugins"})
+        list_request = self.factory.get("/spaces/admin/space_config/open_plugins/", {"space_id": self.space.id})
+        force_authenticate(list_request, user=self.superuser)
+        list_response = list_view(list_request)
+
+        assert list_response.status_code == 200
+        enabled_map = {item["plugin_id"]: item["enabled"] for item in list_response.data.get("data", [])}
+        assert enabled_map["open_plugin_003"] is False
+
+    def test_disable_source_open_plugins(self):
+        """测试按来源一键关闭开放插件"""
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_002",
+            enabled=True,
+        )
+        OpenPluginCatalogIndex.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_002",
+            plugin_code="job_fast_execute_script",
+            plugin_name="JOB 快速执行脚本",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.0.0",
+            latest_version="1.0.0",
+            versions=["1.0.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_002?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.filter(
+            space_id=self.space.id, source_key="sops", plugin_id="open_plugin_001"
+        ).update(enabled=True)
+
+        view = SpaceConfigAdminViewSet.as_view({"post": "disable_source_open_plugins"})
+        request = self.factory.post(
+            "/spaces/admin/space_config/open_plugins/disable_source/",
+            {"space_id": self.space.id, "source_key": "sops"},
+            format="json",
+        )
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        availability_map = {
+            item.plugin_id: item.enabled
+            for item in SpaceOpenPluginAvailability.objects.filter(space_id=self.space.id, source_key="sops")
+        }
+        assert availability_map["open_plugin_001"] is False
+        assert availability_map["open_plugin_002"] is False

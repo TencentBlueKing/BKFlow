@@ -22,6 +22,7 @@ from rest_framework.decorators import api_view
 
 from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
+from bkflow.pipeline_plugins.query.uniform_api.utils import resolve_meta_url
 from bkflow.pipeline_plugins.query.utils import query_response_handler
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
@@ -63,7 +64,17 @@ class UniformAPIListSerializer(UniformAPIBaseSerializer):
 class UniformAPIMetaSerializer(UniformAPIBaseSerializer):
     scope_type = serializers.CharField(required=False)
     scope_value = serializers.CharField(required=False)
-    meta_url = serializers.CharField(required=True)
+    meta_url = serializers.CharField(required=False, allow_blank=True)
+    meta_url_template = serializers.CharField(required=False, allow_blank=True)
+    version = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs: dict) -> dict:
+        attrs = super().validate(attrs)
+        if not attrs.get("meta_url") and not attrs.get("meta_url_template"):
+            raise serializers.ValidationError("meta_url 和 meta_url_template 至少有一个")
+        if attrs.get("meta_url_template") and not attrs.get("version"):
+            raise serializers.ValidationError("meta_url_template 存在时 version 不能为空")
+        return attrs
 
 
 def _get_api_credential(space_id: int, template_id: int = None, task_id: int = None) -> dict:
@@ -199,7 +210,11 @@ def get_space_uniform_api_meta(requests, space_id):
     serializer = UniformAPIMetaSerializer(data=requests.query_params)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
-    meta_url = data.pop("meta_url")
+    meta_url = resolve_meta_url(
+        meta_url=data.pop("meta_url", ""),
+        meta_url_template=data.pop("meta_url_template", ""),
+        version=data.pop("version", ""),
+    )
     username = requests.user.username
 
     client = UniformAPIClient()

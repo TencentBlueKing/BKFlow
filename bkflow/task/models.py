@@ -57,6 +57,7 @@ class TaskTreeInfo(models.Model):
     data = CompressJSONField(null=True, blank=True)
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务流程树信息"
         verbose_name_plural = "任务流程树信息"
         ordering = ["-id"]
@@ -66,6 +67,7 @@ class TaskSnapshot(CommonSnapshot):
     objects = CommonSnapshotManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "模板快照"
         verbose_name_plural = "模板快照"
         ordering = ["-id"]
@@ -75,6 +77,7 @@ class TaskExecutionSnapshot(CommonSnapshot):
     objects = CommonSnapshotManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务执行快照"
         verbose_name_plural = "任务执行快照"
         ordering = ["-id"]
@@ -177,6 +180,7 @@ class TaskInstance(models.Model):
     objects = TaskInstanceManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务实例"
         verbose_name_plural = "任务实例"
         index_together = [("space_id", "scope_type", "scope_value")]
@@ -344,6 +348,7 @@ class AutoRetryNodeStrategy(models.Model):
     interval = models.IntegerField(verbose_name="retry interval", default=0)
 
     class Meta:
+        app_label = "task"
         verbose_name = "节点自动重试策略 AutoRetryNodeStrategy"
         verbose_name_plural = "节点自动重试策略 AutoRetryNodeStrategy"
         index_together = [("root_pipeline_id", "node_id")]
@@ -387,6 +392,7 @@ class TimeoutNodeConfig(models.Model):
     objects = TimeoutNodeConfigManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "节点超时配置 TimeoutNodeConfig"
         verbose_name_plural = "节点超时配置 TimeoutNodeConfig"
         index_together = [("root_pipeline_id", "node_id")]
@@ -397,6 +403,7 @@ class TimeoutNodesRecord(models.Model):
     timeout_nodes = models.TextField(verbose_name="超时节点信息")
 
     class Meta:
+        app_label = "task"
         verbose_name = "超时节点数据记录 TimeoutNodesRecord"
         verbose_name_plural = "超时节点数据记录 TimeoutNodesRecord"
 
@@ -413,6 +420,7 @@ class TaskOperationRecord(BaseOperateRecord):
     )
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务操作记录 TaskOperationRecord"
         verbose_name_plural = "任务操作记录 TaskOperationRecord"
         indexes = [models.Index(fields=["instance_id", "node_id"])]
@@ -427,6 +435,7 @@ class TaskMockData(models.Model):
     create_time = models.DateTimeField("创建时间", auto_now_add=True, db_index=True)
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务Mock数据 TaskMockData"
         verbose_name_plural = "任务Mock数据 TaskMockData"
 
@@ -479,6 +488,9 @@ class EngineSpaceConfig(models.Model):
             return {}
         instance = qs.first()
         return instance.json_value
+
+    class Meta:
+        app_label = "task"
 
 
 def default_cron():
@@ -546,6 +558,7 @@ class PeriodicTask(models.Model):
     objects = PeriodicTaskManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = _("周期任务")
         verbose_name_plural = _("周期任务")
 
@@ -599,4 +612,5 @@ class TaskFlowRelation(models.Model):
     extra_info = models.JSONField(verbose_name=_("额外信息"), null=True)
 
     class Meta:
+        app_label = "task"
         verbose_name = verbose_name_plural = _("任务关系")

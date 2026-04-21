@@ -30,6 +30,7 @@ from bkflow.apigw.serializers.task import CreateTaskSerializer
 from bkflow.constants import TaskTriggerMethod, WebhookEventType, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.template.models import Template
 from bkflow.utils.trace import CallFrom, trace_view
 
@@ -59,6 +60,18 @@ def create_task(request, space_id):
     create_task_data["scope_value"] = template.scope_value
     create_task_data["space_id"] = space_id
     create_task_data["pipeline_tree"] = template.pipeline_tree
+    OpenPluginSnapshotService.validate_pipeline_tree(space_id=int(space_id), pipeline_tree=template.pipeline_tree)
+
+    reference_snapshot = OpenPluginSnapshotService.build_reference_snapshot(
+        space_id=int(space_id), pipeline_tree=template.pipeline_tree
+    )
+    schema_snapshot = OpenPluginSnapshotService.build_schema_snapshot(
+        space_id=int(space_id),
+        pipeline_tree=template.pipeline_tree,
+        username=request.user.username,
+        scope_type=template.scope_type,
+        scope_id=template.scope_value,
+    )
     create_task_data["trigger_method"] = TaskTriggerMethod.api.name
     DEFAULT_NOTIFY_CONFIG = {
         "notify_type": {"fail": [], "success": []},
@@ -66,6 +79,11 @@ def create_task(request, space_id):
     }
     create_task_data.setdefault("extra_info", {}).update(
         {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
+    )
+    create_task_data["extra_info"] = OpenPluginSnapshotService.merge_snapshots(
+        create_task_data.get("extra_info"),
+        reference_snapshot,
+        schema_snapshot=schema_snapshot,
     )
 
     # 将credentials放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取

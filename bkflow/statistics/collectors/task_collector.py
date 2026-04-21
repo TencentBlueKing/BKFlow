@@ -233,6 +233,7 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
             engine_id=self.engine_id,
             component_code=info.code,
             component_name=info.name,
+            plugin_source=info.plugin_source,
             version=info.version,
             plugin_type=info.plugin_type,
             node_id=activity.get("id", ""),

@@ -42,6 +42,7 @@ from bkflow.apigw.serializers.credential import (
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
 from bkflow.exceptions import APIRequestError
+from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
     SpaceConfigHandler,
@@ -67,6 +68,10 @@ from bkflow.space.serializers import (
     CredentialScopeSerializer,
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
+    SpaceOpenPluginBulkActionSerializer,
+    SpaceOpenPluginDisableSourceSerializer,
+    SpaceOpenPluginListQuerySerializer,
+    SpaceOpenPluginToggleSerializer,
     SpaceConfigSerializer,
     SpaceSerializer,
 )
@@ -397,6 +402,53 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         return Response(
             SpaceConfig.objects.get_space_config_info(space_id=ser.validated_data["space_id"], simplified=False)
         )
+
+    @swagger_auto_schema(method="get", operation_summary="获取空间开放插件列表", query_serializer=SpaceOpenPluginListQuerySerializer)
+    @action(detail=False, methods=["GET"], url_path="open_plugins")
+    def list_open_plugins(self, request, *args, **kwargs):
+        ser = SpaceOpenPluginListQuerySerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        plugins = OpenPluginCatalogService.list_space_plugins(**ser.validated_data)
+        return Response(plugins)
+
+    @swagger_auto_schema(method="post", operation_summary="切换空间开放插件状态", request_body=SpaceOpenPluginToggleSerializer)
+    @action(detail=False, methods=["POST"], url_path="open_plugins/toggle")
+    def toggle_open_plugin(self, request, *args, **kwargs):
+        ser = SpaceOpenPluginToggleSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        availability = OpenPluginCatalogService.toggle_plugin(**ser.validated_data)
+        return Response(
+            {
+                "space_id": availability.space_id,
+                "source_key": availability.source_key,
+                "plugin_id": availability.plugin_id,
+                "enabled": availability.enabled,
+            }
+        )
+
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="开启当前可见开放插件",
+        request_body=SpaceOpenPluginBulkActionSerializer,
+    )
+    @action(detail=False, methods=["POST"], url_path="open_plugins/enable_all")
+    def enable_all_open_plugins(self, request, *args, **kwargs):
+        ser = SpaceOpenPluginBulkActionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        updated = OpenPluginCatalogService.enable_all_visible_plugins(**ser.validated_data)
+        return Response({"updated_count": len(updated)})
+
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="按来源关闭开放插件",
+        request_body=SpaceOpenPluginDisableSourceSerializer,
+    )
+    @action(detail=False, methods=["POST"], url_path="open_plugins/disable_source")
+    def disable_source_open_plugins(self, request, *args, **kwargs):
+        ser = SpaceOpenPluginDisableSourceSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        OpenPluginCatalogService.disable_source_plugins(**ser.validated_data)
+        return Response({"source_key": ser.validated_data["source_key"], "enabled": False})
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

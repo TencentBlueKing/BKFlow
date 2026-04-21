@@ -20,6 +20,7 @@ import functools
 import logging
 import traceback
 from copy import deepcopy
+from types import SimpleNamespace
 from typing import Any, List, Optional
 
 from bamboo_engine import api as bamboo_engine_api
@@ -40,6 +41,7 @@ from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.parser.context import get_pipeline_context
 from pydantic import BaseModel, validator
 
+from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.constants import (
     PipelineContextObjType,
     RecordType,
@@ -49,6 +51,12 @@ from bkflow.constants import (
 )
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
+from bkflow.pipeline_plugins.components.collections.uniform_api.credential_handlers import (
+    CredentialKeySpaceConfigHandler,
+    DefaultCredentialHandler,
+    SpaceCredentialHandler,
+)
+from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
 from bkflow.task.context import SystemObject
 from bkflow.task.models import EngineSpaceConfig, TaskInstance
@@ -134,6 +142,152 @@ def trace_task_operation(operation_name: str, operation_type: str = "task"):
         return wrapper
 
     return decorator
+
+
+def _get_open_plugin_callback_ref_model():
+    try:
+        from bkflow.plugin.models import OpenPluginRunCallbackRef
+    except Exception as e:
+        logger.warning("[open_plugin cancel] OpenPluginRunCallbackRef import failed: %s", e)
+        return None
+    return OpenPluginRunCallbackRef
+
+
+def _get_open_plugin_space_configs(task_instance: TaskInstance):
+    interface_client = InterfaceModuleClient()
+    params = {
+        "space_id": task_instance.space_id,
+        "config_names": "uniform_api,credential,api_gateway_credential_name",
+    }
+    if task_instance.scope_type and task_instance.scope_value:
+        params["scope"] = f"{task_instance.scope_type}_{task_instance.scope_value}"
+    space_infos_result = interface_client.get_space_infos(params)
+    if not space_infos_result.get("result"):
+        logger.warning(
+            "[open_plugin cancel] get_space_infos failed for task(%s): %s",
+            task_instance.id,
+            space_infos_result.get("message"),
+        )
+        return None
+    return space_infos_result.get("data", {}).get("configs", {})
+
+
+def _get_open_plugin_cancel_credential(task_instance: TaskInstance, space_configs: dict, credential_key: str = ""):
+    handlers = [
+        CredentialKeySpaceConfigHandler(
+            logger=logger,
+            scope_type=task_instance.scope_type,
+            scope_id=task_instance.scope_value,
+            parent_data=SimpleNamespace(inputs={}),
+            space_configs=space_configs,
+        ),
+        SpaceCredentialHandler(
+            logger=logger,
+            scope_type=task_instance.scope_type,
+            scope_id=task_instance.scope_value,
+            parent_data=SimpleNamespace(inputs={}),
+            space_configs=space_configs,
+        ),
+        DefaultCredentialHandler(
+            logger=logger,
+            scope_type=task_instance.scope_type,
+            scope_id=task_instance.scope_value,
+            parent_data=SimpleNamespace(inputs={}),
+            space_configs=space_configs,
+        ),
+    ]
+
+    for handler in handlers:
+        try:
+            if handler.can_handle(credential_key):
+                app_code, app_secret = handler.get_credential(credential_key)
+                if app_code and app_secret:
+                    return app_code, app_secret
+        except Exception as e:
+            logger.warning("[open_plugin cancel] credential handler(%s) failed: %s", handler.get_name(), e)
+
+    return None, None
+
+
+def _cancel_open_plugin_run(task_instance: TaskInstance, callback_ref, operator: str):
+    if not callback_ref.cancel_url:
+        logger.warning(
+            "[open_plugin cancel] missing cancel_url for task(%s) node(%s) run(%s)",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+        )
+        return
+
+    space_configs = _get_open_plugin_space_configs(task_instance)
+    if not space_configs:
+        return
+
+    app_code, app_secret = _get_open_plugin_cancel_credential(
+        task_instance=task_instance,
+        space_configs=space_configs,
+        credential_key=getattr(callback_ref, "credential_key", ""),
+    )
+    if not app_code or not app_secret:
+        logger.warning(
+            "[open_plugin cancel] no credential for task(%s) node(%s) run(%s)",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+        )
+        return
+
+    client = UniformAPIClient()
+    headers = client.gen_default_apigw_header(app_code=app_code, app_secret=app_secret, username=operator)
+
+    try:
+        request_result = client.request(
+            url=callback_ref.cancel_url,
+            method="POST",
+            data={},
+            headers=headers,
+            timeout=settings.BKAPP_API_PLUGIN_REQUEST_TIMEOUT,
+        )
+    except Exception as e:
+        logger.warning(
+            "[open_plugin cancel] request failed for task(%s) node(%s) run(%s): %s",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+            e,
+        )
+        return
+
+    json_resp = request_result.json_resp or {}
+    if request_result.resp.status_code >= 400 or (isinstance(json_resp, dict) and json_resp.get("result") is False):
+        logger.warning(
+            "[open_plugin cancel] cancel failed for task(%s) node(%s) run(%s): status=%s, message=%s",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+            request_result.resp.status_code,
+            json_resp.get("message") or request_result.message,
+        )
+
+
+def cancel_open_plugin_runs_for_node(task_instance: TaskInstance, node_id: str, operator: str):
+    model = _get_open_plugin_callback_ref_model()
+    if model is None:
+        return
+
+    callback_refs = model.objects.filter(task_id=task_instance.id, node_id=node_id, consumed_at__isnull=True)
+    for callback_ref in callback_refs.iterator():
+        _cancel_open_plugin_run(task_instance=task_instance, callback_ref=callback_ref, operator=operator)
+
+
+def cancel_open_plugin_runs_for_task(task_instance: TaskInstance, operator: str):
+    model = _get_open_plugin_callback_ref_model()
+    if model is None:
+        return
+
+    callback_refs = model.objects.filter(task_id=task_instance.id, consumed_at__isnull=True)
+    for callback_ref in callback_refs.iterator():
+        _cancel_open_plugin_run(task_instance=task_instance, callback_ref=callback_ref, operator=operator)
 
 
 class TaskOperation:
@@ -260,9 +414,12 @@ class TaskOperation:
     @record_operation(RecordType.task.name, TaskOperationType.revoke.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def revoke(self, operator: str, *args, **kwargs) -> OperationResult:
-        return bamboo_engine_api.revoke_pipeline(
+        result = bamboo_engine_api.revoke_pipeline(
             runtime=BambooDjangoRuntime(), pipeline_id=self.task_instance.instance_id
         )
+        if result.result:
+            cancel_open_plugin_runs_for_task(task_instance=self.task_instance, operator=operator)
+        return result
 
     @uniform_task_operation_result
     def get_task_states(
@@ -502,12 +659,15 @@ class TaskNodeOperation:
     @record_operation(RecordType.task_node.name, TaskOperationType.forced_fail.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def forced_fail(self, operator: str, *args, **kwargs) -> OperationResult:
-        return bamboo_engine_api.forced_fail_activity(
+        result = bamboo_engine_api.forced_fail_activity(
             runtime=self.runtime,
             node_id=self.node_id,
             ex_data=kwargs.get("ex_data", f"forced fail by {operator}"),
             send_post_set_state_signal=kwargs.get("send_post_set_state_signal", True),
         )
+        if result.result:
+            cancel_open_plugin_runs_for_node(task_instance=self.task_instance, node_id=self.node_id, operator=operator)
+        return result
 
     @trace_task_operation("get_node_detail", operation_type="task_node")
     @uniform_task_operation_result

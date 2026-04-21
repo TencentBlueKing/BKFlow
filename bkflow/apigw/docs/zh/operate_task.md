@@ -21,6 +21,16 @@
 | --- | --- | --- | --- |
 |  operation   |  string   |  是  |  操作，支持 start, pause, resume, revoke |
 
+### 开放插件治理说明
+
+当 `operation=start` 且任务执行快照中包含标准运维开放插件（`uniform_api v4.0.0`）时，BKFlow 会在启动前再次校验：
+
+- 插件是否仍存在
+- 插件是否仍为可用状态
+- 插件是否仍在当前空间开启
+
+若校验失败，任务不会进入执行态，而是直接返回 `400` 错误信息。
+
 ### 请求参数示例
 ```json
 {
@@ -40,6 +50,17 @@
     "data": null,
     "message": "success",
     "trace_id": "3f16e62e57c543a9be6cff9556e48d07"
+}
+```
+
+开放插件治理失败示例：
+
+```json
+{
+    "result": false,
+    "code": 400,
+    "data": null,
+    "message": "开放插件 [open_plugin_001] 在当前空间未开放"
 }
 ```
 ### 返回结果参数说明

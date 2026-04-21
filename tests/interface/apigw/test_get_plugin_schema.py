@@ -71,3 +71,32 @@ class TestGetPluginSchemaView(SimpleTestCase):
         data = json.loads(response.content)
         assert data["result"] is False
         assert "未找到" in data["message"]
+
+    @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
+    @patch("bkflow.apigw.views.get_plugin_schema.PluginSchemaService")
+    def test_get_schema_accepts_plugin_version_alias(self, mock_service_cls):
+        """测试 plugin_version 查询参数会被转发为 schema 版本"""
+        mock_service = MagicMock()
+        mock_service.get_plugin_schema.return_value = {
+            "code": "open_plugin_001",
+            "plugin_type": "uniform_api",
+            "version": "1.2.0",
+            "inputs": [],
+            "outputs": [],
+        }
+        mock_service_cls.return_value = mock_service
+
+        request = self.factory.get(
+            "/space/1/get_plugin_schema/",
+            {"code": "open_plugin_001", "plugin_type": "uniform_api", "plugin_version": "1.2.0"},
+        )
+        request.user = MagicMock(username="admin")
+        response = get_plugin_schema(request, space_id="1")
+
+        data = json.loads(response.content)
+        assert data["result"] is True
+        mock_service.get_plugin_schema.assert_called_once_with(
+            code="open_plugin_001",
+            version="1.2.0",
+            plugin_type="uniform_api",
+        )

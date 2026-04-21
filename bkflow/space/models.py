@@ -18,7 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 from enum import Enum
 
-from django.db import models, transaction
+from django.db import connections, models, transaction
 from django.utils.translation import ugettext_lazy as _
 
 import env
@@ -87,7 +87,18 @@ class Space(CommonModel):
 
 class SpaceConfigManager(models.Manager):
     def get_space_ids_of_superuser(self, username):
-        return self.filter(name=SuperusersConfig.name, json_value__contains=username).values_list("space_id", flat=True)
+        queryset = self.filter(name=SuperusersConfig.name)
+        connection = connections[self.db]
+        if connection.features.supports_json_field_contains:
+            return queryset.filter(json_value__contains=username).values_list("space_id", flat=True)
+
+        # sqlite 等不支持 JSON contains lookup 的场景，回退到 Python 侧过滤，
+        # 保证测试与本地开发环境下的行为一致。
+        return [
+            config.space_id
+            for config in queryset.only("space_id", "json_value")
+            if isinstance(config.json_value, list) and username in config.json_value
+        ]
 
     def get_space_config_info(self, space_id: int, simplified: bool = True) -> list:
         """

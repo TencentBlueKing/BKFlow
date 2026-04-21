@@ -81,3 +81,25 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
             logger.exception(f"[validate_configs] error: {e}")
             raise serializers.ValidationError(e.message)
         return configs
+
+
+class SpaceOpenPluginListQuerySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    source_key = serializers.CharField(help_text=_("开放插件来源标识"), required=False, allow_blank=False)
+
+
+class SpaceOpenPluginToggleSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    source_key = serializers.CharField(help_text=_("开放插件来源标识"))
+    plugin_id = serializers.CharField(help_text=_("开放插件ID"))
+    enabled = serializers.BooleanField(help_text=_("是否开启"))
+
+
+class SpaceOpenPluginBulkActionSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    source_key = serializers.CharField(help_text=_("开放插件来源标识"), required=False, allow_blank=False)
+
+
+class SpaceOpenPluginDisableSourceSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    source_key = serializers.CharField(help_text=_("开放插件来源标识"))

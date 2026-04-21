@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
 
 
@@ -208,6 +209,7 @@ class TestRemotePlugins:
         mock_cache.set.assert_called_once()
 
 
+@pytest.mark.django_db
 class TestUniformApiPlugins:
     """测试 API 插件查询"""
 
@@ -301,6 +303,145 @@ class TestUniformApiPlugins:
         assert schema["inputs"][0]["key"] == "biz_id"
         assert schema["description"] == "执行标准运维流程"
         mock_cache.set.assert_called()
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_list_uniform_api_plugins_prefers_local_catalog_index(self, mock_sc, mock_cache):
+        """测试开放插件优先从本地目录索引读取"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = None
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=True,
+        )
+
+        service = PluginSchemaService(space_id=1)
+        results = service._list_uniform_api_plugins()
+
+        assert len(results) == 1
+        assert results[0]["code"] == "open_plugin_001"
+        assert results[0]["plugin_type"] == "uniform_api"
+        assert results[0]["version"] == "1.3.0"
+        assert results[0]["plugin_source"] == "builtin"
+        assert results[0]["plugin_code"] == "job_execute_task"
+        assert results[0]["wrapper_version"] == ""
+        assert results[0]["source_key"] == "sops"
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_list_uniform_api_plugins_filters_disabled_catalog_entry(self, mock_sc, mock_cache):
+        """测试开放插件未开启时不出现在查询结果中"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = None
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=False,
+        )
+
+        service = PluginSchemaService(space_id=1)
+
+        assert service._list_uniform_api_plugins() == []
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_get_uniform_api_schema_with_explicit_plugin_version(
+        self, mock_sc, mock_client_cls, mock_cred, mock_cache
+    ):
+        """测试开放插件支持显式版本查询并返回来源字段"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = "test_cred"
+
+        mock_cred_obj = MagicMock()
+        mock_cred_obj.content = {"bk_app_code": "app", "bk_app_secret": "secret"}
+        mock_cred.objects.filter.return_value.first.return_value = mock_cred_obj
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            wrapper_version="v4.0.0",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=True,
+        )
+
+        mock_client = MagicMock()
+        meta_resp = MagicMock()
+        meta_resp.json_resp = {
+            "data": {
+                "id": "open_plugin_001",
+                "name": "JOB 执行作业",
+                "plugin_version": "1.2.0",
+                "desc": "执行标准运维作业",
+                "inputs": [
+                    {"key": "biz_id", "name": "业务ID", "type": "int", "required": True},
+                ],
+                "outputs": [],
+            }
+        }
+        mock_client.request.return_value = meta_resp
+        mock_client_cls.return_value = mock_client
+
+        service = PluginSchemaService(space_id=1, username="admin")
+        schema = service.get_plugin_schema(code="open_plugin_001", version="1.2.0", plugin_type="uniform_api")
+
+        assert schema["plugin_source"] == "builtin"
+        assert schema["plugin_code"] == "job_execute_task"
+        assert schema["version"] == "1.2.0"
+        assert schema["wrapper_version"] == "v4.0.0"
+        mock_client.request.assert_called_once()
+        assert mock_client.request.call_args.kwargs["url"].endswith("version=1.2.0")
 
 
 class TestGetPluginSchema:

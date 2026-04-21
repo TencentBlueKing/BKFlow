@@ -13,7 +13,9 @@ GET
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | code | string | 是 | 插件 code |
+| plugin_id | string | 否 | 开放插件 ID，传入后优先作为 `code` 使用，便于查询 `uniform_api v4.0.0` 开放插件 |
 | version | string | 否 | 插件版本，不传取最新 |
+| plugin_version | string | 否 | 开放插件业务版本，传入后优先作为 `version` 使用 |
 | plugin_type | string | 否 | 消歧用，可选值: component, remote_plugin, uniform_api |
 | scope_type | string | 否 | scope 类型 |
 | scope_id | string | 否 | scope ID |
@@ -30,6 +32,9 @@ GET
 | data.plugin_type | string | 插件类型 |
 | data.version | string | 插件版本 |
 | data.description | string | 插件描述 |
+| data.plugin_source | string | 开放插件来源类型，仅 `uniform_api v4.0.0` 返回，如 `builtin` / `third_party` |
+| data.plugin_code | string | 来源侧插件编码，仅 `uniform_api v4.0.0` 返回 |
+| data.wrapper_version | string | BKFlow 包装器版本，仅 `uniform_api v4.0.0` 返回 |
 | data.inputs | array | 输入参数列表 |
 | data.inputs[].key | string | 参数标识 |
 | data.inputs[].name | string | 参数名称 |
@@ -42,6 +47,12 @@ GET
 
 ```bash
 curl -X GET 'http://{host}/space/1/get_plugin_schema/?code=job_fast_execute_script&plugin_type=component'
+```
+
+开放插件示例：
+
+```bash
+curl -X GET 'http://{host}/space/1/get_plugin_schema/?plugin_id=open_plugin_001&plugin_version=1.2.0&plugin_type=uniform_api'
 ```
 
 #### 响应示例
@@ -73,6 +84,27 @@ curl -X GET 'http://{host}/space/1/get_plugin_schema/?code=job_fast_execute_scri
                 "description": ""
             }
         ]
+    }
+}
+```
+
+开放插件响应示例：
+
+```json
+{
+    "result": true,
+    "code": 0,
+    "data": {
+        "code": "open_plugin_001",
+        "name": "JOB 执行作业",
+        "plugin_type": "uniform_api",
+        "version": "1.2.0",
+        "plugin_source": "builtin",
+        "plugin_code": "job_execute_task",
+        "wrapper_version": "v4.0.0",
+        "description": "执行标准运维作业",
+        "inputs": [],
+        "outputs": []
     }
 }
 ```
