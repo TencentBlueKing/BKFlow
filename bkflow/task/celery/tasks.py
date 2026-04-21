@@ -40,7 +40,13 @@ from bkflow.task.models import (
 from bkflow.task.node_timeout import node_timeout_handler
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
 from bkflow.task.serializers import CreateTaskInstanceSerializer
-from bkflow.task.utils import ATOM_FAILED, redis_inst_check, send_task_instance_message
+from bkflow.task.utils import (
+    ATOM_FAILED,
+    add_node_name_to_status_tree,
+    redis_inst_check,
+    send_task_instance_message,
+)
+from bkflow.utils.json import safe_for_json
 
 logger = logging.getLogger("celery")
 
@@ -91,10 +97,63 @@ def auto_retry_node(taskflow_id, root_pipeline_id, node_id, retry_times):
 
 
 @current_app.task
-def send_task_message(task_id, msg_type):
+def send_task_message(task_id, node_id, msg_type):
     try:
         task_instance = TaskInstance.objects.get(instance_id=task_id)
         send_task_instance_message(task_instance, msg_type)
+
+        resp_data = TaskOperation(task_instance=task_instance).render_current_constants()
+
+        # 从 pipeline_tree outputs 获取输出变量的 key 列表
+        output_keys = set(task_instance.pipeline_tree.get("outputs", []))
+
+        if resp_data.result:
+            for var in resp_data.data:
+                if safe_for_json(var["value"]):
+                    continue
+                var["value"] = str(var["value"].__dict__) if hasattr(var["value"], "__dict__") else str(var["value"])
+
+        all_vars = resp_data.data if resp_data.result else []
+        # input_data 排除输出变量
+        input_data = [var for var in all_vars if var["key"] not in output_keys]
+
+        def _format_time(dt):
+            return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else ""
+
+        extra_info = {
+            "task_id": task_instance.id,
+            "task_name": task_instance.name,
+            "input_data": input_data,
+            "executor": task_instance.executor,
+            "start_time": _format_time(task_instance.start_time),
+            "finish_time": _format_time(task_instance.finish_time),
+        }
+
+        if msg_type == ATOM_FAILED:
+            dispatcher = TaskOperation(task_instance=task_instance)
+            status_result = dispatcher.get_task_states(with_ex_data=True)
+            status_data = status_result.data or {}
+            children = status_data.get("children", {})
+            add_node_name_to_status_tree(task_instance.execution_data, children)
+
+            extra_info.update(
+                {
+                    "extra_data": {
+                        "failed_node": node_id,
+                        "failed_node_name": children.get(node_id, {}).get("name") if node_id else None,
+                        "failed_message": str(status_data.get("ex_data", {}).get(node_id, "")) if node_id else "",
+                    }
+                }
+            )
+        else:
+            # 从渲染后的全量变量中取输出变量的值
+            rendered_vars = {item["key"]: item["value"] for item in all_vars}
+            outputs_data = {key: rendered_vars[key] for key in output_keys if key in rendered_vars}
+            extra_info.update(
+                {
+                    "outputs": outputs_data,
+                }
+            )
 
         # broadcast events through webhooks
         event = WebhookEventType.TASK_FAILED.value if msg_type == ATOM_FAILED else WebhookEventType.TASK_FINISHED.value
@@ -105,7 +164,7 @@ def send_task_message(task_id, msg_type):
                 "template_id": task_instance.template_id,
                 "task_id": task_instance.id,
                 "event": event,
-                "extra_info": {"task_id": task_instance.id},
+                "extra_info": extra_info,
             }
         )
     except Exception as e:
