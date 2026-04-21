@@ -345,7 +345,7 @@ class TaskOperation:
                         if len(node["children"]) > 0:
                             children_list.append(node["children"])
                             continue
-                        failed_nodes.append(node_id)
+                        failed_nodes.append(node["id"])
             return failed_nodes
 
         # 返回失败节点和对应调试信息

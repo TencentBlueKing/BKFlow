@@ -94,6 +94,7 @@ def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version,
         send_task_message.apply_async(
             kwargs={
                 "task_id": root_id,
+                "node_id": node_id,
                 "msg_type": ATOM_FAILED,
             },
             queue=f"task_common_{settings.BKFLOW_MODULE.code}",
@@ -113,6 +114,7 @@ def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version,
         send_task_message.apply_async(
             kwargs={
                 "task_id": root_id,
+                "node_id": node_id,
                 "msg_type": TASK_FINISHED,
             },
             queue=f"task_common_{settings.BKFLOW_MODULE.code}",
