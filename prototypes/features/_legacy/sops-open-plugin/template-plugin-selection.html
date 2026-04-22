@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>模板插件选择与版本展示 - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <style>
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--bk-text-primary);
+      margin-bottom: 8px;
+    }
+    .page-desc {
+      font-size: 14px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+      max-width: 880px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.55fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .section-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .section-card-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--bk-border-light);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .section-card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+    }
+    .section-card-body {
+      padding: 18px;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 16px;
+    }
+    .info-item-label {
+      font-size: 12px;
+      color: var(--bk-text-tertiary);
+      margin-bottom: 6px;
+    }
+    .info-item-value {
+      font-size: 14px;
+      color: var(--bk-text-primary);
+      line-height: 1.6;
+    }
+    .inline-note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.7;
+      background: #f0f7ff;
+      border: 1px solid rgba(58, 132, 255, 0.2);
+      color: var(--bk-text-secondary);
+    }
+    .inline-note.is-danger {
+      background: rgba(255, 87, 87, 0.05);
+      border-color: rgba(255, 87, 87, 0.28);
+      color: #8f3131;
+    }
+    .version-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--bk-border-light);
+    }
+    .version-row:last-child {
+      border-bottom: none;
+    }
+    .version-meta {
+      font-size: 13px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+    }
+    .field-shell {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 16px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--bk-border-light);
+      align-items: start;
+    }
+    .field-shell:last-child {
+      border-bottom: none;
+    }
+    .field-name {
+      font-size: 13px;
+      color: var(--bk-text-primary);
+      font-weight: 600;
+      padding-top: 10px;
+    }
+    .ghost-box {
+      background: #fafbfd;
+      border: 1px dashed var(--bk-border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation">
+    <header class="bk-navigation-header">
+      <div class="bk-navigation-header-title">
+        <span style="font-size:18px;font-weight:600;color:#fff;">BKFlow</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav">
+          <li class="bk-navigation-header-nav-item active">空间管理</li>
+          <li class="bk-navigation-header-nav-item">系统管理</li>
+          <li class="bk-navigation-header-nav-item">我的插件</li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">U</div>
+          <span>template_owner</span>
+        </div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar" aria-label="侧边导航">
+        <div class="bk-navigation-space">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">B</span>
+            <span>bkflow-plugin-hub (612)</span>
+          </div>
+        </div>
+        <ul class="bk-navigation-menu">
+          <li class="bk-navigation-menu-item active"><span class="bk-navigation-menu-icon">⇌</span>流程</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">▤</span>任务</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⚙</span>空间配置</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⬡</span>开放插件</li>
+        </ul>
+        <div class="bk-navigation-footer">
+          <button class="bk-navigation-collapse" title="收起导航">⟨</button>
+        </div>
+      </nav>
+
+      <main class="bk-content">
+        <div class="bk-breadcrumb">
+          <span class="bk-breadcrumb-item">首页</span>
+          <span class="bk-breadcrumb-item">流程</span>
+          <span class="bk-breadcrumb-item">模板编辑</span>
+          <span class="bk-breadcrumb-item">节点插件配置</span>
+        </div>
+
+        <div class="page-header">
+          <div>
+            <div class="page-title">节点插件配置：云作业执行脚本</div>
+            <div class="page-desc">
+              用户继续以普通 API 插件方式选择来源、分类和插件，只增加显式 `plugin_version` 字段。当前版本不可用时，模板仍可回看历史配置，但不能基于失效版本继续新用。
+            </div>
+          </div>
+          <button class="bk-button bk-button-primary">保存节点配置</button>
+        </div>
+
+        <div class="layout">
+          <div>
+            <div class="section-card">
+              <div class="section-card-header">
+                <div class="section-card-title">插件选择</div>
+                <span class="bk-tag bk-tag-info">普通 API 插件体验</span>
+              </div>
+              <div class="section-card-body">
+                <form class="bk-form" onsubmit="return false;">
+                  <div class="bk-form-item">
+                    <label class="bk-form-label">来源</label>
+                    <div class="bk-form-content">
+                      <div class="bk-select">
+                        <div class="bk-select-trigger">
+                          <span>标准运维开放插件</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="bk-form-item">
+                    <label class="bk-form-label">分类</label>
+                    <div class="bk-form-content">
+                      <div class="bk-select">
+                        <div class="bk-select-trigger">
+                          <span>作业执行</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="bk-form-item">
+                    <label class="bk-form-label">插件</label>
+                    <div class="bk-form-content">
+                      <div class="bk-select">
+                        <div class="bk-select-trigger">
+                          <span>云作业执行脚本</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="bk-form-item is-required">
+                    <label class="bk-form-label">plugin_version</label>
+                    <div class="bk-form-content">
+                      <div class="bk-select">
+                        <div class="bk-select-trigger">
+                          <span>1.4.2</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+
+                <div class="inline-note">
+                  当前节点保留普通 API 插件配置方式。版本字段始终显式展示，用来说明模板最终绑定的是哪个开放插件版本。
+                </div>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <div class="section-card-header">
+                <div class="section-card-title">参数配置</div>
+                <span class="bk-tag bk-tag-success">按当前版本 schema 渲染</span>
+              </div>
+              <div class="section-card-body">
+                <div class="field-shell">
+                  <div class="field-name">业务 ID</div>
+                  <div><input class="bk-input" value="200145" placeholder="请输入业务 ID"></div>
+                </div>
+                <div class="field-shell">
+                  <div class="field-name">执行账号</div>
+                  <div><input class="bk-input" value="root" placeholder="请输入执行账号"></div>
+                </div>
+                <div class="field-shell">
+                  <div class="field-name">脚本内容</div>
+                  <div><textarea class="bk-textarea" rows="5">echo \"deploy bkflow open plugin\" && kubectl rollout restart deployment/demo</textarea></div>
+                </div>
+                <div class="field-shell">
+                  <div class="field-name">超时时间</div>
+                  <div><input class="bk-input" value="600" placeholder="秒"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <div class="section-card-header">
+                <div class="section-card-title">历史模板回看态</div>
+                <span class="bk-tag bk-tag-warning">只读示意</span>
+              </div>
+              <div class="section-card-body">
+                <div class="ghost-box">
+                  当历史模板引用的版本已经不再开放时，页面仍会展示当时保存下来的插件引用快照和 schema 快照，但对应字段进入只读态，用户需要切换到可用版本后才能继续新建任务。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-card">
+              <div class="section-card-header">
+                <div class="section-card-title">插件摘要</div>
+                <span class="bk-tag bk-tag-success">当前可用</span>
+              </div>
+              <div class="section-card-body">
+                <div class="info-grid">
+                  <div>
+                    <div class="info-item-label">来源别名</div>
+                    <div class="info-item-value">[标准运维内置插件]</div>
+                  </div>
+                  <div>
+                    <div class="info-item-label">插件类型</div>
+                    <div class="info-item-value">内置插件</div>
+                  </div>
+                  <div>
+                    <div class="info-item-label">默认版本</div>
+                    <div class="info-item-value">1.4.2</div>
+                  </div>
+                  <div>
+                    <div class="info-item-label">最新版本</div>
+                    <div class="info-item-value">1.5.0</div>
+                  </div>
+                </div>
+                <div class="inline-note">
+                  当前空间已开放该插件，且版本 `1.4.2` 仍可继续新用。若切换到更新版本，需要重新确认参数兼容性。
+                </div>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <div class="section-card-header">
+                <div class="section-card-title">版本列表</div>
+                <span class="bk-tag bk-tag-info">增强态预留</span>
+              </div>
+              <div class="section-card-body">
+                <div class="version-row">
+                  <div class="version-meta">
+                    <strong>1.5.0</strong><br>
+                    新增脚本执行结果归档字段，推荐新模板使用。
+                  </div>
+                  <span class="bk-tag bk-tag-success">可用</span>
+                </div>
+                <div class="version-row">
+                  <div class="version-meta">
+                    <strong>1.4.2</strong><br>
+                    当前模板绑定版本。
+                  </div>
+                  <span class="bk-tag bk-tag-info">当前版本</span>
+                </div>
+                <div class="version-row">
+                  <div class="version-meta">
+                    <strong>1.2.0</strong><br>
+                    历史模板常见版本，目录已不再开放。
+                  </div>
+                  <span class="bk-tag bk-tag-danger">不可用</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <div class="section-card-header">
+                <div class="section-card-title">失效版本提示</div>
+                <span class="bk-tag bk-tag-danger">异常态</span>
+              </div>
+              <div class="section-card-body">
+                <div class="inline-note is-danger">
+                  当前模板若仍绑定版本 `1.2.0`，页面应允许查看历史配置，但不能继续直接新建任务。用户需要先切换到可用版本，例如 `1.4.2` 或 `1.5.0`，再重新确认参数。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="../../../assets/bkflow-prototype.js"></script>
+</body>
+</html>

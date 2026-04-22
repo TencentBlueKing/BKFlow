@@ -155,12 +155,11 @@ pre-*-bkcodeai
 # ide project data
 .codebuddy/
 .cursor/
-.bkui-knowledge.json
 .worktrees/
+.bkui-knowledge.json
 .vscode/
 .idea/
 .claude/
-.worktrees/
 .playwright-cli/
 .superpowers/
 .direnv/
@@ -169,3 +168,4 @@ pre-*-bkcodeai
 backup/
 cov.xml
 .DS_Store
+output/

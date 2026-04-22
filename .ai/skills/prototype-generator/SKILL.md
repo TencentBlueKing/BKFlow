@@ -21,65 +21,71 @@ description: 独立的原型生成工具。用自然语言描述需求，AI 澄�
 
 ## 完整工作流
 
-1. **启动预览服务器**  
-   - 检查是否已有 `prototypes/serve.py` 在运行（可查看 Cursor 的 **terminals** 状态或本机进程是否监听默认端口 **9080**）。  
+1. **启动预览服务器**
+   - 检查是否已有 `prototypes/serve.py` 在运行（可查看 Cursor 的 **terminals** 状态或本机进程是否监听默认端口 **9080**）。
    - 若未运行，在仓库根下执行：
      ```bash
      cd prototypes && python serve.py &
      ```
    - 默认地址：`http://localhost:9080/`（根目录即 `prototypes/`）。
 
-2. **检查 `base.html`**  
-   - 读取 `prototypes/base.html`。  
-   - **若不存在**：进入「首次使用引导」（见下文），向用户确认后生成 `base.html`，保存到 `prototypes/base.html`，并让用户在浏览器中打开 `http://localhost:9080/base.html` 预览确认。
+2. **确认展厅首页合同**
+   - 根路径 `/` 是中文「BKFlow 原型展厅」首页。
+   - 首页展示来源是 `prototypes/features/<slug>/feature.meta.json`，而不是简单目录索引。
+   - 读取现有 feature 的 `README.md` 和 `feature.meta.json`，理解其首页卡片、代表页与排序约定。
 
-3. **需求澄清**（生成或大幅改版前必须完成，勿跳过）  
-   逐项提问并记录答案，例如：  
-   - 这个页面要展示什么信息？  
-   - 有哪些数据字段？（表格列 / 表单字段）  
-   - 需要哪些操作？（新建、编辑、删除、启用/停用等）  
-   - 交互方式？（搜索、筛选、侧滑编辑、弹窗确认、Tab 切换等）  
-   - 多个页面之间是否有关联、如何跳转？  
+3. **参考蓝鲸设计规范（设计输入，不是运行时依赖）**
+   - 生成或大幅调整原型前，优先把 `bkui-knowledge` 作为设计参考源：如果当前会话能访问 `bkui-knowledge` MCP / connector，先读取相关页面模式、组件 API、交互规范和示例。
+   - 若无法访问 `bkui-knowledge`，退回读取本仓库的 `prototypes/examples/component-showcase.html`、相关 `prototypes/masters/` 母版，以及真实前端里相近页面的布局模式。
+   - 参考结果只用于决定页面结构、组件选择、交互模式、间距层级和状态表达；最终产物仍必须落在 `prototypes/features/<slug>/` 或 `prototypes/masters/`，使用 `assets/` 中的静态 CSS/JS。
+   - 不要因为参考 `bkui-knowledge` 而引入 Vue / React / bkui-vue CDN / npm 构建链路，也不要恢复 `prototypes/output/`、`prototypes/metadata/`、`prototypes/cache/` 作为版本库产物。
+   - 若发现当前 `assets/` 或 `masters/` 与蓝鲸标准差距明显，优先沉淀成共享样式或母版能力，再让 feature 页面复用。
+
+4. **需求澄清**（生成或大幅改版前必须完成，勿跳过）
+   逐项提问并记录答案，例如：
+   - 这个页面要展示什么信息？
+   - 有哪些数据字段？（表格列 / 表单字段）
+   - 需要哪些操作？（新建、编辑、删除、启用/停用等）
+   - 交互方式？（搜索、筛选、侧滑编辑、弹窗确认、Tab 切换等）
+   - 多个页面之间是否有关联、如何跳转？
    - （可选）后端是否已有 Model / Serializer？若用户**主动提供**文件路径，可按「后端模型读取」一节做字段提取；否则仅凭描述推断。
 
-4. **生成原型**  
-   - 先阅读 `prototypes/examples/component-showcase.html`（组件与 class 参考）和当前 `prototypes/base.html`（外壳）。  
-   - 复制 `base.html` 结构，在 `<main class="bk-content">` … `</main>` 内填充页面主体；**不要**把侧滑、弹窗等浮层塞进 `main` 内部（见「生成规则」）。  
-   - 将完整 HTML 保存到 **`prototypes/output/<name>.html`**。  
-   - **路径修正**：`base.html` 位于 `prototypes/` 根目录，资源用 `assets/...`；`output/` 下页面多一层目录，**必须**改为 `../assets/bkflow-prototype.css`、`../assets/bkflow-prototype.js` 及 `../assets/icons/...` 等。
+5. **生成或更新 feature 目录**
+   - 生成 `features/<slug>/` 时，必须同步创建或更新 `feature.meta.json`，不要只生成 `README.md` 和 `index.html`。
+   - `feature.meta.json` 应至少包含 `title`、`summary`、`status`、`tags`、`coverTheme`、`order`、`featuredPages`，并能描述首页展示所需的卡片信息、代表页和排序。
+   - `README.md` 负责 narrative 说明，`index.html` 和页面文件负责实际预览。
+   - 代表页信息应尽量贴近真实页面入口，便于首页直接进入重点原型。
 
-5. **告知预览**  
-   - 告诉用户打开：  
-     `http://localhost:9080/output/<name>.html`
+6. **生成规则（MUST）**
+   - **先读** `prototypes/examples/component-showcase.html`，了解可用样式与结构模式。
+   - **CSS class** 一律使用工具包约定的 **`bk-` 前缀**（见下方速查表）。
+   - **交互** 仅通过 **`data-*` 属性** 声明，由 `assets/bkflow-prototype.js` 驱动；支持的属性与用法如下（实现以仓库内 JS 为准）：
 
-6. **迭代**  
-   - 根据反馈修改；新版本命名为 `<name>-v2.html`、`<name>-v3.html` … 保留旧文件便于对比（与「版本管理」规则一致）。
+     | 属性 | 用法说明 |
+     |------|----------|
+     | `data-open="<id>"` | 点击打开对应 `id` 的侧滑（`.bk-sideslider`）或弹窗（`.bk-dialog`）；目标元素需带 `id` 且通过 `.is-show` 控制显示（脚本会添加该类）。 |
+     | `data-close` | 点击后关闭最近的侧滑/弹窗；点击 `.bk-sideslider-mask` / `.bk-dialog-mask` 也会关闭。 |
+     | `data-tab="<panelId>"` | 放在 `.bk-tab` 内的 `.bk-tab-item` 上；切换对应 `id` 的 `.bk-tab-panel` 可见性，并切换 `active` 样式。 |
+     | `data-sortable` | 放在表头 `th` 上；点击按该列文本排序（中英文数字），并切换升序/降序指示类。 |
+     | `data-filter="<tableId>"` | 放在输入框等元素上；`input` 时用输入值对 `id` 为 `tableId` 的表格 `tbody` 行做包含匹配过滤。 |
+     | `data-collapse="<panelId>"` | 点击切换 `id` 对应元素的 `hidden` 状态。 |
+     | `data-dropdown="<menuId>"` | 点击切换 `id` 对应下拉容器（如 `.bk-select-dropdown`）的 `is-show`。 |
+     | `data-href="<url>"` | 点击后 `window.location.href` 跳转。 |
+     | `data-notify="<msg>"` | 点击后顶部绿色 Toast 提示，约 2 秒消失。 |
+     | `data-required` | 在表单控件上；提交 `.bk-form` 时若为空则给 `.bk-form-item` 加 `is-error` 并阻止提交。 |
+     | `data-pattern="<regex>"` | 同上，用正则校验控件值。 |
+     | `data-step="<panelId>"` | 在 `.bk-steps-container` 内切换 `.bk-step-panel` 的显示（`hidden`），用于步骤条/向导式布局。 |
 
-## 生成规则（MUST）
+   - Mock 数据应贴近真实业务语义（流程名、空间、任务状态等），避免「测试1」「aaa」「foo」等占位。
+   - 浮层位置要保持与现有页面结构一致，便于预览和复用。
 
-- **先读** `prototypes/examples/component-showcase.html`，了解可用样式与结构模式。  
-- **先读** `prototypes/base.html`，保持导航、布局与资源引用方式一致（再在 output 中做 `../assets/` 修正）。  
-- **CSS class** 一律使用工具包约定的 **`bk-` 前缀**（见下方速查表）。  
-- **交互** 仅通过 **`data-*` 属性** 声明，由 `assets/bkflow-prototype.js` 驱动；支持的属性与用法如下（实现以仓库内 JS 为准）：  
+7. **告知预览**
+   - 告诉用户打开：
+     `http://localhost:9080/`
+   - 如果需要直接进入某个 feature，则从首页卡片进入对应的 `features/<slug>/` 页面。
 
-  | 属性 | 用法说明 |
-  |------|----------|
-  | `data-open="<id>"` | 点击打开对应 `id` 的侧滑（`.bk-sideslider`）或弹窗（`.bk-dialog`）；目标元素需带 `id` 且通过 `.is-show` 控制显示（脚本会添加该类）。 |
-  | `data-close` | 点击后关闭最近的侧滑/弹窗；点击 `.bk-sideslider-mask` / `.bk-dialog-mask` 也会关闭。 |
-  | `data-tab="<panelId>"` | 放在 `.bk-tab` 内的 `.bk-tab-item` 上；切换对应 `id` 的 `.bk-tab-panel` 可见性，并切换 `active` 样式。 |
-  | `data-sortable` | 放在表头 `th` 上；点击按该列文本排序（中英文数字），并切换升序/降序指示类。 |
-  | `data-filter="<tableId>"` | 放在输入框等元素上；`input` 时用输入值对 `id` 为 `tableId` 的表格 `tbody` 行做包含匹配过滤。 |
-  | `data-collapse="<panelId>"` | 点击切换 `id` 对应元素的 `hidden` 状态。 |
-  | `data-dropdown="<menuId>"` | 点击切换 `id` 对应下拉容器（如 `.bk-select-dropdown`）的 `is-show`。 |
-  | `data-href="<url>"` | 点击后 `window.location.href` 跳转（如 `../output/other.html`）。 |
-  | `data-notify="<msg>"` | 点击后顶部绿色 Toast 提示，约 2 秒消失。 |
-  | `data-required` | 在表单控件上；提交 `.bk-form` 时若为空则给 `.bk-form-item` 加 `is-error` 并阻止提交。 |
-  | `data-pattern="<regex>"` | 同上，用正则校验控件值。 |
-  | `data-step="<panelId>"` | 在 `.bk-steps-container` 内切换 `.bk-step-panel` 的显示（`hidden`），用于步骤条/向导式布局。 |
-
-- **Mock 数据** 应贴近真实业务语义（流程名、空间、任务状态等），避免「测试1」「aaa」「foo」等占位。  
-- **版本文件**：`xxx.html` → `xxx-v2.html` → `xxx-v3.html`。  
-- **浮层位置**：所有侧滑、弹窗等**必须**放在 `</main>` 之后、`</div>`（闭合 `.bk-layout`）之前或按 `base.html` 同级结构闭合前，且**在** `<script src="../assets/bkflow-prototype.js">` **之前**，保证 DOM 顺序清晰、与示例一致。
+8. **迭代**
+   - 根据反馈修改；保留旧版本或变更记录，便于对比和回看。
 
 ## 可用组件速查
 
@@ -114,31 +120,19 @@ description: 独立的原型生成工具。用自然语言描述需求，AI 澄�
 | `data-dropdown="id"` | 下拉展开/收起 |
 | `data-href="page.html"` | 页面跳转 |
 | `data-notify="msg"` | 通知提示 |
-| `data-required` / `data-pattern` | 表单校验（需 `.bk-form` 提交） |
-| `data-step="id"` | 步骤面板切换（需在 `.bk-steps-container` 内） |
+| `data-required` / `data-pattern` | 表单校验 |
+| `data-step="id"` | 步骤面板切换 |
 
 ## 后端模型读取（条件触发）
 
-- **仅当用户明确提供**后端文件路径（如 Model、Config、Serializer）时执行。  
-- 静态阅读源码：提取字段名、类型、`choices`、默认值等；**不**连接数据库、**不**执行 Django。  
-- 粗略映射建议：`BooleanField` → `.bk-switcher`；`choices` → `.bk-select`；短文本 → `.bk-input`；长文本/JSON → `.bk-textarea`。  
+- **仅当用户明确提供**后端文件路径（如 Model、Config、Serializer）时执行。
+- 静态阅读源码：提取字段名、类型、`choices`、默认值等；**不**连接数据库、**不**执行 Django。
+- 粗略映射建议：`BooleanField` → `.bk-switcher`；`choices` → `.bk-select`；短文本 → `.bk-input`；长文本/JSON → `.bk-textarea`。
 - 若文件不存在或用户未提供路径，**跳过**本节，完全依据澄清结果推断字段与控件。
-
-## 首次使用引导（条件触发）
-
-当 **`prototypes/base.html` 不存在** 时：
-
-1. 询问**产品/应用名称**（展示在侧栏或标题区域）。  
-2. 询问**侧栏菜单模块列表**（文案与顺序）。  
-3. 询问**主色调**（默认 `#3a84ff`，写入 `:root` 或内联样式覆盖 `--bk-primary` 若工具包支持）。  
-4. 询问是否有 **logo**（路径或先用占位图；放入 `prototypes/assets/icons/` 或用户指定）。  
-5. 按现有工具包结构生成 `prototypes/base.html`（引用 `assets/bkflow-prototype.css` / `assets/bkflow-prototype.js`，包含 `bk-layout`、`bk-navigation`、`main.bk-content` 空槽）。  
-6. 请用户在 `http://localhost:9080/base.html` 预览确认后再进入页面级原型生成。
 
 ## 反模式（禁止）
 
-- **不要**引入 Vue / React / Angular 等前端框架。  
-- **不要**使用 Tailwind、Bootstrap 等**外部** CSS 框架或 CDN 大型 UI 库（仅用本工具包 `assets/`）。  
-- **不要**在原型中编写真实 API 请求、鉴权或与后端对接的生产逻辑（可为按钮加 `data-notify` 等示意）。  
-- **不要**跳过需求澄清直接生成页面。  
-- **不要**在 `output/` 页面中继续使用 `assets/...` 而不加 `../`（会导致 404）。
+- **不要**引入 Vue / React / Angular 等前端框架。
+- **不要**使用 Tailwind、Bootstrap 等**外部** CSS 框架或 CDN 大型 UI 库（仅用本工具包 `assets/`）。
+- **不要**在原型中编写真实 API 请求、鉴权或与后端对接的生产逻辑（可为按钮加 `data-notify` 等示意）。
+- **不要**跳过需求澄清直接生成页面。

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<!-- Composed from prototypes/masters/_shared/space-shell.html + prototypes/masters/decision-editor/template.html -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空间管理 - 新建决策表</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    .bk-content {
+      overflow: auto;
+      padding: 28px 32px 40px;
+      background:
+        radial-gradient(circle at top left, rgba(248, 181, 63, 0.08), transparent 24%),
+        var(--bk-bg-body);
+    }
+    .bk-page-panel { display: block; }
+    .bk-space-nav-link,
+    .bk-space-menu-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      color: inherit;
+    }
+    .bk-space-nav-link:hover,
+    .bk-space-menu-link:hover { color: inherit; }
+    .bk-page-wrap {
+      max-width: 1160px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+    .bk-page-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .bk-page-heading h1 { font-size: 24px; margin-bottom: 6px; }
+    .bk-page-heading p { color: var(--bk-text-tertiary); }
+    .bk-section {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 12px;
+      box-shadow: var(--bk-shadow);
+      padding: 22px;
+    }
+    .bk-section-title {
+      margin-bottom: 16px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .bk-rule-empty {
+      min-height: 220px;
+      border-radius: 12px;
+      border: 1px dashed #d8e6ff;
+      background: linear-gradient(180deg, #fafcff, #f5f8ff);
+    }
+    .bk-footer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="space" data-nav-link="template-list.html"><a class="bk-space-nav-link" href="decision-editor.html">空间管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system" data-nav-link="../system/space-config-list.html"><a class="bk-space-nav-link" href="../system/space-config-list.html">系统管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html"><a class="bk-space-nav-link" href="../plugin/plugin-list.html">我的插件</a></li>
+        </ul>
+        <div class="bk-navigation-header-user"><div class="bk-navigation-header-user-avatar">A</div><span>admin</span></div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space"><div class="bk-navigation-space-select"><span class="bk-navigation-space-icon">S</span><span>bkflow-eng-svc / space_id=171</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span></div></div>
+        <ul class="bk-navigation-menu" data-nav-group="space">
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="template-list.html"><span class="bk-navigation-menu-icon">≣</span>流程</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="task-list.html"><span class="bk-navigation-menu-icon">✓</span>任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="debug-task-list.html"><span class="bk-navigation-menu-icon">◎</span>调试任务</a></li>
+          <li class="bk-navigation-menu-item active"><a class="bk-space-menu-link" href="decision-list.html"><span class="bk-navigation-menu-icon">◇</span>决策表</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="space-config.html"><span class="bk-navigation-menu-icon">⚙</span>空间配置</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="credential-list.html"><span class="bk-navigation-menu-icon">⌘</span>凭证管理</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="statistics-exception.html"><span class="bk-navigation-menu-icon">∆</span>运营统计</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="label-list.html"><span class="bk-navigation-menu-icon">#</span>标签管理</a></li>
+        </ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../system/space-config-list.html"><span class="bk-navigation-menu-icon">◈</span>空间配置</a></li></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../plugin/plugin-list.html"><span class="bk-navigation-menu-icon">⬡</span>蓝鲸插件</a></li></ul>
+        <div class="bk-navigation-footer"><button class="bk-navigation-collapse" title="收起导航">⟨</button></div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel">
+          <div class="bk-page-wrap">
+            <div class="bk-page-heading">
+              <div>
+                <a class="bk-flow-editor-back" href="decision-list.html">← 返回决策表列表</a>
+                <h1>新建决策表</h1>
+                <p>独立编辑页，底部动作固定为 `提交 / 取消 / 调试`，不在列表页原地完成编辑。</p>
+              </div>
+            </div>
+
+            <section class="bk-section">
+              <div class="bk-section-title">基础信息</div>
+              <div class="bk-form">
+                <div class="bk-form-item is-required">
+                  <label class="bk-form-label">名称</label>
+                  <div class="bk-form-content"><input class="bk-input" value="deploy-gate-decision"></div>
+                </div>
+                <div class="bk-form-item">
+                  <label class="bk-form-label">关联流程</label>
+                  <div class="bk-form-content"><div class="bk-select"><div class="bk-select-trigger"><span>audit-deep-dive-20260420</span></div></div></div>
+                </div>
+                <div class="bk-form-item">
+                  <label class="bk-form-label">描述</label>
+                  <div class="bk-form-content"><textarea class="bk-textarea" rows="3">根据环境、审批结果和发布窗口决定是否继续执行发布蓝鲸作业节点。</textarea></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="bk-section">
+              <div class="bk-section-title">规则配置</div>
+              <div class="bk-exception bk-rule-empty">
+                <div style="font-size:52px;">◇</div>
+                <strong style="color:var(--bk-text-primary);">暂无规则</strong>
+                <div>先补充条件字段和结果字段，再逐条录入决策规则。</div>
+                <div class="bk-prototype-actions" style="margin-top:4px;">
+                  <button class="bk-button bk-button-primary" type="button">新增规则</button>
+                  <button class="bk-button" type="button">导入模板</button>
+                </div>
+              </div>
+
+              <div class="bk-footer-actions">
+                <button class="bk-button" type="button">调试</button>
+                <a class="bk-button" href="decision-list.html">取消</a>
+                <button class="bk-button bk-button-primary" type="button">提交</button>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

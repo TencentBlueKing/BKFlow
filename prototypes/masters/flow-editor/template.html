@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>流程编辑 Master - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../assets/bkflow-prototype.css">
+  <script defer src="../../assets/bkflow-prototype.js"></script>
+</head>
+<body class="bk-flow-editor">
+  <div class="bk-flow-editor-shell">
+    <header class="bk-flow-editor-header">
+      <div class="bk-flow-editor-meta">
+        <a class="bk-flow-editor-back" href="#">← 返回流程列表</a>
+        <div class="bk-flow-editor-title">
+          <h1>编辑流程</h1>
+          <p>audit-deep-dive-20260420 · 发布蓝鲸作业审批链</p>
+        </div>
+        <div class="bk-flow-version-area">
+          <span class="bk-flow-version-label">流程版本</span>
+          <span class="bk-tag">草稿</span>
+          <span class="bk-flow-version-badge">最新发布 1.0.0</span>
+        </div>
+      </div>
+      <div class="bk-flow-editor-actions">
+        <button
+          type="button"
+          class="bk-button bk-button-primary bk-save-button is-disabled"
+          id="flow-editor-save"
+          disabled
+          data-disable-target="#flow-editor-save"
+          data-enable-target="#flow-editor-publish">保存</button>
+        <button
+          type="button"
+          class="bk-button bk-button-primary is-disabled"
+          id="flow-editor-publish"
+          disabled
+          data-open="flow-publish-dialog">发布</button>
+        <button type="button" class="bk-button" data-open="flow-mock-debug-dialog">调试</button>
+      </div>
+    </header>
+
+    <main class="bk-flow-editor-main">
+      <aside class="bk-flow-editor-rail">
+        <section class="bk-flow-section-card">
+          <h2>编辑节奏</h2>
+          <ul>
+            <li>单击画布节点只做选中。</li>
+            <li>双击节点才打开 `节点配置`。</li>
+            <li>抽屉里的 `确定` 仅回写画布并启用顶部保存。</li>
+            <li>顶部 `保存` 后，发布按钮才进入可操作态。</li>
+          </ul>
+        </section>
+
+        <section class="bk-flow-section-card">
+          <h3>调试入口</h3>
+          <p>真实产品会跳到独立 mock 调试路由，这个 master 用确认层表达“保存 Mock 数据后去执行”的前置检查。</p>
+        </section>
+      </aside>
+
+      <section class="bk-flow-canvas-shell">
+        <div class="bk-flow-canvas-header">
+          <div>
+            <strong>流程画布</strong>
+            <span>单击查看节点悬浮工具条，双击进入配置抽屉。</span>
+          </div>
+          <div class="bk-flow-canvas-tools">
+            <span class="bk-flow-tool-chip">-</span>
+            <span class="bk-flow-tool-chip">100%</span>
+            <span class="bk-flow-tool-chip">+</span>
+          </div>
+        </div>
+
+        <div class="bk-flow-canvas">
+          <div class="bk-flow-canvas-stage">
+            <div class="bk-flow-node bk-flow-node-start">
+              <strong>开始</strong>
+            </div>
+            <div class="bk-flow-link"></div>
+            <button
+              type="button"
+              class="bk-flow-node"
+              data-node-select="flow-editor-main"
+              data-node-toolbar="#flow-node-toolbar"
+              data-node-name="发布蓝鲸作业"
+              data-dblopen="flow-node-config-drawer">
+              <strong>发布蓝鲸作业</strong>
+              <span>标准插件 · 蓝盾作业</span>
+            </button>
+            <div class="bk-flow-link"></div>
+            <button
+              type="button"
+              class="bk-flow-node"
+              data-node-select="flow-editor-main"
+              data-node-toolbar="#flow-node-toolbar"
+              data-node-name="通知审批结果"
+              data-dblopen="flow-node-config-drawer">
+              <strong>通知审批结果</strong>
+              <span>标准插件 · 通知中心</span>
+            </button>
+            <div class="bk-flow-link"></div>
+            <div class="bk-flow-node bk-flow-node-end">
+              <strong>结束</strong>
+            </div>
+          </div>
+
+          <div class="bk-flow-node-toolbar" id="flow-node-toolbar">
+            <span class="bk-flow-toolbar-title" data-node-toolbar-label>节点悬浮工具条</span>
+            <button type="button" class="bk-flow-toolbar-button" data-open="flow-node-config-drawer">配置</button>
+            <button type="button" class="bk-flow-toolbar-button">复制</button>
+            <button type="button" class="bk-flow-toolbar-button">连线</button>
+            <button type="button" class="bk-flow-toolbar-button">删除</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <aside class="bk-sideslider" id="flow-node-config-drawer">
+    <div class="bk-sideslider-mask" data-close></div>
+    <div class="bk-sideslider-content">
+      <div class="bk-sideslider-header">
+        <div class="bk-flow-drawer-header">
+          <div>
+            <h3>节点配置</h3>
+            <p>单击只选中节点，双击才打开抽屉；局部 `确定` 不等于全局保存。</p>
+          </div>
+          <div class="bk-flow-drawer-header-actions">
+            <button type="button" class="bk-button bk-button-text bk-button-small" data-open="flow-global-vars-dialog">全局变量</button>
+            <button class="bk-sideslider-close" data-close>×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bk-sideslider-body">
+        <section class="bk-flow-drawer-group">
+          <h4>基础信息</h4>
+          <div class="bk-flow-two-col">
+            <div>
+              <label class="bk-flow-label">标准插件</label>
+              <div class="bk-flow-input-block">job.execute_task</div>
+            </div>
+            <div>
+              <label class="bk-flow-label">插件版本</label>
+              <div class="bk-flow-input-block">v3.7.2</div>
+            </div>
+            <div>
+              <label class="bk-flow-label">节点名称</label>
+              <div class="bk-flow-input-block">发布蓝鲸作业</div>
+            </div>
+            <div>
+              <label class="bk-flow-label">失败处理</label>
+              <div class="bk-flow-inline-box">
+                <span class="bk-flow-pill">AS</span>
+                <span class="bk-flow-pill">MS</span>
+                <span class="bk-flow-pill">MR</span>
+                <span class="bk-flow-pill">AR</span>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <label class="bk-flow-label">超时控制</label>
+            <div class="bk-flow-inline-box">
+              <span class="bk-flow-pill">开启</span>
+              <span>超时后自动标记为失败并转人工处理。</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="bk-flow-drawer-group">
+          <h4>输入参数</h4>
+          <div class="bk-flow-stack">
+            <div>
+              <label class="bk-flow-label">作业模板 ID</label>
+              <div class="bk-flow-input-block">bk-job-template-prod</div>
+            </div>
+            <div>
+              <label class="bk-flow-label">执行参数</label>
+              <pre class="bk-flow-code-block">{
+  "biz_cc_id": "{{ biz_id }}",
+  "operator": "{{ _system.operator }}",
+  "task_name": "{{ _system.task_name }}"
+}</pre>
+            </div>
+          </div>
+        </section>
+
+        <section class="bk-flow-drawer-group">
+          <h4>输出参数</h4>
+          <table class="bk-flow-io-table">
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>来源</th>
+                <th>勾选为全局变量</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>job_instance_id</td>
+                <td>插件执行结果</td>
+                <td>是</td>
+              </tr>
+              <tr>
+                <td>job_status</td>
+                <td>插件执行结果</td>
+                <td>否</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <div class="bk-sideslider-footer">
+        <div class="bk-flow-footer-hint">局部确定只会同步节点配置并启用顶部 `保存`，真正保存仍需点击页面顶栏。</div>
+        <div>
+          <button type="button" class="bk-button" data-close>取消</button>
+          <button type="button" class="bk-button bk-button-primary" data-save-target="#flow-editor-save" data-close>确定</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="bk-dialog bk-flow-vars-float" id="flow-global-vars-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>全局变量</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        <table class="bk-flow-vars-table">
+          <thead>
+            <tr>
+              <th>变量名</th>
+              <th>说明</th>
+              <th>示例值</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>_system.task_name</td>
+              <td>调度时自动注入的任务名称</td>
+              <td>audit-deep-dive-20260420</td>
+            </tr>
+            <tr>
+              <td>_system.task_id</td>
+              <td>系统生成的任务 ID</td>
+              <td>17100002166</td>
+            </tr>
+            <tr>
+              <td>_system.task_start_time</td>
+              <td>任务启动时间</td>
+              <td>2026-04-20 20:31:15</td>
+            </tr>
+            <tr>
+              <td>_system.operator</td>
+              <td>当前操作人</td>
+              <td>admin</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="bk-dialog-footer">
+        <button type="button" class="bk-button bk-button-primary" data-close>关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bk-dialog" id="flow-publish-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>发布流程</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        <div class="bk-flow-stack">
+          <div>
+            <label class="bk-flow-label">版本号</label>
+            <input class="bk-input" value="1.0.0">
+          </div>
+          <div>
+            <label class="bk-flow-label">版本描述</label>
+            <textarea class="bk-textarea" rows="4">补充发布说明、影响范围和升级注意事项。</textarea>
+          </div>
+        </div>
+      </div>
+      <div class="bk-dialog-footer">
+        <button type="button" class="bk-button bk-button-primary">确认发布</button>
+        <button type="button" class="bk-button" data-close>取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bk-dialog" id="flow-mock-debug-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>执行调试</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        <p>确定保存Mock数据并去执行调试?</p>
+        <p class="bk-flow-confirm-note">该 master 用确认层表达真实产品跳转到 `/template/mock/...` 前的最后一步校验。</p>
+      </div>
+      <div class="bk-dialog-footer">
+        <button type="button" class="bk-button bk-button-primary">保存并执行</button>
+        <button type="button" class="bk-button" data-close>取消</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

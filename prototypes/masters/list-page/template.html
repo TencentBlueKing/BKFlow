@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>列表页 Master - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../assets/bkflow-prototype.css">
+  <style>
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(58, 132, 255, 0.08), transparent 28%),
+        var(--bk-bg-body);
+    }
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 32px 36px 48px;
+    }
+    .page-title {
+      margin-bottom: 8px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .page-subtitle {
+      color: var(--bk-text-tertiary);
+      margin-bottom: 20px;
+    }
+    .section {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+      box-shadow: var(--bk-shadow);
+      padding: 20px;
+    }
+    .table-wrap {
+      overflow-x: auto;
+    }
+    .hint {
+      margin-top: 12px;
+      color: var(--bk-text-tertiary);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body class="bk-prototype-shell">
+  <main class="page">
+    <h1 class="page-title">列表页 Master</h1>
+    <p class="page-subtitle">适合管理台中的列表、检索和批量操作场景。</p>
+
+    <section class="section">
+      <div class="bk-toolbar">
+        <div class="bk-toolbar-left">
+          <input class="bk-search-input" placeholder="搜索名称、编码或负责人" style="width:280px;">
+          <div class="bk-select" style="width:180px;">
+            <div class="bk-select-trigger">
+              <span class="bk-select-placeholder">筛选状态</span>
+            </div>
+          </div>
+        </div>
+        <div class="bk-toolbar-right">
+          <button class="bk-button">刷新</button>
+          <button class="bk-button bk-button-primary">新建条目</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="bk-table">
+          <thead>
+            <tr>
+              <th style="width:48px;">选择</th>
+              <th>名称</th>
+              <th>类型</th>
+              <th>状态</th>
+              <th>更新时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>prod-api-key</td>
+              <td>凭证</td>
+              <td><span class="bk-tag bk-tag-success">启用</span></td>
+              <td>2026-04-18 10:12</td>
+              <td>
+                <button class="bk-table-action">编辑</button>
+                <button class="bk-table-action">停用</button>
+              </td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>staging-webhook</td>
+              <td>回调</td>
+              <td><span class="bk-tag bk-tag-warning">待审核</span></td>
+              <td>2026-04-17 17:40</td>
+              <td>
+                <button class="bk-table-action">查看</button>
+                <button class="bk-table-action">审核</button>
+              </td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>backup-rule</td>
+              <td>规则</td>
+              <td><span class="bk-tag bk-tag-danger">禁用</span></td>
+              <td>2026-04-15 09:08</td>
+              <td>
+                <button class="bk-table-action">编辑</button>
+                <button class="bk-table-action">恢复</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bk-pagination" style="margin-top:18px;">
+        <span class="bk-pagination-total">共 38 条</span>
+        <span class="bk-pagination-item">&laquo;</span>
+        <span class="bk-pagination-item active">1</span>
+        <span class="bk-pagination-item">2</span>
+        <span class="bk-pagination-item">3</span>
+        <span class="bk-pagination-item">&raquo;</span>
+      </div>
+
+      <div class="hint">上方 toolbar 适合放搜索和筛选，表格固定展示状态列与操作列。</div>
+    </section>
+  </main>
+
+  <script src="../../assets/bkflow-prototype.js"></script>
+</body>
+</html>

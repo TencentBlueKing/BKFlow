@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<!-- Composed from prototypes/masters/_shared/space-shell.html + prototypes/masters/flow-editor/template.html (debug route variant) -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空间管理 - 调试流程</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    .bk-content { padding: 0; overflow: auto; background: var(--bk-bg-body); }
+    .bk-page-panel { display: block; }
+    .bk-space-nav-link,
+    .bk-space-menu-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      color: inherit;
+    }
+    .bk-space-nav-link:hover,
+    .bk-space-menu-link:hover { color: inherit; }
+    .bk-flow-editor { min-height: calc(100vh - var(--bk-header-height)); }
+    .bk-flow-editor-shell { min-height: calc(100vh - var(--bk-header-height)); }
+    .bk-debug-note {
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: #f5f7fa;
+      color: var(--bk-text-secondary);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .bk-debug-section + .bk-debug-section { margin-top: 16px; }
+    .bk-debug-section h4 {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .bk-debug-panel-body {
+      display: grid;
+      gap: 12px;
+    }
+    .bk-debug-card {
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--bk-border-light);
+      background: #fbfcfe;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="space" data-nav-link="template-list.html"><a class="bk-space-nav-link" href="flow-debug.html">空间管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system" data-nav-link="../system/space-config-list.html"><a class="bk-space-nav-link" href="../system/space-config-list.html">系统管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html"><a class="bk-space-nav-link" href="../plugin/plugin-list.html">我的插件</a></li>
+        </ul>
+        <div class="bk-navigation-header-user"><div class="bk-navigation-header-user-avatar">A</div><span>admin</span></div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space"><div class="bk-navigation-space-select"><span class="bk-navigation-space-icon">S</span><span>bkflow-eng-svc / space_id=171</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span></div></div>
+        <ul class="bk-navigation-menu" data-nav-group="space">
+          <li class="bk-navigation-menu-item active"><a class="bk-space-menu-link" href="template-list.html"><span class="bk-navigation-menu-icon">≣</span>流程</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="task-list.html"><span class="bk-navigation-menu-icon">✓</span>任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="debug-task-list.html"><span class="bk-navigation-menu-icon">◎</span>调试任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="decision-list.html"><span class="bk-navigation-menu-icon">◇</span>决策表</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="space-config.html"><span class="bk-navigation-menu-icon">⚙</span>空间配置</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="credential-list.html"><span class="bk-navigation-menu-icon">⌘</span>凭证管理</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="statistics-exception.html"><span class="bk-navigation-menu-icon">∆</span>运营统计</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="label-list.html"><span class="bk-navigation-menu-icon">#</span>标签管理</a></li>
+        </ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../system/space-config-list.html"><span class="bk-navigation-menu-icon">◈</span>空间配置</a></li></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../plugin/plugin-list.html"><span class="bk-navigation-menu-icon">⬡</span>蓝鲸插件</a></li></ul>
+        <div class="bk-navigation-footer"><button class="bk-navigation-collapse" title="收起导航">⟨</button></div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel">
+          <div class="bk-flow-editor">
+            <div class="bk-flow-editor-shell">
+              <header class="bk-flow-editor-header">
+                <div class="bk-flow-editor-meta">
+                  <a class="bk-flow-editor-back" href="flow-edit.html">← 退出调试</a>
+                  <div class="bk-flow-editor-title">
+                    <h1>调试流程</h1>
+                    <p>audit-deep-dive-20260420 · `/template/mock/true/2166/`</p>
+                  </div>
+                  <div class="bk-flow-version-area">
+                    <span class="bk-flow-version-label">调试模式</span>
+                    <span class="bk-tag bk-tag-info">Mock</span>
+                    <span class="bk-flow-version-badge">节点点击后进入 Mock 数据配置</span>
+                  </div>
+                </div>
+                <div class="bk-flow-editor-actions">
+                  <a class="bk-button" href="flow-edit.html">退出调试</a>
+                  <button class="bk-button bk-button-primary" type="button">保存</button>
+                  <button class="bk-button bk-button-primary" type="button" data-open="flow-debug-confirm-dialog">执行调试</button>
+                </div>
+              </header>
+
+              <main class="bk-flow-editor-main">
+                <aside class="bk-flow-editor-rail">
+                  <section class="bk-flow-section-card">
+                    <h2>调试路由语义</h2>
+                    <ul>
+                      <li>本页顶栏动作固定为 `退出调试 / 保存 / 执行调试`。</li>
+                      <li>点击节点直接打开 Mock 数据配置，不再出现流程编辑工具条。</li>
+                      <li>执行调试前仍需二次确认，并会跳到独立执行页。</li>
+                    </ul>
+                  </section>
+                  <section class="bk-flow-section-card">
+                    <h3>当前环境提示</h3>
+                    <div class="bk-debug-note">审计里点击调试执行页的「执行」后出现了 `应用出现异常`，因此这里保留确认链路和异常提示，但不伪造成功结果页。</div>
+                  </section>
+                </aside>
+
+                <section class="bk-flow-canvas-shell">
+                  <div class="bk-flow-canvas-header">
+                    <div>
+                      <strong>Mock 调试画布</strong>
+                      <span>单击节点就打开右侧 Mock 数据配置；这里不承载流程编排。</span>
+                    </div>
+                    <div class="bk-flow-canvas-tools">
+                      <span class="bk-flow-tool-chip">历史调试 12 次</span>
+                      <span class="bk-flow-tool-chip">Mock 数据方案1</span>
+                    </div>
+                  </div>
+
+                  <div class="bk-flow-canvas">
+                    <div class="bk-flow-canvas-stage">
+                      <div class="bk-flow-node bk-flow-node-start"><strong>开始</strong></div>
+                      <div class="bk-flow-link"></div>
+                      <button class="bk-flow-node is-selected" type="button" data-node-select="flow-debug-main" data-node-open="#flow-debug-panel" data-node-name="发布蓝鲸作业" data-node-detail-source="job-release">
+                        <strong>发布蓝鲸作业</strong>
+                        <span>点击配置 Mock 数据</span>
+                      </button>
+                      <div class="bk-flow-link"></div>
+                      <button class="bk-flow-node" type="button" data-node-select="flow-debug-main" data-node-open="#flow-debug-panel" data-node-name="通知审批结果" data-node-detail-source="notice-send">
+                        <strong>通知审批结果</strong>
+                        <span>点击配置 Mock 数据</span>
+                      </button>
+                      <div class="bk-flow-link"></div>
+                      <div class="bk-flow-node bk-flow-node-end"><strong>结束</strong></div>
+                    </div>
+                  </div>
+                </section>
+              </main>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <aside class="bk-right-panel is-open" id="flow-debug-panel">
+    <div class="bk-right-panel-header">
+      <span data-node-panel-title>发布蓝鲸作业</span>
+      <button class="bk-button bk-button-text" type="button" data-right-panel-close="#flow-debug-panel">关闭</button>
+    </div>
+    <div class="bk-right-panel-body bk-debug-panel-body">
+      <div data-detail-source-group="flow-debug-panel" data-detail-source-id="job-release">
+        <section class="bk-debug-section">
+          <h4>Mock 数据</h4>
+          <div class="bk-debug-card">当前方案：Mock 数据方案1<br>job_instance_id = mock-job-20260420-001<br>job_status = FINISHED</div>
+        </section>
+        <section class="bk-debug-section">
+          <h4>插件配置</h4>
+          <div class="bk-debug-card">插件版本：v3.7.2<br>超时控制：开启<br>失败处理：AS / MS / MR / AR</div>
+        </section>
+        <section class="bk-debug-section">
+          <h4>流程控制选项</h4>
+          <div class="bk-debug-card">执行前保存 Mock 数据：是<br>执行页目标：`/template/mock/execute/true/2166/`</div>
+        </section>
+      </div>
+      <div data-detail-source-group="flow-debug-panel" data-detail-source-id="notice-send" hidden>
+        <section class="bk-debug-section">
+          <h4>Mock 数据</h4>
+          <div class="bk-debug-card">当前方案：通知回执成功<br>receiver = admin<br>send_result = success</div>
+        </section>
+        <section class="bk-debug-section">
+          <h4>插件配置</h4>
+          <div class="bk-debug-card">渠道：蓝信 / 邮件<br>重试次数：2 次<br>失败继续：否</div>
+        </section>
+        <section class="bk-debug-section">
+          <h4>流程控制选项</h4>
+          <div class="bk-debug-card">允许跳过通知节点：否<br>失败时终止整条调试链路</div>
+        </section>
+      </div>
+    </div>
+  </aside>
+
+  <div class="bk-dialog" id="flow-debug-confirm-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>执行调试</h3>
+        <button class="bk-dialog-close" type="button" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        <p>确定保存Mock数据并去执行调试?</p>
+        <p class="bk-flow-confirm-note">真实链路会新开标签页进入 `/template/mock/execute/true/2166/`，当前环境继续执行后可能弹出「应用出现异常」。</p>
+      </div>
+      <div class="bk-dialog-footer">
+        <button class="bk-button bk-button-primary" type="button" data-close>保存并执行</button>
+        <button class="bk-button" type="button" data-close>取消</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

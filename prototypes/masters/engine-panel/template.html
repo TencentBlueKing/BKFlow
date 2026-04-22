@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>调试面板 Master - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../assets/bkflow-prototype.css">
+  <style>
+    body {
+      background:
+        radial-gradient(circle at top right, rgba(58, 132, 255, 0.07), transparent 24%),
+        var(--bk-bg-body);
+    }
+    .page {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 32px 36px 48px;
+    }
+    .page-title {
+      margin-bottom: 8px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .page-subtitle {
+      color: var(--bk-text-tertiary);
+      margin-bottom: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+    }
+    .section {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+      box-shadow: var(--bk-shadow);
+      padding: 20px;
+    }
+    .section + .section {
+      margin-top: 18px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .code-panel {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: var(--bk-radius-md);
+      padding: 16px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      overflow-x: auto;
+      min-height: 240px;
+    }
+    .response-box {
+      background: #0f172a;
+      color: #dbeafe;
+      border-radius: var(--bk-radius-md);
+      padding: 16px;
+      min-height: 320px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      overflow-x: auto;
+    }
+    .footer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body class="bk-prototype-shell">
+  <main class="page">
+    <h1 class="page-title">调试面板 Master</h1>
+    <p class="page-subtitle">用于查看请求、调整参数、发送调用并阅读响应结果。</p>
+
+    <div class="grid">
+      <div>
+        <section class="section">
+          <div class="section-title">请求区</div>
+          <div class="bk-form">
+            <div class="bk-form-item">
+              <label class="bk-form-label">请求地址</label>
+              <div class="bk-form-content">
+                <input class="bk-input" value="https://api.example.com/v1/decision/run">
+              </div>
+            </div>
+            <div class="bk-form-item">
+              <label class="bk-form-label">请求体</label>
+              <div class="bk-form-content">
+                <textarea class="bk-textarea" rows="8">{"flow_id": "deploy", "env": "prod"}</textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">参数区</div>
+          <div class="bk-form">
+            <div class="bk-form-item">
+              <label class="bk-form-label">token</label>
+              <div class="bk-form-content">
+                <input class="bk-input" value="bkflow-token-001">
+              </div>
+            </div>
+            <div class="bk-form-item">
+              <label class="bk-form-label">trace_id</label>
+              <div class="bk-form-content">
+                <input class="bk-input" value="trace-20260421-001">
+              </div>
+            </div>
+            <div class="bk-form-item">
+              <label class="bk-form-label">超时</label>
+              <div class="bk-form-content">
+                <input class="bk-input" value="30s">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="footer-actions">
+          <button class="bk-button">重置</button>
+          <button class="bk-button bk-button-primary" disabled>发送</button>
+        </div>
+      </div>
+
+      <section class="section">
+        <div class="section-title">响应区</div>
+        <div class="response-box">
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "task_id": "task-1024",
+    "status": "running"
+  }
+}
+        </div>
+
+        <div style="margin-top:16px;" class="code-panel">
+<pre><code>headers:
+  x-request-id: req-9f4f
+  x-env: prod
+  x-cost-ms: 42</code></pre>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="../../assets/bkflow-prototype.js"></script>
+</body>
+</html>
