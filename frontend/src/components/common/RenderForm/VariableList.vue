@@ -161,6 +161,7 @@ export default {
       cursor: pointer;
       font-size: 12px;
       color: #63656e;
+      line-height: normal;
       &:hover {
         background: #f5f7fa;
       }

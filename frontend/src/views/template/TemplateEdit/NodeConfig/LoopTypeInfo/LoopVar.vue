@@ -30,12 +30,23 @@
             property="value"
             class="param-source-form-item param-item"
             :label-width="1">
-            <bk-input
-              v-model="item.value"
-              :placeholder="$t('请输入数据来源, 如: 1,2,3')"
-              :readonly="isViewMode"
-              class="param-source-input"
-              @change="onParamChange" />
+            <div class="param-source-wrapper">
+              <bk-input
+                v-model="item.value"
+                :placeholder="$t('请输入数据来源, 如: 1,2,3 或 ${key}')"
+                :readonly="isViewMode"
+                class="param-source-input"
+                @input="onSourceInput($event, index)"
+                @change="onParamChange" />
+              <VariableList
+                v-if="activeVarIndex === index"
+                ref="variableListRef"
+                class="param-source-input-list"
+                :is-list-open="isListOpen"
+                :var-list="filteredVarList"
+                :textarea-height="32"
+                @select="onSelectVar" />
+            </div>
           </bk-form-item>
         </bk-form>
         <div class="param-actions">
@@ -57,9 +68,16 @@
 
 <script>
 import tools from '@/utils/tools.js';
+import { mapState } from 'vuex';
+import VariableList from '@/components/common/RenderForm/VariableList.vue';
+
+const VAR_REG = /\$.*$/;
 
 export default {
   name: 'LoopVar',
+  components: {
+    VariableList,
+  },
   props: {
     isViewMode: {
       type: Boolean,
@@ -79,6 +97,9 @@ export default {
   data() {
     return {
       curVarList: tools.deepClone(this.varList),
+      activeVarIndex: -1,
+      isListOpen: false,
+      filteredVarList: [],
       formRules: {
         name: [
           {
@@ -107,6 +128,15 @@ export default {
       },
     };
   },
+  computed: {
+    ...mapState({
+      constants: state => state.template.constants,
+    }),
+    constantArr() {
+      console.log('全局变量constantArr', this.constants);
+      return this.buildConstantArray(this.constants);
+    },
+  },
   watch: {
     varList: {
       handler(value) {
@@ -115,7 +145,79 @@ export default {
       deep: true,
     },
   },
+  created() {
+    window.addEventListener('click', this.handleListShow, false);
+  },
+  beforeDestroy() {
+    window.removeEventListener('click', this.handleListShow, false);
+  },
   methods: {
+    handleListShow(e) {
+      if (!this.$el.contains(e.target)) {
+        this.isListOpen = false;
+        this.activeVarIndex = -1;
+      }
+    },
+    /**
+     * 构建分组的变量列表
+     */
+    buildConstantArray(constants) {
+      const constantArr = [...Object.values(constants || {})];
+      const inputVar = constantArr.filter(item => item.source_type === 'component_inputs');
+      const outputVar = constantArr.filter(item => item.source_type === 'component_outputs');
+      const customVar = constantArr.filter(item => item.source_type === 'custom' && item.custom_type !== 'loop');
+      return [
+        { name: '普通变量', type: 'custom', isCollapse: false, children: [...Object.values(customVar)] },
+        { name: '输出变量', type: 'output', isCollapse: false, children: [...Object.values(outputVar)] },
+        { name: '输入变量', type: 'input', isCollapse: false, children: [...Object.values(inputVar)] },
+      ];
+    },
+    /**
+     * 根据输入值过滤变量列表
+     */
+    filterVariableList(inputValue, constantArr, varRegex = /\$.*$/) {
+      const matchResult = inputValue.match(varRegex);
+      let varList = [];
+      let isListOpen = false;
+      if (matchResult && matchResult[0]) {
+        const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&');
+        const inputReg = new RegExp(regStr);
+        if (constantArr.length > 0 && constantArr[0].children) {
+          varList = constantArr.map((group) => {
+            const filteredChildren = group.children.filter(item => inputReg.test(item.key));
+            return filteredChildren.length > 0 ? { ...group, children: filteredChildren } : null;
+          }).filter(group => group !== null);
+          isListOpen = varList.some(group => group.children && group.children.length > 0);
+        } else {
+          varList = constantArr.filter(item => inputReg.test(item.key));
+          isListOpen = !!varList.length;
+        }
+      }
+      return { varList, isListOpen };
+    },
+    onSourceInput(val, index) {
+      this.activeVarIndex = index;
+      const result = this.filterVariableList(val, this.constantArr, VAR_REG);
+      this.filteredVarList = result.varList;
+      this.isListOpen = result.isListOpen;
+      if (result.isListOpen) {
+        this.$nextTick(() => {
+          const ref = this.$refs.variableListRef;
+          if (ref) {
+            ref.searchKeyword = '';
+          }
+        });
+      }
+    },
+    onSelectVar(val) {
+      if (this.activeVarIndex >= 0 && this.activeVarIndex < this.curVarList.length) {
+        const currentValue = this.curVarList[this.activeVarIndex].value;
+        this.curVarList[this.activeVarIndex].value = currentValue.replace(VAR_REG, val);
+        this.onParamChange();
+      }
+      this.isListOpen = false;
+      this.activeVarIndex = -1;
+    },
     validateVarName(value) {
       const reg = /(^\${(?!_env_|_system\.)[a-zA-Z_]\w*}$)|(^(?!_env_|_system\.)[a-zA-Z_]\w*$)/;// 合法变量key正则，eg:${fsdf_f32sd},fsdf_f32sd;
       return reg.test(value);
@@ -234,6 +336,10 @@ export default {
             flex: 1;
             width: 100%;
             .bk-form-content{
+              width: 100%;
+            }
+            .param-source-wrapper {
+              position: relative;
               width: 100%;
             }
           }
