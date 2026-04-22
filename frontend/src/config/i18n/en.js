@@ -1104,6 +1104,7 @@ const en = {
   批量执行: 'Batch Execution',
   暂无匹配的变量: 'No Matching Variables',
   '请输入数据来源, 如: 1,2,3 或 ${key}': 'Enter data source, eg: 1,2,3 or ${key}',
+  '数据来源格式不正确，仅支持 1,2,3 形式或单个变量 ${key}': 'The data source format is incorrect, only supporting 1,2,3 format or a single variable ${key}',
   数据来源: 'Data Source',
   按数组变量循环: 'Loop by Array Variable',
   按条件循环: 'Loop by Condition',

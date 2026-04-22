@@ -125,6 +125,11 @@ export default {
             message: this.$t('数据来源不能为空'),
             trigger: 'blur',
           },
+          {
+            validator: this.validateVarSource,
+            message: this.$t('数据来源格式不正确，仅支持 1,2,3 形式或单个变量 ${key}'),
+            trigger: 'blur',
+          },
         ],
       },
     };
@@ -185,6 +190,15 @@ export default {
     validateVarName(value) {
       const reg = /(^\${(?!_env_|_system\.)[a-zA-Z_]\w*}$)|(^(?!_env_|_system\.)[a-zA-Z_]\w*$)/;// 合法变量key正则，eg:${fsdf_f32sd},fsdf_f32sd;
       return reg.test(value);
+    },
+    validateVarSource(value) {
+      if (!value) return true; // 空值由required校验处理
+      // 允许两种格式：
+      // 1. 逗号分隔的纯文本形式，如 1,2,3 或 a,b,c（不含 ${} 变量引用）
+      // 2. 单独一个变量 ${name}
+      const singleVarReg = /^\$\{[^}]+\}$/;
+      const commaSeparatedReg = /^[^$]+(,[^$]+)*$/;
+      return singleVarReg.test(value) || commaSeparatedReg.test(value);
     },
     validateVarNameUnique(value) {
       if (!value) return true; // 空值由required校验处理
