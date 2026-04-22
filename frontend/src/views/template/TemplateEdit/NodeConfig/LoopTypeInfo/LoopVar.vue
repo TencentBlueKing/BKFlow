@@ -30,12 +30,23 @@
             property="value"
             class="param-source-form-item param-item"
             :label-width="1">
-            <bk-input
-              v-model="item.value"
-              :placeholder="$t('请输入数据来源, 如: 1,2,3')"
-              :readonly="isViewMode"
-              class="param-source-input"
-              @change="onParamChange" />
+            <div class="param-source-wrapper">
+              <bk-input
+                v-model="item.value"
+                :placeholder="$t('请输入数据来源, 如: 1,2,3 或 ${key}')"
+                :readonly="isViewMode"
+                class="param-source-input"
+                @input="onSourceInput($event, index)"
+                @change="onParamChange" />
+              <VariableList
+                v-if="activeVarIndex === index"
+                :ref="`variableListRef_${index}`"
+                class="param-source-input-list"
+                :is-list-open="isListOpen"
+                :var-list="filteredVarList"
+                :textarea-height="32"
+                @select="onSelectVar" />
+            </div>
           </bk-form-item>
         </bk-form>
         <div class="param-actions">
@@ -57,9 +68,17 @@
 
 <script>
 import tools from '@/utils/tools.js';
+import { mapState } from 'vuex';
+import VariableList from '@/components/common/RenderForm/VariableList.vue';
+import { buildConstantArray, filterVariableList } from '@/components/common/RenderForm/formMixins.js';
+
+const VAR_REG = /\$.*$/;
 
 export default {
   name: 'LoopVar',
+  components: {
+    VariableList,
+  },
   props: {
     isViewMode: {
       type: Boolean,
@@ -79,6 +98,9 @@ export default {
   data() {
     return {
       curVarList: tools.deepClone(this.varList),
+      activeVarIndex: -1,
+      isListOpen: false,
+      filteredVarList: [],
       formRules: {
         name: [
           {
@@ -107,6 +129,14 @@ export default {
       },
     };
   },
+  computed: {
+    ...mapState({
+      constants: state => state.template.constants,
+    }),
+    constantArr() {
+      return buildConstantArray(this.constants, {});
+    },
+  },
   watch: {
     varList: {
       handler(value) {
@@ -115,7 +145,43 @@ export default {
       deep: true,
     },
   },
+  created() {
+    window.addEventListener('click', this.handleListShow, false);
+  },
+  beforeDestroy() {
+    window.removeEventListener('click', this.handleListShow, false);
+  },
   methods: {
+    handleListShow(e) {
+      if (!this.$el.contains(e.target)) {
+        this.isListOpen = false;
+        this.activeVarIndex = -1;
+      }
+    },
+    onSourceInput(val, index) {
+      this.activeVarIndex = index;
+      const result = filterVariableList(val, this.constantArr, VAR_REG);
+      this.filteredVarList = result.varList;
+      this.isListOpen = result.isListOpen;
+      if (result.isListOpen) {
+        this.$nextTick(() => {
+          const ref = this.$refs[`variableListRef_${index}`];
+          if (ref) {
+            const instance = Array.isArray(ref) ? ref[0] : ref;
+            instance.searchKeyword = '';
+          }
+        });
+      }
+    },
+    onSelectVar(val) {
+      if (this.activeVarIndex >= 0 && this.activeVarIndex < this.curVarList.length) {
+        const currentValue = this.curVarList[this.activeVarIndex].value;
+        this.curVarList[this.activeVarIndex].value = currentValue.replace(VAR_REG, val);
+        this.onParamChange();
+      }
+      this.isListOpen = false;
+      this.activeVarIndex = -1;
+    },
     validateVarName(value) {
       const reg = /(^\${(?!_env_|_system\.)[a-zA-Z_]\w*}$)|(^(?!_env_|_system\.)[a-zA-Z_]\w*$)/;// 合法变量key正则，eg:${fsdf_f32sd},fsdf_f32sd;
       return reg.test(value);
@@ -234,6 +300,10 @@ export default {
             flex: 1;
             width: 100%;
             .bk-form-content{
+              width: 100%;
+            }
+            .param-source-wrapper {
+              position: relative;
               width: 100%;
             }
           }

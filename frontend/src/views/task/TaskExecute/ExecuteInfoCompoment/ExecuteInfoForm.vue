@@ -913,8 +913,13 @@
     }
         .loop-params-item {
             height: auto !important;
+            display: flex;
+            align-items: stretch;
         }
         .loop-params-td {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
             .loop-param-row {
                 display: flex;
                 align-items: center;
