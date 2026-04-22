@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务页插件异常提示 - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <style>
+    .task-header {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .task-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--bk-text-primary);
+      margin-bottom: 8px;
+    }
+    .task-subtitle {
+      font-size: 13px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+    }
+    .task-status {
+      flex-shrink: 0;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255, 87, 87, 0.08);
+      border: 1px solid rgba(255, 87, 87, 0.24);
+      color: #c53434;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 16px;
+    }
+    .card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .card-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--bk-border-light);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+    }
+    .card-body {
+      padding: 18px;
+    }
+    .error-hero {
+      border: 1px solid rgba(255, 87, 87, 0.24);
+      background: rgba(255, 87, 87, 0.04);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .error-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #c53434;
+      margin-bottom: 8px;
+    }
+    .error-desc {
+      font-size: 14px;
+      color: var(--bk-text-secondary);
+      line-height: 1.8;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 16px;
+      margin-top: 16px;
+    }
+    .meta-label {
+      font-size: 12px;
+      color: var(--bk-text-tertiary);
+      margin-bottom: 6px;
+    }
+    .meta-value {
+      font-size: 14px;
+      color: var(--bk-text-primary);
+      line-height: 1.7;
+    }
+    .action-card {
+      border: 1px solid var(--bk-border-light);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      background: #fafbfd;
+    }
+    .action-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin-bottom: 6px;
+    }
+    .action-desc {
+      font-size: 13px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+      margin-bottom: 10px;
+    }
+    .history-box {
+      padding: 14px 16px;
+      background: #f0f7ff;
+      border: 1px solid rgba(58, 132, 255, 0.2);
+      border-radius: 12px;
+      font-size: 13px;
+      color: var(--bk-text-secondary);
+      line-height: 1.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation">
+    <header class="bk-navigation-header">
+      <div class="bk-navigation-header-title">
+        <span style="font-size:18px;font-weight:600;color:#fff;">BKFlow</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav">
+          <li class="bk-navigation-header-nav-item active">空间管理</li>
+          <li class="bk-navigation-header-nav-item">系统管理</li>
+          <li class="bk-navigation-header-nav-item">我的插件</li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">U</div>
+          <span>task_operator</span>
+        </div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar" aria-label="侧边导航">
+        <div class="bk-navigation-space">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">B</span>
+            <span>bkflow-plugin-hub (612)</span>
+          </div>
+        </div>
+        <ul class="bk-navigation-menu">
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⇌</span>流程</li>
+          <li class="bk-navigation-menu-item active"><span class="bk-navigation-menu-icon">▤</span>任务</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⚙</span>空间配置</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⬡</span>开放插件</li>
+        </ul>
+        <div class="bk-navigation-footer">
+          <button class="bk-navigation-collapse" title="收起导航">⟨</button>
+        </div>
+      </nav>
+
+      <main class="bk-content">
+        <div class="bk-breadcrumb">
+          <span class="bk-breadcrumb-item">首页</span>
+          <span class="bk-breadcrumb-item">任务</span>
+          <span class="bk-breadcrumb-item">任务详情</span>
+        </div>
+
+        <div class="task-header">
+          <div>
+            <div class="task-title">生产集群执行脚本任务 #20260420-0042</div>
+            <div class="task-subtitle">
+              来源模板：生产环境脚本执行 / 当前节点：云作业执行脚本 / 启动时间：2026-04-20 14:18:03
+            </div>
+          </div>
+          <div class="task-status">执行异常</div>
+        </div>
+
+        <div class="layout">
+          <div>
+            <div class="error-hero">
+              <div class="error-title">插件版本不可用，任务未能继续执行</div>
+              <div class="error-desc">
+                当前任务引用的开放插件版本已不再由来源目录提供。BKFlow 仍保留了历史配置快照用于回看，但该版本不能继续用于新的执行请求，因此任务页展示结构化异常说明，并引导返回模板侧处理。
+              </div>
+              <div class="meta-grid">
+                <div>
+                  <div class="meta-label">当前插件</div>
+                  <div class="meta-value">云作业执行脚本</div>
+                </div>
+                <div>
+                  <div class="meta-label">当前版本</div>
+                  <div class="meta-value">1.2.0</div>
+                </div>
+                <div>
+                  <div class="meta-label">当前来源</div>
+                  <div class="meta-value">标准运维开放插件</div>
+                </div>
+                <div>
+                  <div class="meta-label">当前影响</div>
+                  <div class="meta-value">该任务无法继续执行，但历史节点配置仍可回看</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">建议动作</div>
+                <span class="bk-tag bk-tag-warning">任务页只解释，不原地修复</span>
+              </div>
+              <div class="card-body">
+                <div class="action-card">
+                  <div class="action-title">返回模板切换到可用版本</div>
+                  <div class="action-desc">模板作者需要将当前节点从 `1.2.0` 切换到目录仍可用的版本，例如 `1.4.2` 或 `1.5.0`，并重新确认参数。</div>
+                  <button class="bk-button bk-button-primary">返回模板查看版本</button>
+                </div>
+                <div class="action-card">
+                  <div class="action-title">检查空间是否仍开放该插件</div>
+                  <div class="action-desc">如果插件本身还在来源目录中，也可能是当前空间关闭了该插件，需回到空间开放插件管理页确认。</div>
+                  <button class="bk-button">去开放插件管理页</button>
+                </div>
+                <div class="action-card">
+                  <div class="action-title">联系来源维护人或空间管理员</div>
+                  <div class="action-desc">若来源目录刚完成版本清理、来源当前不可达，或插件能力本身已下线，需要联系管理员或维护人确认处理路径。</div>
+                  <button class="bk-button">复制异常摘要</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">历史快照说明</div>
+                <span class="bk-tag bk-tag-info">只读</span>
+              </div>
+              <div class="card-body">
+                <div class="history-box">
+                  该任务创建时已经固化了插件引用快照和 schema 快照，因此当前页面仍能解释“当时为什么能保存、现在为什么不能继续新建任务”。这里展示的是历史视角，不代表该版本现在仍可用于新任务。
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">异常分类示意</div>
+                <span class="bk-tag bk-tag-info">增强态预留</span>
+              </div>
+              <div class="card-body">
+                <div class="action-card">
+                  <div class="action-title">空间未开放</div>
+                  <div class="action-desc">插件仍可用，但当前空间未开启该插件。</div>
+                </div>
+                <div class="action-card">
+                  <div class="action-title">来源不可达</div>
+                  <div class="action-desc">开放来源当前异常，执行链路无法继续调用标准运维开放层。</div>
+                </div>
+                <div class="action-card">
+                  <div class="action-title">插件已下线</div>
+                  <div class="action-desc">插件或版本已从目录彻底移除，只保留历史记录。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="../../../assets/bkflow-prototype.js"></script>
+</body>
+</html>

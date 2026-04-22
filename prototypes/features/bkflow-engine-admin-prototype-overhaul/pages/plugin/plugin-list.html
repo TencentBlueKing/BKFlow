@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BKFlow 原型 - 我的插件 / 插件管理列表</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(58, 132, 255, 0.08), transparent 24%),
+        linear-gradient(180deg, #f7faff 0%, #f5f7fa 22%, #f5f7fa 100%);
+    }
+    .page-shell {
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .page-desc {
+      max-width: 920px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+    }
+    .page-chip {
+      flex-shrink: 0;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #edf4ff;
+      border: 1px solid rgba(58, 132, 255, 0.18);
+      color: var(--bk-primary);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .summary-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+      padding: 16px 18px;
+    }
+    .summary-label {
+      color: var(--bk-text-tertiary);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .summary-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--bk-text-primary);
+      line-height: 1.1;
+    }
+    .summary-note {
+      margin-top: 8px;
+      color: var(--bk-text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .panel-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .panel {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+      overflow: hidden;
+    }
+    .panel-head {
+      padding: 18px 18px 0;
+    }
+    .panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin-bottom: 6px;
+    }
+    .panel-desc {
+      color: var(--bk-text-tertiary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .panel-body {
+      padding: 16px 18px 18px;
+    }
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 16px;
+      border: 1px solid var(--bk-border);
+      color: var(--bk-text-secondary);
+      background: #fafbfd;
+      font-size: 13px;
+    }
+    .filter-chip.is-active {
+      color: var(--bk-primary);
+      border-color: rgba(58, 132, 255, 0.28);
+      background: #edf4ff;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--bk-border-light);
+      border-radius: 12px;
+    }
+    .bk-table {
+      min-width: 1180px;
+    }
+    .audit-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .audit-item {
+      padding-left: 12px;
+      border-left: 3px solid var(--bk-primary);
+    }
+    .audit-time {
+      color: var(--bk-text-tertiary);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .audit-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin-bottom: 4px;
+    }
+    .audit-desc {
+      color: var(--bk-text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .rule-box {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: #f7f9fc;
+      border: 1px solid var(--bk-border-light);
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+      font-size: 13px;
+    }
+    .status-ok { color: #14a568; }
+    .status-warn { color: #c98e17; }
+    .status-danger { color: #de5c5c; }
+    @media (max-width: 1280px) {
+      .summary-grid,
+      .panel-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="space" data-nav-link="../space/template-list.html">空间管理</li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system" data-nav-link="../system/space-config-list.html">系统管理</li>
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="plugin-list.html">我的插件</li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">U</div>
+          <span>plugin_admin</span>
+          <div class="bk-user-dropdown" aria-hidden="true">
+            <span class="bk-user-dropdown-item">插件中心</span>
+            <span class="bk-user-dropdown-item">退出登录</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space" style="display:none;">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">B</span>
+            <span>bkflow-eng-svc</span>
+          </div>
+        </div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;">
+          <div class="bk-navigation-space-select" style="background:transparent;cursor:default;">
+            <span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span>
+          </div>
+        </div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin">
+          <div class="bk-navigation-space-select" style="background:transparent;cursor:default;">
+            <span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span>
+          </div>
+        </div>
+
+        <ul class="bk-navigation-menu" data-nav-group="plugin">
+          <li class="bk-navigation-menu-item active" data-page="plugin-list">
+            <span class="bk-navigation-menu-icon">⬡</span>插件管理列表
+          </li>
+        </ul>
+
+        <ul class="bk-navigation-menu" data-nav-group="space" style="display:none;"></ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"></ul>
+
+        <div class="bk-navigation-footer">
+          <button class="bk-navigation-collapse" title="收起导航">⟨</button>
+        </div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel" id="plugin-list">
+        <div class="page-shell">
+          <div class="bk-breadcrumb">
+            <span class="bk-breadcrumb-item">首页</span>
+            <span class="bk-breadcrumb-item">我的插件</span>
+            <span class="bk-breadcrumb-item">插件管理列表</span>
+          </div>
+
+          <div class="page-header">
+            <div>
+              <div class="page-title">插件管理列表</div>
+              <div class="page-desc">
+                这里展示当前用户可管理的插件、授权状态、使用范围和状态修改记录。页面重点支持编辑使用范围、授权或取消授权，并保留清晰的审核痕迹，便于平台治理和空间管理员协同处理。
+              </div>
+            </div>
+            <div class="page-chip">最近变更：2026-04-21 09:20 · plugin_bot</div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="summary-card">
+              <div class="summary-label">插件总数</div>
+              <div class="summary-value">24</div>
+              <div class="summary-note">包含内置插件和第三方插件，均在同一列表中管理。</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">已授权</div>
+              <div class="summary-value status-ok">9</div>
+              <div class="summary-note">已授权插件可在模板和流程编辑器中直接使用。</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">待授权</div>
+              <div class="summary-value status-warn">6</div>
+              <div class="summary-note">待授权项需管理员确认使用范围后才能启用。</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">已停用</div>
+              <div class="summary-value status-danger">3</div>
+              <div class="summary-note">停用插件保留历史记录，避免误操作再次启用。</div>
+            </div>
+          </div>
+
+          <div class="panel-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title">插件清单</div>
+                <div class="panel-desc">按照插件名称、code、授权状态和管理员维度查看管理权限，支持调整使用范围和授权状态。</div>
+              </div>
+              <div class="panel-body">
+                <div class="bk-toolbar">
+                  <div class="bk-toolbar-left">
+                    <input class="bk-search-input" placeholder="搜索插件名称、code、授权状态、管理员" style="width: 340px;">
+                    <div class="bk-select" style="width: 170px;">
+                      <div class="bk-select-trigger"><span class="bk-select-placeholder">全部授权状态</span></div>
+                    </div>
+                    <div class="bk-select" style="width: 170px;">
+                      <div class="bk-select-trigger"><span class="bk-select-placeholder">全部使用范围</span></div>
+                    </div>
+                  </div>
+                  <div class="bk-toolbar-right">
+                    <button class="bk-button">刷新</button>
+                    <button class="bk-button bk-button-primary">批量导出授权单</button>
+                  </div>
+                </div>
+
+                <div class="filter-row">
+                  <span class="filter-chip is-active">全部</span>
+                  <span class="filter-chip">已授权</span>
+                  <span class="filter-chip">待授权</span>
+                  <span class="filter-chip">授权中</span>
+                  <span class="filter-chip">已停用</span>
+                </div>
+
+                <div class="table-wrap">
+                  <table class="bk-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 170px;">插件名称</th>
+                        <th style="width: 170px;">code</th>
+                        <th style="width: 180px;">管理员</th>
+                        <th style="width: 110px;">授权状态</th>
+                        <th style="width: 200px;">使用范围</th>
+                        <th style="width: 160px;">修改时间</th>
+                        <th style="width: 150px;">修改人</th>
+                        <th style="width: 190px;">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>云作业执行脚本</td>
+                        <td>bk-script-runner</td>
+                        <td>platform_ops</td>
+                        <td><span class="bk-tag bk-tag-success">已授权</span></td>
+                        <td>标准运维 / 作业执行</td>
+                        <td>2026-04-20 11:48</td>
+                        <td>admin</td>
+                        <td>
+                          <button class="bk-table-action">编辑使用范围</button>
+                          <button class="bk-table-action">取消授权</button>
+                          <button class="bk-table-action">查看审计</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>定时器增强</td>
+                        <td>bk-cron-extend</td>
+                        <td>flow_center</td>
+                        <td><span class="bk-tag bk-tag-warning">待授权</span></td>
+                        <td>bkflow-eng-svc / bkflow-test</td>
+                        <td>2026-04-19 16:32</td>
+                        <td>karen</td>
+                        <td>
+                          <button class="bk-table-action">编辑使用范围</button>
+                          <button class="bk-table-action">授权</button>
+                          <button class="bk-table-action">查看详情</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>跨空间通知</td>
+                        <td>cross-space-notify</td>
+                        <td>security_audit</td>
+                        <td><span class="bk-tag bk-tag-danger">已停用</span></td>
+                        <td>生产空间</td>
+                        <td>2026-04-18 09:15</td>
+                        <td>liwei</td>
+                        <td>
+                          <button class="bk-table-action">编辑使用范围</button>
+                          <button class="bk-table-action">重新授权</button>
+                          <button class="bk-table-action">查看历史</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>实例参数校验</td>
+                        <td>instance-params-check</td>
+                        <td>platform_governance</td>
+                        <td><span class="bk-tag bk-tag-info">授权中</span></td>
+                        <td>全局</td>
+                        <td>2026-04-21 09:20</td>
+                        <td>system-bot</td>
+                        <td>
+                          <button class="bk-table-action">编辑使用范围</button>
+                          <button class="bk-table-action">撤回申请</button>
+                          <button class="bk-table-action">查看审计</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>三方回调适配器</td>
+                        <td>third-party-webhook</td>
+                        <td>integration_team</td>
+                        <td><span class="bk-tag bk-tag-success">已授权</span></td>
+                        <td>研发 / 灰度</td>
+                        <td>2026-04-17 14:06</td>
+                        <td>anna</td>
+                        <td>
+                          <button class="bk-table-action">编辑使用范围</button>
+                          <button class="bk-table-action">取消授权</button>
+                          <button class="bk-table-action">查看审计</button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="bk-pagination">
+                  <span class="bk-pagination-total">共 24 条</span>
+                  <span class="bk-pagination-item">&laquo;</span>
+                  <span class="bk-pagination-item active">1</span>
+                  <span class="bk-pagination-item">2</span>
+                  <span class="bk-pagination-item">3</span>
+                  <span class="bk-pagination-item">&raquo;</span>
+                </div>
+              </div>
+            </section>
+
+            <aside class="panel">
+              <div class="panel-head">
+                <div class="panel-title">授权说明</div>
+                <div class="panel-desc">插件授权关系会直接影响模板编辑器里能否调用相关能力。</div>
+              </div>
+              <div class="panel-body">
+                <div class="audit-list">
+                  <div class="audit-item">
+                    <div class="audit-time">2026-04-21 09:20</div>
+                    <div class="audit-title">instance-params-check 正在授权中</div>
+                    <div class="audit-desc">当前状态表示管理员已提交授权单，但还未完成审计确认。</div>
+                  </div>
+                  <div class="audit-item">
+                    <div class="audit-time">2026-04-20 11:48</div>
+                    <div class="audit-title">云作业执行脚本完成范围收缩</div>
+                    <div class="audit-desc">从全局收窄到作业执行场景，避免对不相关模板暴露过宽权限。</div>
+                  </div>
+                  <div class="audit-item">
+                    <div class="audit-time">2026-04-18 09:15</div>
+                    <div class="audit-title">跨空间通知已停用</div>
+                    <div class="audit-desc">停用后仍保留审计记录，后续重新授权时可以直接参考历史范围。</div>
+                  </div>
+                </div>
+
+                <div class="rule-box">
+                  <strong>操作约束：</strong><br>
+                  1. 授权中状态仅允许撤回，不允许重复提交。<br>
+                  2. 已停用插件恢复前必须重新校验使用范围。<br>
+                  3. 编辑使用范围后会同步记录修改人和时间戳。
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

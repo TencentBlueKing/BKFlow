@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<!-- Composed from prototypes/masters/_shared/space-shell.html + prototypes/masters/flow-editor/template.html (read-only view variant) -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空间管理 - 查看流程</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    .bk-content { padding: 0; overflow: auto; background: var(--bk-bg-body); }
+    .bk-page-panel { display: block; }
+    .bk-space-nav-link,
+    .bk-space-menu-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      color: inherit;
+    }
+    .bk-space-nav-link:hover,
+    .bk-space-menu-link:hover { color: inherit; }
+    .bk-flow-editor { min-height: calc(100vh - var(--bk-header-height)); }
+    .bk-flow-editor-shell { min-height: calc(100vh - var(--bk-header-height)); }
+    .bk-flow-view-note {
+      padding: 14px;
+      border-radius: 12px;
+      background: #f5f7fa;
+      color: var(--bk-text-secondary);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .bk-right-panel-body .bk-flow-input-block + .bk-flow-input-block {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="space" data-nav-link="template-list.html"><a class="bk-space-nav-link" href="flow-view.html">空间管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system" data-nav-link="../system/space-config-list.html"><a class="bk-space-nav-link" href="../system/space-config-list.html">系统管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html"><a class="bk-space-nav-link" href="../plugin/plugin-list.html">我的插件</a></li>
+        </ul>
+        <div class="bk-navigation-header-user"><div class="bk-navigation-header-user-avatar">A</div><span>admin</span></div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space"><div class="bk-navigation-space-select"><span class="bk-navigation-space-icon">S</span><span>bkflow-eng-svc / space_id=171</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span></div></div>
+        <ul class="bk-navigation-menu" data-nav-group="space">
+          <li class="bk-navigation-menu-item active"><a class="bk-space-menu-link" href="template-list.html"><span class="bk-navigation-menu-icon">≣</span>流程</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="task-list.html"><span class="bk-navigation-menu-icon">✓</span>任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="debug-task-list.html"><span class="bk-navigation-menu-icon">◎</span>调试任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="decision-list.html"><span class="bk-navigation-menu-icon">◇</span>决策表</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="space-config.html"><span class="bk-navigation-menu-icon">⚙</span>空间配置</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="credential-list.html"><span class="bk-navigation-menu-icon">⌘</span>凭证管理</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="statistics-exception.html"><span class="bk-navigation-menu-icon">∆</span>运营统计</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="label-list.html"><span class="bk-navigation-menu-icon">#</span>标签管理</a></li>
+        </ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../system/space-config-list.html"><span class="bk-navigation-menu-icon">◈</span>空间配置</a></li></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../plugin/plugin-list.html"><span class="bk-navigation-menu-icon">⬡</span>蓝鲸插件</a></li></ul>
+        <div class="bk-navigation-footer"><button class="bk-navigation-collapse" title="收起导航">⟨</button></div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel">
+          <div class="bk-flow-editor">
+            <div class="bk-flow-editor-shell">
+              <header class="bk-flow-editor-header">
+                <div class="bk-flow-editor-meta">
+                  <a class="bk-flow-editor-back" href="template-list.html">← 返回流程列表</a>
+                  <div class="bk-flow-editor-title">
+                    <h1>查看流程</h1>
+                    <p>audit-deep-dive-20260420 · 已发布版本只读观察页</p>
+                  </div>
+                  <div class="bk-flow-version-area">
+                    <span class="bk-flow-version-label">流程版本</span>
+                    <span class="bk-tag bk-tag-success">已发布</span>
+                    <span class="bk-flow-version-badge">1.0.0 最新</span>
+                  </div>
+                </div>
+                <div class="bk-flow-editor-actions">
+                  <button class="bk-button" type="button" data-right-panel-open="#flow-view-panel">查看发布说明</button>
+                  <a class="bk-button bk-button-primary" href="flow-edit.html">编辑</a>
+                </div>
+              </header>
+
+              <main class="bk-flow-editor-main">
+                <aside class="bk-flow-editor-rail">
+                  <section class="bk-flow-section-card">
+                    <h2>只读语义</h2>
+                    <ul>
+                      <li>当前页不提供保存、发布和调试按钮。</li>
+                      <li>版本徽标固定展示已发布版本及“最新”状态。</li>
+                      <li>点击节点仅查看发布时的配置快照，不出现编辑抽屉。</li>
+                    </ul>
+                  </section>
+                  <section class="bk-flow-section-card">
+                    <h3>发布信息</h3>
+                    <div class="bk-flow-view-note">版本 `1.0.0` 于 2026-04-20 20:35:41 由 admin 发布，版本描述：补齐发布蓝鲸作业审批链和 mock 调试链路。</div>
+                  </section>
+                </aside>
+
+                <section class="bk-flow-canvas-shell">
+                  <div class="bk-flow-canvas-header">
+                    <div>
+                      <strong>流程画布</strong>
+                      <span>查看页保留版本上下文和节点关系，但不出现编辑工具条。</span>
+                    </div>
+                    <div class="bk-flow-canvas-tools">
+                      <span class="bk-flow-tool-chip">只读</span>
+                      <span class="bk-flow-tool-chip">1.0.0</span>
+                    </div>
+                  </div>
+
+                  <div class="bk-flow-canvas">
+                    <div class="bk-flow-canvas-stage">
+                      <div class="bk-flow-node bk-flow-node-start"><strong>开始</strong></div>
+                      <div class="bk-flow-link"></div>
+                      <button class="bk-flow-node is-selected" type="button" data-node-select="flow-view-main" data-node-open="#flow-view-panel" data-node-name="发布蓝鲸作业" data-node-detail-source="job-release">
+                        <strong>发布蓝鲸作业</strong>
+                        <span>标准插件 · 蓝盾作业</span>
+                      </button>
+                      <div class="bk-flow-link"></div>
+                      <button class="bk-flow-node" type="button" data-node-select="flow-view-main" data-node-open="#flow-view-panel" data-node-name="通知审批结果" data-node-detail-source="notice-send">
+                        <strong>通知审批结果</strong>
+                        <span>标准插件 · 通知中心</span>
+                      </button>
+                      <div class="bk-flow-link"></div>
+                      <div class="bk-flow-node bk-flow-node-end"><strong>结束</strong></div>
+                    </div>
+                  </div>
+                </section>
+              </main>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <aside class="bk-right-panel is-open" id="flow-view-panel">
+    <div class="bk-right-panel-header">
+      <span data-node-panel-title>发布蓝鲸作业</span>
+      <button class="bk-button bk-button-text" type="button" data-right-panel-close="#flow-view-panel">关闭</button>
+    </div>
+    <div class="bk-right-panel-body">
+      <div data-detail-source-group="flow-view-panel" data-detail-source-id="job-release">
+        <div class="bk-flow-input-block">标准插件：job.execute_task</div>
+        <div class="bk-flow-input-block">插件版本：v3.7.2</div>
+        <div class="bk-flow-input-block">失败处理：AS / MS / MR / AR</div>
+        <div class="bk-flow-input-block">发布快照：引用生产作业模板 `bk-job-template-prod`</div>
+      </div>
+      <div data-detail-source-group="flow-view-panel" data-detail-source-id="notice-send" hidden>
+        <div class="bk-flow-input-block">标准插件：notify.send_message</div>
+        <div class="bk-flow-input-block">插件版本：v2.1.0</div>
+        <div class="bk-flow-input-block">通知渠道：蓝信 / 邮件 / 蓝盾消息</div>
+        <div class="bk-flow-input-block">发布快照：审批结束后发送回执给任务发起人</div>
+      </div>
+    </div>
+  </aside>
+</body>
+</html>

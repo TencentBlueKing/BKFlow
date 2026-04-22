@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sops-open-plugin archive - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(180deg, #f6f9ff 0%, #eef3f9 100%);
+      color: var(--bk-text-primary);
+    }
+    .shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 24px 40px;
+    }
+    .hero {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(31, 35, 41, 0.06);
+      margin-bottom: 18px;
+    }
+    .title {
+      margin: 0 0 10px;
+      font-size: 28px;
+      line-height: 1.2;
+    }
+    .desc {
+      margin: 0;
+      color: var(--bk-text-secondary);
+      font-size: 14px;
+      line-height: 1.8;
+      max-width: 900px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      display: block;
+      padding: 16px 18px;
+      border-radius: 14px;
+      border: 1px solid var(--bk-border-light);
+      background: var(--bk-bg-default);
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.04);
+    }
+    .card:hover {
+      border-color: rgba(58, 132, 255, 0.3);
+      transform: translateY(-1px);
+    }
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+    .card p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--bk-text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <h1 class="title">sops-open-plugin archive</h1>
+      <p class="desc">
+        This folder keeps the migrated historical open-plugin prototype pages that used to live in `prototypes/output/`.
+        The original HTML has been preserved under feature-scoped legacy paths so the archive stays understandable.
+      </p>
+    </section>
+
+    <section class="grid">
+      <a class="card" href="main-flow.html">
+        <h2>Main flow</h2>
+        <p>Former `sops-open-plugin-main-flow.html`.</p>
+      </a>
+      <a class="card" href="space-open-plugin-management.html">
+        <h2>Space management</h2>
+        <p>Former `sops-open-plugin-space-open-plugin-management.html`.</p>
+      </a>
+      <a class="card" href="task-plugin-error-state.html">
+        <h2>Task error state</h2>
+        <p>Former `sops-open-plugin-task-plugin-error-state.html`.</p>
+      </a>
+      <a class="card" href="template-plugin-selection.html">
+        <h2>Template plugin selection</h2>
+        <p>Former `sops-open-plugin-template-plugin-selection.html`.</p>
+      </a>
+    </section>
+  </main>
+</body>
+</html>

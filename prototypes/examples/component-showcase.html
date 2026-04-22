@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BKFlow 原型工具包 — 组件参考</title>
+  <link rel="stylesheet" href="../assets/bkflow-prototype.css">
+  <style>
+    body { background: var(--bk-bg-body); padding: 32px 48px; }
+    .showcase-title {
+      font-size: 24px; font-weight: 700; margin-bottom: 8px;
+      color: var(--bk-text-primary);
+    }
+    .showcase-subtitle {
+      font-size: 14px; color: var(--bk-text-tertiary); margin-bottom: 40px;
+    }
+    .section { margin-bottom: 48px; }
+    .section h2 {
+      font-size: 18px; font-weight: 600; margin-bottom: 20px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--bk-border);
+    }
+    .demo-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+    .demo-label {
+      font-size: 12px; color: var(--bk-text-tertiary); margin-bottom: 8px;
+    }
+    .demo-block {
+      background: var(--bk-bg-default); border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md); padding: 20px; margin-bottom: 16px;
+    }
+    .demo-inline { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .form-demo-container { max-width: 560px; }
+    .select-demo-wrap { width: 240px; display: inline-block; vertical-align: top; margin-right: 24px; }
+    .showcase-note {
+      margin: 16px 0 40px;
+      padding: 14px 16px;
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+      background: var(--bk-bg-default);
+      color: var(--bk-text-secondary);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .showcase-note strong { color: var(--bk-text-primary); }
+  </style>
+</head>
+<body>
+
+  <h1 class="showcase-title">BKFlow 原型工具包 — 组件参考</h1>
+  <p class="showcase-subtitle">供 masters/ 与 features/&lt;slug&gt;/ 生成时查阅的样式与交互参考</p>
+  <div class="showcase-note">
+    <strong>使用方式：</strong>先看这里确认组件 class、交互属性和布局原语，再去 <code>masters/</code> 复用页面骨架或在 <code>features/&lt;slug&gt;/</code> 落地需求页。
+    <br>
+    <strong>范围：</strong><code>examples/</code> 只保留参考材料，<code>features/_legacy/</code> 只放迁移历史，不作为新交付入口。
+  </div>
+
+  <!-- ==================== 1. 按钮 Button ==================== -->
+  <div class="section">
+    <h2>1. 按钮 Button</h2>
+
+    <div class="demo-label">类型变体</div>
+    <div class="demo-block">
+      <div class="demo-row">
+        <button class="bk-button">默认按钮</button>
+        <button class="bk-button bk-button-primary">主要按钮</button>
+        <button class="bk-button bk-button-success">成功按钮</button>
+        <button class="bk-button bk-button-warning">警告按钮</button>
+        <button class="bk-button bk-button-danger">危险按钮</button>
+        <button class="bk-button bk-button-text">文字按钮</button>
+      </div>
+    </div>
+
+    <div class="demo-label">尺寸</div>
+    <div class="demo-block">
+      <div class="demo-row">
+        <button class="bk-button bk-button-primary bk-button-small">小尺寸</button>
+        <button class="bk-button bk-button-primary">默认尺寸</button>
+        <button class="bk-button bk-button-primary bk-button-large">大尺寸</button>
+      </div>
+    </div>
+
+    <div class="demo-label">禁用状态</div>
+    <div class="demo-block">
+      <div class="demo-row">
+        <button class="bk-button" disabled>默认禁用</button>
+        <button class="bk-button bk-button-primary" disabled>主要禁用</button>
+        <button class="bk-button bk-button-success" disabled>成功禁用</button>
+        <button class="bk-button bk-button-danger" disabled>危险禁用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 2. 标签 Tag ==================== -->
+  <div class="section">
+    <h2>2. 标签 Tag</h2>
+    <div class="demo-block">
+      <div class="demo-inline">
+        <span class="bk-tag">默认标签</span>
+        <span class="bk-tag bk-tag-success">成功</span>
+        <span class="bk-tag bk-tag-warning">警告</span>
+        <span class="bk-tag bk-tag-danger">危险</span>
+        <span class="bk-tag bk-tag-info">信息</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 3. 输入框 Input ==================== -->
+  <div class="section">
+    <h2>3. 输入框 Input</h2>
+
+    <div class="demo-label">基本输入框</div>
+    <div class="demo-block" style="max-width:480px;">
+      <input class="bk-input" placeholder="默认输入框" style="margin-bottom:12px;">
+      <input class="bk-input" value="已有内容的输入框" style="margin-bottom:12px;">
+      <input class="bk-input" placeholder="禁用状态" disabled>
+    </div>
+
+    <div class="demo-label">输入框尺寸</div>
+    <div class="demo-block" style="max-width:480px;">
+      <input class="bk-input bk-input-small" placeholder="小尺寸 small" style="margin-bottom:12px;">
+      <input class="bk-input" placeholder="默认尺寸" style="margin-bottom:12px;">
+      <input class="bk-input bk-input-large" placeholder="大尺寸 large">
+    </div>
+
+    <div class="demo-label">文本域 Textarea</div>
+    <div class="demo-block" style="max-width:480px;">
+      <textarea class="bk-textarea" placeholder="请输入内容…" rows="3"></textarea>
+    </div>
+
+    <div class="demo-label">输入框组 Input Group</div>
+    <div class="demo-block" style="max-width:480px;">
+      <div class="bk-input-group">
+        <span class="bk-input-group-addon">https://</span>
+        <input class="bk-input" placeholder="example.com">
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 4. 表单 Form ==================== -->
+  <div class="section">
+    <h2>4. 表单 Form</h2>
+
+    <div class="demo-label">水平表单（默认）</div>
+    <div class="demo-block form-demo-container">
+      <form class="bk-form" onsubmit="return false;">
+        <div class="bk-form-item is-required">
+          <label class="bk-form-label">用户名</label>
+          <div class="bk-form-content">
+            <input class="bk-input" placeholder="请输入用户名" data-required>
+            <div class="bk-form-error">用户名不能为空</div>
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">邮箱</label>
+          <div class="bk-form-content">
+            <input class="bk-input" placeholder="user@example.com">
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">角色</label>
+          <div class="bk-form-content">
+            <div class="bk-select">
+              <div class="bk-select-trigger">
+                <span class="bk-select-placeholder">请选择角色</span>
+              </div>
+              <div class="bk-select-dropdown">
+                <div class="bk-select-option">管理员</div>
+                <div class="bk-select-option">开发者</div>
+                <div class="bk-select-option">访客</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">备注</label>
+          <div class="bk-form-content">
+            <textarea class="bk-textarea" placeholder="可选描述" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label"></label>
+          <div class="bk-form-content">
+            <button class="bk-button bk-button-primary">提交</button>
+            <button class="bk-button">取消</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="demo-label">垂直表单</div>
+    <div class="demo-block form-demo-container">
+      <form class="bk-form bk-form-vertical" onsubmit="return false;">
+        <div class="bk-form-item is-required">
+          <label class="bk-form-label">名称</label>
+          <div class="bk-form-content">
+            <input class="bk-input" placeholder="请输入名称" data-required>
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">说明</label>
+          <div class="bk-form-content">
+            <textarea class="bk-textarea" placeholder="请输入说明" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label"></label>
+          <div class="bk-form-content">
+            <button class="bk-button bk-button-primary">保存</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="demo-label">校验状态</div>
+    <div class="demo-block form-demo-container">
+      <form class="bk-form" onsubmit="return false;">
+        <div class="bk-form-item is-required is-error">
+          <label class="bk-form-label">必填字段</label>
+          <div class="bk-form-content">
+            <input class="bk-input" placeholder="此字段有错误">
+            <div class="bk-form-error">此字段为必填项</div>
+          </div>
+        </div>
+        <div class="bk-form-item is-required">
+          <label class="bk-form-label">正常必填</label>
+          <div class="bk-form-content">
+            <input class="bk-input" value="已填写内容">
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== 5. 搜索 Search ==================== -->
+  <div class="section">
+    <h2>5. 搜索 Search</h2>
+    <div class="demo-block" style="max-width:400px;">
+      <input class="bk-search-input" placeholder="搜索…">
+    </div>
+  </div>
+
+  <!-- ==================== 6. 开关 Switcher ==================== -->
+  <div class="section">
+    <h2>6. 开关 Switcher</h2>
+    <div class="demo-block">
+      <div class="demo-inline">
+        <span style="font-size:13px;color:var(--bk-text-secondary);">关闭：</span>
+        <button type="button" class="bk-switcher"></button>
+        <span style="font-size:13px;color:var(--bk-text-secondary);margin-left:16px;">开启：</span>
+        <button type="button" class="bk-switcher is-checked"></button>
+        <span style="font-size:13px;color:var(--bk-text-secondary);margin-left:16px;">禁用：</span>
+        <button type="button" class="bk-switcher" disabled></button>
+        <span style="font-size:13px;color:var(--bk-text-secondary);margin-left:16px;">禁用(开)：</span>
+        <button type="button" class="bk-switcher is-checked" disabled></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 7. 下拉选择 Select ==================== -->
+  <div class="section">
+    <h2>7. 下拉选择 Select</h2>
+
+    <div class="demo-block" style="overflow:visible;">
+      <div style="display:flex;gap:32px;flex-wrap:wrap;">
+        <div class="select-demo-wrap">
+          <div class="demo-label">收起状态</div>
+          <div class="bk-select">
+            <div class="bk-select-trigger">
+              <span class="bk-select-placeholder">请选择</span>
+            </div>
+            <div class="bk-select-dropdown">
+              <div class="bk-select-option">选项一</div>
+              <div class="bk-select-option">选项二</div>
+              <div class="bk-select-option">选项三</div>
+            </div>
+          </div>
+        </div>
+        <div class="select-demo-wrap">
+          <div class="demo-label">展开状态（手动 is-show）</div>
+          <div class="bk-select is-show">
+            <div class="bk-select-trigger">
+              <span class="bk-select-placeholder">请选择</span>
+            </div>
+            <div class="bk-select-dropdown is-show">
+              <div class="bk-select-option">选项 A</div>
+              <div class="bk-select-option is-selected">选项 B（已选）</div>
+              <div class="bk-select-option">选项 C</div>
+              <div class="bk-select-option is-disabled">选项 D（禁用）</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 8. 表格 Table ==================== -->
+  <div class="section">
+    <h2>8. 表格 Table</h2>
+
+    <div class="demo-label">基础表格（带排序、悬浮高亮、操作按钮）</div>
+    <div class="demo-block" style="padding:0;">
+      <table class="bk-table" id="demo-table">
+        <thead>
+          <tr>
+            <th data-sortable>ID</th>
+            <th data-sortable>名称</th>
+            <th data-sortable>类型</th>
+            <th data-sortable>创建时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1001</td>
+            <td>生产部署流程</td>
+            <td><span class="bk-tag bk-tag-info">流程</span></td>
+            <td>2026-03-20 10:00:00</td>
+            <td>
+              <button class="bk-table-action">查看</button>
+              <button class="bk-table-action">编辑</button>
+              <button class="bk-table-action">删除</button>
+            </td>
+          </tr>
+          <tr>
+            <td>1002</td>
+            <td>测试环境回收</td>
+            <td><span class="bk-tag bk-tag-warning">定时</span></td>
+            <td>2026-03-19 15:30:00</td>
+            <td>
+              <button class="bk-table-action">查看</button>
+              <button class="bk-table-action">编辑</button>
+              <button class="bk-table-action">删除</button>
+            </td>
+          </tr>
+          <tr>
+            <td>1003</td>
+            <td>权限审批流程</td>
+            <td><span class="bk-tag bk-tag-success">审批</span></td>
+            <td>2026-03-18 09:15:00</td>
+            <td>
+              <button class="bk-table-action">查看</button>
+              <button class="bk-table-action">编辑</button>
+              <button class="bk-table-action">删除</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="demo-label" style="margin-top:20px;">空状态</div>
+    <div class="demo-block" style="padding:0;">
+      <table class="bk-table">
+        <thead>
+          <tr>
+            <th>名称</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="bk-table-empty">
+            <td colspan="3">暂无数据</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==================== 9. 分页 Pagination ==================== -->
+  <div class="section">
+    <h2>9. 分页 Pagination</h2>
+    <div class="demo-block">
+      <div class="bk-pagination">
+        <span class="bk-pagination-total">共 128 条</span>
+        <span class="bk-pagination-item">&laquo;</span>
+        <span class="bk-pagination-item">1</span>
+        <span class="bk-pagination-item active">2</span>
+        <span class="bk-pagination-item">3</span>
+        <span class="bk-pagination-item">4</span>
+        <span class="bk-pagination-item">5</span>
+        <span class="bk-pagination-item">&raquo;</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 10. 标签页 Tab ==================== -->
+  <div class="section">
+    <h2>10. 标签页 Tab</h2>
+    <div class="demo-block">
+      <div class="bk-tab">
+        <div class="bk-tab-header">
+          <span class="bk-tab-item active" data-tab="showcase-tab1">标签一</span>
+          <span class="bk-tab-item" data-tab="showcase-tab2">标签二</span>
+          <span class="bk-tab-item" data-tab="showcase-tab3">标签三</span>
+        </div>
+        <div class="bk-tab-panel" id="showcase-tab1">
+          <p>这是标签一的内容区域。可以放置任何组件和布局。</p>
+        </div>
+        <div class="bk-tab-panel" id="showcase-tab2" hidden>
+          <p>这是标签二的内容区域。Tab 切换由 data-tab 属性驱动。</p>
+        </div>
+        <div class="bk-tab-panel" id="showcase-tab3" hidden>
+          <p>这是标签三的内容区域。每个面板独立管理自己的内容。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 11. 卡片 Card ==================== -->
+  <div class="section">
+    <h2>11. 卡片 Card</h2>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;">
+      <div class="bk-card" style="width:320px;">
+        <div class="bk-card-header">卡片标题</div>
+        <div class="bk-card-body">
+          <p>卡片内容区域，可以放置文本、表单、列表等各种内容。</p>
+        </div>
+        <div class="bk-card-footer" style="text-align:right;">
+          <button class="bk-button bk-button-small bk-button-text">操作</button>
+        </div>
+      </div>
+      <div class="bk-card" style="width:320px;">
+        <div class="bk-card-header">统计信息</div>
+        <div class="bk-card-body">
+          <div style="font-size:32px;font-weight:700;color:var(--bk-primary);">1,284</div>
+          <div style="font-size:12px;color:var(--bk-text-tertiary);margin-top:4px;">本月执行任务总数</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 12. 对话框 Dialog ==================== -->
+  <div class="section">
+    <h2>12. 对话框 Dialog</h2>
+    <div class="demo-block">
+      <button class="bk-button bk-button-primary" data-open="showcase-dialog">打开对话框</button>
+    </div>
+  </div>
+
+  <div id="showcase-dialog" class="bk-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <span>确认删除</span>
+        <button class="bk-dialog-close" data-close>&times;</button>
+      </div>
+      <div class="bk-dialog-body">
+        确定要删除该条记录吗？此操作不可撤销。
+      </div>
+      <div class="bk-dialog-footer">
+        <button class="bk-button" data-close>取消</button>
+        <button class="bk-button bk-button-danger" data-close data-notify="已删除">确认删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 13. 侧滑 Sideslider ==================== -->
+  <div class="section">
+    <h2>13. 侧滑 Sideslider</h2>
+    <div class="demo-block">
+      <button class="bk-button bk-button-primary" data-open="showcase-slider">打开侧滑面板</button>
+    </div>
+  </div>
+
+  <div id="showcase-slider" class="bk-sideslider">
+    <div class="bk-sideslider-mask" data-close></div>
+    <div class="bk-sideslider-content">
+      <div class="bk-sideslider-header">
+        <span>侧滑面板标题</span>
+        <button class="bk-sideslider-close" data-close>&times;</button>
+      </div>
+      <div class="bk-sideslider-body">
+        <p>侧滑面板可以放置表单、详情信息、日志等内容。</p>
+        <p style="margin-top:12px;color:var(--bk-text-secondary);">从右侧滑出，宽度 640px，带过渡动画。</p>
+        <form class="bk-form" style="margin-top:24px;" onsubmit="return false;">
+          <div class="bk-form-item is-required">
+            <label class="bk-form-label">名称</label>
+            <div class="bk-form-content">
+              <input class="bk-input" placeholder="请输入名称" data-required>
+            </div>
+          </div>
+          <div class="bk-form-item">
+            <label class="bk-form-label">描述</label>
+            <div class="bk-form-content">
+              <textarea class="bk-textarea" placeholder="请输入描述" rows="3"></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="bk-sideslider-footer">
+        <button class="bk-button" data-close>取消</button>
+        <button class="bk-button bk-button-primary" data-close data-notify="提交成功">提交</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 14. 面包屑 Breadcrumb ==================== -->
+  <div class="section">
+    <h2>14. 面包屑 Breadcrumb</h2>
+    <div class="demo-block">
+      <div class="bk-breadcrumb" style="margin-bottom:0;">
+        <span class="bk-breadcrumb-item">首页</span>
+        <span class="bk-breadcrumb-item">任务管理</span>
+        <span class="bk-breadcrumb-item">任务详情</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 15. 加载 Loading ==================== -->
+  <div class="section">
+    <h2>15. 加载 Loading</h2>
+    <div class="demo-block">
+      <div class="bk-loading" style="min-height:120px;"></div>
+    </div>
+  </div>
+
+  <!-- ==================== 16. 异常 Exception ==================== -->
+  <div class="section">
+    <h2>16. 异常 Exception</h2>
+    <div class="demo-block">
+      <div class="bk-exception" style="min-height:180px;">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="16" width="48" height="36" rx="3" stroke="#dcdee5" stroke-width="2" fill="none"/>
+          <line x1="8" y1="26" x2="56" y2="26" stroke="#dcdee5" stroke-width="2"/>
+          <circle cx="15" cy="21" r="2" fill="#dcdee5"/><circle cx="21" cy="21" r="2" fill="#dcdee5"/><circle cx="27" cy="21" r="2" fill="#dcdee5"/>
+          <text x="32" y="42" text-anchor="middle" font-size="10" fill="#c4c6cc">Empty</text>
+        </svg>
+        <span>暂无数据</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 17. 布局原语 ==================== -->
+  <div class="section">
+    <h2>17. 布局原语</h2>
+
+    <div class="demo-label">操作栏 Toolbar</div>
+    <div class="demo-block">
+      <div class="bk-toolbar" style="margin-bottom:0;">
+        <div class="bk-toolbar-left">
+          <input class="bk-search-input" placeholder="搜索…" style="width:280px;">
+          <div class="bk-select" style="width:160px;">
+            <div class="bk-select-trigger">
+              <span class="bk-select-placeholder">筛选类型</span>
+            </div>
+          </div>
+        </div>
+        <div class="bk-toolbar-right">
+          <button class="bk-button">导出</button>
+          <button class="bk-button bk-button-primary">新建</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-label">信息卡片 Info Card</div>
+    <div class="demo-block">
+      <div class="bk-info-card">
+        <div class="bk-info-card-item">
+          <div class="bk-info-card-label">创建人</div>
+          <div class="bk-info-card-value">admin</div>
+        </div>
+        <div class="bk-info-card-item">
+          <div class="bk-info-card-label">创建时间</div>
+          <div class="bk-info-card-value">2026-03-20 14:30:00</div>
+        </div>
+        <div class="bk-info-card-item">
+          <div class="bk-info-card-label">状态</div>
+          <div class="bk-info-card-value"><span class="bk-tag bk-tag-success">运行中</span></div>
+        </div>
+        <div class="bk-info-card-item">
+          <div class="bk-info-card-label">所属空间</div>
+          <div class="bk-info-card-value">prod-space</div>
+        </div>
+        <div class="bk-info-card-item">
+          <div class="bk-info-card-label">执行时长</div>
+          <div class="bk-info-card-value">12.3s</div>
+        </div>
+        <div class="bk-info-card-item">
+          <div class="bk-info-card-label">关联模板</div>
+          <div class="bk-info-card-value">标准部署流程</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-label">24 列栅格 Grid</div>
+    <div class="demo-block">
+      <div class="bk-grid-row" style="gap:8px 0;">
+        <div class="bk-grid-col-24" style="background:var(--bk-bg-hover);padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-24</div>
+      </div>
+      <div class="bk-grid-row" style="gap:8px 0;margin-top:8px;">
+        <div class="bk-grid-col-12" style="background:var(--bk-bg-hover);padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-12</div>
+        <div class="bk-grid-col-12" style="background:#e1ecff;padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-12</div>
+      </div>
+      <div class="bk-grid-row" style="gap:8px 0;margin-top:8px;">
+        <div class="bk-grid-col-8" style="background:var(--bk-bg-hover);padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-8</div>
+        <div class="bk-grid-col-8" style="background:#e1ecff;padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-8</div>
+        <div class="bk-grid-col-8" style="background:var(--bk-bg-hover);padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-8</div>
+      </div>
+      <div class="bk-grid-row" style="gap:8px 0;margin-top:8px;">
+        <div class="bk-grid-col-6" style="background:var(--bk-bg-hover);padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-6</div>
+        <div class="bk-grid-col-6" style="background:#e1ecff;padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-6</div>
+        <div class="bk-grid-col-6" style="background:var(--bk-bg-hover);padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-6</div>
+        <div class="bk-grid-col-6" style="background:#e1ecff;padding:8px;text-align:center;border:1px dashed var(--bk-border);">col-6</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/bkflow-prototype.js"></script>
+</body>
+</html>

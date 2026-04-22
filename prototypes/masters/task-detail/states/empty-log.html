@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务详情空日志态 - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <script defer src="../../../assets/bkflow-prototype.js"></script>
+</head>
+<body class="bk-task-detail">
+  <div class="bk-task-detail-shell">
+    <header class="bk-task-detail-header">
+      <div class="bk-task-detail-meta">
+        <a class="bk-task-detail-back" href="/template/view/2166/">← 返回源模板</a>
+        <div class="bk-task-detail-title">
+          <span class="bk-task-detail-label">任务执行</span>
+          <div class="bk-task-detail-heading">
+            <h1>audit-deep-dive-20260420_调试任务_20260420203821</h1>
+            <span class="bk-task-status is-success">完成</span>
+          </div>
+          <p>源模板 <a href="/template/view/2166/">/template/view/2166/</a> · 执行实例 #1192795</p>
+        </div>
+      </div>
+      <div class="bk-task-detail-summary">
+        <div class="bk-task-detail-chip">
+          <span class="bk-task-detail-chip-label">日志状态</span>
+          <strong>采集为空</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="bk-task-detail-main">
+      <section class="bk-task-detail-canvas-shell">
+        <div class="bk-task-detail-canvas-header">
+          <div>
+            <strong>执行画布</strong>
+            <span>调用日志为空时，仍保留代码查看器风格的阅读区域。</span>
+          </div>
+        </div>
+
+        <div class="bk-flow-canvas bk-task-detail-canvas">
+          <div class="bk-flow-canvas-stage">
+            <div class="bk-flow-node bk-flow-node-start">
+              <strong>开始</strong>
+            </div>
+            <div class="bk-flow-link"></div>
+            <button
+              type="button"
+              class="bk-flow-node is-selected"
+              data-node-select="task-detail-main"
+              data-node-open="#task-detail-panel"
+              data-node-name="消息展示"
+              data-node-status="完成"
+              data-node-trail="开始节点 / 消息展示 / 结束节点">
+              <strong>消息展示</strong>
+              <span>标准插件 · 文本展示</span>
+            </button>
+            <div class="bk-flow-link"></div>
+            <div class="bk-flow-node bk-flow-node-end">
+              <strong>结束</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="bk-task-detail-panel is-open" id="task-detail-panel" data-tab-root>
+        <div class="bk-task-detail-panel-header">
+          <div>
+            <h2 data-node-panel-title>节点详情</h2>
+            <div class="bk-task-detail-node-trail" data-node-panel-trail>开始节点 / 消息展示 / 结束节点</div>
+          </div>
+          <span class="bk-task-status is-success" data-node-panel-status>完成</span>
+        </div>
+
+        <div class="bk-tab">
+          <div class="bk-tab-header">
+            <button type="button" class="bk-tab-item" data-tab-group="task-detail-panel" data-tab-target="task-detail-records">执行记录</button>
+            <button type="button" class="bk-tab-item" data-tab-group="task-detail-panel" data-tab-target="task-detail-snapshot">配置快照</button>
+            <button type="button" class="bk-tab-item" data-tab-group="task-detail-panel" data-tab-target="task-detail-history">操作历史</button>
+            <button type="button" class="bk-tab-item active" data-tab-group="task-detail-panel" data-tab-target="task-detail-call-log">调用日志</button>
+          </div>
+
+          <div class="bk-task-detail-panel-body">
+            <section class="bk-tab-panel bk-task-detail-section" id="task-detail-records" data-tab-panel-group="task-detail-panel" hidden>
+              <article class="bk-task-detail-block"><h3>执行记录</h3><div class="bk-task-detail-note">切换页签查看。</div></article>
+            </section>
+            <section class="bk-tab-panel bk-task-detail-section" id="task-detail-snapshot" data-tab-panel-group="task-detail-panel" hidden>
+              <article class="bk-task-detail-block"><h3>配置快照</h3><div class="bk-task-detail-note">切换页签查看。</div></article>
+            </section>
+            <section class="bk-tab-panel bk-task-detail-section" id="task-detail-history" data-tab-panel-group="task-detail-panel" hidden>
+              <article class="bk-task-detail-block"><h3>操作历史</h3><div class="bk-task-detail-note">暂无数据</div></article>
+            </section>
+            <section class="bk-tab-panel bk-task-detail-section" id="task-detail-call-log" data-tab-panel-group="task-detail-panel">
+              <article class="bk-task-detail-block">
+                <h3>调用日志</h3>
+                <div class="bk-log-viewer bk-log-empty" aria-label="日志查看器">
+                  <div class="line-numbers">1</div>
+                  <div class="bk-log-empty-copy">暂无调用日志</div>
+                </div>
+              </article>
+            </section>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>

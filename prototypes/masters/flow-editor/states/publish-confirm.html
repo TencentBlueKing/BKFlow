@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>流程编辑状态 - 发布确认</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <script defer src="../../../assets/bkflow-prototype.js"></script>
+</head>
+<body class="bk-flow-editor">
+  <div class="bk-flow-editor-shell">
+    <header class="bk-flow-editor-header">
+      <div class="bk-flow-editor-meta">
+        <a class="bk-flow-editor-back" href="#">← 返回流程列表</a>
+        <div class="bk-flow-editor-title">
+          <h1>编辑流程</h1>
+          <p>audit-deep-dive-20260420 · 全局保存完成后进入发布确认</p>
+        </div>
+        <div class="bk-flow-version-area">
+          <span class="bk-flow-version-label">流程版本</span>
+          <span class="bk-tag">草稿</span>
+          <span class="bk-flow-version-badge">最新发布 1.0.0</span>
+        </div>
+      </div>
+      <div class="bk-flow-editor-actions">
+        <button type="button" class="bk-button bk-button-primary bk-save-button is-disabled" id="flow-editor-save" disabled>保存</button>
+        <button type="button" class="bk-button bk-button-primary" id="flow-editor-publish" data-open="flow-publish-dialog">发布</button>
+        <button type="button" class="bk-button" data-open="flow-mock-debug-dialog">调试</button>
+      </div>
+    </header>
+
+    <main class="bk-flow-editor-main">
+      <aside class="bk-flow-editor-rail">
+        <section class="bk-flow-section-card">
+          <h2>状态说明</h2>
+          <p>真实交互里点击 `发布` 会先打开版本确认层，而不是直接提交。</p>
+        </section>
+      </aside>
+
+      <section class="bk-flow-canvas-shell">
+        <div class="bk-flow-canvas-header">
+          <div>
+            <strong>流程画布</strong>
+            <span>画布已保存，发布按钮进入可操作态。</span>
+          </div>
+        </div>
+        <div class="bk-flow-canvas"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="bk-dialog is-show" id="flow-publish-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>发布流程</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        <div class="bk-flow-stack">
+          <div>
+            <label class="bk-flow-label">版本号</label>
+            <input class="bk-input" value="1.0.0">
+          </div>
+          <div>
+            <label class="bk-flow-label">版本描述</label>
+            <textarea class="bk-textarea" rows="4">准备发布主流程编排调整与节点参数映射变更。</textarea>
+          </div>
+        </div>
+      </div>
+      <div class="bk-dialog-footer">
+        <button type="button" class="bk-button bk-button-primary">确认发布</button>
+        <button type="button" class="bk-button" data-close>取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bk-dialog" id="flow-mock-debug-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>执行调试</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
