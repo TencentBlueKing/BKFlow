@@ -40,7 +40,7 @@
                 @change="onParamChange" />
               <VariableList
                 v-if="activeVarIndex === index"
-                ref="variableListRef"
+                :ref="`variableListRef_${index}`"
                 class="param-source-input-list"
                 :is-list-open="isListOpen"
                 :var-list="filteredVarList"
@@ -70,6 +70,7 @@
 import tools from '@/utils/tools.js';
 import { mapState } from 'vuex';
 import VariableList from '@/components/common/RenderForm/VariableList.vue';
+import { buildConstantArray, filterVariableList } from '@/components/common/RenderForm/formMixins.js';
 
 const VAR_REG = /\$.*$/;
 
@@ -133,8 +134,7 @@ export default {
       constants: state => state.template.constants,
     }),
     constantArr() {
-      console.log('全局变量constantArr', this.constants);
-      return this.buildConstantArray(this.constants);
+      return buildConstantArray(this.constants, {});
     },
   },
   watch: {
@@ -158,53 +158,17 @@ export default {
         this.activeVarIndex = -1;
       }
     },
-    /**
-     * 构建分组的变量列表
-     */
-    buildConstantArray(constants) {
-      const constantArr = [...Object.values(constants || {})];
-      const inputVar = constantArr.filter(item => item.source_type === 'component_inputs');
-      const outputVar = constantArr.filter(item => item.source_type === 'component_outputs');
-      const customVar = constantArr.filter(item => item.source_type === 'custom' && item.custom_type !== 'loop');
-      return [
-        { name: '普通变量', type: 'custom', isCollapse: false, children: [...Object.values(customVar)] },
-        { name: '输出变量', type: 'output', isCollapse: false, children: [...Object.values(outputVar)] },
-        { name: '输入变量', type: 'input', isCollapse: false, children: [...Object.values(inputVar)] },
-      ];
-    },
-    /**
-     * 根据输入值过滤变量列表
-     */
-    filterVariableList(inputValue, constantArr, varRegex = /\$.*$/) {
-      const matchResult = inputValue.match(varRegex);
-      let varList = [];
-      let isListOpen = false;
-      if (matchResult && matchResult[0]) {
-        const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&');
-        const inputReg = new RegExp(regStr);
-        if (constantArr.length > 0 && constantArr[0].children) {
-          varList = constantArr.map((group) => {
-            const filteredChildren = group.children.filter(item => inputReg.test(item.key));
-            return filteredChildren.length > 0 ? { ...group, children: filteredChildren } : null;
-          }).filter(group => group !== null);
-          isListOpen = varList.some(group => group.children && group.children.length > 0);
-        } else {
-          varList = constantArr.filter(item => inputReg.test(item.key));
-          isListOpen = !!varList.length;
-        }
-      }
-      return { varList, isListOpen };
-    },
     onSourceInput(val, index) {
       this.activeVarIndex = index;
-      const result = this.filterVariableList(val, this.constantArr, VAR_REG);
+      const result = filterVariableList(val, this.constantArr, VAR_REG);
       this.filteredVarList = result.varList;
       this.isListOpen = result.isListOpen;
       if (result.isListOpen) {
         this.$nextTick(() => {
-          const ref = this.$refs.variableListRef;
+          const ref = this.$refs[`variableListRef_${index}`];
           if (ref) {
-            ref.searchKeyword = '';
+            const instance = Array.isArray(ref) ? ref[0] : ref;
+            instance.searchKeyword = '';
           }
         });
       }
