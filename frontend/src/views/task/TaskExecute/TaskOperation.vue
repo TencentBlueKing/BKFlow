@@ -48,9 +48,22 @@
     </bk-alert>
     <div class="task-container">
       <div class="pipeline-nodes">
+        <FlowExecuteBridge
+          v-if="useCanvasEditor"
+          :pipeline-tree="instanceFlow"
+          :node-states="canvasEditorNodeStates"
+          :api-config="canvasEditorApiConfig"
+          :show-header="false"
+          @node-click="onCanvasEditorNodeClick"
+          @retry="onRetryClick"
+          @skip="onSkipClick"
+          @forceFail="onForceFailClick"
+          @gatewaySkip="onGatewaySelectionClick"
+          @resume="onTaskNodeResumeClick"
+          @approve="onApprovalClick" />
         <component
+          v-else-if="!nodeSwitching"
           :is="templateComponentName"
-          v-if="!nodeSwitching"
           ref="processCanvas"
           class="canvas-comp-wrapper"
           :editable="false"
@@ -244,6 +257,8 @@
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
   import StageCanvas from '@/components/canvas/StageCanvas/MainStageCanvas.vue';
   import { checkConditionLoop, findLoopTarget, findNearestGatewayByIncoming } from '@/utils/orderCanvasNodeToNodeTree.js';
+  import { FlowExecuteBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-execute';
+  import '@blueking/bkflow-canvas-editor-vue2/style';
 
   const { CancelToken } = axios;
   let source = CancelToken.source();
@@ -251,17 +266,17 @@
   const TASK_OPERATIONS = {
     execute: {
       action: 'execute',
-      icon: 'common-icon-right-triangle',
+      icon: 'common-icon-next-triangle-shape',
       text: i18n.t('执行'),
     },
     pause: {
       action: 'pause',
-      icon: 'common-icon-double-vertical-line',
+      icon: 'common-icon-zanting',
       text: i18n.t('暂停'),
     },
     resume: {
       action: 'resume',
-      icon: 'common-icon-right-triangle',
+      icon: 'common-icon-next-triangle-shape',
       text: i18n.t('继续'),
     },
     revoke: {
@@ -294,6 +309,7 @@
       ProcessCanvas,
       VerticalCanvas,
       StageCanvas,
+      FlowExecuteBridge,
     },
     mixins: [permission, tplPerspective],
     props: {
@@ -458,6 +474,7 @@
     computed: {
       ...mapState({
         view_mode: state => state.view_mode,
+        isIframe: state => state.isIframe,
         infoBasicConfig: state => state.infoBasicConfig,
         locations: state => state.template.location,
       }),
@@ -472,6 +489,12 @@
       },
       isBreadcrumbShow() {
         return this.completePipelineData.location.some(item => item.type === 'subflow');
+      },
+      useCanvasEditor() {
+        if (this.isIframe) {
+            return this.$route.query.useCanvasEditor === 'true';
+        }
+        return false;
       },
       canvasData() {
         const { line, location, activities } = { ... tools.deepClone(this.instanceFlow) };
@@ -568,6 +591,24 @@
             stage: 'StageCanvas',
           };
           return canvasModeToComponentMap[this.canvasMode] || canvasModeToComponentMap.horizontal;
+      },
+      canvasEditorNodeStates() {
+        const children = this.instanceStatus?.children;
+        if (!children) return {};
+        const result = {};
+        Object.keys(children).forEach((id) => {
+          result[id] = { status: children[id].state };
+        });
+        return result;
+      },
+      canvasEditorApiConfig() {
+        return {
+          baseURL: '/api',
+          scopeData: {
+            scope_type: 'space',
+            scope_value: this.spaceId,
+          },
+        };
       },
     },
     watch: {
@@ -779,6 +820,7 @@
        * 标记任务节点的生命周期
        */
       markNodesPhase() {
+        if (this.useCanvasEditor) return;
         Object.keys(this.pipelineData.activities).forEach((id) => {
           const node = this.pipelineData.activities[id];
           if (node.type === 'ServiceActivity') {
@@ -1075,7 +1117,7 @@
         this.timer = setTimeout(() => {
           this.loadTaskStatus();
         }, time);
-        this.canvasMode === 'stage' && this.$refs.processCanvas.setRefreshTaskStageCanvasData();
+        !this.useCanvasEditor && this.canvasMode === 'stage' && this.$refs.processCanvas.setRefreshTaskStageCanvasData();
       },
       cancelTaskStatusTimer() {
         if (this.timer) {
@@ -1090,6 +1132,7 @@
       },
       // 更新节点状态
       updateNodeInfo() {
+        if (this.useCanvasEditor) return;
         const nodes = this.instanceStatus.children;
 
         nodes && Object.keys(nodes).forEach((id) => {
@@ -1786,6 +1829,7 @@
         }
       },
       updateNodeActived(id, isActived) {
+        if (this.useCanvasEditor) return;
         this.$refs.processCanvas.onUpdateNodeInfo(id, { isActived });
       },
       // 查看参数、修改参数 （侧滑面板 标题 点击遮罩关闭）
@@ -1858,6 +1902,13 @@
         }
         this[actionType]();
       },
+      onCanvasEditorNodeClick(event) {
+        const { nodeId } = event || {};
+        if (!nodeId) return;
+        const location = this.instanceFlow.location?.find(item => item.id === nodeId);
+        const nodeType = location?.type;
+        this.onNodeClick(nodeId, nodeType);
+      },
       // type表示第一个节点的类型
       onNodeClick(id, type, conditionData) {
         this.defaultActiveId = id;
@@ -1920,7 +1971,7 @@
               state: execNodeConfig.state,
               count,
             };
-          } else {
+          } else if (this.$refs.processCanvas) {
             this.$refs.processCanvas.closeNodeExecRecord();
           }
         } catch (error) {
