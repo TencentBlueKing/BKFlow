@@ -1620,50 +1620,33 @@
             loopConfig,
           } = this.basicInfo;
           const constants = {};
+          // 将数组格式的 loop_params 转换为 key-value 对象格式
           if (Array.isArray(loopConfig.loop_params) && loopConfig.loop_params.length > 0) {
             const result = loopConfig.loop_params.reduce((obj, item) => {
               if (item.name?.trim() && item.value?.trim()) {
                 if (!/^\$\{\w+\}$/.test(item.name)) {
                   item.name = `\${${item.name}}`;
                 }
-                obj[item.name] = {
-                  value: item.value || '',
-                  is_quote: item.is_quote || false,
-                };
+                obj[item.name] = item.value || '';
               }
               return obj;
             }, {});
             loopConfig.loop_params = result;
           }
-          // 判断输入参数是否引用循环变量，并计算 loop_times
           if (loopConfig.type === 'array_loop' && loopConfig.loop_params) {
-            const loopParamKeys = Object.keys(loopConfig.loop_params);
-            let minValueLength = 1;
-            loopParamKeys.forEach((loopKey) => {
-              loopConfig.loop_params[loopKey].is_quote = false;
-            });
-            Object.keys(this.inputsParamValue).forEach((key) => {
-              const paramValue = this.inputsParamValue[key];
-              loopParamKeys.forEach((loopKey) => {
-                const escapedKey = loopKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const pattern = new RegExp(`(?:^|[^\\w])${escapedKey}(?:[^\\w]|$)`);
-                if (pattern.test(paramValue)) {
-                  loopConfig.loop_params[loopKey].is_quote = true;
-                }
-              });
-            });
-            // 计算被引用变量的 value 长度最小值
-            const quotedValueLengths = [];
-            loopParamKeys.forEach((loopKey) => {
-              if (loopConfig.loop_params[loopKey].is_quote) {
-                const valueLength = loopConfig.loop_params[loopKey].value.split(',').length;
-                quotedValueLengths.push(valueLength);
+            const varReg = /^\$\{[^}]+\}$/;
+            const loopParamValues = Object.values(loopConfig.loop_params);
+            const hasVarValue = loopParamValues.some(val => varReg.test(String(val)));
+            if (hasVarValue) {
+              // 存在变量形式的值，loop_times 设为 null
+              loopConfig.loop_times = null;
+            } else {
+              // 全部为列表形式，计算逗号分割长度的最小值
+              const lengths = loopParamValues.map(val => String(val).split(',').length);
+              if (lengths.length > 0) {
+                loopConfig.loop_times = Math.min(...lengths);
               }
-            });
-            if (quotedValueLengths.length > 0) {
-              minValueLength = Math.min(...quotedValueLengths);
             }
-            loopConfig.loop_times = minValueLength;
           }
           Object.keys(this.subflowForms).forEach((key) => {
             const constant = tools.deepClone(this.subflowForms[key]);
