@@ -55,7 +55,13 @@
           :node-states="canvasEditorNodeStates"
           :api-config="canvasEditorApiConfig"
           :show-header="false"
-          @node-click="onCanvasEditorNodeClick" />
+          @node-click="onCanvasEditorNodeClick"
+          @retry="onRetryClick"
+          @skip="onSkipClick"
+          @forceFail="onForceFailClick"
+          @gatewaySkip="onGatewaySelectionClick"
+          @resume="onTaskNodeResumeClick"
+          @approve="onApprovalClick" />
         <component
           v-else-if="!nodeSwitching"
           :is="templateComponentName"
