@@ -22,7 +22,7 @@
     "@antv/x6-vue-shape": "^2.0.11",
     "@babel/core": "^7.14.3",
     "@blueking/bkcharts": "^2.0.6",
-    "@blueking/bkflow-canvas-editor-vue2": "1.0.0-beta.9",
+    "@blueking/bkflow-canvas-editor-vue2": "1.0.3",
     "@blueking/bkui-form": "0.0.42-beta.11",
     "@blueking/login-modal": "^1.0.1",
     "@blueking/notice-component-vue2": "^2.0.1",
