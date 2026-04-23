@@ -866,7 +866,7 @@
               enable: false,
               type: 'array_loop', // 数组循环array_loop 次数循环time_loop
               loop_times: 3, // 默认为3
-              loop_params: [{ name: '', value: '', is_quote: false }],
+              loop_params: [{ name: '', value: '' }],
               fail_skip: false,
               retryable: false,
               skippable: false,
@@ -878,12 +878,12 @@
           if (!loopParams
               || (Array.isArray(loopParams) && loopParams.length === 0)
               || (!Array.isArray(loopParams) && typeof loopParams === 'object' && Object.keys(loopParams).length === 0)) {
-            this.formData.loopConfig.loop_params = [{ name: '', value: '', is_quote: false }];
+            this.formData.loopConfig.loop_params = [{ name: '', value: '' }];
           } else if (!Array.isArray(loopParams)) {
             // 非空对象转数组
             this.formData.loopConfig.loop_params = Object.entries(loopParams).map(([key, value]) => ({
               name: key,
-              ...value,
+              value,
             }));
           }
           this.subVersionSelectValue = this.basicInfo.version;
@@ -1183,7 +1183,10 @@
         }
         this.updateData();
       },
-      onLoopTypeChange() {
+      onLoopTypeChange(val) {
+        if (val === 'time_loop' && !this.formData.loopConfig.loop_times) {
+          this.formData.loopConfig.loop_times = 3;
+        }
         this.updateData();
       },
       // 循环执行配置变化

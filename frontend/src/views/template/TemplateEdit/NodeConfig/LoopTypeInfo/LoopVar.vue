@@ -87,7 +87,7 @@ export default {
     varList: {
       type: Array,
       default: () => [
-        { name: '', value: '', is_quote: false },
+        { name: '', value: '' },
       ],
     },
     subflowForms: {
@@ -219,7 +219,6 @@ export default {
       this.curVarList.push({
         name: '',
         value: '',
-        is_quote: false,
       });
       this.onParamChange();
     },

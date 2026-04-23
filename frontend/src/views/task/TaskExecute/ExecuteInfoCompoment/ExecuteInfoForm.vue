@@ -399,7 +399,7 @@
         if (!params || typeof params !== 'object') return [];
         return Object.keys(params).map(key => ({
           key,
-          value: params[key]?.value || '--',
+          value: params[key] || '--',
         }));
       },
     },
