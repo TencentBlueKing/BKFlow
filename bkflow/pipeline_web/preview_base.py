@@ -429,7 +429,6 @@ class PipelineTemplateWebPreviewer:
         conflicting_global_variables = []
         loop_variables = []
         exceeded_loop_times_nodes = []
-        invalid_param_value_nodes = []
 
         for node_id, activity in pipeline_tree["activities"].items():
             loop_config = activity.get("loop_config", {})
@@ -469,11 +468,6 @@ class PipelineTemplateWebPreviewer:
             return {
                 "has_loop": False,
                 "error_message": f"节点 {'; '.join(exceeded_loop_times_nodes)} 的循环次数超过最大值{settings.MAX_LOOP_TIMES}",
-            }
-        if invalid_param_value_nodes:
-            return {
-                "has_loop": False,
-                "error_message": f"节点 {'; '.join(invalid_param_value_nodes)} 的循环参数值格式错误：",
             }
         if loop_variables:
             return {"has_loop": False, "error_message": f"节点 {'; '.join(loop_variables)} 的循环次数与循环变量参数不匹配"}
