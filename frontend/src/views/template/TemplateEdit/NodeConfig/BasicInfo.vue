@@ -878,7 +878,7 @@
           if (!loopParams
               || (Array.isArray(loopParams) && loopParams.length === 0)
               || (!Array.isArray(loopParams) && typeof loopParams === 'object' && Object.keys(loopParams).length === 0)) {
-            this.formData.loopConfig.loop_params = [{ name: '', value: '', is_quote: false }];
+            this.formData.loopConfig.loop_params = [{ name: '', value: '' }];
           } else if (!Array.isArray(loopParams)) {
             // 非空对象转数组
             this.formData.loopConfig.loop_params = Object.entries(loopParams).map(([key, value]) => ({
