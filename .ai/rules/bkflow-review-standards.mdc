@@ -1,8 +1,11 @@
+---
+description: BKFlow 代码审查规范：供人工 reviewer 和自动化 code review 在审查 PR 时参考
+alwaysApply: false
+---
+
 # BKFlow Code Review Standards
 
-> 基于项目历史 PR 评论提炼的 code review 标准，供 AI reviewer 遵循。
-
----
+> 基于项目历史 PR 评论提炼的 code review 标准，供 reviewer 在审查 PR 时遵循。
 
 ## 一、Python 后端
 
@@ -11,7 +14,7 @@
 - **Serializer 承担校验与转换**：请求参数的合法性校验、类型转换、字段归一化必须放在 Serializer 的 `validate_*` / `validate` 方法里，不能散落在 View 或 Model 方法中。
   - 反例：在 View 里直接操作 `request.data` 做 if/else 校验。
 - **View 只做调度**：ViewSet 中不应出现业务逻辑；复杂逻辑提取到 Service 层或 Model 方法。
-- **数据处理器统一入口**：对同一类数据的消费（如 uniform_api_config 的多版本兼容），不应在各消费点分散写 `if` 分支，应封装成统一的 Handler/Processor 类处理。
+- **数据处理器统一入口**：对同一类数据的消费（如 `uniform_api_config` 的多版本兼容），不应在各消费点分散写 `if` 分支，应封装成统一的 Handler/Processor 类处理。
   - 示例：`uniform_api_config_data = UniformAPIConfigHandler(data=config).handle()`
 
 ### 2. 魔法数字与常量
@@ -54,13 +57,13 @@
 - 日志信息加前缀上下文，例如 `"get context values error: {e}"`，而非只打 `str(e)`。
 - 异常类命名需准确体现业务含义，不用含糊缩写（如 `BKPluginUnAuthorized` 而非 `BKPluginUnAu...`）。
 - 清理/批量操作日志全部使用英文，保持一致性。
-- **注意**：此处"日志"特指 `logging` 模块输出的运行时日志，不包括面向用户的 `ValidationError` 消息。`ValidationError` 消息遵循编码规范"中文描述为主"，或使用 `ugettext_lazy` 做国际化。
+- **注意**：此处“日志”特指 `logging` 模块输出的运行时日志，不包括面向用户的 `ValidationError` 消息。`ValidationError` 消息遵循编码规范“中文描述为主”，或使用 `ugettext_lazy` 做国际化。
 
 ### 8. 代码整洁
 
 - 注释只在逻辑不自明时保留，`# 已解决`、`# TODO（过时）`、调试遗留注释须清理。
 - 无用变量、冗余赋值（如 `pop` 掉的 key 不记录）需标注或删除。
-- `watch` 选项（Vue/前端同理）：无需 `deep`/`immediate` 时，直接写函数形式，不用 `{ handler }` 对象语法。
+- `watch` 选项（Vue/前端同理）：无需 `deep` / `immediate` 时，直接写函数形式，不用 `{ handler }` 对象语法。
 
 ### 9. 模型与迁移
 
@@ -73,13 +76,12 @@
 - 权限表中每个权限级别（VIEW / EDIT / MOCK / OPERATE）需有明确的业务描述，不能只列名称。
 - 鼓励使用 AI 根据分支改动自动生成或更新文档。
 
----
-
 ## 二、前端（Vue）
 
 ### 1. Vue watch 写法
 
 - 无需 `deep` / `immediate` 配置时，直接写函数：
+
   ```js
   // 推荐
   watch: { theExecuteTime(val) { ... } }
@@ -91,16 +93,12 @@
 
 - 同类场景的图标保持统一，不做不必要的条件分支。例如跳转图标统一使用 `common-icon-jump-link`，不根据状态切换不同图标类名。
 
----
-
 ## 三、API 文档
 
 - `apigw/docs/zh/` 下的 Markdown 文档须与实际接口保持一致。
 - 权限相关字段需包含详细说明，例如：
   > VIEW：作用域下任务和流程的查看权限；EDIT：流程编辑权限；MOCK：流程编辑和调试权限；OPERATE：作用域下任务的操作权限。
 - Webhook 类新接口需同步在文档中补充请求/响应示例。
-
----
 
 ## 四、部署架构注意事项
 
@@ -122,8 +120,6 @@
 | **安全** | 敏感字段脱敏；权限校验完整且与鉴权 scope 一致 |
 | **向后兼容** | 协议版本变更需同时兼容旧格式，消费点统一通过 Handler 处理多版本 |
 | **文档** | 接口变更必须同步文档；新增文件包含开源协议头 |
-
----
 
 ## 六、Review 严重级别判断标准
 

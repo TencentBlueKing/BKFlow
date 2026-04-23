@@ -156,3 +156,16 @@ pre-*-bkcodeai
 .codebuddy/
 .cursor/
 .bkui-knowledge.json
+.worktrees/
+.vscode/
+.idea/
+.claude/
+.worktrees/
+.playwright-cli/
+.superpowers/
+.direnv/
+
+# Local files
+backup/
+cov.xml
+.DS_Store

@@ -103,10 +103,10 @@
         "table_type": "single",
         "extra_info": {}
       }
-    ],
-    "code": "0",
-    "message": ""
-  }
+    ]
+  },
+  "code": "0",
+  "message": ""
 }
 ```
 

@@ -27,25 +27,29 @@ GET /sdk/template/variable/
 
 ```json
 {
-    "result": true,
-    "data": [
-        {
-            "code": "input",
-            "name": "输入",
-            "desc": "输入变量",
-            "type": "input",
-            "status": true
-        },
-        {
-            "code": "output",
-            "name": "输出",
-            "desc": "输出变量",
-            "type": "output",
-            "status": true
-        }
-    ],
-    "message": "",
-    "code": "0"
+     "result": true,
+     "data": [
+          {
+               "code": "input",
+               "name": "输入",
+               "description": "输入变量",
+               "form": "",
+               "meta_tag": "",
+               "tag": "",
+               "type": "input"
+          },
+          {
+               "code": "output",
+               "name": "输出",
+               "description": "输出变量",
+               "form": "",
+               "meta_tag": "",
+               "tag": "",
+               "type": "output"
+          }
+     ],
+     "message": "",
+     "code": "0"
 }
 ```
 
@@ -60,12 +64,13 @@ GET /sdk/template/variable/
 
 #### data[item] 字段说明
 
-| 字段   | 类型     | 描述   |
-|------|--------|------|
-| code | string | 变量类型代码 |
-| name | string | 变量类型名称 |
-| desc | string | 变量类型描述 |
-| type | string | 变量类型   |
-| status | bool | 是否启用   |
-
+| 字段           | 类型        | 描述         |
+|--------------|-----------|------------|
+| code         | string    | 变量类型代码     |
+| name         | string    | 变量类型名称     |
+| description  | string    | 变量描述       |
+| form         | string    | 表单路径       |
+| meta_tag     | string    | 变量meta_tag |
+| tag          | string    | 变量tag      |
+| type         | string    | 变量类型       |
 

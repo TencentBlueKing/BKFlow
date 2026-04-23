@@ -13,12 +13,12 @@ import i18n from '@/config/i18n/index.js';
 const TASK_STATE_DICT = {
   EXPIRED: i18n.t('已过期'),
   CREATED: i18n.t('未执行'),
-  RUNNING: i18n.t('执行中'),
+  RUNNING: i18n.t('正在执行'),
   READY: i18n.t('排队中'),
   SUSPENDED: i18n.t('暂停'),
   NODE_SUSPENDED: i18n.t('节点暂停'),
-  FAILED: i18n.t('失败'),
-  FINISHED: i18n.t('完成'),
+  FAILED: i18n.t('执行失败'),
+  FINISHED: i18n.t('执行成功'),
   REVOKED: i18n.t('终止'),
 };
 

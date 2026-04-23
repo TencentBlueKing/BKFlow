@@ -35,35 +35,49 @@ GET /sdk/template/snapshot/list_snapshot/
 
 ```json
 {
-     "count": 3,
-     "next": null,
-     "previous": null,
-     "results": [
-          {
-               "id": 123,
-               "create_time": "2025-05-22 11:00:20+0800",
-               "update_time": "2025-05-22 11:00:20+0800",
-               "version": null,
-               "template_id": 1023,
-               "desc": "基于 1.0.0 版本的草稿",
-               "draft": true,
-               "creator": "xxx",
-               "operator": "xxx",
-               "md5sum": "18ce84fe15xlt0075edc4413a9f5575b"
-          }
-     ]
+     "result": true,
+     "data": {
+          "count": 3,
+          "next": null,
+          "previous": null,
+          "results": [
+               {
+                    "id": 123,
+                    "create_time": "2025-05-22 11:00:20+0800",
+                    "update_time": "2025-05-22 11:00:20+0800",
+                    "version": null,
+                    "template_id": 1023,
+                    "desc": "基于 1.0.0 版本的草稿",
+                    "draft": true,
+                    "creator": "xxx",
+                    "operator": "xxx",
+                    "md5sum": "18ce84fe15xlt0075edc4413a9f5575b"
+               }
+          ]
+     },
+     "message": "",
+     "code": "0"
 }
 ```
 
 ### 返回结果参数说明
 
-| 字段       | 类型       | 描述       |
-|----------|----------|----------|
-| count    | int      | 分页返回数据总数 |
-| result   | list     | 返回数据     |
-
+| 字段      | 类型     | 描述                    |
+|---------|--------|-----------------------|
+| result  | bool   | 返回结果，true为成功，false为失败 |
+| code    | string | 返回码，0表示成功，其他值表示失败     |
+| message | string | 错误信息                  |
+| data    | dict   | 返回数据                  |
 
 #### data 字段说明
+
+| 字段      | 类型       | 描述       |
+|---------|----------|----------|
+| count   | int      | 分页返回数据总数 |
+| results | list     | 返回数据     |
+
+
+#### data[results] 字段说明
 
 | 字段          | 类型     | 描述              |
 |-------------|--------|-----------------|
@@ -73,7 +87,7 @@ GET /sdk/template/snapshot/list_snapshot/
 | version     | string | 流程版本号（草稿版本无版本号） |
 | template_id | string | 关联的模板id         |
 | desc        | string | 流程版本描述          |
-| draft       | bool   | 是否是操作版本         |
+| draft       | bool   | 是否是草稿版本         |
 | creator     | string | 创建人             |
 | operator    | string | 操作人             |
 | md5sum      | string | 流程数据的md5值       |

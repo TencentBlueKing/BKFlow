@@ -106,7 +106,7 @@ GET /sdk/template/variable/system_variable/
 |----------------------------|---------|------------|
 | ${_system.task_name}       | string  | 系统变量任务名称   |
 | ${_system.task_id}         | string  | 系统变量任务id   |
-| ${_system.task_start_time} | string  | 系统变量任务开始事件 |
+| ${_system.task_start_time} | string  | 系统变量任务开始时间 |
 | ${_system.operator}        | string  | 系统变量任务执行人  |
 
 
@@ -117,7 +117,6 @@ GET /sdk/template/variable/system_variable/
 |-------------|---------|------------------------|
 | key         | string  | 变量键名                   |
 | name        | string  | 变量名称                   |
-| desc        | string  | 变量描述                   |
 | desc        | string  | 变量描述                   |
 | index       | integer | 展示在前端全局变量的顺序，越小越靠前     |
 | show_type   | string  | 显示类型：hide(隐藏)/show(显示) |

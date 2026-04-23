@@ -16,14 +16,14 @@ const SITE_URL = '/';
 // 代理接口列表
 const proxyPath = [
   'api',
-  'static',
   'jsi18n',
   'core/api',
   'config/api',
   'apigw',
   'common_template/api',
-  'task',
+  'task/',
   'taskflow/api',
+  'task_admin/',
   'pipeline',
   'analysis',
   'admin',

@@ -37,9 +37,11 @@ GET /sdk/template/variable/{variable_id}/
     "data": {
         "code": "input",
         "name": "输入",
-        "desc": "输入变量",
-        "type": "input",
-        "status": true
+        "description": "输入变量",
+        "form": "",
+        "meta_tag": "",
+        "tag": "",
+        "type": "input"
     },
     "message": "",
     "code": "0"
@@ -57,12 +59,13 @@ GET /sdk/template/variable/{variable_id}/
 
 #### data 字段说明
 
-| 字段   | 类型     | 描述   |
-|------|--------|------|
-| code | string | 变量类型代码 |
-| name | string | 变量类型名称 |
-| desc | string | 变量类型描述 |
-| type | string | 变量类型   |
-| status | bool | 是否启用   |
-
+| 字段           | 类型        | 描述         |
+|--------------|-----------|------------|
+| code         | string    | 变量类型代码     |
+| name         | string    | 变量类型名称     |
+| description  | string    | 变量描述       |
+| form         | string    | 表单路径       |
+| meta_tag     | string    | 变量meta_tag |
+| tag          | string    | 变量tag      |
+| type         | string    | 变量类型       |
 
