@@ -429,34 +429,29 @@ class PipelineTemplateWebPreviewer:
         conflicting_global_variables = []
         loop_variables = []
         exceeded_loop_times_nodes = []
+        invalid_param_value_nodes = []
 
-        for node_name, activity in pipeline_tree["activities"].items():
+        for node_id, activity in pipeline_tree["activities"].items():
             loop_config = activity.get("loop_config", {})
             if not loop_config.get("enable", False):
                 continue
 
             loop_times = loop_config["loop_times"]
             # 校验循环次数是否超过最大值
-            if loop_times > settings.MAX_LOOP_TIMES:
-                exceeded_loop_times_nodes.append(node_name)
+            if loop_times and loop_times > settings.MAX_LOOP_TIMES:
+                exceeded_loop_times_nodes.append(activity["name"])
 
             if loop_config.get("type") != "array_loop":
                 continue
 
             loop_params = loop_config.get("loop_params", {})
 
-            # 统计当前节点的循环变量
-            valid_loop_params = [
-                len(param.get("value", "").split(",")) for key, param in loop_params.items() if param.get("is_quote")
-            ]
-
-            # 如果没有有效的循环参数，跳过该节点的循环验证
-            if not valid_loop_params and loop_times != 1:
-                loop_variables.append(node_name)
-
-            # 验证循环次数与循环变量数量匹配
-            if valid_loop_params and loop_times != min(valid_loop_params):
-                loop_variables.append(node_name)
+            if loop_times:
+                # 统计当前节点的循环变量（各参数值按逗号分隔后的元素数量）
+                valid_loop_params = [len(param_value.split(",")) for param_key, param_value in loop_params.items()]
+                # 验证循环次数与循环变量数量匹配（取最短值列表长度）
+                if valid_loop_params and loop_times != min(valid_loop_params):
+                    loop_variables.append(activity["name"])
 
             # 统计循环变量使用情况
             for param_key, param_value in loop_params.items():
@@ -468,12 +463,17 @@ class PipelineTemplateWebPreviewer:
                 if param_key in loop_variable_usage:
                     conflicting_variables.append(param_key)
                 else:
-                    loop_variable_usage[param_key] = node_name
+                    loop_variable_usage[param_key] = node_id
 
         if exceeded_loop_times_nodes:
             return {
                 "has_loop": False,
                 "error_message": f"节点 {'; '.join(exceeded_loop_times_nodes)} 的循环次数超过最大值{settings.MAX_LOOP_TIMES}",
+            }
+        if invalid_param_value_nodes:
+            return {
+                "has_loop": False,
+                "error_message": f"节点 {'; '.join(invalid_param_value_nodes)} 的循环参数值格式错误：",
             }
         if loop_variables:
             return {"has_loop": False, "error_message": f"节点 {'; '.join(loop_variables)} 的循环次数与循环变量参数不匹配"}

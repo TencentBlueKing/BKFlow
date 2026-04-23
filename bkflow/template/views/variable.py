@@ -33,7 +33,7 @@ from bkflow.utils.views import ReadOnlyViewSet
 
 class VariableViewSet(ReadOnlyViewSet):
     serializer_class = VariableSerializer
-    queryset = VariableModel.objects.filter(status=True).exclude(code="loop")
+    queryset = VariableModel.objects.filter(status=True)
     lookup_field = "code"
 
     @action(methods=["GET"], detail=False)
