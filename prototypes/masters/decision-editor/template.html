@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>决策编辑器 Master - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../assets/bkflow-prototype.css">
+  <style>
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(248, 181, 63, 0.08), transparent 24%),
+        var(--bk-bg-body);
+    }
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 36px 48px;
+    }
+    .page-title {
+      margin-bottom: 8px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .page-subtitle {
+      color: var(--bk-text-tertiary);
+      margin-bottom: 20px;
+    }
+    .section {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+      box-shadow: var(--bk-shadow);
+      padding: 20px;
+    }
+    .section + .section {
+      margin-top: 18px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .rule-list {
+      display: grid;
+      gap: 12px;
+    }
+    .rule-card {
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+      padding: 16px;
+      background: #fafbfc;
+    }
+    .rule-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    .footer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--bk-border-light);
+    }
+  </style>
+</head>
+<body class="bk-prototype-shell">
+  <main class="page">
+    <h1 class="page-title">决策编辑器 Master</h1>
+    <p class="page-subtitle">用于配置决策表的基础信息、规则和底部动作区。</p>
+
+    <section class="section">
+      <div class="section-title">基础信息</div>
+      <form class="bk-form" onsubmit="return false;">
+        <div class="bk-form-item is-required">
+          <label class="bk-form-label">规则名称</label>
+          <div class="bk-form-content">
+            <input class="bk-input" value="deploy-decision">
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">规则编码</label>
+          <div class="bk-form-content">
+            <input class="bk-input" value="decision.deploy">
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">说明</label>
+          <div class="bk-form-content">
+            <textarea class="bk-textarea" rows="3">根据环境和审批结果决定是否继续执行。</textarea>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="section">
+      <div class="section-title">规则配置</div>
+      <div class="bk-exception rule-empty-state" style="min-height:220px;">
+        <div style="font-size:48px;">◇</div>
+        <strong>暂无规则</strong>
+        <div>当前还没有任何规则，先创建第一条规则开始配置。</div>
+        <div class="bk-prototype-actions" style="margin-top:4px;">
+          <button class="bk-button bk-button-primary">新增规则</button>
+          <button class="bk-button">导入模板</button>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top:20px;">底部操作</div>
+      <div class="footer-actions">
+        <button class="bk-button">取消</button>
+        <button class="bk-button bk-button-primary">保存</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="../../assets/bkflow-prototype.js"></script>
+</body>
+</html>

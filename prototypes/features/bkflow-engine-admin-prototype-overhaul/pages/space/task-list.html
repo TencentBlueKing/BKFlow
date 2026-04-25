@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<!-- Composed from prototypes/masters/_shared/space-shell.html + prototypes/masters/list-page/template.html -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空间管理 - 任务</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    .bk-content { padding: 24px 28px 32px; overflow: auto; }
+    .bk-page-panel { display: block; }
+    .bk-space-nav-link,
+    .bk-space-menu-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      color: inherit;
+    }
+    .bk-space-nav-link:hover,
+    .bk-space-menu-link:hover { color: inherit; }
+    .bk-space-page { display: grid; gap: 20px; }
+    .bk-space-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 12px;
+      box-shadow: var(--bk-shadow);
+      padding: 20px;
+    }
+    .bk-space-page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .bk-space-page-title h1 { font-size: 24px; margin-bottom: 6px; }
+    .bk-space-page-title p,
+    .bk-muted { color: var(--bk-text-tertiary); }
+    .bk-table-wrap { overflow-x: auto; }
+    .bk-engine-jump {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 16px;
+    }
+    .bk-engine-panel-note {
+      padding: 16px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #edf4ff, #f8fbff);
+      border: 1px solid #d8e6ff;
+    }
+    .bk-engine-panel-note strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="space" data-nav-link="template-list.html"><a class="bk-space-nav-link" href="task-list.html">空间管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system" data-nav-link="../system/space-config-list.html"><a class="bk-space-nav-link" href="../system/space-config-list.html">系统管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html"><a class="bk-space-nav-link" href="../plugin/plugin-list.html">我的插件</a></li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">A</div>
+          <span>admin</span>
+        </div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">S</span>
+            <span>bkflow-eng-svc / space_id=171</span>
+          </div>
+        </div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span></div></div>
+        <ul class="bk-navigation-menu" data-nav-group="space">
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="template-list.html"><span class="bk-navigation-menu-icon">≣</span>流程</a></li>
+          <li class="bk-navigation-menu-item active"><a class="bk-space-menu-link" href="task-list.html"><span class="bk-navigation-menu-icon">✓</span>任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="debug-task-list.html"><span class="bk-navigation-menu-icon">◎</span>调试任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="decision-list.html"><span class="bk-navigation-menu-icon">◇</span>决策表</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="space-config.html"><span class="bk-navigation-menu-icon">⚙</span>空间配置</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="credential-list.html"><span class="bk-navigation-menu-icon">⌘</span>凭证管理</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="statistics-exception.html"><span class="bk-navigation-menu-icon">∆</span>运营统计</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="label-list.html"><span class="bk-navigation-menu-icon">#</span>标签管理</a></li>
+        </ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../system/space-config-list.html"><span class="bk-navigation-menu-icon">◈</span>空间配置</a></li></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../plugin/plugin-list.html"><span class="bk-navigation-menu-icon">⬡</span>蓝鲸插件</a></li></ul>
+        <div class="bk-navigation-footer"><button class="bk-navigation-collapse" title="收起导航">⟨</button></div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel">
+          <div class="bk-space-page">
+            <div class="bk-space-page-header">
+              <div class="bk-space-page-title">
+                <h1>任务</h1>
+                <p>延续列表页母版，但主动作不是弹层而是跳到独立的引擎操作页 `/enginePanel/171/?type=task`。</p>
+              </div>
+              <div class="bk-prototype-actions" style="margin-top:0;">
+                <a class="bk-button bk-button-primary" href="../../../../masters/engine-panel/template.html">引擎操作</a>
+              </div>
+            </div>
+
+            <div class="bk-engine-jump">
+              <div class="bk-space-card">
+                <div class="bk-toolbar">
+                  <div class="bk-toolbar-left">
+                    <input class="bk-search-input" style="width: 420px;" placeholder="ID/任务名称/标签/创建人/执行人/所属模板 ID/所属作用域类型/所属作用域值">
+                  </div>
+                  <div class="bk-toolbar-right">
+                    <span class="bk-muted">当前空间暂无正式任务实例</span>
+                  </div>
+                </div>
+                <div class="bk-table-wrap">
+                  <table class="bk-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 100px;">任务 ID</th>
+                        <th>任务名称</th>
+                        <th style="width: 120px;">执行状态</th>
+                        <th style="width: 120px;">所属模板 ID</th>
+                        <th style="width: 120px;">执行人</th>
+                        <th style="width: 180px;">开始时间</th>
+                        <th style="width: 180px;">更新时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="bk-table-empty">
+                        <td colspan="7">
+                          <div class="bk-exception" style="min-height: 240px;">
+                            <div style="font-size:48px;">⌁</div>
+                            <strong style="color:var(--bk-text-primary);">暂无数据</strong>
+                            <div>当前空间没有正式任务记录，可通过「引擎操作」跳转到 task 类型请求面板发起排查。</div>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <aside class="bk-engine-panel-note">
+                <strong>真实路由语义</strong>
+                <p class="bk-muted">任务页顶部按钮不会在当前页开弹窗，而是跨模块跳到 `enginePanel`。这个页面故意保持和调试任务列表相同的表格骨架，但内容态是审计里看到的空列表。</p>
+                <div class="bk-prototype-actions">
+                  <a class="bk-button" href="../../../../masters/engine-panel/template.html">查看请求区母版</a>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

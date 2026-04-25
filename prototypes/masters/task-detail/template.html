@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务详情 Master - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../assets/bkflow-prototype.css">
+  <script defer src="../../assets/bkflow-prototype.js"></script>
+</head>
+<body class="bk-task-detail">
+  <div class="bk-task-detail-shell">
+    <header class="bk-task-detail-header">
+      <div class="bk-task-detail-meta">
+        <a class="bk-task-detail-back" href="/template/view/2166/">← 返回源模板</a>
+        <div class="bk-task-detail-title">
+          <span class="bk-task-detail-label">任务执行</span>
+          <div class="bk-task-detail-heading">
+            <h1>audit-deep-dive-20260420_调试任务_20260420203821</h1>
+            <span class="bk-task-status is-success">完成</span>
+          </div>
+          <p>源模板 <a href="/template/view/2166/">/template/view/2166/</a> · 执行实例 #1192795 · 2026-04-20 20:38:21</p>
+        </div>
+      </div>
+      <div class="bk-task-detail-summary">
+        <div class="bk-task-detail-chip">
+          <span class="bk-task-detail-chip-label">观察模式</span>
+          <strong>只读观察</strong>
+        </div>
+        <div class="bk-task-detail-chip">
+          <span class="bk-task-detail-chip-label">耗时</span>
+          <strong>小于 1 秒</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="bk-task-detail-main">
+      <section class="bk-task-detail-canvas-shell">
+        <div class="bk-task-detail-canvas-header">
+          <div>
+            <strong>执行画布</strong>
+            <span>节点单击后直接打开 `节点详情`，用于只读观察，不提供编辑控件。</span>
+          </div>
+          <div class="bk-flow-canvas-tools">
+            <span class="bk-flow-tool-chip">只读观察</span>
+            <span class="bk-flow-tool-chip">100%</span>
+          </div>
+        </div>
+
+        <div class="bk-flow-canvas bk-task-detail-canvas">
+          <div class="bk-flow-canvas-stage">
+            <div class="bk-flow-node bk-flow-node-start">
+              <strong>开始</strong>
+            </div>
+            <div class="bk-flow-link"></div>
+            <button
+              type="button"
+              class="bk-flow-node is-selected"
+              data-node-select="task-detail-main"
+              data-node-open="#task-detail-panel"
+              data-node-name="消息展示"
+              data-node-status="完成"
+              data-node-trail="开始节点 / 消息展示 / 结束节点"
+              data-node-detail-source="message-display">
+              <strong>消息展示</strong>
+              <span>标准插件 · 文本展示</span>
+            </button>
+            <div class="bk-flow-link"></div>
+            <button
+              type="button"
+              class="bk-flow-node"
+              data-node-select="task-detail-main"
+              data-node-open="#task-detail-panel"
+              data-node-name="人工复核"
+              data-node-status="未执行"
+              data-node-trail="开始节点 / 消息展示 / 人工复核 / 结束节点"
+              data-node-detail-source="manual-review">
+              <strong>人工复核</strong>
+              <span>人工节点 · 等待处理</span>
+            </button>
+            <div class="bk-flow-link"></div>
+            <div class="bk-flow-node bk-flow-node-end">
+              <strong>结束</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="bk-task-detail-panel is-open" id="task-detail-panel" data-tab-root>
+        <div class="bk-task-detail-panel-header">
+          <div>
+            <h2 data-node-panel-title>节点详情</h2>
+            <div class="bk-task-detail-node-trail" data-node-panel-trail>开始节点 / 消息展示 / 结束节点</div>
+          </div>
+          <span class="bk-task-status is-success" data-node-panel-status>完成</span>
+        </div>
+
+        <div class="bk-task-detail-panel-summary">
+          <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="message-display">
+            <div class="bk-task-detail-summary-card">
+              <span class="bk-task-detail-summary-label">观测变量</span>
+              <strong>展示内容 = audit message 20260420</strong>
+            </div>
+            <div class="bk-task-detail-summary-card">
+              <span class="bk-task-detail-summary-label">运行结论</span>
+              <strong>插件执行成功，无需人工接管</strong>
+            </div>
+          </div>
+          <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="manual-review" hidden>
+            <div class="bk-task-detail-summary-card">
+              <span class="bk-task-detail-summary-label">当前状态</span>
+              <strong><span class="bk-task-status is-neutral">未执行</span></strong>
+            </div>
+            <div class="bk-task-detail-summary-card">
+              <span class="bk-task-detail-summary-label">待办说明</span>
+              <strong>等待消息展示节点完成后进入人工复核。</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="bk-tab">
+          <div class="bk-tab-header">
+            <button type="button" class="bk-tab-item active" data-tab-group="task-detail-panel" data-tab-target="task-detail-records">执行记录</button>
+            <button type="button" class="bk-tab-item" data-tab-group="task-detail-panel" data-tab-target="task-detail-snapshot">配置快照</button>
+            <button type="button" class="bk-tab-item" data-tab-group="task-detail-panel" data-tab-target="task-detail-history">操作历史</button>
+            <button type="button" class="bk-tab-item" data-tab-group="task-detail-panel" data-tab-target="task-detail-call-log">调用日志</button>
+          </div>
+
+          <div class="bk-task-detail-panel-body">
+            <section class="bk-tab-panel bk-task-detail-section" id="task-detail-records" data-tab-panel-group="task-detail-panel">
+              <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="message-display">
+                <article class="bk-task-detail-block">
+                  <h3>异常信息</h3>
+                  <div class="bk-task-detail-note">暂无异常</div>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>执行信息</h3>
+                  <dl class="bk-task-detail-kv">
+                    <div><dt>开始时间</dt><dd>2026-04-20 20:38:21</dd></div>
+                    <div><dt>结束时间</dt><dd>2026-04-20 20:38:22</dd></div>
+                    <div><dt>耗时</dt><dd>小于 1 秒</dd></div>
+                    <div><dt>执行人</dt><dd>admin</dd></div>
+                  </dl>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>输入参数</h3>
+                  <div class="bk-task-detail-code">展示内容 = audit message 20260420</div>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>输出参数</h3>
+                  <div class="bk-task-detail-code">_result = true
+_loop = 0
+_inner_loop = 0</div>
+                </article>
+              </div>
+              <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="manual-review" hidden>
+                <article class="bk-task-detail-block">
+                  <h3>异常信息</h3>
+                  <div class="bk-task-detail-note">暂无异常</div>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>执行信息</h3>
+                  <dl class="bk-task-detail-kv">
+                    <div><dt>开始时间</dt><dd>尚未开始</dd></div>
+                    <div><dt>结束时间</dt><dd>尚未开始</dd></div>
+                    <div><dt>排队状态</dt><dd>等待上游节点完成</dd></div>
+                    <div><dt>责任角色</dt><dd>空间管理员</dd></div>
+                  </dl>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>输入参数</h3>
+                  <div class="bk-task-detail-code">approval_context = 来自消息展示节点的输出</div>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>输出参数</h3>
+                  <div class="bk-task-detail-code">尚未生成输出参数</div>
+                </article>
+              </div>
+            </section>
+
+            <section class="bk-tab-panel bk-task-detail-section" id="task-detail-snapshot" data-tab-panel-group="task-detail-panel" hidden>
+              <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="message-display">
+                <article class="bk-task-detail-block">
+                  <h3>配置快照</h3>
+                  <dl class="bk-task-detail-kv">
+                    <div><dt>标准插件</dt><dd>message.display_text</dd></div>
+                    <div><dt>插件版本</dt><dd>v1.2.0</dd></div>
+                    <div><dt>节点名称</dt><dd>消息展示</dd></div>
+                    <div><dt>失败处理</dt><dd>AS / MS</dd></div>
+                  </dl>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>输入参数</h3>
+                  <div class="bk-task-detail-code">{
+  "message": "audit message 20260420",
+  "operator": "{{ _system.operator }}"
+}</div>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>输出参数</h3>
+                  <div class="bk-task-detail-code">[
+  "_result",
+  "_loop",
+  "_inner_loop"
+]</div>
+                </article>
+              </div>
+              <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="manual-review" hidden>
+                <article class="bk-task-detail-block">
+                  <h3>配置快照</h3>
+                  <dl class="bk-task-detail-kv">
+                    <div><dt>标准插件</dt><dd>manual.review</dd></div>
+                    <div><dt>插件版本</dt><dd>v1.0.0</dd></div>
+                    <div><dt>节点名称</dt><dd>人工复核</dd></div>
+                    <div><dt>失败处理</dt><dd>人工接管</dd></div>
+                  </dl>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>输入参数</h3>
+                  <div class="bk-task-detail-code">{
+  "approver_group": "space_admin",
+  "title": "请确认消息展示结果"
+}</div>
+                </article>
+                <article class="bk-task-detail-block">
+                  <h3>输出参数</h3>
+                  <div class="bk-task-detail-code">[
+  "approve_result",
+  "approve_comment"
+]</div>
+                </article>
+              </div>
+            </section>
+
+            <section class="bk-tab-panel bk-task-detail-section" id="task-detail-history" data-tab-panel-group="task-detail-panel" hidden>
+              <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="message-display">
+                <article class="bk-task-detail-block">
+                  <h3>操作历史</h3>
+                  <table class="bk-flow-io-table">
+                    <thead>
+                      <tr>
+                        <th>时间</th>
+                        <th>动作</th>
+                        <th>执行人</th>
+                        <th>说明</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colspan="4" class="bk-task-detail-empty-cell">暂无数据</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </article>
+              </div>
+              <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="manual-review" hidden>
+                <article class="bk-task-detail-block">
+                  <h3>操作历史</h3>
+                  <table class="bk-flow-io-table">
+                    <thead>
+                      <tr>
+                        <th>时间</th>
+                        <th>动作</th>
+                        <th>执行人</th>
+                        <th>说明</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>2026-04-20 20:38:22</td>
+                        <td>排队</td>
+                        <td>system</td>
+                        <td>等待上游节点完成后唤起人工复核。</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </article>
+              </div>
+            </section>
+
+            <section class="bk-tab-panel bk-task-detail-section" id="task-detail-call-log" data-tab-panel-group="task-detail-panel" hidden>
+              <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="message-display">
+                <article class="bk-task-detail-block">
+                  <h3>调用日志</h3>
+                  <div class="bk-log-viewer" aria-label="日志查看器">
+                    <div class="line-numbers">1
+2
+3
+4</div>
+                    <pre>pipeline trace
+[INFO] node=message.display_text status=FINISHED
+[DEBUG] render message=audit message 20260420
+[INFO] outputs={"_result": true, "_loop": 0, "_inner_loop": 0}</pre>
+                  </div>
+                </article>
+              </div>
+              <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel" data-detail-source-id="manual-review" hidden>
+                <article class="bk-task-detail-block">
+                  <h3>调用日志</h3>
+                  <div class="bk-log-viewer bk-log-empty" aria-label="日志查看器">
+                    <div class="line-numbers">1</div>
+                    <div class="bk-log-empty-copy">暂无调用日志，节点尚未进入执行阶段。</div>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>

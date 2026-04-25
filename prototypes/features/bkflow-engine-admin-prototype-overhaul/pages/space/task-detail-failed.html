@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<!-- Composed from prototypes/masters/_shared/space-shell.html + prototypes/masters/task-detail/template.html (failed state variant) -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空间管理 - 调试任务详情（失败）</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    .bk-content { padding: 0; overflow: auto; background: var(--bk-bg-body); }
+    .bk-page-panel { display: block; }
+    .bk-space-nav-link,
+    .bk-space-menu-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      color: inherit;
+    }
+    .bk-space-nav-link:hover,
+    .bk-space-menu-link:hover { color: inherit; }
+    .bk-task-detail { min-height: calc(100vh - var(--bk-header-height)); }
+    .bk-task-detail-shell { min-height: calc(100vh - var(--bk-header-height)); }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="space" data-nav-link="template-list.html"><a class="bk-space-nav-link" href="task-detail-failed.html">空间管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system" data-nav-link="../system/space-config-list.html"><a class="bk-space-nav-link" href="../system/space-config-list.html">系统管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html"><a class="bk-space-nav-link" href="../plugin/plugin-list.html">我的插件</a></li>
+        </ul>
+        <div class="bk-navigation-header-user"><div class="bk-navigation-header-user-avatar">A</div><span>admin</span></div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space"><div class="bk-navigation-space-select"><span class="bk-navigation-space-icon">S</span><span>bkflow-eng-svc / space_id=171</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span></div></div>
+        <ul class="bk-navigation-menu" data-nav-group="space">
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="template-list.html"><span class="bk-navigation-menu-icon">≣</span>流程</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="task-list.html"><span class="bk-navigation-menu-icon">✓</span>任务</a></li>
+          <li class="bk-navigation-menu-item active"><a class="bk-space-menu-link" href="debug-task-list.html"><span class="bk-navigation-menu-icon">◎</span>调试任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="decision-list.html"><span class="bk-navigation-menu-icon">◇</span>决策表</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="space-config.html"><span class="bk-navigation-menu-icon">⚙</span>空间配置</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="credential-list.html"><span class="bk-navigation-menu-icon">⌘</span>凭证管理</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="statistics-exception.html"><span class="bk-navigation-menu-icon">∆</span>运营统计</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="label-list.html"><span class="bk-navigation-menu-icon">#</span>标签管理</a></li>
+        </ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../system/space-config-list.html"><span class="bk-navigation-menu-icon">◈</span>空间配置</a></li></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../plugin/plugin-list.html"><span class="bk-navigation-menu-icon">⬡</span>蓝鲸插件</a></li></ul>
+        <div class="bk-navigation-footer"><button class="bk-navigation-collapse" title="收起导航">⟨</button></div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel">
+          <div class="bk-task-detail">
+            <div class="bk-task-detail-shell">
+              <header class="bk-task-detail-header">
+                <div class="bk-task-detail-meta">
+                  <a class="bk-task-detail-back" href="debug-task-list.html">← 返回调试任务列表</a>
+                  <div class="bk-task-detail-title">
+                    <span class="bk-task-detail-label">任务执行</span>
+                    <div class="bk-task-detail-heading">
+                      <h1>audit-deep-dive-20260420_调试任务_20260420204106</h1>
+                      <span class="bk-task-status is-failed">失败</span>
+                    </div>
+                    <p>源调试模板 <a href="flow-debug.html">/template/mock/true/2166/</a> · 执行实例 #1192803 · 2026-04-20 20:41:06</p>
+                  </div>
+                </div>
+                <div class="bk-task-detail-summary">
+                  <div class="bk-task-detail-chip">
+                    <span class="bk-task-detail-chip-label">观察模式</span>
+                    <strong>失败取证</strong>
+                  </div>
+                  <div class="bk-task-detail-chip">
+                    <span class="bk-task-detail-chip-label">终止节点</span>
+                    <strong>发布蓝鲸作业</strong>
+                  </div>
+                </div>
+              </header>
+
+              <main class="bk-task-detail-main">
+                <section class="bk-task-detail-canvas-shell">
+                  <div class="bk-task-detail-canvas-header">
+                    <div>
+                      <strong>执行画布</strong>
+                      <span>失败态仍是只读观察页，单击节点直接切换节点详情与日志，不出现编辑控件。</span>
+                    </div>
+                    <div class="bk-flow-canvas-tools">
+                      <span class="bk-flow-tool-chip">失败链路</span>
+                      <span class="bk-flow-tool-chip">100%</span>
+                    </div>
+                  </div>
+
+                  <div class="bk-flow-canvas bk-task-detail-canvas">
+                    <div class="bk-flow-canvas-stage">
+                      <div class="bk-flow-node bk-flow-node-start">
+                        <strong>开始</strong>
+                      </div>
+                      <div class="bk-flow-link"></div>
+                      <button
+                        type="button"
+                        class="bk-flow-node is-selected"
+                        data-node-select="task-detail-main-failed"
+                        data-node-open="#task-detail-panel-failed"
+                        data-node-name="发布蓝鲸作业"
+                        data-node-status="失败"
+                        data-node-trail="开始节点 / 发布蓝鲸作业"
+                        data-node-detail-source="job-release-failed">
+                        <strong>发布蓝鲸作业</strong>
+                        <span>标准插件 · 蓝盾作业</span>
+                      </button>
+                      <div class="bk-flow-link"></div>
+                      <button
+                        type="button"
+                        class="bk-flow-node"
+                        data-node-select="task-detail-main-failed"
+                        data-node-open="#task-detail-panel-failed"
+                        data-node-name="通知审批结果"
+                        data-node-status="未执行"
+                        data-node-trail="开始节点 / 发布蓝鲸作业 / 通知审批结果"
+                        data-node-detail-source="notice-pending">
+                        <strong>通知审批结果</strong>
+                        <span>标准插件 · 通知中心</span>
+                      </button>
+                      <div class="bk-flow-link"></div>
+                      <div class="bk-flow-node bk-flow-node-end">
+                        <strong>结束</strong>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <aside class="bk-task-detail-panel is-open" id="task-detail-panel-failed" data-tab-root>
+                  <div class="bk-task-detail-panel-header">
+                    <div>
+                      <h2 data-node-panel-title>节点详情</h2>
+                      <div class="bk-task-detail-node-trail" data-node-panel-trail>开始节点 / 发布蓝鲸作业</div>
+                    </div>
+                    <span class="bk-task-status is-failed" data-node-panel-status>失败</span>
+                  </div>
+
+                  <div class="bk-task-detail-panel-summary">
+                    <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="job-release-failed">
+                      <div class="bk-task-detail-summary-card">
+                        <span class="bk-task-detail-summary-label">失败结论</span>
+                        <strong>调试执行请求返回全局异常，未生成下游节点可用输出。</strong>
+                      </div>
+                      <div class="bk-task-detail-summary-card">
+                        <span class="bk-task-detail-summary-label">关联现象</span>
+                        <strong>与审计中的「应用出现异常」路径一致。</strong>
+                      </div>
+                    </div>
+                    <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="notice-pending" hidden>
+                      <div class="bk-task-detail-summary-card">
+                        <span class="bk-task-detail-summary-label">当前状态</span>
+                        <strong><span class="bk-task-status is-neutral">未执行</span></strong>
+                      </div>
+                      <div class="bk-task-detail-summary-card">
+                        <span class="bk-task-detail-summary-label">阻塞原因</span>
+                        <strong>上游「发布蓝鲸作业」节点失败，通知节点未被调度。</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="bk-tab">
+                    <div class="bk-tab-header">
+                      <button type="button" class="bk-tab-item active" data-tab-group="task-detail-panel-failed" data-tab-target="task-detail-failed-records">执行记录</button>
+                      <button type="button" class="bk-tab-item" data-tab-group="task-detail-panel-failed" data-tab-target="task-detail-failed-snapshot">配置快照</button>
+                      <button type="button" class="bk-tab-item" data-tab-group="task-detail-panel-failed" data-tab-target="task-detail-failed-history">操作历史</button>
+                      <button type="button" class="bk-tab-item" data-tab-group="task-detail-panel-failed" data-tab-target="task-detail-failed-call-log">调用日志</button>
+                    </div>
+
+                    <div class="bk-task-detail-panel-body">
+                      <section class="bk-tab-panel bk-task-detail-section" id="task-detail-failed-records" data-tab-panel-group="task-detail-panel-failed">
+                        <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="job-release-failed">
+                          <article class="bk-task-detail-block is-danger">
+                            <h3>异常信息</h3>
+                            <div class="bk-task-detail-note is-danger">应用出现异常：mock execute 请求返回 500，未进入成功执行态。</div>
+                          </article>
+                          <article class="bk-task-detail-block">
+                            <h3>执行信息</h3>
+                            <dl class="bk-task-detail-kv">
+                              <div><dt>开始时间</dt><dd>2026-04-20 20:41:06</dd></div>
+                              <div><dt>结束时间</dt><dd>2026-04-20 20:41:08</dd></div>
+                              <div><dt>耗时</dt><dd>2 秒</dd></div>
+                              <div><dt>执行人</dt><dd>admin</dd></div>
+                            </dl>
+                          </article>
+                          <article class="bk-task-detail-block">
+                            <h3>输入参数</h3>
+                            <div class="bk-task-detail-code">{
+  "biz_cc_id": "20050001",
+  "operator": "admin",
+  "task_name": "audit-deep-dive-20260420_调试任务_20260420204106"
+}</div>
+                          </article>
+                          <article class="bk-task-detail-block is-danger">
+                            <h3>输出参数</h3>
+                            <div class="bk-task-detail-code">{
+  "code": 500,
+  "message": "应用出现异常",
+  "data": null
+}</div>
+                          </article>
+                        </div>
+                        <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="notice-pending" hidden>
+                          <article class="bk-task-detail-block">
+                            <h3>异常信息</h3>
+                            <div class="bk-task-detail-note">暂无异常，节点未被调度。</div>
+                          </article>
+                          <article class="bk-task-detail-block">
+                            <h3>执行信息</h3>
+                            <dl class="bk-task-detail-kv">
+                              <div><dt>开始时间</dt><dd>尚未开始</dd></div>
+                              <div><dt>结束时间</dt><dd>尚未开始</dd></div>
+                              <div><dt>排队状态</dt><dd>等待上游节点成功后调度</dd></div>
+                              <div><dt>阻塞来源</dt><dd>发布蓝鲸作业</dd></div>
+                            </dl>
+                          </article>
+                          <article class="bk-task-detail-block">
+                            <h3>输入参数</h3>
+                            <div class="bk-task-detail-code">来自上游节点的执行结果尚未产出，通知节点未获得入参。</div>
+                          </article>
+                          <article class="bk-task-detail-block">
+                            <h3>输出参数</h3>
+                            <div class="bk-task-detail-code">暂无输出参数</div>
+                          </article>
+                        </div>
+                      </section>
+
+                      <section class="bk-tab-panel bk-task-detail-section" id="task-detail-failed-snapshot" data-tab-panel-group="task-detail-panel-failed" hidden>
+                        <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="job-release-failed">
+                          <article class="bk-task-detail-block">
+                            <h3>配置快照</h3>
+                            <dl class="bk-task-detail-kv">
+                              <div><dt>标准插件</dt><dd>job.execute_task</dd></div>
+                              <div><dt>插件版本</dt><dd>v3.7.2</dd></div>
+                              <div><dt>节点名称</dt><dd>发布蓝鲸作业</dd></div>
+                              <div><dt>失败处理</dt><dd>AS / MS / MR / AR</dd></div>
+                            </dl>
+                          </article>
+                          <article class="bk-task-detail-block">
+                            <h3>输入参数</h3>
+                            <div class="bk-task-detail-code">{
+  "template_id": "bk-job-template-prod",
+  "operator": "{{ _system.operator }}",
+  "biz_cc_id": "{{ biz_id }}"
+}</div>
+                          </article>
+                          <article class="bk-task-detail-block">
+                            <h3>输出参数</h3>
+                            <div class="bk-task-detail-code">[
+  "job_instance_id",
+  "job_status",
+  "job_url"
+]</div>
+                          </article>
+                        </div>
+                        <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="notice-pending" hidden>
+                          <article class="bk-task-detail-block">
+                            <h3>配置快照</h3>
+                            <dl class="bk-task-detail-kv">
+                              <div><dt>标准插件</dt><dd>notify.send_message</dd></div>
+                              <div><dt>插件版本</dt><dd>v2.1.0</dd></div>
+                              <div><dt>节点名称</dt><dd>通知审批结果</dd></div>
+                              <div><dt>失败处理</dt><dd>失败即终止</dd></div>
+                            </dl>
+                          </article>
+                          <article class="bk-task-detail-block">
+                            <h3>输入参数</h3>
+                            <div class="bk-task-detail-code">{
+  "receiver": "{{ operator }}",
+  "content": "发布结果通知"
+}</div>
+                          </article>
+                          <article class="bk-task-detail-block">
+                            <h3>输出参数</h3>
+                            <div class="bk-task-detail-code">[
+  "send_result",
+  "message_id"
+]</div>
+                          </article>
+                        </div>
+                      </section>
+
+                      <section class="bk-tab-panel bk-task-detail-section" id="task-detail-failed-history" data-tab-panel-group="task-detail-panel-failed" hidden>
+                        <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="job-release-failed">
+                          <article class="bk-task-detail-block">
+                            <h3>操作历史</h3>
+                            <table class="bk-flow-io-table">
+                              <thead>
+                                <tr>
+                                  <th>时间</th>
+                                  <th>动作</th>
+                                  <th>执行人</th>
+                                  <th>说明</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <td>2026-04-20 20:41:06</td>
+                                  <td>调试执行</td>
+                                  <td>admin</td>
+                                  <td>从 `/template/mock/execute/true/2166/` 发起执行。</td>
+                                </tr>
+                                <tr>
+                                  <td>2026-04-20 20:41:08</td>
+                                  <td>执行失败</td>
+                                  <td>system</td>
+                                  <td>捕获到「应用出现异常」，终止后续节点调度。</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </article>
+                        </div>
+                        <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="notice-pending" hidden>
+                          <article class="bk-task-detail-block">
+                            <h3>操作历史</h3>
+                            <table class="bk-flow-io-table">
+                              <thead>
+                                <tr>
+                                  <th>时间</th>
+                                  <th>动作</th>
+                                  <th>执行人</th>
+                                  <th>说明</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <td colspan="4" class="bk-task-detail-empty-cell">暂无数据</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </article>
+                        </div>
+                      </section>
+
+                      <section class="bk-tab-panel bk-task-detail-section" id="task-detail-failed-call-log" data-tab-panel-group="task-detail-panel-failed" hidden>
+                        <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="job-release-failed">
+                          <article class="bk-task-detail-block">
+                            <h3>调用日志</h3>
+                            <div class="bk-log-viewer" aria-label="日志查看器">
+                              <div class="line-numbers">1
+2
+3
+4
+5
+6</div>
+                              <pre>pipeline trace
+[INFO] node=job.execute_task status=RUNNING
+[DEBUG] mock execution url=/template/mock/execute/true/2166/
+[ERROR] response status=500 message=应用出现异常
+[WARN] abort downstream scheduling
+[INFO] finish status=FAILED</pre>
+                            </div>
+                          </article>
+                        </div>
+                        <div class="bk-task-detail-source-block" data-detail-source-group="task-detail-panel-failed" data-detail-source-id="notice-pending" hidden>
+                          <article class="bk-task-detail-block">
+                            <h3>调用日志</h3>
+                            <div class="bk-log-viewer bk-log-empty" aria-label="日志查看器">
+                              <div class="line-numbers">1</div>
+                              <div class="bk-log-empty-copy">暂无调用日志，上游失败后当前节点未进入执行阶段。</div>
+                            </div>
+                          </article>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </aside>
+              </main>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

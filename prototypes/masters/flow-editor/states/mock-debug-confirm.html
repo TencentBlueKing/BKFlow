@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>流程编辑状态 - 调试确认</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <script defer src="../../../assets/bkflow-prototype.js"></script>
+</head>
+<body class="bk-flow-editor">
+  <div class="bk-flow-editor-shell">
+    <header class="bk-flow-editor-header">
+      <div class="bk-flow-editor-meta">
+        <a class="bk-flow-editor-back" href="#">← 返回流程列表</a>
+        <div class="bk-flow-editor-title">
+          <h1>编辑流程</h1>
+          <p>audit-deep-dive-20260420 · 调试前确认保存 Mock 数据</p>
+        </div>
+        <div class="bk-flow-version-area">
+          <span class="bk-flow-version-label">流程版本</span>
+          <span class="bk-tag">草稿</span>
+          <span class="bk-flow-version-badge">最新发布 1.0.0</span>
+        </div>
+      </div>
+      <div class="bk-flow-editor-actions">
+        <button type="button" class="bk-button bk-button-primary bk-save-button is-disabled" id="flow-editor-save" disabled>保存</button>
+        <button
+          type="button"
+          class="bk-button bk-button-primary is-disabled"
+          id="flow-editor-publish"
+          disabled
+          data-open="flow-publish-dialog">发布</button>
+        <button type="button" class="bk-button" data-open="flow-mock-debug-dialog">调试</button>
+      </div>
+    </header>
+
+    <main class="bk-flow-editor-main">
+      <aside class="bk-flow-editor-rail">
+        <section class="bk-flow-section-card">
+          <h2>状态说明</h2>
+          <p>这个状态用确认层代表真实产品从编辑器切到 mock 执行页前的确认动作。</p>
+        </section>
+      </aside>
+
+      <section class="bk-flow-canvas-shell">
+        <div class="bk-flow-canvas-header">
+          <div>
+            <strong>流程画布</strong>
+            <span>调试会进入独立链路，这里先表达前置确认。</span>
+          </div>
+        </div>
+        <div class="bk-flow-canvas"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="bk-dialog is-show" id="flow-mock-debug-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>执行调试</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        <p>确定保存Mock数据并去执行调试?</p>
+        <p class="bk-flow-confirm-note">确认后会进入独立 mock 路由，并在新的执行环境里继续填写入参与查看历史调试。</p>
+      </div>
+      <div class="bk-dialog-footer">
+        <button type="button" class="bk-button bk-button-primary">保存并执行</button>
+        <button type="button" class="bk-button" data-close>取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bk-dialog" id="flow-publish-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>发布流程</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

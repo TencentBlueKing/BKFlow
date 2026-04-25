@@ -1,0 +1,22 @@
+{
+  "title": "BKFlow 引擎管理后台原型重构",
+  "summary": "覆盖 Space / System / Plugin 三个入口，包含流程、任务、决策与配置链路。",
+  "status": "可评审",
+  "tags": ["流程编辑", "任务详情", "系统配置"],
+  "coverTheme": "mixed-admin",
+  "order": 10,
+  "featuredPages": [
+    {
+      "path": "pages/space/flow-edit.html",
+      "title": "流程编辑页",
+      "summary": "画布编排、节点抽屉与两段式保存。",
+      "pageType": "流程编辑"
+    },
+    {
+      "path": "pages/space/task-detail-complete.html",
+      "title": "任务详情页",
+      "summary": "执行状态、节点观察与日志查看。",
+      "pageType": "任务详情"
+    }
+  ]
+}

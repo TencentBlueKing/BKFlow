@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>节点输出结构化展示方案 v1</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <style>
+    body {
+      background: #f5f7fa;
+    }
+    .page {
+      padding: 24px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #e8f3ff 0%, #f6fbff 100%);
+      border: 1px solid #d9e8ff;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #1f2d3d;
+    }
+    .hero p {
+      color: #4d6075;
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    .chip-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 10px;
+      height: 28px;
+      border-radius: 14px;
+      font-size: 12px;
+      background: #fff;
+      border: 1px solid #d5dee8;
+      color: #3a4a5f;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 24px 0 12px;
+    }
+    .section-title h2 {
+      font-size: 18px;
+      color: #1f2d3d;
+    }
+    .section-title p {
+      font-size: 12px;
+      color: #7c8ca5;
+    }
+    .approach-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .approach-card {
+      background: #fff;
+      border: 1px solid #dfe6ee;
+      border-radius: 12px;
+      padding: 18px;
+      min-height: 280px;
+      box-shadow: 0 2px 8px rgba(15, 35, 95, 0.04);
+    }
+    .approach-card.recommended {
+      border-color: #3a84ff;
+      box-shadow: 0 8px 24px rgba(58, 132, 255, 0.14);
+      position: relative;
+    }
+    .recommended-flag {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      padding: 2px 8px;
+      font-size: 12px;
+      border-radius: 10px;
+      color: #fff;
+      background: #3a84ff;
+    }
+    .approach-card h3 {
+      font-size: 16px;
+      margin-bottom: 10px;
+      color: #1f2d3d;
+    }
+    .approach-card p {
+      font-size: 13px;
+      line-height: 1.7;
+      color: #516173;
+      margin-bottom: 12px;
+    }
+    .mini-list {
+      margin: 0;
+      padding-left: 16px;
+      color: #516173;
+      line-height: 1.8;
+      font-size: 13px;
+    }
+    .protocol-box {
+      background: #0f1e33;
+      color: #d7e5ff;
+      border-radius: 12px;
+      padding: 18px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre;
+      font-family: Menlo, Monaco, Consolas, monospace;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+    }
+    .viewer-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .viewer-card {
+      background: #fff;
+      border: 1px solid #dfe6ee;
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .viewer-card h3 {
+      font-size: 15px;
+      color: #1f2d3d;
+      margin-bottom: 10px;
+    }
+    .viewer-card p {
+      font-size: 13px;
+      color: #516173;
+      margin-bottom: 10px;
+      line-height: 1.7;
+    }
+    .viewer-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .viewer-tag {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #f0f5ff;
+      color: #3a84ff;
+      border: 1px solid #d8e6ff;
+    }
+    .mock-row {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .mock-card {
+      background: #fff;
+      border: 1px solid #dfe6ee;
+      border-radius: 12px;
+      padding: 16px;
+      min-height: 420px;
+      box-shadow: 0 2px 8px rgba(15, 35, 95, 0.04);
+    }
+    .mock-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .mock-head h3 {
+      font-size: 16px;
+      color: #1f2d3d;
+    }
+    .muted {
+      color: #8592a6;
+      font-size: 12px;
+    }
+    .output-shell {
+      border: 1px solid #dfe6ee;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .output-toolbar {
+      height: 40px;
+      background: #f5f7fa;
+      border-bottom: 1px solid #e6ebf2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+    }
+    .seg-group {
+      display: inline-flex;
+      border: 1px solid #cdd7e3;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .seg {
+      padding: 0 10px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 12px;
+      color: #516173;
+      border-right: 1px solid #e6ebf2;
+    }
+    .seg:last-child {
+      border-right: none;
+    }
+    .seg.active {
+      color: #fff;
+      background: #3a84ff;
+    }
+    .output-body {
+      padding: 12px;
+      background: #fff;
+    }
+    .list-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .list-table th,
+    .list-table td {
+      border-bottom: 1px solid #edf1f6;
+      text-align: left;
+      padding: 10px 8px;
+      vertical-align: top;
+    }
+    .list-table th {
+      color: #4d6075;
+      background: #fafbfd;
+      font-weight: 600;
+    }
+    .sample-panel {
+      margin-top: 10px;
+      border: 1px solid #d9e8ff;
+      background: #f8fbff;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .sample-header {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      background: #eef5ff;
+      border-bottom: 1px solid #dbe7ff;
+      font-size: 12px;
+      color: #3a4a5f;
+    }
+    .sample-preview {
+      padding: 12px;
+    }
+    .sample-tree {
+      font-size: 12px;
+      line-height: 1.8;
+      color: #2f3f53;
+      background: #fff;
+      border: 1px solid #e6eef8;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .sample-tree .indent {
+      padding-left: 16px;
+    }
+    .simple-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 8px;
+      height: 22px;
+      border-radius: 11px;
+      font-size: 12px;
+      background: #eaf3ff;
+      color: #3a84ff;
+      margin-right: 6px;
+    }
+    .json-block {
+      background: #0f1e33;
+      color: #d7e5ff;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, monospace;
+    }
+    .friendly-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .friendly-table th,
+    .friendly-table td {
+      padding: 10px 8px;
+      border-bottom: 1px solid #edf1f6;
+    }
+    .friendly-table th {
+      background: #fafbfd;
+      color: #4d6075;
+    }
+    .api-preview {
+      border: 1px solid #e8edf3;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 8px;
+      background: #fafbfd;
+      font-size: 12px;
+      color: #526274;
+    }
+    .footer-note {
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: #fffbe6;
+      border: 1px solid #ffe58f;
+      border-radius: 10px;
+      color: #6b5c00;
+      line-height: 1.7;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="hero">
+      <h1>节点输出结构化展示方案 v1</h1>
+      <p>
+        目标是把 BKFlow 的“节点输出”从当前偏字符串/原始 JSON 的阅读体验，升级成
+        <strong>协议驱动的结构化展示</strong>：
+        插件声明输出 schema、viewer 和字段示例数据，平台在模板编辑态、配置快照和执行记录三处统一消费。
+      </p>
+      <div class="chip-row">
+        <span class="chip">第一版覆盖：模板编辑态 + 配置快照 + 执行记录</span>
+        <span class="chip">viewer：平台内置类型</span>
+        <span class="chip">兼容旧插件：默认 auto viewer</span>
+        <span class="chip">示例数据：字段级 example</span>
+        <span class="chip">Raw 视图保留</span>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <h2>方案对比</h2>
+      <p>推荐方案会把“定义协议”和“展示能力”一起补齐</p>
+    </div>
+    <div class="approach-grid">
+      <div class="approach-card">
+        <h3>方案 A：纯前端自动识别</h3>
+        <p>不改插件协议，前端根据 value / type / schema 猜测展示方式。</p>
+        <ul class="mini-list">
+          <li>优点：开发快，改动小</li>
+          <li>缺点：结果不稳定，模板编辑态看不到示例预览</li>
+          <li>适合：临时增强执行记录页</li>
+        </ul>
+      </div>
+      <div class="approach-card recommended">
+        <span class="recommended-flag">推荐</span>
+        <h3>方案 B：Schema 驱动 viewer 协议</h3>
+        <p>插件后端显式声明输出字段的 viewer、schema 和 example，前端统一渲染，旧插件自动兜底。</p>
+        <ul class="mini-list">
+          <li>优点：定义清晰，三处页面体验统一</li>
+          <li>优点：模板编辑态可直接预览示例数据</li>
+          <li>缺点：需要补齐协议和渲染注册表</li>
+        </ul>
+      </div>
+      <div class="approach-card">
+        <h3>方案 C：自定义 renderer</h3>
+        <p>插件声明自己的专属输出渲染器，由平台按 renderer key 动态装配。</p>
+        <ul class="mini-list">
+          <li>优点：扩展性强</li>
+          <li>缺点：第一版复杂度高，平台治理成本重</li>
+          <li>适合：第二阶段以后补充少量特例</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <h2>推荐协议</h2>
+      <p>后端主导，前端可少量覆盖；旧插件未声明时回退到 auto</p>
+    </div>
+    <div class="protocol-box">{
+  "key": "data",
+  "name": "响应内容",
+  "type": "object",
+  "schema": {
+    "description": "HTTP 请求响应内容",
+    "properties": {
+      "status": { "type": "string" },
+      "items": { "type": "array" }
+    }
+  },
+  "viewer": {
+    "type": "table",
+    "options": {
+      "columns": [
+        { "key": "id", "label": "ID" },
+        { "key": "name", "label": "名称" },
+        { "key": "status", "label": "状态", "viewer": "badge" }
+      ],
+      "default_mode": "friendly",
+      "raw_enabled": true
+    }
+  },
+  "example": {
+    "items": [
+      { "id": "vm-01", "name": "db-prod-1", "status": "running" },
+      { "id": "vm-02", "name": "db-prod-2", "status": "stopped" }
+    ]
+  }
+}</div>
+
+    <div class="section-title">
+      <h2>第一版内置 viewer</h2>
+      <p>不开放任意自定义 JS，只做平台受控 viewer</p>
+    </div>
+    <div class="viewer-grid">
+      <div class="viewer-card">
+        <h3>基础类</h3>
+        <p>覆盖大部分旧插件和普通字段，未声明时优先走 auto。</p>
+        <div class="viewer-tags">
+          <span class="viewer-tag">auto</span>
+          <span class="viewer-tag">text</span>
+          <span class="viewer-tag">badge</span>
+          <span class="viewer-tag">link</span>
+          <span class="viewer-tag">markdown</span>
+        </div>
+      </div>
+      <div class="viewer-card">
+        <h3>结构化类</h3>
+        <p>面向 object / array / api data，解决“能看见 JSON，但不容易读”的问题。</p>
+        <div class="viewer-tags">
+          <span class="viewer-tag">json-tree</span>
+          <span class="viewer-tag">kv</span>
+          <span class="viewer-tag">table</span>
+          <span class="viewer-tag">log</span>
+        </div>
+      </div>
+      <div class="viewer-card">
+        <h3>媒体类</h3>
+        <p>作为补充，统一支持一些可直接感知的资源类型。</p>
+        <div class="viewer-tags">
+          <span class="viewer-tag">image</span>
+          <span class="viewer-tag">raw</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <h2>三处页面落点</h2>
+      <p>模板编辑态看“定义与示例”，配置快照看“定义快照”，执行记录看“真实值 + Raw”</p>
+    </div>
+    <div class="mock-row">
+      <div class="mock-card">
+        <div class="mock-head">
+          <h3>模板编辑态：节点输出定义</h3>
+          <span class="muted">输出列表内联示例预览</span>
+        </div>
+        <div class="output-shell">
+          <div class="output-toolbar">
+            <strong style="font-size:13px;color:#2f3f53;">节点输出</strong>
+            <span class="muted">支持勾选为全局变量</span>
+          </div>
+          <div class="output-body">
+            <table class="list-table">
+              <thead>
+                <tr>
+                  <th style="width:26%;">名称</th>
+                  <th style="width:20%;">KEY</th>
+                  <th style="width:16%;">viewer</th>
+                  <th style="width:20%;">示例</th>
+                  <th>变量</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>响应内容</td>
+                  <td>data</td>
+                  <td><span class="simple-badge">table</span></td>
+                  <td><a href="javascript:void(0)" style="color:#3a84ff;">查看示例</a></td>
+                  <td>未勾选</td>
+                </tr>
+                <tr>
+                  <td>状态码</td>
+                  <td>status_code</td>
+                  <td><span class="simple-badge">badge</span></td>
+                  <td><a href="javascript:void(0)" style="color:#3a84ff;">查看示例</a></td>
+                  <td>${status_code}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="sample-panel">
+              <div class="sample-header">
+                <strong>data · 示例预览</strong>
+                <div class="seg-group">
+                  <span class="seg active">Friendly</span>
+                  <span class="seg">Raw</span>
+                </div>
+              </div>
+              <div class="sample-preview">
+                <table class="friendly-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>名称</th>
+                      <th>状态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>vm-01</td>
+                      <td>db-prod-1</td>
+                      <td><span class="simple-badge">running</span></td>
+                    </tr>
+                    <tr>
+                      <td>vm-02</td>
+                      <td>db-prod-2</td>
+                      <td><span class="simple-badge">stopped</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="api-preview">编辑器里可直接知道：这个字段运行后会默认按表格展示，而不是只能猜它是 object。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-card">
+        <div class="mock-head">
+          <h3>配置快照：输出协议快照</h3>
+          <span class="muted">重点看定义，不看真实值</span>
+        </div>
+        <div class="output-shell">
+          <div class="output-toolbar">
+            <strong style="font-size:13px;color:#2f3f53;">输出配置快照</strong>
+            <div class="seg-group">
+              <span class="seg active">定义</span>
+              <span class="seg">示例</span>
+            </div>
+          </div>
+          <div class="output-body">
+            <table class="list-table">
+              <thead>
+                <tr>
+                  <th>字段</th>
+                  <th>类型</th>
+                  <th>viewer</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>data</td>
+                  <td>object</td>
+                  <td>table</td>
+                </tr>
+                <tr>
+                  <td>status_code</td>
+                  <td>int</td>
+                  <td>badge</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="sample-panel">
+              <div class="sample-header">
+                <strong>viewer 配置</strong>
+                <span class="muted">用于解释为什么执行记录这样展示</span>
+              </div>
+              <div class="sample-preview">
+                <div class="json-block">{
+  "data": {
+    "viewer": "table",
+    "columns": ["id", "name", "status"]
+  },
+  "status_code": {
+    "viewer": "badge"
+  }
+}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mock-card">
+        <div class="mock-head">
+          <h3>执行记录：真实输出值</h3>
+          <span class="muted">Friendly / Raw 双视图</span>
+        </div>
+        <div class="output-shell">
+          <div class="output-toolbar">
+            <strong style="font-size:13px;color:#2f3f53;">输出参数</strong>
+            <div class="seg-group">
+              <span class="seg active">Friendly</span>
+              <span class="seg">Raw</span>
+            </div>
+          </div>
+          <div class="output-body">
+            <table class="friendly-table">
+              <thead>
+                <tr>
+                  <th>参数名</th>
+                  <th>Key</th>
+                  <th>值</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>状态码</td>
+                  <td>status_code</td>
+                  <td><span class="simple-badge">200</span></td>
+                </tr>
+                <tr>
+                  <td>响应内容</td>
+                  <td>data</td>
+                  <td>
+                    <div class="sample-tree">
+                      items
+                      <div class="indent">[0] id: vm-01</div>
+                      <div class="indent">[0] name: db-prod-1</div>
+                      <div class="indent">[0] status: running</div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="api-preview">
+              旧插件如果没声明 viewer，也能先走 auto：object 用 json-tree，array&lt;object&gt; 尝试表格化，始终保留 Raw 视图。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      第一版不引入“插件自定义 JS 渲染器”。平台先提供受控 viewer 集合，把协议、示例数据和三处页面体验统一起来；后续如果出现少量强业务场景，再按 renderer key 扩展专用 viewer。
+    </div>
+  </div>
+</body>
+</html>

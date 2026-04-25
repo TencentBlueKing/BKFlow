@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<!-- Composed from prototypes/masters/_shared/space-shell.html + prototypes/masters/config-page/template.html -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空间管理 - 空间配置</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    .bk-content { padding: 24px 28px 32px; overflow: auto; }
+    .bk-page-panel { display: block; }
+    .bk-space-nav-link,
+    .bk-space-menu-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      color: inherit;
+    }
+    .bk-space-nav-link:hover,
+    .bk-space-menu-link:hover { color: inherit; }
+    .bk-space-page { display: grid; gap: 20px; }
+    .bk-space-page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .bk-space-page-title h1 { font-size: 24px; margin-bottom: 6px; }
+    .bk-space-page-title p,
+    .bk-muted { color: var(--bk-text-tertiary); }
+    .bk-space-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 12px;
+      box-shadow: var(--bk-shadow);
+      padding: 22px;
+    }
+    .bk-space-card + .bk-space-card { margin-top: 18px; }
+    .bk-section-title {
+      margin-bottom: 16px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .bk-code-editor {
+      border-radius: 12px;
+      background: #101a2b;
+      color: #c7d2e5;
+      padding: 16px;
+      font-family: Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+    .bk-config-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 20px;
+    }
+    .bk-config-note {
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: #f5f7fa;
+      color: var(--bk-text-secondary);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="space" data-nav-link="template-list.html"><a class="bk-space-nav-link" href="space-config.html">空间管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system" data-nav-link="../system/space-config-list.html"><a class="bk-space-nav-link" href="../system/space-config-list.html">系统管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html"><a class="bk-space-nav-link" href="../plugin/plugin-list.html">我的插件</a></li>
+        </ul>
+        <div class="bk-navigation-header-user"><div class="bk-navigation-header-user-avatar">A</div><span>admin</span></div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space"><div class="bk-navigation-space-select"><span class="bk-navigation-space-icon">S</span><span>bkflow-eng-svc / space_id=171</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span></div></div>
+        <ul class="bk-navigation-menu" data-nav-group="space">
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="template-list.html"><span class="bk-navigation-menu-icon">≣</span>流程</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="task-list.html"><span class="bk-navigation-menu-icon">✓</span>任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="debug-task-list.html"><span class="bk-navigation-menu-icon">◎</span>调试任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="decision-list.html"><span class="bk-navigation-menu-icon">◇</span>决策表</a></li>
+          <li class="bk-navigation-menu-item active"><a class="bk-space-menu-link" href="space-config.html"><span class="bk-navigation-menu-icon">⚙</span>空间配置</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="credential-list.html"><span class="bk-navigation-menu-icon">⌘</span>凭证管理</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="statistics-exception.html"><span class="bk-navigation-menu-icon">∆</span>运营统计</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="label-list.html"><span class="bk-navigation-menu-icon">#</span>标签管理</a></li>
+        </ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../system/space-config-list.html"><span class="bk-navigation-menu-icon">◈</span>空间配置</a></li></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../plugin/plugin-list.html"><span class="bk-navigation-menu-icon">⬡</span>蓝鲸插件</a></li></ul>
+        <div class="bk-navigation-footer"><button class="bk-navigation-collapse" title="收起导航">⟨</button></div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel">
+          <div class="bk-space-page">
+            <div class="bk-space-page-header">
+              <div class="bk-space-page-title">
+                <h1>空间配置</h1>
+                <p>使用配置页母版表达长表单、代码编辑器和「保存默认禁用 / 恢复默认值需确认」的状态机。</p>
+              </div>
+              <div class="bk-prototype-actions" style="margin-top:0;">
+                <button class="bk-button" type="button" data-open="space-config-reset-dialog">恢复默认值</button>
+                <button class="bk-button" type="button" data-save-target="#space-config-save">模拟修改后启用保存</button>
+                <button class="bk-button bk-button-primary bk-save-button is-disabled" id="space-config-save" type="button" disabled>保存</button>
+              </div>
+            </div>
+
+            <div class="bk-space-card">
+              <div class="bk-section-title">基础配置</div>
+              <div class="bk-form">
+                <div class="bk-config-grid">
+                  <div class="bk-form-item is-required">
+                    <label class="bk-form-label">空间管理员</label>
+                    <div class="bk-form-content"><input class="bk-input" value="admin, flow_bot, ops_admin"></div>
+                  </div>
+                  <div class="bk-form-item">
+                    <label class="bk-form-label">流程版本控制</label>
+                    <div class="bk-form-content"><button class="bk-switcher is-checked" type="button"></button></div>
+                  </div>
+                  <div class="bk-form-item">
+                    <label class="bk-form-label">Token 过期时间</label>
+                    <div class="bk-form-content"><input class="bk-input" value="7200"></div>
+                  </div>
+                  <div class="bk-form-item">
+                    <label class="bk-form-label">画布模式</label>
+                    <div class="bk-form-content"><div class="bk-select"><div class="bk-select-trigger"><span>高级编排模式</span></div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bk-space-card">
+              <div class="bk-section-title">API 插件配置</div>
+              <div class="bk-config-note">真实页面使用 Monaco 风格代码编辑器。这里保留多段代码块和字段密度，方便后续与真实配置清单一一映射。</div>
+              <div class="bk-code-editor" style="margin-top:14px;">{
+  "plugin_base_url": "https://bkapi.example.com/bkflow/plugins",
+  "request_timeout": 30,
+  "allowed_scopes": ["biz", "project"],
+  "credential_types": [
+    "bk_app",
+    "bk_access_token",
+    "basic_auth",
+    "custom"
+  ]
+}</div>
+            </div>
+
+            <div class="bk-space-card">
+              <div class="bk-section-title">网关表达式</div>
+              <div class="bk-code-editor">expression:
+  match: "space_id == 171"
+  allow:
+    - "template.view"
+    - "template.edit"
+    - "task.execute"
+fallback:
+  policy: "deny"
+  message: "space gateway rule blocked"</div>
+            </div>
+
+            <div class="bk-space-card">
+              <div class="bk-section-title">默认 Mock / 调试配置</div>
+              <div class="bk-code-editor">{
+  "mock_history_limit": 20,
+  "allow_debug_execute": true,
+  "default_task_name_rule": "{{ template_name }}_调试任务_{{ timestamp }}",
+  "global_vars": [
+    "_system.task_name",
+    "_system.task_id",
+    "_system.operator"
+  ]
+}</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="bk-dialog" id="space-config-reset-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>恢复默认值</h3>
+        <button class="bk-dialog-close" type="button" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        <p>确认将所有配置项恢复为默认值？</p>
+      </div>
+      <div class="bk-dialog-footer">
+        <button class="bk-button bk-button-danger" type="button" data-close>恢复默认值</button>
+        <button class="bk-button" type="button" data-close>取消</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

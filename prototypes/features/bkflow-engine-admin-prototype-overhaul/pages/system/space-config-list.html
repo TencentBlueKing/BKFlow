@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BKFlow 原型 - 系统管理 / 空间配置列表</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(58, 132, 255, 0.08), transparent 24%),
+        linear-gradient(180deg, #f7faff 0%, #f5f7fa 22%, #f5f7fa 100%);
+    }
+    .page-shell {
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .page-desc {
+      max-width: 920px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+    }
+    .page-chip {
+      flex-shrink: 0;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #edf4ff;
+      border: 1px solid rgba(58, 132, 255, 0.18);
+      color: var(--bk-primary);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .summary-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+      padding: 16px 18px;
+    }
+    .summary-label {
+      color: var(--bk-text-tertiary);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .summary-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--bk-text-primary);
+      line-height: 1.1;
+    }
+    .summary-note {
+      margin-top: 8px;
+      color: var(--bk-text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .panel-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .panel {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+      overflow: hidden;
+    }
+    .panel-head {
+      padding: 18px 18px 0;
+    }
+    .panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin-bottom: 6px;
+    }
+    .panel-desc {
+      color: var(--bk-text-tertiary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .panel-body {
+      padding: 16px 18px 18px;
+    }
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 16px;
+      border: 1px solid var(--bk-border);
+      color: var(--bk-text-secondary);
+      background: #fafbfd;
+      font-size: 13px;
+    }
+    .filter-chip.is-active {
+      color: var(--bk-primary);
+      border-color: rgba(58, 132, 255, 0.28);
+      background: #edf4ff;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--bk-border-light);
+      border-radius: 12px;
+    }
+    .bk-table {
+      min-width: 1120px;
+    }
+    .audit-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .audit-item {
+      padding-left: 12px;
+      border-left: 3px solid var(--bk-primary);
+    }
+    .audit-time {
+      color: var(--bk-text-tertiary);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .audit-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin-bottom: 4px;
+    }
+    .audit-desc {
+      color: var(--bk-text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .rule-box {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: #f7f9fc;
+      border: 1px solid var(--bk-border-light);
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+      font-size: 13px;
+    }
+    .status-ok { color: #14a568; }
+    .status-warn { color: #c98e17; }
+    .status-danger { color: #de5c5c; }
+    @media (max-width: 1280px) {
+      .summary-grid,
+      .panel-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="space" data-nav-link="../space/template-list.html">空间管理</li>
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="system" data-nav-link="space-config-list.html">系统管理</li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html">我的插件</li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">U</div>
+          <span>admin_audit</span>
+          <div class="bk-user-dropdown" aria-hidden="true">
+            <span class="bk-user-dropdown-item">审计中心</span>
+            <span class="bk-user-dropdown-item">退出登录</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space" style="display:none;">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">B</span>
+            <span>bkflow-eng-svc</span>
+          </div>
+        </div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system">
+          <div class="bk-navigation-space-select" style="background:transparent;cursor:default;">
+            <span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span>
+          </div>
+        </div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;">
+          <div class="bk-navigation-space-select" style="background:transparent;cursor:default;">
+            <span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span>
+          </div>
+        </div>
+
+        <ul class="bk-navigation-menu" data-nav-group="system">
+          <li class="bk-navigation-menu-item active" data-page="system-space-config-list">
+            <span class="bk-navigation-menu-icon">⚙</span>空间配置列表
+          </li>
+        </ul>
+
+        <ul class="bk-navigation-menu" data-nav-group="space" style="display:none;"></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"></ul>
+
+        <div class="bk-navigation-footer">
+          <button class="bk-navigation-collapse" title="收起导航">⟨</button>
+        </div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel" id="system-space-config-list">
+        <div class="page-shell">
+          <div class="bk-breadcrumb">
+            <span class="bk-breadcrumb-item">首页</span>
+            <span class="bk-breadcrumb-item">系统管理</span>
+            <span class="bk-breadcrumb-item">空间配置列表</span>
+          </div>
+
+          <div class="page-header">
+            <div>
+              <div class="page-title">空间配置列表</div>
+              <div class="page-desc">
+                这里统一管理各空间的配置项、默认值和最近一次审计结果。列表侧重展示当前值与默认值的差异，方便审核人员快速定位待审批变更、恢复默认值和查看历史记录。
+              </div>
+            </div>
+            <div class="page-chip">最近审计：2026-04-21 09:30 · 审计管理员</div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="summary-card">
+              <div class="summary-label">受管空间</div>
+              <div class="summary-value">128</div>
+              <div class="summary-note">覆盖生产、灰度和演练空间，均可单独查看配置差异。</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">待审批变更</div>
+              <div class="summary-value status-warn">19</div>
+              <div class="summary-note">包含新建、修改和恢复默认值三类审计动作。</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">默认值保护项</div>
+              <div class="summary-value status-ok">42</div>
+              <div class="summary-note">默认值条目只读展示，恢复默认值后会回到保护态。</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">已冻结项</div>
+              <div class="summary-value status-danger">6</div>
+              <div class="summary-note">冻结项仅允许审计负责人解锁并重新发起审批。</div>
+            </div>
+          </div>
+
+          <div class="panel-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title">空间配置清单</div>
+                <div class="panel-desc">按空间查看配置项、当前值、默认值和审计状态，支持编辑、审批和恢复默认值。</div>
+              </div>
+              <div class="panel-body">
+                <div class="bk-toolbar">
+                  <div class="bk-toolbar-left">
+                    <input class="bk-search-input" placeholder="搜索配置名、空间名、负责人" style="width: 280px;">
+                    <div class="bk-select" style="width: 170px;">
+                      <div class="bk-select-trigger"><span class="bk-select-placeholder">全部审批状态</span></div>
+                    </div>
+                    <div class="bk-select" style="width: 170px;">
+                      <div class="bk-select-trigger"><span class="bk-select-placeholder">全部配置来源</span></div>
+                    </div>
+                  </div>
+                  <div class="bk-toolbar-right">
+                    <button class="bk-button">刷新</button>
+                    <button class="bk-button bk-button-primary">导出审计快照</button>
+                  </div>
+                </div>
+
+                <div class="filter-row">
+                  <span class="filter-chip is-active">全部</span>
+                  <span class="filter-chip">已生效</span>
+                  <span class="filter-chip">待审批</span>
+                  <span class="filter-chip">默认值</span>
+                  <span class="filter-chip">已冻结</span>
+                </div>
+
+                <div class="table-wrap">
+                  <table class="bk-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 230px;">配置名称</th>
+                        <th style="width: 180px;">所属空间</th>
+                        <th style="width: 120px;">值类型</th>
+                        <th style="width: 180px;">当前值 / 默认值</th>
+                        <th style="width: 110px;">审计状态</th>
+                        <th style="width: 130px;">更新时间</th>
+                        <th style="width: 120px;">更新人</th>
+                        <th style="width: 200px;">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>task_timeout_seconds</td>
+                        <td>bkflow-eng-svc-prod</td>
+                        <td><span class="bk-tag bk-tag-info">整数</span></td>
+                        <td>30 / 30</td>
+                        <td><span class="bk-tag bk-tag-success">已生效</span></td>
+                        <td>2026-04-20 18:24</td>
+                        <td>platform_ops</td>
+                        <td>
+                          <button class="bk-table-action">编辑</button>
+                          <button class="bk-table-action">查看历史</button>
+                          <button class="bk-table-action">恢复默认值</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>notify_webhook</td>
+                        <td>bkflow-finance</td>
+                        <td><span class="bk-tag bk-tag-info">URL</span></td>
+                        <td>https://hooks.example.com/bkflow / https://hooks.example.com/bkflow</td>
+                        <td><span class="bk-tag bk-tag-warning">待审批</span></td>
+                        <td>2026-04-21 09:08</td>
+                        <td>audit_admin</td>
+                        <td>
+                          <button class="bk-table-action">编辑</button>
+                          <button class="bk-table-action">发起审批</button>
+                          <button class="bk-table-action">撤销变更</button>
+                        </td>
+                      </tr>
+                      <tr class="muted-row">
+                        <td>daily_publish_window</td>
+                        <td>bkflow-ops-qa</td>
+                        <td><span class="bk-tag bk-tag-info">时间段</span></td>
+                        <td>02:00-04:00 / 01:00-05:00</td>
+                        <td><span class="bk-tag bk-tag-danger">已冻结</span></td>
+                        <td>2026-04-19 15:42</td>
+                        <td>release_bot</td>
+                        <td>
+                          <button class="bk-table-action">查看详情</button>
+                          <button class="bk-table-action">申请解冻</button>
+                          <button class="bk-table-action">恢复默认值</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>debug_mode</td>
+                        <td>bkflow-test</td>
+                        <td><span class="bk-tag bk-tag-info">布尔</span></td>
+                        <td>关闭 / 关闭</td>
+                        <td><span class="bk-tag bk-tag-info">默认值</span></td>
+                        <td>2026-04-18 11:05</td>
+                        <td>system_bot</td>
+                        <td>
+                          <button class="bk-table-action">编辑</button>
+                          <button class="bk-table-action">复制到空间</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>max_retry_count</td>
+                        <td>bkflow-shared</td>
+                        <td><span class="bk-tag bk-tag-info">整数</span></td>
+                        <td>5 / 3</td>
+                        <td><span class="bk-tag bk-tag-success">已生效</span></td>
+                        <td>2026-04-17 20:16</td>
+                        <td>admin_ops</td>
+                        <td>
+                          <button class="bk-table-action">编辑</button>
+                          <button class="bk-table-action">查看历史</button>
+                          <button class="bk-table-action">恢复默认值</button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="bk-pagination">
+                  <span class="bk-pagination-total">共 128 条</span>
+                  <span class="bk-pagination-item">&laquo;</span>
+                  <span class="bk-pagination-item active">1</span>
+                  <span class="bk-pagination-item">2</span>
+                  <span class="bk-pagination-item">3</span>
+                  <span class="bk-pagination-item">&raquo;</span>
+                </div>
+              </div>
+            </section>
+
+            <aside class="panel">
+              <div class="panel-head">
+                <div class="panel-title">审计说明</div>
+                <div class="panel-desc">这一区域用于解释当前列表的治理规则，辅助审核人员理解变更风险。</div>
+              </div>
+              <div class="panel-body">
+                <div class="audit-list">
+                  <div class="audit-item">
+                    <div class="audit-time">2026-04-21 09:30</div>
+                    <div class="audit-title">notify_webhook 进入待审批</div>
+                    <div class="audit-desc">新增回调地址后，需要审计管理员确认来源和目标空间是否匹配。</div>
+                  </div>
+                  <div class="audit-item">
+                    <div class="audit-time">2026-04-20 18:24</div>
+                    <div class="audit-title">task_timeout_seconds 恢复为默认值</div>
+                    <div class="audit-desc">恢复默认值后重新回到保护态，不再展示可编辑输入框。</div>
+                  </div>
+                  <div class="audit-item">
+                    <div class="audit-time">2026-04-19 15:42</div>
+                    <div class="audit-title">daily_publish_window 被冻结</div>
+                    <div class="audit-desc">冻结项仅供查看，必须先申请解冻才能再次编辑或发起审批。</div>
+                  </div>
+                </div>
+
+                <div class="rule-box">
+                  <strong>操作约束：</strong><br>
+                  1. 默认值项只读展示，不直接允许改写。<br>
+                  2. 恢复默认值需要二次确认，并写入审计记录。<br>
+                  3. 待审批变更会同步到审计中心，审批通过后才显示为已生效。
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

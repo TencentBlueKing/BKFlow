@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BKFlow 原型 - dialogs 母版</title>
+  <link rel="stylesheet" href="../../assets/bkflow-prototype.css">
+  <script defer src="../../assets/bkflow-prototype.js"></script>
+</head>
+<body>
+  <main style="padding:32px 40px;">
+    <h1 class="bk-prototype-page-title">Dialogs 母版</h1>
+
+    <section class="bk-prototype-card">
+      <h2>删除确认</h2>
+      <p class="bk-prototype-card-meta">用于危险删除动作的标准确认弹窗。</p>
+      <button class="bk-button bk-button-danger" data-open="delete-dialog">打开删除确认</button>
+    </section>
+
+    <section class="bk-prototype-card">
+      <h2>发布确认</h2>
+      <p class="bk-prototype-card-meta">用于发布前的版本确认与描述补充。</p>
+      <button class="bk-button bk-button-primary" data-open="publish-dialog">打开发布确认</button>
+    </section>
+
+    <section class="bk-prototype-card">
+      <h2>异常提示</h2>
+      <p class="bk-prototype-card-meta">用于执行或保存失败时的全局异常提示。</p>
+      <button class="bk-button" data-open="exception-dialog">打开异常提示</button>
+    </section>
+  </main>
+
+  <div class="bk-dialog" id="delete-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>删除确认</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        确认删除该流程吗？删除后无法恢复。
+      </div>
+      <div class="bk-dialog-footer">
+        <button class="bk-button bk-button-danger">确认删除</button>
+        <button class="bk-button" data-close>取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bk-dialog" id="publish-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>发布确认</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        <p>确认发布当前版本吗？</p>
+        <p class="bk-prototype-card-meta">可在这里补充版本号、描述和校验信息。</p>
+      </div>
+      <div class="bk-dialog-footer">
+        <button class="bk-button bk-button-primary">确认发布</button>
+        <button class="bk-button" data-close>取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bk-dialog" id="exception-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>异常提示</h3>
+        <button class="bk-dialog-close" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        应用出现异常，请稍后重试或联系管理员。
+      </div>
+      <div class="bk-dialog-footer">
+        <button class="bk-button bk-button-primary" data-close>我知道了</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

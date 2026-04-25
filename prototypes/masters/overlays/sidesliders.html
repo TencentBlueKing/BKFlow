@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BKFlow 原型 - sidesliders 母版</title>
+  <link rel="stylesheet" href="../../assets/bkflow-prototype.css">
+  <script defer src="../../assets/bkflow-prototype.js"></script>
+</head>
+<body>
+  <main style="padding:32px 40px;">
+    <h1 class="bk-prototype-page-title">Sidesliders 母版</h1>
+
+    <section class="bk-prototype-card">
+      <h2>表单编辑侧滑</h2>
+      <p class="bk-prototype-card-meta">用于右侧编辑表单，支持提交、取消和局部状态反馈。</p>
+      <button class="bk-button bk-button-primary" data-open="edit-sideslider">打开表单编辑侧滑</button>
+    </section>
+
+    <section class="bk-prototype-card">
+      <h2>只读详情侧滑</h2>
+      <p class="bk-prototype-card-meta">用于展示只读详情、日志快照或执行记录。</p>
+      <button class="bk-button" data-open="detail-sideslider">打开只读详情侧滑</button>
+    </section>
+  </main>
+
+  <aside class="bk-sideslider" id="edit-sideslider">
+    <div class="bk-sideslider-mask" data-close></div>
+    <div class="bk-sideslider-content">
+      <div class="bk-sideslider-header">
+        <h3>表单编辑侧滑</h3>
+        <button class="bk-sideslider-close" data-close>×</button>
+      </div>
+      <div class="bk-sideslider-body">
+        <form class="bk-form" onsubmit="return false;">
+          <div class="bk-form-item is-required">
+            <label class="bk-form-label">名称</label>
+            <div class="bk-form-content">
+              <input class="bk-input" data-required placeholder="请输入名称">
+            </div>
+          </div>
+          <div class="bk-form-item">
+            <label class="bk-form-label">说明</label>
+            <div class="bk-form-content">
+              <textarea class="bk-textarea" rows="4" placeholder="请输入说明"></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="bk-sideslider-footer">
+        <button class="bk-button bk-button-primary">保存</button>
+        <button class="bk-button" data-close>取消</button>
+      </div>
+    </div>
+  </aside>
+
+  <aside class="bk-sideslider" id="detail-sideslider">
+    <div class="bk-sideslider-mask" data-close></div>
+    <div class="bk-sideslider-content">
+      <div class="bk-sideslider-header">
+        <h3>只读详情侧滑</h3>
+        <button class="bk-sideslider-close" data-close>×</button>
+      </div>
+      <div class="bk-sideslider-body">
+        <div class="bk-prototype-card">
+          <h4>执行概要</h4>
+          <p class="bk-prototype-card-meta">这里展示节点详情、日志快照或执行记录的只读信息。</p>
+        </div>
+      </div>
+      <div class="bk-sideslider-footer">
+        <button class="bk-button bk-button-primary" data-close>关闭</button>
+      </div>
+    </div>
+  </aside>
+</body>
+</html>
