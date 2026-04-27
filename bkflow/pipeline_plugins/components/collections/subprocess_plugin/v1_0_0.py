@@ -137,7 +137,9 @@ class SubprocessPluginService(BKFlowBaseService):
 
                     # 判断渲染后的值是否为可迭代对象（列表/元组/字典），若不是则抛出异常
                     if not isinstance(inputs, (list, tuple, dict)):
-                        raise ValidationError(f"循环参数 {param_key} 的值必须是可迭代对象，当前值：{inputs}")
+                        raise ValidationError(
+                            f"循环参数 {param_key} 的值必须是可迭代对象，" f"当前值类型为 {type(inputs).__name__}，值为：{inputs}"
+                        )
 
                     if len(inputs) > settings.MAX_LOOP_TIMES:
                         raise ValidationError(f"循环参数 {param_key} 的值超过最大循环次数 {settings.MAX_LOOP_TIMES}")
