@@ -25,6 +25,8 @@
       :state-str="taskState"
       :state="state"
       :is-breadcrumb-show="isBreadcrumbShow"
+      :is-show-view-process="isShowViewProcess"
+      :is-show-callback-history-and-view-tpl="isShowCallbackHistoryAndViewTpl"
       :is-task-operation-btns-show="isTaskOperationBtnsShow"
       :params-can-be-modify="paramsCanBeModify"
       :trigger-method="triggerMethod"
@@ -176,6 +178,10 @@
           v-if="nodeInfoType === 'templateData'"
           :template-data="templateData"
           @onshutDown="onshutDown" />
+        <WebhookCallback
+          v-if="nodeInfoType === 'webhook'"
+          :webhook-history="webhookHistory"
+          class="wehhook-callback" />
       </div>
     </bk-sideslider>
     <gatewaySelectDialog
@@ -259,6 +265,7 @@
   import { checkConditionLoop, findLoopTarget, findNearestGatewayByIncoming } from '@/utils/orderCanvasNodeToNodeTree.js';
   import { FlowExecuteBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-execute';
   import '@blueking/bkflow-canvas-editor-vue2/style';
+  import WebhookCallback from './WebhookCallback.vue';
 
   const { CancelToken } = axios;
   let source = CancelToken.source();
@@ -310,6 +317,7 @@
       VerticalCanvas,
       StageCanvas,
       FlowExecuteBridge,
+      WebhookCallback
     },
     mixins: [permission, tplPerspective],
     props: {
@@ -342,6 +350,10 @@
         default: '',
       },
       instanceActions: {
+        type: Array,
+        default: () => ([]),
+      },
+      templateActions: {
         type: Array,
         default: () => ([]),
       },
@@ -469,6 +481,7 @@
           SubProcess: 'task',
         },
         subflowInfo: {}, // 子流程根节点id和任务id
+        webhookHistory: [],
       };
     },
     computed: {
@@ -578,6 +591,12 @@
       paramsCanBeModify() {
         return this.isTopTask && !['FINISHED', 'REVOKED'].includes(this.state);
       },
+      isShowViewProcess() {
+        return this.createMethod === 'MOCK' || this.isShowCallbackHistoryAndViewTpl;
+      },
+      isShowCallbackHistoryAndViewTpl() {
+        return ['EDIT', 'VIEW', 'MOCK'].some(perm => this.templateActions.includes(perm));
+      },
       adminView() {
         return false;
       },
@@ -660,6 +679,7 @@
         'subflowNodeRetry',
         'loadSubflowConfig',
         'getNodeActDetail',
+        'getTaskInstanceData',
       ]),
       ...mapActions('atomForm/', [
         'loadSingleAtomList',
@@ -722,6 +742,11 @@
             this.state = instanceStatus.data.state;
             this.instanceStatus = instanceStatus.data;
             this.pollErrorTimes = 0;
+            // 请求获取回调记录
+            if (['FINISHED', 'FAILED'].includes(this.state)) {
+                const instanceData = await this.getTaskInstanceData(this.taskId);
+                this.webhookHistory = instanceData.webhook_delivery_history;
+            }
             if (this.isTopTask) {
               this.rootState = this.state;
             }
@@ -989,7 +1014,7 @@
           execInfoInstance.loading = false;
         }
       },
-      async nodeTaskSkip(id, subflowInfo, isTopSubflow) {
+      async nodeTaskSkip(id, subflowInfo, isTopSubflow, isLoopOperate) {
         if (this.pending.skip) {
           return;
         }
@@ -1001,6 +1026,9 @@
             instance_id: subflowInfo?.taskId || this.instanceId,
             node_id: id,
             operation: 'skip',
+            data: {
+              loop: isLoopOperate,
+            },
           };
           const res = await this.instanceNodeOperate(data);
           if (res.result) {
@@ -1232,7 +1260,8 @@
           }
         }
       },
-      async onRetryClick(id, subflowInfo, isTopSubflow = false) {
+      // eslint-disable-next-line no-unused-vars
+      async onRetryClick(id, subflowInfo, isTopSubflow = false, isLoopOperate) {
         try {
           const h = this.$createElement;
           this.$bkInfo({
@@ -1258,20 +1287,20 @@
                 instance_id: subflowInfo?.taskId || this.instanceId,
                 node_id: id,
                 operation: 'retry',
-                data: {},
+                data: {
+                  loop: isLoopOperate,
+                },
               });
               if (resp.result) {
                 this.$bkMessage({
                   message: i18n.t('重试成功'),
                   theme: 'success',
                 });
-                if (subflowInfo?.taskId || isTopSubflow) {
-                  this.updateExecuteInfo();
-                }
                 // 重新轮询任务状态
                 this.isFailedSubproceeNodeInfo = null;
                 this.setTaskStatusTimer();
                 this.updateNodeActived(id, false);
+                this.updateExecuteInfo();
               }
             },
           });
@@ -1348,14 +1377,14 @@
           console.warn(e);
         }
       },
-      onSkipClick(id, subflowInfo, isTopSubflow) {
+      onSkipClick(id, subflowInfo, isTopSubflow, isLoopOperate) {
         this.$bkInfo({
           title: i18n.t('确定跳过当前节点?'),
           subTitle: i18n.t('跳过节点将忽略当前失败节点继续往后执行'),
           maskClose: false,
           confirmLoading: true,
           confirmFn: async () => {
-            await this.nodeTaskSkip(id, subflowInfo, isTopSubflow);
+            await this.nodeTaskSkip(id, subflowInfo, isTopSubflow, isLoopOperate);
           },
         });
       },
@@ -1631,7 +1660,7 @@
                 // 回退相关数据处理-callbackData
                 if (isLoopCondition) {
                   if (targetNode.length === 1) {
-                    callback = targetNode[0];
+                    [callback] = targetNode;
                   } else if (targetNode.length > 1) {
                     callback = targetNode[index];
                   }
@@ -2269,7 +2298,7 @@
 }
 .node-info-panel {
     height: 100%;
-    .operation-flow {
+    .operation-flow, .wehhook-callback{
         padding: 20px 30px;
     }
 }

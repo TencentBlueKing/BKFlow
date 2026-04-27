@@ -147,7 +147,18 @@
             :is-allow-set-multiple-trigger="isAllowSetMultipleTrigger"
             @change="onTriggerConfigChange" />
         </section>
-
+        <section class="form-section http-callback-section">
+          <h4>
+            <span>{{ $t('HTTP回调') }}</span>
+            <span class="tip-desc">{{ $t('支持在流程结束（成功或失败）后，把任务输出的内容和执行结果作为参数调用回调接口') }}</span>
+          </h4>
+          <HttpCallbackConfig
+            ref="httpCallbackForm"
+            :webhook-data="formData.webhookConfigs"
+            :enable-webhook="enableWebhook"
+            :is-view-mode="isViewMode"
+            @change="onHttpCallbackChange" />
+        </section>
         <section class="form-section">
           <h4>{{ $t('其他') }}</h4>
           <!-- <bk-form-item v-if="!common" :label="$t('执行代理人')" data-test-id="tabTemplateConfig_form_executorProxy">
@@ -257,21 +268,30 @@
 </template>
 
 <script>
-  import { mapState, mapMutations, mapActions } from 'vuex';
-  // import MemberSelect from '@/components/common/Individualization/MemberSelect.vue'
-  import tools from '@/utils/tools.js';
-  import { NAME_REG, STRING_LENGTH, TASK_CATEGORIES, LABEL_COLOR_LIST } from '@/constants/index.js';
-  import i18n from '@/config/i18n/index.js';
-  import NotifyTypeConfig from './NotifyTypeConfig.vue';
-  import permission from '@/mixins/permission.js';
-  import TimedTriggerConfig from './TimedTriggerConfig.vue';
+import { mapState, mapMutations, mapActions } from 'vuex';
+// import MemberSelect from '@/components/common/Individualization/MemberSelect.vue'
+import tools from '@/utils/tools.js';
+import {
+    NAME_REG,
+    STRING_LENGTH,
+    TASK_CATEGORIES,
+    LABEL_COLOR_LIST,
+} from '@/constants/index.js';
+import i18n from '@/config/i18n/index.js';
+import NotifyTypeConfig from './NotifyTypeConfig.vue';
+import permission from '@/mixins/permission.js';
+import TimedTriggerConfig from './TimedTriggerConfig.vue';
+import LabelCascade from '../../../admin/Space/common/LabelCascade.vue';
+import HttpCallbackConfig from './HttpCallbackConfig.vue';
 
   export default {
     name: 'TabTemplateConfig',
     components: {
-      // MemberSelect,
-      NotifyTypeConfig,
-      TimedTriggerConfig,
+        // MemberSelect,
+        NotifyTypeConfig,
+        TimedTriggerConfig,
+        LabelCascade,
+        HttpCallbackConfig,
     },
     mixins: [permission],
     props: {
@@ -289,79 +309,98 @@
       isViewMode: Boolean,
     },
     data() {
-      const {
-        name, category, notify_type: notifyType, notify_receivers: notifyReceivers = {}, description,
-        executor_proxy: execProxy, template_labels, default_flow_type, triggers,
-      } = this.$store.state.template;
+          const {
+            name,
+            category,
+            notify_type: notifyType,
+            notify_receivers: notifyReceivers = {},
+            description,
+            executor_proxy: execProxy,
+            template_labels,
+            default_flow_type,
+            triggers,
+            webhook_configs: webhookConfigs,
+            enable_webhook: enableWebhook,
+        } = this.$store.state.template;
 
-      return {
-        formData: {
-          name,
-          category,
-          description,
-          executorProxy: execProxy ? [execProxy] : [],
-          receiverGroup: [],
-          notifyReceiver: notifyReceivers.more_receiver ? notifyReceivers.more_receiver.split(',') : [],
-          notifyType: notifyType ? [notifyType.success.slice(0), notifyType.fail.slice(0)] : [],
-          labels: template_labels,
-          defaultFlowType: default_flow_type,
-          triggers,
-        },
-        stringLength: STRING_LENGTH,
-        rules: {
-          name: [
-            {
-              required: true,
-              message: i18n.t('必填项'),
-              trigger: 'blur',
-            },
-            {
-              max: STRING_LENGTH.TEMPLATE_NAME_MAX_LENGTH,
-              message: i18n.t('流程名称长度不能超过') + STRING_LENGTH.TEMPLATE_NAME_MAX_LENGTH + i18n.t('个字符'),
-              trigger: 'blur',
-            },
-            {
-              regex: NAME_REG,
-              message: `${i18n.t('流程名称不能包含')}'‘"”$&<>${i18n.t('非法字符')}`,
-              trigger: 'blur',
-            },
-          ],
-        },
-        taskCategories: TASK_CATEGORIES,
-        labelDialogShow: false,
-        labelRules: {
-          color: [
-            {
-              required: true,
-              message: i18n.t('必填项'),
-              trigger: 'blur',
-            },
-          ],
-          name: [
-            {
-              required: true,
-              message: i18n.t('必填项'),
-              trigger: 'blur',
-            },
-            {
-              max: 50,
-              message: i18n.t('标签名称不能超过') + 50 + i18n.t('个字符'),
-              trigger: 'blur',
-            },
-            {
-              validator: val => this.templateLabels.every(label => label.name !== val),
-              message: i18n.t('标签已存在，请重新输入'),
-              trigger: 'blur',
-            },
-          ],
-        },
-        labelDetail: {},
-        colorDropdownShow: false,
-        colorList: LABEL_COLOR_LIST,
-        labelLoading: false,
-        proxyPlaceholder: '',
-        isAllowSetMultipleTrigger: false, // 允许设置多个触发器
-      };
+        return {
+          formData: {
+              name,
+              category,
+              description,
+              executorProxy: execProxy ? [execProxy] : [],
+              receiverGroup: [],
+              notifyReceiver: notifyReceivers.more_receiver
+                  ? notifyReceivers.more_receiver.split(',')
+                  : [],
+              notifyType: notifyType
+                  ? [notifyType.success.slice(0), notifyType.fail.slice(0)]
+                  : [],
+              template_labels,
+              defaultFlowType: default_flow_type,
+              triggers,
+              webhookConfigs: tools.deepClone(webhookConfigs),
+          },
+          enableWebhook,
+          stringLength: STRING_LENGTH,
+          rules: {
+              name: [
+                  {
+                      required: true,
+                      message: i18n.t('必填项'),
+                      trigger: 'blur',
+                  },
+                  {
+                      max: STRING_LENGTH.TEMPLATE_NAME_MAX_LENGTH,
+                      message:
+                          i18n.t('流程名称长度不能超过')
+                          + STRING_LENGTH.TEMPLATE_NAME_MAX_LENGTH
+                          + i18n.t('个字符'),
+                      trigger: 'blur',
+                  },
+                  {
+                      regex: NAME_REG,
+                      message: `${i18n.t('流程名称不能包含')}'‘"”$&<>${i18n.t('非法字符')}`,
+                      trigger: 'blur',
+                  },
+              ],
+          },
+          taskCategories: TASK_CATEGORIES,
+          labelDialogShow: false,
+          labelRules: {
+              color: [
+                  {
+                      required: true,
+                      message: i18n.t('必填项'),
+                      trigger: 'blur',
+                  },
+              ],
+              name: [
+                  {
+                      required: true,
+                      message: i18n.t('必填项'),
+                      trigger: 'blur',
+                  },
+                  {
+                      max: 50,
+                      message:
+                          i18n.t('标签名称不能超过') + 50 + i18n.t('个字符'),
+                      trigger: 'blur',
+                  },
+                  {
+                      validator: val => this.templateLabels.every(label => label.name !== val),
+                      message: i18n.t('标签已存在，请重新输入'),
+                      trigger: 'blur',
+                  },
+              ],
+          },
+          labelDetail: {},
+          colorDropdownShow: false,
+          colorList: LABEL_COLOR_LIST,
+          labelLoading: false,
+          proxyPlaceholder: '',
+          isAllowSetMultipleTrigger: false, // 允许设置多个触发器
+        };
     },
     computed: {
       ...mapState({
@@ -398,209 +437,264 @@
       }
     },
     methods: {
-      ...mapMutations('template/', [
-        'setTplConfig',
-      ]),
-      ...mapActions('project', [
-        'getProjectConfig',
-        'createTemplateLabel',
-      ]),
-      ...mapActions('spaceConfig/', [
-        'getNotAuthSpaceConfig',
-        'checkSpaceConfig',
-      ]),
-      onEditLabel() {
-        if (!this.hasPermission(['project_edit'], this.authActions)) {
-          const resourceData = {
-            project: [{
-              id: this.projectId,
-              name: this.projectName,
-            }],
-          };
-          this.applyForPermission(['project_edit'], this.authActions, resourceData);
-          return;
-        }
-        this.labelDetail = { color: '#1c9574', name: '', description: '' };
-        this.labelDialogShow = true;
-        this.colorDropdownShow = false;
-      },
-      onManageLabel() {
-        if (!this.hasPermission(['project_view'], this.authActions)) {
-          const resourceData = {
-            project: [{
-              id: this.projectId,
-              name: this.projectName,
-            }],
-          };
-          this.applyForPermission(['project_view'], this.authActions, resourceData);
-          return;
-        }
-        const { href } = this.$router.resolve({
-          name: 'projectConfig',
-          params: { id: this.projectId },
-          query: { configActive: 'label_config' },
-        });
-        window.open(href, '_blank');
-      },
-      getTemplateConfig() {
-        const {
-          name,
-          category,
-          description,
-          executorProxy,
-          notifyReceiver,
-          receiverGroup,
-          notifyType,
-          labels,
-          defaultFlowType,
-          triggers,
-        } = this.formData;
-        return {
-          name,
-          category,
-          description,
-          template_labels: labels,
-          executor_proxy: executorProxy.length === 1 ? executorProxy[0] : '',
-          more_receiver: notifyReceiver,
-          receiver_group: receiverGroup,
-          notify_type: { success: notifyType[0], fail: notifyType[1] },
-          default_flow_type: defaultFlowType,
-          triggers,
-        };
-      },
-      jumpProjectManagement() {
-        if (this.isViewMode) return;
-        if (this.authActions.includes('project_edit')) {
-          const { href } = this.$router.resolve({
-            name: 'projectConfig',
-            params: { id: this.projectId },
-          });
-          window.open(href, '_blank');
-        } else {
-          const resourceData = {
-            project: [{
-              id: this.projectId,
-              name: this.projectName,
-            }],
-          };
-          this.applyForPermission(['project_edit'], this.authActions, resourceData);
-        }
-      },
-      onSelectNotifyConfig(formData) {
-        const { notifyType, receiverGroup, receiver } = formData;
-        this.formData.notifyType = notifyType;
-        this.formData.notifyReceiver = receiver;
-        this.formData.receiverGroup = receiverGroup;
-      },
-      onTriggerConfigChange(triggers) {
-        this.formData.triggers = triggers;
-      },
-      onSaveConfig() {
-        this.$refs.configForm.validate().then((result) => {
-          if (!result) {
-            return;
-          }
-          const data = this.getTemplateConfig();
-          this.setTplConfig(data);
-          this.closeTab();
-          this.$emit('templateDataChanged');
-        });
-      },
-      beforeClose() {
-        if (this.isViewMode) {
-          this.closeTab();
-          return true;
-        }
-        const {
-          name,
-          category,
-          description,
-          template_labels,
-          executor_proxy,
-          notify_receivers,
-          notify_type,
-          default_flow_type,
-        } = this.$store.state.template;
-        const originData = {
-          name,
-          category,
-          description,
-          template_labels,
-          executor_proxy,
-          more_receiver: notify_receivers.receiver?.split(',') || [],
-          receiver_group: notify_receivers.receiver_group,
-          notify_type,
-          default_flow_type,
-        };
-        const editingData = this.getTemplateConfig();
-        if (tools.isDataEqual(originData, editingData)) {
-          this.closeTab();
-          return true;
-        }
-        this.$bkInfo({
-          ...this.infoBasicConfig,
-          confirmFn: () => {
-            this.closeTab();
-          },
-        });
-        return false;
-      },
-      closeTab() {
-        this.$emit('closeTab');
-      },
-      editLabelConfirm() {
-        if (this.labelLoading) {
-          return;
-        }
-        this.labelLoading = true;
-        try {
-          this.$refs.labelForm.validate().then(async (result) => {
-            if (result) {
-              const { color, name, description } = this.labelDetail;
-              const { project_id } = this.$route.params;
-              const data = {
-                creator: this.username,
-                project_id: Number(project_id),
-                color,
-                name,
-                description,
-              };
-              const resp = await this.createTemplateLabel(data);
-              if (resp.result) {
-                this.$emit('updateTemplateLabelList');
-                this.labelDialogShow = false;
-                this.formData.labels.push(resp.data.id);
-                this.$bkMessage({
-                  message: i18n.t('标签新建成功'),
-                  theme: 'success',
-                });
-              }
+        ...mapMutations('template/', [
+          'setTplConfig',
+        ]),
+        ...mapActions('project', [
+          'getProjectConfig',
+          'createTemplateLabel',
+        ]),
+        ...mapActions('spaceConfig/', [
+            'getNotAuthSpaceConfig',
+            'checkSpaceConfig',
+        ]),
+        onEditLabel() {
+            if (!this.hasPermission(['project_edit'], this.authActions)) {
+                const resourceData = {
+                    project: [
+                        {
+                            id: this.projectId,
+                            name: this.projectName,
+                        },
+                    ],
+                };
+                this.applyForPermission(
+                    ['project_edit'],
+                    this.authActions,
+                    resourceData
+                );
+                return;
             }
-          });
-        } catch (e) {
-          console.log(e);
-        } finally {
-          this.labelLoading = false;
-        }
-      },
-      // 获取代理人设置数据
-      async setExecutorProxy() {
-        try {
-          const resp = await this.getProjectConfig(this.projectId);
-          if (resp.result) {
-            const { executor_proxy: execProxy, executor_proxy_exempts: execProxyExempts } = resp.data;
-            if (execProxy) {
-              this.formData.executorProxy = [execProxy];
+            this.labelDetail = { color: '#1c9574', name: '', description: '' };
+            this.labelDialogShow = true;
+            this.colorDropdownShow = false;
+        },
+        onManageLabel() {
+            if (!this.hasPermission(['project_view'], this.authActions)) {
+                const resourceData = {
+                    project: [
+                        {
+                            id: this.projectId,
+                            name: this.projectName,
+                        },
+                    ],
+                };
+                this.applyForPermission(
+                    ['project_view'],
+                    this.authActions,
+                    resourceData
+                );
+                return;
             }
-            this.proxyPlaceholder = i18n.t('项目执行代理人(n)；免代理用户(m)', {
-              n: execProxy || '--',
-              m: execProxyExempts || '--',
+            const { href } = this.$router.resolve({
+                name: 'projectConfig',
+                params: { id: this.projectId },
+                query: { configActive: 'label_config' },
             });
-          }
-        } catch (e) {
-          console.log(e);
-        }
-      },
+            window.open(href, '_blank');
+        },
+        getTemplateConfig() {
+            const {
+                name,
+                category,
+                description,
+                executorProxy,
+                notifyReceiver,
+                receiverGroup,
+                notifyType,
+                template_labels,
+                defaultFlowType,
+                triggers,
+                webhookConfigs,
+            } = this.formData;
+            // eslint-disable-next-line camelcase
+            if (webhookConfigs?.extra_info) {
+                webhookConfigs.extra_info.interval = typeof webhookConfigs.extra_info.interval !== 'number' ? parseInt(webhookConfigs.extra_info.interval, 10) : webhookConfigs.extra_info.interval;
+                webhookConfigs.extra_info.retry_times = typeof webhookConfigs.extra_info.retry_times !== 'number' ? parseInt(webhookConfigs.extra_info.retry_times, 10) : webhookConfigs.extra_info.retry_times;
+                webhookConfigs.extra_info.timeout = typeof webhookConfigs.extra_info.timeout !== 'number' ? parseInt(webhookConfigs.extra_info.timeout, 10) : webhookConfigs.extra_info.timeout;
+                webhookConfigs.extra_info.headers = webhookConfigs.extra_info.headers.filter(item => item.key !== '');
+            }
+            return {
+                name,
+                category,
+                description,
+                template_labels,
+                executor_proxy: executorProxy.length === 1 ? executorProxy[0] : '',
+                more_receiver: notifyReceiver,
+                receiver_group: receiverGroup,
+                notify_type: { success: notifyType[0], fail: notifyType[1] },
+                default_flow_type: defaultFlowType,
+                triggers,
+                webhook_configs: webhookConfigs,
+                enable_webhook: this.enableWebhook,
+            };
+        },
+        jumpProjectManagement() {
+            if (this.isViewMode) return;
+            if (this.authActions.includes('project_edit')) {
+                const { href } = this.$router.resolve({
+                    name: 'projectConfig',
+                    params: { id: this.projectId },
+                });
+                window.open(href, '_blank');
+            } else {
+                const resourceData = {
+                    project: [
+                        {
+                            id: this.projectId,
+                            name: this.projectName,
+                        },
+                    ],
+                };
+                this.applyForPermission(
+                    ['project_edit'],
+                    this.authActions,
+                    resourceData
+                );
+            }
+        },
+        onSelectNotifyConfig(formData) {
+            const { notifyType, receiverGroup, receiver } = formData;
+            this.formData.notifyType = notifyType;
+            this.formData.notifyReceiver = receiver;
+            this.formData.receiverGroup = receiverGroup;
+        },
+        onTriggerConfigChange(triggers) {
+            this.formData.triggers = triggers;
+        },
+        onHttpCallbackChange(val, isEnableWebhook = false) {
+            if (isEnableWebhook) {
+                this.enableWebhook = val;
+            } else {
+                this.formData.webhookConfigs = val;
+            }
+        },
+        onSaveConfig() {
+            this.$refs.configForm.validate().then(async (result) => {
+                if (!result) {
+                    return;
+                }
+                const validation = this.$refs.httpCallbackForm ? await this.$refs.httpCallbackForm.validate() : true;
+                if (!validation) {
+                    return;
+                }
+                const data = this.getTemplateConfig();
+                this.setTplConfig(data);
+                this.closeTab();
+                this.$emit('templateDataChanged');
+            });
+        },
+        beforeClose() {
+            if (this.isViewMode) {
+                this.closeTab();
+                return true;
+            }
+            const {
+                name,
+                category,
+                description,
+                template_labels,
+                executor_proxy,
+                notify_receivers,
+                notify_type,
+                default_flow_type,
+                webhook_configs,
+                enable_webhook
+            } = this.$store.state.template;
+            const originData = {
+                name,
+                category,
+                description,
+                template_labels,
+                executor_proxy,
+                more_receiver: notify_receivers.receiver?.split(',') || [],
+                receiver_group: notify_receivers.receiver_group,
+                notify_type,
+                default_flow_type,
+                webhook_configs,
+                enable_webhook,
+            };
+            const editingData = this.getTemplateConfig();
+            if (tools.isDataEqual(originData, editingData)) {
+                this.closeTab();
+                return true;
+            }
+            this.$bkInfo({
+                ...this.infoBasicConfig,
+                confirmFn: () => {
+                    this.closeTab();
+                },
+            });
+            return false;
+        },
+        closeTab() {
+            this.$emit('closeTab');
+        },
+        editLabelConfirm() {
+            if (this.labelLoading) {
+                return;
+            }
+            this.labelLoading = true;
+            try {
+                this.$refs.labelForm.validate().then(async (result) => {
+                    if (result) {
+                        const { color, name, description } = this.labelDetail;
+                        const { project_id } = this.$route.params;
+                        const data = {
+                            creator: this.username,
+                            project_id: Number(project_id),
+                            color,
+                            name,
+                            description,
+                        };
+                        const resp = await this.createTemplateLabel(data);
+                        if (resp.result) {
+                            this.$emit('updateTemplateLabelList');
+                            this.labelDialogShow = false;
+                            this.formData.labels.push(resp.data.id);
+                            this.$bkMessage({
+                                message: i18n.t('标签新建成功'),
+                                theme: 'success',
+                            });
+                        }
+                    }
+                });
+            } catch (e) {
+                console.log(e);
+            } finally {
+                this.labelLoading = false;
+            }
+        },
+        // 获取代理人设置数据
+        async setExecutorProxy() {
+            try {
+                const resp = await this.getProjectConfig(this.projectId);
+                if (resp.result) {
+                    const {
+                        executor_proxy: execProxy,
+                        executor_proxy_exempts: execProxyExempts,
+                    } = resp.data;
+                    if (execProxy) {
+                        this.formData.executorProxy = [execProxy];
+                    }
+                    this.proxyPlaceholder = i18n.t(
+                        '项目执行代理人(n)；免代理用户(m)',
+                        {
+                            n: execProxy || '--',
+                            m: execProxyExempts || '--',
+                        }
+                    );
+                }
+            } catch (e) {
+                console.log(e);
+            }
+        },
+        onSelectLabel(labels) {
+            this.formData.template_labels = labels;
+        },
+        handleDeleteLabel(id) {
+            this.formData.template_labels = this.formData.template_labels.filter(item => item.id !== id);
+        },
     },
   };
 </script>
@@ -679,3 +773,5 @@
     }
 }
 </style>
+
+

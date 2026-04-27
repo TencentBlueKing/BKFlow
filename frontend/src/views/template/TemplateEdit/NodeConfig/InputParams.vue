@@ -18,7 +18,9 @@
         :constants="isSubflow ? subflowForms : constants"
         :form-option="option"
         :form-data="formData"
+        :is-subflow="isSubflow"
         :render-config="renderConfig"
+        :subflow-loop-vars="subflowLoopVars"
         @change="onInputsValChange"
         @onRenderChange="$emit('renderConfigChange', arguments)"
         @onHookChange="onInputHookChange" />
@@ -154,6 +156,7 @@
         randomKey: null,
         hookFormSchema: {},
         hookFormData: {},
+        subflowLoopVars: {},
       };
     },
     computed: {
@@ -175,6 +178,27 @@
             this.formsNotReferredScheme = this.getFormScheme('notReferred');
           },
         deep: true,
+      },
+      basicInfo: {
+        handler() {
+          const { loop_params: loopParams } = this.basicInfo.loopConfig || {};
+          let processedLoopVars;
+          if (Array.isArray(loopParams)) {
+            // 数组格式转换为对象格式
+            const result = {};
+            loopParams.forEach((item) => {
+              if (item.name && item.value !== undefined && item.value !== '') {
+                result[item.name] = item.value;
+              }
+            });
+            processedLoopVars = result;
+          } else {
+            processedLoopVars = loopParams || {};
+          }
+          this.subflowLoopVars = processedLoopVars;
+        },
+        deep: true,
+        immediate: true,
       },
     },
     mounted() {
