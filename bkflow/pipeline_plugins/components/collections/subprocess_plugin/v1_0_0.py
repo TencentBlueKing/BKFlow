@@ -135,10 +135,6 @@ class SubprocessPluginService(BKFlowBaseService):
                     hydrated_context = Context(self.runtime, param_context_values, {}).hydrate(deformat=True)
                     inputs = Template(param_value).render(hydrated_context)
 
-                    # 如果渲染后的值是字符串，尝试按逗号分割转为列表
-                    if isinstance(inputs, str):
-                        inputs = [item.strip() for item in inputs.split(",") if item.strip()]
-
                     # 判断渲染后的值是否为可迭代对象（列表/元组/字典），若不是则抛出异常
                     if not isinstance(inputs, (list, tuple, dict)):
                         raise ValidationError(f"循环参数 {param_key} 的值必须是可迭代对象，当前值：{inputs}")
