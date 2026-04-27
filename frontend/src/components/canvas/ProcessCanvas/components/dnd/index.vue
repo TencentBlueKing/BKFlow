@@ -27,7 +27,7 @@
     { id: 'start', icon: 'startpoint-zh', name: i18n.t('开始节点') },
     { id: 'end', icon: 'endpoint-zh', name: i18n.t('结束节点') },
     { id: 'task', icon: 'tasknode', name: i18n.t('任务节点') },
-    { id: 'subflow', icon: 'subprocess', name: i18n.t('子流程') },
+    { id: 'subflow', icon: 'subflow', name: i18n.t('子流程') },
     { id: 'branch-gateway', icon: 'branchgateway', name: i18n.t('分支网关') },
     { id: 'parallel-gateway', icon: 'parallelgateway', name: i18n.t('并行网关') },
     { id: 'conditional-parallel-gateway', icon: 'conditionalparallelgateway', name: i18n.t('条件并行网关') },
@@ -301,7 +301,7 @@
       }
     }
     .common-icon-node-tasknode,
-    .common-icon-node-subprocess {
+    .common-icon-node-subflow {
       font-size: 20px;
     }
     .group-node {
