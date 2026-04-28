@@ -185,9 +185,9 @@ class AdminTemplateViewSet(AdminModelViewSet):
         return Response(data)
 
     @swagger_auto_schema(method="POST", operation_description="创建流程", request_body=CreateTemplateSerializer)
-    @action(methods=["POST"], detail=False, url_path="create_default_template/(?P<space_id>\\d+)")
+    @action(methods=["POST"], detail=False, url_path=r"create_default_template/(?P<space_id>\d+)")
     def create_template(self, request, space_id, *args, **kwargs):
-        ser = CreateTemplateSerializer(data=request.data, context={"request": request})
+        ser = CreateTemplateSerializer(data=request.data, context={"request": request, "space_id": int(space_id)})
         ser.is_valid(raise_exception=True)
 
         pipeline_tree = build_default_pipeline_tree_with_space_id(space_id)
@@ -213,9 +213,9 @@ class AdminTemplateViewSet(AdminModelViewSet):
         return super().update(request, *args, **kwargs)
 
     @swagger_auto_schema(method="POST", operation_description="创建任务", request_body=CreateTaskSerializer)
-    @action(methods=["POST"], detail=False, url_path="create_task/(?P<space_id>\\d+)")
+    @action(methods=["POST"], detail=False, url_path=r"create_task/(?P<space_id>\d+)")
     def create_task(self, request, space_id, *args, **kwargs):
-        ser = CreateTaskSerializer(data=request.data)
+        ser = CreateTaskSerializer(data=request.data, context={"space_id": int(space_id)})
         ser.is_valid(raise_exception=True)
         try:
             template = Template.objects.get(id=ser.data["template_id"], space_id=space_id)

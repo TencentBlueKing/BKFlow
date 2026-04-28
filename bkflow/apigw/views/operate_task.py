@@ -68,7 +68,7 @@ def operate_task(request, space_id, task_id, operation):
 @return_json_response
 def update_task_labels(request, space_id, task_id):
     data = json.loads(request.body or "{}")
-    ser = UpdateTaskLabelsSerializer(data=data)
+    ser = UpdateTaskLabelsSerializer(data=data, context={"space_id": int(space_id)})
     ser.is_valid(raise_exception=True)
 
     client = TaskComponentClient(space_id=space_id)

@@ -51,7 +51,7 @@ from bkflow.utils.version import bump_custom
 def update_template(request, space_id, template_id):
     data = json.loads(request.body)
 
-    ser = UpdateTemplateSerializer(data=data, context={"request": request})
+    ser = UpdateTemplateSerializer(data=data, context={"request": request, "space_id": int(space_id)})
 
     try:
         ser.is_valid(raise_exception=True)
@@ -70,8 +70,6 @@ def update_template(request, space_id, template_id):
     label_ids = validated_data_dict.pop("label_ids", None)
     if label_ids is not None:
         label_ids = list(set(label_ids))
-        if label_ids and not Label.objects.check_label_ids(label_ids):
-            raise UpdateTemplateException(_("标签不存在，请检查 label_ids"))
 
     validated_data_dict["updated_by"] = validated_data_dict.pop("operator", None) or request.user.username
     with transaction.atomic():
@@ -168,12 +166,10 @@ def update_template(request, space_id, template_id):
 @return_json_response
 def update_template_labels(request, space_id, template_id):
     data = json.loads(request.body or "{}")
-    ser = UpdateTemplateLabelsSerializer(data=data)
+    ser = UpdateTemplateLabelsSerializer(data=data, context={"space_id": int(space_id)})
     ser.is_valid(raise_exception=True)
 
     label_ids = list(set(ser.validated_data.get("label_ids", [])))
-    if label_ids and not Label.objects.check_label_ids(label_ids):
-        raise UpdateTemplateException(_("标签不存在，请检查 label_ids"))
 
     with transaction.atomic():
         try:

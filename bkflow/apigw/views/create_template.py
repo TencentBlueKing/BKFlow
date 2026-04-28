@@ -23,10 +23,8 @@ import logging
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.db import transaction
-from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from rest_framework import serializers
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.template import CreateTemplateApigwSerializer
@@ -73,8 +71,6 @@ def create_template(request, space_id):
 
     label_ids = validate_data.pop("label_ids", [])
     label_ids = list(set(label_ids))
-    if label_ids and not Label.objects.check_label_ids(label_ids):
-        raise serializers.ValidationError(_("标签不存在，请检查 label_ids"))
 
     source_template_id = validate_data.pop("source_template_id", None)
     pipeline_tree = validate_data.pop("pipeline_tree", None)

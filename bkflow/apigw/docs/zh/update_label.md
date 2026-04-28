@@ -13,7 +13,6 @@
 
 | 字段 | 类型 | 必选 | 描述 |
 | --- | --- | --- | --- |
-| label_id | int | 是 | 标签ID（路径参数） |
 | name | string | 否 | 标签名称 |
 | color | string | 否 | 标签颜色，格式如 `#ffffff` |
 | label_scope | list | 否 | 标签范围（多选），可选值：`task`、`template`、`common`。更新父标签范围时，必须覆盖所有子标签的范围 |

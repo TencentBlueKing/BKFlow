@@ -45,8 +45,9 @@ from bkflow.utils.trace import CallFrom, trace_view
 @return_json_response
 def create_task(request, space_id):
     data = json.loads(request.body)
-    ser = CreateTaskSerializer(data=data)
+    ser = CreateTaskSerializer(data=data, context={"space_id": int(space_id)})
     ser.is_valid(raise_exception=True)
+
     try:
         template = Template.objects.get(id=ser.data["template_id"], space_id=space_id, is_deleted=False)
     except Template.DoesNotExist:

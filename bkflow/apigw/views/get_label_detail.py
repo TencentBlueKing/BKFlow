@@ -25,7 +25,7 @@ def get_label_detail(request, space_id, label_id):
         return {
             "result": False,
             "data": None,
-            "code": err_code.NOT_FOUND.code,
+            "code": err_code.VALIDATION_ERROR.code,
             "message": _(f"标签不存在: label_id={label_id}"),
         }
 

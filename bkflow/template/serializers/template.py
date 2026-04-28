@@ -121,8 +121,8 @@ class TemplateSerializer(serializers.ModelSerializer):
         try:
             validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
         except Exception as e:
-            logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
-            raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
+            logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
+            raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
 
         if self.context["request"].method == "POST":
             space_id = self.initial_data.get("space_id")
@@ -169,7 +169,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         )
         return template
 
-    def _sync_template_lables(self, template_id, label_ids):
+    def _sync_template_labels(self, template_id, label_ids):
         """
         创建或更新模板时同步模板标签数据
         """
@@ -181,7 +181,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         try:
             TemplateLabelRelation.objects.set_labels(template_id, label_ids)
         except Exception as e:
-            logger.error("TemplateLabelRelation set_labels error: {}".format(e))
+            logger.error(f"TemplateLabelRelation set_labels error: {e}")
             raise serializers.ValidationError(_("流程保存失败: 标签设置失败, 请检查配置后重试"))
 
     @transaction.atomic()
@@ -198,8 +198,8 @@ class TemplateSerializer(serializers.ModelSerializer):
             ]
             BKPluginAuthorization.objects.batch_check_authorization(exist_code_list, str(instance.space_id))
         except Exception as e:
-            logger.exception("TemplateSerializer update error, err = {}".format(e))
-            raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
+            logger.exception(f"TemplateSerializer update error, err = {e}")
+            raise serializers.ValidationError(detail={"msg": (f"更新失败,{e}")})
         pre_pipeline_tree = instance.pipeline_tree
         username = self.context["request"].user.username
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
@@ -214,7 +214,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             snapshot.template_id = instance.id
             snapshot.save(update_fields=["template_id"])
         instance = super().update(instance, validated_data)
-        self._sync_template_lables(instance.id, template_labels)
+        self._sync_template_labels(instance.id, template_labels)
         # 批量修改流程绑定的触发器:
         try:
             Trigger.objects.compare_constants(
@@ -224,8 +224,8 @@ class TemplateSerializer(serializers.ModelSerializer):
             )
             Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"])
         except Exception as e:
-            logger.exception("Triggers update or create failed,{}".format(e))
-            raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
+            logger.exception(f"Triggers update or create failed,{e}")
+            raise serializers.ValidationError(detail={"msg": (f"更新失败,{e}")})
 
         send_callback(instance.space_id, "template", instance.build_callback_data(operate_type="update"))
         event_broadcast_signal.send(
