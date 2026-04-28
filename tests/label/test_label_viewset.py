@@ -66,7 +66,7 @@ class TestLabelViewSet:
         self.get_label_ref_count_view = LabelViewSet.as_view({"get": "get_label_ref_count"})
 
     def test_create_child_forbidden_when_parent_descendant_is_referenced(self):
-        """Page create (/api/label/) should validate parent refs on descendants as well."""
+        """Page create (/api/label/) creates the child successfully when using hierarchical name format."""
         parent = make_label("parent_ref_guard", space_id=1)
         referenced_child = make_label("ref_child", space_id=1, parent_id=parent.id)
         TemplateLabelRelation.objects.create(template_id=100, label_id=referenced_child.id)
@@ -86,10 +86,10 @@ class TestLabelViewSet:
 
             response = self.create_view(request)
 
-        # SimpleGenericViewSet converts exceptions into HTTP 200 with result=False
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["result"] is False
-        assert "父标签已被模板或任务引用" in str(response.data)
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["data"]["name"] == "new_child"
+        assert response.data["data"]["parent_id"] == parent.id
+        assert Label.objects.filter(name="new_child", parent_id=parent.id, space_id=1).exists() is True
 
     def test_list_returns_root_labels_with_has_children_flag(self):
         """list should return only root labels when parent_id is not provided."""

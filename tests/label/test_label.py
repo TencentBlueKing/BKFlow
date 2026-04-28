@@ -572,7 +572,7 @@ class TestLabelSerializer:
         with pytest.raises(DRFValidationError) as exc:
             serializer.is_valid(raise_exception=True)
 
-        assert "父标签已被模板或任务引用，请先删除父标签的引用" == exc.value.detail["parent_id"][0]
+        assert "父标签已被模板或任务引用，不允许挂载子标签，如需要请先删除父标签的引用" == exc.value.detail["parent_id"][0]
 
     def test_create_child_label_forbidden_when_parent_is_task_referenced_via_client(self, monkeypatch):
         """Creating a child label should fail if parent has task refs (queried via TaskComponentClient)."""
@@ -609,7 +609,7 @@ class TestLabelSerializer:
         with pytest.raises(DRFValidationError) as exc:
             serializer.is_valid(raise_exception=True)
 
-        assert "父标签已被模板或任务引用，请先删除父标签的引用" == exc.value.detail["parent_id"][0]
+        assert "父标签已被模板或任务引用，不允许挂载子标签，如需要请先删除父标签的引用" == exc.value.detail["parent_id"][0]
 
     def test_create_child_label_forbidden_when_parent_is_a_child(self):
         """On create: a child label cannot be used as a parent label."""
