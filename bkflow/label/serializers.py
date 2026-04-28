@@ -69,6 +69,11 @@ class LabelSerializer(serializers.ModelSerializer):
             "full_path",
         ]
 
+    def update(self, instance, validated_data):
+        # 更新时禁止更新parent_id
+        validated_data.pop("parent_id", None)
+        return super().update(instance, validated_data)
+
 
 class _LabelWriteBaseSerializer(LabelSerializer):
     """Base serializer for write operations (create/update)."""
@@ -153,7 +158,7 @@ class LabelCreateSerializer(_LabelWriteBaseSerializer):
         pass
 
     def validate_parent_id(self, value):
-        """On create: forbid using a child label as parent, and forbid parents referenced by template/task."""
+        """On create: forbid using a child label as parent, and forbid referenced parents from attaching children."""
         if not value:
             return value
 
@@ -163,10 +168,7 @@ class LabelCreateSerializer(_LabelWriteBaseSerializer):
         if parent.parent_id is not None:
             raise serializers.ValidationError(_("子标签不能作为父标签"))
 
-        descendants = Label.objects.get_sub_labels(parent_id=value, recursive=True)
-        query_label_ids = [value] + [lbl.id for lbl in descendants]
-
-        has_template_ref = TemplateLabelRelation.objects.filter(label_id__in=query_label_ids).exists()
+        has_template_ref = TemplateLabelRelation.objects.filter(label_id=value).exists()
 
         space_id = self.initial_data.get("space_id")
         if space_id in [None, "", -1]:
@@ -178,16 +180,14 @@ class LabelCreateSerializer(_LabelWriteBaseSerializer):
             except ModuleInfo.DoesNotExist:
                 has_task_ref = False
             else:
-                task_result = client.get_task_label_ref_count(int(space_id), ",".join(map(str, query_label_ids)))
+                task_result = client.get_task_label_ref_count(int(space_id), str(value))
                 if not task_result.get("result"):
-                    raise serializers.ValidationError(
-                        _(f"获取父标签任务引用失败：{task_result.get('message') or 'unknown error'}")
-                    )
+                    raise serializers.ValidationError(_(f"获取父标签任务引用失败：{task_result.get('message') or 'unknown error'}"))
                 task_count_map = task_result.get("data") or {}
-                has_task_ref = any(int(task_count_map.get(str(lid), 0) or 0) > 0 for lid in query_label_ids)
+                has_task_ref = int(task_count_map.get(str(value), 0) or 0) > 0
 
         if has_template_ref or has_task_ref:
-            raise serializers.ValidationError(_("父标签已被模板或任务引用，请先删除父标签的引用"))
+            raise serializers.ValidationError(_("父标签已被模板或任务引用，不允许挂载子标签，如需要请先删除父标签的引用"))
 
         return value
 
@@ -205,6 +205,11 @@ class LabelUpdateSerializer(_LabelWriteBaseSerializer):
 
     class Meta(LabelSerializer.Meta):
         pass
+
+    def validate_name(self, value):
+        if len(value.split("/")) >= 2:
+            raise serializers.ValidationError(_("标签名称层级不能超过两层"))
+        return super().validate_name(value)
 
 
 class LabelRefSerializer(serializers.Serializer):

@@ -73,7 +73,7 @@ class TestUpdateTemplate(TestCase):
             "username": "test_admin",
         }
 
-        url = "/apigw/space/{}/update_template/{}/".format(space.id, template.id)
+        url = f"/apigw/space/{space.id}/update_template/{template.id}/"
         resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
 
         resp_data = json.loads(resp.content)
@@ -120,7 +120,7 @@ class TestUpdateTemplate(TestCase):
 
         mock_create.return_value = None
 
-        url = "/api/template/{}/".format(template.id)
+        url = f"/api/template/{template.id}/"
         request = self.factory.put(url, data=data, format="json")
         request.user = self.admin_user
         view_func = TemplateViewSet.as_view({"put": "update"})
@@ -178,7 +178,7 @@ class TestTemplateSerializerLabelSync(TestCase):
             mock_check.return_value = False
 
             with self.assertRaises(ValidationError) as cm:
-                serializer._sync_template_lables(template_id=1, label_ids=[1, 2])
+                serializer._sync_template_labels(template_id=1, label_ids=[1, 2])
 
         self.assertIn("标签不存在", str(cm.exception))
 
@@ -196,7 +196,7 @@ class TestTemplateSerializerLabelSync(TestCase):
                 mock_set.side_effect = Exception("db error")
 
                 with self.assertRaises(ValidationError) as cm:
-                    serializer._sync_template_lables(template_id=1, label_ids=[1, 2])
+                    serializer._sync_template_labels(template_id=1, label_ids=[1, 2])
 
         self.assertIn("标签设置失败", str(cm.exception))
 

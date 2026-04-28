@@ -107,6 +107,810 @@ paths:
         descriptionEn: Revoke a token
         enableWebsocket: false
         pluginConfigs: []
+  /space/{space_id}/create_label/:
+    post:
+      operationId: create_label
+      description: 创建标签
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: 标签ID
+                      name:
+                        type: string
+                        description: 标签名称
+                      color:
+                        type: string
+                        description: 标签颜色
+                      label_scope:
+                        type: array
+                        description: 标签范围
+                        items:
+                          type: string
+                      parent_id:
+                        type: integer
+                        x-nullable: true
+                        description: 父标签ID
+                      is_default:
+                        type: boolean
+                        description: 是否为默认标签
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      creator:
+                        type: string
+                        description: 创建人
+                      updated_by:
+                        type: string
+                        description: 更新人
+                      has_children:
+                        type: boolean
+                        description: 是否有子标签
+                    description: result=true 时成功数据
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              properties:
+                name:
+                  type: string
+                  description: 标签名称，支持 parent/child 形式创建父子标签
+                color:
+                  type: string
+                  description: 标签颜色
+                label_scope:
+                  type: array
+                  description: 标签范围
+                  items:
+                    type: string
+                parent_id:
+                  type: integer
+                  description: 父标签ID
+                is_default:
+                  type: boolean
+                  description: 是否为默认标签
+                creator:
+                  type: string
+                  description: 创建人，默认当前用户
+                updated_by:
+                  type: string
+                  description: 更新人，默认当前用户
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/create_label/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Create a label
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/get_label_list/:
+    get:
+      operationId: get_label_list
+      description: 获取标签列表
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: array
+                    description: 标签列表
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: 标签ID
+                        name:
+                          type: string
+                          description: 标签名称
+                        color:
+                          type: string
+                          description: 标签颜色
+                        label_scope:
+                          type: array
+                          description: 标签范围
+                          items:
+                            type: string
+                        parent_id:
+                          type: integer
+                          x-nullable: true
+                          description: 父标签ID
+                        is_default:
+                          type: boolean
+                          description: 是否为默认标签
+                        space_id:
+                          type: integer
+                          description: 空间ID
+                        creator:
+                          type: string
+                          description: 创建人
+                        updated_by:
+                          type: string
+                          description: 更新人
+                        has_children:
+                          type: boolean
+                          description: 是否有子标签
+                  count:
+                    type: integer
+                    description: 标签总数
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: query
+        name: label_scope
+        schema:
+          type: string
+        required: false
+        description: 标签范围
+      - in: query
+        name: parent_id
+        schema:
+          type: integer
+        required: false
+        description: 父标签ID；不传时默认返回根标签
+      - in: query
+        name: name
+        schema:
+          type: string
+        required: false
+        description: 标签名称模糊查询
+      - in: query
+        name: is_default
+        schema:
+          type: boolean
+        required: false
+        description: 是否默认标签
+      - in: query
+        name: order_by
+        schema:
+          type: string
+          default: -updated_at
+        required: false
+        description: 排序字段
+      - in: query
+        name: limit
+        schema:
+          type: integer
+        required: false
+        description: 分页大小
+      - in: query
+        name: offset
+        schema:
+          type: integer
+        required: false
+        description: 分页偏移
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_label_list/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Get label list
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/get_label_tree/:
+    get:
+      operationId: get_label_tree
+      description: 获取标签树
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: array
+                    description: 标签树列表
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: 标签ID
+                        name:
+                          type: string
+                          description: 标签名称
+                        color:
+                          type: string
+                          description: 标签颜色
+                        label_scope:
+                          type: array
+                          description: 标签范围
+                          items:
+                            type: string
+                        parent_id:
+                          type: integer
+                          x-nullable: true
+                          description: 父标签ID
+                        is_default:
+                          type: boolean
+                          description: 是否为默认标签
+                        space_id:
+                          type: integer
+                          description: 空间ID
+                        creator:
+                          type: string
+                          description: 创建人
+                        updated_by:
+                          type: string
+                          description: 更新人
+                        has_children:
+                          type: boolean
+                          description: 是否有子标签
+                        children:
+                          type: array
+                          description: 子标签列表
+                          items:
+                            type: object
+                            additionalProperties: true
+                  count:
+                    type: integer
+                    description: 根节点总数
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: query
+        name: label_scope
+        schema:
+          type: string
+        required: false
+        description: 标签范围
+      - in: query
+        name: task_ids
+        schema:
+          type: string
+        required: false
+        description: 任务ID列表，逗号分隔；传入后返回这些任务引用到的标签树及其祖先节点
+      - in: query
+        name: template_ids
+        schema:
+          type: string
+        required: false
+        description: 模板ID列表，逗号分隔；传入后返回这些模板引用到的标签树及其祖先节点
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 200
+        required: false
+        description: 根节点分页大小；仅显式传入时生效，分页时会保持整棵子树完整
+      - in: query
+        name: offset
+        schema:
+          type: integer
+          minimum: 0
+        required: false
+        description: 根节点分页偏移；仅显式传入时生效
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_label_tree/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Get label tree
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/label/{label_id}/get_label_detail/:
+    get:
+      operationId: get_label_detail
+      description: 获取标签详情
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: 标签ID
+                      name:
+                        type: string
+                        description: 标签名称
+                      color:
+                        type: string
+                        description: 标签颜色
+                      label_scope:
+                        type: array
+                        description: 标签范围
+                        items:
+                          type: string
+                      parent_id:
+                        type: integer
+                        x-nullable: true
+                        description: 父标签ID
+                      is_default:
+                        type: boolean
+                        description: 是否为默认标签
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      creator:
+                        type: string
+                        description: 创建人
+                      updated_by:
+                        type: string
+                        description: 更新人
+                      has_children:
+                        type: boolean
+                        description: 是否有子标签
+                    description: result=true 时返回数据
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: label_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/label/{label_id}/get_label_detail/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Get label detail
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/update_label/{label_id}/:
+    patch:
+      operationId: update_label
+      description: 部分更新标签
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: 标签ID
+                      name:
+                        type: string
+                        description: 标签名称
+                      color:
+                        type: string
+                        description: 标签颜色
+                      label_scope:
+                        type: array
+                        description: 标签范围
+                        items:
+                          type: string
+                      parent_id:
+                        type: integer
+                        x-nullable: true
+                        description: 父标签ID
+                      is_default:
+                        type: boolean
+                        description: 是否为默认标签
+                      space_id:
+                        type: integer
+                        description: 空间ID
+                      creator:
+                        type: string
+                        description: 创建人
+                      updated_by:
+                        type: string
+                        description: 更新人
+                      has_children:
+                        type: boolean
+                        description: 是否有子标签
+                    description: result=true 时成功数据
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: label_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 标签名称
+                color:
+                  type: string
+                  description: 标签颜色
+                label_scope:
+                  type: array
+                  description: 标签范围
+                  items:
+                    type: string
+                parent_id:
+                  type: integer
+                  description: 父标签ID
+                is_default:
+                  type: boolean
+                  description: 是否默认标签
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: patch
+          path: /{env.api_sub_path}apigw/space/{space_id}/update_label/{label_id}/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Partially update a label
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/delete_label/{label_id}/:
+    post:
+      operationId: delete_label
+      description: 删除标签
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: object
+                    description: 返回数据
+                    additionalProperties: true
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: label_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/delete_label/{label_id}/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Delete a label
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/template/{template_id}/update_labels/:
+    post:
+      operationId: update_template_labels
+      description: 更新模板标签
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: array
+                    description: 更新后的标签ID列表
+                    items:
+                      type: integer
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: template_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label_ids:
+                  type: array
+                  description: 标签ID列表
+                  items:
+                    type: integer
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/template/{template_id}/update_labels/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Update template labels
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/task/{task_id}/update_labels/:
+    post:
+      operationId: update_task_labels
+      description: 更新任务标签
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 操作是否成功
+                  data:
+                    type: object
+                    description: 返回数据
+                    additionalProperties: true
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label_ids:
+                  type: array
+                  description: 标签ID列表
+                  items:
+                    type: integer
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/task/{task_id}/update_labels/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Update task labels
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/create_task/:
     post:
       operationId: create_task
@@ -4421,5 +5225,73 @@ paths:
           resourcePermissionRequired: false
         disabledStages: []
         descriptionEn: Get task states by bk_app_code authentication
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/get_label_ref_count/:
+    get:
+      operationId: get_label_ref_count
+      description: 获取标签引用数量
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                    description: true/false 查询成功与否
+                  data:
+                    type: object
+                    description: 返回数据，key 为 label_id 字符串
+                    additionalProperties:
+                      type: object
+                      properties:
+                        template_count:
+                          type: integer
+                          description: 模板引用数量
+                        task_count:
+                          type: integer
+                          description: 任务引用数量
+                  message:
+                    type: string
+                    description: result=false 时错误信息
+                  code:
+                    type: integer
+                    description: 错误码
+                  trace_id:
+                    type: string
+                    description: open telemetry trace_id
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: query
+        name: label_ids
+        schema:
+          type: string
+        required: true
+        description: 标签ID列表，逗号分隔，如 1,2,3
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_label_ref_count/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Get label reference counts
         enableWebsocket: false
         pluginConfigs: []

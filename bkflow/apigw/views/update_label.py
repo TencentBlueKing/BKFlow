@@ -28,7 +28,7 @@ def update_label(request, space_id, label_id):
         return {
             "result": False,
             "data": None,
-            "code": err_code.NOT_FOUND.code,
+            "code": err_code.VALIDATION_ERROR.code,
             "message": _(f"标签不存在: space_id={space_id}, label_id={label_id}"),
         }
 
