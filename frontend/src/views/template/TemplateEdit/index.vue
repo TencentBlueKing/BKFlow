@@ -2314,7 +2314,6 @@
         });
       },
       onSaveFlowTemplate(flowData) {
-        console.log('画布SDK保存按钮回调', flowData);
         // 未开启版本管理，保存后回到查看模式
         if (this.isEnableVersionManage) {
           this.getDraftPipelineTree();
@@ -2361,6 +2360,7 @@
       },
       // 新版画布 - 离开前确认
       handleBeforeLeave(isEdited) {
+        console.log('离开前确认-isEdited', isEdited);
         if (!isEdited) return Promise.resolve(true);
         // return new Promise((resolve) => {
         //   this.$bkInfo({
