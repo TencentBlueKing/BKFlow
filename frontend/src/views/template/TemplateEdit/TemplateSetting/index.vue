@@ -30,7 +30,7 @@
       :project-info-loading="projectInfoLoading"
       :template-label-loading="templateLabelLoading"
       :template-labels="templateLabels"
-      @templateDataChanged="$emit('templateDataChanged', 'tabTemplateConfig', 'tabTemplateConfig')"
+      @templateDataChanged="$emit('templateDataChanged', 'tabTemplateConfig')"
       @updateTemplateLabelList="$emit('updateTemplateLabelList')"
       @closeTab="closeTab" />
     <TabTemplateSnapshoot
