@@ -1096,6 +1096,9 @@ const en = {
   选择调试凭证: 'Select debug credential',
   凭证: 'Credential',
   请选择调试凭证: 'Please select debug credential',
+  正在执行: 'Executing',
+  执行失败: 'Execution failed',
+  执行成功: 'Execution successful',
 };
 
 export default en;
