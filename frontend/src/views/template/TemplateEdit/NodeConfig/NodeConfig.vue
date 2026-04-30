@@ -774,29 +774,29 @@
           } else {
             this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version });
           }
-        // 输出变量
-        const has = Object.prototype.hasOwnProperty;
-        // 从接口获取子流程标准输出参数
-        const subprocessPlugin = this.atomList.find(item => item.code === 'subprocess_plugin');
-        const subprocessPluginVersion = subprocessPlugin?.list?.[0]?.version || '';
-        const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion });
-        const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
-          if (item.key === 'outputs') {
-            acc[item.key] = item;
-          }
-          return acc;
-        }, {});
-        const mockOutputs = Object.assign({}, resp.data.outputs, subBuiltInOutputs);
-        this.outputs = Object.keys(mockOutputs).map((item) => {
-          const output = mockOutputs[item];
-          return {
-            // eslint-disable-next-line camelcase
-            plugin_code: output?.plugin_code || '',
-            name: output.name,
-            key: output.key,
-            version: has.call(output, 'version') ? output.version : 'legacy',
-          };
-        });
+          // 输出变量
+          const has = Object.prototype.hasOwnProperty;
+          // 从接口获取子流程标准输出参数
+          const subprocessPlugin = this.atomList.find(item => item.code === 'subprocess_plugin');
+          const subprocessPluginVersion = subprocessPlugin?.list?.[0]?.version || '';
+          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion });
+          const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
+            if (item.key === 'outputs') {
+              acc[item.key] = item;
+            }
+            return acc;
+          }, {});
+          const mockOutputs = Object.assign({}, resp.data.outputs, subBuiltInOutputs);
+          this.outputs = Object.keys(mockOutputs).map((item) => {
+            const output = mockOutputs[item];
+            return {
+              // eslint-disable-next-line camelcase
+              plugin_code: output?.plugin_code || '',
+              name: output.name,
+              key: output.key,
+              version: has.call(output, 'version') ? output.version : 'legacy',
+            };
+          });
         } catch (e) {
           console.log(e);
         } finally {
