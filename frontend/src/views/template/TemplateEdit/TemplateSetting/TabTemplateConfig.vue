@@ -281,7 +281,6 @@ import i18n from '@/config/i18n/index.js';
 import NotifyTypeConfig from './NotifyTypeConfig.vue';
 import permission from '@/mixins/permission.js';
 import TimedTriggerConfig from './TimedTriggerConfig.vue';
-import LabelCascade from '../../../admin/Space/common/LabelCascade.vue';
 import HttpCallbackConfig from './HttpCallbackConfig.vue';
 
   export default {
@@ -290,7 +289,6 @@ import HttpCallbackConfig from './HttpCallbackConfig.vue';
         // MemberSelect,
         NotifyTypeConfig,
         TimedTriggerConfig,
-        LabelCascade,
         HttpCallbackConfig,
     },
     mixins: [permission],
@@ -599,7 +597,7 @@ import HttpCallbackConfig from './HttpCallbackConfig.vue';
                 notify_type,
                 default_flow_type,
                 webhook_configs,
-                enable_webhook
+                enable_webhook,
             } = this.$store.state.template;
             const originData = {
                 name,

@@ -64,8 +64,8 @@
           @resume="onTaskNodeResumeClick"
           @approve="onApprovalClick" />
         <component
-          v-else-if="!nodeSwitching"
           :is="templateComponentName"
+          v-else-if="!nodeSwitching"
           ref="processCanvas"
           class="canvas-comp-wrapper"
           :editable="false"
@@ -317,7 +317,7 @@
       VerticalCanvas,
       StageCanvas,
       FlowExecuteBridge,
-      WebhookCallback
+      WebhookCallback,
     },
     mixins: [permission, tplPerspective],
     props: {
