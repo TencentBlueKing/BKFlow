@@ -17,6 +17,7 @@
       v-if="!templateDataLoading"
       class="pipeline-canvas-wrapper">
       <TemplateHeader
+        v-if="!isHorizontalMode"
         ref="templateHeader"
         :name="name"
         :project-id="projectId"
@@ -53,9 +54,33 @@
         @publishTemplate="onPublishTemplate"
         @editTemplate="onEditTemplate" />
       <template v-if="isEditProcessPage">
+        <FlowEditBridge
+          v-if="isHorizontalMode && !isViewMode"
+          ref="flowEditRef"
+          :flow-id="String(templateId)"
+          :api-config="tplCanvasEditorApiConfig"
+          :permissions="{ canSave: true }"
+          :enable-debug="true"
+          :enable-version="isEnableVersionManage"
+          :flow-version="compVersion"
+          :on-before-leave="handleBeforeLeave"
+          @save="onSaveFlowTemplate"
+          @back="handleFlowBack"
+          @exit-edit="handleFlowBack" />
+        <FlowViewBridge
+          v-if="isHorizontalMode && isViewMode"
+          ref="flowViewRef"
+          :flow-id="String(templateId)"
+          :api-config="tplCanvasEditorApiConfig"
+          :thumbnail="false"
+          :enable-version="isEnableVersionManage"
+          :flow-version="compVersion"
+          :on-execute-success="onFlowExecuteSuccess"
+          @edit="onEditFlowTemplate"
+          @back="handleFlowBack" />
         <!-- 子流程更新提示 -->
         <SubflowUpdateTips
-          v-if="subflowShouldUpdated.length > 0"
+          v-if="subflowShouldUpdated.length > 0 && isHorizontalMode"
           class="update-tips"
           :list="subflowShouldUpdated"
           :locations="locations"
@@ -64,6 +89,7 @@
           @foldClick="clearDotAnimation" />
         <component
           :is="templateComponentName"
+          v-if="!isHorizontalMode"
           ref="processCanvas"
           :key="`${isViewMode}-${isChangeTplVersionTime}-${isNeedToProhibitEdit}`"
           class="canvas-comp-wrapper"
@@ -237,6 +263,12 @@
   import bus from '@/utils/bus.js';
   import SubflowUpdateTips from './SubflowUpdateTips.vue';
   import { cloneDeepWith } from 'lodash';
+  import '@blueking/bkflow-canvas-editor-vue2/style';
+  import { FlowEditBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-edit';
+  import { FlowViewBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-view';
+  import { FlowDebugBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-debug';
+  import { FlowCreateTaskBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-create-task';
+  import * as canvasEditorApi from './flowEditApi';
 
   export default {
     name: 'TemplateEdit',
@@ -252,6 +284,10 @@
       ProcessCanvas,
       StageCanvas,
       VersionList,
+      FlowEditBridge,
+      FlowViewBridge,
+      FlowDebugBridge,
+      FlowCreateTaskBridge,
     },
     mixins: [permission],
     props: {
@@ -372,6 +408,7 @@
         isAtPublish: false,
         draftInfo: {},
         isManualVersionChange: true,
+        isShowCreateTaskDialog: false,
       };
     },
     computed: {
@@ -462,6 +499,9 @@
       isViewMode() {
         return this.type === 'view' || !this.tplActions.some(action => ['EDIT', 'MOCK'].includes(action));
       },
+      isHorizontalMode() {
+        return this.canvasMode === 'horizontal';
+      },
       templateComponentName() {
           const canvasModeToComponentMap = {
             horizontal: 'ProcessCanvas',
@@ -469,6 +509,17 @@
             stage: 'StageCanvas',
           };
           return canvasModeToComponentMap[this.canvasMode] || canvasModeToComponentMap.horizontal;
+      },
+      tplCanvasEditorApiConfig() {
+        return {
+          scopeData: {
+            scope_type: 'space',
+            scope_value: this.spaceId,
+          },
+          ...canvasEditorApi,
+          // 覆盖 executeFlowTask：不启动任务，直接返回成功
+          executeFlowTask: async () => ({ result: true, data: {} }),
+        };
       },
     },
     watch: {
@@ -536,6 +587,7 @@
       ]),
       ...mapActions('task', [
         'loadSubflowConfig',
+        'createTask',
       ]),
       ...mapActions('atomForm/', [
         'loadSingleAtomList',
@@ -1738,7 +1790,7 @@
         const updatedLocation = Object.assign(location, data);
         this.setLocation({ type: 'edit', location: updatedLocation });
         const { name, stage_name, group, icon, code } = location;
-        this.$refs.processCanvas.onUpdateNodeInfo(id, {
+        this.$refs.processCanvas && this.$refs.processCanvas.onUpdateNodeInfo(id, {
           ...data,
           name,
           stage_name,
@@ -1784,51 +1836,6 @@
             },
           });
         }
-      },
-      async onSaveExecuteSchemeClick(isDefault) {
-        try {
-          this.executeSchemeSaving = true;
-          const schemes = this.taskSchemeList.map(item => ({
-            id: item.id || undefined,
-            data: item.data,
-            name: item.name,
-          }));
-          const resp = await this.saveTaskSchemList({
-            template_id: this.templateId,
-            schemes,
-            isCommon: this.common,
-          });
-          if (!resp.result) return;
-          this.$bkMessage({
-            message: i18n.t('方案保存成功'),
-            theme: 'success',
-          });
-          this.isExecuteSchemeDialog = false;
-          this.allowLeave = true;
-          this.isTemplateDataChanged = false;
-          this.isSchemaListChange = false;
-          this.isEditProcessPage = !isDefault;
-          if (isDefault) {
-            this.$refs.taskSelectNode.loadSchemeList();
-          }
-        } catch (e) {
-          console.log(e);
-        } finally {
-          this.executeSchemeSaving = false;
-        }
-      },
-      goBackViewMode() {
-        this.isBackViewMode = true;
-        this.$bkInfo({
-          ...this.infoBasicConfig,
-          confirmFn: () => {
-            // 返回查看模式时初始化数据
-            this.isTemplateDataChanged = false;
-            this.isGlobalVariableUpdate = false;
-            this.$router.back();
-            this.initData();
-          },
-        });
       },
       goBackToTplEdit() {
         const { isDefaultSchemeIng, judgeDataEqual } = this.$refs.taskSelectNode;
@@ -2284,6 +2291,84 @@
         if (this.isEnableVersionManage) {
           await this.getDraftPipelineTree(true);
         }
+      },
+      async onEditFlowTemplate() {
+        const { params, query, name } = this.$route;
+        this.$router.push({
+          name,
+          params: { ...params, type: 'edit' },
+          query: Object.assign({}, query),
+        });
+      },
+      goBackViewMode() {
+        this.isBackViewMode = true;
+        this.$bkInfo({
+          ...this.infoBasicConfig,
+          confirmFn: () => {
+            // 返回查看模式时初始化数据
+            this.isTemplateDataChanged = false;
+            this.isGlobalVariableUpdate = false;
+            this.$router.back();
+            this.initData();
+          },
+        });
+      },
+      onSaveFlowTemplate(flowData) {
+        // 未开启版本管理，保存后回到查看模式
+          if (this.isEnableVersionManage) {
+          this.getDraftPipelineTree();
+          return;
+        }
+        // 从编辑模式保存，跳转到查看模式
+        this.$router.replace({
+          name: 'templatePanel',
+          params: { type: 'view' },
+          query: Object.assign({ templateId: flowData.id }, this.$route.query),
+        });
+      },
+      // SDK 执行流程成功回调
+      onFlowExecuteSuccess(taskId) {
+        const { href } = this.$router.resolve({
+          name: 'taskExecute',
+          params: { spaceId: this.spaceId },
+          query: { instanceId: taskId },
+        });
+        window.open(href, '_blank');
+      },
+      handleFlowBack() {
+        // isEditProcessPage是为了区别执行方案页面(bkflow无执行方案)
+        const edited = this.$refs.flowEditRef?.isFlowEdited;
+        if (this.type === 'edit' && edited) {
+          // 编辑态下返回上一个路由时先保存再back
+          this.$bkInfo({
+            ...this.infoBasicConfig,
+            confirmFn: () => {
+              // 返回查看模式时初始化数据
+              this.$router.back();
+              this.initData();
+            },
+          });
+        } else {
+          this.$router.push({
+            name: 'spaceAdmin',
+            query: {
+              space_id: this.spaceId,
+              activeTab: 'template',
+            },
+          });
+        }
+      },
+      // 新版画布 - 离开前确认
+      handleBeforeLeave(isEdited) {
+        if (!isEdited) return Promise.resolve(true);
+        // return new Promise((resolve) => {
+        //   this.$bkInfo({
+        //     title: this.$t('确认离开？'),
+        //     subtitle: this.$t('当前流程未保存，离开将丢失修改'),
+        //     confirmFn: () => resolve(true),
+        //     cancelFn: () => resolve(false),
+        //   });
+        // });
       },
       // 关闭版本列表侧滑
       onCloseVersionListPanel() {
