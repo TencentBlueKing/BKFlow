@@ -80,7 +80,7 @@
           @back="handleFlowBack" />
         <!-- 子流程更新提示 -->
         <SubflowUpdateTips
-          v-if="subflowShouldUpdated.length > 0 && isHorizontalMode"
+          v-if="subflowShouldUpdated.length > 0 && !isHorizontalMode"
           class="update-tips"
           :list="subflowShouldUpdated"
           :locations="locations"
@@ -2314,8 +2314,9 @@
         });
       },
       onSaveFlowTemplate(flowData) {
+        console.log('画布SDK保存按钮回调', flowData);
         // 未开启版本管理，保存后回到查看模式
-          if (this.isEnableVersionManage) {
+        if (this.isEnableVersionManage) {
           this.getDraftPipelineTree();
           return;
         }

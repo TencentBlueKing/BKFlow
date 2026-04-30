@@ -117,7 +117,7 @@ export const fetchBkFlowInnerPluginList = () => axios.get('api/plugin/', {
 // }
 export const fetchBkFlowThirdPartyPluginAppDetail = (pluginCode) => {
   return axios.get('/api/plugin_service/detail/', {
-    params: { plugin_code: pluginCode, plugin_version: '0.1.24assistant', with_app_detail: true },
+    params: { plugin_code: pluginCode, plugin_version: '', with_app_detail: true },
   }).then(response => response.data);
 };
 
