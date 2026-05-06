@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import copy
 from typing import Optional, Union
 
@@ -30,6 +31,10 @@ from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.pipeline_plugins.components.collections.base import (
     BKFlowBaseService,
     StepIntervalGenerator,
+)
+from bkflow.pipeline_plugins.components.collections.uniform_api.span import (
+    UNIFORM_API_PLUGIN_API_META_INPUT_KEY,
+    get_uniform_api_span_attributes,
 )
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_plugins.utils import convert_dict_value
@@ -85,12 +90,7 @@ class UniformAPIService(BKFlowBaseService):
     def _get_span_attributes(self, data, parent_data):
         """覆盖基类方法，添加API插件特有的属性"""
         attributes = super()._get_span_attributes(data, parent_data)
-        attributes.update(
-            {
-                "url": data.get_one_of_inputs("uniform_api_plugin_url", ""),
-                "method": data.get_one_of_inputs("uniform_api_plugin_method", ""),
-            }
-        )
+        attributes.update(get_uniform_api_span_attributes(data))
         return attributes
 
     def plugin_execute(self, data, parent_data):
@@ -133,6 +133,7 @@ class UniformAPIService(BKFlowBaseService):
         polling = api_data.pop("uniform_api_plugin_polling", None)
         callback = api_data.pop("uniform_api_plugin_callback", None)
         method = api_data.pop("uniform_api_plugin_method")
+        api_data.pop(UNIFORM_API_PLUGIN_API_META_INPUT_KEY, None)
         resp_data_path: str = api_data.pop("response_data_path", None)
         # 获取空间相关配置信息
         interface_client = InterfaceModuleClient()
