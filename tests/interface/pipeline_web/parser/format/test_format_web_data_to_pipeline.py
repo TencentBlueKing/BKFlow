@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
 import json
 
 from django.test import TestCase
@@ -2616,3 +2615,62 @@ class FormatWebDataToPipelineTestCase(TestCase):
         # 由于 mock 组件可能导致详细断言失败，这里只验证核心结构
         self.assertIsInstance(result["data"]["inputs"], dict)
         self.assertIsInstance(result["data"]["outputs"], list)
+
+    def test_uniform_api_api_meta_injected_to_component_inputs(self):
+        """新版 API 插件的 api_meta 会注入为运行时隐藏输入"""
+        api_meta = {
+            "id": "sops_api_001",
+            "name": "流程执行",
+            "meta_url": "http://example.com/meta",
+            "api_key": "sops_execute",
+            "category": {"id": "cat_1", "name": "标准运维"},
+        }
+        web_tree = {
+            "id": "pipeline",
+            "activities": {
+                "node_1": {
+                    "id": "node_1",
+                    "type": "ServiceActivity",
+                    "name": "api node",
+                    "incoming": ["flow_start_node"],
+                    "outgoing": ["flow_node_end"],
+                    "error_ignorable": False,
+                    "component": {
+                        "code": "uniform_api",
+                        "version": "v3.0.0",
+                        "api_meta": api_meta,
+                        "data": {
+                            "uniform_api_plugin_url": {
+                                "hook": False,
+                                "value": "http://example.com/api",
+                            },
+                            "uniform_api_plugin_method": {"hook": False, "value": "POST"},
+                        },
+                    },
+                }
+            },
+            "constants": {},
+            "outputs": [],
+            "flows": {
+                "flow_start_node": {
+                    "id": "flow_start_node",
+                    "source": "start",
+                    "target": "node_1",
+                },
+                "flow_node_end": {
+                    "id": "flow_node_end",
+                    "source": "node_1",
+                    "target": "end",
+                },
+            },
+            "gateways": {},
+            "start_event": {"id": "start", "type": "EmptyStartEvent", "incoming": [], "outgoing": ["flow_start_node"]},
+            "end_event": {"id": "end", "type": "EmptyEndEvent", "incoming": ["flow_node_end"], "outgoing": []},
+        }
+
+        result = format_web_data_to_pipeline(web_tree)
+
+        inputs = result["activities"]["node_1"]["component"]["inputs"]
+        self.assertEqual(inputs["uniform_api_plugin_api_meta"]["value"], api_meta)
+        self.assertFalse(inputs["uniform_api_plugin_api_meta"]["is_param"])
+        self.assertFalse(inputs["uniform_api_plugin_api_meta"]["need_render"])
