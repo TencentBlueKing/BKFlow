@@ -279,6 +279,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.pipeline_web",
         "bkflow.statistics",
         "bkflow.variable_manager",
+        "bkflow.label",
     )
 
     TEMPLATES[0]["OPTIONS"]["context_processors"] += ("bkflow.interface.context_processors.bkflow_settings",)

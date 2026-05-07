@@ -1,14 +1,13 @@
-/**
-* Tencent is pleased to support the open source community by making 蓝鲸智云PaaS平台社区版 (BlueKing PaaS Community
-* Edition) available.
-* Copyright (C) 2017 THL A29 Limited, a Tencent company. All rights reserved.
-* Licensed under the MIT License (the "License"); you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-* http://opensource.org/licenses/MIT
-* Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-* an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
-* specific language governing permissions and limitations under the License.
-*/
+/** * Tencent is pleased to support the open source community by making
+蓝鲸智云PaaS平台社区版 (BlueKing PaaS Community * Edition) available. *
+Copyright (C) 2017 THL A29 Limited, a Tencent company. All rights reserved. *
+Licensed under the MIT License (the "License"); you may not use this file except
+in compliance with the License. * You may obtain a copy of the License at *
+http://opensource.org/licenses/MIT * Unless required by applicable law or agreed
+to in writing, software distributed under the License is distributed on * an "AS
+IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied. See the License for the * specific language governing permissions and
+limitations under the License. */
 <template>
   <bk-sideslider
     :title="$t('基础信息')"
@@ -26,7 +25,7 @@
         :label-width="140"
         :rules="rules">
         <section class="form-section">
-          <h4>{{ $t('基础') }}</h4>
+          <h4>{{ $t("基础") }}</h4>
           <bk-form-item
             :property="'name'"
             :label="$t('流程名称')"
@@ -39,6 +38,46 @@
               :placeholder="$t('请输入流程模板名称')"
               :maxlength="stringLength.TEMPLATE_NAME_MAX_LENGTH"
               :show-word-limit="true" />
+          </bk-form-item>
+          <bk-form-item
+            :label="$t('标签')"
+            data-test-id="tabTemplateConfig_form_label">
+            <label-cascade
+              :value="formData.template_labels"
+              scope="template"
+              @confirm="onSelectLabel">
+              <template #trigger="{ list, isShow }">
+                <div
+                  :class="[
+                    'cascade-trigger',
+                    { focus: isShow },
+                  ]">
+                  <div class="label-list">
+                    <div
+                      v-for="label in list"
+                      :key="label.id"
+                      class="label-item"
+                      :style="{
+                        'background-color': label.color,
+                      }">
+                      {{ label.full_path }}
+                      <bk-icon
+                        class="delete-icon"
+                        type="close"
+                        @click="
+                          handleDeleteLabel(label.id)
+                        " />
+                    </div>
+                  </div>
+                  <bk-icon
+                    :class="[
+                      'angle-icon',
+                      { 'is-show': isShow },
+                    ]"
+                    type="angle-down" />
+                </div>
+              </template>
+            </label-cascade>
           </bk-form-item>
           <!-- <bk-form-item v-if="!common" :label="$t('标签')" data-test-id="tabTemplateConfig_form_label">
             <bk-select
@@ -122,8 +161,10 @@
         </section>
         <section class="form-section">
           <h4>
-            <span>{{ $t('通知') }}</span>
-            <span class="tip-desc">{{ $t('选择通知方式后，将默认通知到任务执行人') }}</span>
+            <span>{{ $t("通知") }}</span>
+            <span class="tip-desc">{{
+              $t("选择通知方式后，将默认通知到任务执行人")
+            }}</span>
           </h4>
           <NotifyTypeConfig
             :label-width="140"
@@ -137,14 +178,18 @@
         </section>
         <section class="form-section">
           <h4>
-            <span>{{ $t('触发器') }}</span>
-            <span class="tip-desc">{{ $t('可以通过配置触发器来执行流程任务') }}</span>
+            <span>{{ $t("触发器") }}</span>
+            <span class="tip-desc">{{
+              $t("可以通过配置触发器来执行流程任务")
+            }}</span>
           </h4>
           <TimedTriggerConfig
             :is-view-mode="isViewMode"
             :triggers="formData.triggers"
             :template-id="templateId"
-            :is-allow-set-multiple-trigger="isAllowSetMultipleTrigger"
+            :is-allow-set-multiple-trigger="
+              isAllowSetMultipleTrigger
+            "
             @change="onTriggerConfigChange" />
         </section>
         <section class="form-section http-callback-section">
@@ -160,7 +205,7 @@
             @change="onHttpCallbackChange" />
         </section>
         <section class="form-section">
-          <h4>{{ $t('其他') }}</h4>
+          <h4>{{ $t("其他") }}</h4>
           <!-- <bk-form-item v-if="!common" :label="$t('执行代理人')" data-test-id="tabTemplateConfig_form_executorProxy">
             <member-select
               :multiple="false"
@@ -208,13 +253,13 @@
           theme="primary"
           data-test-id="tabTemplateConfig_form_saveBtn"
           @click="onSaveConfig">
-          {{ $t('确定') }}
+          {{ $t("确定") }}
         </bk-button>
         <bk-button
           theme="default"
           data-test-id="tabTemplateConfig_form_cancelBtn"
           @click="closeTab">
-          {{ isViewMode ? $t('关闭') : $t('取消') }}
+          {{ isViewMode ? $t("关闭") : $t("取消") }}
         </bk-button>
       </div>
       <!-- <bk-dialog
@@ -282,32 +327,30 @@ import NotifyTypeConfig from './NotifyTypeConfig.vue';
 import permission from '@/mixins/permission.js';
 import TimedTriggerConfig from './TimedTriggerConfig.vue';
 import HttpCallbackConfig from './HttpCallbackConfig.vue';
+import LabelCascade from '../../../admin/Space/common/LabelCascade.vue';
 
-  export default {
+export default {
     name: 'TabTemplateConfig',
     components: {
         // MemberSelect,
         NotifyTypeConfig,
         TimedTriggerConfig,
         HttpCallbackConfig,
+        LabelCascade,
     },
     mixins: [permission],
     props: {
-      projectInfoLoading: Boolean,
-      templateLabelLoading: Boolean,
-      templateLabels: {
-        type: Array,
-        default: () => ([]),
-      },
-      isShow: Boolean,
-      common: {
-        type: [String, Number],
-        default: '',
-      },
-      isViewMode: Boolean,
+        projectInfoLoading: Boolean,
+        templateLabelLoading: Boolean,
+        isShow: Boolean,
+        common: {
+            type: [String, Number],
+            default: '',
+        },
+        isViewMode: Boolean,
     },
     data() {
-          const {
+        const {
             name,
             category,
             notify_type: notifyType,
@@ -401,38 +444,42 @@ import HttpCallbackConfig from './HttpCallbackConfig.vue';
         };
     },
     computed: {
-      ...mapState({
-        username: state => state.username,
-        timeout: state => state.template.time_out,
-        infoBasicConfig: state => state.infoBasicConfig,
-      }),
-      ...mapState('project', {
-        projectId: state => state.project_id,
-        projectName: state => state.projectName,
-        authActions: state => state.authActions,
-      }),
-      ...mapState('template', {
-        templateId: state => state.template_id,
-        spaceId: state => state.spaceId,
-      }),
+        ...mapState({
+            username: state => state.username,
+            timeout: state => state.template.time_out,
+            infoBasicConfig: state => state.infoBasicConfig,
+        }),
+        ...mapState('project', {
+            projectId: state => state.project_id,
+            projectName: state => state.projectName,
+            authActions: state => state.authActions,
+        }),
+        ...mapState('template', {
+            templateId: state => state.template_id,
+            spaceId: state => state.spaceId,
+        }),
     },
     async mounted() {
-      // 模板没有设置执行代理人时，默认使用项目下的执行代理人
-      // if (!this.formData.executorProxy.length) {
-      //   this.setExecutorProxy()
-      // }
-      this.$refs.nameInput.focus();
-      // 获取空间配置判断是否允许设置多个触发器
-      const res = await this.getNotAuthSpaceConfig();
-      if (res.data.allow_multiple_triggers) {
-        const { name } = res.data.allow_multiple_triggers;
-        const result = await this.checkSpaceConfig({ id: this.spaceId, name });
-        if (result) {
-          this.isAllowSetMultipleTrigger = result.data.value === 'true';
+        // 模板没有设置执行代理人时，默认使用项目下的执行代理人
+        // if (!this.formData.executorProxy.length) {
+        //   this.setExecutorProxy()
+        // }
+        console.log(this.$store.state.template);
+        this.$refs.nameInput.focus();
+        // 获取空间配置判断是否允许设置多个触发器
+        const res = await this.getNotAuthSpaceConfig();
+        if (res.data.allow_multiple_triggers) {
+            const { name } = res.data.allow_multiple_triggers;
+            const result = await this.checkSpaceConfig({
+                id: this.spaceId,
+                name,
+            });
+            if (result) {
+                this.isAllowSetMultipleTrigger = result.data.value === 'true';
+            }
+        } else {
+            this.isAllowSetMultipleTrigger = false;
         }
-      } else {
-        this.isAllowSetMultipleTrigger = false;
-      }
     },
     methods: {
         ...mapMutations('template/', [
@@ -694,12 +741,12 @@ import HttpCallbackConfig from './HttpCallbackConfig.vue';
             this.formData.template_labels = this.formData.template_labels.filter(item => item.id !== id);
         },
     },
-  };
+};
 </script>
 
 <style lang="scss" scoped>
-@import '../../../../scss/config.scss';
-@import '../../../../scss/mixins/scrollbar.scss';
+@import "../../../../scss/config.scss";
+@import "../../../../scss/mixins/scrollbar.scss";
 .config-wrapper {
     height: calc(100vh - 60px);
     background: none;
@@ -768,6 +815,56 @@ import HttpCallbackConfig from './HttpCallbackConfig.vue';
     }
     .bloack {
         display: block;
+    }
+}
+.bk-tooltip-ref {
+    width: 100%;
+}
+.cascade-trigger {
+    display: flex;
+    align-items: center;
+    padding: 0 0 0 8px;
+    background: #ffffff;
+    border: 1px solid #c4c6cc;
+    border-radius: 2px;
+    width: 100%;
+    &.focus {
+        border-color: #3a84ff;
+    }
+    .label-list {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        min-height: 32px;
+        padding: 7px 0 9px 0;
+        .label-item {
+            height: 16px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            border-radius: 11px;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            .delete-icon {
+                font-size: 16px !important;
+                margin-left: 5px;
+                cursor: pointer;
+            }
+        }
+    }
+    .angle-icon {
+        width: 30px;
+        height: 100%;
+        font-size: 16px !important;
+        color: #979ba5;
+        &.is-show {
+            transform: rotate(180deg);
+        }
     }
 }
 </style>
