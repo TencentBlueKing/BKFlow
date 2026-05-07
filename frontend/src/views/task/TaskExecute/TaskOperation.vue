@@ -62,8 +62,8 @@
           @resume="onTaskNodeResumeClick"
           @approve="onApprovalClick" />
         <component
-          v-else-if="!nodeSwitching"
           :is="templateComponentName"
+          v-else-if="!nodeSwitching"
           ref="processCanvas"
           class="canvas-comp-wrapper"
           :editable="false"
@@ -494,7 +494,7 @@
         if (this.isIframe) {
             return this.$route.query.useCanvasEditor === 'true';
         }
-        return false;
+        return this.canvasMode === 'horizontal';
       },
       canvasData() {
         const { line, location, activities } = { ... tools.deepClone(this.instanceFlow) };

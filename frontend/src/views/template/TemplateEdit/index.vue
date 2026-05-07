@@ -17,7 +17,7 @@
       v-if="!templateDataLoading"
       class="pipeline-canvas-wrapper">
       <TemplateHeader
-        v-if="!isHorizontalMode"
+        v-if="!useCanvasEditor"
         ref="templateHeader"
         :name="name"
         :project-id="projectId"
@@ -55,7 +55,7 @@
         @editTemplate="onEditTemplate" />
       <template v-if="isEditProcessPage">
         <FlowEditBridge
-          v-if="isHorizontalMode && !isViewMode"
+          v-if="useCanvasEditor && !isViewMode"
           ref="flowEditRef"
           :flow-id="String(templateId)"
           :api-config="tplCanvasEditorApiConfig"
@@ -68,7 +68,7 @@
           @back="handleFlowBack"
           @exit-edit="handleFlowBack" />
         <FlowViewBridge
-          v-if="isHorizontalMode && isViewMode"
+          v-if="useCanvasEditor && isViewMode"
           ref="flowViewRef"
           :flow-id="String(templateId)"
           :api-config="tplCanvasEditorApiConfig"
@@ -80,7 +80,7 @@
           @back="handleFlowBack" />
         <!-- 子流程更新提示 -->
         <SubflowUpdateTips
-          v-if="subflowShouldUpdated.length > 0 && !isHorizontalMode"
+          v-if="subflowShouldUpdated.length > 0 && !useCanvasEditor"
           class="update-tips"
           :list="subflowShouldUpdated"
           :locations="locations"
@@ -89,7 +89,7 @@
           @foldClick="clearDotAnimation" />
         <component
           :is="templateComponentName"
-          v-if="!isHorizontalMode"
+          v-if="!useCanvasEditor"
           ref="processCanvas"
           :key="`${isViewMode}-${isChangeTplVersionTime}-${isNeedToProhibitEdit}`"
           class="canvas-comp-wrapper"
@@ -499,7 +499,10 @@
       isViewMode() {
         return this.type === 'view' || !this.tplActions.some(action => ['EDIT', 'MOCK'].includes(action));
       },
-      isHorizontalMode() {
+      useCanvasEditor() {
+        if (this.isIframe) {
+            return this.$route.query.useCanvasEditor === 'true';
+        }
         return this.canvasMode === 'horizontal';
       },
       templateComponentName() {
@@ -1337,12 +1340,12 @@
           if (location.type === 'tasknode') {
             let icon; let group; let code;
             const nodeConfig = this.activities[location.id];
-            if (nodeConfig && nodeConfig.component.code === 'remote_plugin') {
+            if (nodeConfig && nodeConfig.component?.code === 'remote_plugin') {
               icon = location.group_icon;
               group = location.group_name;
               code = nodeConfig.name;
             } else {
-              const atom = this.atomList.find(item => nodeConfig && nodeConfig.component.code === item.code);
+              const atom = this.atomList.find(item => nodeConfig && nodeConfig.component?.code === item.code);
               if (atom) {
                 icon = atom.group_icon;
                 group = atom.group_name;

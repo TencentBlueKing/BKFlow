@@ -91,14 +91,16 @@ export const fetchBkFlowThirdPartyPluginDetail = (pluginCode, pluginVersion) => 
 /**
  * 获取bkflow内置插件详情
  */
-//  const url = atomClassify === 'component' ? `api/plugin/${atomFile}/` : `api/template/variable/${atomFile}/`;
-export const fetchBkFlowInnerPluginDetail = (code, version) => {
-  return axios.get(`api/plugin/${code}/`, {
-    params: { space_id: store.state.spaceId, version },
-  }).then((response) => {
-    return response.data.data;
-  });
-};
+export const fetchBkFlowInnerPluginDetail = (code, version) => axios.get(`api/plugin/${code}/`, {
+  params: { space_id: store.state.spaceId, version },
+}).then(response => response.data.data);
+
+/**
+ * 获取内置变量详情
+ */
+export const fetchInnerVariableDetail = code => axios.get(`api/template/variable/${code}/`, {
+  params: { space_id: store.state.spaceId },
+}).then(response => response.data.data);
 
 /**
  * 获取bkflow内置插件列表（全量标准插件）
@@ -115,11 +117,9 @@ export const fetchBkFlowInnerPluginList = () => axios.get('api/plugin/', {
 //     plugin_version: version,
 //     with_app_detail: true,
 // }
-export const fetchBkFlowThirdPartyPluginAppDetail = (pluginCode) => {
-  return axios.get('/api/plugin_service/detail/', {
-    params: { plugin_code: pluginCode, plugin_version: '', with_app_detail: true },
-  }).then(response => response.data);
-};
+export const fetchBkFlowThirdPartyPluginAppDetail = (pluginCode, pluginVersion) => axios.get('/api/plugin_service/detail/', {
+  params: { plugin_code: pluginCode, plugin_version: pluginVersion, with_app_detail: true },
+}).then(response => response.data);
 
 /**
  * 获取变量引用详情(全局变量)
@@ -129,7 +129,7 @@ export const fetchVariableRef = params => axios.post('api/template/analysis_cons
 /**
  * 获取流程变量类型
  */
-export const fetchCustomVariableTypes = () => axios.get('api/template/variable/').then(response => response.data.data);
+export const fetchCustomVariableTypes = () => axios.get('api/template/variable/').then(response => response.data);
 
 /**
  * 获取流程操作记录
@@ -143,9 +143,7 @@ export const fetchFlowOperateRecord = id => axios.get(`/api/template/${id}/get_t
  */
 export const createFlowTask = (params) => {
   const { spaceId } = store.state;
-  return axios.post(`/api/template/admin/create_task/${spaceId}/`, params).then((response) => {
-    return response.data;
-  });
+  return axios.post(`/api/template/admin/create_task/${spaceId}/`, params).then(response => response.data);
 };
 /**
  * 操作流程任务
@@ -167,16 +165,12 @@ export const fetchControlConfig = () => axios.get('/api/space/config/get_control
 /**
  * 检查空间配置项的值
  */
-export const checkSpaceConfig = (scopeValue, params) => {
-  return axios.get(`/api/space/config/${scopeValue}/check_space_config/`, { params }).then(response => response.data);
-};
+export const checkSpaceConfig = (scopeValue, params) => axios.get(`/api/space/config/${scopeValue}/check_space_config/`, { params }).then(response => response.data);
 
 /**
  * 自动排版（画布美化）
  */
-export const drawPipeline = (params) => {
-  return axios.post('api/template/draw_pipeline/', params).then(response => response.data.data);
-};
+export const drawPipeline = params => axios.post('api/template/draw_pipeline/', params).then(response => response.data.data);
 
 /**
  * 获取流程草稿详情
@@ -185,7 +179,7 @@ export const drawPipeline = (params) => {
  */
 export const fetchFlowDraftDetail = id => axios.get(`/api/template/${id}/get_draft_template/`, {
   params: { space_id: store.state.spaceId },
-}).then(response => response.data);
+}).then(response => response.data.data);
 
 /**
  * 获取流程某个版本下的详情
@@ -198,6 +192,6 @@ export const fetchFlowDetailByVersion = (id, version) => {
   if (version !== undefined && version !== null) {
     requestData.version = version;
   }
-  return axios.get(`/api/template/${id}/preview_task_tree/`, requestData).then(response => response.data);
+  return axios.post(`/api/template/${id}/preview_task_tree/`, requestData).then(response => response.data);
 };
 
