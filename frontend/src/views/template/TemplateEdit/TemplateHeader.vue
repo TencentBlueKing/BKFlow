@@ -64,18 +64,18 @@
     <div class="header-right-area">
       <div
         v-if="isEditProcessPage"
-        class="button-area">
+        class="button-area button-setting-area">
         <div :class="{ 'setting-tab-wrap': true, 'right-dividing-line': isNeedHaveDividingLine }">
-          <span
+          <div
             v-if="ifShowJumpToTaskList"
             :class="['setting-item']"
             @click="jumpToTaskList">
             <i
-              v-bk-tooltips.bottom="$t('跳转任务列表')"
               class="common-icon-renwu jump-to-task-list-icon" />
-          </span>
+            <span>{{ $t('跳转任务列表') }}</span>
+          </div>
           <template v-for="tab in settingTabs">
-            <span
+            <div
               v-if="!(isViewMode && tab.id === 'tplSnapshootTab')"
               :key="tab.id"
               :class="['setting-item', {
@@ -86,12 +86,14 @@
               <i
                 v-bk-tooltips.bottom="tab.title"
                 :class="tab.icon" />
-            </span>
+              <span>{{ tab.title }}</span>
+            </div>
           </template>
         </div>
         <bk-button
           v-if="(isViewMode && !isProjectCommonTemp) && (isDraftVersion || (!isHaveDraft && isLaterVersion))"
           theme="primary"
+          :class="['task-btn', { 'is-disabled': !hasEditPermission }]"
           data-test-id="templateEdit_form_editCanvas"
           :disabled="!hasEditPermission"
           @click.stop="onEditClick">
@@ -162,7 +164,6 @@
         <bk-button
           v-if="isViewMode && ifShowCreateTaskBtn"
           :class="['task-btn']"
-
           @click.stop="exportCreateTaskHandle">
           {{ $t('创建任务') }}
         </bk-button>
@@ -987,29 +988,35 @@
               color: #3480ff;
           }
       }
+      .button-setting-area{
+        display: flex;
+        align-items: center;
+        height: 100%;
+      }
       .setting-tab-wrap {
-          display: inline-block;
-          padding-right: 24px;
-          height: 32px;
-          line-height: 32px;
+          display: flex;
+          align-items: center;
+          height: 100%;
           .jump-to-task-list-icon{
             font-size: 20px;
             position: relative;
             top: 2px;
-            left: 6px;
           }
           .setting-item {
               position: relative;
-              margin-right: 20px;
-              font-size: 16px;
-              color: #546a9e;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              padding: 0 12px;
+              min-width: 72px;
+              height: 100%;
+              color: #313238;
               cursor: pointer;
+              border-left: 1px solid #dde4eb;
               &:hover,
               &.active {
                   color: #3a84ff;
-              }
-              &:last-child {
-                  margin-right: 0;
               }
               &.update::before {
                   content: '';
@@ -1021,16 +1028,41 @@
                   border-radius: 50%;
                   background: #ff5757;
               }
+              i {
+                  font-size: 12px;
+                  margin: 2px 0;
+              }
+              span {
+                  font-size: 12px;
+                  line-height: 20px;
+              }
           }
       }
       .right-dividing-line{
         border-right: 1px solid #dcdee5;
-        margin-right: 20px;
+        margin-right: 10px;
       }
       .task-btn {
           margin-left: 10px;
+          border-radius: 4px;
+          color: #63656e;
           .send-btn{
             padding: 0 7px !important;
+          }
+          &:not(.bk-primary) {
+            background-color: #eaebf0;
+            border: none;
+            &:hover {
+              background-color: #dcdee5;
+            }
+            &.is-disabled {
+              background-color: #f0f1f5;
+              color: #c4c6cc;
+              cursor: not-allowed;
+              &:hover {
+                background-color: #f0f1f5;
+              }
+            }
           }
       }
   }

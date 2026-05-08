@@ -1099,6 +1099,7 @@ const en = {
   正在执行: 'Executing',
   执行失败: 'Execution failed',
   执行成功: 'Execution successful',
+  更多操作: 'More operations',
 };
 
 export default en;

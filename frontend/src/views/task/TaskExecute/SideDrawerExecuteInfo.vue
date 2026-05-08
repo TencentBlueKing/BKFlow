@@ -1347,7 +1347,7 @@
           this.breadcrumbData = this.findNodePath(this.curNodeData[0].children, this.nodeDetailConfig.node_id);
           this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
           this.breadcrumbData.forEach(async (item) => {
-          if (item.id) {
+          if (item.id && item.type) {
             const query = {
               space_id: this.spaceId,
               instance_id: item.taskId,
