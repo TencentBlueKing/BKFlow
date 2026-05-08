@@ -62,8 +62,8 @@
           @resume="onTaskNodeResumeClick"
           @approve="onApprovalClick" />
         <component
-          :is="templateComponentName"
           v-else-if="!nodeSwitching"
+          :is="templateComponentName"
           ref="processCanvas"
           class="canvas-comp-wrapper"
           :editable="false"
