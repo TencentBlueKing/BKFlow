@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -24,6 +23,7 @@ from django.views.decorators.http import require_GET
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.utils.webhook import get_webhook_delivery_history_by_delivery_id
 
 
 @login_exempt
@@ -35,4 +35,5 @@ from bkflow.contrib.api.collections.task import TaskComponentClient
 def get_task_detail(request, space_id, task_id):
     client = TaskComponentClient(space_id=space_id)
     result = client.get_task_detail(task_id)
+    result["data"]["webhook_delivery_history"] = get_webhook_delivery_history_by_delivery_id(str(task_id))
     return result

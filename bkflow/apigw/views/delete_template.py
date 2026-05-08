@@ -26,6 +26,7 @@ from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.decision_table.models import DecisionTable
 from bkflow.template.models import Template, TemplateReference, Trigger
 from bkflow.utils import err_code
+from bkflow.utils.webhook import clear_scope_webhooks
 
 
 @login_exempt
@@ -51,4 +52,5 @@ def delete_template(request, space_id, template_id):
     Template.objects.filter(space_id=space_id, id=template_id).update(is_deleted=True)
     trigger_ids = Trigger.objects.filter(template_id=template_id).values_list("id", flat=True)
     Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
+    clear_scope_webhooks([str(template_id)])
     return {"result": True, "data": {}, "code": err_code.SUCCESS.code}
