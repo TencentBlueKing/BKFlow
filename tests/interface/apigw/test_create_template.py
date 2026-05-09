@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import json
+from unittest import mock
 
 from django.test import TestCase, override_settings
 
@@ -74,3 +75,43 @@ class TestCreateTemplate(TestCase):
             TemplateLabelRelation.objects.filter(template_id=template_id).values_list("label_id", flat=True)
         )
         self.assertEqual(rel_label_ids, {label_1.id, label_2.id})
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @mock.patch("bkflow.apigw.views.create_template.apply_webhook_configs")
+    def test_create_template_with_webhook_configs(self, mock_apply_webhook):
+        """测试传入 webhook_configs 时成功调用 apply_webhook_configs"""
+        space = self.create_space()
+        mock_apply_webhook.return_value = {"result": True, "message": "success"}
+
+        data = {"name": "带Webhook的流程", "webhook_configs": {"method": "POST", "endpoint": "http://test.com/hook"}}
+        url = f"/apigw/space/{space.id}/create_template/"
+        resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+        resp_data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], True)
+        mock_apply_webhook.assert_called_once()
+        call_args = mock_apply_webhook.call_args
+        self.assertEqual(call_args[0][0], {"method": "POST", "endpoint": "http://test.com/hook"})
+        self.assertEqual(resp_data["data"]["name"], "带Webhook的流程")
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @mock.patch("bkflow.apigw.views.create_template.apply_webhook_configs")
+    def test_create_template_with_webhook_configs_failure(self, mock_apply_webhook):
+        """测试 apply_webhook_configs 返回失败时应抛出 CreateTemplateException"""
+        space = self.create_space()
+        mock_apply_webhook.return_value = {"result": False, "message": "webhook配置错误"}
+
+        data = {"name": "Webhook失败的流程", "webhook_configs": {"method": "GET", "endpoint": "http://bad.com"}}
+        url = f"/apigw/space/{space.id}/create_template/"
+        resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+        resp_data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], False)
+        self.assertEqual(resp_data["code"], 500)
+        self.assertIn("webhook配置错误", resp_data["message"])
