@@ -245,7 +245,6 @@
   import tools from '@/utils/tools.js';
   import { TASK_STATE_DICT, NODE_DICT } from '@/constants/index.js';
   import ModifyParams from './ModifyParams.vue';
-  // import ExecuteInfo from './ExecuteInfo.vue';
   import ExecuteInfo from './SideDrawerExecuteInfo.vue';
   import RetryNode from './RetryNode.vue';
   import ModifyTime from './ModifyTime.vue';
