@@ -1,0 +1,50 @@
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
+"""
+
+import json
+
+from django.test import override_settings
+
+from bkflow.label.models import TemplateLabelRelation
+from tests.interface.apigw.label_test_base import LabelApigwTestBase
+
+
+class TestUpdateTemplateLabels(LabelApigwTestBase):
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    def test_update_template_labels_success(self):
+        template = self.create_template()
+        label = self.create_label("tpl_child", ["template"])
+
+        url = f"/apigw/space/{self.space.id}/template/{template.id}/update_labels/"
+        resp = self.client.post(
+            path=url,
+            data=json.dumps({"label_ids": [label.id]}),
+            content_type="application/json",
+        )
+        data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(data["result"], True)
+        self.assertEqual(data["data"], [label.id])
+        self.assertEqual(
+            list(TemplateLabelRelation.objects.filter(template_id=template.id).values_list("label_id", flat=True)),
+            [label.id],
+        )

@@ -16,6 +16,7 @@
   import DecisionTable from './DecisionTable/index.vue';
   import CredentialList from './Credential/index.vue';
   import StatisticsDashboard from '@/components/common/StatisticsDashboard.vue';
+  import LabelManage from './labelManage/index.vue';
   import { mapState } from 'vuex';
 
   export default {
@@ -27,6 +28,7 @@
       DecisionTable,
       CredentialList,
       StatisticsDashboard,
+      LabelManage,
     },
     data() {
       const { activeTab = 'template' } = this.$route.query;
@@ -48,7 +50,7 @@
         component = tab === 'template' ? 'TemplateList' : component;
         component = tab === 'credential' ? 'CredentialList' : component;
         component = tab === 'statistics' ? 'StatisticsDashboard' : component;
-
+        component = tab === 'labelManage' ? 'LabelManage' : component;
         return component;
       },
     },

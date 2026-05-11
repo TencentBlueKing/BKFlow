@@ -54,7 +54,10 @@ class TestTaskInterfaceAdminViewSet:
     def test_get_task_list(self, mock_client_class):
         """Test get_task_list method"""
         mock_client = mock.Mock()
-        mock_client.task_list.return_value = {"result": True, "data": [{"id": 1, "name": "Task 1"}]}
+        mock_client.task_list.return_value = {
+            "result": True,
+            "data": {"results": [{"id": 1, "name": "Task 1", "labels": []}]},
+        }
         mock_client_class.return_value = mock_client
 
         view = TaskInterfaceAdminViewSet.as_view({"get": "get_task_list"})
@@ -65,7 +68,57 @@ class TestTaskInterfaceAdminViewSet:
 
         assert response.status_code == 200
         mock_client.task_list.assert_called_once()
-        assert mock_client_class.called_with(space_id=self.space.id)
+        mock_client_class.assert_called_once_with(space_id=self.space.id)
+
+    @mock.patch("bkflow.interface.task.view.Label.objects.get_labels_map")
+    @mock.patch("bkflow.interface.task.view.Label.get_label_ids_by_names")
+    @mock.patch("bkflow.interface.task.view.TaskComponentClient")
+    def test_get_task_list_with_labels(self, mock_client_class, mock_get_label_ids, mock_get_labels_map):
+        """Test get_task_list method with label query param, should convert name to ids and then map ids to names"""
+        mock_get_label_ids.return_value = [1, 2]
+        mock_get_labels_map.return_value = {1: "label_1", 2: "label_2"}
+
+        mock_client = mock.Mock()
+        mock_client.task_list.return_value = {
+            "result": True,
+            "data": {"results": [{"id": 1, "name": "Task 1", "labels": [1, 2]}]},
+        }
+        mock_client_class.return_value = mock_client
+
+        view = TaskInterfaceAdminViewSet.as_view({"get": "get_task_list"})
+        request = self.factory.get(f"/admin/tasks/get_task_list/{self.space.id}/?label=label_1,label_2")
+        force_authenticate(request, user=self.admin_user)
+
+        response = view(request, space_id=self.space.id)
+
+        assert response.status_code == 200
+        # Should convert label names to ids for query
+        call_data = mock_client.task_list.call_args[1]["data"]
+        assert call_data["label"] == ["1,2"]
+        # Should map ids back to label names in response
+        assert response.data["data"]["results"][0]["labels"] == ["label_1", "label_2"]
+
+    @mock.patch("bkflow.interface.task.view.Label.objects.get_labels_map")
+    @mock.patch("bkflow.interface.task.view.TaskComponentClient")
+    def test_update_labels(self, mock_client_class, mock_get_labels_map):
+        """Test update_labels method, should map returned label ids to label names"""
+        mock_get_labels_map.return_value = {1: "label_1", 2: "label_2"}
+
+        mock_client = mock.Mock()
+        mock_client.update_labels.return_value = {"result": True, "data": [1, 2]}
+        mock_client_class.return_value = mock_client
+
+        view = TaskInterfaceAdminViewSet.as_view({"post": "update_labels"})
+        request = self.factory.post(
+            f"/admin/tasks/update_labels/{self.space.id}/1/", {"label_ids": [1, 2]}, format="json"
+        )
+        force_authenticate(request, user=self.admin_user)
+
+        response = view(request, space_id=self.space.id, pk=1)
+
+        assert response.status_code == 200
+        mock_client.update_labels.assert_called_once()
+        assert response.data["data"] == ["label_1", "label_2"]
 
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_tasks_states(self, mock_client_class):
@@ -276,6 +329,39 @@ class TestTaskInterfaceViewSet:
 
         assert "auth" in data["data"]
         assert PermissionType.VIEW.value in data["data"]["auth"]
+
+    def test_inject_user_task_auth_mock_task_with_template_permission(self):
+        """Test _inject_user_task_auth for MOCK task, should include TEMPLATE permission query"""
+        Token.objects.create(
+            token="token_template_mock",
+            space_id=self.space.id,
+            user="normaluser",
+            resource_type=ResourceType.TEMPLATE.value,
+            resource_id="456",
+            permission_type=PermissionType.MOCK.value,
+            expired_time=timezone.now() + timezone.timedelta(hours=1),
+        )
+
+        request = MagicMock()
+        request.user.is_superuser = False
+        request.user.username = "normaluser"
+        request.is_space_superuser = False
+
+        data = {
+            "result": True,
+            "data": {
+                "id": "123",
+                "space_id": self.space.id,
+                "scope_type": "project",
+                "scope_value": "456",
+                "create_method": "MOCK",
+                "template_id": "456",
+            },
+        }
+
+        TaskInterfaceViewSet._inject_user_task_auth(request, data)
+
+        assert PermissionType.MOCK.value in data["data"]["auth"]
 
     def test_inject_user_task_auth_result_false(self):
         """Test _inject_user_task_auth when result is False"""

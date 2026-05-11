@@ -230,6 +230,12 @@ const atomForm = {
     getThirdPluginTags({}, params) {
       return axios.get('/api/plugin_service/tags/', { params }).then(response => response.data);
     },
+    /**
+     * 加载子流程输出参数
+     */
+    loadSubprocessOutput({}, params) {
+      return axios.get('/api/plugin/subprocess_plugin/', { params }).then(response => response.data);
+    },
   },
 };
 

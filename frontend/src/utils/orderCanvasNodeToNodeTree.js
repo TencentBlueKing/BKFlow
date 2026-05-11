@@ -265,7 +265,7 @@ function retrieveLines(data, lineId, ordered, isLoop = false, cacheParamsData, i
           }
           if (isLoopCondition) {
             if (targetNode.length === 1) {
-              callback = targetNode[0];
+              [callback] = targetNode;
             } else if (targetNode.length > 1) {
               callback = targetNode[index];
             }

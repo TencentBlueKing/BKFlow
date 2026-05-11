@@ -126,6 +126,12 @@
               @click="onTaskParamsClick('templateData', 'Code')">
               {{ 'Code' }}
             </p>
+            <p
+              v-if="isShowCallbackHistoryAndViewTpl"
+              class="operate-item"
+              @click="onTaskParamsClick('webhook', $t('回调记录'))">
+              {{ $t('回调记录') }}
+            </p>
           </template>
         </bk-popover>
       </div>
@@ -189,6 +195,11 @@
         default: '',
       },
       isTaskOperationBtnsShow: Boolean,
+      isShowViewProcess: Boolean,
+      isShowCallbackHistoryAndViewTpl: {
+        type: Boolean,
+        default: false,
+      },
       triggerMethod: {
         type: String,
         default: '',
