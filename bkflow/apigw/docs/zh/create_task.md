@@ -20,6 +20,7 @@
 | constants             | json   | 否  | 任务启动参数                                                 |
 | credentials           | dict   | 否  | 凭证字典，用于传递API调用所需的凭证信息，详见下方说明                            |
 | custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到所有节点上报的 Span 中，详见下方说明                    |
+| label_ids             | list   | 否  | 标签ID列表 |
 
 
 ### credentials 参数说明
@@ -93,7 +94,8 @@
 {
     "name": "空间名",
     "template_id": 4,
-    "creator": "创建者"
+    "creator": "创建者",
+    "label_ids": [1, 2, 3]
 }
 ```
 
@@ -149,7 +151,8 @@
 		"snapshot_id": 3,
 		"execution_snapshot_id": 8,
 		"tree_info_id": null,
-		"extra_info": {}
+		"extra_info": {},
+		"labels": []
 		},
 	"code": "0",
 	"message": ""
@@ -191,3 +194,4 @@
 | execution_snapshot_id | int    | 执行快照ID   |
 | tree_info_id          | int    | 任务拓扑信息ID |
 | extra_info            | dict   | 任务额外信息   |
+| labels               | list   | 标签列表（标签对象数组） |

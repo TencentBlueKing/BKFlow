@@ -9,6 +9,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 """
+
 from unittest.mock import MagicMock
 
 from django.test import TestCase
@@ -22,6 +23,7 @@ from pipeline.component_framework.test import (
 
 from bkflow.pipeline_plugins.components.collections.uniform_api.v2_0_0 import (
     UniformAPIComponent,
+    UniformAPIService,
 )
 
 # Mock settings patcher for API request timeout
@@ -101,6 +103,46 @@ class MockAPIResponse:
         import jmespath
 
         return jmespath.search(path, self.json_resp)
+
+
+class MockSpanData:
+    def __init__(self, inputs):
+        self.inputs = inputs
+
+    def get_one_of_inputs(self, key, default=None):
+        return self.inputs.get(key, default)
+
+
+class TestUniformAPISpanAttributes(TestCase):
+    def test_get_span_attributes_includes_http_method_and_api_meta(self):
+        """API 插件 Span 属性包含 HTTP 方法和可检索的 API 元信息"""
+        service = UniformAPIService()
+        service.id = "node_1"
+        data = MockSpanData(
+            {
+                "uniform_api_plugin_url": "http://example.com/api",
+                "uniform_api_plugin_method": "GET",
+                "uniform_api_plugin_api_meta": {
+                    "id": "sops_api_001",
+                    "name": "流程执行",
+                    "meta_url": "http://example.com/meta",
+                    "api_key": "sops_execute",
+                    "category": {"id": "cat_1", "name": "标准运维"},
+                },
+            }
+        )
+        parent_data = MockSpanData(TEST_PARENT_DATA)
+
+        attributes = service._get_span_attributes(data, parent_data)
+
+        self.assertEqual(attributes["url"], "http://example.com/api")
+        self.assertEqual(attributes["http_method"], "GET")
+        self.assertNotIn("method", attributes)
+        self.assertEqual(attributes["api_id"], "sops_api_001")
+        self.assertEqual(attributes["api_name"], "流程执行")
+        self.assertEqual(attributes["api_key"], "sops_execute")
+        self.assertEqual(attributes["api_category_id"], "cat_1")
+        self.assertEqual(attributes["api_category_name"], "标准运维")
 
 
 CLIENT_API_SPACE_CONFIG = {

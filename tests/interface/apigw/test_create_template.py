@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,6 +20,7 @@ import json
 
 from django.test import TestCase, override_settings
 
+from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.space.models import Space
 
 
@@ -34,9 +34,43 @@ class TestCreateTemplate(TestCase):
     def test_create_template_success(self):
         space = self.create_space()
         data = {"name": "测试流程"}
-        url = "/apigw/space/{}/create_template/".format(space.id)
+        url = f"/apigw/space/{space.id}/create_template/"
         resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
         resp_data = json.loads(resp.content)
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp_data["result"], True)
         self.assertEqual(resp_data["data"]["name"], "测试流程")
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    def test_create_template_with_labels_syncs_relations(self):
+        space = self.create_space()
+        label_1 = Label.objects.create(
+            name="l1",
+            creator="tester",
+            updated_by="tester",
+            space_id=space.id,
+            label_scope=["template"],
+        )
+        label_2 = Label.objects.create(
+            name="l2",
+            creator="tester",
+            updated_by="tester",
+            space_id=space.id,
+            label_scope=["template"],
+        )
+
+        data = {"name": "测试流程", "label_ids": [label_1.id, label_2.id]}
+        url = f"/apigw/space/{space.id}/create_template/"
+        resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+        resp_data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], True)
+        template_id = resp_data["data"]["id"]
+
+        rel_label_ids = set(
+            TemplateLabelRelation.objects.filter(template_id=template_id).values_list("label_id", flat=True)
+        )
+        self.assertEqual(rel_label_ids, {label_1.id, label_2.id})
