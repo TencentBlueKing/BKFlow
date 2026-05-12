@@ -21,10 +21,10 @@ import logging
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
+from bkflow.contrib.api.collections.tenant import fetch_tenant_list
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import SpaceConfigHandler, SpaceConfigValueType
 from bkflow.space.models import CredentialScope, Space, SpaceConfig
-from bkflow.space.utils import fetch_tenant_list
 
 logger = logging.getLogger(__name__)
 

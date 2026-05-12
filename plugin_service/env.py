@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -40,3 +39,6 @@ PLUGIN_APIGW_API_HOST_FORMAT = getattr(settings, "PLUGIN_APIGW_API_HOST_FORMAT",
 BKAPP_INVOKE_PAAS_RETRY_NUM = int(os.getenv("BKAPP_REQUEST_PAAS_RETRY_NUM", 3))
 
 APIGW_USER_AUTH_KEY_NAME = os.getenv("BKAPP_APIGW_USER_AUTH_KEY_NAME", "bk_token")
+
+FETCH_PLUGIN_OFFSET = int(os.getenv("FETCH_PLUGIN_OFFSET", 0))
+FETCH_PLUGIN_SIZE = int(os.getenv("FETCH_PLUGIN_SIZE", 100))

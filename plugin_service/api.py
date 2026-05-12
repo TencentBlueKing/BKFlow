@@ -54,8 +54,8 @@ logger = logging.getLogger(PLUGIN_LOGGER)
 def _fetch_all_plugins_for_tenant(tenant_id, search_term=None, distributor_code_name=None, **extra_kwargs):
     """从指定租户拉取全量已部署插件（自动翻页）"""
     all_plugins = []
-    offset = 0
-    batch_size = 100
+    offset = env.FETCH_PLUGIN_OFFSET
+    batch_size = env.FETCH_PLUGIN_SIZE
     while True:
         result = PluginServiceApiClient.get_plugin_detail_list(
             search_term=search_term,
