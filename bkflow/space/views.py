@@ -70,6 +70,7 @@ from bkflow.space.serializers import (
     SpaceConfigSerializer,
     SpaceSerializer,
 )
+from bkflow.space.utils import fetch_tenant_list
 from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
 from bkflow.utils.mixins import BKFLOWDefaultPagination, BKFlowOrderingFilter
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
@@ -299,6 +300,11 @@ class SpaceViewSet(AdminModelViewSet):
                 meta_info[f.name].update({"choices": [{"value": c[0], "text": c[1]} for c in f.choices]})
         return Response(meta_info)
 
+    @action(detail=False, methods=["get"])
+    def get_tenant_list(self, request, *args, **kwargs):
+        tenant_list = fetch_tenant_list().get("data", [])
+        return Response(tenant_list)
+
 
 @method_decorator(login_exempt, name="dispatch")
 class SpaceInternalViewSet(AdminModelViewSet):
@@ -346,6 +352,13 @@ class SpaceInternalViewSet(AdminModelViewSet):
         }
 
         return Response(infos)
+
+    @action(detail=True, methods=["get"])
+    def get_space_detail(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        space_data = serializer.data
+        return Response(space_data)
 
 
 class SpaceConfigFilterSet(FilterSet):

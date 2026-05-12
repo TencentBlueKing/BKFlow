@@ -22,6 +22,8 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 
+from bkflow.contrib.api.collections.interface import InterfaceModuleClient
+
 
 class TaskContext:
     """
@@ -41,6 +43,7 @@ class TaskContext:
         self.is_mock = taskflow.create_method == "MOCK"
         tz = timezone.pytz.timezone(settings.TIME_ZONE)
         self.task_start_time = datetime.datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
+        self.tenant_id = self.get_task_tenant_id(taskflow)
 
         # 从extra_info中提取custom_context，使其可以通过parent_data.inputs访问
         extra_info = getattr(taskflow, "extra_info", {}) or {}
@@ -48,6 +51,10 @@ class TaskContext:
         # 将custom_context中的字段添加到TaskContext的属性中，使其可以通过parent_data.inputs访问
         for key, value in custom_context.items():
             setattr(self, key, value)
+
+    def get_task_tenant_id(self, taskflow):
+        result = InterfaceModuleClient().get_space_detail(taskflow.space_id)
+        return result["data"].get("tenant_id")
 
     def context(self):
         return {"${%s}" % TaskContext.prefix: {"type": "plain", "is_param": True, "value": self}}

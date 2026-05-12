@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,6 +16,12 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
+import json
+
+import requests
+from django.conf import settings
+
 from bkflow.space.configs import CanvasModeConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.utils.pipeline import build_default_pipeline_tree
@@ -25,3 +30,23 @@ from bkflow.utils.pipeline import build_default_pipeline_tree
 def build_default_pipeline_tree_with_space_id(space_id: int):
     canvas_mode = SpaceConfig.get_config(space_id, CanvasModeConfig.name)
     return build_default_pipeline_tree(canvas_mode)
+
+
+def build_user_api_url(api_name, endpoint: str) -> str:
+    """构建用户管理API的完整URL"""
+    base_url = f"{settings.BK_API_URL_TMPL.format(api_name=api_name).rstrip('/')}/{settings.BK_APIGW_STAGE_NAME}"
+    return f"{base_url}/{endpoint}"
+
+
+def fetch_tenant_list():
+    """
+    获取租户列表
+    """
+
+    headers = {
+        "x-bkapi-authorization": json.dumps({"bk_app_code": settings.APP_CODE, "bk_app_secret": settings.SECRET_KEY}),
+        "x-bk-tenant-id": "system",
+    }
+    url = build_user_api_url("bk-user", "api/v3/open/tenants/")
+    response = requests.get(url, headers=headers)
+    return response.json()
