@@ -263,6 +263,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         except drf_serializers.ValidationError as error:
             detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
             raise ValidationError(str(detail))
+        create_task_data["tenant_id"] = request.user.tenant_id
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
@@ -689,6 +690,7 @@ class TemplateViewSet(UserModelViewSet):
         except drf_serializers.ValidationError as error:
             detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
             raise ValidationError(str(detail))
+        create_task_data["tenant_id"] = request.user.tenant_id
 
         client = TaskComponentClient(space_id=template.space_id)
         result = client.create_task(create_task_data)

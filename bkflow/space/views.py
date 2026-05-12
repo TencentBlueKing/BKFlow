@@ -268,7 +268,9 @@ class SpaceViewSet(AdminModelViewSet):
             url = f'{settings.PAASV3_APIGW_API_HOST.rstrip("/")}/prod/system/uni_applications/query/by_id/'
             client = ApiGwClient()
             try:
-                query_data: HttpRequestResult = client.request(url, method="GET", data={"id": app_code})
+                query_data: HttpRequestResult = client.request(
+                    url, method="GET", data={"id": app_code}, headers={"X-Bk-Tenant-Id": request.user.tenant_id}
+                )
             except APIRequestError as e:
                 logger.exception(f"SpaceViewSet 创建空间异常, app_code={app_code}, err={e}")
                 raise APIException(e)
@@ -291,7 +293,7 @@ class SpaceViewSet(AdminModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         if not request.user.is_superuser:
             space_ids = SpaceConfig.objects.get_space_ids_of_superuser(request.user.username)
-            queryset = queryset.filter(id__in=space_ids)
+            queryset = queryset.filter(id__in=space_ids, tenant_id=request.user.tenant_id)
 
         page = self.paginate_queryset(queryset)
         if page is not None:

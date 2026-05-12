@@ -74,9 +74,9 @@ class RemotePluginService(BKFlowBaseService):
         plugin_version = data.get_one_of_inputs("plugin_version")
         space_id = parent_data.get_one_of_inputs("task_space_id")
         task_id = parent_data.get_one_of_inputs("task_id")
-
+        tenant_id = parent_data.get_one_of_inputs("tenant_id")
         try:
-            plugin_client = PluginServiceApiClient(plugin_code)
+            plugin_client = PluginServiceApiClient(plugin_code, tenant_id=tenant_id)
         except PluginServiceException as e:
             message = _(f"第三方插件client初始化失败, 错误内容: {handle_plain_log(e)}")
             logger.error(message)
@@ -143,9 +143,9 @@ class RemotePluginService(BKFlowBaseService):
                 "ex_data", message="reach max count of schedule, please ensure the task can be finished in one day"
             )
             return False
-
+        tenant_id = parent_data.get_one_of_inputs("tenant_id")
         try:
-            plugin_client = PluginServiceApiClient(plugin_code)
+            plugin_client = PluginServiceApiClient(plugin_code, tenant_id=tenant_id)
         except PluginServiceException as e:
             message = _(f"第三方插件client初始化失败, 错误内容: {handle_plain_log(e)}")
             logger.error(message)

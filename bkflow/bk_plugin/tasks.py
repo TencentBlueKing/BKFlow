@@ -53,6 +53,7 @@ def fetch_newest_plugins_dict():
             distributor_code_name=PLUGIN_DISTRIBUTOR_NAME,
             limit=limit,
             offset=offset,
+            tenant_id="system",
         )
         if not result["result"]:
             logger.exception(result.get("message", "拉取蓝鲸插件列表失败"))

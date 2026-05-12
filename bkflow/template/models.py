@@ -34,7 +34,7 @@ from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.exceptions import APIResponseError, NotFoundError, ValidationError
 from bkflow.space.configs import FlowVersioning, GatewayExpressionConfig
-from bkflow.space.models import SpaceConfig
+from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.utils import validate_pipeline_tree_gateway_expression
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.md5 import compute_pipeline_md5
@@ -526,6 +526,7 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
                 "constants": trigger.config.get("constants"),
                 "scope_type": template.scope_type,
                 "scope_value": template.scope_value,
+                "tenant_id": Space.objects.get(id=template.space_id).tenant_id,
             },
             "creator": template.creator,
             "extra_info": {"notify_config": template.notify_config},
@@ -545,6 +546,7 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
                 "constants": data["config"].get("constants"),
                 "scope_type": template.scope_type,
                 "scope_value": template.scope_value,
+                "tenant_id": Space.objects.get(id=template.space_id).tenant_id,
             },
             "extra_info": {"notify_config": template.notify_config},
             "is_enabled": trigger.is_enabled,
