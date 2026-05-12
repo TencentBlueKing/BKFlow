@@ -24,6 +24,7 @@ from rest_framework import serializers
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import SpaceConfigHandler, SpaceConfigValueType
 from bkflow.space.models import CredentialScope, Space, SpaceConfig
+from bkflow.space.utils import fetch_tenant_list
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +33,18 @@ class SpaceSerializer(serializers.ModelSerializer):
     create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z", read_only=True)
     update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z", read_only=True)
     platform_url = serializers.URLField(help_text=_("平台地址"), required=True, max_length=128)
+    tenant_id = serializers.CharField(help_text=_("租户ID"), max_length=32, required=True)
 
     class Meta:
         model = Space
         fields = "__all__"
+
+    def validate_tenant_id(self, value):
+        tenant_list = fetch_tenant_list().get("data", [])
+        valid_tenant_ids = {tenant["id"] for tenant in tenant_list}
+        if value not in valid_tenant_ids:
+            raise serializers.ValidationError(_("租户ID不存在，请传递有效的租户ID"))
+        return value
 
 
 class SpaceConfigSerializer(serializers.ModelSerializer):

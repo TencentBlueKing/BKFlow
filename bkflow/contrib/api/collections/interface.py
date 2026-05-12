@@ -67,3 +67,8 @@ class InterfaceModuleClient(BaseComponentClient):
             url=self._get_interface_url("api/variable/internal/get_variable/"),
             data={"space_id": space_id},
         )
+
+    def get_space_detail(self, space_id):
+        return self._request(
+            method="get", url=self._get_interface_url(f"api/space/internal/{space_id}/get_space_detail/"), data={}
+        )
