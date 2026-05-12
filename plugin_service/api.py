@@ -100,7 +100,8 @@ def get_plugin_list(request: Request):
         limit=limit,
         offset=offset,
         distributor_code_name=PLUGIN_DISTRIBUTOR_NAME,
-        tenant_id=tenant_id**extra_kwargs,
+        tenant_id=tenant_id,
+        **extra_kwargs,
     )
     return JsonResponse(result)
 
