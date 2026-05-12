@@ -41,6 +41,7 @@ from bkflow.apigw.serializers.credential import (
 )
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
+from bkflow.contrib.api.collections.tenant import fetch_tenant_list
 from bkflow.exceptions import APIRequestError
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
@@ -70,7 +71,6 @@ from bkflow.space.serializers import (
     SpaceConfigSerializer,
     SpaceSerializer,
 )
-from bkflow.space.utils import fetch_tenant_list
 from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
 from bkflow.utils.mixins import BKFLOWDefaultPagination, BKFlowOrderingFilter
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
@@ -352,13 +352,6 @@ class SpaceInternalViewSet(AdminModelViewSet):
         }
 
         return Response(infos)
-
-    @action(detail=True, methods=["get"])
-    def get_space_detail(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        space_data = serializer.data
-        return Response(space_data)
 
 
 class SpaceConfigFilterSet(FilterSet):

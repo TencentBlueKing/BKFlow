@@ -16,9 +16,9 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from collections import defaultdict
 import json
 import logging
+from collections import defaultdict
 
 from bamboo_engine import states
 from django.conf import settings
@@ -152,6 +152,7 @@ class TaskInstance(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     space_id = models.IntegerField("空间ID", db_index=True)
+    tenant_id = models.CharField(max_length=255, default="default", verbose_name="租户ID")
     scope_type = models.CharField("空间域类型", max_length=128, null=True, blank=True)
     scope_value = models.CharField("空间域值", max_length=128, null=True, blank=True)
     instance_id = models.CharField("实例ID", max_length=33, unique=True, db_index=True)
@@ -628,19 +629,13 @@ class BaseLabelRelationManager(models.Manager):
         # 4. 执行删除
         if remove_ids:
             # 构造删除查询: template_id=1, label_id__in=[...]
-            delete_kwargs = {
-                "task_id": obj_id,
-                "label_id__in": remove_ids
-            }
+            delete_kwargs = {"task_id": obj_id, "label_id__in": remove_ids}
             self.filter(**delete_kwargs).delete()
 
         # 5. 执行批量添加
         if add_ids:
             # 动态创建模型实例: TaskLabelRelation(task_id=1, label_id=xx)
-            new_relations = [
-                self.model(**{"task_id": obj_id, "label_id": label_id})
-                for label_id in add_ids
-            ]
+            new_relations = [self.model(**{"task_id": obj_id, "label_id": label_id}) for label_id in add_ids]
             self.bulk_create(new_relations)
 
     def fetch_tasks_labels(self, task_ids):

@@ -20,6 +20,7 @@ import copy
 import logging
 
 import jsonschema
+from django.utils.translation import ugettext_lazy as _
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
@@ -69,6 +70,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
     constants = serializers.JSONField(required=False, default={})
     mock_data = serializers.JSONField(required=False, default={})
     label_ids = serializers.ListField(required=False, child=serializers.IntegerField())
+    tenant_id = serializers.CharField(help_text=_("租户ID"), max_length=32, required=True)
 
     def validate(self, value):
         if value.get("extra_info", {}).get("notify_config") is not None:
@@ -122,6 +124,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
             "constants",
             "extra_info",
             "label_ids",
+            "tenant_id",
         ]
 
 

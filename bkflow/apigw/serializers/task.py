@@ -111,6 +111,7 @@ class CreateTaskSerializer(CredentialsValidationMixin, serializers.Serializer):
         help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
     )
     label_ids = serializers.ListField(help_text=_("标签ID列表"), child=serializers.IntegerField(), required=False)
+    tenant_id = serializers.CharField(help_text=_("租户ID"), max_length=32, required=True)
 
     def validate(self, attrs):
         if "label_ids" in attrs:
@@ -154,6 +155,7 @@ class CreateMockTaskWithPipelineTreeSerializer(CreateMockTaskBaseSerializer):
     include_node_ids = serializers.ListField(
         child=serializers.CharField(allow_blank=False), help_text=_("包含的节点ID列表"), required=False
     )
+    tenant_id = serializers.CharField(help_text=_("租户ID"), max_length=32, required=True)
 
 
 class CreateMockTaskWithTemplateIdSerializer(CreateMockTaskBaseSerializer):

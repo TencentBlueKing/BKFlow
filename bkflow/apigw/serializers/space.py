@@ -20,10 +20,10 @@ to the current version of the project delivered to anyone in the future.
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
+from bkflow.contrib.api.collections.tenant import fetch_tenant_list
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import SpaceConfigHandler
 from bkflow.space.models import Space
-from bkflow.space.utils import fetch_tenant_list
 
 
 class CreateSpaceSerializer(serializers.Serializer):
