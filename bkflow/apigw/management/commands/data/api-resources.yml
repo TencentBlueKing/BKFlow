@@ -5313,7 +5313,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}/task/get_task_node_detail/{task_id}/node/{node_id}/
+          path: /{env.api_sub_path}task/get_task_node_detail/{task_id}/node/{node_id}/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5341,7 +5341,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}/task/get_node_snapshot_config/{task_id}/{node_id}
+          path: /{env.api_sub_path}task/get_node_snapshot_config/{task_id}/{node_id}
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5369,7 +5369,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}/task/get_task_node_log/{task_id}/{node_id}/{version}/
+          path: /{env.api_sub_path}task/get_task_node_log/{task_id}/{node_id}/{version}/
           matchSubpath: false
           timeout: 0
         authConfig:
