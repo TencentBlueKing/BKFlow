@@ -20,7 +20,6 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.conf import settings
-from django.db import transaction
 from webhook.api import apply_scope_subscriptions, apply_scope_webhooks
 from webhook.contrib.drf.serializers import WebhookSerializer
 from webhook.models import Event, History
@@ -87,10 +86,9 @@ def get_webhook_delivery_history_by_delivery_id(delivery_id):
 
 def clear_scope_webhooks(scope_code: list):
     try:
-        with transaction.atomic():
-            WebhookModel.objects.filter(scope_type=WebhookScopeType.TEMPLATE.value, scope_code__in=scope_code).delete()
-            ScopeModel.objects.filter(type=WebhookScopeType.TEMPLATE.value, code__in=scope_code).delete()
-            Subscription.objects.filter(scope_type=WebhookScopeType.TEMPLATE.value, scope_code__in=scope_code).delete()
+        WebhookModel.objects.filter(scope_type=WebhookScopeType.TEMPLATE.value, scope_code__in=scope_code).delete()
+        ScopeModel.objects.filter(type=WebhookScopeType.TEMPLATE.value, code__in=scope_code).delete()
+        Subscription.objects.filter(scope_type=WebhookScopeType.TEMPLATE.value, scope_code__in=scope_code).delete()
     except Exception as e:
         logger.exception(f"clear_webhooks error: {e}")
         return {"result": False, "message": f"Failed to clear webhooks: {e}", "data": {}, "code": "500"}

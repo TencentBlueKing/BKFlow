@@ -192,8 +192,9 @@ class TaskInterfaceViewSet(GenericViewSet):
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
         result = client.get_task_detail(task_id)
         self._inject_user_task_auth(request, result)
-        webhook_delivery_history = get_webhook_delivery_history_by_delivery_id(str(task_id))
-        result["data"]["webhook_delivery_history"] = webhook_delivery_history
+        if result.get("result") and result.get("data"):
+            webhook_delivery_history = get_webhook_delivery_history_by_delivery_id(str(task_id))
+            result["data"]["webhook_delivery_history"] = webhook_delivery_history
         return Response(result)
 
     @action(methods=["GET"], detail=False, url_path="get_task_states/(?P<task_id>\\d+)")

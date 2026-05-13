@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
+from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -48,9 +49,13 @@ def delete_template(request, space_id, template_id):
     if failed_data:
         return {"result": False, "data": failed_data, "code": err_code.VALIDATION_ERROR.code, "message": "模板被引用，无法删除"}
 
-    # 如果没有引用，执行删除操作
-    Template.objects.filter(space_id=space_id, id=template_id).update(is_deleted=True)
-    trigger_ids = Trigger.objects.filter(template_id=template_id).values_list("id", flat=True)
-    Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
-    clear_scope_webhooks([str(template_id)])
+    # 如果没有引用，执行删除操作，统一事务控制
+    with transaction.atomic():
+        Template.objects.filter(space_id=space_id, id=template_id).update(is_deleted=True)
+        trigger_ids = Trigger.objects.filter(template_id=template_id).values_list("id", flat=True)
+        Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
+        result = clear_scope_webhooks([str(template_id)])
+        if not result.get("result"):
+            raise Exception(result.get("message", "Failed to clear webhooks"))
+
     return {"result": True, "data": {}, "code": err_code.SUCCESS.code}

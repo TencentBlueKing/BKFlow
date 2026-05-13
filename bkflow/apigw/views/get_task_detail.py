@@ -35,5 +35,6 @@ from bkflow.utils.webhook import get_webhook_delivery_history_by_delivery_id
 def get_task_detail(request, space_id, task_id):
     client = TaskComponentClient(space_id=space_id)
     result = client.get_task_detail(task_id)
-    result["data"]["webhook_delivery_history"] = get_webhook_delivery_history_by_delivery_id(str(task_id))
+    if result.get("result") and result.get("data"):
+        result["data"]["webhook_delivery_history"] = get_webhook_delivery_history_by_delivery_id(str(task_id))
     return result
