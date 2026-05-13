@@ -5295,7 +5295,7 @@ paths:
         descriptionEn: Get label reference counts
         enableWebsocket: false
         pluginConfigs: []
-  /sdk/get_task_node_detail/{task_id}/node/{node_id}/:
+  /sdk/task/get_task_node_detail/{task_id}/node/{node_id}/:
     get:
       operationId: sdk_get_task_node_detail
       summary: Get task node detail
@@ -5323,7 +5323,7 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
-  /sdk/get_node_snapshot_config/{task_id}/{node_id}:
+  /sdk/task/get_node_snapshot_config/{task_id}/{node_id}:
     get:
       operationId: sdk_get_node_snapshot_config
       summary: Get node snapshot config
@@ -5351,7 +5351,7 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
-  /sdk/get_task_node_log/{task_id}/{node_id}/{version}/:
+  /sdk/task/get_task_node_log/{task_id}/{node_id}/{version}/:
     get:
       operationId: sdk_get_task_node_log
       summary: Get task node log

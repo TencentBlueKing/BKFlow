@@ -26,7 +26,7 @@
 
 | 字段                | 类型     | 必选 | 描述     |
 |-------------------|--------|----|--------|
-| component_code    | string | 是  | 插件code |
+| component_code    | string | 否  | 插件code |
 | space_id          | int    | 是  | 空间ID   |
 
 
@@ -38,7 +38,7 @@
      "data": {
           "id": "nf8c5d3caee13bfebb4a19f308294f1f",
           "state": "FINISHED",
-          "root_id:": "n6766bff75cf35bc91c74488344b4039",
+          "root_id": "n6766bff75cf35bc91c74488344b4039",
           "parent_id": "n6766bff75cf35bc91c74488344b4039",
           "version": "v583e76d40b3541be82b803cc8088aae0",
           "loop": 1,
