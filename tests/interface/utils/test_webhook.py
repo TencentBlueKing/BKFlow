@@ -167,10 +167,6 @@ class TestClearScopeWebhooks:
 
     def test_clear_success(self, mocker):
         """测试成功清除 webhook 配置"""
-        mock_atomic = mocker.patch("bkflow.utils.webhook.transaction.atomic")
-        mock_atomic.return_value.__enter__ = mock.MagicMock()
-        mock_atomic.return_value.__exit__ = mock.MagicMock()
-
         mock_delete = mocker.patch("bkflow.utils.webhook.WebhookModel.objects.filter").return_value.delete
         mocker.patch("bkflow.utils.webhook.ScopeModel.objects.filter").return_value.delete
         mocker.patch("bkflow.utils.webhook.Subscription.objects.filter").return_value.delete
@@ -183,10 +179,6 @@ class TestClearScopeWebhooks:
 
     def test_clear_exception(self, mocker):
         """测试清除时发生异常"""
-        mock_atomic = mocker.patch("bkflow.utils.webhook.transaction.atomic")
-        mock_atomic.return_value.__enter__ = mock.MagicMock()
-        mock_atomic.return_value.__exit__ = mock.MagicMock(return_value=False)
-
         mocker.patch(
             "bkflow.utils.webhook.WebhookModel.objects.filter",
             side_effect=Exception("DB error"),

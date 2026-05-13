@@ -2018,7 +2018,7 @@ paths:
                         type: boolean
                         description: 是否启用webhook
                       webhook_configs:
-                        type: array
+                        type: object
                         description: webhook配置
                     description: result=true 时成功数据，详细信息请见下面说明
                   message:
@@ -2082,7 +2082,7 @@ paths:
                   description: 模板信息
                   additionalProperties: true
                 webhook_configs:
-                  type: array
+                  type: object
                   description: webhook配置
         required: true
         description: ''
@@ -3494,7 +3494,7 @@ paths:
                         type: boolean
                         description: 是否启用webhook
                       webhook_configs:
-                        type: array
+                        type: object
                         description: webhook配置
                     description: result=true 时成功数据，详细信息请见下面说明
                   message:
@@ -3562,7 +3562,7 @@ paths:
                   type: boolean
                   description: 是否启用webhook
                 webhook_configs:
-                  type: array
+                  type: object
                   description: webhook配置
         required: true
         description: ''
