@@ -5379,3 +5379,31 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
+  /sdk/template/{template_id}/create_mock_task/:
+    post:
+      operationId: sdk_create_mock_task
+      summary: 创建MOCK任务
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/{template_id}/create_mock_task/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
