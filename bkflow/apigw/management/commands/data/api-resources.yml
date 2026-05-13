@@ -5323,7 +5323,7 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
-  /sdk/task/get_node_snapshot_config/{task_id}/{node_id}:
+  /sdk/task/get_node_snapshot_config/{task_id}/{node_id}/:
     get:
       operationId: sdk_get_node_snapshot_config
       summary: Get node snapshot config
@@ -5341,7 +5341,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}task/get_node_snapshot_config/{task_id}/{node_id}
+          path: /{env.api_sub_path}task/get_node_snapshot_config/{task_id}/{node_id}/
           matchSubpath: false
           timeout: 0
         authConfig:
