@@ -248,6 +248,7 @@ class PeriodicTaskConfigSerializer(serializers.Serializer):
     pipeline_tree = serializers.JSONField(help_text="流程树", required=False, allow_null=True)
     scope_type = serializers.CharField(help_text="流程所属作用域类型", required=False, allow_null=True)
     scope_value = serializers.CharField(help_text="流程所属作用域值", required=False, allow_null=True)
+    tenant_id = serializers.CharField(help_text="流程所属租户", required=True)
 
 
 class CreatePeriodicTaskSerializer(serializers.Serializer):
