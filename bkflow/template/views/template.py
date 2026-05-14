@@ -327,25 +327,28 @@ class AdminTemplateViewSet(AdminModelViewSet):
         if failed_data:
             return Response(exception=True, data=failed_data)
 
-        if is_full:
-            to_delete_qs = Template.objects.filter(space_id=space_id, is_deleted=False)
-            to_delete_ids = list(to_delete_qs.values_list("id", flat=True))
-            update_num = to_delete_qs.update(is_deleted=True)
-        else:
-            to_delete_ids = template_ids
-            update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
-                is_deleted=True
+        with transaction.atomic():
+            if is_full:
+                to_delete_qs = Template.objects.filter(space_id=space_id, is_deleted=False)
+                to_delete_ids = list(to_delete_qs.values_list("id", flat=True))
+                update_num = to_delete_qs.update(is_deleted=True)
+            else:
+                to_delete_ids = template_ids
+                update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
+                    is_deleted=True
+                )
+
+            clear_result = clear_scope_webhooks([str(tid) for tid in to_delete_ids])
+            if not clear_result["result"]:
+                message = clear_result["message"]
+                logger.error(message)
+                raise Exception(message)
+            trigger_ids = Trigger.objects.filter(template_id__in=ser.validated_data["template_ids"]).values_list(
+                "id", flat=True
             )
-        clear_result = clear_scope_webhooks([str(tid) for tid in to_delete_ids])
-        if not clear_result["result"]:
-            message = clear_result["message"]
-            logger.error(message)
-            return Response(exception=True, data={"detail": message})
-        trigger_ids = Trigger.objects.filter(template_id__in=ser.validated_data["template_ids"]).values_list(
-            "id", flat=True
-        )
-        Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids), is_full=is_full)
-        TemplateLabelRelation.objects.filter(template_id__in=template_ids).delete()
+            Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids), is_full=is_full)
+            TemplateLabelRelation.objects.filter(template_id__in=template_ids).delete()
+
         return Response({"delete_num": update_num})
 
     @swagger_auto_schema(method="POST", operation_description="流程模版复制", request_body=TemplateCopySerializer)
