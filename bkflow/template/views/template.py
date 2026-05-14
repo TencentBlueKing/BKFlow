@@ -244,6 +244,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
+        create_task_data["tenant_id"] = request.user.tenant_id
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
@@ -647,6 +648,7 @@ class TemplateViewSet(UserModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
+        create_task_data["tenant_id"] = request.user.tenant_id
 
         client = TaskComponentClient(space_id=template.space_id)
         result = client.create_task(create_task_data)

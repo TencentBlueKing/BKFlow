@@ -284,7 +284,7 @@ class PluginServiceApiClient:
     def get_paas_plugin_tags(environment=None, tenant_id=None, **kwargs):
         """通过PaaS获取插件分类列表"""
         url, headers = PluginServiceApiClient._prepare_paas_api_request(
-            path_params=["system/bk_plugin_tags"], environment=environment, force_add_app_info=True, tenant_id=tenant_id
+            path_params=["system/bk_plugin_tags"], environment=environment, tenant_id=tenant_id
         )
         return PluginServiceApiClient._request_api_and_error_retry(url, method="get", headers=headers)
 
@@ -312,7 +312,7 @@ class PluginServiceApiClient:
         return url, headers
 
     @staticmethod
-    def _prepare_paas_api_request(path_params: list, environment=None, force_add_app_info=False, tenant_id=None):
+    def _prepare_paas_api_request(path_params: list, environment=None, tenant_id=None):
         """PaaS平台服务接口请求信息准备"""
         url = os.path.join(
             env.PAASV3_APIGW_API_HOST or f"{env.APIGW_NETWORK_PROTOCAL}://paasv3.{env.APIGW_URL_SUFFIX}",
