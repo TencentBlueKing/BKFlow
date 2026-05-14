@@ -2014,6 +2014,12 @@ paths:
                       updated_by:
                         type: string
                         description: 流程更新者
+                      enable_webhook:
+                        type: boolean
+                        description: 是否启用webhook
+                      webhook_configs:
+                        type: object
+                        description: webhook配置
                     description: result=true 时成功数据，详细信息请见下面说明
                   message:
                     type: string
@@ -2075,6 +2081,9 @@ paths:
                   type: object
                   description: 模板信息
                   additionalProperties: true
+                webhook_configs:
+                  type: object
+                  description: webhook配置
         required: true
         description: ''
       x-bk-apigateway-resource:
@@ -3481,6 +3490,12 @@ paths:
                       updated_by:
                         type: string
                         description: 流程更新者
+                      enable_webhook:
+                        type: boolean
+                        description: 是否启用webhook
+                      webhook_configs:
+                        type: object
+                        description: webhook配置
                     description: result=true 时成功数据，详细信息请见下面说明
                   message:
                     type: string
@@ -3543,6 +3558,12 @@ paths:
                   type: object
                   description: 模板信息
                   additionalProperties: true
+                enable_webhook:
+                  type: boolean
+                  description: 是否启用webhook
+                webhook_configs:
+                  type: object
+                  description: webhook配置
         required: true
         description: ''
       x-bk-apigateway-resource:

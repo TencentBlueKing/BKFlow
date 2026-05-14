@@ -16,30 +16,23 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from django.utils.translation import ugettext_lazy as _
 
-from bkflow.exceptions import BKFLOWException
-
-
-class CreateTokenException(BKFLOWException):
-    CODE = None
-    MESSAGE = _("创建Token失败")
-    STATUS_CODE = 500
+import threading
 
 
-class CreateTemplateException(BKFLOWException):
-    CODE = None
-    MESSAGE = _("创建模板失败")
-    STATUS_CODE = 500
+class SimpleThreadLocal:
+    def __init__(self):
+        self._thread_local = threading.local()
+
+    def set(self, key: str, value) -> None:
+        if not hasattr(self._thread_local, "vars"):
+            self._thread_local.vars = {}
+        self._thread_local.vars[key] = value
+
+    def get(self, key: str, default=None):
+        if not hasattr(self._thread_local, "vars"):
+            return default
+        return self._thread_local.vars.get(key, default)
 
 
-class UpdateTemplateException(BKFLOWException):
-    CODE = None
-    MESSAGE = _("模板更新失败")
-    STATUS_CODE = 500
-
-
-class PaginateParamsException(BKFLOWException):
-    CODE = None
-    MESSAGE = _("分页参数校验失败")
-    STATUS_CODE = 500
+thread_local = SimpleThreadLocal()
