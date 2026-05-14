@@ -587,6 +587,7 @@ class TestTaskOperationComplete:
                 "id": node_id,
                 "state": bamboo_engine_states.FINISHED,
                 "loop": 2,
+                "retry": 0,
                 "children": {},
             }
         }
