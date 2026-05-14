@@ -528,7 +528,7 @@ class TaskNodeOperation:
             format_bamboo_engine_status(detail)
             node_info = self.runtime.get_node(self.node_id)
             if loop is None or int(loop) >= detail["loop"]:
-                loop = detail["loop"] if not node_info.loop_strategy else -1
+                loop = detail["loop"] if not node_info.loop_enabled else -1
                 hist_result = bamboo_engine_api.get_node_histories(runtime=runtime, node_id=self.node_id, loop=loop)
                 if not hist_result:
                     logger.exception("bamboo_engine_api.get_node_histories fail")
@@ -547,7 +547,7 @@ class TaskNodeOperation:
                 detail["history_id"] = hist_result.data[-1]["id"]
                 detail["version"] = hist_result.data[-1]["version"]
 
-            if node_info.loop_strategy and detail.get("histories"):
+            if node_info.loop_enabled and detail.get("histories"):
                 retry_max_loop = {detail["retry"]: detail["loop"]}
                 for h in detail["histories"]:
                     retry = h.get("retry", 0)
@@ -567,7 +567,7 @@ class TaskNodeOperation:
                     hist["inputs"] = inputs
 
                 # 重试记录必然是因为失败才重试，设置了循环策略的节点只有成功才能接着循环
-                if node_info.loop_strategy:
+                if node_info.loop_enabled:
                     if hist["skip"] or hist["outputs"].get("_result"):
                         state = bamboo_engine_states.FINISHED
                     else:
