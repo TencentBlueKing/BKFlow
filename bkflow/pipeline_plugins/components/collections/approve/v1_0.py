@@ -76,6 +76,8 @@ class ApproveService(BKFlowBaseService):
 
         executor = parent_data.get_one_of_inputs("executor")
         tenant_id = parent_data.get_one_of_inputs("tenant_id")
+        space_id = parent_data.get_one_of_inputs("task_space_id")
+        task_id = parent_data.get_one_of_inputs("task_id")
         client = get_client_by_username(username=executor, stage=settings.BK_APIGW_STAGE_NAME)
 
         verifier = data.get_one_of_inputs("bk_verifier")
@@ -92,7 +94,7 @@ class ApproveService(BKFlowBaseService):
                 "multiUser_approver": verifier.split(","),
             },
             "system_id": settings.APP_CODE,
-            "callback_url": get_node_callback_url(self.root_pipeline_id, self.id, getattr(self, "version", "")),
+            "callback_url": get_node_callback_url(space_id, task_id, self.id, getattr(self, "version", "")),
             "options": {},
         }
         result = client.api.create_ticket(
@@ -125,7 +127,7 @@ class ApproveService(BKFlowBaseService):
                 return True
             return approve_result
         except Exception as e:
-            err_msg = "get Special Approve Component result failed: {}, err: {}"
+            err_msg = "get Approve Component Component result failed: {}, err: {}"
             self.logger.error(err_msg.format(callback_data, traceback.format_exc()))
             data.outputs.ex_data = err_msg.format(callback_data, e)
             return False
