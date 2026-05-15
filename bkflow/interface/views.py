@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -24,7 +23,6 @@ import traceback
 from blueapps.account import ConfFixture
 from blueapps.account.decorators import login_exempt
 from blueapps.account.handlers.response import ResponseHandler
-from blueapps.utils import get_client_by_request
 from cryptography.fernet import Fernet
 from django.conf import settings
 from django.contrib.auth import logout
@@ -37,6 +35,7 @@ from django.views.decorators.http import require_GET, require_POST
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import Space, SpaceConfig
+from packages.bkapi.bk_cmsi.shortcuts import get_client_by_username
 
 logger = logging.getLogger("root")
 
@@ -95,8 +94,8 @@ def is_admin_or_current_space_superuser(request):
 
 @require_GET
 def get_msg_types(request):
-    client = get_client_by_request(request)
-    result = client.cmsi.get_msg_type()
+    client = get_client_by_username(request.user.username, stage=settings.BK_APIGW_STAGE_NAME)
+    result = client.api.v1_channels_list(headers={"X-Bk-Tenant-Id": request.user.tenant_id})
     return JsonResponse(result)
 
 
@@ -115,9 +114,7 @@ def callback(request, token):
     try:
         callback_data = json.loads(request.body)
     except Exception:
-        message = _("节点回调失败: 无效的请求, 请重试. 如持续失败可联系管理员处理. {msg} | api callback").format(
-            msg=traceback.format_exc()
-        )
+        message = _("节点回调失败: 无效的请求, 请重试. 如持续失败可联系管理员处理. {msg} | api callback").format(msg=traceback.format_exc())
         logger.error(message)
         return JsonResponse({"result": False, "message": message}, status=400)
 
