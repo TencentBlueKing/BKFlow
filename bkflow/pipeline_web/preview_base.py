@@ -447,7 +447,10 @@ class PipelineTemplateWebPreviewer:
 
             if loop_times:
                 # 统计当前节点的循环变量（各参数值按逗号分隔后的元素数量）
-                valid_loop_params = [len(param_value.split(",")) for param_key, param_value in loop_params.items()]
+                valid_loop_params = [
+                    len([item for item in param_value.split(",") if item.strip()])
+                    for param_key, param_value in loop_params.items()
+                ]
                 # 验证循环次数与循环变量数量匹配（取最短值列表长度）
                 if valid_loop_params and loop_times != min(valid_loop_params):
                     loop_variables.append(activity["name"])

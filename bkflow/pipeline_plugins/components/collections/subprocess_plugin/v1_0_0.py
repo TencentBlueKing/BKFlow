@@ -54,7 +54,7 @@ class SubprocessPluginService(BKFlowBaseService):
             self.OutputItem(name="任务ID", key="task_id", type="int", schema=IntItemSchema(description="Task ID")),
             self.OutputItem(
                 name="循环输出",
-                key="outputs",
+                key=settings.PLUGIN_LOOP_OUTPUTS_KEY,
                 type="array",
                 schema=ArrayItemSchema(
                     description="循环输出", item_schema=ObjectItemSchema(description="循环输出", property_schemas={})
