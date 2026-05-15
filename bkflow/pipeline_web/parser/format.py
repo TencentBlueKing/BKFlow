@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
 import copy
 
 from bamboo_engine.template import Template
@@ -25,6 +24,9 @@ from pipeline import exceptions
 from pipeline.core.data import library, var
 from pipeline.validators.utils import format_node_io_to_list
 
+from bkflow.pipeline_plugins.components.collections.uniform_api.span import (
+    UNIFORM_API_PLUGIN_API_META_INPUT_KEY,
+)
 from bkflow.pipeline_web.constants import PWE
 
 
@@ -50,6 +52,13 @@ def format_web_data_to_pipeline(web_pipeline: dict, is_subprocess: bool = False)
     for act_id, act in list(pipeline_tree["activities"].items()):
         if act["type"] == "ServiceActivity":
             act_data = act["component"].pop("data")
+            if act["component"].get("code") == "uniform_api" and act["component"].get("api_meta"):
+                act_data[UNIFORM_API_PLUGIN_API_META_INPUT_KEY] = {
+                    "type": "plain",
+                    "value": act["component"]["api_meta"],
+                    "is_param": False,
+                    "need_render": False,
+                }
 
             all_inputs = format_data_to_pipeline_inputs(act_data, classification["data_inputs"])
             act["component"]["inputs"] = {key: value for key, value in list(all_inputs.items()) if key in act_data}

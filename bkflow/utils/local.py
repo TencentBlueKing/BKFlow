@@ -27,7 +27,7 @@ except ImportError:
     except ImportError:
         from _thread import get_ident
 
-__all__ = ["local", "Local", "get_ident"]
+__all__ = ["local", "thread_local", "Local", "SimpleThreadLocal", "get_ident"]
 
 
 """Thread-local/Greenlet-local objects
@@ -107,6 +107,28 @@ class Local(Localbase):
 
 
 local = Local()
+
+
+class SimpleThreadLocal:
+    """
+    基于 Local 的键值缓存，按线程/协程隔离数据。
+    """
+
+    def __init__(self):
+        self._local = Local()
+
+    def set(self, key: str, value) -> None:
+        if not hasattr(self._local, "vars"):
+            self._local.vars = {}
+        self._local.vars[key] = value
+
+    def get(self, key: str, default=None):
+        if not hasattr(self._local, "vars"):
+            return default
+        return self._local.vars.get(key, default)
+
+
+thread_local = SimpleThreadLocal()
 
 
 @contextmanager

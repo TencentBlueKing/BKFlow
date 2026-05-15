@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import time
 from unittest import mock
 
@@ -191,6 +192,28 @@ class TestPluginMethodSpan:
         ) as span_result:
             assert span_result is not None
             assert span_result.success is True
+
+    @override_settings(ENABLE_OTEL_TRACE=True)
+    def test_plugin_method_span_keeps_lifecycle_method_when_plugin_attrs_include_method(self, mocker):
+        """插件属性包含 method 时，方法 Span 仍保留 execute/schedule 语义"""
+        span = mocker.MagicMock()
+        span.attributes = {}
+        span.set_attribute.side_effect = lambda key, value: span.attributes.__setitem__(key, value)
+        tracer = mocker.MagicMock()
+        tracer.start_span.return_value = span
+        mocker.patch("bkflow.utils.trace.trace.get_tracer", return_value=tracer)
+
+        with plugin_method_span(
+            method_name="schedule",
+            plugin_name="uniform_api",
+            method="POST",
+            http_method="POST",
+            task_id="123",
+        ):
+            pass
+
+        assert span.attributes["bkflow.plugin.method"] == "schedule"
+        assert span.attributes["bkflow.plugin.http_method"] == "POST"
 
 
 class TestStartPluginSpan:

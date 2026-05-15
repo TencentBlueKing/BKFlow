@@ -27,9 +27,12 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
+from bkflow.apigw.exceptions import CreateTemplateException
 from bkflow.apigw.serializers.template import CreateTemplateApigwSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.decorators import record_operation
+from bkflow.label.models import Label, TemplateLabelRelation
+from bkflow.label.serializers import LabelSerializer
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.space.utils import build_default_pipeline_tree_with_space_id
@@ -37,6 +40,7 @@ from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
+from bkflow.utils.webhook import apply_webhook_configs
 
 logger = logging.getLogger("root")
 
@@ -59,13 +63,17 @@ def create_template(request, space_id):
     data = {}
     """
 
-    data = json.loads(request.body)
+    data = json.loads(request.body or "{}")
 
     ser = CreateTemplateApigwSerializer(data=data, context={"space_id": int(space_id), "request": request})
     ser.is_valid(raise_exception=True)
 
     validate_data = dict(ser.validated_data)
+    webhook_configs = validate_data.pop("webhook_configs", [])
     auto_release = validate_data.pop("auto_release", False)
+
+    label_ids = validate_data.pop("label_ids", [])
+    label_ids = list(set(label_ids))
 
     source_template_id = validate_data.pop("source_template_id", None)
     pipeline_tree = validate_data.pop("pipeline_tree", None)
@@ -94,5 +102,16 @@ def create_template(request, space_id):
         )
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
+        TemplateLabelRelation.objects.set_labels(template.id, label_ids)
 
-    return {"result": True, "data": template.to_json(), "code": err_code.SUCCESS.code}
+        if webhook_configs:
+            apply_result = apply_webhook_configs(webhook_configs, str(template.id))
+            if not apply_result["result"]:
+                message = apply_result["message"]
+                logger.error(message)
+                raise CreateTemplateException(f"创建模板失败，错误: {str(message)}")
+
+    resp_data = template.to_json()
+    resp_data["labels"] = LabelSerializer(Label.objects.filter(id__in=label_ids), many=True).data if label_ids else []
+
+    return {"result": True, "data": resp_data, "code": err_code.SUCCESS.code}

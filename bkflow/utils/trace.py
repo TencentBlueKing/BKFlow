@@ -9,6 +9,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 """
+
 import copy
 import enum
 import logging
@@ -572,11 +573,11 @@ def plugin_method_span(
                 kind=SpanKind.INTERNAL,
             )
 
-            span.set_attribute(f"{platform_code}.plugin.method", method_name)
             for key, value in attributes.items():
                 if value is not None:
                     span.set_attribute(f"{platform_code}.plugin.{key}", str(value))
 
+            span.set_attribute(f"{platform_code}.plugin.method", method_name)
             span.set_attribute(f"{platform_code}.plugin.success", result.success)
             if result.success:
                 span.set_status(Status(StatusCode.OK))

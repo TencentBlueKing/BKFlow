@@ -56,15 +56,17 @@
         v-show="isTaskOperationBtnsShow"
         class="task-operation-btns">
         <template v-for="operation in taskOperationBtns">
-            <div
-                v-if="!operation.disabled && instanceActions.includes('OPERATE')"
-                :key="operation.action"
-                :class="['action-button', 'operate-btn-item', operation.action]"
-                :data-test-id="`taskExcute_form_${operation.action}Btn`"
-                @click="onOperationClick(operation.action)">
-                <i :class="['common-icon', operation.icon]" />
-                <div class="operate-btn-item-text">{{ operation.text }}</div>
+          <div
+            v-if="!operation.disabled && instanceActions.includes('OPERATE')"
+            :key="operation.action"
+            :class="['action-button', 'operate-btn-item', operation.action]"
+            :data-test-id="`taskExcute_form_${operation.action}Btn`"
+            @click="onOperationClick(operation.action)">
+            <i :class="['common-icon', operation.icon]" />
+            <div class="operate-btn-item-text">
+              {{ operation.text }}
             </div>
+          </div>
         </template>
       </div>
       <div
@@ -89,9 +91,13 @@
       </div>
       <div
         class="task-params-btns">
-        <div class="action-button view-node-details-btn" @click="onTaskParamsClick('viewNodeDetails', $t('节点详情'))" >
-            <i class="common-icon-file-setting" />
-            <div class="view-node-details-btn-text">{{ $t('节点详情') }}</div>
+        <div
+          class="action-button view-node-details-btn"
+          @click="onTaskParamsClick('viewNodeDetails', $t('节点详情'))">
+          <i class="common-icon-file-setting" />
+          <div class="view-node-details-btn-text">
+            {{ $t('节点详情') }}
+          </div>
         </div>
         <bk-popover
           placement="bottom-end"
@@ -99,7 +105,9 @@
           ext-cls="task-operation-more-action-popover">
           <div class="action-button more-action-btn">
             <i class="bk-icon icon-more" />
-            <div class="more-action-btn-text">{{ $t('更多操作') }}</div>
+            <div class="more-action-btn-text">
+              {{ $t('更多操作') }}
+            </div>
           </div>
           <template slot="content">
             <p
@@ -117,6 +125,12 @@
               class="operate-item"
               @click="onTaskParamsClick('templateData', 'Code')">
               {{ 'Code' }}
+            </p>
+            <p
+              v-if="isShowCallbackHistoryAndViewTpl"
+              class="operate-item"
+              @click="onTaskParamsClick('webhook', $t('回调记录'))">
+              {{ $t('回调记录') }}
             </p>
           </template>
         </bk-popover>
@@ -181,6 +195,11 @@
         default: '',
       },
       isTaskOperationBtnsShow: Boolean,
+      isShowViewProcess: Boolean,
+      isShowCallbackHistoryAndViewTpl: {
+        type: Boolean,
+        default: false,
+      },
       triggerMethod: {
         type: String,
         default: '',

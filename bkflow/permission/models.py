@@ -42,6 +42,8 @@ class ResourceType(Enum):
     TEMPLATE = "TEMPLATE"
     # 作用域
     SCOPE = "SCOPE"
+    # 标签
+    LABEL = "LABEL"
 
 
 class PermissionType(Enum):
@@ -85,6 +87,7 @@ class Token(models.Model):
         (ResourceType.TASK.value, _("任务")),
         (ResourceType.TEMPLATE.value, _("流程")),
         (ResourceType.SCOPE.value, _("作用域")),
+        (ResourceType.LABEL.value, _("标签")),
     )
 
     PERMISSION_TYPE = (

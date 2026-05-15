@@ -11,19 +11,22 @@
 
 #### 接口参数
 
-| 字段                  | 类型      | 必选 | 描述               |
-|---------------------|---------|----|------------------|
-| name                | string  | 否  | 模板名称             |
-| operator            | string  | 否  | 更新人              |
-| notify_config       | json    | 否  | 模板描述             |
-| desc                | string  | 否  | 空间描述             |
-| scope_type          | string  | 否  | 模板范围类型           |
-| scope_value         | string  | 否  | 模板范围值            |
-| source              | string  | 否  | 模板来源(空间接入方自定义字段) |
-| version             | string  | 否  | 模板版本(空间接入方自定义字段) |
-| extra_info          | string  | 否  | 模板额外信息           |
-| pipeline_tree       | json    | 否  | 模板信息             |
-| auto_release        | bool    | 否  | 是否自动发布           |
+| 字段                        | 类型     | 必选  | 描述               |
+|---------------------------|--------|-----|------------------|
+| name                      | string | 否   | 模板名称             |
+| operator                  | string | 否   | 更新人              |
+| notify_config             | json   | 否   | 模板描述             |
+| desc                      | string | 否   | 空间描述             |
+| scope_type                | string | 否   | 模板范围类型           |
+| scope_value               | string | 否   | 模板范围值            |
+| source                    | string | 否   | 模板来源(空间接入方自定义字段) |
+| version                   | string | 否   | 模板版本(空间接入方自定义字段) |
+| extra_info                | string | 否   | 模板额外信息           |
+| pipeline_tree             | json   | 否   | 模板信息             |
+| auto_release              | bool   | 否   | 是否自动发布           |
+| label_ids                 | list   | 否   | 标签ID列表           |
+| enable_webhook            | bool   | 否   | webhook开关        |
+| webhook_configs           | json   | 否   | webhook配置        |
 
 
 ### notify_config 示例:
@@ -49,6 +52,26 @@
 }
 ```
 
+### webhook_configs 示例：
+```json
+{
+  "method": "POST",
+  "endpoint": "xxx",
+  "extra_info": {
+    "headers": [
+      {
+        "key": "Content-Type",
+        "value": "application/json",
+        "doc": ""
+      }
+    ],
+    "timeout": 10,
+    "retry_times": 2,
+    "interval": 60
+  }
+}
+```
+
 ### 请求参数示例
 
 ```json
@@ -56,7 +79,8 @@
     "bk_app_code": "xxxx",
     "bk_app_secret": "xxxx",
     "bk_username or bk_token": "xxxx",
-    "name": "模板名"
+    "name": "模板名",
+    "label_ids": [1, 2, 3]
 }
 ```
 
@@ -69,6 +93,7 @@
         "id": 4,
         "space_id": "2",
         "name": "模板名",
+        "labels": [],
         "desc": null,
         "notify_config": {},
         "scope_type": null,
@@ -138,7 +163,9 @@
         "creator": "",
         "create_at": "2024-08-02T08:53:20.173Z",
         "update_at": "2024-08-02T08:53:20.173Z",
-        "updated_by": ""
+        "updated_by": "",
+        "enable_webhook": false,
+        "webhook_configs":{}
     },
     "code": 0
 }
@@ -155,21 +182,29 @@
 
 #### data[item]
 
-| 字段            | 类型     | 描述       |
-|---------------|--------|----------|
-| id            | string | 流程ID     |
-| space_id      | string | 流程所属空间ID |
-| name          | string | 流程名称     |
-| desc          | string | 流程描述     |
-| notify_config | dict   | 通知配置     |
-| scope_type    | string | 流程范围类型   |
-| scope_value   | string | 流程范围ID   |
-| pipeline_tree | dict   | 流程树详情    |
-| source        | string | 流程来源     |
-| version       | string | 流程版本     |
-| is_enabled    | bool   | 流程是否启用   |
-| extra_info    | dict   | 流程扩展信息   |
-| creator       | string | 流程创建者    |
-| create_at     | string | 流程创建时间   |
-| update_at     | string | 流程更新时间   |
-| updated_by    | string | 流程更新者    |
+| 字段              | 类型     | 描述       |
+|-----------------|--------|----------|
+| id              | string | 流程ID     |
+| space_id        | string | 流程所属空间ID |
+| name            | string | 流程名称     |
+| desc            | string | 流程描述     |
+| notify_config   | dict   | 通知配置     |
+| scope_type      | string | 流程范围类型   |
+| scope_value     | string | 流程范围ID   |
+| pipeline_tree   | dict   | 流程树详情    |
+| source          | string | 流程来源     |
+| version         | string | 流程版本     |
+| is_enabled      | bool   | 流程是否启用   |
+| extra_info      | dict   | 流程扩展信息   |
+| creator         | string | 流程创建者    |
+| create_at       | string | 流程创建时间   |
+| update_at       | string | 流程更新时间   |
+| updated_by      | string | 流程更新者    |
+| labels          | list   | 标签列表（标签对象数组） |
+| enable_webhook  | bool   | webhook开关    |
+| webhook_configs | dict   | webhook配置    |
+
+说明：
+
+- 不传 `label_ids`：不更新模板标签
+- 传 `label_ids: []`：清空模板标签

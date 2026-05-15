@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -25,6 +24,12 @@ from bkflow.exceptions import BKFLOWException
 class CreateTokenException(BKFLOWException):
     CODE = None
     MESSAGE = _("创建Token失败")
+    STATUS_CODE = 500
+
+
+class CreateTemplateException(BKFLOWException):
+    CODE = None
+    MESSAGE = _("创建模板失败")
     STATUS_CODE = 500
 
 

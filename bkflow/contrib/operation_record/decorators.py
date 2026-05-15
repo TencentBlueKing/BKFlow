@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -36,7 +35,14 @@ def record_operation(recorder_type: str, operate_type: str, operate_source: str,
         def decorator(*args, **kwargs):
             result = func(*args, **kwargs)
             try:
-                recorder = OPERATION_RECORDER.recorders[recorder_type](operate_type, operate_source, extra_info)
+                adjusted_operate_type = operate_type
+                if kwargs.get("loop", False) and operate_type == "skip":
+                    adjusted_operate_type = "loop_skip"
+                elif kwargs.get("loop", False) and operate_type == "retry":
+                    adjusted_operate_type = "loop_retry"
+                recorder = OPERATION_RECORDER.recorders[recorder_type](
+                    adjusted_operate_type, operate_source, extra_info
+                )
                 record_kwargs = {**kwargs, "func_result": result}
                 recorder.record(*args, **record_kwargs)
             except Exception as e:

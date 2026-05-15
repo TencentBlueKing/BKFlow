@@ -37,6 +37,9 @@ const templateList = {
     copyTemplate({}, data) {
       return axios.post('/api/template/admin/template_copy/', data).then(response => response.data);
     },
+    updateTemplateLabel({}, data) {
+      return axios.post(`/api/template/${data.template_id}/update_labels/`, { label_ids: data.label_ids }).then(response => response.data);
+    },
   },
 };
 

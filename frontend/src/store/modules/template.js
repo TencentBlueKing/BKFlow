@@ -9,7 +9,7 @@
 * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 * specific language governing permissions and limitations under the License.
 */
-import Vue, {  ref } from 'vue';
+import Vue, { ref } from 'vue';
 import nodeFilter from '@/utils/nodeFilter.js';
 import { uuid, random4 } from '@/utils/uuid.js';
 import tools from '@/utils/tools.js';
@@ -186,7 +186,7 @@ const template = {
     category: '',
     description: '',
     executor_proxy: '',
-    template_labels: '',
+    template_labels: [],
     subprocess_info: {
       details: [],
       subproc_has_update: false,
@@ -197,10 +197,18 @@ const template = {
     scopeInfo: {},
     canvas_mode: '',
     triggers: [],
+    webhook_configs: {},
+    enable_webhook: false,
   },
   mutations: {
+    setWebhookConfigs(state, webhookConfigs) {
+      state.webhook_configs = webhookConfigs;
+    },
     setTemplateName(state, name) {
       state.name = name;
+    },
+    setTemplateLabel(state, labels) {
+      state.template_labels = labels;
     },
     setReceiversGroup(state, data) {
       state.notify_receivers.receiver_group = data;
@@ -225,6 +233,8 @@ const template = {
       state.template_labels = data.template_labels;
       state.default_flow_type = data.default_flow_type;
       state.triggers = data.triggers;
+      state.webhook_configs = data.webhook_configs;
+      state.enable_webhook = data.enable_webhook || false;
     },
     setSubprocessUpdated(state, subflow) {
       if (state.subprocess_info) {
@@ -285,6 +295,7 @@ const template = {
                     seconds: 10,
                     action: 'forced_fail',
                   },
+                  loop_config: node.loop_config || {},
                 });
                 return loc;
               }
@@ -326,7 +337,6 @@ const template = {
         name,
         id: templateId,
         pipeline_tree: pipelineData,
-        template_labels: templateLabels,
         notify_config: notifyConfig,
         description,
         executor_proxy: executorProxy,
@@ -338,6 +348,8 @@ const template = {
         scope_type, // 作用域类型
         scope_value, // 作用域值
         triggers,
+        webhook_configs: webhookConfigs,
+        enable_webhook: enableWebhook,
       } = data;
 
       const {
@@ -351,7 +363,6 @@ const template = {
       state.notify_type = typeof notifyType === 'string' ? { success: JSON.parse(notifyType), fail: [] } : notifyType;
       state.description = description;
       state.executor_proxy = executorProxy;
-      state.template_labels = templateLabels || [];
       state.time_out = timeOut;
       state.category = category;
       state.subprocess_info = subprocessInfo;
@@ -362,6 +373,8 @@ const template = {
         scope_value,
       };
       state.triggers = triggers;
+      state.webhook_configs = webhookConfigs;
+      state.enable_webhook = enableWebhook;
       state.canvas_mode = pipelineData.canvas_mode;
       this.commit('template/setPipelineTree', pipelineData);
     },
@@ -395,7 +408,6 @@ const template = {
       };
       state.description = '';
       state.executor_proxy = '';
-      state.template_labels = [];
       state.default_flow_type = 'common';
     },
     // 重置模板数据
@@ -974,7 +986,7 @@ const template = {
         location, outputs, start_event, notify_receivers, notify_type,
         time_out: timeout, category, description, executor_proxy, template_labels, default_flow_type,
         canvas_mode,
-        stage_canvas_data, triggers,
+        stage_canvas_data, triggers, webhook_configs, enable_webhook,
       } = state;
       triggers.forEach((trigger) => {
         if (trigger) {
@@ -1050,7 +1062,7 @@ const template = {
         timeout,
         description,
         executor_proxy,
-        template_labels,
+        labels: Array.isArray(template_labels) && template_labels.length > 0 ? template_labels.map(label => label.id) : [],
         default_flow_type,
         pipeline_tree: pipelineTree,
         space_id: spaceId,
@@ -1060,6 +1072,8 @@ const template = {
           notify_receivers,
         },
         triggers,
+        webhook_configs,
+        enable_webhook,
       }, {
         headers,
       }).then(response => response.data);
@@ -1259,7 +1273,10 @@ const template = {
     },
     // 获取凭证列表
     getCredentialList({}, data) {
-      return axios.get(`/api/template/${data.template_id}/credentials/`, {params: data }).then(response => response.data);
+      return axios.get(`/api/template/${data.template_id}/credentials/`, { params: data }).then(response => response.data);
+    },
+    debugWebhook({}, data) {
+      return axios.post('/api/template/verify_webhook_configuration/', data).then(response => response.data);
     },
   },
   getters: {
