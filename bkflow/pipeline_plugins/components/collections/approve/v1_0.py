@@ -27,10 +27,10 @@ from pipeline.core.flow.io import StringItemSchema
 
 __group_name__ = _("蓝鲸服务(BK)")
 
-from bkflow.contrib.api.collections.itsm import BKItsmClient
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 from bkflow.pipeline_plugins.utils import get_node_callback_url
 from bkflow.utils.handlers import handle_api_error
+from packages.bkapi.bk_itsm4.shortcuts import get_client_by_username
 
 
 class ApproveService(BKFlowBaseService):
@@ -53,7 +53,7 @@ class ApproveService(BKFlowBaseService):
             ),
             self.InputItem(
                 name=_("审核内容"),
-                key="bk_approve_message",
+                key="bk_approve_content",
                 type="string",
                 schema=StringItemSchema(description=_("通知的标题")),
             ),
@@ -70,39 +70,35 @@ class ApproveService(BKFlowBaseService):
             ),
         ]
 
-    def _get_span_attributes(self, data, parent_data):
-        """覆盖基类方法，添加审批插件特有的属性"""
-        attributes = super()._get_span_attributes(data, parent_data)
-        attributes.update(
-            {
-                "executor": parent_data.get_one_of_inputs("executor"),
-                "verifier": data.get_one_of_inputs("bk_verifier"),
-            }
-        )
-        return attributes
-
     def plugin_execute(self, data, parent_data):
-        executor = parent_data.get_one_of_inputs("executor")
-        space_id = parent_data.get_one_of_inputs("task_space_id")
-        task_id = parent_data.get_one_of_inputs("task_id")
+        from bkflow.task.celery.tasks import send_task_message
+        from bkflow.task.utils import PENDING_PROCESSING
 
-        client = BKItsmClient(username=executor)
+        executor = parent_data.get_one_of_inputs("executor")
+        tenant_id = parent_data.get_one_of_inputs("tenant_id")
+        client = get_client_by_username(username=executor, stage=settings.BK_APIGW_STAGE_NAME)
 
         verifier = data.get_one_of_inputs("bk_verifier")
         title = data.get_one_of_inputs("bk_approve_title")
         approve_content = data.get_one_of_inputs("bk_approve_content")
 
+        verifier = verifier.replace(" ", "")
+
         kwargs = {
-            "creator": executor,
-            "fields": [
-                {"key": "title", "value": title},
-                {"key": "APPROVER", "value": verifier.replace(" ", "")},
-                {"key": "APPROVAL_CONTENT", "value": approve_content},
-            ],
-            "fast_approval": True,
-            "meta": {"callback_url": get_node_callback_url(space_id, task_id, self.id, getattr(self, "version", ""))},
+            "workflow_key": f"{tenant_id}_bk_flow_engine_workflows_key_100001_v1",
+            "form_data": {
+                "ticket__title": title,
+                "textarea_content": approve_content,
+                "multiUser_approver": verifier.split(","),
+            },
+            "system_id": settings.APP_CODE,
+            "callback_url": get_node_callback_url(self.root_pipeline_id, self.id, getattr(self, "version", "")),
+            "options": {},
         }
-        result = client.create_ticket(**kwargs)
+        result = client.api.create_ticket(
+            kwargs, headers={"X-Bk-Tenant-Id": tenant_id, "SYSTEM-TOKEN": settings.SECRET_KEY}
+        )
+
         if not result["result"]:
             message = handle_api_error(__group_name__, "itsm.create_ticket", kwargs, result)
             self.logger.error(message)
@@ -110,26 +106,33 @@ class ApproveService(BKFlowBaseService):
             return False
 
         data.outputs.sn = result["data"]["sn"]
+        data.outputs.id = result["data"]["id"]
+        task_id: int = parent_data.get_one_of_inputs("task_id")
+        send_task_message.delay(
+            task_id=task_id,
+            msg_type=PENDING_PROCESSING,
+        )
+
         return True
 
     def plugin_schedule(self, data, parent_data, callback_data=None):
         try:
             rejected_block = data.get_one_of_inputs("rejected_block", True)
-            approve_result = callback_data["approve_result"]
+            approve_result = callback_data["ticket"]["approve_result"]
             data.outputs.approve_result = "通过" if approve_result else "拒绝"
             # 审核拒绝不阻塞
             if not approve_result and not rejected_block:
                 return True
             return approve_result
         except Exception as e:
-            err_msg = "get Approve Component result failed: {}, err: {}"
+            err_msg = "get Special Approve Component result failed: {}, err: {}"
             self.logger.error(err_msg.format(callback_data, traceback.format_exc()))
             data.outputs.ex_data = err_msg.format(callback_data, e)
             return False
 
 
 class ApproveComponent(Component):
-    name = _("审批(已废弃,请切换新版审批组件)")
+    name = _("审批")
     code = "bk_approve"
     bound_service = ApproveService
     version = "v1.0"
