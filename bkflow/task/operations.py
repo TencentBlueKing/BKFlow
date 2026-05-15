@@ -558,8 +558,8 @@ class TaskNodeOperation:
             for hist in detail["histories"]:
                 raw_inputs = hist["inputs"].get("subprocess")
                 raw_outputs = hist["outputs"]
-                if "outputs" in raw_outputs:
-                    raw_outputs.pop("outputs")
+                if settings.PLUGIN_LOOP_OUTPUTS_KEY in raw_outputs:
+                    raw_outputs.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
                 outputs = {"outputs": raw_outputs, "ex_data": raw_outputs.get("ex_data")}
                 if raw_inputs:
                     inputs = raw_inputs["constants"]
@@ -669,8 +669,8 @@ class TaskNodeOperation:
                     raw_outputs = hist[-1]["outputs"]
                     outputs_wrapper = {"outputs": raw_outputs, "ex_data": raw_outputs.get("ex_data")}
 
-            if "outputs" in outputs_wrapper["outputs"]:
-                outputs_wrapper["outputs"].pop("outputs")
+            if settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_wrapper["outputs"]:
+                outputs_wrapper["outputs"].pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
 
         # 未执行节点需要实时渲染
         else:
@@ -806,7 +806,7 @@ class TaskNodeOperation:
                 # 在标准插件定义中的预设输出参数
                 archived_keys = []
                 for outputs_item in outputs_format:
-                    if outputs_item["key"] == "outputs":
+                    if outputs_item["key"] == settings.PLUGIN_LOOP_OUTPUTS_KEY:
                         continue
                     value = outputs_data.get(outputs_item["key"], "")
                     outputs_table.append(
