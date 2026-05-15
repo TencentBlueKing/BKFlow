@@ -16,15 +16,20 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from functools import partial
+
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.conf import settings
 from pipeline.core.flow.io import ArrayItemSchema, BooleanItemSchema, StringItemSchema
 
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
-from bkflow.utils.message import send_message
+from bkflow.utils.handlers import handle_api_error
+from bkflow.utils.message_cmsi import normalize_msg_type, send_cmsi_message
+from packages.bkapi.bk_cmsi.shortcuts import get_client_by_username
 
 __group_name__ = _("蓝鲸服务(BK)")
+bk_handle_api_error = partial(handle_api_error, __group_name__)
 
 
 class NotifyService(BKFlowBaseService):
@@ -75,6 +80,8 @@ class NotifyService(BKFlowBaseService):
 
         notify_types = data.inputs.bk_notify_types
         title = data.inputs.bk_notify_title
+        tenant_id = parent_data.get_one_of_inputs("tenant_id")
+        client = get_client_by_username(executor, stage=settings.BK_APIGW_STAGE_NAME)
         content = data.inputs.bk_notify_content
         receivers = data.inputs.bk_notify_receivers.split(",")
         notify_executor = data.inputs.notify_executor
@@ -84,17 +91,30 @@ class NotifyService(BKFlowBaseService):
             receivers.insert(0, executor)
         unique_receivers = sorted(set(receivers), key=receivers.index)
 
-        has_error, error_message = send_message(
-            executor=executor,
-            notify_types=notify_types,
-            receivers=",".join(unique_receivers),
-            title=title,
-            content=content,
-        )
+        error_flag = False
+        error = ""
+        for msg_type in notify_types:
+            kwargs = {}
+            result = {"result": False, "message": "消息发送失败"}
+            operation_name = "v1_send_{}".format(normalize_msg_type(msg_type))
+            try:
+                operation_name, kwargs, result = send_cmsi_message(
+                    client=client,
+                    tenant_id=tenant_id,
+                    msg_type=msg_type,
+                    receivers=unique_receivers,
+                    title=title,
+                    content=content,
+                )
+            except Exception:
+                message = bk_handle_api_error("cmsi.{}".format(operation_name), kwargs, result)
+                self.logger.error(message)
+                error_flag = True
+                error += "%s;" % message
 
-        if has_error:
+        if error_flag:
             # 这里不需要返回 html 格式到前端，避免导致异常信息展示格式错乱
-            data.set_outputs("ex_data", error_message.replace("<", "|").replace(">", "|"))
+            data.set_outputs("ex_data", error.replace("<", "|").replace(">", "|"))
             return False
 
         return True

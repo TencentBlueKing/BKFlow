@@ -116,6 +116,7 @@ def parse_node_timeout_configs(pipeline_tree: dict) -> list:
 
 ATOM_FAILED = "atom_failed"
 TASK_FINISHED = "task_finished"
+PENDING_PROCESSING = "pending_processing"
 
 DEFAULT_TITLE_TEMPLATE = "【BKFlow引擎服务通知】任务执行{status}"
 DEFAULT_TASK_INSTANCE_MESSAGE_TEMPLATE = "您的任务【{task_name}】执行{status}，操作员是【{executor}】"
@@ -132,6 +133,7 @@ def send_task_instance_message(task_instance, msg_type):
         return True
 
     executor = task_instance.executor
+    tenant_id = task_instance.tenant_id
     receivers = ",".join(notify_info["receivers"])
     types = notify_info["types"]
     msg_format = notify_info["format"]
@@ -139,6 +141,9 @@ def send_task_instance_message(task_instance, msg_type):
     if msg_type == ATOM_FAILED:
         status = "失败"
         notify_type = types.get("fail", [])
+    elif msg_type == PENDING_PROCESSING:
+        status = "待处理"
+        notify_type = types.get("pending_processing", [])
     else:
         status = "完成"
         notify_type = types.get("success", [])
@@ -154,7 +159,7 @@ def send_task_instance_message(task_instance, msg_type):
             task_instance_id=task_instance.id, msg_type=msg_type, notify_type=notify_type, receivers=receivers
         )
     )
-    send_message(executor, notify_type, receivers, title, content)
+    send_message(executor, notify_type, receivers, title, content, tenant_id)
 
     return True
 
