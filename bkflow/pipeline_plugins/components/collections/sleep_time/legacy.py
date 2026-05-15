@@ -50,6 +50,9 @@ class SleepTimerService(BKFlowBaseService):
             r"((0|[1])\d|2[0-3]):(0|[1-5])\d:(0|[1-5])\d$",
         )
     )
+    data_tz_regex = re.compile(
+        r"{} {}".format(r"^\d{4}-\d{2}-\d{2}", r"((0|[1])\d|2[0-3]):(0|[1-5])\d:(0|[1-5])\d(\+\d{4})$")
+    )
 
     seconds_regex = re.compile(r"^\d+$")
 
