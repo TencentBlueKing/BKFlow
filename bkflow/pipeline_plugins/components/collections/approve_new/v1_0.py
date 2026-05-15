@@ -15,12 +15,10 @@ import traceback
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from pipeline.component_framework.component import Component
-from pipeline.core.flow.activity import Service
 from pipeline.core.flow.io import StringItemSchema
 
+from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 from bkflow.pipeline_plugins.utils import get_node_callback_url
-from bkflow.task.celery.tasks import send_task_message
-from bkflow.task.utils import PENDING_PROCESSING
 from bkflow.utils.handlers import handle_api_error
 from packages.bkapi.bk_itsm4.shortcuts import get_client_by_username
 
@@ -28,7 +26,7 @@ __group_name__ = _("蓝鲸服务(BK)")
 logger = logging.getLogger(__name__)
 
 
-class SpecialApproveService(Service):
+class SpecialApproveService(BKFlowBaseService):
     __need_schedule__ = True
 
     def inputs_format(self):
@@ -47,7 +45,7 @@ class SpecialApproveService(Service):
             ),
             self.InputItem(
                 name=_("审核内容"),
-                key="bk_approve_message",
+                key="bk_approve_content",
                 type="string",
                 schema=StringItemSchema(description=_("通知的标题")),
             ),
@@ -64,7 +62,10 @@ class SpecialApproveService(Service):
             ),
         ]
 
-    def execute(self, data, parent_data):
+    def plugin_execute(self, data, parent_data):
+        from bkflow.task.celery.tasks import send_task_message
+        from bkflow.task.utils import PENDING_PROCESSING
+
         executor = parent_data.get_one_of_inputs("executor")
         tenant_id = parent_data.get_one_of_inputs("tenant_id")
         client = get_client_by_username(username=executor, stage=settings.BK_APIGW_STAGE_NAME)
@@ -76,7 +77,7 @@ class SpecialApproveService(Service):
         verifier = verifier.replace(" ", "")
 
         kwargs = {
-            "workflow_key": f"{tenant_id}_bk_sops_workflows_key_100001_v1",
+            "workflow_key": f"{tenant_id}_bk_flow_engine_workflows_key_100001_v1",
             "form_data": {
                 "ticket__title": title,
                 "textarea_content": approve_content,
@@ -106,7 +107,7 @@ class SpecialApproveService(Service):
 
         return True
 
-    def schedule(self, data, parent_data, callback_data=None):
+    def plugin_schedule(self, data, parent_data, callback_data=None):
         try:
             rejected_block = data.get_one_of_inputs("rejected_block", True)
             approve_result = callback_data["ticket"]["approve_result"]

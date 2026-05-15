@@ -17,10 +17,12 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 from blueapps.account.decorators import login_exempt
-from blueapps.utils import get_client_by_request
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
+
+from packages.bkapi.bk_cmsi.shortcuts import get_client_by_username
 
 
 @login_exempt
@@ -31,6 +33,6 @@ def get_msg_types(request):
     获取消息类型列表
     该接口允许跨域访问，供其他平台使用SDK对接时调用
     """
-    client = get_client_by_request(request)
-    result = client.cmsi.get_msg_type()
+    client = get_client_by_username(request.user.username, stage=settings.BK_APIGW_STAGE_NAME)
+    result = client.api.v1_channels_list(headers={"X-Bk-Tenant-Id": request.user.tenant_id})
     return JsonResponse(result)
