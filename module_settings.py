@@ -179,6 +179,8 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
         "bkflow.contrib.expired_cleaner",
+        "bkflow.contrib.itsm_workflow",
+        "bkflow.contrib.init_tenant",
         "bkflow.statistics",
     )
 
@@ -284,6 +286,8 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.api_plugin_demo",
         "plugin_service",
         "bkflow.contrib.operation_record",
+        "bkflow.contrib.itsm_workflow",
+        "bkflow.contrib.init_tenant",
         "django_dbconn_retry",
         "webhook",
         "version_log",
