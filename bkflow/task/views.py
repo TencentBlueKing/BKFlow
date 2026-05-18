@@ -88,7 +88,7 @@ class TaskInstanceFilterSet(FilterSet):
     class Meta:
         model = TaskInstance
         fields = {
-            "id": ["exact"],
+            "id": ["exact", "in"],
             "space_id": ["exact"],
             "name": ["exact", "icontains"],
             "creator": ["exact"],

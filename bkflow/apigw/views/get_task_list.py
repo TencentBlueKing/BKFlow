@@ -36,7 +36,7 @@ def get_task_list(request, space_id):
     ser = GetTaskListSerializer(data=request.GET)
     ser.is_valid(raise_exception=True)
 
-    data = dict(ser.data)
+    data = dict(ser.validated_data)
     data["space_id"] = space_id
 
     filter_map = {
@@ -46,6 +46,7 @@ def get_task_list(request, space_id):
         "is_started": "is_started",
         "is_finished": "is_finished",
         "id": "id",
+        "task_id_list": "id__in",
         "executor": "executor",
         "template_id": "template_id",
     }
