@@ -214,28 +214,22 @@ class GetTaskListSerializer(serializers.Serializer):
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=False)
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
     id = serializers.IntegerField(help_text=_("任务ID"), required=False)
-    task_id_list = serializers.CharField(
-        help_text=_("任务ID列表，按列表精确过滤；逗号分隔的整数，例如 1,2,3"),
+    task_id_list = serializers.ListField(
+        help_text=_("任务ID列表，按列表精确过滤；GET 重复 key 传参，例如 ?task_id_list=1&task_id_list=3"),
+        child=serializers.IntegerField(),
         required=False,
-        allow_blank=True,
+        min_length=1,
+        max_length=50,
+        error_messages={
+            "min_length": _("task_id_list 不能为空，至少需要包含一个任务ID"),
+            "max_length": _("task_id_list 不能超过50个长度"),
+        },
     )
     executor = serializers.CharField(help_text=_("执行者"), max_length=USER_NAME_MAX_LENGTH, required=False)
     template_id = serializers.IntegerField(help_text=_("流程ID"), required=False)
 
     def validate_task_id_list(self, value):
-        if value is None or str(value).strip() == "":
-            raise serializers.ValidationError(_("task_id_list 不能为空，至少需要包含一个任务ID"))
-        items = [v.strip() for v in value.split(",")]
-        items = [v for v in items if v != ""]
-        if not items:
-            raise serializers.ValidationError(_("task_id_list 不能为空，至少需要包含一个任务ID"))
-        if len(items)>50:
-            raise serializers.ValidationError(_("task_id_list 不能超过50个"))
-        try:
-            [int(v) for v in items]
-        except ValueError:
-            raise serializers.ValidationError(_("task_id_list 必须为逗号分隔的整数，例如 1,2,3"))
-        return ",".join(items)
+        return ",".join(str(i) for i in value)
 
 
 class GetTasksStatesSerializer(serializers.Serializer):

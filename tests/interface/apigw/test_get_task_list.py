@@ -41,7 +41,7 @@ class TestGetTaskList(TestCase):
             "data": {"count": 0, "next": None, "previous": None, "results": []},
         }
 
-        url = f"/apigw/space/{space.id}/get_task_list/?task_id_list=1,3"
+        url = f"/apigw/space/{space.id}/get_task_list/?task_id_list=1&task_id_list=3"
         resp = self.client.get(url)
         resp_data = json.loads(resp.content)
 
