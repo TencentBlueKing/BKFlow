@@ -2293,6 +2293,16 @@ paths:
           type: string
         required: true
         description: ''
+      - in: query
+        name: task_id_list
+        schema:
+          type: array
+          items:
+            type: integer
+        style: form
+        explode: true
+        required: false
+        description: 任务ID列表，按列表精确过滤；GET 请求使用重复 key 形式传参，例如 ?task_id_list=1&task_id_list=3&task_id_list=5；若传入该参数，必须至少包含一个值，最多 50 个长度
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
