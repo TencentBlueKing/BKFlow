@@ -19,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 from django.conf.urls import url
 from django.urls import include
 
-from .itsm.itsm import itsm_approve
+from .itsm.itsm import itsm_approve, itsm_approve_new
 from .views import (
     callback,
     home,
@@ -35,6 +35,7 @@ urlpatterns = [
     url(r"^is_current_space_admin/$", is_admin_or_current_space_superuser),
     url(r"^callback/(?P<token>.+)/$", callback),
     url(r"^itsm_approve/$", itsm_approve),
+    url(r"^itsm_approve_new/$", itsm_approve_new),
     url(r"^openapi/", include("bkflow.interface.openapi.urls")),
     url(r"", include("bkflow.interface.task.urls")),
 ]

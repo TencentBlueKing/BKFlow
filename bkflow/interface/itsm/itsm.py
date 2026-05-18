@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -28,6 +27,7 @@ from rest_framework import serializers
 from bkflow.contrib.api.collections.itsm import BKItsmClient
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.utils.handlers import handle_api_error
+from packages.bkapi.bk_itsm4.shortcuts import get_client_by_username
 
 logger = logging.getLogger("root")
 
@@ -46,6 +46,61 @@ class ITSMViewRequestSerializer(serializers.Serializer):
 class ITSMViewResponse(serializers.Serializer):
     result = serializers.BooleanField(read_only=True, help_text="请求结果")
     message = serializers.CharField(read_only=True, help_text="请求结果失败时返回信息")
+
+
+def _extract_output_value(node_outputs, key):
+    """从节点输出列表中按 key 取 value，找不到时返回空字符串"""
+    for node_output in node_outputs:
+        if node_output.get("key") == key:
+            return node_output.get("value", "")
+    return ""
+
+
+def _get_common_data(request):
+    """
+    审批接口的公共预处理：解析请求体、校验参数、拉取节点输出。
+
+    返回 (error_response, serializer_data, node_outputs)：
+    - 校验/查询失败时，error_response 为可直接返回的 JsonResponse；
+      serializer_data / node_outputs 为 None。
+    - 校验通过时，error_response 为 None。
+    """
+    try:
+        data = json.loads(request.body)
+    except (TypeError, ValueError):
+        return JsonResponse({"result": False, "message": "请求体不是合法的 JSON"}), None, None
+
+    # 由于序列化器 bool 字段会默认给值，所以需要提前在序列化器校验之前校验 is_passed
+    if "is_passed" not in data:
+        return JsonResponse({"result": False, "message": "is_passed 该字段是必填项"}), None, None
+
+    serializer = ITSMViewRequestSerializer(data=data)
+    serializer.is_valid(raise_exception=True)
+    serializer_data = serializer.data
+
+    # 判断是否是拒绝，如果是拒绝并且没有填写备注则失败
+    if not serializer_data["is_passed"] and not serializer_data["message"]:
+        return JsonResponse({"result": False, "message": "审批拒绝后需填入备注"}), None, None
+
+    # 通过 TaskComponentClient 获取当前任务节点详情
+    operator = request.user.username
+    task_client = TaskComponentClient(space_id=serializer_data["space_id"])
+    node_detail = task_client.get_task_node_detail(
+        task_id=serializer_data["task_id"],
+        node_id=serializer_data["node_id"],
+        username=operator,
+    )
+
+    if not node_detail["result"]:
+        message = node_detail["message"]
+        logger.error(message)
+        return JsonResponse({"result": False, "message": message}), None, None
+
+    node_outputs = node_detail["data"]["outputs"]
+    if not node_outputs:
+        return JsonResponse({"result": False, "message": "获取该节点输出参数为空"}), None, None
+
+    return None, serializer_data, node_outputs
 
 
 @csrf_exempt
@@ -148,5 +203,57 @@ def itsm_approve(request):
         logger.error(message)
         result = {"result": False, "message": message}
         return JsonResponse(result)
+
+    return JsonResponse({"result": True, "data": None})
+
+
+@csrf_exempt
+@require_POST
+def itsm_approve_new(request):
+    error_response, serializer_data, node_outputs = _get_common_data(request)
+    if error_response is not None:
+        return error_response
+
+    operator = request.user.username
+    tenant_id = request.user.tenant_id
+
+    # 从节点输出中获取 itsm 工单 id
+    ticket_id = _extract_output_value(node_outputs, "id")
+    if not ticket_id:
+        return JsonResponse({"result": False, "message": "该审批节点输出参数中没有itsm工单id"})
+
+    client = get_client_by_username(username=operator)
+
+    # 拉取工单详情，先校验 result 再读 data，避免接口失败时直接 KeyError
+    ticket_info_result = client.api.ticket_detail({"id": ticket_id}, headers={"X-Bk-Tenant-Id": tenant_id})
+    if not ticket_info_result["result"]:
+        message = handle_api_error("bk-itsm4", "ticket_detail", {"id": ticket_id}, ticket_info_result)
+        logger.error(message)
+        return JsonResponse({"result": False, "message": message})
+
+    ticket_info_data = ticket_info_result.get("data") or {}
+    current_processors = ticket_info_data.get("current_processors") or []
+    if not current_processors:
+        return JsonResponse({"result": False, "message": "该工单当前没有可处理的审批任务"})
+
+    task_id = current_processors[0].get("task_id", "")
+    if not task_id:
+        return JsonResponse({"result": False, "message": "无法从工单详情中获取审批任务ID"})
+
+    kwargs = {
+        "ticket_id": ticket_id,
+        "task_id": task_id,
+        "operator": operator,
+        "operator_type": "user",
+        "system_id": ticket_info_data.get("system_id") or "",
+        "action": "approve" if serializer_data["is_passed"] else "refuse",
+        "desc": serializer_data["message"],
+    }
+
+    itsm_result = client.api.handle_approval_node(kwargs, headers={"X-Bk-Tenant-Id": tenant_id})
+    if not itsm_result["result"]:
+        message = handle_api_error("bk-itsm4", "handle_approval_node", kwargs, itsm_result)
+        logger.error(message)
+        return JsonResponse({"result": False, "message": message})
 
     return JsonResponse({"result": True, "data": None})
