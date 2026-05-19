@@ -490,7 +490,7 @@ const task = {
     },
     // itsm 节点审批
     itsmTransition({}, params) {
-      return axios.post('itsm_approve/', params).then(response => response.data);
+      return axios.post('itsm_approve_new/', params).then(response => response.data);
     },
     getInstanceRetryParams({}, data) {
       return axios.get(`api/v3/taskflow/${data.id}/enable_fill_retry_params/`).then(response => response.data);
