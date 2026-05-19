@@ -52,5 +52,12 @@ def bkflow_settings(request):
         "BKVISION_SPACE_DASHBOARD_UID": env.BKAPP_BKVISION_SPACE_DASHBOARD_UID,
         "BKVISION_BASE_URL": env.BKAPP_BKVISION_BASE_URL,
         "BKVISION_MAIN_JS_SRC_URL": env.BKAPP_BKVISION_MAIN_JS_SRC_URL,
+        "TENANT_ID": getattr(request.user, "tenant_id", ""),
+        "DISPLAY_NAME": getattr(request.user, "display_name", request.user.username),
+        "BK_USER_WEB_APIGW_URL": f"{settings.BK_API_URL_TMPL.format(api_name='bk-user-web')}/"
+        f"{settings.BK_APIGW_STAGE_NAME}",
+        "BKPAAS_USER_URL": settings.BKPAAS_USER_URL,
+        "BK_IAM_SAAS_HOST": settings.BKPAAS_IAM_URL,
+        "ENABLE_MULTI_TENANT_MODE": 1,
     }
     return ctx

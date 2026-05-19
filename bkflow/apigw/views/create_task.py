@@ -32,6 +32,7 @@ from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label
 from bkflow.label.serializers import LabelSerializer
+from bkflow.space.models import Space
 from bkflow.template.models import Template
 from bkflow.utils.trace import CallFrom, trace_view
 
@@ -84,6 +85,7 @@ def create_task(request, space_id):
         create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
             "custom_span_attributes"
         ] = custom_span_attributes
+    create_task_data["tenant_id"] = Space.objects.get(id=space_id).tenant_id
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)
