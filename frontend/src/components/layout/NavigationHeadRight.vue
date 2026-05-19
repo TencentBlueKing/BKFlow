@@ -56,26 +56,6 @@
         :userinfo="userinfo"
         :action-list="actionList" />
     </div>
-
-    <!-- 用户icon -->
-    <!-- <div
-      v-bk-tooltips="{
-        ...basicTipsConfig,
-        distance: 25,
-        extCls: 'logout-tips',
-        content: '#logout-html'
-      }"
-      class="user-avatar">
-      {{ username }}
-      <i class="bk-icon icon-down-shape" />
-    </div>
-    <div id="logout-html">
-      <div
-        class="operate-item"
-        @click="handleLogout">
-        {{ $t('退出登录') }}
-      </div>
-    </div> -->
     <!-- 日志组件 -->
     <version-log
       ref="versionLog"

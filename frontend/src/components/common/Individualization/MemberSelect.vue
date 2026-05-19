@@ -10,29 +10,31 @@
 * specific language governing permissions and limitations under the License.
 */
 <template>
-  <BKMultiTenantUserSelector
-    v-if="isMultiTenantMode"
-    v-model="setValue"
-    :api-base-url="apiBaseUrl"
-    :tenant-id="tenantId"
-    :current-user-id="username"
-    exact-search-key="bk_username"
-    :placeholder="placeholder"
-    :disabled="disabled"
-    :multiple="multiple" />
-  <bk-user-selector
-    v-else
-    v-model="setValue"
-    :api="api"
-    :placeholder="placeholder"
-    :disabled="disabled"
-    :search-limit="maxResult"
-    :multiple="multiple"
-    :tag-clearable="hasDeleteIcon"
-    :fixed-height="fixedHeight"
-    @change="change"
-    @select-user="select"
-    @remove-selected="remove" />
+  <div class="user-selector-wrap">
+    <BKMultiTenantUserSelector
+      v-if="isMultiTenantMode"
+      v-model="setValue"
+      :api-base-url="apiBaseUrl"
+      :tenant-id="tenantId"
+      :current-user-id="username"
+      exact-search-key="bk_username"
+      :placeholder="placeholder"
+      :disabled="disabled"
+      :multiple="multiple" />
+    <bk-user-selector
+      v-else
+      v-model="setValue"
+      :api="api"
+      :placeholder="placeholder"
+      :disabled="disabled"
+      :search-limit="maxResult"
+      :multiple="multiple"
+      :tag-clearable="hasDeleteIcon"
+      :fixed-height="fixedHeight"
+      @change="change"
+      @select-user="select"
+      @remove-selected="remove" />
+  </div>
 </template>
 <script>
   import BkUserSelector from '@blueking/user-selector';
@@ -130,6 +132,12 @@
   };
 </script>
 <style lang="scss" scoped>
+    .user-selector-wrap {
+        width: 100%;
+        .user-selector {
+            width: 100%;
+        }
+    }
     .tag-member-selector-wrap {
         .user-selector {
             width: 100%;
