@@ -16,7 +16,7 @@ import 'bk-magic-vue/dist/bk-magic-vue.min.css';
 import './api/ajax.js';
 import i18n from './config/i18n/index.js';
 import './directives/index.js';
-
+import BkUserDisplayName from '@blueking/bk-user-display-name';
 import {
   Input, InputNumber, Select, Radio, RadioGroup, RadioButton, Checkbox,
   CheckboxGroup, Button, Option, OptionGroup, Table, TableColumn,
@@ -231,6 +231,13 @@ Validator.localize({
       },
     },
   },
+});
+
+BkUserDisplayName.configure({
+  // 必填，租户 ID
+  tenantId: window.TENANT_ID,
+  // 必填，网关地址
+  apiBaseUrl: window.BK_USER_WEB_APIGW_URL,
 });
 
 const app = new Vue({

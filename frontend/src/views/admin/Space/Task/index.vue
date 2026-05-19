@@ -109,6 +109,9 @@
               $t(triggerMethodName[props.row.trigger_method])
             }}</span>
           </div>
+          <template v-else-if="['creator', 'executor'].includes(item.id)">
+            <UserDisplayName :name="props.row[item.id]" />
+          </template>
           <!-- 其他 -->
           <template v-else>
             <span>{{ props.row[item.id] || "--" }}</span>
@@ -158,6 +161,7 @@ import TableOperate from '../common/TableOperate.vue';
 import i18n from '@/config/i18n/index.js';
 import LabelCascade from '../common/LabelCascade.vue';
 import LabelCell from '../Template/label-cell.vue';
+import UserDisplayName from '@/components/common/Individualization/UserDisplayName.vue';
 
 const TABLE_FIELDS = [
     {
@@ -281,6 +285,7 @@ export default {
         TableOperate,
         LabelCascade,
         LabelCell,
+        UserDisplayName,
     },
     mixins: [tableHeader, tableCommon],
     data() {

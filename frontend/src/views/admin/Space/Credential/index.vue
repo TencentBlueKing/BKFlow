@@ -55,6 +55,9 @@
               {{ $t("删除") }}
             </bk-button>
           </div>
+          <template v-else-if="['creator', 'updated_by'].includes(item.id)">
+            <UserDisplayName :name="props.row[item.id]" />
+          </template>
           <span
             v-else
             class="table-cell">
@@ -104,12 +107,14 @@ import tableCommon from '../mixins/tableCommon';
 import NoData from '@/components/common/base/NoData.vue';
 import CredentialSlider from './components/CredentialSlider.vue';
 import CredentialContentDialog from './components/CredentialContentDialog.vue';
+import UserDisplayName from '@/components/common/Individualization/UserDisplayName.vue';
 
 export default {
   components: {
     NoData,
     CredentialSlider,
     CredentialContentDialog,
+    UserDisplayName,
   },
   mixins: [tableHeader, tableCommon],
   data() {

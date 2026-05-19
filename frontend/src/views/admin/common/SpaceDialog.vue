@@ -150,7 +150,10 @@
 
           try {
             this.editLoading = true;
-            const resp = await this.updateSpaceConfig(this.spaceFormData);
+            const resp = await this.updateSpaceConfig({
+              ...this.spaceFormData,
+              tenant_id: window.TENANT_ID,
+            });
             if (resp.result === false) return;
             this.$emit('close', resp.data.id);
             this.setSpaceId(resp.data.id);
