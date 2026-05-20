@@ -126,7 +126,7 @@
 <script>
   import NoData from '@/components/common/base/NoData.vue';
   import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
-  import { mapActions } from 'vuex';
+  import { mapActions, mapState } from 'vuex';
   import i18n from '@/config/i18n/index.js';
   import tools from '@/utils/tools.js';
 
@@ -185,6 +185,9 @@
       };
     },
     computed: {
+      ...mapState({
+        isMultiTenantMode: state => state.isMultiTenantMode,
+      }),
       tableMaxHeight() {
         let maxHeight = window.innerHeight - 154;
         if (this.hasAlertNotice) {
@@ -258,6 +261,9 @@
             result = a.isDefault === b.isDefault ? 0 : result;
             return result;
           });
+          if (this.isMultiTenantMode) {
+            await this.convertSuperusersDisplayName(list);
+          }
           this.spaceConfigList = list;
         } catch (error) {
           console.warn(error);
@@ -382,6 +388,28 @@
           console.log(e);
         } finally {
           this.deleting = false;
+        }
+      },
+      async convertSuperusersDisplayName(list) {
+        const superusersConfig = list.find(item => item.name === 'superusers');
+        if (!superusersConfig || !Array.isArray(superusersConfig.json_value) || superusersConfig.json_value.length === 0) {
+          return;
+        }
+        try {
+          const userIds = superusersConfig.json_value;
+          const requests = userIds.map(userId => fetch(`${window.BK_USER_WEB_APIGW_URL}/api/v3/open-web/tenant/users/${userId}/display_info/`, {
+              headers: {
+                'x-bk-tenant-id': window.TENANT_ID,
+              },
+              credentials: 'include',
+            }).then(resp => resp.json())
+            .catch(() => null));
+          const results = await Promise.all(requests);
+          // eslint-disable-next-line camelcase
+          const displayNames = results.map((data, index) => data?.data?.display_name || userIds[index]);
+          superusersConfig.valueText  = JSON.stringify(displayNames);
+        } catch (error) {
+          console.error(error);
         }
       },
       handlePageChange(val) {

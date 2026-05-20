@@ -56,7 +56,7 @@
             </bk-button>
           </div>
           <template v-else-if="['creator', 'updated_by'].includes(item.id)">
-            <UserDisplayName :name="props.row[item.id]" />
+            <UserDisplayName :name="row[item.id]" />
           </template>
           <span
             v-else
