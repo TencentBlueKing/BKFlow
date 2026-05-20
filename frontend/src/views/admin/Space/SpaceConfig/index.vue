@@ -402,14 +402,11 @@
                 'x-bk-tenant-id': window.TENANT_ID,
               },
               credentials: 'include',
-            }).then(resp => resp.json()));
+            }).then(resp => resp.json())
+            .catch(() => null));
           const results = await Promise.all(requests);
-          const displayNames = results.map((data, index) => {
-            if (data.data.display_name) {
-              return data.data.display_name;
-            }
-            return userIds[index];
-          });
+          // eslint-disable-next-line camelcase
+          const displayNames = results.map((data, index) => data?.data?.display_name || userIds[index]);
           superusersConfig.valueText  = JSON.stringify(displayNames);
         } catch (error) {
           console.error(error);

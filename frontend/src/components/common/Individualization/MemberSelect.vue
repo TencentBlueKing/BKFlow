@@ -106,7 +106,6 @@
           return this.value ? [this.value] : [];
         },
         set(val) {
-          console.log('setValue设置人员选择器值', val);
           if (this.isMultiTenantMode) {
               this.$emit('change', val);
               return;
