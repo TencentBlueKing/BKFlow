@@ -30,6 +30,7 @@ class PipelineTreeSubprocessConverter:
         "timeout_config",
         "auto_retry",
         "template_node_id",
+        "loop_config",
     }
     DEFAULT_VALUES = {
         "error_ignorable": False,
@@ -43,6 +44,7 @@ class PipelineTreeSubprocessConverter:
             "data": {"subprocess": {"hook": False, "need_render": False, "value": {}}},
             "version": "1.0.0",
         },
+        "loop_config": {},
     }
 
     def __init__(self, pipeline_tree, constants=None):

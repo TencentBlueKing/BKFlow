@@ -16,30 +16,15 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from django.utils.translation import ugettext_lazy as _
-
-from bkflow.exceptions import BKFLOWException
 
 
-class CreateTokenException(BKFLOWException):
-    CODE = None
-    MESSAGE = _("创建Token失败")
-    STATUS_CODE = 500
-
-
-class CreateTemplateException(BKFLOWException):
-    CODE = None
-    MESSAGE = _("创建模板失败")
-    STATUS_CODE = 500
-
-
-class UpdateTemplateException(BKFLOWException):
-    CODE = None
-    MESSAGE = _("模板更新失败")
-    STATUS_CODE = 500
-
-
-class PaginateParamsException(BKFLOWException):
-    CODE = None
-    MESSAGE = _("分页参数校验失败")
-    STATUS_CODE = 500
+def safe_for_json(data):
+    if data is None:
+        return True
+    elif isinstance(data, (str, bool, int, float)):
+        return True
+    elif isinstance(data, (tuple, list)):
+        return all(safe_for_json(x) for x in data)
+    elif isinstance(data, dict):
+        return all(isinstance(k, str) and safe_for_json(v) for k, v in data.items())
+    return False

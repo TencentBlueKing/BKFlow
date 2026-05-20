@@ -82,6 +82,100 @@ class TestUpdateTemplate(TestCase):
         self.assertEqual(resp_data["data"]["name"], "测试流程更新")
         self.assertEqual(resp_data["data"]["desc"], "测试描述")
 
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.apigw.views.update_template.apply_webhook_configs")
+    def test_update_template_with_enable_webhook_true(self, mock_apply_webhook):
+        """测试 enable_webhook=True 且传入 webhook_configs 时成功调用 apply_webhook_configs"""
+        space = self.create_space()
+        pipeline_tree = self.build_pipeline_tree()
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_admin", version="1.0.0")
+        template = Template.objects.create(name="测试流程", space_id=space.id, snapshot_id=snapshot.id)
+        snapshot.template_id = template.id
+        snapshot.save()
+
+        mock_apply_webhook.return_value = {"result": True, "message": "success"}
+
+        data = {
+            "name": "更新流程",
+            "template_id": template.id,
+            "space_id": space.id,
+            "username": "test_admin",
+            "enable_webhook": True,
+            "webhook_configs": {"method": "POST", "url": "http://test.com/hook"},
+        }
+        url = f"/apigw/space/{space.id}/update_template/{template.id}/"
+        resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+        resp_data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], True)
+        mock_apply_webhook.assert_called_once()
+        call_kwargs = mock_apply_webhook.call_args
+        self.assertEqual(call_kwargs[0][0], {"method": "POST", "url": "http://test.com/hook"})
+        self.assertEqual(call_kwargs[0][1], str(template.id))
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.apigw.views.update_template.apply_webhook_configs")
+    def test_update_template_with_enable_webhook_true_failure(self, mock_apply_webhook):
+        """测试 apply_webhook_configs 返回失败时应返回错误"""
+        space = self.create_space()
+        pipeline_tree = self.build_pipeline_tree()
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_admin", version="1.0.0")
+        template = Template.objects.create(name="测试流程", space_id=space.id, snapshot_id=snapshot.id)
+        snapshot.template_id = template.id
+        snapshot.save()
+
+        mock_apply_webhook.return_value = {"result": False, "message": "webhook保存失败"}
+
+        data = {
+            "name": "更新流程",
+            "template_id": template.id,
+            "space_id": space.id,
+            "username": "test_admin",
+            "enable_webhook": True,
+            "webhook_configs": {"method": "POST", "url": "http://bad.com"},
+        }
+        url = f"/apigw/space/{space.id}/update_template/{template.id}/"
+        resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+        resp_data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], False)
+        self.assertEqual(resp_data["code"], 500)
+        self.assertIn("webhook保存失败", resp_data["message"])
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.apigw.views.update_template.clear_scope_webhooks")
+    def test_update_template_with_enable_webhook_false(self, mock_clear_webhook):
+        """测试 enable_webhook=False 时清除 webhook 配置"""
+        space = self.create_space()
+        pipeline_tree = self.build_pipeline_tree()
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_admin", version="1.0.0")
+        template = Template.objects.create(name="测试流程", space_id=space.id, snapshot_id=snapshot.id)
+        snapshot.template_id = template.id
+        snapshot.save()
+
+        data = {
+            "name": "更新流程",
+            "template_id": template.id,
+            "space_id": space.id,
+            "username": "test_admin",
+            "enable_webhook": False,
+        }
+        url = f"/apigw/space/{space.id}/update_template/{template.id}/"
+        resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+        resp_data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], True)
+        mock_clear_webhook.assert_called_once_with([str(template.id)])
+
     @patch("bkflow.template.models.PeriodicTriggerHandler.create")
     @patch("bkflow.template.models.PeriodicTriggerHandler.update")
     def test_create_trigger_success(self, mock_create, mock_update):
