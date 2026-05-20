@@ -41,7 +41,6 @@ from bkflow.apigw.serializers.credential import (
 )
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
-from bkflow.contrib.api.collections.tenant import fetch_tenant_list
 from bkflow.exceptions import APIRequestError
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
@@ -258,7 +257,9 @@ class SpaceViewSet(AdminModelViewSet):
             url = f'{settings.PAASV3_APIGW_API_HOST.rstrip("/")}/prod/system/uni_applications/query/by_id/'
             client = ApiGwClient()
             try:
-                query_data: HttpRequestResult = client.request(url, method="GET", data={"id": app_code})
+                query_data: HttpRequestResult = client.request(
+                    url, method="GET", data={"id": app_code}, headers={"X-Bk-Tenant-Id": request.user.tenant_id}
+                )
             except APIRequestError as e:
                 logger.exception(f"SpaceViewSet 创建空间异常, app_code={app_code}, err={e}")
                 raise APIException(e)
@@ -268,7 +269,13 @@ class SpaceViewSet(AdminModelViewSet):
                 logger.error(f"app info error: {query_data.json_resp}")
                 raise APIException(f"{request.user.username} is not the developer of the app {app_code}")
 
-        request.data.update({"create_type": SpaceCreateType.WEB.value, "creator": request.user.username})
+        request.data.update(
+            {
+                "create_type": SpaceCreateType.WEB.value,
+                "creator": request.user.username,
+                "tenant_id": request.user.tenant_id,
+            }
+        )
         response = super().create(request, *args, **kwargs)
         if response.status_code == status.HTTP_201_CREATED:
             SpaceConfig.objects.batch_update(
@@ -281,7 +288,7 @@ class SpaceViewSet(AdminModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         if not request.user.is_superuser:
             space_ids = SpaceConfig.objects.get_space_ids_of_superuser(request.user.username)
-            queryset = queryset.filter(id__in=space_ids)
+            queryset = queryset.filter(id__in=space_ids, tenant_id=request.user.tenant_id)
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -299,11 +306,6 @@ class SpaceViewSet(AdminModelViewSet):
             if getattr(f, "choices"):
                 meta_info[f.name].update({"choices": [{"value": c[0], "text": c[1]} for c in f.choices]})
         return Response(meta_info)
-
-    @action(detail=False, methods=["get"])
-    def get_tenant_list(self, request, *args, **kwargs):
-        tenant_list = fetch_tenant_list().get("data", [])
-        return Response(tenant_list)
 
 
 @method_decorator(login_exempt, name="dispatch")

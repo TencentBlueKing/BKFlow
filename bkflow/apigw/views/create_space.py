@@ -58,7 +58,11 @@ def create_space(request):
     with transaction.atomic():
         username = request.user.username
         space = Space.objects.create(
-            **ser.validated_data, create_type=SpaceCreateType.API.value, creator=username, updated_by=username
+            **ser.validated_data,
+            create_type=SpaceCreateType.API.value,
+            creator=username,
+            updated_by=username,
+            tenant_id=getattr(request.user, "tenant_id", "")
         )
         default_config = {"superusers": [request.user.username], "flow_versioning": "true"}
         if config:

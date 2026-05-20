@@ -59,5 +59,6 @@ def bkflow_settings(request):
         "BKPAAS_USER_URL": settings.BKPAAS_USER_URL,
         "BK_IAM_SAAS_HOST": settings.BKPAAS_IAM_URL,
         "ENABLE_MULTI_TENANT_MODE": 1,
+        "TIMEZONE": request.session.get("blueking_timezone", settings.TIME_ZONE),
     }
     return ctx

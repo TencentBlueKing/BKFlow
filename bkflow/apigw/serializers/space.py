@@ -20,7 +20,6 @@ to the current version of the project delivered to anyone in the future.
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from bkflow.contrib.api.collections.tenant import fetch_tenant_list
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import SpaceConfigHandler
 from bkflow.space.models import Space
@@ -35,16 +34,8 @@ class CreateSpaceSerializer(serializers.Serializer):
     desc = serializers.CharField(help_text=_("空间描述"), max_length=128, required=False, allow_blank=True, allow_null=True)
     platform_url = serializers.URLField(help_text=_("平台提供服务的地址"), max_length=256, required=True)
     app_code = serializers.CharField(help_text=_("app id"), max_length=32, required=True)
-    tenant_id = serializers.CharField(help_text=_("租户ID"), max_length=32, required=True)
 
     config = serializers.DictField(help_text=_("配置信息"), required=False)
-
-    def validate_tenant_id(self, value):
-        tenant_list = fetch_tenant_list().get("data", [])
-        valid_tenant_ids = {tenant["id"] for tenant in tenant_list}
-        if value not in valid_tenant_ids:
-            raise serializers.ValidationError(_("租户ID不存在，请传递有效的租户ID"))
-        return value
 
     def validate_name(self, name):
         if Space.objects.filter(name=name).exists():
