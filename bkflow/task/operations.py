@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import functools
 import logging
 import traceback
@@ -188,11 +189,17 @@ class TaskOperation:
             # 后续插件 Span 通过这些 ID 建立父子关系
             if settings.ENABLE_OTEL_TRACE:
                 try:
+                    extra_info = self.task_instance.extra_info or {}
+                    custom_context = extra_info.get("custom_context", {}) or {}
+                    custom_span_attributes = custom_context.get("custom_span_attributes", {}) or {}
+                    if not isinstance(custom_span_attributes, dict):
+                        custom_span_attributes = {}
                     trace_id, execution_span_id = create_execution_span(
                         task_id=self.task_instance.id,
                         space_id=self.task_instance.space_id,
                         pipeline_instance_id=self.task_instance.instance_id,
                         operator=operator,
+                        custom_span_attributes=custom_span_attributes,
                     )
                     if trace_id and execution_span_id:
                         root_pipeline_data["_trace_id"] = trace_id
