@@ -410,7 +410,6 @@
             }
             return userIds[index];
           });
-          superusersConfig.json_value = displayNames;
           superusersConfig.valueText  = JSON.stringify(displayNames);
         } catch (error) {
           console.error(error);
