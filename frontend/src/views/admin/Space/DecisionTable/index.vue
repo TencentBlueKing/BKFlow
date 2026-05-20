@@ -38,6 +38,9 @@
             @click="handleNameClick(row)">
             {{ row.name }}
           </a>
+          <template v-else-if="['creator', 'updated_by'].includes(item.id)">
+            <UserDisplayName :name="props.row[item.id]" />
+          </template>
           <span
             v-else
             class="table-cell">{{ row[item.id] || '--' }}</span>
@@ -100,6 +103,7 @@
   import tableCommon from '../mixins/tableCommon.js';
   import TableOperate from '../common/TableOperate.vue';
   import i18n from '@/config/i18n/index.js';
+  import UserDisplayName from '@/components/common/Individualization/UserDisplayName.vue';
 
   const TABLE_FIELDS = [
     {
@@ -188,6 +192,7 @@
       DecisionView,
       DecisionDelete,
       TableOperate,
+      UserDisplayName,
     },
     mixins: [tableHeader, tableCommon],
     data() {
