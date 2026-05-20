@@ -39,8 +39,11 @@ export default {
         url = `${url}${data.id}/`;
         method = 'patch';
       }
-
-      return axios[method](url, data).then(response => response.data);
+      const params = {
+        ...data,
+        tenant_id: window.TENANT_ID,
+      };
+      return axios[method](url, params).then(response => response.data);
     },
   },
 };
