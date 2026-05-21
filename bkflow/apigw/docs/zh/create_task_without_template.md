@@ -20,11 +20,11 @@
 | scope_value           | string | 否  | 任务范围值                                  |
 | description           | string | 否  | 描述                                    |
 | constants             | json   | 否  | 任务启动参数                                |
-| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到所有节点上报的 Span 中，详见下方说明 |
+| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到执行级根 Span 和所有节点上报的 Span 中，详见下方说明 |
 
 ### custom_span_attributes 参数说明
 
-`custom_span_attributes` 参数用于在创建任务时传递自定义属性到所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
+`custom_span_attributes` 参数用于在创建任务时传递自定义属性到执行级根 Span 和所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
 
 **参数格式要求：**
 - 类型：字典（dict）
@@ -49,8 +49,10 @@
 
 **注意事项：**
 - 自定义属性会被存储在任务的 `extra_info.custom_context.custom_span_attributes` 中
+- 这些属性会添加到执行级根 Span 中，属性名格式为 `bkflow.<key>`
 - 这些属性会通过 `TaskContext` 传递到所有节点的 Span 中
-- 自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
+- 节点 Span 中自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
+- 执行级根 Span 会保留 `task_id`、`space_id`、`pipeline_instance_id`、`operator` 等内置属性，不会被自定义属性覆盖
 
 ### 请求参数示例
 
