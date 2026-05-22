@@ -5425,7 +5425,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}/task/get_task_detail/{task_id}/
+          path: /{env.api_sub_path}task/get_task_detail/{task_id}/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5453,7 +5453,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}/api/plugin_service/logs/
+          path: /{env.api_sub_path}api/plugin_service/logs/
           matchSubpath: false
           timeout: 0
         authConfig:
