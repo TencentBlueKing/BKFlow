@@ -5407,3 +5407,59 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
+  /sdk/task/get_task_detail/{task_id}/:
+    get:
+      operationId: sdk_get_task_detail
+      summary: Get task detail
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}/task/get_task_detail/{task_id}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/api/plugin_service/logs/:
+    get:
+      operationId: sdk_get_plugin_service_logs
+      summary: Get plugin service logs
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}/api/plugin_service/logs/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []

@@ -120,7 +120,7 @@ class SubprocessPluginService(BKFlowBaseService):
         self.logger.info(f"subprocess final refs: {inputs_refs}")
         context_values = self.runtime.get_context_values(pipeline_id=self.top_pipeline_id, keys=inputs_refs)
         node = self.runtime.get_node(self.id)
-        if node.loop_strategy:
+        if node.loop_enabled:
             loop_params = (
                 parent_task.pipeline_tree["activities"][self.id].get("loop_config", {}).get("loop_params") or {}
             )
@@ -326,7 +326,7 @@ class SubprocessPluginService(BKFlowBaseService):
         self.logger.info(f"node outputs: {node_outputs}")
 
         self.finish_schedule()
-        if not self.runtime.get_node(self.id).loop_strategy:
+        if not self.runtime.get_node(self.id).loop_enabled:
             if not task_success:
                 data.set_outputs("ex_data", "子流程执行失败，请检查失败节点")
                 return False

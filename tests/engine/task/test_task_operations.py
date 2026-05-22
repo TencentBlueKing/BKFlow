@@ -595,7 +595,7 @@ class TestTaskOperationComplete:
             return_value=EngineAPIResult(result=True, data=mock_detail, message="success"),
         )
         mock_node_info = mocker.MagicMock()
-        mock_node_info.loop_strategy = None
+        mock_node_info.loop_enabled = None
         mocker.patch("pipeline.eri.runtime.BambooDjangoRuntime.get_node", return_value=mock_node_info)
         mock_histories = [
             {
