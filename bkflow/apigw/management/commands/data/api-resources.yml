@@ -5452,7 +5452,7 @@ paths:
         matchSubpath: false
         backend:
           name: sdk
-          method: get
+          method: post
           path: /{env.api_sub_path}api/plugin_service/logs/
           matchSubpath: false
           timeout: 0
