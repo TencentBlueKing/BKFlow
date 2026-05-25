@@ -5435,7 +5435,7 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
-  /sdk/api/plugin_service/logs/:
+  /sdk/plugin_service/logs/:
     post:
       operationId: sdk_get_plugin_service_logs
       summary: Get plugin service logs
