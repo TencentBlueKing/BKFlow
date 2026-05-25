@@ -23,15 +23,16 @@
 
 #### 接口参数
 
-| 字段                    | 类型     | 必选 | 描述                                                                                                                                                              |
-|----------------------|--------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| name                  | string | 是  | 任务名                                                                                                                                                             |
-| creator               | string | 是  | 创建者                                                                                                                                                             |
-| description           | string | 否  | 描述                                                                                                                                                              |
-| constants             | dict   | 否  | 任务启动参数                                                                                                                                                          |
-| credentials           | dict   | 否  | 凭证字典，用于传递API调用所需的凭证信息，详见下方说明                                                                                                                              |
-| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到所有节点上报的 Span 中，详见下方说明                                                                                                                              |
-| mock_data             | dict   | 否  | mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock 执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs 没有传参，则会自动将创建任务时对应的 mock 数据 作为 outputs） |
+| 字段                     | 类型       | 必选 | 描述                                                                                                                                                              |
+|------------------------|----------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| name                   | string   | 是  | 任务名                                                                                                                                                             |
+| creator                | string   | 是  | 创建者                                                                                                                                                             |
+| pipeline_tree          | dict     | 是  | 模板流程数据                                                                                                                                                          |
+| description            | string   | 否  | 描述                                                                                                                                                              |
+| constants              | dict     | 否  | 任务启动参数                                                                                                                                                          |
+| credentials            | dict     | 否  | 凭证字典，用于传递API调用所需的凭证信息，详见下方说明                                                                                                                                    |
+| custom_span_attributes | dict     | 否  | 自定义 Span 属性，会添加到所有节点上报的 Span 中，详见下方说明                                                                                                                           |
+| mock_data              | dict     | 否  | mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock 执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs 没有传参，则会自动将创建任务时对应的 mock 数据 作为 outputs） |
 
 ### credentials 参数说明
 
@@ -96,15 +97,6 @@
 - 自定义属性会被存储在任务的 `extra_info.custom_context.custom_span_attributes` 中
 - 这些属性会通过 `TaskContext` 传递到所有节点的 Span 中
 - 自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
-
-### pipeline_tree 版本说明
-
-创建 mock 任务时，系统会自动选择使用的流程版本：
-
-1. **优先使用草稿版本**：如果当前模板存在草稿版本的流程（`draft=True`），则使用草稿版本的 `pipeline_tree` 创建调试任务
-2. **使用最新发布版本**：如果当前模板没有草稿版本，则使用最新发布版本的 `pipeline_tree` 创建调试任务
-
-这样可以确保在调试时优先使用最新的未发布修改，如果没有草稿版本则使用已发布的稳定版本。
 
 ### 请求参数示例
 
