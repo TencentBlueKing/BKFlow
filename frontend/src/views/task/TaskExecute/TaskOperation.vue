@@ -353,10 +353,6 @@
         type: Array,
         default: () => ([]),
       },
-      templateActions: {
-        type: Array,
-        default: () => ([]),
-      },
       routerType: {
         type: String,
         default: '',
@@ -595,7 +591,7 @@
         return this.createMethod === 'MOCK' || this.isShowCallbackHistoryAndViewTpl;
       },
       isShowCallbackHistoryAndViewTpl() {
-        return ['EDIT', 'VIEW', 'MOCK'].some(perm => this.templateActions.includes(perm));
+        return ['FLOW_EDIT', 'FLOW_VIEW', 'FLOW_MOCK'].some(perm => this.instanceActions.includes(perm));
       },
       adminView() {
         return false;
