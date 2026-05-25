@@ -363,7 +363,7 @@ class TestTaskInterfaceViewSet:
 
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
-        assert "FLOW_MOCK" in data["data"]["auth"]
+        assert PermissionType.FLOW_MOCK.value in data["data"]["auth"]
 
     def test_inject_user_task_auth_result_false(self):
         """Test _inject_user_task_auth when result is False"""
