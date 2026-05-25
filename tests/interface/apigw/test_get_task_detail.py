@@ -24,9 +24,7 @@ class TestGetTaskDetail(TestCase):
             "result": True,
             "data": {"id": 123, "name": "test_task", "template_id": 1},
         }
-        mock_template.objects.get.return_value = mock.Mock(name="tpl", id=1)
-        mock_template.objects.get.return_value.name = "tpl"
-        mock_get_history.return_value = []
+        mock_template.objects.filter.return_value.first.return_value.name = "tpl"
         mock_get_history.return_value = [
             {
                 "created_at": "2024-01-01 00:00:00",
@@ -66,7 +64,7 @@ class TestGetTaskDetail(TestCase):
             "result": True,
             "data": {"id": 456, "name": "no_webhook_task", "template_id": 1},
         }
-        mock_template.objects.get.return_value.name = "tpl"
+        mock_template.objects.filter.return_value.first.return_value.name = "tpl"
         mock_get_history.return_value = []
 
         url = f"/apigw/space/{space.id}/task/456/get_task_detail/"
@@ -113,7 +111,7 @@ class TestGetTaskDetail(TestCase):
             "result": True,
             "data": {"id": 789, "template_id": 1},
         }
-        mock_template.objects.get.return_value.name = "tpl"
+        mock_template.objects.filter.return_value.first.return_value.name = "tpl"
         mock_get_history.return_value = []
 
         url = f"/apigw/space/{space.id}/task/789/get_task_detail/"
