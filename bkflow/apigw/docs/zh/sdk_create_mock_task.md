@@ -3,23 +3,34 @@
 创建 mock 任务
 
 ### 输入通用参数说明
+
 | 参数名称          | 参数类型   | 必须 | 参数说明                                                       |
 |---------------|--------|----|------------------------------------------------------------|
 | bk_app_code   | string | 是  | 应用ID(app id)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取     |
 | bk_app_secret | string | 是  | 安全秘钥(app secret)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取 |
 
+### HTTP Header 参数说明
+
+| 参数名称          | 参数类型   | 必须 | 参数说明                                                       |
+|---------------|--------|----|------------------------------------------------------------|
+| HTTP_BKFLOW_TOKEN | string | 是  | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 接口申请。该 token 用于验证用户对指定模板的查看权限 |
+
+### 路径参数
+
+| 字段      | 类型     | 必选 | 描述   |
+|---------|--------|----|------|
+| template_id | string | 是  | 模板id |
 
 #### 接口参数
 
 | 字段                    | 类型     | 必选 | 描述                                                                                                                                                              |
 |----------------------|--------|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| template_id           | int    | 是  | 模板id                                                                                                                                                            |
 | name                  | string | 是  | 任务名                                                                                                                                                             |
 | creator               | string | 是  | 创建者                                                                                                                                                             |
 | description           | string | 否  | 描述                                                                                                                                                              |
 | constants             | dict   | 否  | 任务启动参数                                                                                                                                                          |
 | credentials           | dict   | 否  | 凭证字典，用于传递API调用所需的凭证信息，详见下方说明                                                                                                                              |
-| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到执行级根 Span 和所有节点上报的 Span 中，详见下方说明                                                                                                                              |
+| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到所有节点上报的 Span 中，详见下方说明                                                                                                                              |
 | mock_data             | dict   | 否  | mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock 执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs 没有传参，则会自动将创建任务时对应的 mock 数据 作为 outputs） |
 
 ### credentials 参数说明
@@ -58,7 +69,7 @@
 
 ### custom_span_attributes 参数说明
 
-`custom_span_attributes` 参数用于在创建任务时传递自定义属性到执行级根 Span 和所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
+`custom_span_attributes` 参数用于在创建任务时传递自定义属性到所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
 
 **参数格式要求：**
 - 类型：字典（dict）
@@ -83,10 +94,8 @@
 
 **注意事项：**
 - 自定义属性会被存储在任务的 `extra_info.custom_context.custom_span_attributes` 中
-- 这些属性会添加到执行级根 Span 中，属性名格式为 `bkflow.<key>`
 - 这些属性会通过 `TaskContext` 传递到所有节点的 Span 中
-- 节点 Span 中自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
-- 执行级根 Span 会保留 `task_id`、`space_id`、`pipeline_instance_id`、`operator` 等内置属性，不会被自定义属性覆盖
+- 自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
 
 ### pipeline_tree 版本说明
 

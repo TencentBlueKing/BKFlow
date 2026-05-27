@@ -21,6 +21,7 @@ import logging
 
 import jsonschema
 from django.utils.translation import ugettext_lazy as _
+from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
@@ -164,6 +165,7 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
 class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
     pipeline_tree = serializers.SerializerMethodField()
     outputs = serializers.SerializerMethodField()
+    elapsed_time = serializers.SerializerMethodField()
 
     def get_pipeline_tree(self, obj):
         return obj.pipeline_tree
@@ -171,6 +173,9 @@ class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
     def get_outputs(self, obj):
         outputs_result = TaskNodeOperation(task_instance=obj, node_id=obj.instance_id).get_outputs()
         return [{"key": key, "value": value} for key, value in outputs_result.data.items()]
+
+    def get_elapsed_time(self, obj):
+        return calculate_elapsed_time(obj.start_time, obj.finish_time)
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)

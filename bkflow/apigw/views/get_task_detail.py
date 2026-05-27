@@ -23,6 +23,7 @@ from django.views.decorators.http import require_GET
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.template.models import Template
 from bkflow.utils.webhook import get_webhook_delivery_history_by_delivery_id
 
 
@@ -38,4 +39,7 @@ def get_task_detail(request, space_id, task_id):
     if not result.get("result"):
         return {"result": False, "data": {}, "code": 500, "message": result.get("message", "Failed to get task detail")}
     result["data"]["webhook_delivery_history"] = get_webhook_delivery_history_by_delivery_id(str(task_id))
+    template_id = result["data"].get("template_id")
+    template = Template.objects.filter(id=template_id).first() if template_id else None
+    result["data"]["template_name"] = template.name if template else ""
     return result
