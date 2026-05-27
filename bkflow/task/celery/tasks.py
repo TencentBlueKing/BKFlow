@@ -43,8 +43,10 @@ from bkflow.task.serializers import CreateTaskInstanceSerializer
 from bkflow.task.utils import (
     ATOM_FAILED,
     add_node_name_to_status_tree,
+    check_template_concurrency,
     redis_inst_check,
     send_task_instance_message,
+    update_running_task,
 )
 from bkflow.utils.json import safe_for_json
 
@@ -268,9 +270,14 @@ def bkflow_periodic_task_start(*args, **kwargs):
         operation_method = getattr(task_operation, "start")
         if operation_method is None:
             raise ValidationError("task operation not found")
+        is_allowed, msg = check_template_concurrency(task_instance.space_id, task_instance.template_id)
+        if not is_allowed:
+            logger.error(f"[bkflow_periodic_task_start] error: {msg}")
+            raise ValidationError(f"[bkflow_periodic_task_start] error: {msg}")
         result = operation_method(operator=periodic_task.creator)
         if result.result:
             logger.info(f"[bkflow_periodic_task_start] task {task_instance.id} started")
+            update_running_task(task_instance.template_id, task_instance.id, action="add")
             periodic_task.total_run_count += 1
             periodic_task.last_run_at = timezone.localtime(timezone.now())
             periodic_task.save()

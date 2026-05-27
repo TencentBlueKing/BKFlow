@@ -75,6 +75,7 @@ from bkflow.task.serializers import (
     TaskUpdateLabelSerializer,
     UpdatePeriodicTaskSerializer,
 )
+from bkflow.task.utils import check_template_concurrency, update_running_task
 from bkflow.utils.handlers import handle_plain_log
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
@@ -276,6 +277,11 @@ class TaskInstanceViewSet(
             operation_method = getattr(task_operation, operation, None)
             if operation_method is None:
                 raise ValidationError("task operation not found")
+            if operation == "start":
+                is_allowed, msg = check_template_concurrency(task_instance.space_id, task_instance.template_id)
+                if not is_allowed:
+                    return Response({"result": False, "message": msg, "data": None})
+
             data = request.data
             operator = data.pop("operator", request.user.username)
             operation_result = operation_method(operator=operator, **data)
@@ -293,6 +299,11 @@ class TaskInstanceViewSet(
                         },
                     }
                 )
+            if operation_result.result and operation == "start":
+                update_running_task(task_instance.template_id, task_instance.id, action="add")
+            elif operation_result.result and operation == "revoke":
+                update_running_task(task_instance.template_id, task_instance.id, action="remove")
+
             return Response(dict(operation_result))
 
     @swagger_auto_schema(methods=["post"], operation_description="节点操作", request_body=EmptyBodySerializer)
@@ -320,7 +331,17 @@ class TaskInstanceViewSet(
                 raise ValidationError("node operation not found")
             data = request.data
             operator = data.pop("operator", request.user.username)
+
+            if operation in ["retry", "skip"] and task_instance.template_id is not None:
+                is_allowed, msg = check_template_concurrency(task_instance.space_id, task_instance.template_id)
+                if not is_allowed:
+                    return Response({"result": False, "message": msg, "data": None})
+
             operation_result = operation_method(operator=operator, **data)
+
+            if operation in ["retry", "skip"] and operation_result.result:
+                update_running_task(task_instance.template_id, task_instance.id, action="add")
+
             return Response(dict(operation_result))
 
     @swagger_auto_schema(methods=["get"], operation_description="任务状态查询")

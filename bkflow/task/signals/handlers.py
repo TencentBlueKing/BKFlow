@@ -33,7 +33,12 @@ from bkflow.task.models import (
     TaskInstance,
     TimeoutNodeConfig,
 )
-from bkflow.task.utils import ATOM_FAILED, TASK_FINISHED, redis_inst_check
+from bkflow.task.utils import (
+    ATOM_FAILED,
+    TASK_FINISHED,
+    redis_inst_check,
+    update_running_task,
+)
 
 logger = logging.getLogger("root")
 
@@ -84,6 +89,16 @@ def _node_timeout_info_update(redis_inst, to_state, node_id, version):
         redis_inst.zrem(settings.EXECUTING_NODE_POOL, key)
 
 
+def _remove_task_from_running_set(root_id):
+    """根据 pipeline_instance_id (root_id) 查出任务实例，并从 Redis 运行中任务集合中移除"""
+    try:
+        task_instance = TaskInstance.objects.filter(instance_id=root_id).only("id", "template_id").first()
+        if task_instance and task_instance.template_id is not None:
+            update_running_task(task_instance.template_id, task_instance.id, action="remove")
+    except Exception as e:
+        logger.exception(f"[_remove_task_from_running_set] root_id={root_id} error: {e}")
+
+
 @receiver(post_set_state)
 def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version, root_id, parent_id, loop, **kwargs):
     if to_state == bamboo_engine_states.FAILED:
@@ -100,12 +115,14 @@ def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version,
             queue=f"task_common_{settings.BKFLOW_MODULE.code}",
             routing_key=f"task_common_{settings.BKFLOW_MODULE.code}",
         )
+        _remove_task_from_running_set(root_id)
     elif to_state == bamboo_engine_states.REVOKED and node_id == root_id:
         try:
             TaskInstance.objects.set_revoked(root_id)
         except Exception as e:
             logger.exception(f"TaskInstance set revoked error: {e}")
         _check_and_callback(root_id, task_success=False)
+        _remove_task_from_running_set(root_id)
     elif to_state == bamboo_engine_states.FINISHED and node_id == root_id:
         try:
             TaskInstance.objects.set_finished(root_id)
@@ -121,7 +138,7 @@ def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version,
             routing_key=f"task_common_{settings.BKFLOW_MODULE.code}",
         )
         _check_and_callback(root_id, task_success=True)
-
+        _remove_task_from_running_set(root_id)
     try:
         _node_timeout_info_update(settings.redis_inst, to_state, node_id, version)
     except Exception as e:
