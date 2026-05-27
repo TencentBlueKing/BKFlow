@@ -220,3 +220,7 @@ PLUGIN_LOOP_OUTPUTS_KEY = os.getenv("PLUGIN_LOOP_OUTPUTS_KEY", "outputs")
 
 BKPAAS_USER_URL = os.getenv("BKPAAS_USER_URL")
 BKPAAS_IAM_URL = os.getenv("BKPAAS_IAM_URL")
+
+ENABLE_MULTI_TENANT_MODE = (
+    os.getenv("BKPAAS_MULTI_TENANT_MODE", os.getenv("ENABLE_MULTI_TENANT_MODE", "false")).lower() == "true"
+)
