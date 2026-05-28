@@ -134,7 +134,7 @@ def send_task_instance_message(task_instance, msg_type):
 
     executor = task_instance.executor
     tenant_id = task_instance.tenant_id
-    receivers = ",".join(notify_info["receivers"])
+    receivers = notify_info["receivers"]
     types = notify_info["types"]
     msg_format = notify_info["format"]
 
