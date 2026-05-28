@@ -33,6 +33,10 @@ def send_message(executor: str, notify_types: list, receivers: str, title: str, 
     has_error = False
     error_message = ""
 
+    logger.info(
+        f"taskflow send message, receivers={receivers},title={title} content={content}, "
+        f"tenant_id={tenant_id}, notify_types={notify_types}"
+    )
     for msg_type in notify_types:
         kwargs = {}
         operation_name = ""
