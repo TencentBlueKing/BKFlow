@@ -51,9 +51,19 @@ class PermissionType(Enum):
     EDIT = "EDIT"
     OPERATE = "OPERATE"
     MOCK = "MOCK"
+    FLOW_VIEW = "FLOW_VIEW"
+    FLOW_EDIT = "FLOW_EDIT"
+    FLOW_MOCK = "FLOW_MOCK"
 
 
-TASK_PERMISSION_TYPE = [PermissionType.VIEW.value, PermissionType.OPERATE.value]
+TASK_PERMISSION_TYPE = [
+    PermissionType.VIEW.value,
+    PermissionType.OPERATE.value,
+    PermissionType.FLOW_VIEW.value,
+    PermissionType.FLOW_EDIT.value,
+    PermissionType.FLOW_MOCK.value,
+]
+
 TEMPLATE_PERMISSION_TYPE = [
     PermissionType.VIEW.value,
     PermissionType.EDIT.value,

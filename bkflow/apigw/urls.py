@@ -40,15 +40,16 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         create_template_with_a2flow,
     )
     from bkflow.apigw.views.create_variable import create_variable
+    from bkflow.apigw.views.delete_label import delete_label
     from bkflow.apigw.views.delete_task import delete_task
     from bkflow.apigw.views.delete_template import delete_template
     from bkflow.apigw.views.delete_variable import delete_variable
-    from bkflow.apigw.views.get_plugin_schema import get_plugin_schema
-    from bkflow.apigw.views.delete_label import delete_label
     from bkflow.apigw.views.get_label_detail import get_label_detail
     from bkflow.apigw.views.get_label_list import get_label_list
     from bkflow.apigw.views.get_label_ref_count import get_label_ref_count
     from bkflow.apigw.views.get_label_tree import get_label_tree
+    from bkflow.apigw.views.get_plugin_outputs import get_plugin_outputs
+    from bkflow.apigw.views.get_plugin_schema import get_plugin_schema
     from bkflow.apigw.views.get_space_configs import get_space_configs
     from bkflow.apigw.views.get_task_detail import get_task_detail
     from bkflow.apigw.views.get_task_list import get_task_list
@@ -73,13 +74,13 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.revoke_token import revoke_token
     from bkflow.apigw.views.rollback_template import rollback_template
     from bkflow.apigw.views.update_credential import update_credential
-    from bkflow.apigw.views.update_variable import update_variable
-    from bkflow.apigw.views.validate_a2flow import validate_a2flow
     from bkflow.apigw.views.update_label import update_label
     from bkflow.apigw.views.update_template import (
         update_template,
         update_template_labels,
     )
+    from bkflow.apigw.views.update_variable import update_variable
+    from bkflow.apigw.views.validate_a2flow import validate_a2flow
     from bkflow.apigw.views.validate_pipeline_tree import validate_pipeline_tree
 
     urlpatterns += [
@@ -140,4 +141,5 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^template/(?P<template_id>\d+)/create_task_by_app/$", create_task_by_app),
         url(r"^task/(?P<task_id>\d+)/operate_task_by_app/(?P<operation>\w+)/$", operate_task_by_app),
         url(r"^task/(?P<task_id>\d+)/get_task_states_by_app/$", get_task_states_by_app),
+        url(r"^space/(?P<space_id>\d+)/get_plugin_outputs/$", get_plugin_outputs),
     ]

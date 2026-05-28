@@ -262,7 +262,7 @@
         if (this.isIframe) {
             return this.$route.query.ifShowJumpToFlowBtn === 'true';
         }
-        return true;
+        return this.isShowViewProcess;
       },
     },
     watch: {

@@ -28,7 +28,6 @@
         :create-method="createMethod"
         :canvas-mode="canvasMode"
         :instance-actions="instanceActions"
-        :template-actions="templateActions"
         :trigger-method="triggerMethod"
         :parent-task-info="parentTaskInfo" />
     </template>
@@ -67,7 +66,6 @@
         instanceFlow: '',
         templateSource: '',
         instanceActions: [],
-        templateActions: [],
         templateId: '',
         primitiveTplId: '', // 任务原始模板id
         primitiveTplSource: '', // 任务原始模板来源
@@ -94,9 +92,6 @@
       ...mapActions('task/', [
         'getTaskInstanceData',
         'loadSubflowConfig',
-      ]),
-      ...mapActions('template/', [
-        'loadTemplateData',
       ]),
       async getTaskData() {
         try {
@@ -150,9 +145,6 @@
           this.createMethod = createMethod;
           this.triggerMethod = triggerMethod;
           this.parentTaskInfo = parentTaskInfo || {};
-          // 查询关联流程权限，用于判断是否展示查看流程按钮
-          const templateData = await this.loadTemplateData({ templateId, common: templateSource === 'common' });
-          this.templateActions = templateData.auth || [];
           // 将节点树存起来
           this.setPipelineTree(pipelineTree);
         } catch (e) {

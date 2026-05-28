@@ -1,0 +1,68 @@
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited,
+a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+We undertake not to change the open source license (MIT license) applicable
+
+to the current version of the project delivered to anyone in the future.
+"""
+import json
+
+from apigw_manager.apigw.decorators import apigw_require
+from blueapps.account.decorators import login_exempt
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from pipeline.component_framework.models import ComponentModel
+
+from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
+from bkflow.plugin.serializers.comonent import (
+    ComponentDetailQuerySerializer,
+    ComponentModelDetailSerializer,
+)
+from bkflow.utils import err_code
+
+
+@login_exempt
+@csrf_exempt
+@require_POST
+@apigw_require
+@check_jwt_and_space
+@return_json_response
+def get_plugin_outputs(request, space_id):
+    data = json.loads(request.body)
+    plugin_id = data["plugin_id"]
+    plugin_version = data.get("plugin_version")
+    query_ser = ComponentDetailQuerySerializer(data={"space_id": space_id}, context={"plugin_code": plugin_id})
+    query_ser.is_valid(raise_exception=True)
+
+    try:
+        if plugin_version:
+            component = ComponentModel.objects.get(code=plugin_id, version=plugin_version)
+            component_ser = ComponentModelDetailSerializer(component)
+        else:
+            components = ComponentModel.objects.filter(code=plugin_id)
+            component_ser = ComponentModelDetailSerializer(components, many=True)
+
+        return {
+            "result": True,
+            "data": component_ser.data,
+            "code": err_code.SUCCESS.code,
+            "message": "",
+        }
+    except ComponentModel.DoesNotExist:
+        return {
+            "result": False,
+            "message": f"插件 {plugin_id} 版本 {plugin_version} 不存在",
+            "code": err_code.VALIDATION_ERROR.code,
+            "data": None,
+        }
