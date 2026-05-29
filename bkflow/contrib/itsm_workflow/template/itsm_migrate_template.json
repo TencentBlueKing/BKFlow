@@ -240,7 +240,7 @@
             "name": "蓝鲸流程引擎服务",
             "app_id": "core",
             "portal_id": "DEFAULT",
-            "ticket_sn_prefix": "SOPS",
+            "ticket_sn_prefix": "BKFLOW",
             "translations": {
                 "name": "蓝鲸流程引擎服务",
                 "name_en": "蓝鲸流程引擎服务"
