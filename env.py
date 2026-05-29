@@ -180,6 +180,13 @@ PIPELINE_RERUN_MAX_TIMES = int(os.getenv("PIPELINE_RERUN_MAX_TIMES", 100))
 PIPELINE_LOOP_OUTPUTS_INNER_KEY = os.getenv("PIPELINE_LOOP_OUTPUTS_INNER_KEY", "outputs")
 BAMBOO_DJANGO_ERI_NODE_RERUN_LIMIT = int(os.getenv("BAMBOO_DJANGO_ERI_NODE_RERUN_LIMIT", 100))
 
+# Mako 模板根标识符白名单：
+#   - "off"     -> 兼容历史行为（仅依赖 deny-list / shield words）
+#   - "warn"    -> 仅记录违规日志，不阻断渲染（线上灰度用）
+#   - "enforce" -> 命中即拦截，渲染结果保持原样回显
+# 通过 ``BKFLOW_MAKO_WHITELIST_MODE`` 环境变量覆盖，默认 ``enforce``。
+BKFLOW_MAKO_WHITELIST_MODE = os.getenv("BKFLOW_MAKO_WHITELIST_MODE", "enforce")
+
 # 模板最大递归次数
 TEMPLATE_MAX_RECURSIVE_NUMBER = int(os.getenv("TEMPLATE_MAX_RECURSIVE_NUMBER", 10))
 REQUEST_RETRY_NUMBER = int(os.getenv("REQUEST_RETRY_NUMBER", 3))
