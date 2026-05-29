@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -38,8 +37,9 @@ def inject_plugin_client(func):
     @functools.wraps(func)
     def wrapper(request: Request):
         plugin_code = request.validated_data.get("plugin_code")
+        tenant_id = getattr(request.user, "tenant_id", None)
         try:
-            plugin_client = PluginServiceApiClient(plugin_code)
+            plugin_client = PluginServiceApiClient(plugin_code, tenant_id=tenant_id)
         except PluginServiceException as e:
             logger.error(f"[inject_plugin_client] error: {e}")
             return JsonResponse({"message": str(e), "result": False, "data": None})
