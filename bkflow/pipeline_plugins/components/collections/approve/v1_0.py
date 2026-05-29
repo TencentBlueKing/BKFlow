@@ -112,6 +112,7 @@ class ApproveService(BKFlowBaseService):
         task_id: int = parent_data.get_one_of_inputs("task_id")
         send_task_message.delay(
             task_id=task_id,
+            node_id=self.id,
             msg_type=PENDING_PROCESSING,
         )
 
