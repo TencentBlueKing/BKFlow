@@ -269,13 +269,7 @@ class SpaceViewSet(AdminModelViewSet):
                 logger.error(f"app info error: {query_data.json_resp}")
                 raise APIException(f"{request.user.username} is not the developer of the app {app_code}")
 
-        request.data.update(
-            {
-                "create_type": SpaceCreateType.WEB.value,
-                "creator": request.user.username,
-                "tenant_id": request.user.tenant_id,
-            }
-        )
+        request.data.update({"create_type": SpaceCreateType.WEB.value, "creator": request.user.username})
         response = super().create(request, *args, **kwargs)
         if response.status_code == status.HTTP_201_CREATED:
             SpaceConfig.objects.batch_update(

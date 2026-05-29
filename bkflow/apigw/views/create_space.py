@@ -62,7 +62,6 @@ def create_space(request):
             create_type=SpaceCreateType.API.value,
             creator=username,
             updated_by=username,
-            tenant_id=getattr(request.user, "tenant_id", "")
         )
         default_config = {"superusers": [request.user.username], "flow_versioning": "true"}
         if config:
