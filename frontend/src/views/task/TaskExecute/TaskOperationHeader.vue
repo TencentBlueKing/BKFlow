@@ -140,7 +140,6 @@
 </template>
 <script>
   import permission from '@/mixins/permission.js';
-  // import PageHeader from '@/components/layout/PageHeader.vue'
   import { mapState } from 'vuex';
   import i18n from '@/config/i18n/index.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
@@ -148,7 +147,6 @@
   export default {
     name: 'TaskOperationHeader',
     components: {
-      // PageHeader,
       JumpLinkBKFlowOrExternal,
     },
     mixins: [permission],

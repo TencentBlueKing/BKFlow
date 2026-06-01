@@ -910,15 +910,6 @@
         }
         return isExist;
       },
-      // 画布初始化时缩放比偏移
-      // setCanvasZoomPosition() {
-      //   // 计算子流程画布高度
-      //   const dndComponent = this.$refs.subProcessCanvas.$el;
-      //   const { top } = dndComponent.getBoundingClientRect();
-      //   this.subProcessHeight = (window.innerHeight - top - 320) < 320 ? 320 : window.innerHeight - top - 320 ;
-      //   const canvasInstance = this.$refs.subProcessCanvas.graph;
-      //   canvasInstance?.zoom(this.zoom);
-      // },
       // 获取外层画布节点配置
       getNodeDetailConfig(node, instanceId) {
           const { id, parent } = node;

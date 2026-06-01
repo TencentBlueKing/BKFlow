@@ -615,22 +615,6 @@
       },
       // 编辑流程
       onEditClick() {
-        // const curPermission = [...this.authActions, ...this.tplActions]
-        // const applyPermission = this.common ? ['common_flow_edit'] : ['flow_edit']
-        // if (!this.hasPermission(applyPermission, curPermission)) {
-        //   const permissionData = {
-        //     project: [{
-        //       id: this.projectId,
-        //       name: this.projectName,
-        //     }],
-        //   }
-        //   permissionData[this.common ? 'common_flow' : 'flow'] = [{
-        //     id: this.templateId,
-        //     name: this.name,
-        //   }]
-        //   this.applyForPermission(applyPermission, curPermission, permissionData)
-        //   return
-        // }
         const { params, query, name } = this.$route;
         this.$emit('editTemplate', params.type);
         this.$router.push({

@@ -481,29 +481,14 @@
       },
       thirdPartyNodeCode() {
         if (!this.isThirdPartyNode) return '';
-        // let codeInfo = {};
-        // if (this.nodeDetailConfig.subflowNode?.parent) {
-        //   codeInfo = this.nodeDetailConfig.componentData.plugin_code;
-        // } else {
         const nodeInfo = this.pipelineData.activities[this.nodeDetailConfig.node_id];
         if (!nodeInfo) return '';
         let codeInfo = nodeInfo.component.data;
         codeInfo = codeInfo && codeInfo.plugin_code;
-        // }
         codeInfo = codeInfo.value;
         return codeInfo;
       },
       nodeActivity() {
-        // if (this.nodeDetailConfig.subflowNode?.parent) {
-        //    const parentPipeline = this.nodeDetailConfig.subflowNode.parent.children;
-        //    let nodeActivityData = {};
-        //    parentPipeline.map((item) => {
-        //     if (item.id === this.nodeDetailConfig.node_id) {
-        //       nodeActivityData = item;
-        //     }
-        //    });
-        //    return nodeActivityData;
-        // }
         return this.pipelineData.activities[this.nodeDetailConfig.node_id];
       },
       componentValue() {

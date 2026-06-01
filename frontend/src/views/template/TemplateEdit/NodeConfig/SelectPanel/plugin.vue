@@ -153,6 +153,7 @@
 </template>
 <script>
   import { SYSTEM_GROUP_ICON } from '@/constants/index.js';
+  import tools from '@/utils/tools.js';
   import NoData from '@/components/common/base/NoData.vue';
   import ApiPlugin from './apiPlugin.vue';
 
@@ -305,7 +306,7 @@
           };
           const resp = await this.$store.dispatch('plugin/loadBkPluginList', params);
           const { plugins, count } = resp.data;
-          const searchStr = this.escapeRegExp(this.searchStr);
+          const searchStr = tools.escapeRegExp(this.searchStr);
           const reg = new RegExp(searchStr, 'i');
           const pluginTagIds = [];
           let pluginList = plugins.map((plugin) => {
@@ -402,7 +403,7 @@
           result = this.builtInPlugin.slice(0);
           this.activeGroup = this.getDefaultActiveGroup();
         } else {
-          const searchStr = this.escapeRegExp(val);
+          const searchStr = tools.escapeRegExp(val);
           const reg = new RegExp(searchStr, 'i');
           this.builtInPlugin.forEach((group) => {
             const { group_icon, group_name, type } = group;
@@ -437,12 +438,6 @@
           }
         }
         this.builtInPluginGroup = result;
-      },
-      escapeRegExp(str) {
-        if (typeof str !== 'string') {
-          return '';
-        }
-        return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&');
       },
       // 跳转到第三方插件开发稳单
       jumpToPluginDev() {

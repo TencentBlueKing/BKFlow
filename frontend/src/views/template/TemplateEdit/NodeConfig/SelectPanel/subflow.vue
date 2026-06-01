@@ -67,6 +67,7 @@
 </template>
 <script>
   import permission from '@/mixins/permission.js';
+  import tools from '@/utils/tools.js';
   import NoData from '@/components/common/base/NoData.vue';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import { mapState } from 'vuex';
@@ -145,7 +146,7 @@
         }
         try {
           this.listLoading = true;
-          const searchStr = this.escapeRegExp(this.searchStr);
+          const searchStr = tools.escapeRegExp(this.searchStr);
           const data = {
             space_id: this.spaceId,
             limit: this.limit,
@@ -189,13 +190,6 @@
           this.crtPage += 1;
           this.getTplList();
         }
-      },
-      // 对特殊字符串进行转义处理
-      escapeRegExp(str) {
-        if (typeof str !== 'string') {
-          return '';
-        }
-        return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&');
       },
       handleSearchPaste(value, event) {
         const paste = (event.clipboardData || window.clipboardData).getData('text');

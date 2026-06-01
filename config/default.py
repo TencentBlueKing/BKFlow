@@ -204,6 +204,28 @@ BambooSettings.MAKO_SANDBOX_IMPORT_MODULES = MAKO_SANDBOX_IMPORT_MODULES
 # 支持 mako 表达式在 dict/list/tuple 情况下嵌套索引
 BambooSettings.ENABLE_RENDER_OBJ_BY_MAKO_STRING = True
 
+# Mako 模板根标识符白名单（详见 bamboo_engine.utils.mako_safety）：
+#   - off     -> 关闭白名单，回退到历史 deny-list（兼容旧用法）
+#   - warn    -> 仅打日志不拦截（灰度阶段使用，线上灰度若干天确认无误伤再切 enforce）
+#   - enforce -> 命中即按 ForbiddenMakoTemplateException 风格 inert 掉模板片段
+# 通过 ``BKFLOW_MAKO_WHITELIST_MODE`` 环境变量覆盖（默认 enforce）。
+MAKO_TEMPLATE_NAME_WHITELIST_MODE = env.BKFLOW_MAKO_WHITELIST_MODE
+if MAKO_TEMPLATE_NAME_WHITELIST_MODE not in {"off", "warn", "enforce"}:
+    raise ValueError(
+        "invalid BKFLOW_MAKO_WHITELIST_MODE: %r (must be one of 'off' / 'warn' / 'enforce')"
+        % MAKO_TEMPLATE_NAME_WHITELIST_MODE
+    )
+
+# 渲染期注入到 Mako context 的特殊根名（不会出现在 user-defined context keys 里）：
+# - ``_system``：``TaskContext`` / ``SystemObject``，承载 ``executor / task_id /
+#   task_start_time / task_name`` 等。详见 ``bkflow/utils/context.py``。
+# - ``_loop`` / ``_inner_loop``：循环节点的迭代序号，详见
+#   ``docs/apidoc/zh/sdk_get_task_node_detail.md``。
+MAKO_TEMPLATE_NAME_EXTRA_WHITELIST = frozenset({"_system", "_loop", "_inner_loop"})
+
+BambooSettings.MAKO_TEMPLATE_NAME_WHITELIST_MODE = MAKO_TEMPLATE_NAME_WHITELIST_MODE
+BambooSettings.MAKO_TEMPLATE_NAME_EXTRA_WHITELIST = MAKO_TEMPLATE_NAME_EXTRA_WHITELIST
+
 # 所有环境的日志级别可以在这里配置
 # LOG_LEVEL = 'INFO'
 

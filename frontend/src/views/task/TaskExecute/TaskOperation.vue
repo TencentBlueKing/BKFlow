@@ -245,7 +245,6 @@
   import tools from '@/utils/tools.js';
   import { TASK_STATE_DICT, NODE_DICT } from '@/constants/index.js';
   import ModifyParams from './ModifyParams.vue';
-  // import ExecuteInfo from './ExecuteInfo.vue';
   import ExecuteInfo from './SideDrawerExecuteInfo.vue';
   import RetryNode from './RetryNode.vue';
   import ModifyTime from './ModifyTime.vue';
@@ -530,20 +529,6 @@
             this.addUnexecued(item);
           }
         });
-        // data.forEach((item) => {
-        //   if (item.id === this.defaultActiveId) {
-        //     item.expanded = true;
-        //   } else if (!item.children) {
-        //     item.expanded = false;
-        //   }
-        //   if (item.children) {
-        //     item.children.forEach((item) => {
-        //       if (item.id === this.defaultActiveId) {
-        //         item.expanded = true;
-        //       }
-        //     });
-        //   }
-        // });
         return [{
           id: this.instanceId,
           name: this.instanceName,
@@ -1300,17 +1285,6 @@
               }
             },
           });
-          // const resp = await this.getInstanceRetryParams({ id: this.instanceId })
-          // if (resp.data.enable) {
-          //   this.openNodeInfoPanel('retryNode', i18n.t('重试'))
-          //   this.setNodeDetailConfig(id)
-          //   if (this.nodeDetailConfig.component_code) {
-          //     await this.loadNodeInfo(id)
-          //   }
-          // } else {
-          //   this.openNodeInfoPanel('modifyParams', i18n.t('重试'))
-          //   this.retryNodeId = id
-          // }
         } catch (error) {
           console.warn(error);
         }

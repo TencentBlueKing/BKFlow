@@ -245,12 +245,6 @@
           'deleteVersionSnapshotData',
           'rollbackToVersion',
       ]),
-      escapeRegExp(str) {
-          if (typeof str !== 'string') {
-          return '';
-          }
-          return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&');
-      },
       async getVersionList(data = {}) {
         try {
           const { templateId } = this.$route.params;

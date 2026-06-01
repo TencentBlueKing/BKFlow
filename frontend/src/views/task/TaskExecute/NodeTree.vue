@@ -155,10 +155,6 @@
           if (nodeNavLength === 1) {
             this.treeData = tools.deepClone(value[0].children);
           }
-          // else {
-          //   const cur = this.findSubChildren(value[0].children, this.nodeNav[nodeNavLength - 1].id);
-          //   this.treeData = tools.deepClone(cur[0].subChildren);
-          // }
           this.$nextTick(() => {
             this.nodeAddStatus(this.treeData, this.nodeDisplayStatus.children);
             this.setDefaultActiveId(this.treeData, this.treeData, this.defaultActiveId);
@@ -218,17 +214,9 @@
     methods: {
       findSubChildren(data, id, node = []) {
         data?.forEach((item) => {
-          // if (item.type === 'SubProcess') {
-          //   if (item.id === id) {
-          //     node.push(item);
-          //   } else {
-          //     this.findSubChildren(item.subChildren, id, node);
-          //   }
-          // } else {
             if (item.children) {
               this.findSubChildren(item.children, id, node);
             }
-          // }
         });
         return node;
       },
