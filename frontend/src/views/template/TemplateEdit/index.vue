@@ -1482,10 +1482,11 @@
           start: 'start',
           end: 'end',
         };
+        const normalizedType = data.type === 'tasknode' ? 'task' : data.type;
         const location = {
           id,
           ...data,
-          type: typeMap[data.type] ?? data.type.split('-').join(''),
+          type: typeMap[normalizedType] ?? normalizedType.split('-').join(''),
           ...node.position(),
         };
         if (data?.oldSouceId) {
@@ -1495,7 +1496,7 @@
         this.setLocation({ type, location });
         // 节点编辑时只更新position不更新activities
         if (type === 'edit') return;
-        switch (data.type) {
+        switch (normalizedType) {
           case 'task':
           case 'subflow':
             // 添加任务节点
