@@ -1482,6 +1482,9 @@
           start: 'start',
           end: 'end',
         };
+        if (data.type === 'tasknode') {
+          data.type = 'task';
+        }
         const location = {
           id,
           ...data,
