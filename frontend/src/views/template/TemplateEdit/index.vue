@@ -1749,7 +1749,7 @@
           group,
           icon,
           code,
-          type,
+          type: type === 'tasknode' ? 'task' : type,
           mode: mode || this.type,
         });
       },
