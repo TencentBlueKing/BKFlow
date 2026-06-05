@@ -1738,6 +1738,7 @@
        */
       onUpdateNodeInfo(id, data) {
         const location = this.locations.find(item => item.id === id);
+        if (!location) return;
         const updatedLocation = Object.assign(location, data);
         this.setLocation({ type: 'edit', location: updatedLocation });
         const { name, stage_name, group, icon, code, type, mode } = location;
