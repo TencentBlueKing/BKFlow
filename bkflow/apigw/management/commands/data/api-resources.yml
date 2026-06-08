@@ -5611,3 +5611,31 @@ paths:
         descriptionEn: Get plugin outputs
         enableWebsocket: false
         pluginConfigs: [ ]
+  /sdk/task/operate_node/{task_id}/node/{node_id}/{operation}/:
+    post:
+      operationId: sdk_operate_task_node
+      description: 操作任务节点
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}task/operate_node/{task_id}/node/{node_id}/{operation}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        enableWebsocket: false
+        pluginConfigs: [ ]
