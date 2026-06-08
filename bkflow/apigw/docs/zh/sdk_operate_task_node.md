@@ -17,11 +17,11 @@
 
 ### 路径参数:
 
-| 字段         | 类型      | 必选 | 描述                                       |
-|------------|---------|----|------------------------------------------|
-| task_id    | int     | 是  | 任务ID                                     |
-| node_id    | int     | 是  | 节点ID                                     |
-| operation  | string  | 是  | 操作，支持 retry, skip, callback, forced_fail |
+| 字段         | 类型     | 必选 | 描述                                       |
+|------------|--------|----|------------------------------------------|
+| task_id    | int    | 是  | 任务ID                                     |
+| node_id    | string | 是  | 节点ID                                     |
+| operation  | string | 是  | 操作，支持 retry, skip, callback, forced_fail |
 
 操作所需额外参数
 
