@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BKFlow 原型 - 插件管理壳子</title>
+  <link rel="stylesheet" href="../../assets/bkflow-prototype.css">
+  <script defer src="../../assets/bkflow-prototype.js"></script>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="space">空间管理</li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system">系统管理</li>
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="plugin">我的插件</li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">U</div>
+          <span>用户名</span>
+          <div class="bk-user-dropdown" aria-hidden="true">
+            <span class="bk-user-dropdown-item">个人中心</span>
+            <span class="bk-user-dropdown-item">退出登录</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space" style="display:none;">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">B</span>
+            <span>bkflow-eng-svc</span>
+          </div>
+        </div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;">
+          <div class="bk-navigation-space-select" style="background:transparent;cursor:default;">
+            <span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span>
+          </div>
+        </div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin">
+          <div class="bk-navigation-space-select" style="background:transparent;cursor:default;">
+            <span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span>
+          </div>
+        </div>
+
+        <ul class="bk-navigation-menu" data-nav-group="plugin">
+          <li class="bk-navigation-menu-item active" data-page="plugin-shell-home"><span class="bk-navigation-menu-icon">⬡</span>插件侧栏</li>
+        </ul>
+
+        <ul class="bk-navigation-menu" data-nav-group="space" style="display:none;"></ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"></ul>
+
+        <div class="bk-navigation-footer">
+          <button class="bk-navigation-collapse" title="收起导航">⟨</button>
+        </div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel" id="plugin-shell-home">
+          <h1 class="bk-prototype-page-title">插件侧栏</h1>
+          <div class="bk-prototype-card">
+            <h2>共享壳子占位</h2>
+            <p class="bk-prototype-card-meta">插件管理壳子只保留顶栏、侧栏和占位内容。</p>
+            <div class="bk-prototype-actions">
+              <button class="bk-button bk-button-primary" data-toggle-target="#plugin-shell-note" data-toggle-class="bk-toggle-hidden">切换说明</button>
+              <button class="bk-button bk-save-button is-disabled" id="plugin-shell-save">保存</button>
+              <button class="bk-button" data-save-target="#plugin-shell-save">模拟修改后启用保存</button>
+            </div>
+            <p id="plugin-shell-note" class="bk-prototype-card-meta bk-toggle-hidden">插件管理壳子同样只包含通用结构与占位内容。</p>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>列表页 - 错误状态</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <style>
+    body { background: var(--bk-bg-body); }
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 40px 36px;
+    }
+    .section {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+      box-shadow: var(--bk-shadow);
+      padding: 20px;
+    }
+  </style>
+</head>
+<body class="bk-prototype-shell">
+  <main class="page">
+    <div class="bk-toolbar">
+      <div class="bk-toolbar-left">
+        <input class="bk-search-input" placeholder="搜索名称、编码或负责人" style="width:280px;">
+        <div class="bk-select" style="width:180px;">
+          <div class="bk-select-trigger">
+            <span class="bk-select-placeholder">筛选状态</span>
+          </div>
+        </div>
+      </div>
+      <div class="bk-toolbar-right">
+        <button class="bk-button">重试加载</button>
+      </div>
+    </div>
+
+    <section class="section">
+      <div class="bk-exception">
+        <div style="font-size:48px;color:var(--bk-danger);">!</div>
+        <strong>加载失败</strong>
+        <div>列表数据获取失败，请稍后重试或检查网络。</div>
+        <div>
+          <button class="bk-button">返回</button>
+          <button class="bk-button bk-button-primary">重新加载</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="../../../assets/bkflow-prototype.js"></script>
+</body>
+</html>

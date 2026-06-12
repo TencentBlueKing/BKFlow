@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BKFlow 原型 - 系统管理 / 模块配置列表</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    body {
+      background:
+        radial-gradient(circle at top right, rgba(45, 203, 86, 0.08), transparent 24%),
+        linear-gradient(180deg, #f7fdf8 0%, #f5f7fa 22%, #f5f7fa 100%);
+    }
+    .page-shell {
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .page-desc {
+      max-width: 920px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+    }
+    .page-chip {
+      flex-shrink: 0;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #e9fbef;
+      border: 1px solid rgba(45, 203, 86, 0.18);
+      color: #1c8a45;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .summary-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+      padding: 16px 18px;
+    }
+    .summary-label {
+      color: var(--bk-text-tertiary);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .summary-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--bk-text-primary);
+      line-height: 1.1;
+    }
+    .summary-note {
+      margin-top: 8px;
+      color: var(--bk-text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .panel-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .panel {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+      overflow: hidden;
+    }
+    .panel-head {
+      padding: 18px 18px 0;
+    }
+    .panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin-bottom: 6px;
+    }
+    .panel-desc {
+      color: var(--bk-text-tertiary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .panel-body {
+      padding: 16px 18px 18px;
+    }
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 16px;
+      border: 1px solid var(--bk-border);
+      color: var(--bk-text-secondary);
+      background: #fafbfd;
+      font-size: 13px;
+    }
+    .filter-chip.is-active {
+      color: #1c8a45;
+      border-color: rgba(45, 203, 86, 0.28);
+      background: #e9fbef;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--bk-border-light);
+      border-radius: 12px;
+    }
+    .bk-table {
+      min-width: 1160px;
+    }
+    .audit-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .audit-item {
+      padding-left: 12px;
+      border-left: 3px solid #2dcb56;
+    }
+    .audit-time {
+      color: var(--bk-text-tertiary);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .audit-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin-bottom: 4px;
+    }
+    .audit-desc {
+      color: var(--bk-text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .rule-box {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: #f7f9fc;
+      border: 1px solid var(--bk-border-light);
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+      font-size: 13px;
+    }
+    .status-ok { color: #14a568; }
+    .status-warn { color: #c98e17; }
+    .status-danger { color: #de5c5c; }
+    @media (max-width: 1280px) {
+      .summary-grid,
+      .panel-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="space" data-nav-link="../space/template-list.html">空间管理</li>
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="system" data-nav-link="space-config-list.html">系统管理</li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html">我的插件</li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">U</div>
+          <span>admin_ops</span>
+          <div class="bk-user-dropdown" aria-hidden="true">
+            <span class="bk-user-dropdown-item">配置中心</span>
+            <span class="bk-user-dropdown-item">退出登录</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space" style="display:none;">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">B</span>
+            <span>bkflow-eng-svc</span>
+          </div>
+        </div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system">
+          <div class="bk-navigation-space-select" style="background:transparent;cursor:default;">
+            <span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span>
+          </div>
+        </div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;">
+          <div class="bk-navigation-space-select" style="background:transparent;cursor:default;">
+            <span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span>
+          </div>
+        </div>
+
+        <ul class="bk-navigation-menu" data-nav-group="system">
+          <li class="bk-navigation-menu-item active" data-page="system-module-config-list">
+            <span class="bk-navigation-menu-icon">◈</span>模块配置列表
+          </li>
+        </ul>
+
+        <ul class="bk-navigation-menu" data-nav-group="space" style="display:none;"></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"></ul>
+
+        <div class="bk-navigation-footer">
+          <button class="bk-navigation-collapse" title="收起导航">⟨</button>
+        </div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel" id="system-module-config-list">
+        <div class="page-shell">
+          <div class="bk-breadcrumb">
+            <span class="bk-breadcrumb-item">首页</span>
+            <span class="bk-breadcrumb-item">系统管理</span>
+            <span class="bk-breadcrumb-item">模块配置列表</span>
+          </div>
+
+          <div class="page-header">
+            <div>
+              <div class="page-title">模块配置列表</div>
+              <div class="page-desc">
+                这里集中管理模块级配置项、同步状态和冲突处理结果。相比空间配置，这个页面更强调模块版本、依赖关系和跨空间发布一致性，适合审计和平台运维共同查看。
+              </div>
+            </div>
+            <div class="page-chip">最近同步：2026-04-21 08:12 · 发布机器人</div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="summary-card">
+              <div class="summary-label">受管模块</div>
+              <div class="summary-value">36</div>
+              <div class="summary-note">涵盖核心流程、通知、调度、审计等模块。</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">待同步项</div>
+              <div class="summary-value status-warn">8</div>
+              <div class="summary-note">模块版本升级后尚未完成空间级分发。</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">冲突项</div>
+              <div class="summary-value status-danger">4</div>
+              <div class="summary-note">包含字段覆盖、版本不一致和权限不匹配。</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">只读基线</div>
+              <div class="summary-value status-ok">12</div>
+              <div class="summary-note">基线项只能查看，发布动作由平台审计统一控制。</div>
+            </div>
+          </div>
+
+          <div class="panel-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div class="panel-title">模块配置清单</div>
+                <div class="panel-desc">按模块追踪配置版本、同步状态、审核状态和最后一次发布结果，方便快速发布或回滚。</div>
+              </div>
+              <div class="panel-body">
+                <div class="bk-toolbar">
+                  <div class="bk-toolbar-left">
+                    <input class="bk-search-input" placeholder="搜索模块名称、编码、负责人" style="width: 280px;">
+                    <div class="bk-select" style="width: 170px;">
+                      <div class="bk-select-trigger"><span class="bk-select-placeholder">全部同步状态</span></div>
+                    </div>
+                    <div class="bk-select" style="width: 170px;">
+                      <div class="bk-select-trigger"><span class="bk-select-placeholder">全部审核状态</span></div>
+                    </div>
+                  </div>
+                  <div class="bk-toolbar-right">
+                    <button class="bk-button">刷新</button>
+                    <button class="bk-button bk-button-primary">发起批量发布</button>
+                  </div>
+                </div>
+
+                <div class="filter-row">
+                  <span class="filter-chip is-active">全部</span>
+                  <span class="filter-chip">已同步</span>
+                  <span class="filter-chip">待同步</span>
+                  <span class="filter-chip">冲突</span>
+                  <span class="filter-chip">已回滚</span>
+                </div>
+
+                <div class="table-wrap">
+                  <table class="bk-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 180px;">模块名称</th>
+                        <th style="width: 170px;">模块编码</th>
+                        <th style="width: 110px;">配置版本</th>
+                        <th style="width: 150px;">适用范围</th>
+                        <th style="width: 110px;">同步状态</th>
+                        <th style="width: 110px;">审核状态</th>
+                        <th style="width: 130px;">最近更新时间</th>
+                        <th style="width: 120px;">负责人</th>
+                        <th style="width: 180px;">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>审批引擎</td>
+                        <td>approval-engine</td>
+                        <td>v2.8.4</td>
+                        <td><span class="bk-tag bk-tag-info">系统级</span></td>
+                        <td><span class="bk-tag bk-tag-success">已同步</span></td>
+                        <td><span class="bk-tag bk-tag-success">已审批</span></td>
+                        <td>2026-04-20 18:40</td>
+                        <td>platform_ops</td>
+                        <td>
+                          <button class="bk-table-action">编辑</button>
+                          <button class="bk-table-action">发布</button>
+                          <button class="bk-table-action">查看依赖</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>调度器</td>
+                        <td>scheduler-core</td>
+                        <td>v1.12.0</td>
+                        <td><span class="bk-tag bk-tag-info">全空间</span></td>
+                        <td><span class="bk-tag bk-tag-warning">待同步</span></td>
+                        <td><span class="bk-tag bk-tag-warning">待审批</span></td>
+                        <td>2026-04-21 08:12</td>
+                        <td>scheduler_bot</td>
+                        <td>
+                          <button class="bk-table-action">编辑</button>
+                          <button class="bk-table-action">发起审批</button>
+                          <button class="bk-table-action">生成同步单</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>插件中心</td>
+                        <td>plugin-center</td>
+                        <td>v3.1.2</td>
+                        <td><span class="bk-tag bk-tag-info">指定空间 8 个</span></td>
+                        <td><span class="bk-tag bk-tag-danger">冲突</span></td>
+                        <td><span class="bk-tag bk-tag-warning">待处理</span></td>
+                        <td>2026-04-19 16:21</td>
+                        <td>integrate_team</td>
+                        <td>
+                          <button class="bk-table-action">查看冲突</button>
+                          <button class="bk-table-action">回滚</button>
+                          <button class="bk-table-action">对比版本</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>审计中心</td>
+                        <td>audit-hub</td>
+                        <td>v1.4.6</td>
+                        <td><span class="bk-tag bk-tag-info">系统级</span></td>
+                        <td><span class="bk-tag bk-tag-info">已回滚</span></td>
+                        <td><span class="bk-tag bk-tag-success">已审批</span></td>
+                        <td>2026-04-18 13:07</td>
+                        <td>audit_admin</td>
+                        <td>
+                          <button class="bk-table-action">编辑</button>
+                          <button class="bk-table-action">查看历史</button>
+                          <button class="bk-table-action">重新发布</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>模板引擎</td>
+                        <td>template-runtime</td>
+                        <td>v2.0.1</td>
+                        <td><span class="bk-tag bk-tag-info">全空间</span></td>
+                        <td><span class="bk-tag bk-tag-success">已同步</span></td>
+                        <td><span class="bk-tag bk-tag-success">已审批</span></td>
+                        <td>2026-04-17 20:16</td>
+                        <td>template_bot</td>
+                        <td>
+                          <button class="bk-table-action">编辑</button>
+                          <button class="bk-table-action">发布</button>
+                          <button class="bk-table-action">查看依赖</button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="bk-pagination">
+                  <span class="bk-pagination-total">共 36 条</span>
+                  <span class="bk-pagination-item">&laquo;</span>
+                  <span class="bk-pagination-item active">1</span>
+                  <span class="bk-pagination-item">2</span>
+                  <span class="bk-pagination-item">3</span>
+                  <span class="bk-pagination-item">&raquo;</span>
+                </div>
+              </div>
+            </section>
+
+            <aside class="panel">
+              <div class="panel-head">
+                <div class="panel-title">发布守则</div>
+                <div class="panel-desc">模块配置变更要先通过审计，再分发到空间范围内的实际运行环境。</div>
+              </div>
+              <div class="panel-body">
+                <div class="audit-list">
+                  <div class="audit-item">
+                    <div class="audit-time">2026-04-21 08:12</div>
+                    <div class="audit-title">scheduler-core 待同步</div>
+                    <div class="audit-desc">调度器版本已更新，但尚未完成空间分发，需要先解决下游依赖检查。</div>
+                  </div>
+                  <div class="audit-item">
+                    <div class="audit-time">2026-04-19 16:21</div>
+                    <div class="audit-title">plugin-center 出现版本冲突</div>
+                    <div class="audit-desc">同名模块在两个基线空间中存在不一致的字段定义，暂时不能直接发布。</div>
+                  </div>
+                  <div class="audit-item">
+                    <div class="audit-time">2026-04-18 13:07</div>
+                    <div class="audit-title">audit-hub 已完成回滚</div>
+                    <div class="audit-desc">回滚成功后，历史版本保留可查看，新的发布请求会重新走审批链路。</div>
+                  </div>
+                </div>
+
+                <div class="rule-box">
+                  <strong>发布约束：</strong><br>
+                  1. 冲突项必须先对比版本再允许发布。<br>
+                  2. 待同步项只能批量发起，不允许直接跳过审计。<br>
+                  3. 回滚动作会记录模块负责人和对应发布单号。
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

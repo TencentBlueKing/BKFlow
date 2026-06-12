@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空间变量管理 - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <style>
+    .scope-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+    }
+    .scope-bar-label {
+      color: var(--bk-text-secondary);
+      font-size: var(--bk-font-size);
+      white-space: nowrap;
+    }
+    .scope-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 14px;
+      font-size: var(--bk-font-size-sm);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid var(--bk-border);
+      background: var(--bk-bg-default);
+      color: var(--bk-text-primary);
+    }
+    .scope-chip:hover { border-color: var(--bk-primary); color: var(--bk-primary); }
+    .scope-chip.active {
+      background: var(--bk-primary);
+      color: #fff;
+      border-color: var(--bk-primary);
+    }
+    .scope-selector {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .var-value-cell {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 12px;
+      color: var(--bk-text-secondary);
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .var-value-secret {
+      letter-spacing: 2px;
+      color: var(--bk-text-disabled);
+    }
+    .var-type-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: var(--bk-radius);
+      font-size: 11px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+    }
+    .var-type-string { background: #e1ecff; color: #3a84ff; }
+    .var-type-number { background: #e5f8eb; color: #2dcb56; }
+    .var-type-boolean { background: #fef5e6; color: #d98e0b; }
+    .var-type-password { background: #ffeded; color: #ff5757; }
+    .var-type-json { background: #f0f1f5; color: #666666; }
+    .scope-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: var(--bk-radius);
+      font-size: 11px;
+      background: #f0f7ff;
+      color: var(--bk-primary);
+      border: 1px solid #d4e6fd;
+    }
+    .scope-tag-global {
+      background: #f0f1f5;
+      color: var(--bk-text-secondary);
+      border-color: var(--bk-border);
+    }
+    /* Task detail variable panel preview */
+    .task-var-preview {
+      border: 1px solid var(--bk-border);
+      border-radius: var(--bk-radius-md);
+      background: var(--bk-bg-default);
+      overflow: hidden;
+    }
+    .task-var-preview-header {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--bk-border-light);
+      font-size: var(--bk-font-size);
+      font-weight: 600;
+    }
+    .task-var-item {
+      border-bottom: 1px solid var(--bk-border-light);
+    }
+    .task-var-item:last-child { border-bottom: none; }
+    .task-var-key {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px 4px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 13px;
+      color: var(--bk-primary);
+      font-weight: 600;
+    }
+    .task-var-key .var-scope-hint {
+      margin-left: 8px;
+      font-size: 11px;
+      font-weight: normal;
+      color: var(--bk-text-tertiary);
+      font-family: var(--bk-font);
+    }
+    .task-var-val {
+      padding: 0 16px 12px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 12px;
+      color: var(--bk-text-primary);
+      word-break: break-all;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .task-var-val-secret {
+      color: var(--bk-text-disabled);
+      letter-spacing: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation">
+    <header class="bk-navigation-header">
+      <div class="bk-navigation-header-title">
+        <span style="font-size:18px;font-weight:600;color:#fff;">BKFlow</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav">
+          <li class="bk-navigation-header-nav-item active">空间管理</li>
+          <li class="bk-navigation-header-nav-item">系统管理</li>
+          <li class="bk-navigation-header-nav-item">我的插件</li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">U</div>
+          <span>用户名</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar" aria-label="侧边导航">
+        <div class="bk-navigation-space">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">B</span>
+            <span>bkflow-eng-svc (237)</span>
+          </div>
+        </div>
+        <ul class="bk-navigation-menu">
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⇌</span>流程</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">▤</span>任务</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">▢</span>调试任务</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">✦</span>决策表</li>
+          <li class="bk-navigation-menu-item active"><span class="bk-navigation-menu-icon">⚙</span>空间配置</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">▣</span>凭证管理</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">▥</span>标签管理</li>
+        </ul>
+        <div class="bk-navigation-footer">
+          <button class="bk-navigation-collapse" title="收起导航">⟨</button>
+        </div>
+      </nav>
+
+      <main class="bk-content">
+        <h2 style="margin-bottom:16px;">空间配置</h2>
+
+        <!-- Tab: 基本信息 / 功能开关 / 变量管理 -->
+        <div class="bk-tab">
+          <div class="bk-tab-header">
+            <span class="bk-tab-item" data-tab="tab-basic">基本信息</span>
+            <span class="bk-tab-item" data-tab="tab-switches">功能开关</span>
+            <span class="bk-tab-item active" data-tab="tab-variables">变量管理</span>
+          </div>
+
+          <!-- ===== Tab: 基本信息 ===== -->
+          <div class="bk-tab-panel" id="tab-basic" hidden>
+            <div class="bk-info-card" style="margin-top:8px;">
+              <div class="bk-info-card-item">
+                <div class="bk-info-card-label">空间名称</div>
+                <div class="bk-info-card-value">bkflow-eng-svc</div>
+              </div>
+              <div class="bk-info-card-item">
+                <div class="bk-info-card-label">空间ID</div>
+                <div class="bk-info-card-value">237</div>
+              </div>
+              <div class="bk-info-card-item">
+                <div class="bk-info-card-label">创建人</div>
+                <div class="bk-info-card-value">admin</div>
+              </div>
+              <div class="bk-info-card-item">
+                <div class="bk-info-card-label">创建时间</div>
+                <div class="bk-info-card-value">2025-12-01 10:00:00</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== Tab: 功能开关 ===== -->
+          <div class="bk-tab-panel" id="tab-switches" hidden>
+            <div class="bk-card" style="margin-top:8px;">
+              <div class="bk-card-body">
+                <div class="bk-form">
+                  <div class="bk-form-item">
+                    <label class="bk-form-label">任务限流</label>
+                    <div class="bk-form-content" style="display:flex;align-items:center;gap:12px;">
+                      <button class="bk-switcher is-checked"></button>
+                      <span style="color:var(--bk-text-tertiary);">开启后将限制并发执行任务数</span>
+                    </div>
+                  </div>
+                  <div class="bk-form-item">
+                    <label class="bk-form-label">Webhook</label>
+                    <div class="bk-form-content" style="display:flex;align-items:center;gap:12px;">
+                      <button class="bk-switcher"></button>
+                      <span style="color:var(--bk-text-tertiary);">启用 Webhook 事件推送</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== Tab: 变量管理 ===== -->
+          <div class="bk-tab-panel" id="tab-variables">
+
+            <!-- 作用域筛选栏 -->
+            <div class="scope-bar">
+              <span class="scope-bar-label">作用域：</span>
+              <span class="scope-chip active" onclick="switchScope(this,'all')">全部</span>
+              <span class="scope-chip" onclick="switchScope(this,'space')">空间级</span>
+              <span class="scope-chip" onclick="switchScope(this,'scope')">Scope 级</span>
+              <div class="scope-selector" id="scope-detail-selector" style="display:none;">
+                <span style="color:var(--bk-text-tertiary);font-size:12px;">│</span>
+                <div class="bk-select" style="width:120px;">
+                  <div class="bk-select-trigger" style="height:28px;font-size:12px;">
+                    <span>biz</span>
+                  </div>
+                  <div class="bk-select-dropdown">
+                    <div class="bk-select-option is-selected">biz</div>
+                    <div class="bk-select-option">set</div>
+                    <div class="bk-select-option">module</div>
+                  </div>
+                </div>
+                <div class="bk-select" style="width:160px;">
+                  <div class="bk-select-trigger" style="height:28px;font-size:12px;">
+                    <span>全部 scope_value</span>
+                  </div>
+                  <div class="bk-select-dropdown">
+                    <div class="bk-select-option is-selected">全部 scope_value</div>
+                    <div class="bk-select-option">2 (王者荣耀)</div>
+                    <div class="bk-select-option">5 (和平精英)</div>
+                    <div class="bk-select-option">18 (天涯明月刀)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 工具栏 -->
+            <div class="bk-toolbar">
+              <div class="bk-toolbar-left">
+                <input class="bk-search-input" placeholder="搜索变量名 / 描述…" style="width:300px;" data-filter="var-table">
+              </div>
+              <div class="bk-toolbar-right">
+                <button class="bk-button bk-button-primary" data-open="create-var-slider">新建变量</button>
+              </div>
+            </div>
+
+            <!-- 变量列表 -->
+            <table class="bk-table" id="var-table">
+              <thead>
+                <tr>
+                  <th data-sortable>变量名</th>
+                  <th>KEY</th>
+                  <th>类型</th>
+                  <th>变量值</th>
+                  <th>作用域</th>
+                  <th>描述</th>
+                  <th data-sortable>创建人</th>
+                  <th data-sortable>更新时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code style="font-size:12px;background:#f0f1f5;padding:2px 6px;border-radius:2px;">BK_APP_CODE</code></td>
+                  <td><span class="var-value-cell">${_space.BK_APP_CODE}</span></td>
+                  <td><span class="var-type-badge var-type-string">string</span></td>
+                  <td><span class="var-value-cell">bkflow-eng-svc</span></td>
+                  <td><span class="scope-tag scope-tag-global">空间级</span></td>
+                  <td>应用标识，用于 API 鉴权</td>
+                  <td>admin</td>
+                  <td>2026-03-20 14:30</td>
+                  <td>
+                    <button class="bk-table-action" data-open="edit-var-slider">编辑</button>
+                    <button class="bk-table-action" data-open="delete-var-dialog">删除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code style="font-size:12px;background:#f0f1f5;padding:2px 6px;border-radius:2px;">BK_APP_SECRET</code></td>
+                  <td><span class="var-value-cell">${_space.BK_APP_SECRET}</span></td>
+                  <td><span class="var-type-badge var-type-password">password</span></td>
+                  <td><span class="var-value-cell var-value-secret">••••••••</span></td>
+                  <td><span class="scope-tag scope-tag-global">空间级</span></td>
+                  <td>应用密钥，加密存储</td>
+                  <td>admin</td>
+                  <td>2026-03-20 14:30</td>
+                  <td>
+                    <button class="bk-table-action" data-open="edit-var-slider">编辑</button>
+                    <button class="bk-table-action" data-open="delete-var-dialog">删除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code style="font-size:12px;background:#f0f1f5;padding:2px 6px;border-radius:2px;">NOTIFY_RECEIVERS</code></td>
+                  <td><span class="var-value-cell">${_space.NOTIFY_RECEIVERS}</span></td>
+                  <td><span class="var-type-badge var-type-json">json</span></td>
+                  <td><span class="var-value-cell">["admin","devops"]</span></td>
+                  <td><span class="scope-tag scope-tag-global">空间级</span></td>
+                  <td>默认通知接收人列表</td>
+                  <td>admin</td>
+                  <td>2026-03-19 10:15</td>
+                  <td>
+                    <button class="bk-table-action" data-open="edit-var-slider">编辑</button>
+                    <button class="bk-table-action" data-open="delete-var-dialog">删除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code style="font-size:12px;background:#f0f1f5;padding:2px 6px;border-radius:2px;">DEPLOY_ENV</code></td>
+                  <td><span class="var-value-cell">${_scope.DEPLOY_ENV}</span></td>
+                  <td><span class="var-type-badge var-type-string">string</span></td>
+                  <td><span class="var-value-cell">production</span></td>
+                  <td><span class="scope-tag">biz = 2</span></td>
+                  <td>部署环境标识</td>
+                  <td>devops</td>
+                  <td>2026-03-18 16:42</td>
+                  <td>
+                    <button class="bk-table-action" data-open="edit-var-slider">编辑</button>
+                    <button class="bk-table-action" data-open="delete-var-dialog">删除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code style="font-size:12px;background:#f0f1f5;padding:2px 6px;border-radius:2px;">MAX_RETRY</code></td>
+                  <td><span class="var-value-cell">${_scope.MAX_RETRY}</span></td>
+                  <td><span class="var-type-badge var-type-number">number</span></td>
+                  <td><span class="var-value-cell">3</span></td>
+                  <td><span class="scope-tag">biz = 2</span></td>
+                  <td>节点失败最大重试次数</td>
+                  <td>devops</td>
+                  <td>2026-03-18 16:42</td>
+                  <td>
+                    <button class="bk-table-action" data-open="edit-var-slider">编辑</button>
+                    <button class="bk-table-action" data-open="delete-var-dialog">删除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code style="font-size:12px;background:#f0f1f5;padding:2px 6px;border-radius:2px;">ENABLE_APPROVAL</code></td>
+                  <td><span class="var-value-cell">${_scope.ENABLE_APPROVAL}</span></td>
+                  <td><span class="var-type-badge var-type-boolean">boolean</span></td>
+                  <td><span class="var-value-cell">true</span></td>
+                  <td><span class="scope-tag">biz = 5</span></td>
+                  <td>是否启用审批节点</td>
+                  <td>pm_wang</td>
+                  <td>2026-03-17 09:20</td>
+                  <td>
+                    <button class="bk-table-action" data-open="edit-var-slider">编辑</button>
+                    <button class="bk-table-action" data-open="delete-var-dialog">删除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code style="font-size:12px;background:#f0f1f5;padding:2px 6px;border-radius:2px;">CMDB_API_URL</code></td>
+                  <td><span class="var-value-cell">${_space.CMDB_API_URL}</span></td>
+                  <td><span class="var-type-badge var-type-string">string</span></td>
+                  <td><span class="var-value-cell">https://cmdb.example.com/api/v3</span></td>
+                  <td><span class="scope-tag scope-tag-global">空间级</span></td>
+                  <td>CMDB 接口地址</td>
+                  <td>admin</td>
+                  <td>2026-03-15 11:08</td>
+                  <td>
+                    <button class="bk-table-action" data-open="edit-var-slider">编辑</button>
+                    <button class="bk-table-action" data-open="delete-var-dialog">删除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="bk-pagination">
+              <span class="bk-pagination-total">共 7 条</span>
+              <span class="bk-pagination-item active">1</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分隔：任务详情中的变量展示预览 -->
+        <div style="margin-top:48px;padding-top:32px;border-top:2px dashed var(--bk-border);">
+          <h3 style="margin-bottom:4px;color:var(--bk-text-tertiary);font-weight:normal;font-size:12px;">▼ 以下为「任务详情」页面中，空间变量在全局变量面板里的展示效果预览（与系统变量、用户变量并列展示）</h3>
+          <div class="task-var-preview" style="margin-top:12px;">
+            <div class="task-var-preview-header">全局变量</div>
+
+            <!-- 系统变量 -->
+            <div class="task-var-item">
+              <div class="task-var-key">${_system}</div>
+              <div class="task-var-val">&lt;SystemObject {task_space_id: 237, task_scope_type: 'biz', task_scope_value: '2', operator: 'admin', task_id: 8821, task_name: '日常巡检任务_2026-03-23 10:00:00', credentials: [{bk_app_code: 'bkflow-eng-svc', bk_app_secret: '******'}]}&gt;</div>
+            </div>
+
+            <!-- 用户输入变量 -->
+            <div class="task-var-item">
+              <div class="task-var-key">${input}</div>
+              <div class="task-var-val">{"target_hosts": ["10.0.1.1", "10.0.1.2"], "check_items": ["cpu", "memory", "disk"]}</div>
+            </div>
+
+            <!-- 空间级变量（${_space.XXX}）-->
+            <div class="task-var-item" style="background: #f8fbff;">
+              <div class="task-var-key">${_space.BK_APP_CODE} <span class="var-scope-hint">空间变量</span></div>
+              <div class="task-var-val">bkflow-eng-svc</div>
+            </div>
+            <div class="task-var-item" style="background: #f8fbff;">
+              <div class="task-var-key">${_space.BK_APP_SECRET} <span class="var-scope-hint">空间变量</span></div>
+              <div class="task-var-val task-var-val-secret">••••••••</div>
+            </div>
+            <div class="task-var-item" style="background: #f8fbff;">
+              <div class="task-var-key">${_space.NOTIFY_RECEIVERS} <span class="var-scope-hint">空间变量</span></div>
+              <div class="task-var-val">["admin","devops"]</div>
+            </div>
+            <div class="task-var-item" style="background: #f8fbff;">
+              <div class="task-var-key">${_space.CMDB_API_URL} <span class="var-scope-hint">空间变量</span></div>
+              <div class="task-var-val">https://cmdb.example.com/api/v3</div>
+            </div>
+            <!-- Scope 级变量（${_scope.XXX}）-->
+            <div class="task-var-item" style="background: #f0f7ff;">
+              <div class="task-var-key">${_scope.DEPLOY_ENV} <span class="var-scope-hint">scope 变量 · biz=2</span></div>
+              <div class="task-var-val">production</div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ===== Sideslider: 新建变量 ===== -->
+  <div id="create-var-slider" class="bk-sideslider">
+    <div class="bk-sideslider-mask" data-close></div>
+    <div class="bk-sideslider-content">
+      <div class="bk-sideslider-header">
+        <span>新建变量</span>
+        <button class="bk-sideslider-close" data-close>&times;</button>
+      </div>
+      <div class="bk-sideslider-body">
+        <form class="bk-form" onsubmit="return false;">
+          <div class="bk-form-item is-required">
+            <label class="bk-form-label">变量名</label>
+            <div class="bk-form-content">
+              <input class="bk-input" placeholder="如 BK_APP_CODE，支持大写字母、数字和下划线" data-required>
+              <div class="bk-form-error">变量名不能为空</div>
+            </div>
+          </div>
+          <div class="bk-form-item is-required">
+            <label class="bk-form-label">变量类型</label>
+            <div class="bk-form-content">
+              <div class="bk-select">
+                <div class="bk-select-trigger">
+                  <span class="bk-select-placeholder">请选择类型</span>
+                </div>
+                <div class="bk-select-dropdown">
+                  <div class="bk-select-option">string（字符串）</div>
+                  <div class="bk-select-option">number（数字）</div>
+                  <div class="bk-select-option">boolean（布尔）</div>
+                  <div class="bk-select-option">password（密码）</div>
+                  <div class="bk-select-option">json（JSON 对象）</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bk-form-item is-required">
+            <label class="bk-form-label">变量值</label>
+            <div class="bk-form-content">
+              <input class="bk-input" placeholder="请输入变量值" data-required>
+              <div class="bk-form-error">变量值不能为空</div>
+            </div>
+          </div>
+          <div class="bk-form-item is-required">
+            <label class="bk-form-label">作用域</label>
+            <div class="bk-form-content">
+              <div class="bk-select">
+                <div class="bk-select-trigger">
+                  <span class="bk-select-placeholder">请选择作用域</span>
+                </div>
+                <div class="bk-select-dropdown">
+                  <div class="bk-select-option">空间级（所有流程共享）</div>
+                  <div class="bk-select-option">Scope 级（按业务划分）</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bk-form-item" id="scope-fields" style="display:none;">
+            <label class="bk-form-label">Scope 配置</label>
+            <div class="bk-form-content" style="display:flex;gap:12px;">
+              <div class="bk-select" style="width:50%;">
+                <div class="bk-select-trigger">
+                  <span class="bk-select-placeholder">scope_type</span>
+                </div>
+                <div class="bk-select-dropdown">
+                  <div class="bk-select-option">biz</div>
+                  <div class="bk-select-option">set</div>
+                  <div class="bk-select-option">module</div>
+                </div>
+              </div>
+              <div style="width:50%;">
+                <input class="bk-input" placeholder="scope_value，如 2">
+              </div>
+            </div>
+          </div>
+          <div class="bk-form-item">
+            <label class="bk-form-label">描述</label>
+            <div class="bk-form-content">
+              <textarea class="bk-textarea" placeholder="请输入变量用途说明" rows="3"></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="bk-sideslider-footer">
+        <button class="bk-button" data-close>取消</button>
+        <button class="bk-button bk-button-primary" data-close data-notify="变量创建成功">提交</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Sideslider: 编辑变量 ===== -->
+  <div id="edit-var-slider" class="bk-sideslider">
+    <div class="bk-sideslider-mask" data-close></div>
+    <div class="bk-sideslider-content">
+      <div class="bk-sideslider-header">
+        <span>编辑变量</span>
+        <button class="bk-sideslider-close" data-close>&times;</button>
+      </div>
+      <div class="bk-sideslider-body">
+        <form class="bk-form" onsubmit="return false;">
+          <div class="bk-form-item is-required">
+            <label class="bk-form-label">变量名</label>
+            <div class="bk-form-content">
+              <input class="bk-input" value="BK_APP_CODE" disabled>
+              <div style="font-size:12px;color:var(--bk-text-tertiary);margin-top:4px;">变量名创建后不可修改</div>
+            </div>
+          </div>
+          <div class="bk-form-item">
+            <label class="bk-form-label">变量类型</label>
+            <div class="bk-form-content">
+              <div class="bk-select">
+                <div class="bk-select-trigger">
+                  <span>string（字符串）</span>
+                </div>
+                <div class="bk-select-dropdown">
+                  <div class="bk-select-option is-selected">string（字符串）</div>
+                  <div class="bk-select-option">number（数字）</div>
+                  <div class="bk-select-option">boolean（布尔）</div>
+                  <div class="bk-select-option">password（密码）</div>
+                  <div class="bk-select-option">json（JSON 对象）</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bk-form-item is-required">
+            <label class="bk-form-label">变量值</label>
+            <div class="bk-form-content">
+              <input class="bk-input" value="bkflow-eng-svc">
+            </div>
+          </div>
+          <div class="bk-form-item">
+            <label class="bk-form-label">作用域</label>
+            <div class="bk-form-content">
+              <input class="bk-input" value="空间级（所有流程共享）" disabled>
+              <div style="font-size:12px;color:var(--bk-text-tertiary);margin-top:4px;">作用域创建后不可修改</div>
+            </div>
+          </div>
+          <div class="bk-form-item">
+            <label class="bk-form-label">描述</label>
+            <div class="bk-form-content">
+              <textarea class="bk-textarea" rows="3">应用标识，用于 API 鉴权</textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="bk-sideslider-footer">
+        <button class="bk-button" data-close>取消</button>
+        <button class="bk-button bk-button-primary" data-close data-notify="变量更新成功">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Dialog: 删除确认 ===== -->
+  <div id="delete-var-dialog" class="bk-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <span>确认删除</span>
+        <button class="bk-dialog-close" data-close>&times;</button>
+      </div>
+      <div class="bk-dialog-body">
+        <p>删除后该变量将从所有关联流程中移除，已运行的任务不受影响。</p>
+        <p style="margin-top:8px;color:var(--bk-danger);font-size:12px;">此操作不可撤销，请确认。</p>
+      </div>
+      <div class="bk-dialog-footer">
+        <button class="bk-button" data-close>取消</button>
+        <button class="bk-button bk-button-danger" data-close data-notify="变量已删除">确认删除</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../../assets/bkflow-prototype.js"></script>
+  <script>
+    function switchScope(el, scope) {
+      el.parentElement.querySelectorAll('.scope-chip').forEach(function(c) {
+        c.classList.remove('active');
+      });
+      el.classList.add('active');
+      var detail = document.getElementById('scope-detail-selector');
+      detail.style.display = scope === 'scope' ? 'inline-flex' : 'none';
+
+      var rows = document.querySelectorAll('#var-table tbody tr');
+      rows.forEach(function(row) {
+        var scopeCell = row.querySelector('.scope-tag');
+        if (!scopeCell) return;
+        var isGlobal = scopeCell.classList.contains('scope-tag-global');
+        if (scope === 'all') {
+          row.style.display = '';
+        } else if (scope === 'space') {
+          row.style.display = isGlobal ? '' : 'none';
+        } else {
+          row.style.display = isGlobal ? 'none' : '';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

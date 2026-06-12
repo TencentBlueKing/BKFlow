@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>配置页 Master - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../assets/bkflow-prototype.css">
+  <style>
+    body {
+      background:
+        radial-gradient(circle at top right, rgba(45, 203, 86, 0.08), transparent 24%),
+        var(--bk-bg-body);
+    }
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 36px 48px;
+    }
+    .page-title {
+      margin-bottom: 8px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .page-subtitle {
+      color: var(--bk-text-tertiary);
+      margin-bottom: 20px;
+    }
+    .section {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+      box-shadow: var(--bk-shadow);
+      padding: 20px;
+    }
+    .section + .section { margin-top: 18px; }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .code-editor {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: var(--bk-radius-md);
+      padding: 16px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      overflow-x: auto;
+    }
+    .footer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body class="bk-prototype-shell">
+  <main class="page">
+    <h1 class="page-title">配置页 Master</h1>
+    <p class="page-subtitle">用于多字段配置、结构化代码编辑和保存状态控制的长表单模板。</p>
+
+    <section class="section">
+      <div class="section-title">基础配置</div>
+      <form class="bk-form" onsubmit="return false;">
+        <div class="bk-form-item is-required">
+          <label class="bk-form-label">配置名称</label>
+          <div class="bk-form-content">
+            <input class="bk-input" value="engine-default-config">
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">所属空间</label>
+          <div class="bk-form-content">
+            <input class="bk-input" value="bkflow-eng-svc">
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">启用状态</label>
+          <div class="bk-form-content">
+            <button type="button" class="bk-switcher is-checked"></button>
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">描述</label>
+          <div class="bk-form-content">
+            <textarea class="bk-textarea" rows="3" placeholder="请输入配置说明">基础配置项、资源限制和执行策略的说明。</textarea>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="section">
+      <div class="section-title">代码配置</div>
+      <div class="bk-form" style="margin-bottom:16px;">
+        <div class="bk-form-item">
+          <label class="bk-form-label">配置片段</label>
+          <div class="bk-form-content">
+            <input class="bk-input" value="runtime.yaml">
+          </div>
+        </div>
+      </div>
+      <div class="code-editor" aria-label="editor">
+<pre><code>runtime:
+  retries: 3
+  timeout_seconds: 30
+  env:
+    - name: BKFLOW_DEBUG
+      value: "false"
+  resources:
+    cpu: "500m"
+    memory: "512Mi"</code></pre>
+      </div>
+
+      <div class="footer-actions">
+        <button class="bk-button">取消</button>
+        <button class="bk-save-button is-disabled bk-button bk-button-primary" disabled>保存</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="../../assets/bkflow-prototype.js"></script>
+</body>
+</html>

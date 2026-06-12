@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>列表页 - 批量操作状态</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <style>
+    body { background: var(--bk-bg-body); }
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 36px;
+    }
+    .section {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+      box-shadow: var(--bk-shadow);
+      padding: 20px;
+    }
+    .bulk-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      background: #f0f7ff;
+      border: 1px solid #a3c5fd;
+      border-radius: var(--bk-radius-md);
+      color: var(--bk-primary-active);
+    }
+    .table-wrap { overflow-x: auto; }
+  </style>
+</head>
+<body class="bk-prototype-shell">
+  <main class="page">
+    <div class="bulk-bar">
+      <div>已选 3 条，可执行批量操作。</div>
+      <div>
+        <button class="bk-button">批量启用</button>
+        <button class="bk-button">批量停用</button>
+        <button class="bk-button bk-button-danger">批量删除</button>
+      </div>
+    </div>
+
+    <section class="section">
+      <div class="bk-toolbar">
+        <div class="bk-toolbar-left">
+          <input class="bk-search-input" placeholder="搜索名称、编码或负责人" style="width:280px;">
+          <div class="bk-select" style="width:180px;">
+            <div class="bk-select-trigger">
+              <span class="bk-select-placeholder">筛选状态</span>
+            </div>
+          </div>
+        </div>
+        <div class="bk-toolbar-right">
+          <button class="bk-button">取消选择</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="bk-table">
+          <thead>
+            <tr>
+              <th style="width:48px;">选择</th>
+              <th>名称</th>
+              <th>类型</th>
+              <th>状态</th>
+              <th>更新时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox" checked></td>
+              <td>prod-api-key</td>
+              <td>凭证</td>
+              <td><span class="bk-tag bk-tag-success">启用</span></td>
+              <td>2026-04-18 10:12</td>
+              <td><button class="bk-table-action">编辑</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" checked></td>
+              <td>staging-webhook</td>
+              <td>回调</td>
+              <td><span class="bk-tag bk-tag-warning">待审核</span></td>
+              <td>2026-04-17 17:40</td>
+              <td><button class="bk-table-action">审核</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" checked></td>
+              <td>backup-rule</td>
+              <td>规则</td>
+              <td><span class="bk-tag bk-tag-danger">禁用</span></td>
+              <td>2026-04-15 09:08</td>
+              <td><button class="bk-table-action">恢复</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bk-pagination" style="margin-top:18px;">
+        <span class="bk-pagination-total">共 38 条</span>
+        <span class="bk-pagination-item">&laquo;</span>
+        <span class="bk-pagination-item active">1</span>
+        <span class="bk-pagination-item">2</span>
+        <span class="bk-pagination-item">&raquo;</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="../../../assets/bkflow-prototype.js"></script>
+</body>
+</html>

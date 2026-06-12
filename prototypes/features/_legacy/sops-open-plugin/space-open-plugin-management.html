@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>开放插件管理 - BKFlow 原型</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <style>
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--bk-text-primary);
+      margin-bottom: 8px;
+    }
+    .page-desc {
+      font-size: 14px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+      max-width: 840px;
+    }
+    .sync-pill {
+      flex-shrink: 0;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #f0f7ff;
+      border: 1px solid rgba(58, 132, 255, 0.2);
+      color: var(--bk-primary);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .source-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .source-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+    }
+    .source-card.is-warning {
+      background: rgba(248, 181, 63, 0.05);
+      border-color: rgba(248, 181, 63, 0.35);
+    }
+    .source-card-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .source-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+    }
+    .source-meta {
+      font-size: 13px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+    }
+    .source-actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .page-alert {
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: #f0f7ff;
+      border: 1px solid rgba(58, 132, 255, 0.2);
+      color: var(--bk-text-secondary);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .page-alert.is-warning {
+      background: rgba(248, 181, 63, 0.08);
+      border-color: rgba(248, 181, 63, 0.35);
+      color: #8c6a00;
+    }
+    .status-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #c4c6cc;
+    }
+    .dot.is-success { background: #2dcb56; }
+    .dot.is-warning { background: #f8b53f; }
+    .dot.is-danger { background: #ff5757; }
+    .muted-row {
+      opacity: 0.66;
+      background: #fafbfd;
+    }
+    .switch-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .helper-panel {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation">
+    <header class="bk-navigation-header">
+      <div class="bk-navigation-header-title">
+        <span style="font-size:18px;font-weight:600;color:#fff;">BKFlow</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav">
+          <li class="bk-navigation-header-nav-item active">空间管理</li>
+          <li class="bk-navigation-header-nav-item">系统管理</li>
+          <li class="bk-navigation-header-nav-item">我的插件</li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">U</div>
+          <span>space_admin</span>
+        </div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar" aria-label="侧边导航">
+        <div class="bk-navigation-space">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">B</span>
+            <span>bkflow-plugin-hub (612)</span>
+          </div>
+        </div>
+        <ul class="bk-navigation-menu">
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⇌</span>流程</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">▤</span>任务</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⚙</span>空间配置</li>
+          <li class="bk-navigation-menu-item active"><span class="bk-navigation-menu-icon">⬡</span>开放插件</li>
+        </ul>
+        <div class="bk-navigation-footer">
+          <button class="bk-navigation-collapse" title="收起导航">⟨</button>
+        </div>
+      </nav>
+
+      <main class="bk-content">
+        <div class="bk-breadcrumb">
+          <span class="bk-breadcrumb-item">首页</span>
+          <span class="bk-breadcrumb-item">空间管理</span>
+          <span class="bk-breadcrumb-item">开放插件</span>
+        </div>
+
+        <div class="page-header">
+          <div>
+            <div class="page-title">开放插件管理</div>
+            <div class="page-desc">
+              空间管理员在这里决定当前空间可以使用哪些开放插件。页面同时展示来源状态、插件启用情况、已下线插件记录以及后续新增插件的默认策略。
+            </div>
+          </div>
+          <div class="sync-pill">最近同步：2026-04-20 11:48</div>
+        </div>
+
+        <div class="source-grid">
+          <div class="source-card">
+            <div class="source-card-title">
+              <div class="source-name">标准运维开放插件</div>
+              <span class="bk-tag bk-tag-success">可用</span>
+            </div>
+            <div class="source-meta">
+              已发现 24 个插件，已开启 9 个。<br>
+              类型同时包含标准运维内置插件与第三方插件。<br>
+              当前空间仍可继续同步该来源的新目录。
+            </div>
+            <div class="source-actions">
+              <button class="bk-button bk-button-primary">同步目录</button>
+              <button class="bk-button">查看来源详情</button>
+            </div>
+          </div>
+          <div class="source-card is-warning">
+            <div class="source-card-title">
+              <div class="source-name">增强态：来源紧急停用</div>
+              <span class="bk-tag bk-tag-warning">预留</span>
+            </div>
+            <div class="source-meta">
+              当开放层整体不可用时，管理员可按来源批量关闭当前来源下的插件，避免模板继续新建任务。
+            </div>
+            <div class="source-actions">
+              <button class="bk-button bk-button-warning" disabled>按来源一键关闭</button>
+            </div>
+          </div>
+          <div class="source-card">
+            <div class="source-card-title">
+              <div class="source-name">规则摘要</div>
+              <span class="bk-tag bk-tag-info">说明</span>
+            </div>
+            <div class="source-meta">
+              1. 新增插件默认关闭。<br>
+              2. 一键全开只作用于当前已发现插件。<br>
+              3. 已下线插件仅保留记录，不可继续新用。
+            </div>
+          </div>
+        </div>
+
+        <div class="page-alert">
+          你可以对单个插件开关，也可以对“当前列表中已发现的插件”执行一键全开。后续同步进来的新插件不会自动继承这次批量动作，仍然默认关闭。
+        </div>
+
+        <div class="bk-toolbar">
+          <div class="bk-toolbar-left">
+            <input class="bk-search-input" placeholder="搜索插件名 / 来源别名…" style="width: 340px;" data-filter="open-plugin-table">
+            <div class="bk-select" style="width: 180px;">
+              <div class="bk-select-trigger">
+                <span>全部来源</span>
+              </div>
+            </div>
+            <div class="bk-select" style="width: 180px;">
+              <div class="bk-select-trigger">
+                <span>全部类型</span>
+              </div>
+            </div>
+          </div>
+          <div class="bk-toolbar-right">
+            <button class="bk-button">仅看已开启</button>
+            <button class="bk-button bk-button-primary" data-notify="已为当前已发现插件执行一键全开（原型演示）">一键全开当前已发现插件</button>
+          </div>
+        </div>
+
+        <table class="bk-table" id="open-plugin-table">
+          <thead>
+            <tr>
+              <th data-sortable>插件名</th>
+              <th>来源别名</th>
+              <th>插件类型</th>
+              <th>当前状态</th>
+              <th>版本概况</th>
+              <th data-sortable>最近同步时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>云作业执行脚本</td>
+              <td>[标准运维内置插件]</td>
+              <td><span class="bk-tag bk-tag-info">内置</span></td>
+              <td><span class="status-cell"><span class="dot is-success"></span>已开启</span></td>
+              <td>默认 1.4.2 / 最新 1.5.0</td>
+              <td>2026-04-20 11:48</td>
+              <td>
+                <div class="switch-wrap">
+                  <button type="button" class="bk-switcher is-checked"></button>
+                  <button class="bk-table-action">查看版本</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>批量更新主机属性</td>
+              <td>[标准运维第三方插件]</td>
+              <td><span class="bk-tag bk-tag-success">第三方</span></td>
+              <td><span class="status-cell"><span class="dot is-success"></span>已开启</span></td>
+              <td>默认 2.1.0 / 最新 2.2.1</td>
+              <td>2026-04-20 11:48</td>
+              <td>
+                <div class="switch-wrap">
+                  <button type="button" class="bk-switcher is-checked"></button>
+                  <button class="bk-table-action">查看版本</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>节点巡检报告汇总</td>
+              <td>[标准运维第三方插件]</td>
+              <td><span class="bk-tag bk-tag-success">第三方</span></td>
+              <td><span class="status-cell"><span class="dot"></span>未开启</span></td>
+              <td>默认 1.0.3 / 最新 1.1.0</td>
+              <td>2026-04-20 11:48</td>
+              <td>
+                <div class="switch-wrap">
+                  <button type="button" class="bk-switcher"></button>
+                  <button class="bk-table-action">查看版本</button>
+                </div>
+              </td>
+            </tr>
+            <tr class="muted-row">
+              <td>集群扩容预检查</td>
+              <td>[标准运维内置插件]</td>
+              <td><span class="bk-tag bk-tag-info">内置</span></td>
+              <td><span class="status-cell"><span class="dot is-danger"></span>已下线</span></td>
+              <td>历史版本 1.2.0 已不可新用</td>
+              <td>2026-04-18 19:20</td>
+              <td>
+                <div class="switch-wrap">
+                  <button type="button" class="bk-switcher" disabled></button>
+                  <button class="bk-table-action">查看历史</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>标准运维回调压测</td>
+              <td>[标准运维第三方插件]</td>
+              <td><span class="bk-tag bk-tag-success">第三方</span></td>
+              <td><span class="status-cell"><span class="dot is-warning"></span>来源异常</span></td>
+              <td>目录已同步，执行状态待恢复</td>
+              <td>2026-04-20 11:48</td>
+              <td>
+                <div class="switch-wrap">
+                  <button type="button" class="bk-switcher is-checked" disabled></button>
+                  <button class="bk-table-action">查看来源</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="helper-panel">
+          <div class="page-alert is-warning">
+            <strong>增强态示意：</strong> 当来源进入“紧急停用”状态时，当前空间下该来源的所有插件会统一转成不可继续新用，但仍保留历史模板与历史任务的回看能力。
+          </div>
+          <div class="page-alert">
+            <strong>页面约束：</strong> 这里控制的是空间级开放状态。模板保存、任务创建和任务启动仍由服务端基于当前状态再次校验，不会只靠前端列表展示拦截。
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="../../../assets/bkflow-prototype.js"></script>
+</body>
+</html>

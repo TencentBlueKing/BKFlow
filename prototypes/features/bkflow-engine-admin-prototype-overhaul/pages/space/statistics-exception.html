@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<!-- Composed from prototypes/masters/_shared/space-shell.html + exception state guidance from the audit -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空间管理 - 运营统计异常</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    .bk-content { padding: 24px 28px 32px; overflow: auto; }
+    .bk-page-panel { display: block; }
+    .bk-space-nav-link,
+    .bk-space-menu-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      color: inherit;
+    }
+    .bk-space-nav-link:hover,
+    .bk-space-menu-link:hover { color: inherit; }
+    .bk-space-page { display: grid; gap: 20px; }
+    .bk-space-page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .bk-space-page-title h1 { font-size: 24px; margin-bottom: 6px; }
+    .bk-space-page-title p,
+    .bk-muted { color: var(--bk-text-tertiary); }
+    .bk-metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .bk-metric-card,
+    .bk-failed-panel {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 12px;
+      box-shadow: var(--bk-shadow);
+    }
+    .bk-metric-card {
+      padding: 18px;
+      opacity: 0.48;
+      filter: grayscale(0.2);
+    }
+    .bk-metric-card strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 24px;
+    }
+    .bk-failed-panel {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      overflow: hidden;
+    }
+    .bk-failed-main {
+      padding: 30px;
+      background: linear-gradient(180deg, #fff, #fff8f8);
+      border-right: 1px solid #f1d6d6;
+    }
+    .bk-failed-side {
+      padding: 24px;
+      background: #101a2b;
+      color: #d2def0;
+      font-family: Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+    .bk-inline-alert {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #fff1f1;
+      color: #b53b3b;
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="space" data-nav-link="template-list.html"><a class="bk-space-nav-link" href="statistics-exception.html">空间管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system" data-nav-link="../system/space-config-list.html"><a class="bk-space-nav-link" href="../system/space-config-list.html">系统管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html"><a class="bk-space-nav-link" href="../plugin/plugin-list.html">我的插件</a></li>
+        </ul>
+        <div class="bk-navigation-header-user"><div class="bk-navigation-header-user-avatar">A</div><span>admin</span></div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space"><div class="bk-navigation-space-select"><span class="bk-navigation-space-icon">S</span><span>bkflow-eng-svc / space_id=171</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span></div></div>
+        <ul class="bk-navigation-menu" data-nav-group="space">
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="template-list.html"><span class="bk-navigation-menu-icon">≣</span>流程</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="task-list.html"><span class="bk-navigation-menu-icon">✓</span>任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="debug-task-list.html"><span class="bk-navigation-menu-icon">◎</span>调试任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="decision-list.html"><span class="bk-navigation-menu-icon">◇</span>决策表</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="space-config.html"><span class="bk-navigation-menu-icon">⚙</span>空间配置</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="credential-list.html"><span class="bk-navigation-menu-icon">⌘</span>凭证管理</a></li>
+          <li class="bk-navigation-menu-item active"><a class="bk-space-menu-link" href="statistics-exception.html"><span class="bk-navigation-menu-icon">∆</span>运营统计</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="label-list.html"><span class="bk-navigation-menu-icon">#</span>标签管理</a></li>
+        </ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../system/space-config-list.html"><span class="bk-navigation-menu-icon">◈</span>空间配置</a></li></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../plugin/plugin-list.html"><span class="bk-navigation-menu-icon">⬡</span>蓝鲸插件</a></li></ul>
+        <div class="bk-navigation-footer"><button class="bk-navigation-collapse" title="收起导航">⟨</button></div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel">
+          <div class="bk-space-page">
+            <div class="bk-space-page-header">
+              <div class="bk-space-page-title">
+                <h1>运营统计</h1>
+                <p>审计结论是：路由能进入，但当前环境主体未稳定渲染。这里刻意做成显式异常页，而不是伪造一套正常统计图。</p>
+              </div>
+              <div class="bk-prototype-actions" style="margin-top:0;">
+                <button class="bk-button" type="button">刷新页面</button>
+                <a class="bk-button" href="debug-task-list.html">查看调试任务</a>
+              </div>
+            </div>
+
+            <div class="bk-metric-grid">
+              <div class="bk-metric-card">
+                <div class="bk-muted">近 7 日执行量</div>
+                <strong>1,284</strong>
+              </div>
+              <div class="bk-metric-card">
+                <div class="bk-muted">失败率</div>
+                <strong>2.3%</strong>
+              </div>
+              <div class="bk-metric-card">
+                <div class="bk-muted">平均耗时</div>
+                <strong>46s</strong>
+              </div>
+            </div>
+
+            <div class="bk-failed-panel">
+              <div class="bk-failed-main">
+                <div class="bk-inline-alert">● 统计应用异常</div>
+                <h2 style="margin-bottom:8px;">运营统计主体加载失败</h2>
+                <p class="bk-muted" style="line-height:1.7;">`activeTab=statistics` 已切换成功，但主内容区在 stag 环境里几乎为空。审计时 console 持续出现外部可视化资源日志，因此该页需要单独建模为“入口存在但内容异常”的失败态。</p>
+                <div class="bk-prototype-actions">
+                  <button class="bk-button bk-button-primary" type="button">重新加载统计资源</button>
+                  <button class="bk-button" type="button">切回空间配置</button>
+                </div>
+              </div>
+              <div class="bk-failed-side">[statistics-loader]
+route: /bkflow_engine_admin/?space_id=171&amp;activeTab=statistics
+status: PARTIAL_RENDER
+message: external dashboard bundle did not mount
+
+console:
+[info] trying to bootstrap chart app
+[warn] missing runtime chunk for dashboard vendor
+[error] chart root remains empty after hydration timeout</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>配置页 - 脏状态</title>
+  <link rel="stylesheet" href="../../../assets/bkflow-prototype.css">
+  <style>
+    body { background: var(--bk-bg-body); }
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 36px;
+    }
+    .section {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: var(--bk-radius-md);
+      box-shadow: var(--bk-shadow);
+      padding: 20px;
+    }
+    .banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      background: #fef5e6;
+      border: 1px solid #fce0a8;
+      border-radius: var(--bk-radius-md);
+      color: #d98e0b;
+    }
+    .code-editor {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: var(--bk-radius-md);
+      padding: 16px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      overflow-x: auto;
+    }
+    .footer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body class="bk-prototype-shell">
+  <main class="page">
+    <div class="banner">
+      <div>未保存修改</div>
+      <div>修改后保存后再继续发布，避免丢失当前变更。</div>
+    </div>
+
+    <section class="section">
+      <div class="section-title">基础配置</div>
+      <form class="bk-form" onsubmit="return false;">
+        <div class="bk-form-item is-required">
+          <label class="bk-form-label">配置名称</label>
+          <div class="bk-form-content">
+            <input class="bk-input" value="engine-default-config-v2">
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">所属空间</label>
+          <div class="bk-form-content">
+            <input class="bk-input" value="bkflow-eng-svc">
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">启用状态</label>
+          <div class="bk-form-content">
+            <button type="button" class="bk-switcher is-checked"></button>
+          </div>
+        </div>
+        <div class="bk-form-item">
+          <label class="bk-form-label">描述</label>
+          <div class="bk-form-content">
+            <textarea class="bk-textarea" rows="3">已调整超时、重试和资源限制。</textarea>
+          </div>
+        </div>
+      </form>
+
+      <div class="section-title">代码配置</div>
+      <div class="bk-form" style="margin-bottom:16px;">
+        <div class="bk-form-item">
+          <label class="bk-form-label">配置片段</label>
+          <div class="bk-form-content">
+            <input class="bk-input" value="runtime.yaml">
+          </div>
+        </div>
+      </div>
+      <div class="code-editor" aria-label="editor">
+<pre><code>runtime:
+  retries: 5
+  timeout_seconds: 45
+  env:
+    - name: BKFLOW_DEBUG
+      value: "true"</code></pre>
+      </div>
+
+      <div class="footer-actions">
+        <button class="bk-button">撤销修改</button>
+        <button class="bk-save-button is-enabled bk-button bk-button-primary">保存</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="../../../assets/bkflow-prototype.js"></script>
+</body>
+</html>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<!-- Composed from prototypes/masters/_shared/space-shell.html + prototypes/masters/list-page/template.html -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空间管理 - 标签管理</title>
+  <link rel="stylesheet" href="../../../../assets/bkflow-prototype.css">
+  <script defer src="../../../../assets/bkflow-prototype.js"></script>
+  <style>
+    .bk-content { padding: 24px 28px 32px; overflow: auto; }
+    .bk-page-panel { display: block; }
+    .bk-space-nav-link,
+    .bk-space-menu-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      color: inherit;
+    }
+    .bk-space-nav-link:hover,
+    .bk-space-menu-link:hover { color: inherit; }
+    .bk-space-page { display: grid; gap: 20px; }
+    .bk-space-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 12px;
+      box-shadow: var(--bk-shadow);
+      padding: 20px;
+    }
+    .bk-space-page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .bk-space-page-title h1 { font-size: 24px; margin-bottom: 6px; }
+    .bk-space-page-title p,
+    .bk-muted { color: var(--bk-text-tertiary); }
+    .bk-table-wrap { overflow-x: auto; }
+    .bk-stack { display: grid; gap: 12px; }
+    .bk-label-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #f5f7fa;
+    }
+    .bk-color-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .bk-color-grid {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .bk-color-grid span {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+      display: inline-block;
+    }
+    .bk-scope-choice {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .bk-scope-choice span {
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--bk-border);
+      font-size: 12px;
+    }
+    .bk-scope-choice .is-active {
+      border-color: var(--bk-primary);
+      background: #e1ecff;
+      color: var(--bk-primary-active);
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation bk-prototype-shell">
+    <header class="bk-navigation-header bk-prototype-topbar">
+      <div class="bk-navigation-header-title">
+        <img src="../../../../assets/icons/bkflow-logo.svg" alt="BKFlow">
+        <span>BKFlow 原型</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav bk-prototype-nav">
+          <li class="bk-navigation-header-nav-item active bk-prototype-nav-item" data-nav-group="space" data-nav-link="template-list.html"><a class="bk-space-nav-link" href="label-list.html">空间管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="system" data-nav-link="../system/space-config-list.html"><a class="bk-space-nav-link" href="../system/space-config-list.html">系统管理</a></li>
+          <li class="bk-navigation-header-nav-item bk-prototype-nav-item" data-nav-group="plugin" data-nav-link="../plugin/plugin-list.html"><a class="bk-space-nav-link" href="../plugin/plugin-list.html">我的插件</a></li>
+        </ul>
+        <div class="bk-navigation-header-user"><div class="bk-navigation-header-user-avatar">A</div><span>admin</span></div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar">
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="space"><div class="bk-navigation-space-select"><span class="bk-navigation-space-icon">S</span><span>bkflow-eng-svc / space_id=171</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="system" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">系统管理</span></div></div>
+        <div class="bk-navigation-space bk-prototype-space" data-nav-group="plugin" style="display:none;"><div class="bk-navigation-space-select" style="background:transparent;cursor:default;"><span style="color:var(--bk-nav-space-color);font-size:13px;">我的插件</span></div></div>
+        <ul class="bk-navigation-menu" data-nav-group="space">
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="template-list.html"><span class="bk-navigation-menu-icon">≣</span>流程</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="task-list.html"><span class="bk-navigation-menu-icon">✓</span>任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="debug-task-list.html"><span class="bk-navigation-menu-icon">◎</span>调试任务</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="decision-list.html"><span class="bk-navigation-menu-icon">◇</span>决策表</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="space-config.html"><span class="bk-navigation-menu-icon">⚙</span>空间配置</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="credential-list.html"><span class="bk-navigation-menu-icon">⌘</span>凭证管理</a></li>
+          <li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="statistics-exception.html"><span class="bk-navigation-menu-icon">∆</span>运营统计</a></li>
+          <li class="bk-navigation-menu-item active"><a class="bk-space-menu-link" href="label-list.html"><span class="bk-navigation-menu-icon">#</span>标签管理</a></li>
+        </ul>
+        <ul class="bk-navigation-menu" data-nav-group="system" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../system/space-config-list.html"><span class="bk-navigation-menu-icon">◈</span>空间配置</a></li></ul>
+        <ul class="bk-navigation-menu" data-nav-group="plugin" style="display:none;"><li class="bk-navigation-menu-item"><a class="bk-space-menu-link" href="../plugin/plugin-list.html"><span class="bk-navigation-menu-icon">⬡</span>蓝鲸插件</a></li></ul>
+        <div class="bk-navigation-footer"><button class="bk-navigation-collapse" title="收起导航">⟨</button></div>
+      </nav>
+
+      <main class="bk-content">
+        <section class="bk-page-panel">
+          <div class="bk-space-page">
+            <div class="bk-space-page-header">
+              <div class="bk-space-page-title">
+                <h1>标签管理</h1>
+                <p>列表页保留层级标签语义和异步加载后的数据态，而不是只做一个纯空页面。</p>
+              </div>
+              <div class="bk-prototype-actions" style="margin-top:0;">
+                <button class="bk-button bk-button-primary" type="button" data-open="label-create-dialog">新增标签</button>
+              </div>
+            </div>
+
+            <div class="bk-space-card">
+              <div class="bk-toolbar">
+                <div class="bk-toolbar-left">
+                  <input class="bk-search-input" style="width: 280px;" placeholder="标签名称/范围/引用对象">
+                </div>
+                <div class="bk-toolbar-right">
+                  <span class="bk-muted">首次快照可能短暂出现空态，随后异步加载层级标签数据</span>
+                </div>
+              </div>
+              <div class="bk-table-wrap">
+                <table class="bk-table">
+                  <thead>
+                    <tr>
+                      <th>标签名称</th>
+                      <th>标签描述</th>
+                      <th style="width: 120px;">标签范围</th>
+                      <th style="width: 120px;">标签引用</th>
+                      <th style="width: 120px;">系统默认标签</th>
+                      <th style="width: 140px;">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="bk-label-chip"><span class="bk-color-dot" style="background:#3a84ff;"></span>发布/生产</span></td>
+                      <td>生产发布链路通用标签</td>
+                      <td>流程</td>
+                      <td>12 次</td>
+                      <td>是</td>
+                      <td><button class="bk-table-action" type="button">编辑</button><button class="bk-table-action" type="button">删除</button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="bk-label-chip"><span class="bk-color-dot" style="background:#2dcb56;"></span>任务/回归巡检</span></td>
+                      <td>回归场景和巡检任务共用</td>
+                      <td>任务</td>
+                      <td>7 次</td>
+                      <td>否</td>
+                      <td><button class="bk-table-action" type="button">编辑</button><button class="bk-table-action" type="button">删除</button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="bk-label-chip"><span class="bk-color-dot" style="background:#f8b53f;"></span>新标签/第三个二级标签</span></td>
+                      <td>用于演示层级名称与颜色选择器</td>
+                      <td>任务, 流程</td>
+                      <td>4 次</td>
+                      <td>否</td>
+                      <td><button class="bk-table-action" type="button">编辑</button><button class="bk-table-action" type="button">删除</button></td>
+                    </tr>
+                    <tr>
+                      <td><span class="bk-label-chip"><span class="bk-color-dot" style="background:#9d7cff;"></span>mock/debug</span></td>
+                      <td>专用于 mockTask 与调试链路</td>
+                      <td>任务</td>
+                      <td>9 次</td>
+                      <td>否</td>
+                      <td><button class="bk-table-action" type="button">编辑</button><button class="bk-table-action" type="button">删除</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="bk-dialog" id="label-create-dialog">
+    <div class="bk-dialog-mask" data-close></div>
+    <div class="bk-dialog-content">
+      <div class="bk-dialog-header">
+        <h3>新增标签</h3>
+        <button class="bk-dialog-close" type="button" data-close>×</button>
+      </div>
+      <div class="bk-dialog-body">
+        <div class="bk-stack">
+          <div>
+            <label class="bk-flow-label">标签名称</label>
+            <input class="bk-input" value="新标签/第三个二级标签">
+          </div>
+          <div>
+            <label class="bk-flow-label">标签颜色</label>
+            <div class="bk-color-grid">
+              <span style="background:#3a84ff;"></span>
+              <span style="background:#2dcb56;"></span>
+              <span style="background:#f8b53f;"></span>
+              <span style="background:#ff5757;"></span>
+              <span style="background:#9d7cff;"></span>
+            </div>
+          </div>
+          <div>
+            <label class="bk-flow-label">标签描述</label>
+            <textarea class="bk-textarea" rows="3">用于标记第二层业务分类。</textarea>
+          </div>
+          <div>
+            <label class="bk-flow-label">标签范围</label>
+            <div class="bk-scope-choice">
+              <span class="is-active">任务</span>
+              <span class="is-active">流程</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bk-dialog-footer">
+        <button class="bk-button bk-button-primary" type="button" data-close>提交</button>
+        <button class="bk-button" type="button" data-close>取消</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
