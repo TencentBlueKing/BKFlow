@@ -41,7 +41,12 @@ from bkflow.interface.task.permissions import (
 )
 from bkflow.interface.task.utils import StageConstantHandler, StageJobStateHandler
 from bkflow.label.models import Label
-from bkflow.permission.models import TASK_PERMISSION_TYPE, ResourceType, Token
+from bkflow.permission.models import (
+    ALL_PERMISSION_TYPE,
+    TASK_PERMISSION_TYPE,
+    ResourceType,
+    Token,
+)
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
@@ -147,15 +152,21 @@ class TaskInterfaceViewSet(GenericViewSet):
     def _inject_user_task_auth(request, data):
         if data.get("result", False):
             task_detail = data["data"]
+            template_id = task_detail.get("template_id")
             if request.user.is_superuser or getattr(request, "is_space_superuser", False):
-                task_detail["auth"] = TASK_PERMISSION_TYPE
+                if template_id:
+                    task_detail["auth"] = ALL_PERMISSION_TYPE
+                else:
+                    task_detail["auth"] = TASK_PERMISSION_TYPE
+
                 return
 
             base_query = Q(
                 resource_id=f"{task_detail['scope_type']}_{task_detail['scope_value']}", resource_type="SCOPE"
             ) | Q(resource_id=task_detail["id"], resource_type="TASK")
 
-            base_query |= Q(resource_id=task_detail["template_id"], resource_type="TEMPLATE")
+            if template_id:
+                base_query |= Q(resource_id=template_id, resource_type="TEMPLATE")
 
             permissions = Token.objects.filter(
                 base_query,
@@ -313,4 +324,20 @@ class TaskInterfaceViewSet(GenericViewSet):
         stage_constants = serializer.validated_data.get("to_render_constants", {})
         handler = StageConstantHandler(space_id, request.user.is_superuser)
         result = handler.process(task_id, node_ids, stage_constants)
+        return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="list_children_taskflow/(?P<task_id>\\d+)")
+    def list_children_taskflow(self, request, task_id, *args, **kwargs):
+        """获取根任务下的所有子任务列表"""
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.list_children_taskflow(data={"task_id": task_id, "space_id": space_id})
+        return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="root_task_info")
+    def root_task_info(self, request, *args, **kwargs):
+        """批量查询任务是否包含子任务"""
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.root_task_info(data={"task_ids": request.query_params.get("task_ids"), "space_id": space_id})
         return Response(result)

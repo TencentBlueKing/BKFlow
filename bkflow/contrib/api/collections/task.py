@@ -173,3 +173,11 @@ class TaskComponentClient(BaseComponentClient):
 
     def delete_engine_config(self, data):
         return self._request(method="delete", url=self._get_task_url("task/delete_engine_config/"), data=data)
+
+    def list_children_taskflow(self, data):
+        """获取根任务下的所有子任务列表"""
+        return self._request(method="get", url=self._get_task_url("task/list_children_taskflow/"), data=data)
+
+    def root_task_info(self, data):
+        """批量查询任务是否包含子任务"""
+        return self._request(method="get", url=self._get_task_url("task/root_task_info/"), data=data)

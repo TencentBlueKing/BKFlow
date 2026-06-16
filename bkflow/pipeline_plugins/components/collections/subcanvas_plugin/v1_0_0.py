@@ -11,9 +11,8 @@ specific language governing permissions and limitations under the License.
 """
 from django.conf import settings
 from pipeline.component_framework.component import Component
-from pipeline.core.flow.io import ArrayItemSchema, IntItemSchema, ObjectItemSchema
+from pipeline.core.flow.io import ArrayItemSchema, ObjectItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
-from pydantic import BaseModel
 
 from bkflow.constants import TaskTriggerMethod, WebhookEventType
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
@@ -21,22 +20,17 @@ from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.components.collections.base import LoopBaseService
 
 
-class Subprocess(BaseModel):
-    subprocess_name: str
-    template_id: str
-    version: str
-    always_use_latest: bool = False
-    constants: dict
+class SubcanvasPluginService(LoopBaseService):
+    """
+    子画布插件服务
+    """
 
-
-class SubprocessPluginService(LoopBaseService):
-    plugin_name = "subprocess_plugin"
+    plugin_name = "subcanvas_plugin"
     __need_schedule__ = True
     runtime = BambooDjangoRuntime()
 
     def outputs_format(self):
         return [
-            self.OutputItem(name="任务ID", key="task_id", type="int", schema=IntItemSchema(description="Task ID")),
             self.OutputItem(
                 name="循环输出",
                 key=settings.PLUGIN_LOOP_OUTPUTS_KEY,
@@ -47,78 +41,44 @@ class SubprocessPluginService(LoopBaseService):
             ),
         ]
 
-    def _get_subprocess_template(self, data):
-        """获取子流程模板数据"""
-        subprocess_data = data.get_one_of_inputs("subprocess") or {}
-        subprocess = Subprocess(**subprocess_data)
-        template_id = subprocess.template_id
-        always_use_latest = subprocess.always_use_latest
-        if always_use_latest:
-            version = None
-        else:
-            version = subprocess.version
-        interface_client = InterfaceModuleClient()
-        template = interface_client.get_template_data(template_id=template_id, data={"version": version})
-
-        # 检查API调用是否成功
-        if not template.get("result"):
-            data.set_outputs("ex_data", f"get subprocess data failed: {template['message']}")
-            return None, None
-
-        return template, subprocess
-
-    def _process_subprocess_constants(self, subprocess, pipeline_tree):
-        """处理子流程常量配置"""
-        subproc_inputs = subprocess.constants
-        # replace show constants with inputs
-        subproc_constants = {}
-        for key, info in subproc_inputs.items():
-            # ignore expired parent constants data
-            if subprocess.always_use_latest and key not in pipeline_tree["constants"]:
-                continue
-            if "form" in info:
-                info.pop("form")
-
-            # keep source_info consist with subprocess latest version
-            if subprocess.always_use_latest:
-                info["source_info"] = pipeline_tree["constants"][key]["source_info"]
-
-            subproc_constants[key] = info
-
-        pipeline_tree["constants"].update(subproc_constants)
-
     def plugin_execute(self, data, parent_data):
         from bkflow.task.models import TaskInstance
         from bkflow.task.operations import TaskOperation
 
         parent_task_id = parent_data.get_one_of_inputs("task_id")
+        subprocess_name = data.get_one_of_inputs("subprocess_name")
+
+        # 获取父任务实例
         try:
             parent_task = TaskInstance.objects.get(id=parent_task_id)
         except TaskInstance.DoesNotExist:
             data.set_outputs("ex_data", f"parent task {parent_task_id} not found")
             return False
 
-        template, subprocess = self._get_subprocess_template(data)
-        if not template:
+        # 获取当前子画布节点的 pipeline 字段作为子任务的 pipeline_tree
+        parent_pipeline_tree = parent_task.pipeline_tree
+        current_node = parent_pipeline_tree["activities"].get(self.id)
+        if not current_node:
+            data.set_outputs("ex_data", f"current node {self.id} not found in parent task pipeline_tree")
             return False
 
-        pipeline_tree = template["data"]["pipeline_tree"]
-        self._process_subprocess_constants(subprocess, pipeline_tree)
+        pipeline_tree = current_node.get("pipeline")
+        if not pipeline_tree:
+            data.set_outputs("ex_data", f"pipeline not found in current node {self.id}")
+            return False
+
         try:
             self._render_parent_parameters(pipeline_tree, parent_task)
         except ValidationError as e:
             data.set_outputs("ex_data", str(e))
             return False
 
+        notify_config = parent_task.extra_info.get("notify_config")
         # 创建子任务实例
         task_instance = self._create_subprocess_task_instance(
-            subprocess.subprocess_name,
-            pipeline_tree,
-            parent_task,
-            TaskTriggerMethod.subprocess.name,
-            template_id=subprocess.template_id,
-            notify_config=template["data"]["notify_config"],
+            subprocess_name, pipeline_tree, parent_task, TaskTriggerMethod.sub_canvas.name, notify_config=notify_config
         )
+
         constants = task_instance.pipeline_tree["constants"]
         parameters = {key: value["value"] for key, value in constants.items()}
 
@@ -130,9 +90,8 @@ class SubprocessPluginService(LoopBaseService):
                 "extra_info": {
                     "task_id": task_instance.id,
                     "task_name": task_instance.name,
-                    "template_id": task_instance.template_id,
                     "parameters": parameters,
-                    "trigger_source": TaskTriggerMethod.subprocess.name,
+                    "trigger_source": TaskTriggerMethod.sub_canvas.name,
                     "is_subprocess_task": True,
                 },
             }
@@ -149,8 +108,8 @@ class SubprocessPluginService(LoopBaseService):
         return True
 
 
-class SubprocessPluginComponent(Component):
-    code = "subprocess_plugin"
-    name = "SubprocessPlugin"
-    bound_service = SubprocessPluginService
+class SubcanvasPluginComponent(Component):
+    code = "subcanvas_plugin"
+    name = "SubcanvasPlugin"
+    bound_service = SubcanvasPluginService
     version = "1.0.0"
