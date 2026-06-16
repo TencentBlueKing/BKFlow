@@ -13,7 +13,7 @@ import copy
 
 from django.test import TestCase
 
-from bkflow.pipeline_plugins.components.collections.subprocess_plugin.converter import (
+from bkflow.pipeline_plugins.components.collections.converter import (
     PipelineTreeSubprocessConverter,
 )
 

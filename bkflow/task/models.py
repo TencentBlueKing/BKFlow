@@ -16,9 +16,9 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from collections import defaultdict
 import json
 import logging
+from collections import defaultdict
 
 from bamboo_engine import states
 from django.conf import settings
@@ -43,7 +43,7 @@ from bkflow.constants import (
     TaskTriggerMethod,
 )
 from bkflow.contrib.operation_record.models import BaseOperateRecord
-from bkflow.pipeline_plugins.components.collections.subprocess_plugin.converter import (
+from bkflow.pipeline_plugins.components.collections.converter import (
     PipelineTreeSubprocessConverter,
 )
 from bkflow.task.auto_retry import AutoRetryNodeStrategyCreator
@@ -628,19 +628,13 @@ class BaseLabelRelationManager(models.Manager):
         # 4. 执行删除
         if remove_ids:
             # 构造删除查询: template_id=1, label_id__in=[...]
-            delete_kwargs = {
-                "task_id": obj_id,
-                "label_id__in": remove_ids
-            }
+            delete_kwargs = {"task_id": obj_id, "label_id__in": remove_ids}
             self.filter(**delete_kwargs).delete()
 
         # 5. 执行批量添加
         if add_ids:
             # 动态创建模型实例: TaskLabelRelation(task_id=1, label_id=xx)
-            new_relations = [
-                self.model(**{"task_id": obj_id, "label_id": label_id})
-                for label_id in add_ids
-            ]
+            new_relations = [self.model(**{"task_id": obj_id, "label_id": label_id}) for label_id in add_ids]
             self.bulk_create(new_relations)
 
     def fetch_tasks_labels(self, task_ids):

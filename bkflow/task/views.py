@@ -50,6 +50,7 @@ from bkflow.task.models import (
     EngineSpaceConfig,
     EngineSpaceConfigValueType,
     PeriodicTask,
+    TaskFlowRelation,
     TaskInstance,
     TaskLabelRelation,
     TaskMockData,
@@ -84,6 +85,7 @@ from bkflow.utils.views import SimpleGenericViewSet
 
 class TaskInstanceFilterSet(FilterSet):
     label = CharFilter(method="filter_by_labels")
+    is_child_taskflow = CharFilter(method="filter_by_child_taskflow")
 
     class Meta:
         model = TaskInstance
@@ -121,6 +123,15 @@ class TaskInstanceFilterSet(FilterSet):
         task_ids_subquery = TaskLabelRelation.objects.filter(label_id__in=label_ids).values("task_id")
 
         return queryset.filter(id__in=Subquery(task_ids_subquery))
+
+    def filter_by_child_taskflow(self, queryset, name, value):
+        """
+        过滤子任务流（子流程和子画布）
+        """
+        filter_task_trigger_method = [TaskTriggerMethod.subprocess.name, TaskTriggerMethod.sub_canvas.name]
+        if value == "false":
+            return queryset.exclude(trigger_method__in=filter_task_trigger_method)
+        return queryset
 
 
 def validate_task_info(func):
@@ -383,6 +394,69 @@ class TaskInstanceViewSet(
         to_render_constants_dict = {item: item for item in to_render_constants}
         constants = task_operation.render_context_with_node_outputs(node_ids, to_render_constants_dict)
         return Response(dict(constants))
+
+    @action(methods=["GET"], detail=False, url_path="list_children_taskflow")
+    def list_children_taskflow(self, request, *args, **kwargs):
+        """获取根任务下的所有子任务列表"""
+
+        root_task_id = request.query_params.get("task_id")
+
+        # 参数校验
+        if not root_task_id:
+            return Response({"tasks": [], "relations": {}}, status=status.HTTP_200_OK)
+
+        # 获取子任务关系信息
+        children_task_info = TaskFlowRelation.objects.filter(root_task_id=root_task_id).values(
+            "task_id", "parent_task_id"
+        )
+
+        # 如果没有子任务，直接返回空结果
+        children_task_ids = [info["task_id"] for info in children_task_info]
+        if not children_task_ids:
+            return Response({"tasks": [], "relations": {}}, status=status.HTTP_200_OK)
+
+        # 查询子任务实例
+        queryset = TaskInstance.objects.filter(id__in=children_task_ids, is_deleted=False)
+        queryset = self.filter_queryset(queryset)
+
+        serializer = self.get_serializer(queryset, many=True)
+        task_ids = [task["id"] for task in serializer.data]
+        tasks_labels = TaskLabelRelation.objects.fetch_tasks_labels(task_ids)
+        for task in serializer.data:
+            task["labels"] = tasks_labels.get(task["id"], [])
+
+        # 构建 relations 映射
+        relations = {info["task_id"]: info["parent_task_id"] for info in children_task_info}
+
+        return Response({"tasks": serializer.data, "relations": relations}, status=status.HTTP_200_OK)
+
+    @action(methods=["GET"], detail=False, url_path="root_task_info")
+    def root_task_info(self, request, *args, **kwargs):
+        """批量查询任务是否包含子任务"""
+        task_ids_param = request.query_params.get("task_ids", "")
+
+        # 如果没有传入任务ID，返回空结果
+        if not task_ids_param:
+            return Response({"has_children_taskflow": {}})
+
+        # 解析任务ID列表
+        try:
+            task_ids = [int(task_id) for task_id in task_ids_param.split(",") if task_id]
+        except ValueError:
+            return Response(
+                {"result": False, "code": "400", "message": "task_ids参数格式错误，应为逗号分隔的数字"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 查询有子任务的根任务ID
+        tasks_with_children = set(
+            TaskFlowRelation.objects.filter(root_task_id__in=task_ids).values_list("root_task_id", flat=True).distinct()
+        )
+
+        # 构建返回结果
+        root_task_info = {task_id: task_id in tasks_with_children for task_id in task_ids}
+
+        return Response({"has_children_taskflow": root_task_info})
 
     @swagger_auto_schema(
         methods=["get"], operation_description="任务节点详情查询", query_serializer=GetNodeDetailQuerySerializer
