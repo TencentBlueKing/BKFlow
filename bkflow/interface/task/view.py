@@ -331,7 +331,6 @@ class TaskInterfaceViewSet(GenericViewSet):
         """获取根任务下的所有子任务列表"""
         space_id = self.get_space_id(request)
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
-
         result = client.list_children_taskflow(data={"task_id": task_id, "space_id": space_id})
         return Response(result)
 
@@ -340,6 +339,5 @@ class TaskInterfaceViewSet(GenericViewSet):
         """批量查询任务是否包含子任务"""
         space_id = self.get_space_id(request)
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
-
-        result = client.root_task_info(data={**request.query_params, "space_id": space_id})
+        result = client.root_task_info(data={"task_ids": request.query_params.get("task_ids"), "space_id": space_id})
         return Response(result)

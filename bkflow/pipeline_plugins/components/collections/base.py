@@ -384,7 +384,6 @@ class LoopBaseService(BKFlowBaseService):
             create_task_data.setdefault("extra_info", {}).update(
                 {"notify_config": notify_config or DEFAULT_NOTIFY_CONFIG}
             )
-            create_task_data.setdefault("extra_info", {}).update({"notify_config": notify_config})
 
             task_instance = TaskInstance.objects.create_instance(**create_task_data)
 

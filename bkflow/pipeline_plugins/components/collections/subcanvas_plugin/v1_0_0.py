@@ -73,10 +73,7 @@ class SubcanvasPluginService(LoopBaseService):
             data.set_outputs("ex_data", str(e))
             return False
 
-        notify_config = {
-            "notify_type": pipeline_tree["notify_type"],
-            "notify_receivers": pipeline_tree["notify_receivers"],
-        }
+        notify_config = parent_task.extra_info.get("notify_config")
         # 创建子任务实例
         task_instance = self._create_subprocess_task_instance(
             subprocess_name, pipeline_tree, parent_task, TaskTriggerMethod.sub_canvas.name, notify_config=notify_config

@@ -49,6 +49,7 @@ def get_task_list(request, space_id):
         "task_id_list": "id__in",
         "executor": "executor",
         "template_id": "template_id",
+        "is_child_taskflow": "false",
     }
     for k, v in filter_map.items():
         if k in data:
