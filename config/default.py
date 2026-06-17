@@ -78,6 +78,7 @@ MIDDLEWARE = (
     "bkflow.utils.middlewares.TraceIDInjectMiddleware",
     "bkflow.utils.middlewares.ExceptionMiddleware",
     "bkflow.utils.middlewares.AppInfoInjectMiddleware",
+    "bkflow.utils.middlewares.TimezoneMiddleware",
 ) + MIDDLEWARE
 
 if env.USE_PYINSTRUMENT:

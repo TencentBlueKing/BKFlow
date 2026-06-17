@@ -257,8 +257,9 @@ class SpaceViewSet(AdminModelViewSet):
             url = f'{settings.PAASV3_APIGW_API_HOST.rstrip("/")}/prod/system/uni_applications/query/by_id/'
             client = ApiGwClient()
             try:
+                tenant_id = "system" if settings.ENABLE_MULTI_TENANT_MODE else "default"
                 query_data: HttpRequestResult = client.request(
-                    url, method="GET", data={"id": app_code}, headers={"X-Bk-Tenant-Id": request.user.tenant_id}
+                    url, method="GET", data={"id": app_code}, headers={"X-Bk-Tenant-Id": tenant_id}
                 )
             except APIRequestError as e:
                 logger.exception(f"SpaceViewSet 创建空间异常, app_code={app_code}, err={e}")
@@ -280,9 +281,11 @@ class SpaceViewSet(AdminModelViewSet):
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            queryset = queryset.filter(tenant_id=request.user.tenant_id)
         if not request.user.is_superuser:
             space_ids = SpaceConfig.objects.get_space_ids_of_superuser(request.user.username)
-            queryset = queryset.filter(id__in=space_ids, tenant_id=request.user.tenant_id)
+            queryset = queryset.filter(id__in=space_ids)
 
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -315,11 +318,12 @@ class SpaceInternalViewSet(AdminModelViewSet):
         # 触发空间级别回调
         scopes = [Scope(type=WebhookScopeType.SPACE.value, code=str(data["space_id"]))]
         event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=data.get("extra_info"))
-        # 触发流程级别回调
-        scopes = [Scope(type=WebhookScopeType.TEMPLATE.value, code=str(data["template_id"]))]
-        extra_info = data.get("extra_info") or {}
-        extra_info["delivery_id"] = data["task_id"]
-        event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=extra_info)
+        if data.get("template_id") and data.get("task_id"):
+            # 触发流程级别回调
+            scopes = [Scope(type=WebhookScopeType.TEMPLATE.value, code=str(data["template_id"]))]
+            extra_info = data.get("extra_info") or {}
+            extra_info["delivery_id"] = data["task_id"]
+            event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=extra_info)
         return Response("success")
 
     def get_credential_config(self, config, space_id, scope):
