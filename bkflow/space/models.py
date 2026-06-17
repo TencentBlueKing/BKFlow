@@ -77,6 +77,8 @@ class Space(CommonModel):
             "platform_url": self.platform_url,
             "app_code": self.app_code,
             "create_type": self.create_type,
+            "tenant_id": self.tenant_id,
+            "tenant_mode": self.tenant_mode,
         }
 
     @classmethod
