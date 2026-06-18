@@ -28,6 +28,7 @@ from django.db import transaction
 from django.utils import timezone
 from pipeline.core.flow import AbstractIntervalGenerator, StaticIntervalGenerator
 from pipeline.core.flow.activity import Service
+from pipeline.core.flow.io import ArrayItemSchema, IntItemSchema, ObjectItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 
 from bkflow.constants import TaskOperationSource, TaskOperationType
@@ -263,6 +264,19 @@ class LoopBaseService(BKFlowBaseService):
     """循环基类服务，提供循环执行相关的基础方法"""
 
     runtime = BambooDjangoRuntime()
+
+    def outputs_format(self):
+        return [
+            self.OutputItem(name="任务ID", key="task_id", type="int", schema=IntItemSchema(description="Task ID")),
+            self.OutputItem(
+                name="循环输出",
+                key=settings.PLUGIN_LOOP_OUTPUTS_KEY,
+                type="array",
+                schema=ArrayItemSchema(
+                    description="循环输出", item_schema=ObjectItemSchema(description="循环输出", property_schemas={})
+                ),
+            ),
+        ]
 
     def _render_parent_parameters(self, pipeline_tree, parent_task):
         """渲染父任务参数到子流程常量"""

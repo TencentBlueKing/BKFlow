@@ -11,7 +11,6 @@ specific language governing permissions and limitations under the License.
 """
 from django.conf import settings
 from pipeline.component_framework.component import Component
-from pipeline.core.flow.io import ArrayItemSchema, IntItemSchema, ObjectItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pydantic import BaseModel
 
@@ -33,19 +32,6 @@ class SubprocessPluginService(LoopBaseService):
     plugin_name = "subprocess_plugin"
     __need_schedule__ = True
     runtime = BambooDjangoRuntime()
-
-    def outputs_format(self):
-        return [
-            self.OutputItem(name="任务ID", key="task_id", type="int", schema=IntItemSchema(description="Task ID")),
-            self.OutputItem(
-                name="循环输出",
-                key=settings.PLUGIN_LOOP_OUTPUTS_KEY,
-                type="array",
-                schema=ArrayItemSchema(
-                    description="循环输出", item_schema=ObjectItemSchema(description="循环输出", property_schemas={})
-                ),
-            ),
-        ]
 
     def _get_subprocess_template(self, data):
         """获取子流程模板数据"""

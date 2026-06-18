@@ -11,7 +11,6 @@ specific language governing permissions and limitations under the License.
 """
 from django.conf import settings
 from pipeline.component_framework.component import Component
-from pipeline.core.flow.io import ArrayItemSchema, ObjectItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 
 from bkflow.constants import TaskTriggerMethod, WebhookEventType
@@ -28,18 +27,6 @@ class SubcanvasPluginService(LoopBaseService):
     plugin_name = "subcanvas_plugin"
     __need_schedule__ = True
     runtime = BambooDjangoRuntime()
-
-    def outputs_format(self):
-        return [
-            self.OutputItem(
-                name="循环输出",
-                key=settings.PLUGIN_LOOP_OUTPUTS_KEY,
-                type="array",
-                schema=ArrayItemSchema(
-                    description="循环输出", item_schema=ObjectItemSchema(description="循环输出", property_schemas={})
-                ),
-            ),
-        ]
 
     def plugin_execute(self, data, parent_data):
         from bkflow.task.models import TaskInstance
