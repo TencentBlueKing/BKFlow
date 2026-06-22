@@ -2020,7 +2020,6 @@
       },
       // type表示第一个节点的类型
       async onNodeClick(id, type, conditionData) {
-        // console.log("外部节点点击", { id, type, conditionData });
         this.defaultActiveId = id;
         await this.setNodeDetailConfig(id, null, null, this.translateNodeType[type] ?? type, conditionData);
         // 如果存在node_id 当前可能是点击网关条件 node_id此时指向网关节点

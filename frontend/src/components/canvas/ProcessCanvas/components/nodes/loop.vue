@@ -146,7 +146,6 @@
     mounted() {
       const node = this.getNode();
       this.nodeData = node.getData();
-      console.log('node.getData:', node.getData(), node);
       node.on('change:data', ({ current }) => {
         this.nodeData = current;
       });
