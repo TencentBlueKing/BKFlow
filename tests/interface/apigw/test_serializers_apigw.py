@@ -14,7 +14,7 @@ from bkflow.apigw.serializers.task import (
 class TestPipelineTreeSerializer:
     """测试 PipelineTreeSerializer 中的 validate_pipeline_tree 方法"""
 
-    @mock.patch("bkflow.apigw.serializers.task.validate_web_pipeline_tree")
+    @mock.patch("bkflow.apigw.serializers.task.ValidatorHandler.validate")
     @mock.patch("bkflow.apigw.serializers.task.standardize_pipeline_node_name")
     def test_validate_pipeline_tree_success(self, mock_standardize, mock_validate):
         """测试正常情况下的流程树校验"""
@@ -28,7 +28,7 @@ class TestPipelineTreeSerializer:
         mock_standardize.assert_called_once()
         mock_validate.assert_called_once()
 
-    @mock.patch("bkflow.apigw.serializers.task.validate_web_pipeline_tree")
+    @mock.patch("bkflow.apigw.serializers.task.ValidatorHandler.validate")
     @mock.patch("bkflow.apigw.serializers.task.standardize_pipeline_node_name")
     def test_validate_pipeline_tree_exception(self, mock_standardize, mock_validate):
         """测试流程树校验抛出 PipelineException 的情况"""
