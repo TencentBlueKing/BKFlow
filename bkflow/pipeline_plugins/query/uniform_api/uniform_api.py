@@ -126,7 +126,10 @@ def _get_space_uniform_api_list_info(
     # 根据凭证注入请求头
     credential_content = _get_api_credential(space_id=space_id, template_id=template_id, task_id=task_id)
     headers = client.gen_default_apigw_header(
-        app_code=credential_content["bk_app_code"], app_secret=credential_content["bk_app_secret"], username=username
+        app_code=credential_content["bk_app_code"],
+        app_secret=credential_content["bk_app_secret"],
+        username=username,
+        headers=uniform_api_config.api.get(api_name, {}).get("headers", {}),
     )
     request_result: HttpRequestResult = client.request(
         url=url, method="GET", data=request_data, headers=headers, username=username
