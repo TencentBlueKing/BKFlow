@@ -81,7 +81,9 @@
           @templateDataChanged="templateDataChanged"
           @onConditionClick="onOpenConditionEdit"
           @onShowNodeConfig="onShowNodeConfig"
-          @updateCondition="setBranchCondition($event)" />
+          @updateCondition="setBranchCondition($event)"
+          @onShowLoopVariables="onShowLoopVariables"
+          @onLoopGroupResizeEnd="onLoopGroupResizeEnd" />
       </template>
       <div class="side-content">
         <node-config
@@ -104,13 +106,23 @@
           @close="closeConfigPanel"
           @viewAllSubflowVerison="viewAllSubflowVerison"
           @closeSubflowVersionPanel="closeSubflowVersionPanel" />
+        <loop-global-variables
+          v-if="isLoopVariablePanelShow"
+          :loop-node-id="loopNodeIdForVariables"
+          @close="isLoopVariablePanelShow = false"
+          @updateVariable="onUpdateLoopVariable"
+          @addVariable="onAddLoopVariable"
+          @deleteVariable="onDeleteLoopVariable"
+          @onChangeVariableOutput="onChangeLoopVariableOutput"
+          @onLoopVariableCitedNodeClick="onLoopVariableCitedNodeClick" />
         <condition-edit
           v-if="isShowConditionEdit"
           ref="conditionEdit"
           :is-show="isShowConditionEdit"
           :is-readonly="isViewMode || isNeedToProhibitEdit"
-          :gateways="gateways"
+          :gateways="conditionEditGateways"
           :condition-data="conditionData"
+          :loop-node-id="conditionEditLoopNodeId"
           :back-to-variable-panel="backToVariablePanel"
           :space-related-config="spaceRelatedConfig"
           @onBeforeClose="onBeforeClose"
@@ -235,6 +247,7 @@
   import VersionList from './VersionList.vue';
   import bus from '@/utils/bus.js';
   import SubflowUpdateTips from './SubflowUpdateTips.vue';
+  import LoopGlobalVariables from './NodeConfig/LoopGlobalVariables.vue';
   import { cloneDeepWith } from 'lodash';
 
   export default {
@@ -251,6 +264,7 @@
       ProcessCanvas,
       StageCanvas,
       VersionList,
+      LoopGlobalVariables,
     },
     mixins: [permission],
     props: {
@@ -371,6 +385,11 @@
         isAtPublish: false,
         draftInfo: {},
         isManualVersionChange: true,
+        // 循环流全局变量面板
+        isLoopVariablePanelShow: false,
+        loopNodeIdForVariables: '', // 当前打开全局变量面板的循环流节点ID
+        conditionEditGateways: {}, // 条件编辑面板使用的gateways（支持循环流内部）
+        conditionEditLoopNodeId: '',  // 条件编辑面板所属循环流节点ID（若在循环流内部）
       };
     },
     computed: {
@@ -554,6 +573,7 @@
         'setProjectBaseInfo',
         'setTemplateName',
         'setTemplateData',
+        'setInnerLocation',
         'setLocation',
         'setLocationXY',
         'setLine',
@@ -567,6 +587,11 @@
         'setPipelineTree',
         'setInternalVariable',
         'setConstants',
+        'editLoopInnerVariable',
+        'addLoopInnerVariable',
+        'deleteLoopInnerVariable',
+        'setLoopInnerVariableOutput',
+        'setLoopInnerConstants',
       ]),
       ...mapMutations('atomForm/', [
         'clearAtomForm',
@@ -662,7 +687,7 @@
           // 内置插件
           const atomList = [];
           data.forEach((item) => {
-            if (item.code === 'subprocess_plugin') {
+            if (['subcanvas_plugin', 'subprocess_plugin'].includes(item.code)) {
               return;
             }
             const atom = atomList.find(atom => atom.code === item.code);
@@ -1173,6 +1198,11 @@
             } else {
               isNodeValid = false; // 节点标准插件类型为空
             }
+          } else if (node.type === 'SubCanvas') {
+            // 循环容器节点：不需要 template_id，仅校验名称
+            if (!node.name) {
+              isNodeValid = false;
+            }
           } else { // @todo 子流程节点只校验名称和模板id，输入参数未校验
             if (!node.name || node.template_id === undefined) {
               isNodeValid = false;
@@ -1332,11 +1362,49 @@
         });
       },
       /**
+       * 查找节点location
+       */
+      getLocationById(id) {
+        let loc = this.locations.find(item => item.id === id);
+        if (loc) return loc;
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.location) continue;
+          loc = act.pipeline.location.find(item => item.id === id);
+          if (loc) return loc;
+        }
+        return undefined;
+      },
+      /**
+       * 判断节点是否在循环分组内
+       */
+      isNodeInLoopGroup(id) {
+        if (this.locations.some(item => item.id === id)) return false;
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.location) continue;
+          if (act.pipeline.location.some(item => item.id === id)) return true;
+        }
+        return false;
+      },
+      /**
+       * 查找activity数据
+       */
+      getActivityById(id) {
+        if (this.activities[id]) return this.activities[id];
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.activities) continue;
+          if (act.pipeline.activities[id]) return act.pipeline.activities[id];
+        }
+        return undefined;
+      },
+      /**
        * 打开节点配置面板
        */
       async onShowNodeConfig(id) {
         // 判断节点配置的插件是否存在
-        const nodeConfig = this.$store.state.template.activities[id];
+        const nodeConfig = this.getActivityById(id);
         const isDefaultPlugin = nodeConfig && nodeConfig.component ? !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code) : true ;
         if (nodeConfig && nodeConfig.type === 'ServiceActivity' && nodeConfig.name && isDefaultPlugin) {
           let atom = true;
@@ -1355,10 +1423,10 @@
           this.validateConnectFailList.splice(index, 1);
         }
         // 获取节点信息
-        const location = this.locations.find(item => item.id === id);
-        if (['tasknode', 'subflow'].includes(location.type)) {
+        const location = this.getLocationById(id);
+        if (location && ['tasknode', 'task', 'subflow', 'SubCanvas'].includes(location.type)) {
           // 设置第三方插件缓存
-          const nodeConfig = this.$store.state.template.activities[id];
+          const nodeConfig = this.getActivityById(id);
           // 远程插件且未缓存
           if (nodeConfig.component
             && nodeConfig.component.code === 'remote_plugin'
@@ -1473,7 +1541,7 @@
        * @param {String} changeType 变更类型,添加、删除、编辑
        * @param {Object} location 节点 location 字段
        */
-      async onLocationChange(type, node) {
+      async onLocationChange(type, node, isGroupInner = false, groupParentId = undefined) {
         if (!node) return;
         const { id, data } = node;
         const typeMap = {
@@ -1481,23 +1549,38 @@
           subflow: 'subflow',
           start: 'start',
           end: 'end',
+          SubCanvas: 'SubCanvas',
         };
-        const location = {
-          id,
-          ...data,
-          type: typeMap[data.type] ?? data.type.split('-').join(''),
-          ...node.position(),
-        };
+        const normalizedType = data.type === 'tasknode' ? 'task' : data.type;
+      const location = {
+        id,
+        ...data,
+        type: typeMap[normalizedType] ?? normalizedType.split('-').join(''),
+        ...node.position(),
+        ...node.size(),
+      };
         if (data?.oldSouceId) {
           location.oldSouceId = data.oldSouceId;
         }
+        if (node.getParent()) {
+          location.parent = node.getParent().id;
+        } else if (groupParentId) {
+          // 删除节点时画布已先移除，getParent() 返回 null，使用传入的 groupParentId
+          location.parent = groupParentId;
+        }
         let { apiMeta } = data;
-        this.setLocation({ type, location });
+        // 判断节点是否在循环容器内部
+        const isInLoopGroup = isGroupInner || (location.parent && this.activities[location.parent]?.type === 'SubCanvas');
+        if (!isInLoopGroup) {
+          this.setLocation({ type, location });
+        }
         // 节点编辑时只更新position不更新activities
         if (type === 'edit') return;
-        switch (data.type) {
+        switch (normalizedType) {
           case 'task':
           case 'subflow':
+            // 循环容器内的节点由syncLoopGroupInnerNodes写入嵌套pipelineTree
+            if (isInLoopGroup) return;
             // 添加任务节点
             if (type === 'add' && location.atomId) {
               if (location.type === 'tasknode') {
@@ -1567,15 +1650,95 @@
           case 'parallel-gateway':
           case 'converge-gateway':
           case 'conditional-parallel-gateway':
+            if (isInLoopGroup) return;
             // 添加语法标识
             location.parseLang = this.spaceRelatedConfig.gateway_expression;
             this.setGateways({ type, location });
             break;
           case 'start':
-            this.setStartpoint({ type, location });
+            if (!isGroupInner) {
+              this.setStartpoint({ type, location });
+            } else {
+              // 循环容器内的开始节点：同步更新对应的 SubCanvas 的 pipeline.start_event
+              const parentId = location.parent;
+              if (parentId && this.activities[parentId] && this.activities[parentId].type === 'SubCanvas') {
+                const loopAct = this.activities[parentId];
+                if (!loopAct.pipeline) {
+                  // 初始化 pipeline
+                  this.setActivities({
+                    type: 'edit',
+                    location: {
+                      ...loopAct,
+                      pipeline: {
+                        activities: {},
+                        constants: {},
+                        flows: {},
+                        gateways: {},
+                        line: [],
+                        location: [],
+                        start_event: {},
+                        end_event: {},
+                        outputs: [],
+                      },
+                    },
+                  });
+                }
+                if (type === 'add') {
+                  loopAct.pipeline.start_event = {
+                    id: location.id,
+                    type: 'EmptyStartEvent',
+                    incoming: '',
+                    outgoing: '',
+                    name: location.name || '',
+                  };
+                } else if (type === 'delete') {
+                  loopAct.pipeline.start_event = {};
+                }
+              }
+            }
             break;
           case 'end':
-            this.setEndpoint({ type, location });
+            if (!isGroupInner) {
+              this.setEndpoint({ type, location });
+            } else {
+              const parentId = location.parent;
+              if (parentId && this.activities[parentId] && this.activities[parentId].type === 'SubCanvas') {
+                const loopAct = this.activities[parentId];
+                if (!loopAct.pipeline) {
+                  this.setActivities({
+                    type: 'edit',
+                    location: {
+                      ...loopAct,
+                      pipeline: {
+                        activities: {},
+                        constants: {},
+                        flows: {},
+                        gateways: {},
+                        line: [],
+                        location: [],
+                        start_event: {},
+                        end_event: {},
+                        outputs: [],
+                      },
+                    },
+                  });
+                }
+                if (type === 'add') {
+                  loopAct.pipeline.end_event = {
+                    id: location.id,
+                    type: 'EmptyEndEvent',
+                    incoming: '',
+                    outgoing: '',
+                    name: location.name || '',
+                  };
+                } else if (type === 'delete') {
+                  loopAct.pipeline.end_event = {};
+                }
+              }
+            }
+            break;
+          case 'SubCanvas':
+            this.setActivities({ type, location });
             break;
         }
         // 异常节点状态处理
@@ -1721,9 +1884,14 @@
        * 节点位置移动
        */
       onLocationMoveDone(node) {
+        const parent = node.getParent();
+        const position = parent && parent.isNode()
+          ? node.getPosition({ relative: false })
+          : node.position();
+
         this.setLocationXY({
           id: node.id,
-          ...node.position(),
+          ...position,
         });
       },
       /**
@@ -1736,19 +1904,55 @@
        * 更新单个节点的信息
        */
       onUpdateNodeInfo(id, data) {
-        const location = this.locations.find(item => item.id === id);
-        const updatedLocation = Object.assign(location, data);
-        this.setLocation({ type: 'edit', location: updatedLocation });
-        const { name, stage_name, group, icon, code, type, mode } = location;
+        const location = this.getLocationById(id);
+        if (!location) return;
+        const isInner = this.isNodeInLoopGroup(id);
+        if (isInner) {
+          // 节点在循环分组内，更新 pipeline.location
+          this.setInnerLocation({ nodeId: id, data });
+        } else {
+          const updatedLocation = Object.assign(location, data);
+          this.setLocation({ type: 'edit', location: updatedLocation });
+        }
+        let name = location.name;
+        let stageName = location.stage_name;
+        let displayType = location.type === 'tasknode' ? 'task' : location.type;
+        let displayIcon = location.icon;
+        let displayCode = location.code;
+        let displayGroup = location.group;
+
+        if (isInner) {
+          const act = this.getActivityById(id);
+          if (act) {
+            name = act.name || name;
+            stageName = act.stage_name || stageName;
+            displayType = act.type === 'SubProcess' ? 'subflow' : 'task';
+            if (act.component) {
+              if (act.component.code === 'remote_plugin') {
+                displayGroup = location.group_name || act.group_name;
+                displayCode = act.name || act.component.code;
+                displayIcon = location.group_icon || act.group_icon;
+              } else {
+                const atom = this.atomList.find(item => act.component.code === item.code);
+                if (atom) {
+                  displayIcon = atom.group_icon;
+                  displayGroup = atom.group_name;
+                  displayCode = atom.code;
+                }
+              }
+            }
+          }
+        }
+
         this.$refs.processCanvas.onUpdateNodeInfo(id, {
           ...data,
           name,
-          stage_name,
-          group,
-          icon,
-          code,
-          type,
-          mode: mode || this.type,
+          stage_name: stageName,
+          group: displayGroup,
+          icon: displayIcon,
+          code: displayCode,
+          type: displayType,
+          mode: displayType === 'subflow' ? 'subflow' : (location.type || this.type),
         });
       },
       async jumpToTemplateMock() {
@@ -1995,6 +2199,24 @@
       onOpenConditionEdit(data) {
         this.isShowConditionEdit = true;
         this.conditionData = { ...data };
+        const nodeId = data.nodeId;
+        let gateways = {};
+        let loopNodeId = '';
+        if (this.gateways[nodeId]) {
+          gateways = this.gateways;
+        } else {
+          const activitiesList = Object.values(this.activities);
+          for (const act of activitiesList) {
+            if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.gateways) continue;
+            if (act.pipeline.gateways[nodeId]) {
+              gateways = act.pipeline.gateways;
+              loopNodeId = act.id;
+              break;
+            }
+          }
+        }
+        this.conditionEditGateways = gateways;
+        this.conditionEditLoopNodeId = loopNodeId;
       },
       // 分支条件侧滑点击遮罩事件
       onBeforeClose() {
@@ -2014,7 +2236,7 @@
       },
       // 更新分支数据
       updateCanvasCondition(data) {
-        // 更新 cavans 页面数据
+        // 更新 canvas 页面数据
         this.$refs.processCanvas.updateConditionCanvasData(data);
       },
       // 流程模板数据编辑更新
@@ -2066,6 +2288,78 @@
           this.activeSettingTab = '';
           this.onOpenConditionEdit(conditionData);
         }
+      },
+      // 显示循环流全局变量面板
+      onShowLoopVariables(loopNodeId) {
+        const loopNode = this.$store.state.template.activities[loopNodeId];
+        if (!loopNode || loopNode.type !== 'SubCanvas') {
+          return;
+        }
+        this.isLoopVariablePanelShow = true;
+        this.loopNodeIdForVariables = loopNodeId;
+        // 关闭其他面板
+        this.isNodeConfigPanelShow = false;
+        this.isShowConditionEdit = false;
+      },
+      // 循环流容器节点 resize 结束：持久化尺寸到 location 数据
+      onLoopGroupResizeEnd(node) {
+        const { id } = node;
+        const { x, y } = node.position();
+        const { width, height } = node.size();
+        this.setLocationXY({ id, x, y, width, height });
+        this.$emit('templateDataChanged');
+      },
+      // 循环流变量面板引用节点点击回调
+      onLoopVariableCitedNodeClick(data) {
+        const { group, id } = data;
+        // 关闭循环流变量面板
+        this.isLoopVariablePanelShow = false;
+        if (group === 'activities') {
+          // 打开节点配置面板
+          this.showConfigPanel(id);
+        } else if (group === 'conditions') {
+          const loopNode = this.$store.state.template.activities[this.loopNodeIdForVariables];
+          const { gateways, line } = loopNode.pipeline;
+          const curLLine = line.find(l => l.id === id);
+          const nodeId = curLLine.source.id;
+          const lineCondition = gateways[nodeId]?.conditions?.[id];
+          const { evaluate, name } = lineCondition;
+          const conditionData = {
+            id,
+            name,
+            nodeId,
+            overlayId: `condition${id}`,
+            value: evaluate,
+          };
+          this.onOpenConditionEdit(conditionData);
+        }
+      },
+      // 更新循环流内部变量
+      onUpdateLoopVariable(payload) {
+        this.editLoopInnerVariable(payload);
+        this.templateDataChanged();
+      },
+      // 添加循环流内部变量
+      onAddLoopVariable(payload) {
+        const { loopNodeId, variable } = payload;
+        // 生成变量 key
+        const loopNode = this.$store.state.template.activities[loopNodeId];
+        const constants = loopNode && loopNode.pipeline ? loopNode.pipeline.constants : {};
+        const varLen = Object.keys(constants).length;
+        variable.key = `\${${variable.name}_${varLen}}`;
+        variable.index = varLen;
+        this.addLoopInnerVariable({ loopNodeId, variable });
+        this.templateDataChanged();
+      },
+      // 删除循环流内部变量
+      onDeleteLoopVariable(payload) {
+        this.deleteLoopInnerVariable(payload);
+        this.templateDataChanged();
+      },
+      // 改变循环流内部变量输出状态
+      onChangeLoopVariableOutput({ key, checked, loopNodeId }) {
+        this.setLoopInnerVariableOutput({ loopNodeId, key, checked });
+        this.templateDataChanged();
       },
       /**
        * 移动画布，将节点放到画布左上角
