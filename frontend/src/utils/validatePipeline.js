@@ -19,7 +19,7 @@ const NODE_RULE = {
     max_in: 0,
     min_out: 1,
     max_out: 1,
-    allowed_out: ['tasknode', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'subflow'],
+    allowed_out: ['tasknode', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'subflow', 'SubCanvas'],
     unique: true,
   },
   endpoint: {
@@ -35,7 +35,7 @@ const NODE_RULE = {
     max_in: 0,
     min_out: 1,
     max_out: 1,
-    allowed_out: ['tasknode', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'subflow'],
+    allowed_out: ['tasknode', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'subflow', 'SubCanvas'],
     unique: true,
   },
   end: {
@@ -51,7 +51,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end', 'SubCanvas'],
     unique: false,
   },
   subflow: {
@@ -59,7 +59,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end', 'SubCanvas'],
     unique: false,
   },
   branchgateway: {
@@ -67,7 +67,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1000,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end', 'SubCanvas'],
     unique: false,
   },
   conditionalparallelgateway: {
@@ -75,7 +75,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1000,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end', 'SubCanvas'],
     unique: false,
   },
   parallelgateway: {
@@ -83,7 +83,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1000,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'SubCanvas'],
     unique: false,
   },
   convergegateway: {
@@ -91,7 +91,15 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end', 'SubCanvas'],
+    unique: false,
+  },
+  SubCanvas: {
+    min_in: 1,
+    max_in: 1000,
+    min_out: 1,
+    max_out: 1,
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end', 'start', 'SubCanvas'],
     unique: false,
   },
 };
