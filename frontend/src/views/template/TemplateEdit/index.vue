@@ -1552,13 +1552,13 @@
           SubCanvas: 'SubCanvas',
         };
         const normalizedType = data.type === 'tasknode' ? 'task' : data.type;
-      const location = {
-        id,
-        ...data,
-        type: typeMap[normalizedType] ?? normalizedType.split('-').join(''),
-        ...node.position(),
-        ...node.size(),
-      };
+        const location = {
+          id,
+          ...data,
+          type: typeMap[normalizedType] ?? normalizedType.split('-').join(''),
+          ...node.position(),
+          ...node.size(),
+        };
         if (data?.oldSouceId) {
           location.oldSouceId = data.oldSouceId;
         }

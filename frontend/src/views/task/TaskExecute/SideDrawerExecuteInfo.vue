@@ -1498,6 +1498,7 @@
         this.canvasData = graphToJson({
           locations,
           lines: line,
+          activities: canvasData.activities || {},
         });
         this.canvasDataChangeKey = new Date().getTime();
       },
