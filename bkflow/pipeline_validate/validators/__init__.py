@@ -17,11 +17,12 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from bkflow.pipeline_validate.validators.general import PipelineTreeValidator  # noqa
-from bkflow.pipeline_validate.validators.task import (  # noqa
-    ContextHydrateValidator,
+from bkflow.pipeline_validate.validators.general import (  # noqa
+    ConstantsValidator,
     MakoKeywordValidator,
+    PipelineTreeValidator,
 )
+from bkflow.pipeline_validate.validators.task import ContextHydrateValidator  # noqa
 from bkflow.pipeline_validate.validators.template import (  # noqa
     ConstantsKeyPatternValidator,
     ConstantsSourceInfoValidator,

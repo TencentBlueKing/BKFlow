@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from mako.codegen import RESERVED_NAMES
 from pipeline.exceptions import PipelineException
 from pipeline.validators import validate_pipeline_tree
 
@@ -24,6 +25,7 @@ from bkflow.pipeline_validate.validators.base import (
     BasePipelineValidator,
     ValidatorResult,
 )
+from bkflow.pipeline_web.parser.schemas import KEY_PATTERN_RE
 from bkflow.utils.pipeline import validate_pipeline_tree_constants
 
 
@@ -55,3 +57,29 @@ class ConstantsValidator(BasePipelineValidator):
         except PipelineException as e:
             error_message = f"变量引用错误: {str(e)}"
             return ValidatorResult(is_valid=False, error=error_message)
+
+
+class MakoKeywordValidator(BasePipelineValidator):
+    name = "mako_keyword_validator"
+    validate_type = ValidateType.TASK.value
+
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
+        validation_errors = []
+
+        # 遍历所有常量变量
+        for key, const in web_pipeline_tree["constants"].items():
+            # key 格式为 ${variable_name}，需提取内部变量名再与 Mako 保留关键字比对
+            match = KEY_PATTERN_RE.match(key)
+            if not match:
+                continue
+            # 提取 ${ 和 } 之间的变量名
+            var_name = key[2:-1]
+            if var_name in RESERVED_NAMES:
+                validation_errors.append(key)
+
+        if validation_errors:
+            error_message = "变量命名校验失败: 变量 {} 使用了Mako模板引擎的保留关键字".format("; ".join(validation_errors))
+            return ValidatorResult(is_valid=False, error=error_message)
+
+        return ValidatorResult(is_valid=True)

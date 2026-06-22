@@ -18,7 +18,6 @@ to the current version of the project delivered to anyone in the future.
 """
 import copy
 import logging
-import re
 from collections import defaultdict
 from typing import Optional
 
@@ -500,7 +499,7 @@ def validate_pipeline_tree_constants(constants):
         # 检查当前参数值中引用的所有参数
         referenced_keys = set()
         for other_key in constant_values:
-            if re.search(re.escape(other_key), value):
+            if other_key in value:
                 referenced_keys.add(other_key)
 
         # 分离出自引用和其他引用
