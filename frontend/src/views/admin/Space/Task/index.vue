@@ -283,11 +283,11 @@ const SEARCH_LIST = [
     },
 ];
 const TRIGGER_METHOD = {
-    api: 'api触发',
-    manual: '手动触发',
-    timing: '定时触发',
-    subprocess: '子流程触发',
-    sub_canvas: '子画布触发',
+    api: i18n.t('api触发'),
+    manual: i18n.t('手动触发'),
+    timing: i18n.t('定时触发'),
+    subprocess: i18n.t('子流程触发'),
+    sub_canvas: i18n.t('子画布触发'),
 };
 export default {
     name: 'TaskList',

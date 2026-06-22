@@ -100,7 +100,6 @@
               const act = this.activities[item];
               name = act ? act.name : item;
             } else if (key === 'conditions') {
-              console.log('this.lines', this.lines);
               const line = this.lines.find(l => l.id === item);
               if (line) {
                 const nodeId = line.source.id;

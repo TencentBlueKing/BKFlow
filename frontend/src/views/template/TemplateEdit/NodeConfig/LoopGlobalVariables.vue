@@ -246,7 +246,7 @@
             }
           });
         } catch (e) {
-          console.log(e);
+          console.warn(e);
         }
       },
       setVariableList() {
