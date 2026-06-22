@@ -245,7 +245,10 @@ def _request_remote_uniform_api_data(
         credential_kwargs["request_scope"] = request_scope
     credential_content = _get_api_credential(**credential_kwargs)
     headers = client.gen_default_apigw_header(
-        app_code=credential_content["bk_app_code"], app_secret=credential_content["bk_app_secret"], username=username
+        app_code=credential_content["bk_app_code"],
+        app_secret=credential_content["bk_app_secret"],
+        username=username,
+        headers=uniform_api_config.api.get(api_name, {}).get("headers", {}),
     )
     request_result: HttpRequestResult = client.request(
         url=url, method="GET", data=request_data, headers=headers, username=username
