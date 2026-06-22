@@ -429,7 +429,7 @@ class TestApigwTemplateSerializers(TestCase):
         with self.assertRaises(ValidationError):
             serializer.is_valid(raise_exception=True)
 
-    @patch("bkflow.apigw.serializers.template.validate_pipeline_tree")
+    @patch("bkflow.apigw.serializers.template.ValidatorHandler.validate")
     def test_create_template_serializer_pipeline_validate_error_raises(self, mock_validate):
         from rest_framework.exceptions import ValidationError
 
@@ -510,7 +510,7 @@ class TestApigwTemplateSerializers(TestCase):
         with self.assertRaises(ValidationError):
             serializer.is_valid(raise_exception=True)
 
-    @patch("bkflow.apigw.serializers.template.validate_pipeline_tree")
+    @patch("bkflow.apigw.serializers.template.ValidatorHandler.validate")
     def test_update_template_serializer_pipeline_validate_error_raises(self, mock_validate):
         from rest_framework.exceptions import ValidationError
 
