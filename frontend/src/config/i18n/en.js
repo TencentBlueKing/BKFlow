@@ -973,6 +973,7 @@ const en = {
   定时触发: 'Timer Trigger',
   手动触发: 'Manual Trigger',
   子流程触发: 'Subprocess Trigger',
+  子画布触发: 'SubCanvas Trigger',
   只允许创建一个定时触发器: 'Only one timer trigger can be created',
   一: 'Monday',
   二: 'Tuesday',
@@ -1200,6 +1201,14 @@ const en = {
   密码: 'Password',
   循环失败处理: 'Loop Failure Handling',
   执行方式: 'Execution Method',
+  执行成功: 'Execution Success',
+  正在执行: 'Executing',
+  执行失败: 'Execution Failed',
+  循环节点: 'Loop Node',
+  '表示该变量会作为该循环节点的输出参数，在外层流程中可以引用。': 'Indicates that this variable will serve as an output parameter of the loop node and can be referenced in the outer process.',
+  '循环：': 'Loop:',
+  循环内的节点可以使用循环变量: 'Nodes within the loop can use the loop variable.',
+  '循环节点的开始/结束节点不可删除': 'The start and end nodes of a cycle node cannot be deleted.',
 };
 
 export default en;

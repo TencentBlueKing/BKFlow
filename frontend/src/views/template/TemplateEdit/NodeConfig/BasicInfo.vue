@@ -10,9 +10,105 @@
 */
 <template>
   <div class="basic-info">
+    <!-- 循环流节点 -->
+    <bk-form
+      v-if="isLoopGroupNode"
+      ref="loopGroupForm"
+      :label-width="130"
+      :model="formData"
+      :rules="loopGroupRules">
+      <bk-form-item
+        :label="$t('节点名称')"
+        :required="true"
+        property="nodeName">
+        <bk-input
+          v-model="formData.nodeName"
+          :readonly="isViewMode"
+          @change="updateData" />
+      </bk-form-item>
+      <bk-form-item
+        :label="$t('步骤名称')"
+        property="stageName">
+        <bk-input
+          v-model="formData.stageName"
+          :readonly="isViewMode"
+          @change="updateData" />
+      </bk-form-item>
+      <bk-form-item
+        :label="$t('执行控制')"
+        :required="true"
+        property="executeControl">
+        <bk-form
+          ref="loopForm"
+          :model="formData.loopConfig">
+          <bk-form-item
+            :label="$t('循环类型')"
+            ext-cls="loop-type"
+            :required="true"
+            :label-width="74"
+            property="loopType">
+            <div class="execute-control-config">
+              <bk-radio-group
+                v-model="formData.loopConfig.type"
+                ext-cls="loop-radio-group"
+                @change="onLoopTypeChange">
+                <bk-radio
+                  value="array_loop"
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
+                  {{ $t('按数组变量循环') }}
+                </bk-radio>
+                <bk-radio
+                  value="time_loop"
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
+                  {{ $t('固定循环次数') }}
+                </bk-radio>
+              </bk-radio-group>
+            </div>
+          </bk-form-item>
+          <LoopExecutionConfig
+            ref="loopExecutionConfigRef"
+            :loop-config="formData.loopConfig"
+            :is-view-mode="isViewMode"
+            :subflow-forms="subflowForms"
+            @change="onLoopConfigChange" />
+          <bk-form-item
+            :label="$t('循环失败控制')"
+            :label-width="96">
+            <div class="loop-error-handle">
+              <bk-checkbox
+                v-model="formData.loopConfig.fail_skip"
+                :disabled="isViewMode || formData.loopConfig.skippable"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'fail_skip')">
+                <span class="error-handle-icon"><span class="text">AS</span></span>
+                {{ $t('自动跳过') }}
+              </bk-checkbox>
+              <bk-checkbox
+                v-model="formData.loopConfig.skippable"
+                :disabled="isViewMode || formData.loopConfig.fail_skip"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'skippable')">
+                <span class="error-handle-icon"><span class="text">MS</span></span>
+                {{ $t('手动跳过') }}
+              </bk-checkbox>
+              <bk-checkbox
+                v-model="formData.loopConfig.retryable"
+                :disabled="isViewMode || formData.loopConfig.fail_skip"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'retryable')">
+                <span class="error-handle-icon"><span class="text">MR</span></span>
+                {{ $t('手动重试') }}
+              </bk-checkbox>
+            </div>
+          </bk-form-item>
+        </bk-form>
+      </bk-form-item>
+    </bk-form>
     <!-- 普通插件 -->
     <bk-form
-      v-if="!isSubflow"
+      v-else-if="!isSubflow"
       ref="pluginForm"
       :label-width="130"
       :model="formData"
@@ -545,7 +641,7 @@
           </bk-button>
           <bk-button
             :class="executeControlActive === 'loop' ? 'is-selected' : ''"
-            :disabled="isViewMode"
+            :disabled="isViewMode || isInLoopGroup"
             @click="onExecuteControlChange('loop')">
             {{ $t('循环执行') }}
           </bk-button>
@@ -700,6 +796,8 @@
         default: false,
       },
       isSubflow: Boolean,
+      isLoopGroupNode: Boolean,
+      isInLoopGroup: Boolean,
       inputLoading: Boolean,
       subflowUpdated: Boolean,
       common: {
@@ -802,6 +900,32 @@
             },
           ],
         },
+        loopGroupRules: {
+          nodeName: [
+            {
+              required: true,
+              message: i18n.t('节点名称不能为空'),
+              trigger: 'blur',
+            },
+            {
+              regex: NAME_REG,
+              message: i18n.t('节点名称不能包含') + INVALID_NAME_CHAR + i18n.t('非法字符'),
+              trigger: 'blur',
+            },
+            {
+              max: STRING_LENGTH.TEMPLATE_NODE_NAME_MAX_LENGTH,
+              message: i18n.t('节点名称长度不能超过') + STRING_LENGTH.TEMPLATE_NODE_NAME_MAX_LENGTH + i18n.t('个字符'),
+              trigger: 'blur',
+            },
+          ],
+          stageName: [
+            {
+              max: STRING_LENGTH.STAGE_NAME_MAX_LENGTH,
+              message: i18n.t('步骤名称长度不能超过') + STRING_LENGTH.STAGE_NAME_MAX_LENGTH + i18n.t('个字符'),
+              trigger: 'blur',
+            },
+          ],
+        },
         errorHandleTipsConfig: {
           allowHtml: true,
           theme: 'light',
@@ -855,7 +979,7 @@
         handler(val) {
           this.formData = tools.deepClone(val);
           if (this.formData.loopConfig && Object.keys(this.formData.loopConfig).length > 0) {
-            if (this.formData.loopConfig.enable) {
+            if (this.formData.loopConfig.enable || this.isLoopGroupNode) {
               this.executeControlActive = 'loop';
             } else {
               this.executeControlActive = 'single';
@@ -863,7 +987,7 @@
           } else {
             // 初始化执行控制数据结构
             this.formData.loopConfig = {
-              enable: false,
+              enable: this.isLoopGroupNode,
               type: 'array_loop', // 数组循环array_loop 次数循环time_loop
               loop_times: 3, // 默认为3
               loop_params: [{ name: '', value: '' }],
@@ -871,7 +995,7 @@
               retryable: false,
               skippable: false,
             };
-            this.executeControlActive = 'single';
+            this.executeControlActive = this.isLoopGroupNode ? 'loop' : 'single';
           }
           // 兼容处理：undefined/null/空对象{}/空数组[]
           const loopParams = this.formData.loopConfig.loop_params;
@@ -891,7 +1015,7 @@
           if (this.schemeList.length && !this.formData.schemeIdList.length) {
             this.formData.schemeIdList = [0];
           }
-          if (this.isSubflow) {
+          if (this.isSubflow && !this.isLoopGroupNode) {
             this.version = this.basicInfo.latestVersion;
           }
         },
@@ -907,7 +1031,7 @@
       // },
     },
     mounted() {
-      if (this.isSubflow) {
+      if (this.isSubflow && !this.isLoopGroupNode) {
         this.getSubVersionList();
       }
     },
@@ -1098,7 +1222,17 @@
           loopConfig,
         } = this.formData;
         let data;
-        if (this.isSubflow) {
+        if (this.isLoopGroupNode) {
+          data = {
+            nodeName,
+            stageName,
+            nodeLabel,
+            selectable,
+            autoRetry,
+            timeoutConfig,
+            loopConfig,
+          };
+        } else if (this.isSubflow) {
           data = {
             nodeName,
             stageName,
@@ -1143,6 +1277,13 @@
         this.$emit('updateSubflowVersion');
       },
       validate() {
+        if (this.isLoopGroupNode) {
+          this.$refs.loopGroupForm.clearError();
+          if (this.$refs.loopExecutionConfigRef) {
+            return this.$refs.loopGroupForm.validate() && this.$refs.loopExecutionConfigRef.validate();
+          }
+          return this.$refs.loopGroupForm.validate();
+        }
         if (this.isSubflow) {
           this.$refs.subflowForm.clearError();
           if (this.$refs.loopExecutionConfigRef) {
@@ -1455,6 +1596,9 @@
         }
     }
     .loop-type{
+      &::before {
+        clear: unset;
+      }
       .bk-form-content{
         min-height: 26px;
         line-height: 26px;

@@ -92,6 +92,7 @@
       ...mapActions('task/', [
         'getTaskInstanceData',
         'loadSubflowConfig',
+        'getNodeActDetail',
       ]),
       async getTaskData() {
         try {
@@ -130,6 +131,31 @@
               };
               const res = await this.loadSubflowConfig(params);
               currentItem.pipeline = res.data.pipeline_tree;
+            }
+            if (currentItem.component.code === 'subcanvas_plugin') {
+              try {
+                const detailRes = await this.getNodeActDetail({
+                  instance_id: this.instanceId,
+                  node_id: currentItem.id,
+                  component_code: 'subcanvas_plugin',
+                });
+                if (detailRes.result && detailRes.data) {
+                  const taskInfo = (detailRes.data.outputs || []).find(item => item.key === 'task_id') || {};
+                  const taskId = taskInfo.value;
+                  if (taskId) {
+                    currentItem.subcanvasTaskId = taskId; // 便于后续loadTaskStatus复用
+                    // 节点已执行，用执行后的pipeline_tree替换模板数据
+                    const instanceResp = await this.getTaskInstanceData(taskId);
+                    // eslint-disable-next-line camelcase
+                    if (instanceResp?.pipeline_tree) {
+                      // eslint-disable-next-line camelcase
+                      currentItem.pipeline = instanceResp.pipeline_tree;
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn(e);
+              }
             }
           }
           this.instanceFlow = pipelineTree;

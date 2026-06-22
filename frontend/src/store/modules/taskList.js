@@ -14,10 +14,12 @@ import axios from 'axios';
 const taskList = {
   namespaced: true,
   state: {
-
+    taskListData: [],
   },
   mutations: {
-
+    setTaskListData(state, data) {
+      state.taskListData = data;
+    },
   },
   actions: {
     loadTaskList({}, data) {
@@ -27,7 +29,10 @@ const taskList = {
         delete data.cancelToken;
       }
       return axios.get(`/task_admin/get_task_list/${data.space_id}/`, {
-        params: data,
+        params: {
+          ...data,
+          is_child_taskflow: false,
+        },
         ...config,
       }).then(response => response.data);
     },
@@ -36,6 +41,14 @@ const taskList = {
     },
     updateTaskLabel({}, data) {
       return axios.post(`/task_admin/update_labels/${data.space_id}/${data.task_id}/`, { label_ids: data.label_ids }).then(response => response.data);
+    },
+    // 判断任务是否有子任务（循环节点任务）
+    getTaskHasSubTasks({}, data) {
+      return axios.get('/task/root_task_info/', { params: data }).then(response => response.data);
+    },
+    // 获取某个任务的子任务（循环节点任务）列表
+    getTaskHasSubTaskList({}, data) {
+      return axios.get(`/task/list_children_taskflow/${data.task_id}/`).then(response => response.data);
     },
   },
 };

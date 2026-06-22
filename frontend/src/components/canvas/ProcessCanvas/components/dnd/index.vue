@@ -8,7 +8,7 @@
         :key="node.id"
         :class="[
           'node-item',
-          node.id === 'group' ? 'group-node' : `common-icon-node-${node.icon}`,
+          node.id === 'group' ? 'group-node' : (node.id === 'SubCanvas' ? 'loop-node-item' : `common-icon-node-${node.icon}`),
           { disabled: isShowStartOrEndPoint(node) },
         ]"
         :data-type="node.id" />
@@ -28,6 +28,7 @@
     { id: 'end', icon: 'endpoint-zh', name: i18n.t('结束节点') },
     { id: 'task', icon: 'tasknode', name: i18n.t('任务节点') },
     { id: 'subflow', icon: 'subflow', name: i18n.t('子流程') },
+    { id: 'SubCanvas', icon: 'loop', name: i18n.t('循环节点') },
     { id: 'branch-gateway', icon: 'branchgateway', name: i18n.t('分支网关') },
     { id: 'parallel-gateway', icon: 'parallelgateway', name: i18n.t('并行网关') },
     { id: 'conditional-parallel-gateway', icon: 'conditionalparallelgateway', name: i18n.t('条件并行网关') },
@@ -68,10 +69,24 @@
         getDragNode: node => node.clone({ keepId: true }),
         getDropNode: node => node.clone({ keepId: true }),
       });
-      // 将分组节点层级设置在普通节点之下
-      this.instance.on('node:added', ({ node }) => {
-        const zIndex = node.shape === 'custom-group-node' ? 1 : 2;
-        node.setZIndex(zIndex);
+      // 将分组节点/循环容器节点层级设置在普通节点之下
+      this.instance.on('node:added', ({ cell }) => {
+        const { shape } = cell;
+        if (shape === 'custom-group-node' || shape === 'custom-loop-group-node') {
+          // 初始化 originPosition 和 originSize
+          const position = cell.getPosition();
+          const size = cell.getSize();
+          cell.prop('originPosition', position);
+          cell.prop('originSize', size);
+          // 循环容器创建后，自动在容器内初始化默认子节点
+          // 复制操作时跳过初始化，由 copyLoopGroupLocationAndFlows 统一创建子节点和连线
+          if (shape === 'custom-loop-group-node') {
+            const data = cell.getData();
+            if (!data.isCopy) {
+              this.initLoopContainerContent(cell);
+            }
+          }
+        }
       });
       // 添加指引tip
       this.renderGuide();
@@ -80,6 +95,94 @@
       dndPanelDom.addEventListener('mousedown', this.handleMouseDown);
     },
     methods: {
+      initLoopContainerContent(groupNode) {
+        const groupId       = groupNode.id;
+        const groupStartId  = `node${uuid()}`;
+        const groupEndId    = `node${uuid()}`;
+        const messageNodeId = `node${uuid()}`;
+        const { x, y }          = groupNode.position();
+        const { width, height } = groupNode.size();
+        // 子节点 zIndex 基于父节点动态计算，确保子节点始终在父节点上层
+        const groupZIndex = groupNode.getZIndex() || 1;
+        const childBaseZIndex = groupZIndex + 1;
+        // 定义初始化节点配置
+        const nodeConfigs = [
+          {
+            id: groupStartId,
+            shape: 'custom-node',
+            x: x + 40,
+            y: y + (height / 2) - 17,
+            width: 34,
+            height: 34,
+            zIndex: childBaseZIndex,
+            data: { type: 'start', parent: groupId, isProtected: true },
+          },
+          {
+            id: messageNodeId,
+            shape: 'custom-node',
+            x: x + (width / 2) - 77,
+            y: y + (height / 2) - 27,
+            width: 154,
+            height: 54,
+            zIndex: childBaseZIndex,
+            data: { type: 'task', name: '消息展示', atomId: 'bk_display', version: 'v1.0', parent: groupId, atom_data: { bk_display_message: { hook: false, need_render: true, value: '' } } },
+          },
+          {
+            id: groupEndId,
+            shape: 'custom-node',
+            x: x + width - 74,
+            y: y + (height / 2) - 17,
+            width: 34,
+            height: 34,
+            zIndex: childBaseZIndex,
+            data: { type: 'end', parent: groupId, isProtected: true },
+          },
+        ];
+        // 遍历创建节点并建立父子关系
+        // 不在这里触发 onInnerNodeAdd，因为此时父节点还未入 store
+        // 子节点的数据同步由 ProcessCanvas 的 syncLoopGroupInnerNodes 统一处理
+        const createdNodes = nodeConfigs.map(config => this.instance.addNode(config));
+        createdNodes.forEach((node) => {
+          groupNode.addChild(node);
+          // this.$emit('onInnerNodeAdd', node.id); // 处理组内节点数据同步
+        });
+        // 添加组内连线
+        const edgeBaseZIndex = childBaseZIndex + 1;
+        const edgeIds = [`line${uuid()}`, `line${uuid()}`];
+        const edgeConfigs = [
+          {
+            id: edgeIds[0],
+            source: { cell: groupStartId, port: 'port_right' },
+            target: { cell: messageNodeId, port: 'port_left' },
+            zIndex: edgeBaseZIndex,
+          },
+          {
+            id: edgeIds[1],
+            source: { cell: messageNodeId, port: 'port_right' },
+            target: { cell: groupEndId, port: 'port_left' },
+            zIndex: edgeBaseZIndex + 1,
+          },
+        ];
+        const edgeBase = {
+          shape: 'edge',
+          attrs: {
+            line: {
+              stroke: '#a9adb6',
+              strokeWidth: 2,
+              targetMarker: { name: 'block', width: 6, height: 8 },
+            },
+          },
+          data: {},
+          router: {
+            name: 'manhattan',
+            args: { padding: 1 },
+          },
+        };
+        edgeConfigs.forEach((edgeConfig) => {
+          const edge = { ...edgeBase, ...edgeConfig, attrs: { line: { ...edgeBase.attrs.line, class: edgeConfig.id } } };
+          this.instance.addEdge(edge);
+        });
+      },
       isShowStartOrEndPoint(node) {
         if (node.id === 'start') {
           return this.isDisableStartPoint;
@@ -119,6 +222,7 @@
       startDrag(e) {
         const data = this.getNodeCustomAttribute(e.target);
         const isRectShape = ['task', 'subflow'].includes(data.type);
+        const isLoopShape = data.type === 'SubCanvas';
         // 该 node 为拖拽的节点，默认也是放置到画布上的节点，可以自定义任何属性
         let node;
         if (data.type === 'group') {
@@ -130,12 +234,31 @@
               parent: true,
             },
           });
+        } else if (isLoopShape) {
+          node = this.instance.createNode({
+            id: `node${uuid()}`,
+            shape: 'custom-loop-group-node',
+            width: 415,
+            height: 158,
+            data: {
+              ...data,
+              parent: true, // 标记为分组容器节点
+              type: 'SubCanvas',
+              name: '循环',
+            },
+          });
         } else {
+          let width = 34;
+          let height = 34;
+          if (isRectShape) {
+            width = 154;
+            height = 54;
+          }
           node = this.instance.createNode({
             id: `node${uuid()}`,
             shape: 'custom-node',
-            width: isRectShape ? 154 : 34,
-            height: isRectShape ? 54 : 34,
+            width,
+            height,
             data,
             zIndex: 5,
           });
@@ -185,6 +308,20 @@
               {
                 type: 'text',
                 val: this.$t('同一个项目下已新建的流程，作为子流程可以嵌套进至当前流程，并在执行任务时可以操作子流程的单个节点。'),
+              },
+            ],
+          },
+          {
+            el: '.node-item[data-type=SubCanvas]',
+            url: require('@/assets/images/left-subflow-guide.gif'),
+            text: [
+              {
+                type: 'name',
+                val: this.$t('循环：'),
+              },
+              {
+                type: 'text',
+                val: this.$t('循环内的节点可以使用循环变量'),
               },
             ],
           },
@@ -303,6 +440,18 @@
     .common-icon-node-tasknode,
     .common-icon-node-subflow {
       font-size: 20px;
+    }
+    .loop-node-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      &::before {
+        content: '\21BB';
+        font-size: 24px;
+        color: inherit;
+      }
     }
     .group-node {
       display: flex;

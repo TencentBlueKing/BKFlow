@@ -81,14 +81,14 @@
           :execute-info="currentExecuteInfo"
           :node-detail-config="currentNodeDetailConfig"
           :constants="pipelineData.constants"
+          :pipeline-data="pipelineData"
           :is-third-party-node="isThirdPartyNode"
           :third-party-node-code="thirdPartyNodeCode"
           :space-id="spaceId"
           :plugin-code="pluginCode"
           :template-id="templateId"
           :task_id="taskId"
-          :scope-info="scopeInfo"
-          :is-sub-process-node="isSubProcessNode" />
+          :scope-info="scopeInfo" />
         <!-- 操作历史 -->
         <section
           v-else-if="curActiveTab === 'history'"
@@ -249,6 +249,9 @@
       isSubProcessNode() {
         return this.pluginCode === 'subprocess_plugin';
       },
+      isSubCanvasNode() {
+        return this.pluginCode === 'subcanvas_plugin';
+      },
       // 并行网关、汇聚网关、并行条件、分支网关没有配置快照 条件只有配置快照
       isNeedShowConfig() {
         const { nodeType } = this.currentNodeDetailConfig;
@@ -259,10 +262,8 @@
       },
       isCondition() {
         const { nodeType } = this.currentNodeDetailConfig;
-        if (this.gatewayStartEndType.includes(nodeType) || nodeType === 'task' || nodeType === 'tasknode') {
-          return false;
-        }
-        return true;
+        const nonConditionTypes = [...this.gatewayStartEndType, 'task', 'tasknode', 'SubCanvas', 'subflow'];
+        return !nonConditionTypes.includes(nodeType);
       },
       tabPanel() {
         const baseTabs = [
@@ -320,7 +321,6 @@
     methods: {
       ...mapActions('task/', [
         'getNodeActDetail',
-        'loadSubflowConfig',
         'getInstanceStatus',
         'getTaskInstanceData',
       ]),
@@ -328,7 +328,6 @@
         'loadUniformApiMeta',
       ]),
       ...mapActions('atomForm/', [
-        'loadAtomConfig',
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
       ]),

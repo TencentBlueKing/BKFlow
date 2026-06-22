@@ -23,11 +23,11 @@
         </span>
       </li>
       <template v-else>
-        <li>
+        <li v-if="!isSubCanvasNode">
           <span class="th">{{ $t('标准插件') }}</span>
           <span class="td">{{ currentExecuteInfo.plugin_name || '--' }}</span>
         </li>
-        <li>
+        <li v-if="!isSubCanvasNode">
           <span class="th">{{ $t('插件版本') }}</span>
           <span class="td">{{ currentExecuteInfo.plugin_version || '--' }}</span>
         </li>
@@ -44,7 +44,7 @@
         <span class="th">{{ $t('是否可选') }}</span>
         <span class="td">{{ templateConfig.optional ? $t('是') : $t('否') }}</span>
       </li>
-      <li>
+      <li v-if="!isSubCanvasNode">
         <span class="th">{{ $t('失败处理') }}</span>
         <span
           v-if="isAutoOperate"
@@ -148,7 +148,7 @@
               ref="renderForm"
               :scheme="inputs"
               :hooked="hooked"
-              :constants="isSubProcessNode || isTemSubflowNode ? subflowForms : constants"
+              :constants="isTemSubflowNode ? subflowForms : currentConstants"
               :form-option="option"
               :form-data="inputsFormData"
               :render-config="inputsRenderConfig" />
@@ -261,6 +261,10 @@
         type: Object,
         default: () => ({}),
       },
+      pipelineData: {
+        type: Object,
+        default: () => ({}),
+      },
       nodeDetailConfig: {
         type: Object,
         default: () => ({}),
@@ -273,10 +277,6 @@
         type: String,
         default: '',
       },
-      // isSubProcessNode: {
-      //   type: Boolean,
-      //   default: false,
-      // },
       spaceId: {
         type: Number,
         default: 0,
@@ -355,14 +355,11 @@
       outputList() {
         return this.getOutputsList();
       },
-
-      // inputAndOutputWrapShow() {
-      //   const { original_template_id: originTplId } = this.nodeActivity;
-      //   // 普通任务节点展示/该功能上线后的独立子流程任务展示
-      //   return originTplId && !this.templateConfig.isOldData;
-      // },
       isSubProcessNode() {
         return this.nodeActivity?.component?.code === 'subprocess_plugin' || this.nodeActivity.type === 'SubProcess';
+      },
+      isSubCanvasNode() {
+        return this.nodeActivity?.component?.code === 'subcanvas_plugin';
       },
       isAutoOperate() {
         const { ignorable, skippable, retryable, auto_retry: autoRetry } = this.templateConfig;
@@ -375,16 +372,20 @@
       isSpecialPlugin() {
         return ['dmn_plugin', 'value_assign'].includes(this.pluginCode);
       },
+      currentConstants() {
+        if (this.isSubProcessNode) return this.subflowForms;
+        if (this.isSubCanvasNode) return this.pipelineData.constants;
+        return this.constants;
+      },
       variableList() {
-        const constants = this.isSubProcessNode ? this.subflowForms : this.constants;
-        return [...Object.values(constants)];
+        return [...Object.values(this.currentConstants)];
       },
       loopConfig() {
         const { loop_config: loopConfig } = this.nodeActivity || {};
         return loopConfig || null;
       },
       loopTypeText() {
-        if (this.loopConfig?.enable) {
+        if (this.loopConfig?.enable || this.isSubCanvasNode) {
           return i18n.t('循环执行');
         }
         return i18n.t('单次执行');
@@ -414,13 +415,21 @@
         deep: true,
         immediate: true,
       },
+      atomFormInfo: {
+        handler(val) {
+          if (val && Object.keys(val).length && this.currentNodeDetailConfig.component_code) {
+            this.getThirdpluginNameAndVersion();
+          }
+        },
+        deep: true,
+      },
     },
     mounted() {
       $.context.exec_env = 'NODE_EXEC_DETAIL';
-      this.initData();
       if (this.nodeActivity.type === 'SubProcess') {
         this.isTemSubflowNode = true;
       }
+      this.initData();
     },
     beforeDestroy() {
       $.context.exec_env = '';
