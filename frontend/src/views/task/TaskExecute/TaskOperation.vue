@@ -460,6 +460,7 @@
         isInjectVarDialogShow: false,
         nodeIds: [],
         copyOrdered: [],
+        nodeData: [],
         nodeDisplayStatus: {},
         showNodeList: [0, 1, 2],
         converNodeList: [],
@@ -521,23 +522,6 @@
       },
       common() {
         return this.templateSource !== 'project';
-      },
-      nodeData() {
-        this.nodeIds = [];
-        this.copyOrdered = [];
-        const data = this.getOrderedTree(this.completePipelineData);// 外层无子流程的节点pipelineTree
-        data.forEach((item) => {
-          if (['subprocess_plugin', 'subcanvas_plugin'].includes(item?.component?.code)) {
-            this.addUnexecued(item);
-          }
-        });
-        return [{
-          id: this.instanceId,
-          name: this.instanceName,
-          title: this.instanceName,
-          expanded: true,
-          children: data,
-        }];
       },
       taskState() {
         return TASK_STATE_DICT[this.state];
@@ -620,6 +604,13 @@
         },
         deep: true,
       },
+      completePipelineData: {
+        handler() {
+          this.buildNodeData();
+        },
+        deep: true,
+        immediate: true,
+      },
     },
     mounted() {
       this.loadMockData();
@@ -669,6 +660,25 @@
       ...mapActions('admin/', [
         'taskFlowUpdateContext',
       ]),
+      buildNodeData() {
+        this.nodeIds = [];
+        this.copyOrdered = [];
+        this.converNodeList = [];
+        this.conditionOutgoing = [];
+        const data = this.getOrderedTree(this.completePipelineData);// 外层无子流程的节点pipelineTree
+        data.forEach((item) => {
+          if (['subprocess_plugin', 'subcanvas_plugin'].includes(item?.component?.code)) {
+            this.addUnexecued(item);
+          }
+        });
+        this.nodeData = [{
+          id: this.instanceId,
+          name: this.instanceName,
+          title: this.instanceName,
+          expanded: true,
+          children: data,
+        }];
+      },
       addUnexecued(node) {
         if (node.children) {
           node.children.forEach((item) => {

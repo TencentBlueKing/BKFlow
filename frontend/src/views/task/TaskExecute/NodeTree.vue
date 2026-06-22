@@ -208,7 +208,6 @@
       subCanvasActiveId: { // 点击节点详情子画布中的节点
         handler(val) {
           if (val) {
-            console.log('subCanvasActiveId:', val);
             const node = this.findSubNode(this.treeData, val);
             const isSubProcess = ['subprocess_plugin', 'subcanvas_plugin'].includes(node?.component?.code) || node.type === 'SubProcess';
             this.onSelectNode(null, node, isSubProcess ? 'subflow' : 'node');

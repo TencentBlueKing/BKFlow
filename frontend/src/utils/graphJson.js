@@ -31,7 +31,7 @@ function flattenNestedPipelineTreeData(locations, lines, activities, isExecuteMo
       };
       // 只有在任务执行页才设置 mode: 'execute'，编辑页不设置
       if (isExecuteMode) {
-        childLoc.ready = true,
+        childLoc.ready = true;
         childLoc.mode = 'execute';
       }
       flatLocations.push(childLoc);
@@ -125,7 +125,8 @@ function getGroupInfo(params = {}) {
 
 export const graphToJson = (canvasData) => {
   // 展平循环流节点的嵌套 pipelineTree 数据（location + line）
-  const { activities } = store.state.template;
+  // 优先使用传入的activities（如子流程执行画布），否则回退到全局模板activities
+  const activities = canvasData.activities || store.state.template?.activities || {};
   const { locations: flatLocations, lines: flatLines } = flattenNestedPipelineTreeData(
     canvasData.locations,
     canvasData.lines,
