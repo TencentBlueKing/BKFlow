@@ -3,7 +3,11 @@
     <bk-tag
       v-for="tag in visibleTags"
       :key="tag">
-      {{ tag }}
+      <slot
+        name="tag"
+        :tag="tag">
+        {{ tag }}
+      </slot>
     </bk-tag>
     <bk-popover
       v-if="hiddenTags.length > 0"
@@ -17,7 +21,11 @@
           <bk-tag
             v-for="tag in hiddenTags"
             :key="tag">
-            {{ tag }}
+            <slot
+              name="tag"
+              :tag="tag">
+              {{ tag }}
+            </slot>
           </bk-tag>
         </div>
       </template>
@@ -25,6 +33,7 @@
   </div>
 </template>
 <script>
+  import { mapState } from 'vuex';
   export default {
     props: {
       width: {
@@ -40,7 +49,13 @@
       return {
         visibleTags: [],
         hiddenTags: [],
+        observer: null,
       };
+    },
+    computed: {
+      ...mapState({
+          isMultiTenantMode: state => state.isMultiTenantMode,
+      }),
     },
     watch: {
       width: {
@@ -54,11 +69,43 @@
         this.getVisibleTags();
       },
     },
+    mounted() {
+      this.getVisibleTags();
+      if (this.isMultiTenantMode) {
+        this.observer = new MutationObserver(() => {
+          this.getVisibleTags();
+        });
+        // 监听整个组件 DOM 的变化
+        this.observer.observe(this.$el, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+          attributes: true,
+        });
+      }
+    },
+    beforeDestroy() {
+      // 清理 MutationObserver
+      if (this.observer) {
+        this.observer.disconnect();
+        this.observer = null;
+      }
+    },
     methods: {
       getVisibleTags() {
         try {
+          // 计算前先断开observer，避免修改DOM后触发observer形成循环
+          if (this.observer) {
+            this.observer.disconnect();
+          }
+
           const { tags } = this;
-          if (!tags?.length) return;
+
+          if (!tags?.length) {
+            this.visibleTags = [];
+            this.hiddenTags = [];
+            return;
+          }
 
           // 预计算所有原始标签的宽度
           const tagWidths = tags.map(tag => this.createTagDom(tag));
@@ -85,6 +132,17 @@
           this.hiddenTags = tags.slice(foldIndex);
         } catch (e) {
           console.error(e);
+        } finally {
+          this.$nextTick(() => {
+            if (this.observer && this.isMultiTenantMode) {
+              this.observer.observe(this.$el, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+                attributes: true,
+              });
+            }
+          });
         }
       },
       createTagDom(val) {

@@ -127,7 +127,15 @@
                 {{ plugin.introduction || '--' }}
               </p>
               <p class="plugin-contact">
-                {{ $t('由') + ' ' + plugin.managers && plugin.managers.join(',') + ' ' + $t('提供') }}
+                <span>{{ $t('由') }}&nbsp;</span>
+                <span
+                  v-for="(manager, curIndex) in plugin.managers"
+                  :key="manager"
+                  class="manager-item">
+                  <UserDisplayName :name="manager" />
+                  <span v-if="curIndex < plugin.managers.length - 1">,&nbsp;</span>
+                </span>
+                &nbsp;{{ $t('提供') }}
               </p>
             </div>
           </div>
@@ -155,12 +163,14 @@
   import { SYSTEM_GROUP_ICON } from '@/constants/index.js';
   import NoData from '@/components/common/base/NoData.vue';
   import ApiPlugin from './apiPlugin.vue';
+  import UserDisplayName from '@/components/common/Individualization/UserDisplayName.vue';
 
   export default {
     name: 'Plugin',
     components: {
       NoData,
       ApiPlugin,
+      UserDisplayName,
     },
     props: {
       isThirdParty: Boolean,
