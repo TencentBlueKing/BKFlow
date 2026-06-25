@@ -20,6 +20,7 @@ from django.conf import settings
 
 import env
 from bkflow.interface.models import EnvironmentVariables
+from bkflow.utils.time_zone import get_user_timezone
 
 
 def bkflow_settings(request):
@@ -28,6 +29,9 @@ def bkflow_settings(request):
     language = request.COOKIES.get("blueking_language", "zh-cn")
     doc_lang_mappings = {"zh-cn": "ZH", "en": "EN"}
     run_ver_key = "BKAPP_RUN_VER_NAME" if language == "zh-cn" else "BKAPP_RUN_VER_NAME_{}".format(language.upper())
+    time_zone = get_user_timezone(request, use_cache=False)
+    if not time_zone:
+        time_zone = request.session.get("blueking_timezone", settings.TIME_ZONE)
 
     ctx = {
         "STATIC_URL": settings.STATIC_URL,
@@ -59,6 +63,6 @@ def bkflow_settings(request):
         "BKPAAS_USER_URL": settings.BKPAAS_USER_URL,
         "BK_IAM_SAAS_HOST": settings.BKPAAS_IAM_URL,
         "ENABLE_MULTI_TENANT_MODE": 1,
-        "TIMEZONE": request.session.get("blueking_timezone", settings.TIME_ZONE),
+        "TIMEZONE": time_zone,
     }
     return ctx
