@@ -257,7 +257,7 @@ class SpaceViewSet(AdminModelViewSet):
             url = f'{settings.PAASV3_APIGW_API_HOST.rstrip("/")}/prod/system/uni_applications/query/by_id/'
             client = ApiGwClient()
             try:
-                tenant_id = "system" if settings.ENABLE_MULTI_TENANT_MODE else "default"
+                tenant_id = serializer.validated_data["tenant_id"]
                 query_data: HttpRequestResult = client.request(
                     url, method="GET", data={"id": app_code}, headers={"X-Bk-Tenant-Id": tenant_id}
                 )
