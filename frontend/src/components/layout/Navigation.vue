@@ -119,7 +119,7 @@
     }
     ::v-deep .bk-navigation-header {
       overflow: visible !important;
-      z-index: 99;
+      z-index: 999;
     }
   }
 </style>
