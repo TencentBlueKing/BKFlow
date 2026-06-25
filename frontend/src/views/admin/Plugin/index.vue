@@ -43,6 +43,9 @@
               :tags="getWhiteListTags(row.config)"
               :width="columnWidth.config - 30" />
           </span>
+          <span v-else-if="item.id === 'status_updator'">
+            <UserDisplayName :name="row.status_updator" />
+          </span>
           <span
             v-else
             class="table-cell">{{ row[item.id] || '--' }}</span>
