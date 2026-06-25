@@ -120,13 +120,16 @@ class TimezoneMiddleware(MiddlewareMixin):
             return None
 
         time_zone = self._get_user_timezone(request)
-        if time_zone:
+        request.session["blueking_timezone"] = time_zone
+
+        tzname = request.session.get("blueking_timezone")
+        if tzname:
             try:
-                timezone.activate(pytz.timezone(time_zone))
+                timezone.activate(pytz.timezone(tzname))
             except Exception as e:
                 logger.error(
                     "activate timezone[{blueking_timezone}] raise error[{error}]".format(
-                        blueking_timezone=time_zone, error=e
+                        blueking_timezone=tzname, error=e
                     )
                 )
         else:
