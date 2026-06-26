@@ -47,6 +47,7 @@ def build_open_plugin_execute_payload(
     callback_url,
     callback_token,
     project_id=None,
+    context=None,
 ):
     payload = {
         "source_key": source_key,
@@ -59,6 +60,8 @@ def build_open_plugin_execute_payload(
     }
     if project_id:
         payload["project_id"] = project_id
+    if context:
+        payload["context"] = context
     return payload
 
 
@@ -178,7 +181,9 @@ class UniformAPIService(V3UniformAPIService):
         if api_config and getattr(api_config, "headers", None):
             headers.update(self._render_headers(api_config.headers, operator, parent_data))
 
-        source_key = self._resolve_open_plugin_source_key(space_id=space_id, plugin_id=plugin_id, explicit_source_key=explicit_source_key)
+        source_key = self._resolve_open_plugin_source_key(
+            space_id=space_id, plugin_id=plugin_id, explicit_source_key=explicit_source_key
+        )
         if not source_key:
             message = f"[uniform_api error] can not resolve source_key for open plugin {plugin_id}"
             self.logger.error(message)
@@ -190,13 +195,24 @@ class UniformAPIService(V3UniformAPIService):
         client_request_id = build_open_plugin_client_request_id(
             task_id=parent_data.get_one_of_inputs("task_id"), node_id=self.id, retry_no=retry_no
         )
-        callback_url = build_open_plugin_callback_url(space_id=space_id, task_id=parent_data.get_one_of_inputs("task_id"), node_id=self.id)
+        callback_url = build_open_plugin_callback_url(
+            space_id=space_id, task_id=parent_data.get_one_of_inputs("task_id"), node_id=self.id
+        )
         callback_token, expire_at = issue_open_plugin_callback_token(
             task_id=parent_data.get_one_of_inputs("task_id"),
             node_id=self.id,
             client_request_id=client_request_id,
             node_version=getattr(self, "version", ""),
         )
+        open_plugin_context = {
+            "scope_type": extra_data.get("scope_type"),
+            "scope_value": extra_data.get("scope_value"),
+            "operator": operator,
+            "space_id": space_id,
+            "task_id": extra_data.get("task_id"),
+            "node_id": extra_data.get("node_id") or self.id,
+            "task_name": extra_data.get("task_name"),
+        }
         execute_payload = build_open_plugin_execute_payload(
             source_key=source_key,
             plugin_id=plugin_id,
@@ -205,6 +221,7 @@ class UniformAPIService(V3UniformAPIService):
             client_request_id=client_request_id,
             callback_url=callback_url,
             callback_token=callback_token,
+            context=open_plugin_context,
         )
 
         try:
@@ -367,7 +384,9 @@ class UniformAPIService(V3UniformAPIService):
             self.finish_schedule()
             return True
         if run_status in self.OPEN_PLUGIN_FAILED_STATES:
-            data.outputs.ex_data = status_data.get("error_message") or f"[uniform_api polling] get fail status: {status_data}"
+            data.outputs.ex_data = (
+                status_data.get("error_message") or f"[uniform_api polling] get fail status: {status_data}"
+            )
             return False
         if run_status in self.OPEN_PLUGIN_RUNNING_STATES:
             return True
