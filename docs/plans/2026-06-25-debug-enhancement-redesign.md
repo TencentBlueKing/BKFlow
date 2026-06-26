@@ -6,7 +6,7 @@
 
 **Architecture:** 双模块落地——配置/编排态（`DebugContext`/`DebugNodeState`/`DebugService`）放 Interface 的 `bkflow.template` app；执行态复用 Engine 的真实 `TaskInstance(create_method="DEBUG")`，跨模块经 `TaskComponentClient` 调用。全局调试 = 全量 DEBUG 任务；单步 real = 仅含该节点的微型 DEBUG 任务；单步 mock 不经引擎，由 `DebugService` 直接产出。节点级重数据复用现有任务详情接口（`get_task_states`/`get_node_detail`/`get_node_log`），由 `log_ref` 定位。
 
-**Tech Stack:** Django + DRF；`bamboo_engine_api` + `BambooDjangoRuntime`；pytest；加密字段 `SecretSingleJsonField`（`bkflow/utils/models.py`）。
+**Tech Stack:** Django + DRF；`bamboo_engine_api` + `BambooDjangoRuntime`；pytest。调试快照类 JSON 字段统一用普通 `models.JSONField`（见决策 #1）。
 
 **Spec:** `docs/specs/2026-06-24-debug-enhancement-redesign-design.md`
 
@@ -14,7 +14,7 @@
 
 ## 已确认的关键落地决策
 
-1. **加密字段**：spec 写的 `EncryptedJsonField` 在本仓库不存在；统一落地为现有的 `SecretSingleJsonField`（`bkflow/utils/models.py`，`Credential.content` 在用）。它对顶层 value 做加解密，nested dict 以 JSON 串存储。
+1. **JSON 字段（不加密）**：spec 写的 `EncryptedJsonField` 在本仓库不存在。曾计划用 `SecretSingleJsonField`，但经代码评审确认它**只支持单层 `{str: 标量}`、遇到嵌套 dict/list 会抛 `ValueError`**（见 `bkflow/utils/models.py:get_prep_value`），而 `inputs/outputs/mock_outputs/global_vars/last_inputs` 等调试快照天然是嵌套结构。决策：这些调试快照**不算敏感数据，统一用普通 `models.JSONField`，不做字段级加密**。若后续确有敏感诉求，再单独引入"整体 `encrypt(json.dumps(...))`"的字段，不要复用 `SecretSingleJsonField`。
 2. **模型归属**：`DebugContext`/`DebugNodeState` 放 **Interface 的 `bkflow.template`**（按模板维度、可直接读 draft `pipeline_tree` 做 `input_schema`/`reset_impact`）。执行靠 Engine 的 DEBUG 任务，重数据复用任务详情接口。
 3. **单步 real**：建一个"仅含该节点"的微型 DEBUG `TaskInstance`（手工构造 `start→node→end` 最小 web pipeline_tree，引用变量注入为常量），复用现有任务基建跑通，`log_ref.instance_id` 指向它。
 4. **节点 id 映射**：`create_instance` 调 `inject_template_node_id` 把原模板 id 写入 `activity["template_node_id"]`，再 `replace_all_id` 重映射 `id`。回写时用 Engine 新增的 node-id-map 端点拿 `{template_node_id: runtime_id}`。
@@ -24,7 +24,7 @@
 
 **Interface 侧（`bkflow.template`）— 新建/修改**
 
-- Modify: `bkflow/template/models.py` — 追加 `DebugContext`、`DebugNodeState`，并 `from bkflow.utils.models import ... SecretSingleJsonField`
+- Modify: `bkflow/template/models.py` — 追加 `DebugContext`、`DebugNodeState`（JSON 字段用普通 `models.JSONField`，无需新增加密字段 import）
 - Create: `bkflow/template/debug/__init__.py`
 - Create: `bkflow/template/debug/dependency.py` — `compute_node_config_hash` / `compute_tree_fingerprint` / `build_dependency_graph` / `closure`
 - Create: `bkflow/template/debug/pipeline_builder.py` — `build_single_node_pipeline_tree`
@@ -67,7 +67,7 @@
 ### Task 1.1: DebugContext / DebugNodeState 模型与迁移
 
 **Files:**
-- Modify: `bkflow/template/models.py`（追加模型；确认顶部已有 `from bkflow.utils.models import CommonModel`，补 `SecretSingleJsonField`）
+- Modify: `bkflow/template/models.py`（追加模型；确认顶部已有 `from bkflow.utils.models import CommonModel`；所有 JSON 字段用普通 `models.JSONField`，不引入加密字段）
 - Test: `tests/interface/template/debug/test_models.py`
 
 - [ ] **Step 1: 写失败测试**
@@ -75,7 +75,24 @@
 Create `tests/interface/template/debug/__init__.py`（空文件）与 `tests/interface/template/debug/test_models.py`：
 
 ```python
+# -*- coding: utf-8 -*-
+"""
+TencentBlueKing is pleased to support the open source community by making
+蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
+Copyright (C) 2024 THL A29 Limited, a Tencent company. All rights reserved.
+Licensed under the MIT License (the "License"); you may not use this file
+except in compliance with the License. You may obtain a copy of the License at
+http://opensource.org/licenses/MIT
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+We undertake not to change the open source license (MIT license) applicable
+to the current version of the project delivered to anyone in the future.
+"""
 import pytest
+from django.db import IntegrityError, transaction
 
 from bkflow.template.models import DebugContext, DebugNodeState
 
@@ -89,12 +106,16 @@ class TestDebugModels:
         assert ctx.status == "idle"
         assert ctx.global_vars == {}
         assert ctx.last_inputs == {}
+        assert ctx.tree_fingerprint == {}
+        assert ctx.active_task_id is None
         assert ctx.locked_by == ""
+        assert ctx.locked_at is None
 
     def test_template_id_unique(self):
         DebugContext.objects.create(template_id=1, space_id=10)
-        with pytest.raises(Exception):
-            DebugContext.objects.create(template_id=1, space_id=10)
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                DebugContext.objects.create(template_id=1, space_id=10)
 
     def test_node_state_defaults_and_unique(self):
         ctx = DebugContext.objects.create(template_id=2, space_id=10)
@@ -102,8 +123,43 @@ class TestDebugModels:
         assert ns.execution_mode == "real"
         assert ns.mock_result == "success"
         assert ns.status == "not_run"
-        with pytest.raises(Exception):
-            DebugNodeState.objects.create(debug_context=ctx, node_id="n1")
+        assert ns.node_type == "ServiceActivity"
+        assert ns.mock_outputs == {} and ns.inputs == {} and ns.outputs == {}
+        assert ns.error_detail == {} and ns.duration_ms is None and ns.last_run_at is None
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                DebugNodeState.objects.create(debug_context=ctx, node_id="n1")
+
+    def test_nested_json_persist_and_reload(self):
+        """决策 #1：JSON 字段用普通 JSONField，必须能存取嵌套结构（不加密、不抛错）。"""
+        ctx = DebugContext.objects.create(
+            template_id=3,
+            space_id=10,
+            global_vars={"${ips}": ["1.1.1.1", "2.2.2.2"], "${obj}": {"a": {"b": 1}}},
+        )
+        ns = DebugNodeState.objects.create(
+            debug_context=ctx,
+            node_id="n2",
+            inputs={"params": {"timeout": 30, "hosts": [1, 2, 3]}},
+            outputs={"result": {"data": [{"k": "v"}]}},
+            error_detail={"type": "runtime", "message": "boom", "extra": {"code": 500}},
+        )
+        ctx.refresh_from_db()
+        ns.refresh_from_db()
+        assert ctx.global_vars["${ips}"] == ["1.1.1.1", "2.2.2.2"]
+        assert ctx.global_vars["${obj}"] == {"a": {"b": 1}}
+        assert ns.inputs["params"]["hosts"] == [1, 2, 3]
+        assert ns.outputs["result"]["data"] == [{"k": "v"}]
+        assert ns.error_detail["extra"]["code"] == 500
+
+    def test_node_states_related_name_and_cascade(self):
+        """物理删除上下文时级联清理节点态（reset 走 queryset 删除，不依赖软删级联）。"""
+        ctx = DebugContext.objects.create(template_id=4, space_id=10)
+        DebugNodeState.objects.create(debug_context=ctx, node_id="a")
+        DebugNodeState.objects.create(debug_context=ctx, node_id="b")
+        assert ctx.node_states.count() == 2
+        ctx.hard_delete()
+        assert DebugNodeState.objects.filter(node_id__in=["a", "b"]).count() == 0
 ```
 
 - [ ] **Step 2: 运行测试确认失败**
@@ -113,21 +169,25 @@ Expected: FAIL（`ImportError: cannot import name 'DebugContext'`）
 
 - [ ] **Step 3: 追加模型实现**
 
-在 `bkflow/template/models.py` 末尾追加（确保顶部 import 含 `SecretSingleJsonField`）：
+在 `bkflow/template/models.py` 末尾追加（JSON 字段一律用普通 `models.JSONField`，无需加密字段 import）：
 
 ```python
 class DebugContext(CommonModel):
-    """每模板唯一的调试上下文，跨用户共享"""
+    """每模板唯一的调试上下文，跨用户共享。
+
+    生命周期约定：按模板维度 get_or_create，**不软删除**；reset 只清空 global_vars/节点态、
+    不删除该行（故 template_id 的 unique 与 CommonModel 软删除不冲突）。
+    """
 
     STATUS_CHOICES = (("idle", "idle"), ("running", "running"), ("terminating", "terminating"))
 
     template_id = models.BigIntegerField(_("模板ID"), unique=True)
     space_id = models.IntegerField(_("空间ID"), db_index=True)
-    global_vars = SecretSingleJsonField(_("调试全局变量"), default=dict, blank=True)
+    global_vars = models.JSONField(_("调试全局变量"), default=dict, blank=True)
     tree_fingerprint = models.JSONField(_("树指纹"), default=dict, blank=True)
     status = models.CharField(_("调试状态"), max_length=16, choices=STATUS_CHOICES, default="idle")
     active_task_id = models.BigIntegerField(_("当前DEBUG任务ID"), null=True, blank=True)
-    last_inputs = SecretSingleJsonField(_("最近一次输入"), default=dict, blank=True)
+    last_inputs = models.JSONField(_("最近一次输入"), default=dict, blank=True)
     locked_by = models.CharField(_("持锁用户"), max_length=32, blank=True, default="")
     locked_at = models.DateTimeField(_("持锁时间"), null=True, blank=True)
 
@@ -155,14 +215,14 @@ class DebugNodeState(models.Model):
     node_type = models.CharField(_("节点类型"), max_length=32, default="ServiceActivity")
     execution_mode = models.CharField(_("执行模式"), max_length=8, choices=EXECUTION_MODE_CHOICES, default="real")
     mock_result = models.CharField(_("Mock结果"), max_length=8, choices=MOCK_RESULT_CHOICES, default="success")
-    mock_outputs = SecretSingleJsonField(_("Mock预设输出"), default=dict, blank=True)
+    mock_outputs = models.JSONField(_("Mock预设输出"), default=dict, blank=True)
     mock_error = models.CharField(_("Mock错误信息"), max_length=1024, blank=True, default="")
     status = models.CharField(_("运行状态"), max_length=16, choices=STATUS_CHOICES, default="not_run")
-    inputs = SecretSingleJsonField(_("最近输入快照"), default=dict, blank=True)
-    outputs = SecretSingleJsonField(_("最近输出快照"), default=dict, blank=True)
+    inputs = models.JSONField(_("最近输入快照"), default=dict, blank=True)
+    outputs = models.JSONField(_("最近输出快照"), default=dict, blank=True)
     duration_ms = models.IntegerField(_("耗时(ms)"), null=True, blank=True)
-    error_detail = SecretSingleJsonField(_("错误详情"), default=dict, blank=True)
-    log_ref = models.JSONField(_("引擎引用"), null=True, blank=True, default=dict)
+    error_detail = models.JSONField(_("错误详情"), default=dict, blank=True)
+    log_ref = models.JSONField(_("引擎引用"), default=dict, blank=True)
     config_hash = models.CharField(_("配置指纹"), max_length=64, blank=True, default="")
     last_run_at = models.DateTimeField(_("最近运行时间"), null=True, blank=True)
 
