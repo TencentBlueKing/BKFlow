@@ -5695,9 +5695,9 @@ paths:
         disabledStages: [ ]
         enableWebsocket: false
         pluginConfigs: [ ]
-  /sdl/get_label_list/:
+  /sdk/get_label_list/:
     get:
-      operationId: sdl_get_label_list
+      operationId: sdk_get_label_list
       description: 获取标签列表
       tags: [ ]
       responses:
@@ -5711,7 +5711,7 @@ paths:
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          name: sdl
+          name: sdk
           method: get
           path: /{env.api_sub_path}api/label/
           matchSubpath: false
@@ -5751,7 +5751,7 @@ paths:
         disabledStages: [ ]
         enableWebsocket: false
         pluginConfigs: [ ]
-  /sdk/update_label/{label_id}:
+  /sdk/update_label/{label_id}/:
     put:
       operationId: sdk_update_label
       description: 更新标签
