@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -120,6 +119,25 @@ class SpaceOpenPluginAvailability(models.Model):
 
     def __str__(self):
         return f"{self.space_id}:{self.source_key}:{self.plugin_id}:{self.enabled}"
+
+
+class OpenPluginSpaceGrant(models.Model):
+    space_id = models.IntegerField(verbose_name="空间ID", db_index=True)
+    source_key = models.CharField(verbose_name="开放插件来源", max_length=64)
+    enabled = models.BooleanField(verbose_name="是否准入", default=True)
+    operator = models.CharField(verbose_name="操作人", max_length=64, blank=True, default="")
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    update_time = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    class Meta:
+        verbose_name = "空间开放插件来源准入"
+        verbose_name_plural = "空间开放插件来源准入"
+        app_label = "plugin"
+        unique_together = ("space_id", "source_key")
+        indexes = [models.Index(fields=["space_id", "source_key", "enabled"], name="plugin_open_space_i_6a5a4b_idx")]
+
+    def __str__(self):
+        return f"{self.space_id}:{self.source_key}:{self.enabled}"
 
 
 class OpenPluginRunCallbackRef(models.Model):
