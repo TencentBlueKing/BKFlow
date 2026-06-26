@@ -90,7 +90,8 @@ def build_dependency_graph(pipeline_tree: dict) -> dict:
             control[src].add(tgt)
 
     # 数据流：A 产出 ${var}（component_outputs.source_act），B 的 component.data 引用 ${var}
-    classified = classify_constants(pipeline_tree.get("constants", {}), is_subprocess=False)
+    # classify_constants 会就地写入 is_param，深拷贝避免污染传入的共享树
+    classified = classify_constants(copy.deepcopy(pipeline_tree.get("constants", {})), is_subprocess=False)
     var_producer = {}  # ${var} -> producer_node_id
     for var_key, info in classified["data_inputs"].items():
         if info.get("type") == "splice" and info.get("source_act"):

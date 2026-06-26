@@ -442,14 +442,17 @@ class DebugService:
     def reset_impact(self) -> dict:
         """对比上次调试指纹与当前 draft 指纹，沿控制流∪数据流闭包推断受影响节点集。
 
-        仅做只读告知（不改库）：
+        仅做只读告知（不改库；不创建 DebugContext）：
+        - 无历史调试基线（从未运行过 / 无 DebugContext）→ 直接返回空，无需重置；
         - 节点配置变更 / 新增节点 → 作为种子；
         - 删除节点或连线/网关/常量整体变化 → 保守地把当前全部节点纳入种子；
         - 对种子集合做下游可达闭包，闭包内其余节点标注「受上游变更影响」。
         :return: {"reset_node_ids": [...], "reasons": {node_id: reason}}
         """
-        ctx = self.get_or_create_context()
-        old_fp = ctx.tree_fingerprint or {}
+        ctx = DebugContext.objects.filter(template_id=self.template_id).first()
+        old_fp = (ctx.tree_fingerprint if ctx else None) or {}
+        if not old_fp:
+            return {"reset_node_ids": [], "reasons": {}}
         new_fp = compute_tree_fingerprint(self.pipeline_tree)
         old_nodes = old_fp.get("nodes", {})
         new_nodes = new_fp.get("nodes", {})

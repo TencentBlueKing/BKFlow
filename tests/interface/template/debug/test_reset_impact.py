@@ -82,3 +82,82 @@ class TestResetImpact:
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_V1)
         result = svc.reset_impact()
         assert result["reset_node_ids"] == []
+
+    def test_data_flow_only_propagation(self):
+        """仅靠数据流（无控制流连线）也能把下游消费者纳入闭包。"""
+        tree_v1 = {
+            "activities": {
+                "A": {
+                    "id": "A",
+                    "type": "ServiceActivity",
+                    "optional": True,
+                    "component": {"code": "t", "data": {"x": {"hook": False, "value": "1"}}},
+                },
+                "B": {
+                    "id": "B",
+                    "type": "ServiceActivity",
+                    "optional": True,
+                    "component": {"code": "t", "data": {"y": {"hook": True, "value": "${g1}"}}},
+                },
+            },
+            "flows": {},  # 故意不连控制流，B 仅通过 ${g1} 数据依赖 A
+            "gateways": {},
+            "constants": TREE_V1["constants"],
+        }
+        DebugContext.objects.create(template_id=2, space_id=10, tree_fingerprint=compute_tree_fingerprint(tree_v1))
+        tree_v2 = {
+            **tree_v1,
+            "activities": {
+                "A": {
+                    "id": "A",
+                    "type": "ServiceActivity",
+                    "optional": True,
+                    "component": {"code": "t", "data": {"x": {"hook": False, "value": "CHANGED"}}},
+                },
+                "B": tree_v1["activities"]["B"],
+            },
+        }
+        svc = DebugService(template_id=2, space_id=10, pipeline_tree=tree_v2)
+        result = svc.reset_impact()
+        assert set(result["reset_node_ids"]) == {"A", "B"}
+
+    def test_removed_node_triggers_conservative_reset(self):
+        """删除节点后，无法从新图获知其下游，保守地重置当前全部节点。"""
+        tree_with_c = {
+            **TREE_V1,
+            "activities": {
+                **TREE_V1["activities"],
+                "C": {
+                    "id": "C",
+                    "type": "ServiceActivity",
+                    "optional": True,
+                    "component": {"code": "t", "data": {}},
+                },
+            },
+        }
+        DebugContext.objects.create(template_id=3, space_id=10, tree_fingerprint=compute_tree_fingerprint(tree_with_c))
+        # 当前 draft 删掉了 C
+        svc = DebugService(template_id=3, space_id=10, pipeline_tree=TREE_V1)
+        result = svc.reset_impact()
+        assert set(result["reset_node_ids"]) == {"A", "B"}
+
+    def test_topology_change_triggers_conservative_reset(self):
+        """仅常量/连线整体指纹变化（无节点配置变更）→ 保守重置全部节点。"""
+        DebugContext.objects.create(template_id=4, space_id=10, tree_fingerprint=compute_tree_fingerprint(TREE_V1))
+        tree_v2 = {
+            **TREE_V1,
+            "constants": {
+                "${g1}": {**TREE_V1["constants"]["${g1}"], "value": "CHANGED_DEFAULT"},
+            },
+        }
+        svc = DebugService(template_id=4, space_id=10, pipeline_tree=tree_v2)
+        result = svc.reset_impact()
+        assert set(result["reset_node_ids"]) == {"A", "B"}
+
+    def test_no_baseline_returns_empty_and_creates_nothing(self):
+        """无历史 DebugContext（从未调试）→ 返回空且不写库（保持只读）。"""
+        svc = DebugService(template_id=999, space_id=10, pipeline_tree=TREE_V1)
+        result = svc.reset_impact()
+        assert result["reset_node_ids"] == []
+        assert result["reasons"] == {}
+        assert DebugContext.objects.filter(template_id=999).count() == 0
