@@ -37,7 +37,7 @@ from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.md5 import compute_pipeline_md5
-from bkflow.utils.models import CommonModel, CommonSnapshot, SecretSingleJsonField
+from bkflow.utils.models import CommonModel, CommonSnapshot
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
 
 logger = logging.getLogger("root")
@@ -687,17 +687,21 @@ class TemplateReference(models.Model):
 
 
 class DebugContext(CommonModel):
-    """每模板唯一的调试上下文，跨用户共享"""
+    """每模板唯一的调试上下文，跨用户共享。
+
+    生命周期约定：按模板维度 get_or_create，**不软删除**；reset 只清空 global_vars/节点态、
+    不删除该行（故 template_id 的 unique 与 CommonModel 软删除不冲突）。
+    """
 
     STATUS_CHOICES = (("idle", "idle"), ("running", "running"), ("terminating", "terminating"))
 
     template_id = models.BigIntegerField(_("模板ID"), unique=True)
     space_id = models.IntegerField(_("空间ID"), db_index=True)
-    global_vars = SecretSingleJsonField(_("调试全局变量"), default=dict, blank=True)
+    global_vars = models.JSONField(_("调试全局变量"), default=dict, blank=True)
     tree_fingerprint = models.JSONField(_("树指纹"), default=dict, blank=True)
     status = models.CharField(_("调试状态"), max_length=16, choices=STATUS_CHOICES, default="idle")
     active_task_id = models.BigIntegerField(_("当前DEBUG任务ID"), null=True, blank=True)
-    last_inputs = SecretSingleJsonField(_("最近一次输入"), default=dict, blank=True)
+    last_inputs = models.JSONField(_("最近一次输入"), default=dict, blank=True)
     locked_by = models.CharField(_("持锁用户"), max_length=32, blank=True, default="")
     locked_at = models.DateTimeField(_("持锁时间"), null=True, blank=True)
 
@@ -725,14 +729,14 @@ class DebugNodeState(models.Model):
     node_type = models.CharField(_("节点类型"), max_length=32, default="ServiceActivity")
     execution_mode = models.CharField(_("执行模式"), max_length=8, choices=EXECUTION_MODE_CHOICES, default="real")
     mock_result = models.CharField(_("Mock结果"), max_length=8, choices=MOCK_RESULT_CHOICES, default="success")
-    mock_outputs = SecretSingleJsonField(_("Mock预设输出"), default=dict, blank=True)
+    mock_outputs = models.JSONField(_("Mock预设输出"), default=dict, blank=True)
     mock_error = models.CharField(_("Mock错误信息"), max_length=1024, blank=True, default="")
     status = models.CharField(_("运行状态"), max_length=16, choices=STATUS_CHOICES, default="not_run")
-    inputs = SecretSingleJsonField(_("最近输入快照"), default=dict, blank=True)
-    outputs = SecretSingleJsonField(_("最近输出快照"), default=dict, blank=True)
+    inputs = models.JSONField(_("最近输入快照"), default=dict, blank=True)
+    outputs = models.JSONField(_("最近输出快照"), default=dict, blank=True)
     duration_ms = models.IntegerField(_("耗时(ms)"), null=True, blank=True)
-    error_detail = SecretSingleJsonField(_("错误详情"), default=dict, blank=True)
-    log_ref = models.JSONField(_("引擎引用"), null=True, blank=True, default=dict)
+    error_detail = models.JSONField(_("错误详情"), default=dict, blank=True)
+    log_ref = models.JSONField(_("引擎引用"), default=dict, blank=True)
     config_hash = models.CharField(_("配置指纹"), max_length=64, blank=True, default="")
     last_run_at = models.DateTimeField(_("最近运行时间"), null=True, blank=True)
 
