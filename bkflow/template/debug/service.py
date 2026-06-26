@@ -96,6 +96,39 @@ class DebugService:
             )
         return fields
 
+    def build_context_view(self) -> dict:
+        ctx = self.sync_node_states()
+        node_views = []
+        for ns in DebugNodeState.objects.filter(debug_context=ctx).order_by("node_id"):
+            can_step, missing = self.compute_can_step(ctx, ns.node_id)
+            node_views.append(
+                {
+                    "node_id": ns.node_id,
+                    "node_type": ns.node_type,
+                    "execution_mode": ns.execution_mode,
+                    "mock_result": ns.mock_result if ns.execution_mode == "mock" else None,
+                    "status": ns.status,
+                    "can_step": can_step,
+                    "missing_vars": missing,
+                    "duration_ms": ns.duration_ms,
+                    "error_detail": ns.error_detail or None,
+                    "log_ref": ns.log_ref or None,
+                }
+            )
+        return {
+            "template_id": self.template_id,
+            "status": ctx.status,
+            "locked_by": ctx.locked_by,
+            "active_task_id": ctx.active_task_id,
+            "last_inputs": ctx.last_inputs,
+            "global_vars": ctx.global_vars,
+            "nodes": node_views,
+        }
+
+    def compute_can_step(self, ctx, node_id):
+        """占位：Phase 3 Task 3.5 实现真正逻辑，此处先恒返回可单步。"""
+        return True, []
+
     # ---- 内部工具 ----
     def _refresh_tree_fingerprint(self, ctx: DebugContext):
         ctx.tree_fingerprint = compute_tree_fingerprint(self.pipeline_tree)
