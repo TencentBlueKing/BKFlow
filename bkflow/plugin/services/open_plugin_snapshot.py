@@ -21,6 +21,7 @@ from copy import deepcopy
 from rest_framework import serializers
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
 
 
@@ -63,9 +64,13 @@ class OpenPluginSnapshotService:
 
     @classmethod
     def validate_pipeline_tree(cls, space_id, pipeline_tree):
-        for ref in cls.collect_plugin_references(space_id=space_id, pipeline_tree=pipeline_tree, include_unmatched=True):
+        for ref in cls.collect_plugin_references(
+            space_id=space_id, pipeline_tree=pipeline_tree, include_unmatched=True
+        ):
             if ref["catalog"] is None:
                 raise serializers.ValidationError("开放插件 [{}] 不存在或已下线".format(ref["plugin_id"]))
+            if not OpenPluginGrantService.is_granted(space_id, ref["catalog"].source_key):
+                raise serializers.ValidationError("开放插件来源 [{}] 未对当前空间准入".format(ref["catalog"].source_key))
             if ref["catalog"].status != OpenPluginCatalogIndex.Status.AVAILABLE:
                 raise serializers.ValidationError("开放插件 [{}] 当前不可用".format(ref["plugin_id"]))
             if not ref["enabled"]:
@@ -74,7 +79,9 @@ class OpenPluginSnapshotService:
     @classmethod
     def build_reference_snapshot(cls, space_id, pipeline_tree):
         references = []
-        for ref in cls.collect_plugin_references(space_id=space_id, pipeline_tree=pipeline_tree, include_unmatched=False):
+        for ref in cls.collect_plugin_references(
+            space_id=space_id, pipeline_tree=pipeline_tree, include_unmatched=False
+        ):
             catalog = ref["catalog"]
             references.append(
                 {
@@ -94,7 +101,9 @@ class OpenPluginSnapshotService:
     def build_schema_snapshot(cls, space_id, pipeline_tree, username=None, scope_type=None, scope_id=None):
         service = PluginSchemaService(space_id=space_id, username=username, scope_type=scope_type, scope_id=scope_id)
         snapshots = {}
-        for ref in cls.collect_plugin_references(space_id=space_id, pipeline_tree=pipeline_tree, include_unmatched=False):
+        for ref in cls.collect_plugin_references(
+            space_id=space_id, pipeline_tree=pipeline_tree, include_unmatched=False
+        ):
             schema = service.get_plugin_schema(
                 code=ref["plugin_id"],
                 version=ref["plugin_version"],
@@ -123,7 +132,9 @@ class OpenPluginSnapshotService:
         return merged
 
     @classmethod
-    def backfill_extra_info(cls, space_id, pipeline_tree, extra_info=None, username=None, scope_type=None, scope_id=None):
+    def backfill_extra_info(
+        cls, space_id, pipeline_tree, extra_info=None, username=None, scope_type=None, scope_id=None
+    ):
         merged = dict(extra_info or {})
         changed = False
 
@@ -151,7 +162,9 @@ class OpenPluginSnapshotService:
         schema_snapshot = cls.get_schema_snapshot(merged)
 
         if reference_snapshot:
-            reference_wrapper_map = cls._fill_reference_wrapper_versions(space_id=space_id, reference_snapshot=reference_snapshot)
+            reference_wrapper_map = cls._fill_reference_wrapper_versions(
+                space_id=space_id, reference_snapshot=reference_snapshot
+            )
             if reference_wrapper_map["changed"]:
                 merged[cls.REFERENCE_SNAPSHOT_KEY] = reference_snapshot
                 changed = True
@@ -181,9 +194,7 @@ class OpenPluginSnapshotService:
             api_meta = component.get("api_meta", {})
             plugin_id = cls._extract_data_value(data, "uniform_api_plugin_id") or api_meta.get("id")
             plugin_version = (
-                cls._extract_data_value(data, "uniform_api_plugin_version")
-                or api_meta.get("plugin_version")
-                or ""
+                cls._extract_data_value(data, "uniform_api_plugin_version") or api_meta.get("plugin_version") or ""
             )
             source_key = api_meta.get("source_key")
             wrapper_version = component.get("version", "")

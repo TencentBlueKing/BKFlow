@@ -4,8 +4,10 @@ from unittest.mock import patch
 
 import pytest
 from django.core.management import call_command
+from rest_framework import serializers
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.models import Space
 from bkflow.template.models import Template, TemplateSnapshot
@@ -62,6 +64,30 @@ def build_open_plugin_pipeline_tree(plugin_id="open_plugin_001", plugin_version=
     }
 
 
+def create_available_open_plugin(space_id, enabled=True):
+    OpenPluginCatalogIndex.objects.create(
+        space_id=space_id,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        plugin_code="job_execute_task",
+        plugin_name="JOB 执行作业",
+        plugin_source="builtin",
+        group_name="作业平台",
+        wrapper_version="v4.0.0",
+        default_version="1.2.0",
+        latest_version="1.2.0",
+        versions=["1.2.0"],
+        meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+        status=OpenPluginCatalogIndex.Status.AVAILABLE,
+    )
+    SpaceOpenPluginAvailability.objects.create(
+        space_id=space_id,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        enabled=enabled,
+    )
+
+
 @pytest.mark.django_db
 def test_get_snapshot_node_statuses_marks_missing_catalog_as_unavailable():
     extra_info = {
@@ -85,6 +111,22 @@ def test_get_snapshot_node_statuses_marks_missing_catalog_as_unavailable():
 
 
 @pytest.mark.django_db
+def test_validate_rejects_when_source_not_granted():
+    create_available_open_plugin(space_id=1, enabled=True)
+
+    with pytest.raises(serializers.ValidationError, match="来源"):
+        OpenPluginSnapshotService.validate_pipeline_tree(space_id=1, pipeline_tree=build_open_plugin_pipeline_tree())
+
+
+@pytest.mark.django_db
+def test_validate_passes_when_source_granted():
+    create_available_open_plugin(space_id=1, enabled=True)
+    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+
+    OpenPluginSnapshotService.validate_pipeline_tree(space_id=1, pipeline_tree=build_open_plugin_pipeline_tree())
+
+
+@pytest.mark.django_db
 @patch("bkflow.plugin.services.open_plugin_snapshot.OpenPluginSnapshotService.build_schema_snapshot")
 def test_backfill_open_plugin_snapshots_fills_missing_fields_without_overwriting_existing(mock_build_schema_snapshot):
     space = Space.objects.create(name="test", app_code="test")
@@ -105,7 +147,9 @@ def test_backfill_open_plugin_snapshots_fills_missing_fields_without_overwriting
         meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
         status="available",
     )
-    SpaceOpenPluginAvailability.objects.create(space_id=space.id, source_key="sops", plugin_id="open_plugin_001", enabled=True)
+    SpaceOpenPluginAvailability.objects.create(
+        space_id=space.id, source_key="sops", plugin_id="open_plugin_001", enabled=True
+    )
 
     mock_build_schema_snapshot.return_value = {
         "node1": {

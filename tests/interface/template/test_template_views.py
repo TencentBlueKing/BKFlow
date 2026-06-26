@@ -24,6 +24,7 @@ from blueapps.account.models import User
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from bkflow.decision_table.models import DecisionTable
+from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
@@ -34,6 +35,7 @@ from bkflow.template.models import (
     TemplateSnapshot,
     Trigger,
 )
+from bkflow.template.serializers.template import TemplateSerializer
 from bkflow.template.views.template import (
     AdminTemplateViewSet,
     TemplateInternalViewSet,
@@ -84,6 +86,70 @@ def build_pipeline_tree():
         "constants": {},
         "outputs": [],
     }
+
+
+def build_open_plugin_pipeline_tree():
+    pipeline_tree = deepcopy(build_pipeline_tree())
+    activity = next(iter(pipeline_tree["activities"].values()))
+    activity["component"]["code"] = "uniform_api"
+    activity["component"]["version"] = "v4.0.0"
+    activity["component"]["data"] = {
+        "uniform_api_plugin_id": {"value": "open_plugin_001"},
+        "uniform_api_plugin_version": {"value": "1.2.0"},
+    }
+    activity["component"]["api_meta"] = {"source_key": "sops"}
+    return pipeline_tree
+
+
+def create_open_plugin_catalog(space_id, enabled=True):
+    OpenPluginCatalogIndex.objects.create(
+        space_id=space_id,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        plugin_code="job_execute_task",
+        plugin_name="JOB 执行作业",
+        plugin_source="builtin",
+        group_name="作业平台",
+        wrapper_version="v4.0.0",
+        default_version="1.2.0",
+        latest_version="1.2.0",
+        versions=["1.2.0"],
+        meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+        status=OpenPluginCatalogIndex.Status.AVAILABLE,
+    )
+    SpaceOpenPluginAvailability.objects.create(
+        space_id=space_id,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        enabled=enabled,
+    )
+
+
+@pytest.mark.django_db
+@mock.patch("bkflow.template.serializers.template.PipelineTemplateWebPreviewer.is_circular_reference")
+def test_template_serializer_rejects_ungranted_open_plugin(mock_is_circular_reference):
+    mock_is_circular_reference.return_value = {"has_cycle": False}
+    factory = APIRequestFactory()
+    user, _ = User.objects.get_or_create(username="admin")
+    space = Space.objects.create(name="Open Plugin Space", app_code="test_app")
+    create_open_plugin_catalog(space_id=space.id, enabled=True)
+
+    request = factory.post("/templates/", {})
+    request.user = user
+    serializer = TemplateSerializer(
+        data={
+            "name": "Open Plugin Template",
+            "creator": "admin",
+            "updated_by": "admin",
+            "space_id": space.id,
+            "pipeline_tree": build_open_plugin_pipeline_tree(),
+            "triggers": [],
+        },
+        context={"request": request},
+    )
+
+    assert serializer.is_valid() is False
+    assert "来源" in str(serializer.errors)
 
 
 @pytest.mark.django_db

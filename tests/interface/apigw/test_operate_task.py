@@ -19,10 +19,16 @@ to the current version of the project delivered to anyone in the future.
 import json
 from unittest import mock
 
-from bamboo_engine.builder import EmptyEndEvent, EmptyStartEvent, ServiceActivity, build_tree
+from bamboo_engine.builder import (
+    EmptyEndEvent,
+    EmptyStartEvent,
+    ServiceActivity,
+    build_tree,
+)
 from django.test import TestCase, override_settings
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.space.models import Space
 
 
@@ -52,9 +58,60 @@ def build_open_plugin_pipeline_tree(plugin_id="open_plugin_001", plugin_version=
     return pipeline_tree
 
 
+def create_open_plugin_catalog(space_id, enabled=True):
+    OpenPluginCatalogIndex.objects.create(
+        space_id=space_id,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        plugin_code="job_execute_task",
+        plugin_name="JOB 执行作业",
+        plugin_source="builtin",
+        group_name="作业平台",
+        wrapper_version="v4.0.0",
+        default_version="1.2.0",
+        latest_version="1.2.0",
+        versions=["1.2.0"],
+        meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+        status=OpenPluginCatalogIndex.Status.AVAILABLE,
+    )
+    SpaceOpenPluginAvailability.objects.create(
+        space_id=space_id,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        enabled=enabled,
+    )
+
+
 class TestOperateTask(TestCase):
     def setUp(self):
         self.space = Space.objects.create(app_code="test", platform_url="http://test.com", name="test_space")
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @mock.patch("bkflow.apigw.views.operate_task.TaskComponentClient")
+    def test_start_task_rejects_ungranted_open_plugin(self, mock_client_class):
+        pipeline_tree = build_open_plugin_pipeline_tree()
+        mock_client = mock.Mock()
+        mock_client.get_task_detail.return_value = {
+            "result": True,
+            "data": {"id": 1, "space_id": self.space.id, "pipeline_tree": pipeline_tree},
+        }
+        mock_client.operate_task.return_value = {"result": True, "data": {"id": 1}}
+        mock_client_class.return_value = mock_client
+
+        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+
+        data = {"operator": "test_user"}
+        url = "/apigw/space/{}/task/1/operate_task/start/".format(self.space.id)
+        resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+
+        resp_data = json.loads(resp.content)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], False)
+        self.assertEqual(resp_data["code"], 400)
+        self.assertIn("来源", resp_data["message"])
+        mock_client.operate_task.assert_not_called()
 
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
@@ -69,27 +126,8 @@ class TestOperateTask(TestCase):
         }
         mock_client_class.return_value = mock_client
 
-        OpenPluginCatalogIndex.objects.create(
-            space_id=self.space.id,
-            source_key="sops",
-            plugin_id="open_plugin_001",
-            plugin_code="job_execute_task",
-            plugin_name="JOB 执行作业",
-            plugin_source="builtin",
-            group_name="作业平台",
-            wrapper_version="v4.0.0",
-            default_version="1.2.0",
-            latest_version="1.2.0",
-            versions=["1.2.0"],
-            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
-            status="available",
-        )
-        SpaceOpenPluginAvailability.objects.create(
-            space_id=self.space.id,
-            source_key="sops",
-            plugin_id="open_plugin_001",
-            enabled=False,
-        )
+        create_open_plugin_catalog(space_id=self.space.id, enabled=False)
+        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
 
         data = {"operator": "test_user"}
         url = "/apigw/space/{}/task/1/operate_task/start/".format(self.space.id)
