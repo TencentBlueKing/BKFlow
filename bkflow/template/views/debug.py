@@ -16,15 +16,29 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from bkflow.space.permissions import SpaceSuperuserPermission
-from bkflow.template.debug.serializers import TemplateIdQuerySerializer
-from bkflow.template.debug.service import DebugService
+from bkflow.template.debug.serializers import (
+    GlobalRunSerializer,
+    ResetSerializer,
+    TemplateIdQuerySerializer,
+    TerminateSerializer,
+)
+from bkflow.template.debug.service import (
+    DebugConflictError,
+    DebugService,
+    DebugStateError,
+)
 from bkflow.template.permissions import TemplateRelatedResourcePermission
 from bkflow.utils.permissions import AdminPermission
+
+
+def _err(exc, code):
+    return Response(exception=True, data={"detail": str(exc)}, status=code)
 
 
 class DebugViewSet(GenericViewSet):
@@ -43,3 +57,45 @@ class DebugViewSet(GenericViewSet):
         query.is_valid(raise_exception=True)
         svc = DebugService(template_id=query.validated_data["template_id"])
         return Response({"fields": svc.input_schema()})
+
+    @action(methods=["POST"], detail=False)
+    def global_run(self, request, *args, **kwargs):
+        ser = GlobalRunSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        svc = DebugService(template_id=ser.validated_data["template_id"])
+        try:
+            data = svc.global_run(inputs=ser.validated_data["inputs"], operator=request.user.username)
+        except DebugConflictError as e:
+            return _err(e, status.HTTP_409_CONFLICT)
+        except DebugStateError as e:
+            return _err(e, status.HTTP_400_BAD_REQUEST)
+        return Response(data)
+
+    @action(methods=["POST"], detail=False)
+    def reset(self, request, *args, **kwargs):
+        ser = ResetSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        svc = DebugService(template_id=ser.validated_data["template_id"])
+        try:
+            reset_ids = svc.reset(node_ids=ser.validated_data.get("node_ids"))
+        except DebugConflictError as e:
+            return _err(e, status.HTTP_409_CONFLICT)
+        return Response({"reset_node_ids": reset_ids})
+
+    @action(methods=["POST"], detail=False)
+    def terminate(self, request, *args, **kwargs):
+        ser = TerminateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        svc = DebugService(template_id=ser.validated_data["template_id"])
+        try:
+            data = svc.terminate(node_id=ser.validated_data.get("node_id"), operator=request.user.username)
+        except DebugStateError as e:
+            return _err(e, status.HTTP_400_BAD_REQUEST)
+        return Response(data)
+
+    @action(methods=["GET"], detail=False)
+    def history(self, request, *args, **kwargs):
+        query = TemplateIdQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        svc = DebugService(template_id=query.validated_data["template_id"])
+        return Response(svc.history())

@@ -347,3 +347,55 @@ class DebugService:
         if data.get("state") in ENGINE_FINISHED_STATES:
             self._release_lock(ctx, status="idle")
         ctx.save(update_fields=["global_vars"])
+
+    # ---- 重置 / 终止 / 历史 ----
+    def reset(self, node_ids=None) -> list:
+        """重置运行结果（保留 mock 配置）；运行中禁止重置。"""
+        ctx = self.sync_node_states()
+        if ctx.status == "running":
+            raise DebugConflictError("调试运行中，不能重置")
+        return self.reset_run_results(ctx, node_ids=node_ids)
+
+    def terminate(self, node_id=None, operator="") -> dict:
+        """终止调试：node_id 指定时强制失败单节点，否则撤销整个任务。"""
+        ctx = self.get_or_create_context()
+        if ctx.status == "idle" or not ctx.active_task_id:
+            raise DebugStateError("当前没有运行中的调试")
+        ctx.status = "terminating"
+        ctx.save(update_fields=["status"])
+        client = self._task_client()
+        if node_id:
+            id_map = client.get_node_id_map(ctx.active_task_id).get("data", {})
+            runtime_id = id_map.get(node_id, node_id)
+            client.node_operate(ctx.active_task_id, runtime_id, "forced_fail", {"operator": operator})
+        else:
+            client.operate_task(ctx.active_task_id, "revoke", {"operator": operator})
+        # 锁由 sync_from_debug_task 在任务到达 REVOKED 时释放（其守卫含 terminating）
+        return {"status": "terminating"}
+
+    def history(self) -> dict:
+        """基于保留的 DEBUG 任务实例列出历次运行。"""
+        client = self._task_client()
+        result = client.task_list(
+            data={"template_id": self.template_id, "space_id": self.space_id, "create_method": "DEBUG"}
+        )
+        items = (result.get("data") or {}).get("results", [])
+        runs = []
+        for item in items:
+            if item.get("is_revoked"):
+                run_status = "revoked"
+            elif item.get("is_finished"):
+                run_status = "finished"
+            elif item.get("is_started"):
+                run_status = "running"
+            else:
+                run_status = "created"
+            runs.append(
+                {
+                    "task_id": item.get("id"),
+                    "operator": item.get("creator") or item.get("executor"),
+                    "started_at": item.get("start_time") or item.get("create_time"),
+                    "status": run_status,
+                }
+            )
+        return {"runs": runs}
