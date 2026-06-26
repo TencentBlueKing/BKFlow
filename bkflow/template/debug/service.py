@@ -147,8 +147,30 @@ class DebugService:
         }
 
     def compute_can_step(self, ctx, node_id):
-        """占位：Phase 3 Task 3.5 实现真正逻辑，此处先恒返回可单步。"""
-        return True, []
+        """判定节点是否可单步：引用的产出型变量须已在 global_vars 有值，否则返回缺失项。"""
+        act = self.pipeline_tree.get("activities", {}).get(node_id)
+        if not act:
+            return False, []
+        # classify_constants 会就地写入 is_param，深拷贝避免污染共享树
+        constants = copy.deepcopy(self.pipeline_tree.get("constants", {}))
+        classified = classify_constants(constants, is_subprocess=False)
+        produced = {  # ${var} -> producer_node_id
+            key: info["source_act"]
+            for key, info in classified["data_inputs"].items()
+            if info.get("type") == "splice" and info.get("source_act")
+        }
+        component_data = act.get("component", {}).get("data", {})
+        missing = []
+        for field in component_data.values():
+            value = field.get("value")
+            if not isinstance(value, str):
+                continue
+            for var_key, producer in produced.items():
+                if var_key in value and var_key not in (ctx.global_vars or {}):
+                    item = {"key": var_key, "source_node_id": producer}
+                    if item not in missing:
+                        missing.append(item)
+        return (len(missing) == 0), missing
 
     # ---- 内部工具 ----
     def _refresh_tree_fingerprint(self, ctx: DebugContext):
