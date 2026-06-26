@@ -31,7 +31,11 @@ from bkflow.apigw.serializers.template import (
     UpdateTemplateLabelsSerializer,
     UpdateTemplateSerializer,
 )
-from bkflow.constants import TemplateOperationSource, TemplateOperationType
+from bkflow.constants import (
+    TemplateOperationSource,
+    TemplateOperationType,
+    WebhookScopeType,
+)
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.label.serializers import LabelSerializer
@@ -148,7 +152,7 @@ def update_template(request, space_id, template_id):
         enable_webhook = validated_data_dict.pop("enable_webhook", None)
         webhook_configs = validated_data_dict.pop("webhook_configs", [])
         if enable_webhook is not None:
-            Webhook.objects.filter(scope_type="template", scope_code=str(template.id)).update(
+            Webhook.objects.filter(scope_type=WebhookScopeType.TEMPLATE.value, scope_code=str(template.id)).update(
                 enable_webhook=enable_webhook
             )
 

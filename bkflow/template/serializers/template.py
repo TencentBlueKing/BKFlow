@@ -234,7 +234,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         enable_webhook = validated_data.get("enable_webhook", None)
         webhook_configs = validated_data.get("webhook_configs", [])
         if enable_webhook is not None:
-            Webhook.objects.filter(scope_type="template", scope_code=str(instance.id)).update(
+            Webhook.objects.filter(scope_type=WebhookScopeType.TEMPLATE.value, scope_code=str(instance.id)).update(
                 enable_webhook=enable_webhook
             )
 
