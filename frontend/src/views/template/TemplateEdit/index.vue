@@ -109,6 +109,7 @@
         <loop-global-variables
           v-if="isLoopVariablePanelShow"
           :loop-node-id="loopNodeIdForVariables"
+          :is-view-mode="isViewMode"
           @close="isLoopVariablePanelShow = false"
           @updateVariable="onUpdateLoopVariable"
           @addVariable="onAddLoopVariable"
@@ -1914,7 +1915,7 @@
           const updatedLocation = Object.assign(location, data);
           this.setLocation({ type: 'edit', location: updatedLocation });
         }
-        let name = location.name;
+        let { name } = location;
         let stageName = location.stage_name;
         let displayType = location.type === 'tasknode' ? 'task' : location.type;
         let displayIcon = location.icon;
@@ -2199,7 +2200,7 @@
       onOpenConditionEdit(data) {
         this.isShowConditionEdit = true;
         this.conditionData = { ...data };
-        const nodeId = data.nodeId;
+        const { nodeId } = data;
         let gateways = {};
         let loopNodeId = '';
         if (this.gateways[nodeId]) {
