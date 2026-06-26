@@ -5,6 +5,8 @@ from django.core.management import call_command
 
 from bkflow.plugin.models import OpenPluginSpaceGrant
 from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
+from bkflow.space.configs import SpaceConfigValueType, UniformApiConfig
+from bkflow.space.models import SpaceConfig
 
 
 @pytest.mark.django_db
@@ -42,6 +44,53 @@ class TestOpenPluginGrantService:
         OpenPluginGrantService.revoke(space_id=1, source_key="bk_monitor", operator="admin")
 
         assert OpenPluginGrantService.granted_source_keys(space_id=1) == ["sops"]
+
+    def test_backfill_existing_sources_grants_configured_sources_without_overriding_existing_records(self):
+        SpaceConfig.objects.create(
+            space_id=1,
+            name=UniformApiConfig.name,
+            value_type=SpaceConfigValueType.JSON.value,
+            json_value={
+                "api": {
+                    "sops": {
+                        "meta_apis": "http://api.apigw.example.com/meta_apis",
+                        "api_categories": "http://api.apigw.example.com/api_categories",
+                        "display_name": "sops",
+                    },
+                    "job": {
+                        "meta_apis": "http://api.apigw.example.com/job/meta_apis",
+                        "api_categories": "http://api.apigw.example.com/job/api_categories",
+                        "display_name": "job",
+                    },
+                }
+            },
+        )
+        SpaceConfig.objects.create(
+            space_id=2,
+            name=UniformApiConfig.name,
+            value_type=SpaceConfigValueType.JSON.value,
+            json_value={
+                "api": {
+                    "sops": {
+                        "meta_apis": "http://api.apigw.example.com/meta_apis",
+                        "api_categories": "http://api.apigw.example.com/api_categories",
+                        "display_name": "sops",
+                    }
+                }
+            },
+        )
+        OpenPluginGrantService.revoke(space_id=1, source_key="job", operator="admin")
+
+        assert OpenPluginGrantService.backfill_existing_sources() == 2
+        assert OpenPluginGrantService.backfill_existing_sources() == 0
+        assert OpenPluginGrantService.granted_source_keys(space_id=1) == ["sops"]
+        assert OpenPluginGrantService.granted_source_keys(space_id=2) == ["sops"]
+
+        created_grant = OpenPluginSpaceGrant.objects.get(space_id=1, source_key="sops")
+        existing_grant = OpenPluginSpaceGrant.objects.get(space_id=1, source_key="job")
+        assert created_grant.operator == "migration"
+        assert existing_grant.enabled is False
+        assert existing_grant.operator == "admin"
 
 
 @pytest.mark.django_db

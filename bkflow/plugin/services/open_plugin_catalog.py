@@ -140,6 +140,17 @@ class OpenPluginCatalogService:
         return sources
 
     @classmethod
+    def iter_configured_sources(cls):
+        queryset = SpaceConfig.objects.filter(name=UniformApiConfig.name).only("space_id", "json_value")
+        for space_config in queryset.iterator():
+            if not space_config.json_value:
+                continue
+
+            config = UniformAPIConfigHandler(space_config.json_value).handle()
+            for source_key in config.api.keys():
+                yield space_config.space_id, source_key
+
+    @classmethod
     def _fetch_api_list(cls, space_id, api_entry, username):
         credential = cls._get_apigw_credential(space_id=space_id)
         if not credential:

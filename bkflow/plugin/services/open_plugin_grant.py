@@ -54,3 +54,17 @@ class OpenPluginGrantService:
             defaults={"enabled": False, "operator": operator},
         )
         return grant
+
+    @classmethod
+    def backfill_existing_sources(cls):
+        from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
+
+        created = 0
+        for space_id, source_key in OpenPluginCatalogService.iter_configured_sources():
+            _, is_created = OpenPluginSpaceGrant.objects.get_or_create(
+                space_id=space_id,
+                source_key=source_key,
+                defaults={"enabled": True, "operator": "migration"},
+            )
+            created += int(is_created)
+        return created
