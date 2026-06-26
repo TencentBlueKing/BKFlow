@@ -25,7 +25,11 @@ from django.utils import timezone
 
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.pipeline_web.parser.format import classify_constants
-from bkflow.template.debug.dependency import compute_tree_fingerprint
+from bkflow.template.debug.dependency import (
+    build_dependency_graph,
+    closure,
+    compute_tree_fingerprint,
+)
 from bkflow.template.models import (
     DebugContext,
     DebugNodeState,
@@ -433,6 +437,51 @@ class DebugService:
                 }
             )
         return {"runs": runs}
+
+    # ---- 变更影响分析（只读） ----
+    def reset_impact(self) -> dict:
+        """对比上次调试指纹与当前 draft 指纹，沿控制流∪数据流闭包推断受影响节点集。
+
+        仅做只读告知（不改库）：
+        - 节点配置变更 / 新增节点 → 作为种子；
+        - 删除节点或连线/网关/常量整体变化 → 保守地把当前全部节点纳入种子；
+        - 对种子集合做下游可达闭包，闭包内其余节点标注「受上游变更影响」。
+        :return: {"reset_node_ids": [...], "reasons": {node_id: reason}}
+        """
+        ctx = self.get_or_create_context()
+        old_fp = ctx.tree_fingerprint or {}
+        new_fp = compute_tree_fingerprint(self.pipeline_tree)
+        old_nodes = old_fp.get("nodes", {})
+        new_nodes = new_fp.get("nodes", {})
+
+        seeds, reasons = set(), {}
+        # 配置变更 / 新增节点
+        for nid, h in new_nodes.items():
+            if nid in old_nodes and old_nodes[nid] != h:
+                seeds.add(nid)
+                reasons[nid] = "节点 {} 配置变更".format(nid)
+            elif nid not in old_nodes:
+                seeds.add(nid)
+                reasons[nid] = "新增节点 {}".format(nid)
+        # 删除节点：消费其输出的节点无法从新图获得，保守地把全部当前节点纳入闭包起点
+        removed = set(old_nodes.keys()) - set(new_nodes.keys())
+        # 连线/网关/常量整体指纹变化：保守处理（仅当对应指纹变化时）
+        topo_changed = any(old_fp.get(k) != new_fp.get(k) for k in ("flows", "gateways", "constants"))
+
+        graph = build_dependency_graph(self.pipeline_tree)
+        if removed:
+            for nid in graph["control"].keys():
+                seeds.add(nid)
+                reasons.setdefault(nid, "上游存在删除/连线变更，保守重置")
+        if topo_changed and not seeds:
+            for nid in graph["control"].keys():
+                seeds.add(nid)
+                reasons.setdefault(nid, "拓扑/连线/常量变更")
+
+        impacted = closure(seeds, graph) if seeds else set()
+        for nid in impacted:
+            reasons.setdefault(nid, "受上游变更影响")
+        return {"reset_node_ids": sorted(impacted), "reasons": {k: reasons[k] for k in sorted(impacted)}}
 
     # ---- 单步调试 / 节点 mock 配置 / 上下文变量 ----
     def _apply_outputs_to_global_vars(self, ctx, node_id, outputs: dict):

@@ -116,6 +116,13 @@ class DebugViewSet(GenericViewSet):
         return Response(svc.history())
 
     @action(methods=["POST"], detail=False)
+    def reset_impact(self, request, *args, **kwargs):
+        query = TemplateIdQuerySerializer(data=request.data)
+        query.is_valid(raise_exception=True)
+        svc = DebugService(template_id=query.validated_data["template_id"])
+        return Response(svc.reset_impact())
+
+    @action(methods=["POST"], detail=False)
     def step_run(self, request, *args, **kwargs):
         ser = StepRunSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
