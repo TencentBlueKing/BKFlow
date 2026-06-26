@@ -350,14 +350,18 @@ class DebugService:
 
     # ---- 重置 / 终止 / 历史 ----
     def reset(self, node_ids=None) -> list:
-        """重置运行结果（保留 mock 配置）；运行中禁止重置。"""
+        """重置运行结果（保留 mock 配置）；运行中/终止中禁止重置。"""
         ctx = self.sync_node_states()
-        if ctx.status == "running":
+        if ctx.status in ("running", "terminating"):
             raise DebugConflictError("调试运行中，不能重置")
         return self.reset_run_results(ctx, node_ids=node_ids)
 
     def terminate(self, node_id=None, operator="") -> dict:
-        """终止调试：node_id 指定时强制失败单节点，否则撤销整个任务。"""
+        """终止调试：node_id 指定时强制失败单节点，否则撤销整个任务。
+
+        若引擎拒绝操作，则把状态回滚到 running（保留 locked_by/active_task_id），并抛 DebugStateError，
+        避免上下文卡在 terminating 且锁永不释放（系统无 reaper）。
+        """
         ctx = self.get_or_create_context()
         if ctx.status == "idle" or not ctx.active_task_id:
             raise DebugStateError("当前没有运行中的调试")
@@ -365,11 +369,19 @@ class DebugService:
         ctx.save(update_fields=["status"])
         client = self._task_client()
         if node_id:
-            id_map = client.get_node_id_map(ctx.active_task_id).get("data", {})
-            runtime_id = id_map.get(node_id, node_id)
-            client.node_operate(ctx.active_task_id, runtime_id, "forced_fail", {"operator": operator})
+            id_map_resp = client.get_node_id_map(ctx.active_task_id)
+            if not id_map_resp.get("result"):
+                ctx.status = "running"
+                ctx.save(update_fields=["status"])
+                raise DebugStateError("获取节点 id 映射失败")
+            runtime_id = id_map_resp.get("data", {}).get(node_id, node_id)
+            op_result = client.node_operate(ctx.active_task_id, runtime_id, "forced_fail", {"operator": operator})
         else:
-            client.operate_task(ctx.active_task_id, "revoke", {"operator": operator})
+            op_result = client.operate_task(ctx.active_task_id, "revoke", {"operator": operator})
+        if not op_result.get("result"):
+            ctx.status = "running"
+            ctx.save(update_fields=["status"])
+            raise DebugStateError(op_result.get("message", "终止调试失败"))
         # 锁由 sync_from_debug_task 在任务到达 REVOKED 时释放（其守卫含 terminating）
         return {"status": "terminating"}
 

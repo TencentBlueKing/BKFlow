@@ -110,3 +110,53 @@ class TestRunOpsViews:
         assert response.status_code == 200
         assert response.data["runs"][0]["task_id"] == 7
         assert response.data["runs"][0]["status"] == "finished"
+
+    def test_reset_while_running_returns_409(self, mocker):
+        self._patch_tree(mocker)
+        DebugContext.objects.create(template_id=1, space_id=10, status="running", locked_by="bob")
+        view = DebugViewSet.as_view({"post": "reset"})
+        request = self.factory.post("/debug/reset/", {"template_id": 1}, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+        assert response.status_code == 409
+
+    def test_terminate_when_idle_returns_400(self, mocker):
+        self._patch_tree(mocker)
+        DebugContext.objects.create(template_id=1, space_id=10, status="idle")
+        view = DebugViewSet.as_view({"post": "terminate"})
+        request = self.factory.post("/debug/terminate/", {"template_id": 1}, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+        assert response.status_code == 400
+
+    def test_terminate_node_uses_forced_fail(self, mocker):
+        self._patch_tree(mocker)
+        DebugContext.objects.create(template_id=1, space_id=10, status="running", active_task_id=456)
+        client = mocker.MagicMock()
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
+        client.node_operate.return_value = {"result": True, "data": {}, "message": ""}
+        mocker.patch.object(DebugService, "_task_client", return_value=client)
+
+        view = DebugViewSet.as_view({"post": "terminate"})
+        request = self.factory.post("/debug/terminate/", {"template_id": 1, "node_id": "A"}, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        assert response.status_code == 200
+        assert response.data["status"] == "terminating"
+        client.node_operate.assert_called_once_with(456, "rtA", "forced_fail", {"operator": "admin"})
+
+    def test_terminate_failure_rolls_back_to_running(self, mocker):
+        self._patch_tree(mocker)
+        DebugContext.objects.create(template_id=1, space_id=10, status="running", active_task_id=456)
+        client = mocker.MagicMock()
+        client.operate_task.return_value = {"result": False, "data": {}, "message": "no"}
+        mocker.patch.object(DebugService, "_task_client", return_value=client)
+
+        view = DebugViewSet.as_view({"post": "terminate"})
+        request = self.factory.post("/debug/terminate/", {"template_id": 1}, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        assert response.status_code == 400
+        assert DebugContext.objects.get(template_id=1).status == "running"

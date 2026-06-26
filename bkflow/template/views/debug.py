@@ -43,6 +43,14 @@ def _err(exc, code):
 
 class DebugViewSet(GenericViewSet):
     permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
+    # 读操作（context/input_schema/history）按 view 级；写操作（运行/重置/终止）需 mock 及以上权限，
+    # 因为它们会创建/启动/撤销真实的引擎 TaskInstance
+    DEFAULT_PERMISSION = TemplateRelatedResourcePermission.VIEW_PERMISSION
+    PERM_MAPPINGS = {
+        "global_run": TemplateRelatedResourcePermission.MOCK_PERMISSION,
+        "reset": TemplateRelatedResourcePermission.MOCK_PERMISSION,
+        "terminate": TemplateRelatedResourcePermission.MOCK_PERMISSION,
+    }
 
     @action(methods=["GET"], detail=False)
     def context(self, request, *args, **kwargs):
