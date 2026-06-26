@@ -34,6 +34,8 @@ from bkflow.template.models import (
     DebugContext,
     DebugNodeState,
     Template,
+    TemplateMockData,
+    TemplateMockScheme,
     TemplateSnapshot,
 )
 
@@ -90,17 +92,45 @@ class DebugService:
         existing = {ns.node_id: ns for ns in DebugNodeState.objects.filter(debug_context=ctx)}
         tree_node_ids = set(activities.keys())
 
+        new_node_ids = [node_id for node_id in activities if node_id not in existing]
         to_create = [
-            DebugNodeState(debug_context=ctx, node_id=node_id, node_type=act.get("type", "ServiceActivity"))
-            for node_id, act in activities.items()
-            if node_id not in existing
+            DebugNodeState(
+                debug_context=ctx,
+                node_id=node_id,
+                node_type=activities[node_id].get("type", "ServiceActivity"),
+            )
+            for node_id in new_node_ids
         ]
         if to_create:
+            # 并发安全：ignore_conflicts 保证并发 sync 不会因唯一键冲突报错
             DebugNodeState.objects.bulk_create(to_create, ignore_conflicts=True)
+            self._apply_legacy_mock_scheme(ctx, new_node_ids)
         stale = set(existing.keys()) - tree_node_ids
         if stale:
             DebugNodeState.objects.filter(debug_context=ctx, node_id__in=stale).delete()
         return ctx
+
+    def _legacy_scheme_nodes(self):
+        """读取该模板旧 TemplateMockScheme.data['nodes']，作为初始 mock 节点集合。"""
+        scheme = TemplateMockScheme.objects.filter(template_id=self.template_id).first()
+        if not scheme:
+            return set()
+        return set((scheme.data or {}).get("nodes", []))
+
+    def _apply_legacy_mock_scheme(self, ctx, new_node_ids):
+        """首次创建节点态时，把历史勾选的 mock 节点初始化为 mock，并用默认 TemplateMockData 填充 mock_outputs。
+
+        仅作用于本次新建、且仍为默认 real 的节点（execution_mode='real' 过滤），不覆盖用户已有选择；
+        无旧 scheme 时不做任何变更，避免误把节点改成 mock（regression 保护）。
+        """
+        targets = self._legacy_scheme_nodes().intersection(new_node_ids)
+        for node_id in targets:
+            default_md = TemplateMockData.objects.filter(
+                template_id=self.template_id, node_id=node_id, is_default=True
+            ).first()
+            DebugNodeState.objects.filter(debug_context=ctx, node_id=node_id, execution_mode="real").update(
+                execution_mode="mock", mock_outputs=(default_md.data if default_md else {}) or {}
+            )
 
     def input_schema(self):
         """解析用户输入类常量（show_type=show），返回前端可渲染元数据。"""
