@@ -174,6 +174,13 @@ class TaskInstanceViewSet(
             return RetrieveTaskInstanceSerializer
         return super().get_serializer_class()
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # 调试任务（DEBUG）默认不在列表中展示，仅当显式按 create_method 过滤时才返回
+        if self.action == "list" and "create_method" not in self.request.query_params:
+            queryset = queryset.exclude(create_method="DEBUG")
+        return queryset
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 

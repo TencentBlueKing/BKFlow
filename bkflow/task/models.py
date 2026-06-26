@@ -16,9 +16,9 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from collections import defaultdict
 import json
 import logging
+from collections import defaultdict
 
 from bamboo_engine import states
 from django.conf import settings
@@ -120,13 +120,17 @@ class TaskInstanceManager(models.Manager):
                 **kwargs,
             )
             # create task mock data
-            if kwargs.get("create_method") == "MOCK":
+            if kwargs.get("create_method") in ("MOCK", "DEBUG"):
                 new_mock_data = {}
                 act_mappings = node_mappings[PE.activities]
                 new_mock_data["nodes"] = [act_mappings[node_id] for node_id in mock_data.get("nodes", [])]
                 new_mock_data["outputs"] = {
                     act_mappings[node_id]: outputs for node_id, outputs in mock_data.get("outputs", {}).items()
                 }
+                if mock_data.get("fail_nodes"):
+                    new_mock_data["fail_nodes"] = [act_mappings[nid] for nid in mock_data["fail_nodes"]]
+                if mock_data.get("errors"):
+                    new_mock_data["errors"] = {act_mappings[nid]: msg for nid, msg in mock_data["errors"].items()}
                 TaskMockData.objects.create(
                     taskflow_id=instance.id, data=new_mock_data, mock_data_ids=mock_data.get("mock_data_ids", {})
                 )
@@ -148,7 +152,7 @@ class TaskInstance(models.Model):
     任务实例
     """
 
-    CREATE_METHODS = (("API", "API"), ("MOCK", "MOCK"))
+    CREATE_METHODS = (("API", "API"), ("MOCK", "MOCK"), ("DEBUG", "DEBUG"))
 
     id = models.BigAutoField(primary_key=True)
     space_id = models.IntegerField("空间ID", db_index=True)
@@ -628,19 +632,13 @@ class BaseLabelRelationManager(models.Manager):
         # 4. 执行删除
         if remove_ids:
             # 构造删除查询: template_id=1, label_id__in=[...]
-            delete_kwargs = {
-                "task_id": obj_id,
-                "label_id__in": remove_ids
-            }
+            delete_kwargs = {"task_id": obj_id, "label_id__in": remove_ids}
             self.filter(**delete_kwargs).delete()
 
         # 5. 执行批量添加
         if add_ids:
             # 动态创建模型实例: TaskLabelRelation(task_id=1, label_id=xx)
-            new_relations = [
-                self.model(**{"task_id": obj_id, "label_id": label_id})
-                for label_id in add_ids
-            ]
+            new_relations = [self.model(**{"task_id": obj_id, "label_id": label_id}) for label_id in add_ids]
             self.bulk_create(new_relations)
 
     def fetch_tasks_labels(self, task_ids):
