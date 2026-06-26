@@ -99,6 +99,15 @@ class TestTaskStatisticsCollector(TestCase):
         assert not TaskflowStatistics.objects.filter(task_id=1).exists()
 
     @patch("bkflow.statistics.collectors.task_collector.TaskStatisticsCollector.task", new_callable=PropertyMock)
+    def test_collect_on_create_skips_debug(self, mock_task_prop):
+        """DEBUG 任务为临时调试产物，绝不应被采集进生产统计"""
+        mock_task_prop.return_value = self._make_mock_task(create_method="DEBUG")
+        collector = TaskStatisticsCollector(task_id=1)
+        result = collector.collect_on_create()
+        assert result is False
+        assert not TaskflowStatistics.objects.filter(task_id=1).exists()
+
+    @patch("bkflow.statistics.collectors.task_collector.TaskStatisticsCollector.task", new_callable=PropertyMock)
     def test_collect_on_create_returns_false_no_task(self, mock_task_prop):
         mock_task_prop.return_value = None
         collector = TaskStatisticsCollector(task_id=999)

@@ -64,6 +64,9 @@ class TaskStatisticsCollector(BaseStatisticsCollector):
         if not self.task:
             return False
 
+        if self.task.create_method == "DEBUG":
+            return False
+
         if self.task.create_method == "MOCK" and not StatisticsSettings.include_mock_tasks():
             return False
 
