@@ -828,12 +828,12 @@ class DebugViewSet(GenericViewSet):
 
 - [ ] **Step 6: 注册路由**
 
-先 `Read bkflow/template/urls.py` 确认 router 变量名，然后追加（与现有 `register` 风格一致）：
+先 `Read bkflow/template/urls.py` 确认 router 变量名，然后追加（与现有 `register` 风格一致）。实际变量是 `router`（`DefaultRouter()`），需用 `r"^debug"` 前缀并放在末尾的 catch-all `r""` 模板路由**之前**，否则 `/debug/...` 会被吞掉：
 
 ```python
 from bkflow.template.views.debug import DebugViewSet
 
-drf_router.register(r"debug", DebugViewSet, basename="debug")
+router.register(r"^debug", DebugViewSet, basename="debug")  # 放在 r"" 之前
 ```
 
 - [ ] **Step 7: 运行确认通过**
