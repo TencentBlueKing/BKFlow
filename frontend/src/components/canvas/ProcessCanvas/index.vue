@@ -886,8 +886,8 @@
           'converge-gateway': 'convergegateway',
         };
         const savedType = typeMap[normalizedType] ?? normalizedType.split('-').join('');
-        // 同步 location
-        const pos = nodeInstance.position();
+        // 同步 location（使用绝对坐标，与 onLocationMoveDone 保持一致）
+        const pos = nodeInstance.getPosition({ relative: false });
         const loc = {
           id: nodeId,
           type: savedType,
@@ -2086,6 +2086,9 @@
           }
           this.syncLoopGroupInnerNodes(data.id);
         }
+        if (type === 'edit' && data && data.shape === 'custom-loop-group-node') {
+          this.syncLoopGroupInnerNodes(data.id);
+        }
         // dnd拖入/快捷面板添加/复制操作同步写入pipeline
         if ((type === 'add' || type === 'copy') && data) {
           const parent = data.getParent ? data.getParent() : null;
@@ -2257,6 +2260,15 @@
         });
       },
       onLocationMoveDone(data) {
+        if (data && data.shape === 'custom-loop-group-node') {
+          // events.js的自动resize链在最后一步不触发onContainerSizeChange，导致之前 syncLoopGroupInnerNodes 保存的是倒数第二步的坐标而非最终坐标
+          this.syncLoopGroupInnerNodes(data.id);
+        }
+        // 同步整个分组(resize会影响所有子节点位置)
+        const parent = data && data.getParent ? data.getParent() : null;
+        if (parent && parent.isNode() && parent.shape === 'custom-loop-group-node') {
+          this.syncLoopGroupInnerNodes(parent.id);
+        }
         this.$emit('templateDataChanged');
         this.$emit('onLocationMoveDone', data);
       },
