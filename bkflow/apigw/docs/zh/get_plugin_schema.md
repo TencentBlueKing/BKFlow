@@ -4,6 +4,8 @@
 
 查询指定插件的完整参数 schema（inputs 和 outputs）。
 
+查询开放插件（`plugin_type=uniform_api`）时，插件来源必须已对当前空间准入，且插件必须已在当前空间开启。
+
 #### 请求方法
 
 GET
@@ -42,6 +44,8 @@ GET
 | data.inputs[].required | bool | 是否必填 |
 | data.inputs[].description | string | 参数描述 |
 | data.outputs | array | 输出参数列表 |
+
+开放插件（`plugin_type=uniform_api`）若来源未准入、插件不可用或插件未开启，将返回失败信息，不返回 schema。
 
 #### 请求示例
 
