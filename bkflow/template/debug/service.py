@@ -23,6 +23,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.pipeline_web.parser.format import classify_constants
 from bkflow.template.debug.dependency import compute_tree_fingerprint
 from bkflow.template.models import (
     DebugContext,
@@ -32,6 +33,11 @@ from bkflow.template.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# 引擎（bamboo）整体结束态：据此释放调试锁
+ENGINE_FINISHED_STATES = {"FINISHED", "REVOKED", "FAILED"}
+# 引擎节点态 -> DebugNodeState.status 映射
+NODE_STATE_MAP = {"FINISHED": "finished", "FAILED": "failed", "RUNNING": "running", "READY": "not_run"}
 
 
 class DebugConflictError(Exception):
@@ -110,6 +116,8 @@ class DebugService:
 
     def build_context_view(self) -> dict:
         ctx = self.sync_node_states()
+        self.sync_from_debug_task(ctx)
+        ctx.refresh_from_db()
         node_views = []
         for ns in DebugNodeState.objects.filter(debug_context=ctx).order_by("node_id"):
             can_step, missing = self.compute_can_step(ctx, ns.node_id)
@@ -287,3 +295,48 @@ class DebugService:
                 ctx.save(update_fields=["active_task_id"])
             self._release_lock(ctx, status="idle")
             raise
+
+    # ---- 全局调试结果回写 ----
+    def _acts_outputs(self):
+        """节点输出 -> 全局变量映射：acts_outputs[node_id][output_key] = var_key。"""
+        return classify_constants(self.pipeline_tree.get("constants", {}), is_subprocess=False)["acts_outputs"]
+
+    def sync_from_debug_task(self, ctx: DebugContext):
+        """惰性回写：读引擎任务态，回填节点 status/duration/log_ref/outputs 与全局变量，结束则解锁。"""
+        # 早返回守卫：仅运行中且存在 active_task_id 才同步，避免空闲态构建真实客户端
+        if ctx.status not in ("running", "terminating") or not ctx.active_task_id:
+            return
+        client = self._task_client()
+        states = client.get_task_states(ctx.active_task_id)
+        if not states.get("result"):
+            return
+        data = states["data"]
+        children = data.get("children", {})
+        id_map = client.get_node_id_map(ctx.active_task_id).get("data", {})
+        acts_outputs = self._acts_outputs()
+
+        for tpl_node_id, runtime_id in id_map.items():
+            ns = DebugNodeState.objects.filter(debug_context=ctx, node_id=tpl_node_id).first()
+            if ns is None:
+                continue
+            child = children.get(runtime_id)
+            if not child:
+                continue
+            ns.status = NODE_STATE_MAP.get(child.get("state"), ns.status)
+            ns.duration_ms = int((child.get("elapsed_time") or 0) * 1000)
+            if ns.status in ("finished", "failed"):
+                detail = client.get_task_node_detail(ctx.active_task_id, runtime_id, data={"include_data": True})
+                ddata = detail.get("data", {}) if detail.get("result") else {}
+                version = ddata.get("version") or ddata.get("history_id") or "v1"
+                ns.log_ref = {"instance_id": ctx.active_task_id, "node_id": runtime_id, "version": version}
+                outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
+                ns.outputs = outputs
+                # 输出按 source_act/source_key 回写全局变量
+                for out_key, var_key in acts_outputs.get(tpl_node_id, {}).items():
+                    if out_key in outputs:
+                        ctx.global_vars[var_key] = outputs[out_key]
+            ns.save()
+
+        if data.get("state") in ENGINE_FINISHED_STATES:
+            self._release_lock(ctx, status="idle")
+        ctx.save(update_fields=["global_vars"])
