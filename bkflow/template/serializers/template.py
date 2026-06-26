@@ -25,6 +25,7 @@ from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
+from webhook.models import Webhook
 from webhook.signals import event_broadcast_signal
 
 from bkflow.bk_plugin.models import BKPluginAuthorization
@@ -52,11 +53,7 @@ from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.template.utils import send_callback
 from bkflow.utils.pipeline import replace_subprocess_version
 from bkflow.utils.version import bump_custom
-from bkflow.utils.webhook import (
-    apply_webhook_configs,
-    clear_scope_webhooks,
-    get_webhook_configs,
-)
+from bkflow.utils.webhook import apply_webhook_configs, get_webhook_configs
 
 logger = logging.getLogger("root")
 
@@ -234,16 +231,19 @@ class TemplateSerializer(serializers.ModelSerializer):
             logger.exception(f"Triggers update or create failed,{e}")
             raise serializers.ValidationError(detail={"msg": (f"更新失败,{e}")})
 
-        enable_webhook = validated_data.get("enable_webhook")
+        enable_webhook = validated_data.get("enable_webhook", None)
         webhook_configs = validated_data.get("webhook_configs", [])
+        if enable_webhook is not None:
+            Webhook.objects.filter(scope_type="template", scope_code=str(instance.id)).update(
+                enable_webhook=enable_webhook
+            )
+
         if enable_webhook is True and webhook_configs:
             apply_result = apply_webhook_configs(webhook_configs, str(instance.id))
             if not apply_result["result"]:
                 message = apply_result["message"]
                 logger.error(message)
                 raise serializers.ValidationError(message)
-        elif enable_webhook is False:
-            clear_scope_webhooks([str(instance.id)])
 
         send_callback(instance.space_id, "template", instance.build_callback_data(operate_type="update"))
         event_broadcast_signal.send(
@@ -280,8 +280,8 @@ class TemplateSerializer(serializers.ModelSerializer):
         pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
         data["pipeline_tree"] = pipeline_tree
         webhook_configs = get_webhook_configs(scope_code=str(instance.id))
+        data["enable_webhook"] = webhook_configs.pop("enable_webhook", False)
         data["webhook_configs"] = webhook_configs
-        data["enable_webhook"] = True if webhook_configs else False
         return data
 
     class Meta:
