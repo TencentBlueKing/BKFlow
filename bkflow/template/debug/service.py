@@ -155,6 +155,7 @@ class DebugService:
 
     # ---- 全局调试编排 ----
     def _task_client(self):
+        """构造调用 Engine 任务接口的客户端（按空间隔离）。"""
         return TaskComponentClient(space_id=self.space_id)
 
     def _acquire_lock(self, ctx: DebugContext, operator: str):
@@ -168,6 +169,7 @@ class DebugService:
         ctx.refresh_from_db()
 
     def _release_lock(self, ctx: DebugContext, status="idle"):
+        """释放调试锁：复位状态、清空持锁用户与持锁时间。"""
         ctx.status = status
         ctx.locked_by = ""
         ctx.locked_at = None
@@ -204,12 +206,19 @@ class DebugService:
 
     def global_run(self, inputs: dict, operator: str) -> dict:
         """全局调试：抢锁 -> 重置 -> 物化 -> 创建并启动 DEBUG 任务。"""
-        ctx = self.sync_node_states()
+        # M-3：抢锁前先做幂等的并发预检，避免被拒绝（冲突）的调用提前 sync 改动节点态
+        ctx = self.get_or_create_context()
         if ctx.status != "idle":
             raise DebugConflictError("模板正在被 {} 调试".format(ctx.locked_by or "其他用户"))
+        self.sync_node_states()
         self._acquire_lock(ctx, operator)
+
+        # task_id 在 create 成功后才赋值；失败兜底据此判断是否需要清理孤儿任务
+        task_id = None
         try:
             with transaction.atomic():
+                # M-2：每次全局运行都从干净状态开始，故先重置；若后续 create 失败，
+                # 这些被清空的历史结果是预期被丢弃的（设计如此）。
                 self.reset_run_results(ctx, node_ids=None)
                 ctx.global_vars = dict(inputs or {})
                 ctx.last_inputs = dict(inputs or {})
@@ -231,19 +240,50 @@ class DebugService:
             client = self._task_client()
             create_result = client.create_task(create_data)
             if not create_result.get("result"):
-                self._release_lock(ctx, status="idle")
-                raise DebugStateError(create_result.get("message", "create debug task failed"))
+                message = create_result.get("message", "create debug task failed")
+                logger.warning(
+                    "[debug global_run] create debug task failed, template_id=%s, message=%s",
+                    self.template_id,
+                    message,
+                )
+                raise DebugStateError(message)
             task_id = create_result["data"]["id"]
             ctx.active_task_id = task_id
             ctx.save(update_fields=["active_task_id"])
 
             start_result = client.operate_task(task_id, "start", {"operator": operator})
             if not start_result.get("result"):
-                self._release_lock(ctx, status="idle")
-                raise DebugStateError(start_result.get("message", "start debug task failed"))
+                message = start_result.get("message", "start debug task failed")
+                logger.warning(
+                    "[debug global_run] start debug task failed, template_id=%s, task_id=%s, message=%s",
+                    self.template_id,
+                    task_id,
+                    message,
+                )
+                raise DebugStateError(message)
             return {"task_id": task_id, "status": "running"}
-        except (DebugConflictError, DebugStateError):
+        except DebugConflictError:
+            # 理论上不会在持锁后再次发生并发冲突；直接抛出，不释放他人持有的锁
             raise
-        except Exception:
+        except Exception as exc:
+            if not isinstance(exc, DebugStateError):
+                logger.exception(
+                    "[debug global_run] unexpected error, template_id=%s, task_id=%s",
+                    self.template_id,
+                    task_id,
+                )
+            # 已创建但未成功启动的任务为孤儿，尽力清理并清空悬挂的 active_task_id
+            if task_id is not None:
+                try:
+                    self._task_client().delete_task(task_id)
+                except Exception:
+                    logger.warning(
+                        "[debug global_run] cleanup orphan debug task failed, template_id=%s, task_id=%s",
+                        self.template_id,
+                        task_id,
+                        exc_info=True,
+                    )
+                ctx.active_task_id = None
+                ctx.save(update_fields=["active_task_id"])
             self._release_lock(ctx, status="idle")
             raise

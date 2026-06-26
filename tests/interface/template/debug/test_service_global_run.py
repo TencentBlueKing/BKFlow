@@ -19,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 import pytest
 
-from bkflow.template.debug.service import DebugService
+from bkflow.template.debug.service import DebugConflictError, DebugService
 from bkflow.template.models import DebugNodeState
 
 PIPELINE = {
@@ -73,6 +73,7 @@ class TestGlobalRun:
         # 物化 mock_data 与 create_method 传入 create_task
         sent = _create_task_payload(client)
         assert sent["create_method"] == "DEBUG"
+        assert sent["mock_data"] == {"nodes": ["A"], "outputs": {"A": {"k": "v"}}, "fail_nodes": [], "errors": {}}
 
         # 启动调用使用 operate_task(task_id, "start", {...})
         client.operate_task.assert_called_once_with(456, "start", {"operator": "admin"})
@@ -96,3 +97,62 @@ class TestGlobalRun:
         with pytest.raises(Exception) as exc:
             svc.global_run(inputs={}, operator="admin")
         assert "bob" in str(exc.value)
+
+    def test_global_run_releases_lock_on_create_failure(self, mocker):
+        """create 失败：释放锁、不残留 active_task_id，且不尝试删除（无任务被创建）"""
+        svc, client = self._svc(mocker, create_ok=False)
+        ctx = svc.get_or_create_context()
+
+        with pytest.raises(Exception):
+            svc.global_run(inputs={}, operator="admin")
+
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+        assert ctx.locked_by == ""
+        assert ctx.active_task_id is None
+        client.delete_task.assert_not_called()
+
+    def test_global_run_releases_lock_on_start_failure(self, mocker):
+        """start 失败：释放锁、清空 active_task_id，并清理已创建的孤儿任务"""
+        svc, client = self._svc(mocker)
+        client.operate_task.return_value = {"result": False, "data": {}, "message": "start boom"}
+        ctx = svc.get_or_create_context()
+
+        with pytest.raises(Exception):
+            svc.global_run(inputs={}, operator="admin")
+
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+        assert ctx.locked_by == ""
+        assert ctx.active_task_id is None
+        client.delete_task.assert_called_once_with(456)
+
+    def test_acquire_lock_conflict_branch(self, mocker):
+        """直接验证 CAS 0 行更新分支：被既有锁占用时抛 DebugConflictError"""
+        svc, _ = self._svc(mocker)
+        ctx = svc.get_or_create_context()
+        ctx.status = "running"
+        ctx.locked_by = "carol"
+        ctx.save()
+
+        with pytest.raises(DebugConflictError) as exc:
+            svc._acquire_lock(ctx, "admin")
+        assert "carol" in str(exc.value)
+
+    def test_global_run_materializes_fail_node(self, mocker):
+        """mock_result=fail 的节点应物化为 fail_nodes 与 errors"""
+        svc, client = self._svc(mocker)
+        ctx = svc.get_or_create_context()
+        DebugNodeState.objects.create(
+            debug_context=ctx,
+            node_id="A",
+            execution_mode="mock",
+            mock_result="fail",
+            mock_error="boom",
+        )
+
+        svc.global_run(inputs={}, operator="admin")
+
+        sent = _create_task_payload(client)
+        assert sent["mock_data"]["fail_nodes"] == ["A"]
+        assert sent["mock_data"]["errors"] == {"A": "boom"}
