@@ -18,12 +18,47 @@ to the current version of the project delivered to anyone in the future.
 """
 
 import pytest
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIRequestFactory, force_authenticate
 
-from bkflow.template.debug.service import DebugConflictError, DebugService
-from bkflow.template.models import DebugNodeState
+from bkflow.template.debug.service import (
+    DebugConflictError,
+    DebugService,
+    DebugStateError,
+)
+from bkflow.template.models import DebugContext, DebugNodeState
+from bkflow.template.views.debug import DebugViewSet
+
+User = get_user_model()
 
 TREE = {
     "activities": {"A": {"id": "A", "type": "ServiceActivity", "component": {"code": "t", "data": {}}}},
+    "flows": {},
+    "gateways": {},
+    "constants": {
+        "${g1}": {
+            "key": "${g1}",
+            "name": "g1",
+            "show_type": "hide",
+            "value": "",
+            "source_type": "component_outputs",
+            "source_info": {"A": ["k1"]},
+            "custom_type": "",
+            "source_tag": "",
+        }
+    },
+}
+
+# B 依赖 A 产出的 ${g1}：global_vars 为空时 B 不可单步（compute_can_step 门控）
+TREE_DEP = {
+    "activities": {
+        "A": {"id": "A", "type": "ServiceActivity", "component": {"code": "t", "data": {}}},
+        "B": {
+            "id": "B",
+            "type": "ServiceActivity",
+            "component": {"code": "t", "data": {"y": {"hook": True, "value": "${g1}"}}},
+        },
+    },
     "flows": {},
     "gateways": {},
     "constants": {
@@ -147,3 +182,123 @@ class TestStepRunAndMock:
         assert ns.duration_ms == 3000
         ctx.refresh_from_db()
         assert ctx.global_vars["${g1}"] == "produced"
+
+    def test_step_run_real_create_failure_raises_and_releases_lock(self, mocker):
+        """create 失败：抛 DebugStateError、释放锁、无任务故不清理（I-1）"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+
+        client = mocker.MagicMock()
+        client.create_task.return_value = {"result": False, "message": "x"}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        with pytest.raises(DebugStateError):
+            svc.step_run(node_id="A", operator="admin", mode="real")
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+        client.delete_task.assert_not_called()
+
+    def test_step_run_real_start_failure_cleans_up(self, mocker):
+        """start 失败：抛 DebugStateError、删除孤儿任务、节点解卡、释放锁（I-2）"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+
+        client = mocker.MagicMock()
+        client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
+        client.operate_task.return_value = {"result": False, "message": "no"}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        with pytest.raises(DebugStateError):
+            svc.step_run(node_id="A", operator="admin", mode="real")
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert ns.status != "running"
+        client.delete_task.assert_called_once_with(789)
+
+    def test_step_run_real_blocked_by_can_step(self, mocker):
+        """依赖未满足：抛 DebugStateError(missing_vars)，门控在抢锁/建任务前，零引擎交互"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_DEP)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+
+        client = mocker.MagicMock()
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        with pytest.raises(DebugStateError) as exc_info:
+            svc.step_run(node_id="B", operator="admin", mode="real")
+        assert "missing_vars" in exc_info.value.args[0]
+        client.create_task.assert_not_called()
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+
+    def test_step_run_real_failed_node_keeps_task(self, mocker):
+        """引擎正常跑完但节点失败：正常返回 failed，不删任务（log_ref 仍可查日志），不回写全局变量"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+
+        client = mocker.MagicMock()
+        client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
+        client.operate_task.return_value = {"result": True, "data": {}, "message": ""}
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "FAILED", "children": {"rtA": {"state": "FAILED", "elapsed_time": 1}}},
+            "message": "",
+        }
+        client.get_task_node_detail.return_value = {
+            "result": True,
+            "data": {"ex_data": "boom", "version": "v1"},
+            "message": "",
+        }
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        result = svc.step_run(node_id="A", operator="admin", mode="real")
+        assert result["status"] == "failed"
+        assert result["error_detail"]
+        client.delete_task.assert_not_called()
+        ctx.refresh_from_db()
+        assert "${g1}" not in ctx.global_vars
+        assert ctx.status == "idle"
+
+    def test_step_run_bad_node_raises_state_error(self):
+        """未知 node_id 收敛为 DebugStateError，而非 DoesNotExist/500（I-5）"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
+        svc.get_or_create_context()
+        svc.sync_node_states()
+        with pytest.raises(DebugStateError):
+            svc.step_run(node_id="ZZZ", operator="admin", mode="mock")
+
+
+@pytest.mark.django_db
+class TestStepRunViews:
+    def setup_method(self):
+        self.factory = APIRequestFactory()
+        self.user, _ = User.objects.update_or_create(
+            username="admin", defaults={"is_superuser": True, "is_staff": True}
+        )
+
+    def _patch_tree(self, mocker):
+        mocker.patch(
+            "bkflow.template.debug.service.DebugService.pipeline_tree",
+            new_callable=mocker.PropertyMock,
+            return_value=TREE,
+        )
+        mocker.patch(
+            "bkflow.template.debug.service.DebugService.space_id",
+            new_callable=mocker.PropertyMock,
+            return_value=10,
+        )
+
+    def test_node_mock_bad_node_returns_400(self, mocker):
+        """node_mock 视图：未知 node_id 返回 400 而非 500（I-5）"""
+        self._patch_tree(mocker)
+        DebugContext.objects.create(template_id=1, space_id=10)
+        view = DebugViewSet.as_view({"post": "node_mock"})
+        request = self.factory.post("/debug/node_mock/", {"template_id": 1, "node_id": "ZZZ"}, format="json")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+        assert response.status_code == 400

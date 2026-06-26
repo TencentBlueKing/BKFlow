@@ -53,6 +53,10 @@ class DebugViewSet(GenericViewSet):
         "global_run": TemplateRelatedResourcePermission.MOCK_PERMISSION,
         "reset": TemplateRelatedResourcePermission.MOCK_PERMISSION,
         "terminate": TemplateRelatedResourcePermission.MOCK_PERMISSION,
+        # step_run/node_mock/context_var 均会变更共享调试态或创建/启动真实引擎任务，需 mock 及以上权限
+        "step_run": TemplateRelatedResourcePermission.MOCK_PERMISSION,
+        "node_mock": TemplateRelatedResourcePermission.MOCK_PERMISSION,
+        "context_var": TemplateRelatedResourcePermission.MOCK_PERMISSION,
     }
 
     @action(methods=["GET"], detail=False)
@@ -150,6 +154,8 @@ class DebugViewSet(GenericViewSet):
             )
         except DebugConflictError as e:
             return _err(e, status.HTTP_409_CONFLICT)
+        except DebugStateError as e:
+            return _err(e, status.HTTP_400_BAD_REQUEST)
         return Response(data)
 
     @action(methods=["POST"], detail=False)

@@ -457,7 +457,10 @@ class DebugService:
         ctx = self.sync_node_states()
         if ctx.status != "idle":
             raise DebugConflictError("调试运行中，禁止配置 mock")
-        ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
+        try:
+            ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
+        except DebugNodeState.DoesNotExist:
+            raise DebugStateError({"detail": "节点不存在", "node_id": node_id})
         if enable:
             ns.execution_mode = "mock"
             ns.mock_result = mock_result
@@ -471,7 +474,9 @@ class DebugService:
                 ns.mock_error = mock_error or "mock failed"
                 ns.save()
         else:
-            ns.execution_mode = "real"  # 保留 mock_* 预设
+            # M-3：关闭 mock 仅切回 real 并保留 mock_* 预设；此前回写的 global_vars 不回滚（设计如此，
+            # 便于用户来回切换而不丢已消费的上游产出）。
+            ns.execution_mode = "real"
             ns.save(update_fields=["execution_mode"])
         ctx.refresh_from_db()
         return {"node_id": node_id, "execution_mode": ns.execution_mode, "updated_global_vars": ctx.global_vars}
@@ -490,7 +495,10 @@ class DebugService:
         ctx = self.sync_node_states()
         if ctx.status != "idle":
             raise DebugConflictError("模板正在被 {} 调试".format(ctx.locked_by or "其他用户"))
-        ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
+        try:
+            ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
+        except DebugNodeState.DoesNotExist:
+            raise DebugStateError({"detail": "节点不存在", "node_id": node_id})
         effective_mode = mode or ns.execution_mode
 
         if effective_mode == "mock":
@@ -535,6 +543,7 @@ class DebugService:
             build_single_node_pipeline_tree,
         )
 
+        # 依赖门控放在抢锁前：被阻断的调用不应改动状态或触达引擎（I-1）
         if input_overrides is None:
             can, missing = self.compute_can_step(ctx, ns.node_id)
             if not can:
@@ -543,55 +552,90 @@ class DebugService:
         else:
             var_values = dict(input_overrides)
 
-        mini_tree = build_single_node_pipeline_tree(self.pipeline_tree, ns.node_id, var_values)
-        template = Template.objects.filter(id=self.template_id).first()
+        # 复用 global_run 的抢锁/清理纪律：CAS 抢锁（非 idle 抛 DebugConflictError）。
+        # 微型单步任务不写 ctx.active_task_id（那是全局运行专用），以免 sync_from_debug_task 误同步。
+        self._acquire_lock(ctx, operator)
         client = self._task_client()
-        create_result = client.create_task(
-            {
-                "template_id": self.template_id,
-                "space_id": self.space_id,
-                "scope_type": template.scope_type if template else None,
-                "scope_value": template.scope_value if template else None,
-                "pipeline_tree": mini_tree,
-                "mock_data": {"nodes": [], "outputs": {}},
-                "create_method": "DEBUG",
-                "trigger_method": "manual",
-            }
-        )
-        if not create_result.get("result"):
-            raise DebugStateError(create_result.get("message", "create step task failed"))
-        task_id = create_result["data"]["id"]
-        ns.status = "running"
-        ns.last_run_at = timezone.now()
-        ns.save(update_fields=["status", "last_run_at"])
-        client.operate_task(task_id, "start", {"operator": operator})
+        task_id = None
+        try:
+            mini_tree = build_single_node_pipeline_tree(self.pipeline_tree, ns.node_id, var_values)
+            template = Template.objects.filter(id=self.template_id).first()
+            create_result = client.create_task(
+                {
+                    "template_id": self.template_id,
+                    "space_id": self.space_id,
+                    "scope_type": template.scope_type if template else None,
+                    "scope_value": template.scope_value if template else None,
+                    "pipeline_tree": mini_tree,
+                    "mock_data": {"nodes": [], "outputs": {}},
+                    "create_method": "DEBUG",
+                    "trigger_method": "manual",
+                }
+            )
+            if not create_result.get("result"):
+                raise DebugStateError(create_result.get("message", "create step task failed"))
+            task_id = create_result["data"]["id"]
+            ns.status = "running"
+            ns.last_run_at = timezone.now()
+            ns.save(update_fields=["status", "last_run_at"])
 
-        # 用节点 id 映射精确定位该活动的 runtime id，避免误读 start/end 事件（评审 #1）
-        runtime_id = client.get_node_id_map(task_id).get("data", {}).get(ns.node_id)
-        outputs, status_str, error_detail, version, duration_ms = self._poll_single_node_result(
-            client, task_id, runtime_id
-        )
-        ns.status = status_str
-        ns.duration_ms = duration_ms  # 落库单步耗时（评审 #2）
-        ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version} if runtime_id else {}
-        if status_str == "finished":
-            ns.outputs = outputs
-            ns.error_detail = {}
-            ns.save()
-            self._apply_outputs_to_global_vars(ctx, ns.node_id, outputs)
-        else:
-            ns.outputs = {}
-            ns.error_detail = error_detail or {"type": "runtime", "message": "step failed"}
-            ns.save()
-        ctx.refresh_from_db()
-        return {
-            "node_id": ns.node_id,
-            "status": ns.status,
-            "outputs": outputs if status_str == "finished" else None,
-            "error_detail": ns.error_detail or None,
-            "updated_global_vars": ctx.global_vars,
-            "log_ref": ns.log_ref or None,
-        }
+            start_result = client.operate_task(task_id, "start", {"operator": operator})
+            if not start_result.get("result"):  # I-2：启动失败必须收敛，否则会空轮询到超时
+                raise DebugStateError(start_result.get("message", "start step task failed"))
+
+            # 用节点 id 映射精确定位该活动的 runtime id，避免误读 start/end 事件（评审 #1）；
+            # id_map 失败时置空，交由 poller 优雅处理（I-3）
+            id_map_resp = client.get_node_id_map(task_id)
+            runtime_id = (id_map_resp.get("data") or {}).get(ns.node_id) if id_map_resp.get("result") else None
+            outputs, status_str, error_detail, version, duration_ms = self._poll_single_node_result(
+                client, task_id, runtime_id
+            )
+            ns.status = status_str
+            ns.duration_ms = duration_ms  # 落库单步耗时（评审 #2）
+            ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version} if runtime_id else {}
+            if status_str == "finished":
+                ns.outputs = outputs
+                ns.error_detail = {}
+                ns.save()
+                self._apply_outputs_to_global_vars(ctx, ns.node_id, outputs)
+            else:
+                # 引擎正常跑完但节点失败属正常返回：保留任务以供查日志，不进入清理分支
+                ns.outputs = {}
+                ns.error_detail = error_detail or {"type": "runtime", "message": "step failed"}
+                ns.save()
+            ctx.refresh_from_db()
+            return {
+                "node_id": ns.node_id,
+                "status": ns.status,
+                "outputs": outputs if status_str == "finished" else None,
+                "error_detail": ns.error_detail or None,
+                "updated_global_vars": ctx.global_vars,
+                "log_ref": ns.log_ref or None,
+            }
+        except Exception as exc:
+            if not isinstance(exc, (DebugStateError, DebugConflictError)):
+                logger.exception(
+                    "[debug step_run] unexpected error, template_id=%s, task_id=%s",
+                    self.template_id,
+                    task_id,
+                )
+            # 已创建但未跑完的孤儿任务尽力清理，并把卡在 running 的节点标记为 failed
+            if task_id is not None:
+                try:
+                    client.delete_task(task_id)
+                except Exception:
+                    logger.warning(
+                        "[debug step_run] cleanup orphan step task failed, template_id=%s, task_id=%s",
+                        self.template_id,
+                        task_id,
+                        exc_info=True,
+                    )
+            if ns.status == "running":
+                ns.status = "failed"
+                ns.save(update_fields=["status"])
+            raise
+        finally:
+            self._release_lock(ctx, status="idle")
 
     def _poll_single_node_result(self, client, task_id, runtime_id, max_loops=60, interval=1.0):
         """只针对目标活动节点的 runtime_id 轮询。
