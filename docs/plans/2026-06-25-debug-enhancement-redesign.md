@@ -1144,7 +1144,9 @@ class DebugStateError(Exception):
             raise
 ```
 
-> 注：`client.create_task` / `client.task_operate` 的精确方法名以 `bkflow/contrib/api/collections/task.py` 为准（`create_task` 已确认存在；启动方法形如 `task_operate(task_id, "start", data)`，实现前 `Read` 确认签名）。`constants` 入参是否被 create_task 接收需对照 `bkflow/task/serializers.py`；若不接收则改为通过 pipeline_tree 的 `constants` 注入初值。
+> 注：`client.create_task` / `client.task_operate` 的精确方法名以 `bkflow/contrib/api/collections/task.py` 为准（`create_task` 已确认存在；启动方法形如 `task_operate(task_id, "start", data)`，实现前 `Read` 确认签名）。
+>
+> **【评审 #5 阻塞校准】`inputs` 初值如何注入必须实现前确认**：本计划用 `create_data["constants"]` 传入 `inputs`，但全局调试的语义是「用用户输入覆盖 `pipeline_tree.constants` 里 show 常量的 `value`」。实现前先 `Read bkflow/task/serializers.py` 确认 `create_task` 是否接收 `constants` 字段及其格式。**若不接收，改为在构造 `create_data["pipeline_tree"]` 前，把 `inputs[key]` 写回 `pipeline_tree["constants"][key]["value"]`**（深拷贝后修改，勿污染 draft 快照），这是最稳的初值注入方式。对应需补一个单测：`global_run` 后该常量 value 等于传入 inputs。
 
 - [ ] **Step 4: 运行确认通过**
 
@@ -1273,6 +1275,8 @@ NODE_STATE_MAP = {"FINISHED": "finished", "FAILED": "failed", "RUNNING": "runnin
 ```
 
 > 注：`get_task_states` 子节点状态字段命名、`get_task_node_detail` 返回 `outputs` 结构以实际接口为准（参见调研：`get_node_data` 返回 `{"inputs", "outputs", "ex_data"}`，`outputs` 为 list）。实现前 `Read bkflow/task/operations.py` 的 `get_node_data`/`get_task_states` 校准字段。
+>
+> **【评审 #4 children 结构校准】**`get_task_states` 内部用 `flat_children=False`，返回的 `data["children"]` 是**嵌套树**。经核对：并行/分支网关的活动节点都是 root 的**直接子节点**（网关只分流、不嵌套），故 `data["children"][runtime_id]` 对本计划追踪的模板级活动可直接命中；只有**子流程**会把内部节点嵌套到子流程节点的 `children` 下，而本期不追踪子流程内部节点（子流程节点本身是顶层活动，可正常命中）。实现时用含**并行网关**的模板验证一次：所有模板活动都能在顶层 `children` 取到。若未来要追踪子流程内部，再改为递归展平或 `flat_children=True`。
 
 - [ ] **Step 4: 在 `build_context_view` 入口触发惰性同步**
 
@@ -1883,6 +1887,41 @@ class TestStepRunAndMock:
         ctx.save()
         with pytest.raises(DebugConflictError):
             svc.set_context_var(key="${biz}", value="200")
+
+    def test_node_mock_does_not_mark_status(self):
+        """配置 mock 不应把节点标记为 finished（评审 #3）"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        svc.node_mock(node_id="A", enable=True, mock_result="success", mock_outputs={"k1": "v"})
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert ns.status == "not_run"  # 仅配置，未运行
+
+    def test_step_run_real_targets_activity_and_records_duration(self, mocker):
+        """real 单步应命中活动 runtime id（非 start/end 事件）并落库耗时（评审 #1/#2）"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+
+        client = mocker.MagicMock()
+        client.create_task.return_value = {"result": True, "data": {"task_id": 789}, "message": ""}
+        client.task_operate.return_value = {"result": True, "data": {}, "message": ""}
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
+        client.get_task_states.return_value = {"result": True, "data": {"state": "FINISHED", "children": {
+            "start_evt": {"state": "FINISHED", "elapsed_time": 0},
+            "rtA": {"state": "FINISHED", "elapsed_time": 3},
+        }}, "message": ""}
+        client.get_task_node_detail.return_value = {"result": True,
+            "data": {"outputs": [{"key": "k1", "value": "produced"}], "version": "v1"}, "message": ""}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        result = svc.step_run(node_id="A", operator="admin", mode="real")
+        assert result["status"] == "finished"
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert ns.log_ref == {"instance_id": 789, "node_id": "rtA", "version": "v1"}
+        assert ns.duration_ms == 3000
+        ctx.refresh_from_db()
+        assert ctx.global_vars["${g1}"] == "produced"
 ```
 
 - [ ] **Step 2: 运行确认失败**
@@ -1895,10 +1934,9 @@ Expected: FAIL
 `service.py` 追加（real 路径用 Task 3.2 构造器建微型 DEBUG 任务并启动，跑完读单节点结果；mock 路径不经引擎直接产出）：
 
 ```python
-    def _writeback_node_outputs(self, ctx, ns, outputs: dict):
-        """成功输出按 source_act/source_key 合并到 global_vars。"""
-        ns.outputs = outputs or {}
-        acts_outputs = self._acts_outputs().get(ns.node_id, {})
+    def _apply_outputs_to_global_vars(self, ctx, node_id, outputs: dict):
+        """成功输出按 source_act/source_key 合并到 global_vars 并持久化（不触碰节点状态）。"""
+        acts_outputs = self._acts_outputs().get(node_id, {})
         for out_key, var_key in acts_outputs.items():
             if out_key in (outputs or {}):
                 ctx.global_vars[var_key] = outputs[out_key]
@@ -1913,6 +1951,8 @@ Expected: FAIL
         return {"global_vars": ctx.global_vars}
 
     def node_mock(self, node_id, enable=True, mock_result="success", mock_outputs=None, mock_error="") -> dict:
+        # node_mock 是纯「配置」：只改 execution_mode 与 mock_* 预设；
+        # 不改节点运行状态（status），mock 角标由 execution_mode=mock 体现（评审 #3）。
         ctx = self.sync_node_states()
         if ctx.status != "idle":
             raise DebugConflictError("调试运行中，禁止配置 mock")
@@ -1924,14 +1964,11 @@ Expected: FAIL
                 ns.mock_outputs = mock_outputs or {}
                 ns.mock_error = ""
                 ns.save()
-                self._writeback_node_outputs(ctx, ns, ns.mock_outputs)
-                ns.status = "finished"
+                # 配置成功输出即回写全局变量，便于下游立即单步消费（req5）；不改 status/outputs
+                self._apply_outputs_to_global_vars(ctx, node_id, ns.mock_outputs)
             else:
                 ns.mock_error = mock_error or "mock failed"
                 ns.save()
-                ns.status = "failed"
-                ns.error_detail = {"type": "mock", "message": ns.mock_error}
-            ns.save()
         else:
             ns.execution_mode = "real"  # 保留 mock_* 预设
             ns.save(update_fields=["execution_mode"])
@@ -1952,6 +1989,7 @@ Expected: FAIL
 
     def _step_run_mock(self, ctx, ns, mock_result, mock_outputs, mock_error):
         ns.log_ref = {}
+        ns.duration_ms = 0  # mock 不经引擎，耗时记 0（req12 仍记录该字段）
         ns.last_run_at = timezone.now()
         if mock_result == "fail":
             ns.status = "failed"
@@ -1962,10 +2000,10 @@ Expected: FAIL
                     "error_detail": ns.error_detail, "updated_global_vars": ctx.global_vars, "log_ref": None}
         outputs = mock_outputs if mock_outputs else (ns.mock_outputs or {})
         ns.status = "finished"
+        ns.outputs = outputs
         ns.error_detail = {}
         ns.save()
-        self._writeback_node_outputs(ctx, ns, outputs)
-        ns.save()
+        self._apply_outputs_to_global_vars(ctx, ns.node_id, outputs)
         ctx.refresh_from_db()
         return {"node_id": ns.node_id, "status": "finished", "outputs": outputs,
                 "error_detail": None, "updated_global_vars": ctx.global_vars, "log_ref": None}
@@ -2002,46 +2040,54 @@ Expected: FAIL
         ns.save(update_fields=["status", "last_run_at"])
         client.task_operate(task_id, "start", {"operator": operator})
 
-        # 轮询单节点结果（mini 任务仅 1 个活动节点）
-        outputs, status_str, error_detail, runtime_id, version = self._poll_single_node_result(client, task_id)
+        # 用节点 id 映射精确定位该活动的 runtime id，避免误读 start/end 事件（评审 #1）
+        runtime_id = client.get_node_id_map(task_id).get("data", {}).get(ns.node_id)
+        outputs, status_str, error_detail, version, duration_ms = self._poll_single_node_result(
+            client, task_id, runtime_id
+        )
         ns.status = status_str
-        ns.duration_ms = None
+        ns.duration_ms = duration_ms  # 落库单步耗时（评审 #2）
         ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version} if runtime_id else {}
         if status_str == "finished":
+            ns.outputs = outputs
             ns.error_detail = {}
             ns.save()
-            self._writeback_node_outputs(ctx, ns, outputs)
+            self._apply_outputs_to_global_vars(ctx, ns.node_id, outputs)
         else:
             ns.outputs = {}
             ns.error_detail = error_detail or {"type": "runtime", "message": "step failed"}
             ns.save()
-        ns.save()
         ctx.refresh_from_db()
-        return {"node_id": ns.node_id, "status": ns.status, "outputs": outputs if status_str == "finished" else None,
-                "error_detail": ns.error_detail or None, "updated_global_vars": ctx.global_vars, "log_ref": ns.log_ref or None}
+        return {"node_id": ns.node_id, "status": ns.status,
+                "outputs": outputs if status_str == "finished" else None,
+                "error_detail": ns.error_detail or None,
+                "updated_global_vars": ctx.global_vars, "log_ref": ns.log_ref or None}
 
-    def _poll_single_node_result(self, client, task_id, max_loops=60, interval=1.0):
+    def _poll_single_node_result(self, client, task_id, runtime_id, max_loops=60, interval=1.0):
+        """只针对目标活动节点的 runtime_id 轮询。
+
+        :return: (outputs, status, error_detail, version, duration_ms)
+        """
         import time
-        runtime_id = None
+        if not runtime_id:
+            return {}, "failed", {"type": "runtime", "message": "node id map missing"}, "v1", None
         for _ in range(max_loops):
             states = client.get_task_states(task_id)
             data = states.get("data", {}) if states.get("result") else {}
-            children = data.get("children", {})
-            # 取唯一 ServiceActivity 子节点
-            for cid, child in children.items():
-                if child.get("state") in ("FINISHED", "FAILED"):
-                    runtime_id = cid
-                    detail = client.get_task_node_detail(task_id, cid, data={"include_data": True})
-                    ddata = detail.get("data", {}) if detail.get("result") else {}
-                    version = ddata.get("version") or ddata.get("history_id") or "v1"
-                    outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
-                    if child["state"] == "FINISHED":
-                        return outputs, "finished", {}, cid, version
-                    return {}, "failed", {"type": "runtime", "message": ddata.get("ex_data", "step failed")}, cid, version
+            child = (data.get("children", {}) or {}).get(runtime_id)
+            if child and child.get("state") in ("FINISHED", "FAILED"):
+                duration_ms = int((child.get("elapsed_time") or 0) * 1000)
+                detail = client.get_task_node_detail(task_id, runtime_id, data={"include_data": True})
+                ddata = detail.get("data", {}) if detail.get("result") else {}
+                version = ddata.get("version") or ddata.get("history_id") or "v1"
+                outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
+                if child["state"] == "FINISHED":
+                    return outputs, "finished", {}, version, duration_ms
+                return {}, "failed", {"type": "runtime", "message": ddata.get("ex_data", "step failed")}, version, duration_ms
             if data.get("state") in ("FINISHED", "FAILED", "REVOKED"):
                 break
             time.sleep(interval)
-        return {}, "failed", {"type": "timeout", "message": "step run timeout"}, runtime_id, "v1"
+        return {}, "failed", {"type": "timeout", "message": "step run timeout"}, "v1", None
 ```
 
 > 注：轮询为同步实现（简单可靠，单节点通常秒级）。若节点为长轮询插件，可在后续迭代改为异步 + `GET /debug/context` 拉取。`get_task_states`/`get_task_node_detail` 字段以实际接口为准。
