@@ -25,6 +25,7 @@ from django.views.decorators.http import require_GET
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.template import TemplateListFilterSerializer
 from bkflow.apigw.utils import paginate_list_data
+from bkflow.label.models import TemplateLabelRelation
 from bkflow.template.models import Template, Trigger
 from bkflow.utils import err_code
 
@@ -61,6 +62,9 @@ def get_template_list(request, space_id):
 
     templates, count = paginate_list_data(request, template_queryset)
 
+    template_ids = list(templates.values_list("id", flat=True))
+    template_labels_map = TemplateLabelRelation.objects.fetch_objects_labels(template_ids)
+
     data = []
 
     has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
@@ -70,6 +74,8 @@ def get_template_list(request, space_id):
             json_data["has_interval_trigger"] = True
         else:
             json_data["has_interval_trigger"] = False
+        # 添加标签信息
+        json_data["labels"] = template_labels_map.get(template.id, [])
         data.append(json_data)
 
     response = {
