@@ -91,3 +91,16 @@ class TestDebugServiceContext:
         }
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=tree)
         assert svc.input_schema() == []
+
+    def test_build_context_view_renders_nodes(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        view = svc.build_context_view()
+        assert view["status"] == "idle"
+        assert view["template_id"] == 1
+        assert [n["node_id"] for n in view["nodes"]] == ["A", "B"]  # 按 node_id 排序
+        node_a = view["nodes"][0]
+        assert node_a["execution_mode"] == "real"
+        assert node_a["mock_result"] is None  # real 模式不返回 mock_result
+        assert node_a["status"] == "not_run"
+        assert node_a["can_step"] is True  # Phase 3 前的占位
+        assert node_a["log_ref"] is None and node_a["error_detail"] is None
