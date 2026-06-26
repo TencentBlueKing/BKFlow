@@ -16,22 +16,15 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import copy
 import hashlib
 import json
 from typing import Dict, Set
 
+from pipeline.core.data.expression import ConstantTemplate
+
 from bkflow.pipeline_web.parser.format import classify_constants
-
-
-def compute_node_config_hash(activity: dict) -> str:
-    """节点配置指纹：仅取影响执行的字段（type/component），忽略坐标/备注"""
-    payload = {
-        "type": activity.get("type"),
-        "component": activity.get("component", {}),
-        "optional": activity.get("optional"),
-    }
-    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
-    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+from bkflow.template.utils import _system_constants_to_mako_str
 
 
 def _hash_obj(obj) -> str:
@@ -39,10 +32,37 @@ def _hash_obj(obj) -> str:
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
+def compute_node_config_hash(activity: dict) -> str:
+    """节点配置指纹：仅取影响执行的字段（type/component/optional），忽略坐标/备注"""
+    payload = {
+        "type": activity.get("type"),
+        "component": activity.get("component", {}),
+        "optional": activity.get("optional"),
+    }
+    return _hash_obj(payload)
+
+
+def _extract_referenced_var_keys(value) -> Set[str]:
+    """从单个字段值中提取其引用的全局变量 key（形如 ``${var}``）。
+
+    复用 ``ConstantTemplate`` 的引用解析能力：会递归 list/dict 并解析 mako 表达式
+    （如 ``${var | length}``），返回的是裸变量名，这里统一包装回 ``${var}`` 形式。
+    参考 ``bkflow/template/utils.py`` 的做法，先把内置 ``_system.`` 变量转义，避免 mako
+    解析异常导致整字段引用丢失；并整体兜底 try/except，确保单个异常值不影响依赖图构建。
+    """
+    try:
+        safe_value = _system_constants_to_mako_str(copy.deepcopy(value))
+        return {"${%s}" % ref for ref in ConstantTemplate(safe_value).get_reference()}
+    except Exception:
+        return set()
+
+
 def compute_tree_fingerprint(pipeline_tree: dict) -> dict:
     """各节点 config_hash + 拓扑/连线/常量/网关指纹"""
     activities = pipeline_tree.get("activities", {})
-    flows = {fid: {"source": f["source"], "target": f["target"]} for fid, f in pipeline_tree.get("flows", {}).items()}
+    flows = {
+        fid: {"source": f.get("source"), "target": f.get("target")} for fid, f in pipeline_tree.get("flows", {}).items()
+    }
     gateways = {gid: g.get("conditions", {}) for gid, g in pipeline_tree.get("gateways", {}).items()}
     constants = {
         key: {"source_type": c.get("source_type"), "source_info": c.get("source_info"), "value": c.get("value")}
@@ -79,14 +99,11 @@ def build_dependency_graph(pipeline_tree: dict) -> dict:
     data: Dict[str, Set[str]] = {nid: set() for nid in node_ids}
     for nid, act in activities.items():
         component_data = act.get("component", {}).get("data", {})
-        referenced = set()
+        referenced_vars: Set[str] = set()
         for field in component_data.values():
-            value = field.get("value")
-            if isinstance(value, str):
-                for var_key, producer in var_producer.items():
-                    if var_key in value:
-                        referenced.add(producer)
-        for producer in referenced:
+            referenced_vars |= _extract_referenced_var_keys(field.get("value"))
+        producers = {var_producer[var_key] for var_key in referenced_vars if var_key in var_producer}
+        for producer in producers:
             if producer in data and producer != nid:
                 data[producer].add(nid)
 

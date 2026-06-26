@@ -16,6 +16,8 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import copy
+
 from bkflow.template.debug.dependency import (
     build_dependency_graph,
     closure,
@@ -91,3 +93,18 @@ class TestDependency:
         fp = compute_tree_fingerprint(PIPELINE)
         assert set(fp["nodes"].keys()) == {"A", "B"}
         assert "flows" in fp and "constants" in fp and "gateways" in fp
+
+    def test_data_edge_from_nested_value(self):
+        # C 在 component.data 中以「列表嵌套」形式引用 A 产出的 ${g1}，
+        # 子串匹配可命中，但若字段为 dict/表达式则会漏判；这里验证使用 ConstantTemplate 解析后仍能建边。
+        pipeline = copy.deepcopy(PIPELINE)
+        pipeline["activities"]["C"] = {
+            "id": "C",
+            "type": "ServiceActivity",
+            "incoming": "f2",
+            "outgoing": "f3",
+            "component": {"code": "test", "data": {"ip_list": {"hook": True, "value": ["${g1}", "127.0.0.1"]}}},
+        }
+        graph = build_dependency_graph(pipeline)
+        # 数据流：A 产出 ${g1}，C 在嵌套列表中消费 -> A -> C
+        assert "C" in graph["data"]["A"]
