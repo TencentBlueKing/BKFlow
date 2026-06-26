@@ -72,3 +72,22 @@ class TestGetNodeIdMap:
         assert set(mapping.keys()) == original_act_ids
         # 运行时 id 应与模板 id 不同，证明确实发生了重映射
         assert all(mapping[k] != k for k in mapping)
+        # value 应为任务执行数据中真实的运行时节点 id
+        runtime_ids = set(instance.execution_data["activities"].keys())
+        assert set(mapping.values()) == runtime_ids
+
+    def test_get_node_id_map_returns_empty_when_no_activities(self):
+        """execution_data 为空/无 activities 时，应返回空映射而非报错"""
+        instance = TaskInstance.objects.create_instance(
+            pipeline_tree=build_default_pipeline_tree(), space_id=1, create_method="DEBUG", creator="admin"
+        )
+        # 将执行数据置为无 activities 的形态，验证守卫分支返回空映射
+        TaskInstance.objects.filter(id=instance.id).update(execution_snapshot_id=None)
+        instance.refresh_from_db()
+
+        view = TaskInstanceViewSet.as_view({"get": "get_node_id_map"})
+        request = self._create_request_with_auth("get", f"/task/{instance.id}/get_node_id_map/")
+        response = view(request, pk=instance.id)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["data"] == {}
