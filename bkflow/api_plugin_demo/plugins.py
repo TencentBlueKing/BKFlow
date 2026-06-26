@@ -19,6 +19,20 @@ to the current version of the project delivered to anyone in the future.
 from django.conf import settings
 
 
+def _get_api_plugin_demo_stage():
+    """
+    获取 API 插件 demo 所属网关环境
+    """
+    return (getattr(settings, "BK_APIGW_STAGE_NAME", None) or getattr(settings, "ENVIRONMENT", "stage")).strip("/")
+
+
+def _build_api_plugin_demo_path(path):
+    """
+    构建 API 插件 demo 路径
+    """
+    return f"/{_get_api_plugin_demo_stage()}/api_plugin_demo/{path.lstrip('/')}"
+
+
 def _build_api_url(request, path):
     """
     构建API URL
@@ -62,7 +76,7 @@ def get_api_list(limit, offset, scope_type, scope_value, category, request=None)
     :return: API列表数据
     """
     # 定义所有可用的API
-    base_path = "/stage/api_plugin_demo/detail_meta/"
+    base_path = _build_api_plugin_demo_path("detail_meta/")
     all_apis = [
         {
             "id": "get_user_info",
@@ -134,7 +148,7 @@ def get_api_detail(api_id, request=None):
             "id": "get_user_info",
             "name": "获取用户信息",
             "version": "v3.0.0",  # 指定使用的uniform_api插件版本
-            "url": _build_api_url(request, "/stage/api_plugin_demo/execute/get_user_info/"),
+            "url": _build_api_url(request, _build_api_plugin_demo_path("execute/get_user_info/")),
             "methods": ["GET"],
             "inputs": [
                 {
@@ -182,7 +196,7 @@ def get_api_detail(api_id, request=None):
             "id": "create_task",
             "name": "创建任务",
             "version": "v3.0.0",  # 指定使用的uniform_api插件版本
-            "url": _build_api_url(request, "/stage/api_plugin_demo/execute/create_task/"),
+            "url": _build_api_url(request, _build_api_plugin_demo_path("execute/create_task/")),
             "methods": ["POST"],
             "inputs": [
                 {
@@ -252,7 +266,7 @@ def get_api_detail(api_id, request=None):
             "id": "process_data",
             "name": "处理数据",
             "version": "v2.0.0",  # 指定使用的uniform_api插件版本（示例：使用v2.0.0版本）
-            "url": _build_api_url(request, "/stage/api_plugin_demo/execute/process_data/"),
+            "url": _build_api_url(request, _build_api_plugin_demo_path("execute/process_data/")),
             "methods": ["POST"],
             "inputs": [
                 {
@@ -333,7 +347,7 @@ def get_api_detail(api_id, request=None):
             "id": "api_with_credential",
             "name": "使用自定义凭证的API",
             "version": "v3.0.0",  # 必须使用v3.0.0版本才支持credential_key
-            "url": _build_api_url(request, "/stage/api_plugin_demo/execute/api_with_credential/"),
+            "url": _build_api_url(request, _build_api_plugin_demo_path("execute/api_with_credential/")),
             "methods": ["POST"],
             "credential_key": "custom_app_credential",  # 声明使用 custom_app_credential 凭证
             "inputs": [
