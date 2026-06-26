@@ -4,10 +4,75 @@ import pytest
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 
 
 @pytest.mark.django_db
 class TestOpenPluginCatalogService:
+    def test_ungranted_space_sees_no_source(self):
+        """测试未准入空间看不到对应来源目录"""
+        OpenPluginCatalogIndex.objects.create(
+            space_id=999,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status=OpenPluginCatalogIndex.Status.AVAILABLE,
+        )
+
+        assert OpenPluginCatalogService.list_space_plugins(space_id=999, source_key="sops") == []
+
+    def test_enable_all_blocked_without_grant(self):
+        """测试未准入空间不能一键启用来源下插件"""
+        OpenPluginCatalogIndex.objects.create(
+            space_id=999,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status=OpenPluginCatalogIndex.Status.AVAILABLE,
+        )
+
+        with pytest.raises(ValueError, match="来源未准入"):
+            OpenPluginCatalogService.enable_all_visible_plugins(space_id=999, source_key="sops")
+
+    def test_granted_space_can_enable_all_visible_plugins(self):
+        """测试已准入空间可一键启用来源下可见插件"""
+        OpenPluginGrantService.grant(space_id=999, source_key="sops", operator="admin")
+        OpenPluginCatalogIndex.objects.create(
+            space_id=999,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status=OpenPluginCatalogIndex.Status.AVAILABLE,
+        )
+
+        updated = OpenPluginCatalogService.enable_all_visible_plugins(space_id=999, source_key="sops")
+
+        assert len(updated) == 1
+        assert SpaceOpenPluginAvailability.objects.get(
+            space_id=999, source_key="sops", plugin_id="open_plugin_001"
+        ).enabled
+
     @patch("bkflow.plugin.services.open_plugin_catalog.Credential")
     @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIClient")
     @patch("bkflow.plugin.services.open_plugin_catalog.SpaceConfig")

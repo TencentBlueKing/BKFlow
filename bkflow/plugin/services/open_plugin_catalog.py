@@ -19,7 +19,12 @@ to the current version of the project delivered to anyone in the future.
 
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.space.configs import ApiGatewayCredentialConfig, UniformApiConfig, UniformAPIConfigHandler
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
+from bkflow.space.configs import (
+    ApiGatewayCredentialConfig,
+    UniformApiConfig,
+    UniformAPIConfigHandler,
+)
 from bkflow.space.models import Credential, SpaceConfig
 
 
@@ -40,12 +45,21 @@ class OpenPluginCatalogService:
     @classmethod
     def list_space_plugins(cls, space_id, source_key=None):
         catalog_qs = OpenPluginCatalogIndex.objects.filter(space_id=space_id).order_by("source_key", "plugin_name")
+        granted_source_keys = set(OpenPluginGrantService.granted_source_keys(space_id))
         if source_key:
+            if source_key not in granted_source_keys:
+                return []
             catalog_qs = catalog_qs.filter(source_key=source_key)
+        else:
+            if not granted_source_keys:
+                return []
+            catalog_qs = catalog_qs.filter(source_key__in=granted_source_keys)
 
         availability_qs = SpaceOpenPluginAvailability.objects.filter(space_id=space_id)
         if source_key:
             availability_qs = availability_qs.filter(source_key=source_key)
+        else:
+            availability_qs = availability_qs.filter(source_key__in=granted_source_keys)
 
         enabled_map = {
             (item.source_key, item.plugin_id): item.enabled
@@ -82,12 +96,20 @@ class OpenPluginCatalogService:
 
     @classmethod
     def enable_all_visible_plugins(cls, space_id, source_key=None):
+        granted_source_keys = set(OpenPluginGrantService.granted_source_keys(space_id))
+        if source_key and source_key not in granted_source_keys:
+            raise ValueError("开放插件来源未准入: {}".format(source_key))
+
         catalog_qs = OpenPluginCatalogIndex.objects.filter(
             space_id=space_id,
             status=OpenPluginCatalogIndex.Status.AVAILABLE,
         )
         if source_key:
             catalog_qs = catalog_qs.filter(source_key=source_key)
+        else:
+            if not granted_source_keys:
+                return []
+            catalog_qs = catalog_qs.filter(source_key__in=granted_source_keys)
 
         updated = []
         for item in catalog_qs.only("source_key", "plugin_id"):

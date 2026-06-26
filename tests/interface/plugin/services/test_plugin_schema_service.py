@@ -22,6 +22,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
 
 
@@ -332,6 +333,7 @@ class TestUniformApiPlugins:
             plugin_id="open_plugin_001",
             enabled=True,
         )
+        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
         service = PluginSchemaService(space_id=1)
         results = service._list_uniform_api_plugins()
@@ -344,6 +346,39 @@ class TestUniformApiPlugins:
         assert results[0]["plugin_code"] == "job_execute_task"
         assert results[0]["wrapper_version"] == ""
         assert results[0]["source_key"] == "sops"
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_list_uniform_api_plugins_filters_ungranted_catalog_entry(self, mock_sc, mock_cache):
+        """测试开放插件来源未准入时不出现在查询结果中"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = None
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=True,
+        )
+
+        service = PluginSchemaService(space_id=1)
+
+        assert service._list_uniform_api_plugins() == []
 
     @pytest.mark.django_db
     @patch("bkflow.plugin.services.plugin_schema_service.cache")
@@ -383,9 +418,7 @@ class TestUniformApiPlugins:
     @patch("bkflow.plugin.services.plugin_schema_service.Credential")
     @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
     @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
-    def test_get_uniform_api_schema_with_explicit_plugin_version(
-        self, mock_sc, mock_client_cls, mock_cred, mock_cache
-    ):
+    def test_get_uniform_api_schema_with_explicit_plugin_version(self, mock_sc, mock_client_cls, mock_cred, mock_cache):
         """测试开放插件支持显式版本查询并返回来源字段"""
         mock_cache.get.return_value = None
         mock_sc.get_config.return_value = "test_cred"
@@ -415,6 +448,7 @@ class TestUniformApiPlugins:
             plugin_id="open_plugin_001",
             enabled=True,
         )
+        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
         mock_client = MagicMock()
         meta_resp = MagicMock()

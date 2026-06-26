@@ -28,11 +28,9 @@ from pipeline.component_framework.models import ComponentModel
 from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
 from bkflow.constants import ALL_SPACE
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
-from bkflow.plugin.models import (
-    OpenPluginCatalogIndex,
-    SpaceOpenPluginAvailability,
-    SpacePluginConfig as SpacePluginConfigModel,
-)
+from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
@@ -335,10 +333,15 @@ class PluginSchemaService:
         if not catalog_qs.exists():
             return None
 
+        granted_source_keys = set(OpenPluginGrantService.granted_source_keys(self.space_id))
+        if not granted_source_keys:
+            return []
+        catalog_qs = catalog_qs.filter(source_key__in=granted_source_keys)
+
         enabled_pairs = set(
-            SpaceOpenPluginAvailability.objects.filter(space_id=self.space_id, enabled=True).values_list(
-                "source_key", "plugin_id"
-            )
+            SpaceOpenPluginAvailability.objects.filter(
+                space_id=self.space_id, source_key__in=granted_source_keys, enabled=True
+            ).values_list("source_key", "plugin_id")
         )
         results = []
         for item in catalog_qs.filter(status=OpenPluginCatalogIndex.Status.AVAILABLE):
@@ -363,7 +366,9 @@ class PluginSchemaService:
                 "versions": item.versions,
                 "source_key": item.source_key,
                 "_meta_url_template": item.meta_url_template,
-                "_meta_url": item.meta_url_template.format(version=version) if version and item.meta_url_template else "",
+                "_meta_url": item.meta_url_template.format(version=version)
+                if version and item.meta_url_template
+                else "",
             }
             if keyword and not self._match_keyword(info, keyword):
                 continue
@@ -389,6 +394,7 @@ class PluginSchemaService:
             api_item["_meta_url"] = self._build_uniform_api_meta_url(api_item, version)
 
         if not api_item or not api_item.get("_meta_url"):
+            self._raise_uniform_api_catalog_access_error(code)
             raise ValueError("未找到 API 插件 '{}'".format(code))
 
         credential = self._get_apigw_credential()
@@ -466,6 +472,7 @@ class PluginSchemaService:
             api_list = self._list_uniform_api_plugins()
             api_item = next((a for a in api_list if a["code"] == code), None)
             if not api_item:
+                self._raise_uniform_api_catalog_access_error(code)
                 raise ValueError("未找到 API 插件 '{}'".format(code))
             if version:
                 api_item = dict(api_item)
@@ -507,6 +514,26 @@ class PluginSchemaService:
         if resolved_type == "uniform_api":
             return api_item
         return self._get_single_by_type(code, resolved_type, version=version)
+
+    def _raise_uniform_api_catalog_access_error(self, code):
+        catalog = (
+            OpenPluginCatalogIndex.objects.filter(space_id=self.space_id, plugin_id=code)
+            .order_by("-update_time", "-id")
+            .first()
+        )
+        if not catalog:
+            return
+        if not OpenPluginGrantService.is_granted(self.space_id, catalog.source_key):
+            raise ValueError("开放插件来源未准入: {}".format(catalog.source_key))
+        if catalog.status != OpenPluginCatalogIndex.Status.AVAILABLE:
+            raise ValueError("开放插件 [{}] 当前不可用".format(code))
+        if not SpaceOpenPluginAvailability.objects.filter(
+            space_id=self.space_id,
+            source_key=catalog.source_key,
+            plugin_id=catalog.plugin_id,
+            enabled=True,
+        ).exists():
+            raise ValueError("开放插件 [{}] 在当前空间未开放".format(code))
 
     def _fill_schema_batch(self, plugins):
         component_plugins = [p for p in plugins if p["plugin_type"] == "component"]
