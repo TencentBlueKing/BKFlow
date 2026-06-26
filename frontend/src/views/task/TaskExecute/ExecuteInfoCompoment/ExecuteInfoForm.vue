@@ -832,32 +832,32 @@
       },
       // 获取输出变量列表
       getOutputsList() {
-        const list = [];
-        const varKeys = Object.keys(this.constants);
-        this.outputs.forEach((param) => {
-          let { key: varKey } = param;
-          const isHooked = varKeys.some((item) => {
-            let result = false;
-            const varItem = this.constants[item];
-            if (varItem.source_type === 'component_outputs') {
-              const sourceInfo = varItem.source_info[this.nodeActivity.id];
-              if (sourceInfo && sourceInfo.includes(param.key)) {
-                varKey = item;
-                result = true;
-              }
-            }
-            return result;
+        const nodeId = this.nodeActivity.id;
+        const constKeys = Object.keys(this.constants);
+
+        let list = this.outputs.map(param => {
+          // 找出引用当前输出变量的常量 key
+          const hookedKey = constKeys.find(key => {
+            const item = this.constants[key];
+            if (item.source_type !== 'component_outputs') return false;
+            const sourceInfo = item.source_info[nodeId];
+            return sourceInfo && sourceInfo.includes(param.key);
           });
-          list.push({
+
+          return {
             key: param.key,
-            varKey,
+            varKey: hookedKey || param.key,
             name: param.name,
             description: param.schema ? param.schema.description : '--',
             version: param.version,
             status: param.status,
-            hooked: isHooked,
-          });
+            hooked: !!hookedKey,
+          };
         });
+
+        if (this.isSubCanvasNode) {
+          list = list.filter(item => item.key === 'task_id' || item.key === 'outputs');
+        }
         return list;
       },
       getRowClassName({ row }) {

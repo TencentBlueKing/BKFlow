@@ -37,7 +37,7 @@
           <span class="loop-title">{{ nodeData.name || '循环' }}</span>
           <!-- <span class="loop-child-count">{{ childCount }}</span> -->
           <i
-            v-if="isEditable"
+            v-if="nodeData.mode !== 'execute'"
             class="loop-variables-icon bk-icon icon-cog-shape"
             :title="'全局变量'"
             @click.stop="onShowVariables" />

@@ -120,7 +120,7 @@
                   :variable-data="constant"
                   :variable-cited="variableCited"
                   :variable-checked="!!(deleteVarList.find(item => item.key === constant.key))"
-                  :is-view-mode="false"
+                  :is-view-mode="isViewMode"
                   :is-loop-node="true"
                   :pipeline-tree-data="loopNode.pipeline"
                   @onEditVariable="onEditVariable"
@@ -145,7 +145,7 @@
         v-if="variableData"
         ref="variableEdit"
         :variable-data="variableData"
-        :is-view-mode="false"
+        :is-view-mode="isViewMode"
         :constants="innerConstants"
         :use-store-directly="false"
         @closeEditingPanel="closeEditingPanel"
@@ -176,6 +176,10 @@
         type: String,
         required: true,
       },
+      isViewMode: {
+        type: Boolean,
+        default: false,
+      }
     },
     data() {
       return {
