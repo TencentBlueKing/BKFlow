@@ -18,8 +18,10 @@ to the current version of the project delivered to anyone in the future.
 """
 
 import copy
+import datetime
 import logging
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -240,6 +242,48 @@ class DebugService:
         ctx.locked_at = None
         ctx.save(update_fields=["status", "locked_by", "locked_at"])
 
+    def _reclaim_stale_lock(self, ctx: DebugContext) -> bool:
+        """回收被遗弃的调试锁。
+
+        正常情况下锁仅在 ``GET /debug/context`` 触发 ``sync_from_debug_task`` 时释放；若前端关闭
+        或轮询中断，上下文会长期停留在 running/terminating，导致模板被一把永不释放的锁卡死（系统无
+        后台 reaper）。这里在持锁超过 TTL 时，以 CAS 方式原子地把它复位为 idle，并尽力撤销可能仍在
+        引擎侧运行的孤儿任务。
+
+        :return: 成功回收返回 True 并刷新 ctx；否则返回 False（未持锁 / 未过期 / 竞争失败）。
+        """
+        if ctx.status not in ("running", "terminating") or not ctx.locked_at:
+            return False
+        ttl = getattr(settings, "BKFLOW_DEBUG_LOCK_TTL_SECONDS", 600)
+        threshold = timezone.now() - datetime.timedelta(seconds=ttl)
+        stale_task_id = ctx.active_task_id
+        # CAS：仅当行仍处于陈旧的持锁态（running/terminating 且 locked_at 早于阈值）时才回收，
+        # 避免与正常释放或他人正常持锁竞争。
+        reclaimed = DebugContext.objects.filter(
+            id=ctx.id, status__in=("running", "terminating"), locked_at__lt=threshold
+        ).update(status="idle", locked_by="", locked_at=None, active_task_id=None)
+        if not reclaimed:
+            return False
+        logger.warning(
+            "[debug] reclaimed stale debug lock, template_id=%s, prev_status=%s, prev_task_id=%s, prev_locked_by=%s",
+            self.template_id,
+            ctx.status,
+            stale_task_id,
+            ctx.locked_by,
+        )
+        if stale_task_id:
+            try:
+                self._task_client().operate_task(stale_task_id, "revoke", {"operator": "system"})
+            except Exception:
+                logger.warning(
+                    "[debug] revoke orphan debug task on reclaim failed, template_id=%s, task_id=%s",
+                    self.template_id,
+                    stale_task_id,
+                    exc_info=True,
+                )
+        ctx.refresh_from_db()
+        return True
+
     def reset_run_results(self, ctx: DebugContext, node_ids=None):
         """清运行结果，保留 mock 配置；node_ids 为 None 时全量。"""
         qs = DebugNodeState.objects.filter(debug_context=ctx)
@@ -273,7 +317,7 @@ class DebugService:
         """全局调试：抢锁 -> 重置 -> 物化 -> 创建并启动 DEBUG 任务。"""
         # M-3：抢锁前先做幂等的并发预检，避免被拒绝（冲突）的调用提前 sync 改动节点态
         ctx = self.get_or_create_context()
-        if ctx.status != "idle":
+        if ctx.status != "idle" and not self._reclaim_stale_lock(ctx):
             raise DebugConflictError("模板正在被 {} 调试".format(ctx.locked_by or "其他用户"))
         self.sync_node_states()
         self._acquire_lock(ctx, operator)
@@ -408,7 +452,7 @@ class DebugService:
     def reset(self, node_ids=None) -> list:
         """重置运行结果（保留 mock 配置）；运行中/终止中禁止重置。"""
         ctx = self.sync_node_states()
-        if ctx.status in ("running", "terminating"):
+        if ctx.status in ("running", "terminating") and not self._reclaim_stale_lock(ctx):
             raise DebugConflictError("调试运行中，不能重置")
         return self.reset_run_results(ctx, node_ids=node_ids)
 
@@ -528,7 +572,7 @@ class DebugService:
     def set_context_var(self, key, value) -> dict:
         """编辑调试上下文变量；运行中禁止编辑。"""
         ctx = self.get_or_create_context()
-        if ctx.status != "idle":
+        if ctx.status != "idle" and not self._reclaim_stale_lock(ctx):
             raise DebugConflictError("调试运行中，禁止编辑变量")
         ctx.global_vars[key] = value
         ctx.save(update_fields=["global_vars"])
@@ -537,7 +581,7 @@ class DebugService:
     def node_mock(self, node_id, enable=True, mock_result="success", mock_outputs=None, mock_error="") -> dict:
         """节点 mock 纯配置：只改 execution_mode 与 mock_* 预设，不改运行状态（评审 #3）。"""
         ctx = self.sync_node_states()
-        if ctx.status != "idle":
+        if ctx.status != "idle" and not self._reclaim_stale_lock(ctx):
             raise DebugConflictError("调试运行中，禁止配置 mock")
         try:
             ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
@@ -575,7 +619,7 @@ class DebugService:
     ) -> dict:
         """单步执行单个节点：mock 模式直出，real 模式经引擎跑微型任务。"""
         ctx = self.sync_node_states()
-        if ctx.status != "idle":
+        if ctx.status != "idle" and not self._reclaim_stale_lock(ctx):
             raise DebugConflictError("模板正在被 {} 调试".format(ctx.locked_by or "其他用户"))
         try:
             ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
