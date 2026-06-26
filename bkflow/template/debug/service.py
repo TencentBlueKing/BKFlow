@@ -19,6 +19,10 @@ to the current version of the project delivered to anyone in the future.
 
 import logging
 
+from django.db import transaction
+from django.utils import timezone
+
+from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.template.debug.dependency import compute_tree_fingerprint
 from bkflow.template.models import (
     DebugContext,
@@ -28,6 +32,14 @@ from bkflow.template.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class DebugConflictError(Exception):
+    """并发锁冲突（HTTP 409）"""
+
+
+class DebugStateError(Exception):
+    """状态/参数错误（HTTP 400）"""
 
 
 class DebugService:
@@ -140,3 +152,98 @@ class DebugService:
         if states:
             DebugNodeState.objects.bulk_update(states, ["config_hash"])
         ctx.save(update_fields=["tree_fingerprint"])
+
+    # ---- 全局调试编排 ----
+    def _task_client(self):
+        return TaskComponentClient(space_id=self.space_id)
+
+    def _acquire_lock(self, ctx: DebugContext, operator: str):
+        """CAS 抢锁：仅当 status=idle 时置为 running，0 行更新即冲突。"""
+        updated = DebugContext.objects.filter(id=ctx.id, status="idle").update(
+            status="running", locked_by=operator, locked_at=timezone.now()
+        )
+        if not updated:
+            ctx.refresh_from_db()
+            raise DebugConflictError("模板正在被 {} 调试".format(ctx.locked_by or "其他用户"))
+        ctx.refresh_from_db()
+
+    def _release_lock(self, ctx: DebugContext, status="idle"):
+        ctx.status = status
+        ctx.locked_by = ""
+        ctx.locked_at = None
+        ctx.save(update_fields=["status", "locked_by", "locked_at"])
+
+    def reset_run_results(self, ctx: DebugContext, node_ids=None):
+        """清运行结果，保留 mock 配置；node_ids 为 None 时全量。"""
+        qs = DebugNodeState.objects.filter(debug_context=ctx)
+        if node_ids is not None:
+            qs = qs.filter(node_id__in=node_ids)
+        reset_ids = list(qs.values_list("node_id", flat=True))
+        qs.update(
+            status="not_run",
+            inputs={},
+            outputs={},
+            duration_ms=None,
+            error_detail={},
+            log_ref={},
+            last_run_at=None,
+        )
+        return reset_ids
+
+    def materialize_mock_data(self, ctx: DebugContext):
+        """把 execution_mode=mock 的节点物化为 TaskMockData 入参（模板 id，Engine 侧再映射）。"""
+        nodes, outputs, fail_nodes, errors = [], {}, [], {}
+        for ns in DebugNodeState.objects.filter(debug_context=ctx, execution_mode="mock"):
+            nodes.append(ns.node_id)
+            if ns.mock_result == "fail":
+                fail_nodes.append(ns.node_id)
+                errors[ns.node_id] = ns.mock_error or "mock failed"
+            else:
+                outputs[ns.node_id] = ns.mock_outputs or {}
+        return {"nodes": nodes, "outputs": outputs, "fail_nodes": fail_nodes, "errors": errors}
+
+    def global_run(self, inputs: dict, operator: str) -> dict:
+        """全局调试：抢锁 -> 重置 -> 物化 -> 创建并启动 DEBUG 任务。"""
+        ctx = self.sync_node_states()
+        if ctx.status != "idle":
+            raise DebugConflictError("模板正在被 {} 调试".format(ctx.locked_by or "其他用户"))
+        self._acquire_lock(ctx, operator)
+        try:
+            with transaction.atomic():
+                self.reset_run_results(ctx, node_ids=None)
+                ctx.global_vars = dict(inputs or {})
+                ctx.last_inputs = dict(inputs or {})
+                self._refresh_tree_fingerprint(ctx)
+                ctx.save(update_fields=["global_vars", "last_inputs"])
+
+            template = Template.objects.filter(id=self.template_id).first()
+            create_data = {
+                "template_id": self.template_id,
+                "space_id": self.space_id,
+                "scope_type": template.scope_type if template else None,
+                "scope_value": template.scope_value if template else None,
+                "pipeline_tree": self.pipeline_tree,
+                "mock_data": self.materialize_mock_data(ctx),
+                "create_method": "DEBUG",
+                "trigger_method": "manual",
+                "constants": inputs or {},
+            }
+            client = self._task_client()
+            create_result = client.create_task(create_data)
+            if not create_result.get("result"):
+                self._release_lock(ctx, status="idle")
+                raise DebugStateError(create_result.get("message", "create debug task failed"))
+            task_id = create_result["data"]["id"]
+            ctx.active_task_id = task_id
+            ctx.save(update_fields=["active_task_id"])
+
+            start_result = client.operate_task(task_id, "start", {"operator": operator})
+            if not start_result.get("result"):
+                self._release_lock(ctx, status="idle")
+                raise DebugStateError(start_result.get("message", "start debug task failed"))
+            return {"task_id": task_id, "status": "running"}
+        except (DebugConflictError, DebugStateError):
+            raise
+        except Exception:
+            self._release_lock(ctx, status="idle")
+            raise
