@@ -23,8 +23,11 @@ from rest_framework.viewsets import GenericViewSet
 
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.template.debug.serializers import (
+    ContextVarSerializer,
     GlobalRunSerializer,
+    NodeMockSerializer,
     ResetSerializer,
+    StepRunSerializer,
     TemplateIdQuerySerializer,
     TerminateSerializer,
 )
@@ -107,3 +110,56 @@ class DebugViewSet(GenericViewSet):
         query.is_valid(raise_exception=True)
         svc = DebugService(template_id=query.validated_data["template_id"])
         return Response(svc.history())
+
+    @action(methods=["POST"], detail=False)
+    def step_run(self, request, *args, **kwargs):
+        ser = StepRunSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        vd = ser.validated_data
+        svc = DebugService(template_id=vd["template_id"])
+        try:
+            data = svc.step_run(
+                node_id=vd["node_id"],
+                operator=request.user.username,
+                mode=vd.get("mode"),
+                input_overrides=vd.get("input_overrides"),
+                mock_result=vd["mock_result"],
+                mock_outputs=vd["mock_outputs"],
+                mock_error=vd["mock_error"],
+            )
+        except DebugConflictError as e:
+            return _err(e, status.HTTP_409_CONFLICT)
+        except DebugStateError as e:
+            detail = e.args[0] if e.args else str(e)
+            return Response(exception=True, data={"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(data)
+
+    @action(methods=["POST"], detail=False)
+    def node_mock(self, request, *args, **kwargs):
+        ser = NodeMockSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        vd = ser.validated_data
+        svc = DebugService(template_id=vd["template_id"])
+        try:
+            data = svc.node_mock(
+                node_id=vd["node_id"],
+                enable=vd["enable"],
+                mock_result=vd["mock_result"],
+                mock_outputs=vd["mock_outputs"],
+                mock_error=vd["mock_error"],
+            )
+        except DebugConflictError as e:
+            return _err(e, status.HTTP_409_CONFLICT)
+        return Response(data)
+
+    @action(methods=["POST"], detail=False)
+    def context_var(self, request, *args, **kwargs):
+        ser = ContextVarSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        vd = ser.validated_data
+        svc = DebugService(template_id=vd["template_id"])
+        try:
+            data = svc.set_context_var(key=vd["key"], value=vd["value"])
+        except DebugConflictError as e:
+            return _err(e, status.HTTP_409_CONFLICT)
+        return Response(data)

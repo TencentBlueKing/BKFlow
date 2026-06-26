@@ -433,3 +433,190 @@ class DebugService:
                 }
             )
         return {"runs": runs}
+
+    # ---- 单步调试 / 节点 mock 配置 / 上下文变量 ----
+    def _apply_outputs_to_global_vars(self, ctx, node_id, outputs: dict):
+        """成功输出按 source_act/source_key 合并到 global_vars 并持久化（不触碰节点状态）。"""
+        acts_outputs = self._acts_outputs().get(node_id, {})
+        for out_key, var_key in acts_outputs.items():
+            if out_key in (outputs or {}):
+                ctx.global_vars[var_key] = outputs[out_key]
+        ctx.save(update_fields=["global_vars"])
+
+    def set_context_var(self, key, value) -> dict:
+        """编辑调试上下文变量；运行中禁止编辑。"""
+        ctx = self.get_or_create_context()
+        if ctx.status != "idle":
+            raise DebugConflictError("调试运行中，禁止编辑变量")
+        ctx.global_vars[key] = value
+        ctx.save(update_fields=["global_vars"])
+        return {"global_vars": ctx.global_vars}
+
+    def node_mock(self, node_id, enable=True, mock_result="success", mock_outputs=None, mock_error="") -> dict:
+        """节点 mock 纯配置：只改 execution_mode 与 mock_* 预设，不改运行状态（评审 #3）。"""
+        ctx = self.sync_node_states()
+        if ctx.status != "idle":
+            raise DebugConflictError("调试运行中，禁止配置 mock")
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
+        if enable:
+            ns.execution_mode = "mock"
+            ns.mock_result = mock_result
+            if mock_result == "success":
+                ns.mock_outputs = mock_outputs or {}
+                ns.mock_error = ""
+                ns.save()
+                # 配置成功输出即回写全局变量，便于下游立即单步消费；不改 status/outputs
+                self._apply_outputs_to_global_vars(ctx, node_id, ns.mock_outputs)
+            else:
+                ns.mock_error = mock_error or "mock failed"
+                ns.save()
+        else:
+            ns.execution_mode = "real"  # 保留 mock_* 预设
+            ns.save(update_fields=["execution_mode"])
+        ctx.refresh_from_db()
+        return {"node_id": node_id, "execution_mode": ns.execution_mode, "updated_global_vars": ctx.global_vars}
+
+    def step_run(
+        self,
+        node_id,
+        operator,
+        mode=None,
+        input_overrides=None,
+        mock_result="success",
+        mock_outputs=None,
+        mock_error="",
+    ) -> dict:
+        """单步执行单个节点：mock 模式直出，real 模式经引擎跑微型任务。"""
+        ctx = self.sync_node_states()
+        if ctx.status != "idle":
+            raise DebugConflictError("模板正在被 {} 调试".format(ctx.locked_by or "其他用户"))
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
+        effective_mode = mode or ns.execution_mode
+
+        if effective_mode == "mock":
+            return self._step_run_mock(ctx, ns, mock_result, mock_outputs, mock_error)
+        return self._step_run_real(ctx, ns, operator, input_overrides)
+
+    def _step_run_mock(self, ctx, ns, mock_result, mock_outputs, mock_error):
+        ns.log_ref = {}
+        ns.duration_ms = 0  # mock 不经引擎，耗时记 0
+        ns.last_run_at = timezone.now()
+        if mock_result == "fail":
+            ns.status = "failed"
+            ns.outputs = {}
+            ns.error_detail = {"type": "mock", "message": mock_error or "mock failed"}
+            ns.save()
+            return {
+                "node_id": ns.node_id,
+                "status": "failed",
+                "outputs": None,
+                "error_detail": ns.error_detail,
+                "updated_global_vars": ctx.global_vars,
+                "log_ref": None,
+            }
+        outputs = mock_outputs if mock_outputs else (ns.mock_outputs or {})
+        ns.status = "finished"
+        ns.outputs = outputs
+        ns.error_detail = {}
+        ns.save()
+        self._apply_outputs_to_global_vars(ctx, ns.node_id, outputs)
+        ctx.refresh_from_db()
+        return {
+            "node_id": ns.node_id,
+            "status": "finished",
+            "outputs": outputs,
+            "error_detail": None,
+            "updated_global_vars": ctx.global_vars,
+            "log_ref": None,
+        }
+
+    def _step_run_real(self, ctx, ns, operator, input_overrides):
+        from bkflow.template.debug.pipeline_builder import (
+            build_single_node_pipeline_tree,
+        )
+
+        if input_overrides is None:
+            can, missing = self.compute_can_step(ctx, ns.node_id)
+            if not can:
+                raise DebugStateError({"detail": "依赖未满足", "missing_vars": missing})
+            var_values = dict(ctx.global_vars or {})
+        else:
+            var_values = dict(input_overrides)
+
+        mini_tree = build_single_node_pipeline_tree(self.pipeline_tree, ns.node_id, var_values)
+        template = Template.objects.filter(id=self.template_id).first()
+        client = self._task_client()
+        create_result = client.create_task(
+            {
+                "template_id": self.template_id,
+                "space_id": self.space_id,
+                "scope_type": template.scope_type if template else None,
+                "scope_value": template.scope_value if template else None,
+                "pipeline_tree": mini_tree,
+                "mock_data": {"nodes": [], "outputs": {}},
+                "create_method": "DEBUG",
+                "trigger_method": "manual",
+            }
+        )
+        if not create_result.get("result"):
+            raise DebugStateError(create_result.get("message", "create step task failed"))
+        task_id = create_result["data"]["id"]
+        ns.status = "running"
+        ns.last_run_at = timezone.now()
+        ns.save(update_fields=["status", "last_run_at"])
+        client.operate_task(task_id, "start", {"operator": operator})
+
+        # 用节点 id 映射精确定位该活动的 runtime id，避免误读 start/end 事件（评审 #1）
+        runtime_id = client.get_node_id_map(task_id).get("data", {}).get(ns.node_id)
+        outputs, status_str, error_detail, version, duration_ms = self._poll_single_node_result(
+            client, task_id, runtime_id
+        )
+        ns.status = status_str
+        ns.duration_ms = duration_ms  # 落库单步耗时（评审 #2）
+        ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version} if runtime_id else {}
+        if status_str == "finished":
+            ns.outputs = outputs
+            ns.error_detail = {}
+            ns.save()
+            self._apply_outputs_to_global_vars(ctx, ns.node_id, outputs)
+        else:
+            ns.outputs = {}
+            ns.error_detail = error_detail or {"type": "runtime", "message": "step failed"}
+            ns.save()
+        ctx.refresh_from_db()
+        return {
+            "node_id": ns.node_id,
+            "status": ns.status,
+            "outputs": outputs if status_str == "finished" else None,
+            "error_detail": ns.error_detail or None,
+            "updated_global_vars": ctx.global_vars,
+            "log_ref": ns.log_ref or None,
+        }
+
+    def _poll_single_node_result(self, client, task_id, runtime_id, max_loops=60, interval=1.0):
+        """只针对目标活动节点的 runtime_id 轮询。
+
+        :return: (outputs, status, error_detail, version, duration_ms)
+        """
+        import time
+
+        if not runtime_id:
+            return {}, "failed", {"type": "runtime", "message": "node id map missing"}, "v1", None
+        for _ in range(max_loops):
+            states = client.get_task_states(task_id)
+            data = states.get("data", {}) if states.get("result") else {}
+            child = (data.get("children", {}) or {}).get(runtime_id)
+            if child and child.get("state") in ("FINISHED", "FAILED"):
+                duration_ms = int((child.get("elapsed_time") or 0) * 1000)
+                detail = client.get_task_node_detail(task_id, runtime_id, data={"include_data": True})
+                ddata = detail.get("data", {}) if detail.get("result") else {}
+                version = ddata.get("version") or ddata.get("history_id") or "v1"
+                outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
+                if child["state"] == "FINISHED":
+                    return outputs, "finished", {}, version, duration_ms
+                error_detail = {"type": "runtime", "message": ddata.get("ex_data", "step failed")}
+                return {}, "failed", error_detail, version, duration_ms
+            if data.get("state") in ("FINISHED", "FAILED", "REVOKED"):
+                break
+            time.sleep(interval)
+        return {}, "failed", {"type": "timeout", "message": "step run timeout"}, "v1", None
