@@ -68,3 +68,26 @@ class TestDebugServiceContext:
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
         fields = svc.input_schema()
         assert fields == [{"key": "${biz}", "name": "业务", "type": "input", "default": "", "required": True}]
+
+    def test_sync_node_states_idempotent(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        svc.sync_node_states()  # 二次同步：不报错、不重复
+        assert set(DebugNodeState.objects.filter(debug_context=ctx).values_list("node_id", flat=True)) == {"A", "B"}
+
+    def test_sync_node_states_sets_node_type(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        assert DebugNodeState.objects.get(debug_context=ctx, node_id="A").node_type == "ServiceActivity"
+
+    def test_input_schema_excludes_hidden(self):
+        tree = {
+            "activities": {},
+            "flows": {},
+            "gateways": {},
+            "constants": {"${h}": {"key": "${h}", "name": "h", "show_type": "hide", "custom_type": "input"}},
+        }
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=tree)
+        assert svc.input_schema() == []

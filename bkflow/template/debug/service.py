@@ -19,10 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 import logging
 
-from bkflow.template.debug.dependency import (
-    compute_node_config_hash,
-    compute_tree_fingerprint,
-)
+from bkflow.template.debug.dependency import compute_tree_fingerprint
 from bkflow.template.models import (
     DebugContext,
     DebugNodeState,
@@ -51,13 +48,12 @@ class DebugService:
     def pipeline_tree(self):
         """优先草稿快照，否则取已发布 pipeline_tree"""
         if self._pipeline_tree is None:
-            template = Template.objects.get(id=self.template_id)
             try:
                 self._pipeline_tree = TemplateSnapshot.objects.get(
-                    template_id=template.id, draft=True, is_deleted=False
+                    template_id=self.template_id, draft=True, is_deleted=False
                 ).data
             except TemplateSnapshot.DoesNotExist:
-                self._pipeline_tree = template.pipeline_tree
+                self._pipeline_tree = Template.objects.get(id=self.template_id).pipeline_tree
         return self._pipeline_tree
 
     def get_or_create_context(self) -> DebugContext:
@@ -71,11 +67,13 @@ class DebugService:
         existing = {ns.node_id: ns for ns in DebugNodeState.objects.filter(debug_context=ctx)}
         tree_node_ids = set(activities.keys())
 
-        for node_id, act in activities.items():
-            if node_id not in existing:
-                DebugNodeState.objects.create(
-                    debug_context=ctx, node_id=node_id, node_type=act.get("type", "ServiceActivity")
-                )
+        to_create = [
+            DebugNodeState(debug_context=ctx, node_id=node_id, node_type=act.get("type", "ServiceActivity"))
+            for node_id, act in activities.items()
+            if node_id not in existing
+        ]
+        if to_create:
+            DebugNodeState.objects.bulk_create(to_create, ignore_conflicts=True)
         stale = set(existing.keys()) - tree_node_ids
         if stale:
             DebugNodeState.objects.filter(debug_context=ctx, node_id__in=stale).delete()
@@ -91,7 +89,7 @@ class DebugService:
                 {
                     "key": key,
                     "name": c.get("name", key),
-                    "type": c.get("custom_type") or c.get("source_type") or "string",
+                    "type": c.get("custom_type") or "string",
                     "default": c.get("value", ""),
                     "required": True,
                 }
@@ -101,9 +99,11 @@ class DebugService:
     # ---- 内部工具 ----
     def _refresh_tree_fingerprint(self, ctx: DebugContext):
         ctx.tree_fingerprint = compute_tree_fingerprint(self.pipeline_tree)
-        for ns in DebugNodeState.objects.filter(debug_context=ctx):
-            act = self.pipeline_tree.get("activities", {}).get(ns.node_id)
-            if act is not None:
-                ns.config_hash = compute_node_config_hash(act)
-                ns.save(update_fields=["config_hash"])
+        node_hashes = ctx.tree_fingerprint["nodes"]
+        states = list(DebugNodeState.objects.filter(debug_context=ctx))
+        for ns in states:
+            if ns.node_id in node_hashes:
+                ns.config_hash = node_hashes[ns.node_id]
+        if states:
+            DebugNodeState.objects.bulk_update(states, ["config_hash"])
         ctx.save(update_fields=["tree_fingerprint"])
