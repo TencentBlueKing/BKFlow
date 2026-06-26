@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+import copy
 import logging
 
 from django.db import transaction
@@ -299,7 +300,9 @@ class DebugService:
     # ---- 全局调试结果回写 ----
     def _acts_outputs(self):
         """节点输出 -> 全局变量映射：acts_outputs[node_id][output_key] = var_key。"""
-        return classify_constants(self.pipeline_tree.get("constants", {}), is_subprocess=False)["acts_outputs"]
+        # classify_constants 会就地写入 info["is_param"]，深拷贝避免污染可能被缓存的快照
+        constants = copy.deepcopy(self.pipeline_tree.get("constants", {}))
+        return classify_constants(constants, is_subprocess=False)["acts_outputs"]
 
     def sync_from_debug_task(self, ctx: DebugContext):
         """惰性回写：读引擎任务态，回填节点 status/duration/log_ref/outputs 与全局变量，结束则解锁。"""
@@ -312,7 +315,11 @@ class DebugService:
             return
         data = states["data"]
         children = data.get("children", {})
-        id_map = client.get_node_id_map(ctx.active_task_id).get("data", {})
+        # id_map 失败时直接返回：避免空回写后误判结束而释放锁，导致该次结束的结果永久丢失
+        id_map_resp = client.get_node_id_map(ctx.active_task_id)
+        if not id_map_resp.get("result"):
+            return
+        id_map = id_map_resp.get("data", {})
         acts_outputs = self._acts_outputs()
 
         for tpl_node_id, runtime_id in id_map.items():

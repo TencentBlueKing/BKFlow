@@ -74,3 +74,52 @@ class TestSyncFromDebugTask:
         assert ns.log_ref == {"instance_id": 456, "node_id": "rtA", "version": "v1"}
         assert ctx.global_vars.get("${g1}") == "produced"
         assert ctx.status == "idle"  # 整体结束后解锁
+
+    def test_sync_running_task_does_not_release_lock(self, mocker):
+        """任务运行中：回写节点态与耗时，但不释放锁"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        ctx.status = "running"
+        ctx.active_task_id = 456
+        ctx.save()
+
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "RUNNING", "children": {"rtA": {"state": "RUNNING", "elapsed_time": 1}}},
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+        ctx.refresh_from_db()
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert ctx.status == "running"  # 未结束，不解锁
+        assert ns.status == "running"
+        assert ns.duration_ms == 1000  # elapsed_time(s) -> ms
+
+    def test_sync_returns_early_when_node_id_map_fails(self, mocker):
+        """id_map 调用失败：不回写、不释放锁，结束结果可在下次重试"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        ctx.status = "running"
+        ctx.active_task_id = 456
+        ctx.save()
+
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "FINISHED", "children": {"rtA": {"state": "FINISHED", "elapsed_time": 2}}},
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {"result": False, "data": {}, "message": "boom"}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+        ctx.refresh_from_db()
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert ctx.status == "running"  # 未释放锁（Must-fix #1）
+        assert ns.status == "not_run"  # 无任何回写
