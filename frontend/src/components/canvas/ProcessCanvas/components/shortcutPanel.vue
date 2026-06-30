@@ -14,7 +14,7 @@
           delay: 500
         }"
         :data-test-id="`templateCanvas_panel_${item.key}`"
-        :class="['nodes-item', `common-icon-node-${item.key}-shortcut`]"
+        :class="['nodes-item', `common-icon-node-${item.key === 'SubCanvas' ? 'subflow': item.key}-shortcut`]"
         @click.stop="onAppendNode(item.id)" />
     </ul>
     <ul
@@ -302,6 +302,10 @@
           // 更新快捷面板
           this.$emit('updateShortcutPanel', nodeId);
           this.$emit('onLocationChange', 'copy', nodeInstance);
+          // 分组容器自适应（如果新节点在分组内）
+          if (loopGroupParent) {
+            this.$emit('onFitCanvas', loopGroupParent.id);
+          }
           return;
         }
         /**
@@ -364,6 +368,10 @@
         });
         // 更新快捷面板
         this.$emit('updateShortcutPanel', nodeId);
+        // 分组容器自适应（如果新节点在分组内）
+        if (loopGroupParent) {
+          this.$emit('onFitCanvas', loopGroupParent.id);
+        }
       },
       /**
        * 获得并行节点中最靠下面的节点
