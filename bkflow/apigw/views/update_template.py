@@ -23,6 +23,7 @@ from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from webhook.models import Webhook
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.exceptions import UpdateTemplateException
@@ -30,7 +31,11 @@ from bkflow.apigw.serializers.template import (
     UpdateTemplateLabelsSerializer,
     UpdateTemplateSerializer,
 )
-from bkflow.constants import TemplateOperationSource, TemplateOperationType
+from bkflow.constants import (
+    TemplateOperationSource,
+    TemplateOperationType,
+    WebhookScopeType,
+)
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.label.serializers import LabelSerializer
@@ -41,7 +46,7 @@ from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
 from bkflow.utils.version import bump_custom
-from bkflow.utils.webhook import apply_webhook_configs, clear_scope_webhooks
+from bkflow.utils.webhook import apply_webhook_configs
 
 
 @login_exempt
@@ -146,13 +151,16 @@ def update_template(request, space_id, template_id):
 
         enable_webhook = validated_data_dict.pop("enable_webhook", None)
         webhook_configs = validated_data_dict.pop("webhook_configs", [])
+        if enable_webhook is not None:
+            Webhook.objects.filter(scope_type=WebhookScopeType.TEMPLATE.value, scope_code=str(template.id)).update(
+                enable_webhook=enable_webhook
+            )
+
         if enable_webhook is True and webhook_configs:
             apply_result = apply_webhook_configs(webhook_configs, str(template.id))
             if not apply_result["result"]:
                 message = apply_result["message"]
                 raise UpdateTemplateException(_(f"保存模板失败，错误: {str(message)}"))
-        elif enable_webhook is False:
-            clear_scope_webhooks([str(template.id)])
 
         if label_ids is not None:
             TemplateLabelRelation.objects.set_labels(template.id, label_ids)
