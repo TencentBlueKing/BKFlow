@@ -389,7 +389,6 @@
   $blueDark: #699df4;
   $defaultColor: #738abe;
   $redDark: #ea3636;
-  $yellowDark: #ff9c01;
   $greenDark: #9adc9e;
   $brightRedDark: #f0a0a0;
 
