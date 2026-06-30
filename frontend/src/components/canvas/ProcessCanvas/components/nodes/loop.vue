@@ -389,8 +389,18 @@
   $blueDark: #699df4;
   $defaultColor: #738abe;
   $redDark: #ea3636;
+  $yellowDark: #ff9c01;
   $greenDark: #9adc9e;
   $brightRedDark: #f0a0a0;
+
+  @mixin loopNodeStyle ($color) {
+    .loop-header { background: $color; }
+    &.active, &.is-actived {
+      .loop-header {
+        background-color: rgba($color, 0.3);
+      }
+    }
+  }
 
   .loop-node-root {
     width: 100%;
@@ -506,7 +516,6 @@
         }
       }
     }
-    // Resize handles
     .resize-handle {
       position: absolute;
       width: 10px;
@@ -543,7 +552,6 @@
     &.is-resizing .resize-handle {
       opacity: 1;
     }
-    // 循环容器内的 Configs 标识（checkbox / AS/MS/MR 等）定位适配
     :deep(.node-config-flags) {
       top: -18px;
       z-index: 5;
@@ -557,48 +565,26 @@
     &.active {
       box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.3);
     }
-    // ========== 状态颜色：通过 .loop-header 背景色体现 ==========
     &.default {
-      .loop-header { background: $defaultColor; }
-      &.active, &.is-actived {
-        .loop-header { background: lighten($defaultColor, 10%); }
-      }
+      @include loopNodeStyle($defaultColor);
     }
     &.ready {
-      .loop-header { background: $grayDark; }
-      &.active, &.is-actived {
-        .loop-header { background: lighten($grayDark, 10%); }
-      }
+      @include loopNodeStyle($grayDark);
     }
     &.suspended {
-      .loop-header { background: $blueDark; }
-      &.active, &.is-actived {
-        .loop-header { background: lighten($blueDark, 10%); }
-      }
+      @include loopNodeStyle($blueDark);
     }
     &.finished {
-      .loop-header { background: $greenDark; }
-      &.active, &.is-actived {
-        .loop-header { background: lighten($greenDark, 10%); }
-      }
+      @include loopNodeStyle($greenDark);
     }
     &.running {
-      .loop-header { background: $blueDark; }
-      &.active, &.is-actived {
-        .loop-header { background: lighten($blueDark, 10%); }
-      }
+      @include loopNodeStyle($blueDark);
     }
     &.failed {
-      .loop-header { background: $redDark; }
-      &.active, &.is-actived {
-        .loop-header { background: lighten($redDark, 10%); }
-      }
+      @include loopNodeStyle($redDark);
     }
     &.fail-skip {
-      .loop-header { background: $brightRedDark; }
-      &.active, &.is-actived {
-        .loop-header { background: lighten($brightRedDark, 10%); }
-      }
+      @include loopNodeStyle($brightRedDark);
     }
   }
 </style>
