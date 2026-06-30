@@ -48,7 +48,8 @@
         @onNodeRemove="onNodeRemove"
         @onLineChange="onLineChange"
         @onLocationChange="onLocationChange"
-        @updateShortcutPanel="updateShortcutPanel" />
+        @updateShortcutPanel="updateShortcutPanel"
+        @onFitCanvas="adjustLoopGroupSize" />
     </template>
   </div>
 </template>
@@ -424,11 +425,13 @@
         if (this.activeCell.shape === 'edge') {
           return dom.parentClsContains('x6-edge', e.target);
         }
-        // 普通节点
-        if (dom.parentClsContains('custom-node', e.target)) return true;
-        // 循环流分组节点
         if (this.activeCell.shape === 'custom-loop-group-node') {
           return dom.parentClsContains('loop-container-node', e.target);
+        }
+        // 普通节点或分组子节点
+        const activeNodeDom = this.getNodeElement(`[data-cell-id="${this.activeCell.id}"] .custom-node`);
+        if (activeNodeDom && (activeNodeDom.contains(e.target) || e.target === activeNodeDom)) {
+          return true;
         }
         return false;
       },
@@ -1575,16 +1578,26 @@
           const nodeInstance = this.getNodeInstance(node.id);
           this.graph.select(nodeInstance);
         }
-        // 删除节点两端旧的连线
-        lines.forEach((line) => {
-          if ([line.source.id, line.target.id].includes(node.id)) {
+        // 删除节点两端旧的连线-获取节点在画布上的实际连线（包括分组子节点的内嵌连线）
+        const connectedEdges = this.graph.getConnectedEdges(node.id);
+        connectedEdges.forEach((edge) => {
+          const edgeId = edge.id;
+          const source = edge.getSource();
+          const target = edge.getTarget();
+          const parentNode = node.getParent();
+          const isInnerLine = parentNode && this.activities[parentNode.id]?.type === 'SubCanvas';
+          if (isInnerLine) {
+            // 分组子节点的连线：从内嵌pipeline中删除
+            this.deleteInnerLine(edgeId, parentNode.id);
+          } else {
+            // 外层节点的连线：从外层store中删除
             this.onLineChange('delete', {
-              id: line.id,
-              source: { cell: line.source.id },
-              target: { cell: line.target.id },
+              id: edgeId,
+              source: { cell: source.cell },
+              target: { cell: target.cell },
             });
-            this.graph.removeEdge(line.id);
           }
+          this.graph.removeEdge(edgeId);
         });
         // 被删除的节点只存在一条输入连线和输出连线时才允许自动连线
         const { incoming = [], outgoing } = nodeConfig;
@@ -1815,8 +1828,14 @@
 
         // 如果不是模版编辑页面，点击节点相当于打开配置面板（任务执行是打开执行信息面板）
         if (this.editable) {
-          // 避免双击时再次触发单击
-          if (this.showShortcutPanel) return;
+          // 避免双击同一节点时再次触发单击
+          if (this.showShortcutPanel && this.activeCell && this.activeCell.id === cell.id) {
+            return;
+          }
+          // 点击了不同节点，先关闭当前面板
+          if (this.showShortcutPanel && this.activeCell && this.activeCell.id !== cell.id) {
+            this.closeShortcutPanel();
+          }
           // 展开节点配置面板
           this.openShortcutPanel({ cell, e });
         } else if (cell.shape === 'custom-node' || cell.shape === 'custom-loop-group-node') {
@@ -1850,9 +1869,6 @@
       },
       // 鼠标移入
       handleCellMouseenter({ cell }) {
-        if (this.showShortcutPanel && cell.id !== this.activeCell.id) {
-          this.closeShortcutPanel();
-        }
         this.isPerspectivePanelShow = false;
         // 节点透视面板展开
         if (this.isPerspective && cell.shape === 'custom-node' && ['task', 'subflow'].includes(cell.data.type)) {
@@ -2373,6 +2389,22 @@
       setCanvasPosition(id, pos = 'center') {
         const nodeInstance = this.getNodeInstance(id);
         this.graph.positionCell(nodeInstance, pos);
+      },
+      adjustLoopGroupSize(parentNodeId) {
+        const parentNode = this.getNodeInstance(parentNodeId);
+        if (!parentNode || parentNode.shape !== 'custom-loop-group-node') return;
+        // 取任意子节点微调位置触发分组节点大小自适应
+        const children = parentNode.getChildren();
+        if (children && children.length) {
+          const child = children.find(c => c.isNode()) || children[0];
+          if (child && child.isNode()) {
+            const pos = child.getPosition();
+            child.setPosition(pos.x + 1, pos.y + 1);
+            this.$nextTick(() => {
+              child.setPosition(pos.x, pos.y);
+            });
+          }
+        }
       },
       onDownloadCanvas() {
         this.onGenerateCanvas().then((res) => {
