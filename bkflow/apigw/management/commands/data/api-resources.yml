@@ -5807,3 +5807,31 @@ paths:
         disabledStages: [ ]
         enableWebsocket: false
         pluginConfigs: [ ]
+  /sdk/batch_get_labels/:
+    get:
+      operationId: sdk_batch_get_labels
+      description: 批量获取标签
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/labels/batch_get_labels/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        enableWebsocket: false
+        pluginConfigs: [ ]
