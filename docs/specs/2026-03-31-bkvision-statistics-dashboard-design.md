@@ -176,6 +176,7 @@ ctx = {
 
 - **类型**：MySQL
 - **连接信息**：使用 `STATISTICS_DB_HOST/PORT/NAME/USER/PASSWORD` 对应的数据库。如果统计表在 default 数据库中，则连接 default 数据库。
+- **空间元数据**：系统级跨空间表格（空间排行 Top 10、模板活跃度 Top 20）需要访问 BKFlow 主库的 `space_space` 表，用于补充 `app_code` 和空间名称；若统计库与主库不同库名，SQL 中需使用带库名的表名（如 `<bkflow_db>.space_space`）。
 
 ### 7.2 SQL 约定
 
@@ -314,12 +315,14 @@ GROUP BY complexity
 
 ```sql
 SELECT
-  t.space_id,
-  t.task_cnt,
-  t.success_cnt,
-  ROUND(t.success_cnt / NULLIF(t.finished_cnt, 0) * 100, 1) AS success_rate,
-  COALESCE(tpl.tpl_cnt, 0) AS tpl_cnt,
-  COALESCE(n.node_cnt, 0) AS node_cnt
+  t.space_id AS '空间ID',
+  COALESCE(s.app_code, '') AS 'app_code',
+  COALESCE(s.name, '') AS '空间名称',
+  t.task_cnt AS '任务数',
+  t.success_cnt AS '成功数',
+  ROUND(t.success_cnt / NULLIF(t.task_cnt, 0) * 100, 2) AS '成功率',
+  COALESCE(tpl.tpl_cnt, 0) AS '模板数',
+  COALESCE(n.node_cnt, 0) AS '节点执行数'
 FROM (
   SELECT space_id,
     COUNT(*) AS task_cnt,
@@ -329,6 +332,7 @@ FROM (
   WHERE create_time >= $date_start AND create_time < DATE_ADD($date_end, INTERVAL 1 DAY)
   GROUP BY space_id
 ) t
+LEFT JOIN space_space s ON s.id = t.space_id AND s.is_deleted = 0
 LEFT JOIN (
   SELECT space_id, COUNT(*) AS tpl_cnt
   FROM statistics_templatestatistics WHERE is_enabled=1
@@ -455,12 +459,18 @@ LIMIT 10
 
 ```sql
 SELECT
-  template_id, template_name, space_id,
-  atom_total, subprocess_total,
-  is_enabled,
-  template_update_time
-FROM statistics_templatestatistics
-ORDER BY template_update_time DESC
+  ts.template_id AS '模板ID',
+  ts.template_name AS '模板名称',
+  ts.space_id AS '空间ID',
+  COALESCE(s.app_code, '') AS 'app_code',
+  COALESCE(s.name, '') AS '空间名称',
+  ts.atom_total AS '插件数',
+  ts.subprocess_total AS '子流程数',
+  ts.is_enabled AS '是否启用',
+  ts.template_update_time AS '模板更新时间'
+FROM statistics_templatestatistics ts
+LEFT JOIN space_space s ON s.id = ts.space_id AND s.is_deleted = 0
+ORDER BY ts.template_update_time DESC
 LIMIT 20
 ```
 
@@ -786,7 +796,8 @@ LIMIT 10
 2. 确认 `INSTALLED_APPS` 包含 `django_bkvision`
 3. 确认 URL 路由已添加 `bkvision/`
 4. 申请 `bk-vision` 网关接口权限
-5. 在 BK-Vision 创建空间、数据源、图表、仪表盘
-6. 发布分享链接，获取 UID
-7. 配置环境变量：`BKAPP_BKVISION_APIGW_URL`、`BKAPP_BKVISION_BASE_URL`、`BKAPP_BKVISION_SYSTEM_DASHBOARD_UID`、`BKAPP_BKVISION_SPACE_DASHBOARD_UID`
-8. 部署验证
+5. 确认 BK-Vision 数据源可访问 `space_space` 表，系统跨空间表格可展示 `app_code` 和空间名称
+6. 在 BK-Vision 创建空间、数据源、图表、仪表盘
+7. 发布分享链接，获取 UID
+8. 配置环境变量：`BKAPP_BKVISION_APIGW_URL`、`BKAPP_BKVISION_BASE_URL`、`BKAPP_BKVISION_SYSTEM_DASHBOARD_UID`、`BKAPP_BKVISION_SPACE_DASHBOARD_UID`
+9. 部署验证

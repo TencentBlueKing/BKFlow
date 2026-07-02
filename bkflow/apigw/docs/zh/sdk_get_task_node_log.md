@@ -54,4 +54,3 @@
 | message | string | 错误信息                  |
 | data    | dict   | 返回数据                  |
 | page    | dict   | 数据分页信息                |
-

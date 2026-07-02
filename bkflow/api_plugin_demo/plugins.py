@@ -16,6 +16,9 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
+import copy
+
 from django.conf import settings
 
 
@@ -34,6 +37,195 @@ def _build_api_url(request, path):
     if request:
         return request.build_absolute_uri(path)
     return path
+
+
+def _get_api_plugin_demo_stage():
+    """获取 APIGW 对外暴露的环境路径。"""
+    return getattr(settings, "BK_APIGW_STAGE_NAME", "") or getattr(settings, "ENVIRONMENT", "") or "stage"
+
+
+def _build_api_plugin_demo_path(path):
+    """构建 api_plugin_demo 对外访问路径。"""
+    return "/{}/api_plugin_demo/{}".format(_get_api_plugin_demo_stage(), path.lstrip("/"))
+
+
+OPEN_PLUGIN_V4_WRAPPER_VERSION = "v4.0.0"
+
+
+OPEN_PLUGIN_V4_DEMOS = {
+    "demo_polling_job": {
+        "id": "demo_polling_job",
+        "name": "V4 Polling Demo 作业",
+        "category": "open_plugin_v4",
+        "plugin_source": "demo",
+        "plugin_code": "demo_polling_job",
+        "description": "用于 stage 环境验证 uniform_api v4.0.0 polling 调度协议",
+        "default_version": "1.0.0",
+        "latest_version": "1.1.0",
+        "versions": ["1.0.0", "1.1.0"],
+        "schedule_mode": "polling",
+        "inputs": [
+            {
+                "key": "target_ip",
+                "name": "目标 IP",
+                "desc": "用于验证 inputs 透传的目标 IP",
+                "required": True,
+                "type": "string",
+                "form_type": "input",
+            },
+            {
+                "key": "sleep_seconds",
+                "name": "模拟耗时",
+                "desc": "仅用于 stage 联调展示，不影响实际等待",
+                "required": False,
+                "type": "int",
+                "default": 1,
+            },
+        ],
+        "outputs": [
+            {
+                "key": "job_instance_id",
+                "name": "作业实例 ID",
+                "desc": "demo 生成的作业实例标识",
+                "type": "string",
+            },
+            {
+                "key": "message",
+                "name": "执行结果",
+                "desc": "demo 执行结果说明",
+                "type": "string",
+            },
+        ],
+    },
+    "demo_callback_job": {
+        "id": "demo_callback_job",
+        "name": "V4 Callback Demo 作业",
+        "category": "open_plugin_v4",
+        "plugin_source": "demo",
+        "plugin_code": "demo_callback_job",
+        "description": "用于 stage 环境验证 uniform_api v4.0.0 callback 调度协议",
+        "default_version": "2.0.0",
+        "latest_version": "2.0.0",
+        "versions": ["2.0.0"],
+        "schedule_mode": "callback",
+        "inputs": [
+            {
+                "key": "message",
+                "name": "回调消息",
+                "desc": "用于验证 callback 分支的自定义消息",
+                "required": False,
+                "type": "string",
+                "form_type": "input",
+            }
+        ],
+        "outputs": [
+            {
+                "key": "job_instance_id",
+                "name": "作业实例 ID",
+                "desc": "demo 生成的作业实例标识",
+                "type": "string",
+            },
+            {
+                "key": "message",
+                "name": "回调结果",
+                "desc": "demo 回调结果说明",
+                "type": "string",
+            },
+        ],
+    },
+}
+
+
+def get_open_plugin_v4_api_config(api_id):
+    """获取 v4 open plugin demo 配置。"""
+    config = OPEN_PLUGIN_V4_DEMOS.get(api_id)
+    return copy.deepcopy(config) if config else None
+
+
+def get_open_plugin_v4_api_list(limit, offset, scope_type, scope_value, category, request=None):
+    """
+    获取 uniform_api v4.0.0 open plugin demo 列表。
+    :param limit: 每页数量
+    :param offset: 偏移量
+    :param scope_type: 作用域类型
+    :param scope_value: 作用域值
+    :param category: 分类 ID
+    :param request: HTTP 请求对象，用于构建 URL
+    :return: API 列表数据
+    """
+    api_items = list(OPEN_PLUGIN_V4_DEMOS.values())
+    if category:
+        api_items = [api for api in api_items if api["category"] == category]
+
+    total = len(api_items)
+    paginated_apis = api_items[offset : offset + limit]
+    api_list = []
+    for api in paginated_apis:
+        detail_path = _build_api_plugin_demo_path(
+            "open_plugin_v4/detail_meta/?api_id={}&version={{version}}".format(api["id"])
+        )
+        api_list.append(
+            {
+                "id": api["id"],
+                "name": api["name"],
+                "plugin_source": api["plugin_source"],
+                "plugin_code": api["plugin_code"],
+                "wrapper_version": OPEN_PLUGIN_V4_WRAPPER_VERSION,
+                "default_version": api["default_version"],
+                "latest_version": api["latest_version"],
+                "versions": copy.deepcopy(api["versions"]),
+                "meta_url_template": _build_api_url(request, detail_path),
+                "category": api["category"],
+                "description": api["description"],
+            }
+        )
+
+    return {"total": total, "apis": api_list}
+
+
+def get_open_plugin_v4_api_detail(api_id, version=None, request=None):
+    """
+    获取 uniform_api v4.0.0 open plugin demo 详情。
+    :param api_id: API ID
+    :param version: 子插件业务版本
+    :param request: HTTP 请求对象，用于构建 URL
+    :return: API 详情数据
+    """
+    api = get_open_plugin_v4_api_config(api_id)
+    if not api:
+        return None
+
+    plugin_version = version or api["default_version"]
+    if plugin_version not in api["versions"]:
+        raise ValueError("open plugin demo [{}] version [{}] not found".format(api_id, plugin_version))
+
+    detail = {
+        "id": api["id"],
+        "name": api["name"],
+        "desc": api["description"],
+        "description": api["description"],
+        "plugin_source": api["plugin_source"],
+        "plugin_code": api["plugin_code"],
+        "plugin_version": plugin_version,
+        "wrapper_version": OPEN_PLUGIN_V4_WRAPPER_VERSION,
+        "url": _build_api_url(request, _build_api_plugin_demo_path("open_plugin_v4/execute/")),
+        "methods": ["POST"],
+        "inputs": copy.deepcopy(api["inputs"]),
+        "outputs": copy.deepcopy(api["outputs"]),
+    }
+
+    if api["schedule_mode"] == "polling":
+        detail["polling"] = {
+            "url": _build_api_url(request, _build_api_plugin_demo_path("open_plugin_v4/status/")),
+            "task_tag_key": "open_plugin_run_id",
+            "success_tag": {"key": "status", "value": "SUCCEEDED", "data_key": "outputs"},
+            "fail_tag": {"key": "status", "value": "FAILED", "msg_key": "error_message"},
+            "running_tag": {"key": "status", "value": "RUNNING"},
+        }
+    elif api["schedule_mode"] == "callback":
+        detail["callback"] = {"enabled": True}
+
+    return detail
 
 
 def get_category_list(scope_type, scope_value):

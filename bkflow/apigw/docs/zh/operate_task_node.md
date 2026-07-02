@@ -22,6 +22,32 @@
 | callback    | data    | json/string | 回调数据     | "this is callback data" |
 | forced_fail | ex_data | str         | 强制失败报错信息 | "forced fail by xxx"    |
 
+### 特殊参数说明
+
+#### 开放插件回调场景
+
+当 `operation=callback` 且当前节点是通过标准运维开放插件网关回调时，请求体不再要求显式传入 `operator`，而是需要：
+
+1. 在 Header 中传入 `X-Callback-Token`
+2. 在请求体中传入开放插件回调数据
+
+Header 示例：
+
+| Header 名称        | 类型     | 必选 | 描述                       |
+|-------------------|----------|------|----------------------------|
+| X-Callback-Token  | string   | 是   | BKFlow 在 execute 时动态签发的回调令牌 |
+
+开放插件回调请求体字段：
+
+| 字段                | 类型     | 必选 | 描述 |
+|---------------------|----------|------|------|
+| open_plugin_run_id  | string   | 是   | 标准运维开放插件运行实例 ID |
+| status              | string   | 是   | 回调状态，如 `SUCCEEDED` / `FAILED` |
+| outputs             | dict     | 否   | 插件输出数据 |
+| error_message       | string   | 否   | 失败原因 |
+| truncated           | bool     | 否   | 输出是否被截断 |
+| truncated_fields    | list     | 否   | 被截断的字段列表 |
+
 
 路径参数:
 
@@ -36,6 +62,18 @@
     "bk_app_secret": "xxxx",
     "bk_username or bk_token": "xxxx",
     "operator": "操作人"
+}
+```
+
+开放插件 callback 示例：
+
+```json
+{
+    "open_plugin_run_id": "8d3d6dc2f7cf4c5395b3a3c0ec5a37f1",
+    "status": "SUCCEEDED",
+    "outputs": {
+        "job_instance_id": 1001
+    }
 }
 ```
 

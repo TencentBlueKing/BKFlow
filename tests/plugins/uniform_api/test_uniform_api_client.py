@@ -21,7 +21,11 @@ import pytest
 from django.conf import settings
 
 from bkflow.exceptions import APIRequestError, ValidationError
-from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
+from bkflow.pipeline_plugins.query.uniform_api.utils import (
+    UniformAPIClient,
+    resolve_meta_url,
+)
+from bkflow.pipeline_plugins.query.uniform_api.uniform_api import UniformAPIMetaSerializer
 from bkflow.utils.api_client import HttpRequestResult
 
 
@@ -99,3 +103,97 @@ class TestUniformAPIClient:
             "inputs": [{"name": "test", "key": "test", "required": True, "type": "string"}],
         }
         self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_validate_v4_list_meta_contract(self):
+        valid_instance = {
+            "total": 1,
+            "apis": [
+                {
+                    "id": "open_plugin_001",
+                    "name": "JOB 执行作业",
+                    "plugin_source": "builtin",
+                    "plugin_code": "job_execute_task",
+                    "wrapper_version": "v4.0.0",
+                    "default_version": "1.2.0",
+                    "latest_version": "1.3.0",
+                    "versions": ["1.2.0", "1.3.0"],
+                    "meta_url_template": "https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+                }
+            ],
+        }
+
+        self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA)
+
+    def test_validate_v4_detail_meta_requires_polling_object_tags(self):
+        invalid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "1.2.0",
+            "wrapper_version": "v4.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+            "polling": {
+                "url": "https://bk-sops.example/open-plugin-runs/status",
+                "task_tag_key": "open_plugin_run_id",
+                "success_tag": "SUCCEEDED",
+                "fail_tag": {"key": "status", "value": "FAILED", "msg_key": "data.error_message"},
+                "running_tag": {"key": "status", "value": "RUNNING"},
+            },
+        }
+
+        with pytest.raises(ValidationError):
+            self.client.validate_response_data(invalid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_resolve_meta_url_returns_plain_meta_url_first(self):
+        assert (
+            resolve_meta_url(
+                meta_url="https://bk-sops.example/open-plugins/open_plugin_001",
+                meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+                version="1.2.0",
+            )
+            == "https://bk-sops.example/open-plugins/open_plugin_001"
+        )
+
+    def test_resolve_meta_url_formats_template_with_version(self):
+        assert (
+            resolve_meta_url(
+                meta_url="",
+                meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+                version="1.2.0",
+            )
+            == "https://bk-sops.example/open-plugins/open_plugin_001?version=1.2.0"
+        )
+
+    def test_resolve_meta_url_requires_version_for_template(self):
+        with pytest.raises(ValidationError):
+            resolve_meta_url(
+                meta_url="",
+                meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+                version="",
+            )
+
+    def test_meta_serializer_accepts_versioned_meta_url_template(self):
+        serializer = UniformAPIMetaSerializer(
+            data={
+                "template_id": 1,
+                "meta_url_template": "https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+                "version": "1.2.0",
+            }
+        )
+
+        assert serializer.is_valid(), serializer.errors
+        assert serializer.validated_data["meta_url_template"].endswith("{version}")
+        assert serializer.validated_data["version"] == "1.2.0"
+
+    def test_meta_serializer_requires_meta_url_or_template(self):
+        serializer = UniformAPIMetaSerializer(
+            data={
+                "template_id": 1,
+            }
+        )
+
+        assert not serializer.is_valid()
+        assert "non_field_errors" in serializer.errors

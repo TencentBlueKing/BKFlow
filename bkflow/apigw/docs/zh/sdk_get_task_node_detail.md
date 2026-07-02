@@ -203,4 +203,3 @@
 | inputs               | dict   | 输入信息              |
 | outputs              | dict   | 输出信息              |
 | ex_data              | string | 失败信息              |
-

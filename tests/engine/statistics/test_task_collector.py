@@ -290,6 +290,7 @@ class TestTaskStatisticsCollector(TestCase):
                     "name": "流程执行",
                     "api_key": "sops_key",
                     "meta_url": "http://example.com/meta",
+                    "plugin_source": "builtin",
                     "category": {"id": "cat_1", "name": "标准运维"},
                 },
             },
@@ -307,3 +308,4 @@ class TestTaskStatisticsCollector(TestCase):
         assert node.component_code == "sops_execute"
         assert node.component_name == "标准运维-流程执行"
         assert node.plugin_type == "uniform_api"
+        assert node.plugin_source == "builtin"

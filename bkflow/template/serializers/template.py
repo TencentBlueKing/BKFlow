@@ -39,6 +39,7 @@ from bkflow.constants import (
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.configs import FlowVersioning, TemplateTriggerConfig
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
@@ -146,6 +147,9 @@ class TemplateSerializer(serializers.ModelSerializer):
                 _(f"更新失败，子流程节点【{data['node_name']}】引用的模板 {data['template_id']} 与当前流程存在循环引用")
             )
 
+        if space_id:
+            OpenPluginSnapshotService.validate_pipeline_tree(space_id=space_id, pipeline_tree=pipeline_tree)
+
         validate_data = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
         if not validate_data["has_loop"]:
             raise serializers.ValidationError(_(validate_data["error_message"]))
@@ -156,6 +160,13 @@ class TemplateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
         username = self.context["request"].user.username
+        reference_snapshot = OpenPluginSnapshotService.build_reference_snapshot(
+            space_id=validated_data["space_id"], pipeline_tree=pipeline_tree
+        )
+        if reference_snapshot:
+            validated_data["extra_info"] = OpenPluginSnapshotService.merge_snapshots(
+                validated_data.get("extra_info"), reference_snapshot
+            )
         if SpaceConfig.get_config(space_id=validated_data["space_id"], config_name=FlowVersioning.name) == "true":
             snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
         else:
@@ -206,6 +217,14 @@ class TemplateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(detail={"msg": (f"更新失败,{e}")})
         pre_pipeline_tree = instance.pipeline_tree
         username = self.context["request"].user.username
+        reference_snapshot = OpenPluginSnapshotService.build_reference_snapshot(
+            space_id=instance.space_id, pipeline_tree=pipeline_tree
+        )
+        if reference_snapshot:
+            validated_data["extra_info"] = OpenPluginSnapshotService.merge_snapshots(
+                validated_data.get("extra_info", instance.extra_info),
+                reference_snapshot,
+            )
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
             instance.update_draft_snapshot(pipeline_tree, username)
         else:
