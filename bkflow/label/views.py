@@ -243,3 +243,13 @@ class LabelViewSet(AdminModelViewSet):
             }
 
         return Response(ref_result)
+
+    @action(detail=False, methods=["get"])
+    def batch_get_labels(self, request, *args, **kwargs):
+        label_ids_str = request.query_params.get("label_ids", "")
+        if not label_ids_str:
+            return Response(exception=True, data={"detail": "缺少必填参数label_ids"})
+        label_id_list = label_ids_str.split(",")
+        queryset = self.get_queryset().filter(id__in=label_id_list)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
