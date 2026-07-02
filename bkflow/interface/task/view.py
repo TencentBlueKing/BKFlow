@@ -341,3 +341,28 @@ class TaskInterfaceViewSet(GenericViewSet):
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
         result = client.root_task_info(data={"task_ids": request.query_params.get("task_ids"), "space_id": space_id})
         return Response(result)
+
+    @action(methods=["POST"], detail=False, url_path="get_node_outputs")
+    def get_node_outputs(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.get_node_outputs(data={"space_id": space_id, **request.data})
+        return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="get_tasks_pipeline")
+    def get_tasks_pipeline(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.get_tasks_pipeline(
+            data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
+        )
+        return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="batch_get_task_states")
+    def batch_get_task_states(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.batch_get_task_states(
+            data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
+        )
+        return Response(result)

@@ -417,7 +417,7 @@ class LoopBaseService(BKFlowBaseService):
             except TaskFlowRelation.DoesNotExist:
                 root_task_id = parent_task.id
 
-            relate_info = {"node_id": self.id, "node_version": self.version}
+            relate_info = {"node_id": self.id, "node_version": self.version, "trigger_method": trigger_method}
             TaskFlowRelation.objects.create(
                 task_id=task_instance.id,
                 parent_task_id=parent_task.id,

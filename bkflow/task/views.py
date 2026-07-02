@@ -41,6 +41,7 @@ from bkflow.contrib.openapi.serializers import (
     EmptyBodySerializer,
     GetNodeDetailQuerySerializer,
     GetNodeLogDetailSerializer,
+    GetNodeOutputsSerializer,
     GetTasksStatesBodySerializer,
     TaskBatchDeleteSerializer,
 )
@@ -50,6 +51,7 @@ from bkflow.task.models import (
     EngineSpaceConfig,
     EngineSpaceConfigValueType,
     PeriodicTask,
+    TaskExecutionSnapshot,
     TaskFlowRelation,
     TaskInstance,
     TaskLabelRelation,
@@ -343,6 +345,26 @@ class TaskInstanceViewSet(
         states = task_operation.get_task_states()
         return Response(dict(states))
 
+    @action(detail=False, methods=["get"], url_path="batch_get_task_states")
+    def batch_get_task_states(self, request, *args, **kwargs):
+        task_ids_str = request.query_params.get("task_ids", "")
+        space_id = request.query_params.get("space_id", "")
+        if not task_ids_str or not space_id:
+            return Response({"result": False, "message": "缺少必要参数task_ids或space_id", "data": {}}, status=400)
+
+        task_id_list = task_ids_str.split(",")
+        if not task_id_list:
+            return Response({"result": False, "message": "无合法的任务ID", "data": {}}, status=400)
+
+        tasks = TaskInstance.objects.filter(id__in=task_id_list, space_id=space_id)
+        states_result = {}
+        for task in tasks:
+            task_operation = TaskOperation(task_instance=task, queue=settings.BKFLOW_MODULE.code)
+            task_states = task_operation.get_task_states()
+            states_result[str(task.id)] = task_states.data if task_states else {}
+
+        return Response(states_result)
+
     @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
     @action(detail=False, methods=["post"], url_path="get_tasks_states")
     def get_tasks_states(self, request, *args, **kwargs):
@@ -408,7 +430,9 @@ class TaskInstanceViewSet(
         children_task_ids = [info["task_id"] for info in children_task_info]
         if not children_task_ids:
             return Response({"tasks": [], "relations": {}}, status=status.HTTP_200_OK)
-        queryset = TaskInstance.objects.filter(id__in=children_task_ids, is_deleted=False)
+        queryset = TaskInstance.objects.filter(
+            id__in=children_task_ids, is_deleted=False, trigger_method=TaskTriggerMethod.subprocess.name
+        )
         queryset = self.filter_queryset(queryset)
         serializer = self.get_serializer(queryset, many=True)
         task_ids = [task["id"] for task in serializer.data]
@@ -435,10 +459,56 @@ class TaskInstanceViewSet(
             )
 
         tasks_with_children = set(
-            TaskFlowRelation.objects.filter(root_task_id__in=task_ids).values_list("root_task_id", flat=True).distinct()
+            TaskFlowRelation.objects.filter(root_task_id__in=task_ids)
+            .exclude(extra_info__trigger_method=TaskTriggerMethod.sub_canvas.name)
+            .values_list("root_task_id", flat=True)
+            .distinct()
         )
         root_task_info = {task_id: task_id in tasks_with_children for task_id in task_ids}
         return Response({"has_children_taskflow": root_task_info})
+
+    @action(methods=["GET"], detail=False)
+    def get_tasks_pipeline(self, request, *args, **kwargs):
+        task_ids = request.query_params.get("task_ids", "")
+        if not task_ids:
+            return Response({})
+        task_id_list = task_ids.split(",")
+        tasks = TaskInstance.objects.filter(id__in=task_id_list).values("id", "execution_snapshot_id")
+        snapshot_ids = [task["execution_snapshot_id"] for task in tasks if task["execution_snapshot_id"]]
+
+        snapshot_map = (
+            {snap.id: snap for snap in TaskExecutionSnapshot.objects.filter(id__in=snapshot_ids)}
+            if snapshot_ids
+            else {}
+        )
+
+        result = {}
+        for task in tasks:
+            task_id = str(task["id"])
+            pipeline_tree = None
+            snap_id = task["execution_snapshot_id"]
+
+            if snap_id and snap_id in snapshot_map:
+                snap = snapshot_map[snap_id]
+                pipeline_tree = snap.data
+
+            result[task_id] = pipeline_tree
+
+        return Response(result)
+
+    @action(methods=["POST"], detail=False)
+    def get_node_outputs(self, request, *args, **kwargs):
+        ser = GetNodeOutputsSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        task_id = ser.validated_data["task_id"]
+        space_id = ser.validated_data["space_id"]
+        node_ids = ser.validated_data["node_ids"]
+        task_instance = TaskInstance.objects.filter(id=task_id, space_id=space_id)
+        node_outputs = [
+            {node_id: TaskNodeOperation(task_instance=task_instance, node_id=node_id).get_node_outputs().data}
+            for node_id in node_ids
+        ]
+        return Response(node_outputs)
 
     @swagger_auto_schema(
         methods=["get"], operation_description="任务节点详情查询", query_serializer=GetNodeDetailQuerySerializer
