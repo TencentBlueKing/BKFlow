@@ -171,12 +171,15 @@
     },
     methods: {
       getIconCls(node) {
-        const { code, group } = node;
+        const { code, group, type } = node;
         if (BK_PLUGIN_ICON[code]) {
           return BK_PLUGIN_ICON[code];
         }
         if (code === 'remote_plugin') {
           return 'common-icon-sys-third-party';
+        }
+        if (type === 'SubCanvas') {
+          return 'common-icon-elliptic-cycle';
         }
         const systemType = SYSTEM_GROUP_ICON.find(item => new RegExp(item).test(group));
         if (systemType) {
@@ -396,7 +399,7 @@
     .loop-header { background: $color; }
     &.active, &.is-actived {
       .loop-header {
-        background-color: rgba($color, 0.3);
+        background-color:  $color;
       }
     }
   }
@@ -443,25 +446,30 @@
     .loop-header {
       display: flex;
       align-items: center;
-      padding: 0 10px;
-      height: 28px;
+      padding: 0 8px;
+      height: 20px;
       background: #738abe;
       border-top-left-radius: 4px;
       border-top-right-radius: 4px;
       flex-shrink: 0;
       transition: background 0.2s;
-      & > i {
+      .node-icon-font {
+        font-size: 16px;
+        width: 16px;
         color: #ffffff;
       }
       .stage-name {
         margin-left: 4px;
         font-size: 12px;
-        color: rgba(255, 255, 255, 0.8);
+        color: #ffffff;
         white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
       }
       .loop-title {
-        margin-left: 6px;
+        margin-left: 4px;
         font-size: 12px;
+        line-height: 20px;
         color: #ffffff;
         white-space: nowrap;
         overflow: hidden;
@@ -477,12 +485,9 @@
       .loop-variables-icon {
         margin-left: 8px;
         font-size: 12px;
-        color: rgba(255, 255, 255, 0.8);
+        color: #ffffff;
         cursor: pointer;
         transition: color 0.2s;
-        &:hover {
-          color: #ffffff;
-        }
       }
     }
     .loop-body {
