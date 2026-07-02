@@ -101,6 +101,12 @@ class OpenPluginCatalogIndex(models.Model):
     def __str__(self):
         return f"{self.space_id}:{self.source_key}:{self.plugin_id}"
 
+    def is_plugin_version_available(self, plugin_version):
+        """判断指定业务版本是否仍在目录可用版本列表中。"""
+        if not self.versions:
+            return True
+        return bool(plugin_version) and plugin_version in self.versions
+
 
 class SpaceOpenPluginAvailability(models.Model):
     space_id = models.IntegerField(verbose_name="空间ID", db_index=True)

@@ -73,6 +73,10 @@ class OpenPluginSnapshotService:
                 raise serializers.ValidationError("开放插件来源 [{}] 未对当前空间准入".format(ref["catalog"].source_key))
             if ref["catalog"].status != OpenPluginCatalogIndex.Status.AVAILABLE:
                 raise serializers.ValidationError("开放插件 [{}] 当前不可用".format(ref["plugin_id"]))
+            if not ref["catalog"].is_plugin_version_available(ref["plugin_version"]):
+                raise serializers.ValidationError(
+                    "开放插件 [{}] 版本 [{}] 当前不可用".format(ref["plugin_id"], ref["plugin_version"] or "")
+                )
             if not ref["enabled"]:
                 raise serializers.ValidationError("开放插件 [{}] 在当前空间未开放".format(ref["plugin_id"]))
 

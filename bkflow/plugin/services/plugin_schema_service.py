@@ -388,7 +388,8 @@ class PluginSchemaService:
         else:
             api_item = dict(api_item)
 
-        if version:
+        if api_item and version:
+            self._validate_uniform_api_plugin_version(api_item, version)
             api_item["version"] = version
             api_item["plugin_version"] = version
             api_item["_meta_url"] = self._build_uniform_api_meta_url(api_item, version)
@@ -475,6 +476,7 @@ class PluginSchemaService:
                 self._raise_uniform_api_catalog_access_error(code)
                 raise ValueError("未找到 API 插件 '{}'".format(code))
             if version:
+                self._validate_uniform_api_plugin_version(api_item, version)
                 api_item = dict(api_item)
                 api_item["version"] = version
                 api_item["plugin_version"] = version
@@ -603,6 +605,17 @@ class PluginSchemaService:
         if api_item.get("meta_url_template"):
             return api_item["meta_url_template"].format(version=version)
         return api_item.get("_meta_url", "")
+
+    @staticmethod
+    def _validate_uniform_api_plugin_version(api_item, version):
+        versions = api_item.get("versions") or []
+        if versions and version not in versions:
+            raise ValueError(
+                "开放插件 [{}] 版本 [{}] 当前不可用".format(
+                    api_item.get("code") or api_item.get("plugin_id") or "",
+                    version,
+                )
+            )
 
     @staticmethod
     def _match_keyword(info, keyword):

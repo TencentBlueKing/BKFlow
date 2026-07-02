@@ -477,6 +477,50 @@ class TestUniformApiPlugins:
         mock_client.request.assert_called_once()
         assert mock_client.request.call_args.kwargs["url"].endswith("version=1.2.0")
 
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_get_uniform_api_schema_rejects_plugin_version_not_in_catalog_versions(
+        self, mock_sc, mock_client_cls, mock_cred, mock_cache
+    ):
+        """测试 schema 显式版本查询会拒绝已从目录版本列表移除的业务版本"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = "test_cred"
+        mock_cred.objects.filter.return_value.first.return_value = MagicMock(
+            content={"bk_app_code": "app", "bk_app_secret": "secret"}
+        )
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            wrapper_version="v4.0.0",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=True,
+        )
+        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+
+        service = PluginSchemaService(space_id=1, username="admin")
+        with pytest.raises(ValueError, match="版本"):
+            service.get_plugin_schema(code="open_plugin_001", version="9.9.9", plugin_type="uniform_api")
+
+        mock_client_cls.assert_not_called()
+
 
 class TestGetPluginSchema:
     """测试统一 get_plugin_schema 方法"""

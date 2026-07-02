@@ -127,6 +127,20 @@ def test_validate_passes_when_source_granted():
 
 
 @pytest.mark.django_db
+def test_validate_rejects_when_plugin_version_not_in_catalog_versions():
+    """开放插件已准入且已开启时，仍要拒绝已从目录版本列表移除的业务版本。"""
+
+    create_available_open_plugin(space_id=1, enabled=True)
+    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+
+    with pytest.raises(serializers.ValidationError, match="版本"):
+        OpenPluginSnapshotService.validate_pipeline_tree(
+            space_id=1,
+            pipeline_tree=build_open_plugin_pipeline_tree(plugin_version="9.9.9"),
+        )
+
+
+@pytest.mark.django_db
 @patch("bkflow.plugin.services.open_plugin_snapshot.OpenPluginSnapshotService.build_schema_snapshot")
 def test_backfill_open_plugin_snapshots_fills_missing_fields_without_overwriting_existing(mock_build_schema_snapshot):
     space = Space.objects.create(name="test", app_code="test")
