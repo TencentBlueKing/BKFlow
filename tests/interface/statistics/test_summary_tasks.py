@@ -1,9 +1,10 @@
-from datetime import date
-
 from django.test import TestCase
 from django.utils import timezone
 
-from bkflow.statistics.models import PluginExecutionSummary, TaskflowExecutedNodeStatistics
+from bkflow.statistics.models import (
+    PluginExecutionSummary,
+    TaskflowExecutedNodeStatistics,
+)
 from bkflow.statistics.tasks.summary_tasks import _generate_plugin_summary
 
 

@@ -27,9 +27,18 @@ class Migration(migrations.Migration):
                 ("plugin_source", models.CharField(blank=True, default="", max_length=64, verbose_name="插件来源类型")),
                 ("source_key", models.CharField(blank=True, default="", max_length=64, verbose_name="开放插件来源")),
                 ("plugin_id", models.CharField(max_length=128, verbose_name="开放插件ID")),
-                ("plugin_version", models.CharField(blank=True, default="", max_length=64, verbose_name="开放插件版本")),
-                ("cancel_url", models.CharField(blank=True, default="", max_length=1024, verbose_name="开放插件取消URL")),
-                ("credential_key", models.CharField(blank=True, default="", max_length=128, verbose_name="取消调用使用的凭证key")),
+                (
+                    "plugin_version",
+                    models.CharField(blank=True, default="", max_length=64, verbose_name="开放插件版本"),
+                ),
+                (
+                    "cancel_url",
+                    models.CharField(blank=True, default="", max_length=1024, verbose_name="开放插件取消URL"),
+                ),
+                (
+                    "credential_key",
+                    models.CharField(blank=True, default="", max_length=128, verbose_name="取消调用使用的凭证key"),
+                ),
                 ("consumed_at", models.DateTimeField(blank=True, null=True, verbose_name="回调消费时间")),
                 ("create_time", models.DateTimeField(auto_now_add=True, verbose_name="创建时间")),
                 ("update_time", models.DateTimeField(auto_now=True, verbose_name="更新时间")),
