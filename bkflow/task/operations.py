@@ -616,6 +616,24 @@ class TaskNodeOperation:
         return outputs_result
 
     @uniform_task_operation_result
+    def get_node_outputs(self, *args, **kwargs):
+        runtime = BambooDjangoRuntime()
+        outputs_data = []
+        outputs_result = bamboo_engine_api.get_execution_data_outputs(runtime=runtime, node_id=self.node_id)
+        if not outputs_result.result:
+            logger.error(f"get_outputs failed: {outputs_result.message}, exc: {outputs_result.exc}")
+        if settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_result.data:
+            outputs_result.data.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
+        outputs_data.append(outputs_result.data)
+        hist_result = bamboo_engine_api.get_node_histories(runtime=runtime, node_id=self.node_id)
+        for hist in hist_result.data:
+            his_outputs = hist["outputs"]
+            if settings.PLUGIN_LOOP_OUTPUTS_KEY in his_outputs:
+                his_outputs.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
+            outputs_data.append(his_outputs)
+        return outputs_data
+
+    @uniform_task_operation_result
     def get_node_data(
         self,
         username: str,

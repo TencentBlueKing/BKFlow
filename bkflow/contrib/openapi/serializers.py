@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -54,6 +53,12 @@ class GetNodeLogDetailSerializer(serializers.Serializer):
 class GetTasksStatesBodySerializer(serializers.Serializer):
     task_ids = serializers.ListField(required=True, child=serializers.IntegerField())
     space_id = serializers.IntegerField(required=True)
+
+
+class GetNodeOutputsSerializer(serializers.Serializer):
+    task_id = serializers.IntegerField(required=True)
+    space_id = serializers.IntegerField(required=True)
+    node_ids = serializers.CharField(required=True)
 
 
 class TaskEngineAdminSerializer(serializers.Serializer):

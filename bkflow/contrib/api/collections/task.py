@@ -181,3 +181,9 @@ class TaskComponentClient(BaseComponentClient):
     def root_task_info(self, data):
         """批量查询任务是否包含子任务"""
         return self._request(method="get", url=self._get_task_url("task/root_task_info/"), data=data)
+
+    def get_node_outputs(self, data):
+        return self._request(method="post", url=self._get_task_url("task/get_node_outputs/"), data=data)
+
+    def get_tasks_pipeline(self, data):
+        return self._request(method="get", url=self._get_task_url("task/get_tasks_pipeline/"), data=data)
