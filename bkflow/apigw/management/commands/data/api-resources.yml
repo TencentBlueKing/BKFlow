@@ -5825,7 +5825,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}api/labels/batch_get_labels/
+          path: /{env.api_sub_path}api/label/batch_get_labels/
           matchSubpath: false
           timeout: 0
         authConfig:
