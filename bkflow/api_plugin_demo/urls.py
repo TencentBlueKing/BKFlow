@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.conf.urls import url
 
 from bkflow.api_plugin_demo import views
@@ -28,4 +29,13 @@ urlpatterns = [
     url(r"^execute/create_task/$", views.execute_create_task, name="execute_create_task"),
     url(r"^execute/process_data/$", views.execute_process_data, name="execute_process_data"),
     url(r"^execute/api_with_credential/$", views.execute_api_with_credential, name="execute_api_with_credential"),
+    url(r"^open_plugin_v4/list_meta/$", views.open_plugin_v4_list_meta_api, name="open_plugin_v4_list_meta_api"),
+    url(r"^open_plugin_v4/detail_meta/$", views.open_plugin_v4_detail_meta_api, name="open_plugin_v4_detail_meta_api"),
+    url(r"^open_plugin_v4/execute/$", views.open_plugin_v4_execute_api, name="open_plugin_v4_execute_api"),
+    url(
+        r"^open_plugin_v4/execute/(?P<open_plugin_run_id>[^/]+)/cancel/$",
+        views.open_plugin_v4_cancel_api,
+        name="open_plugin_v4_cancel_api",
+    ),
+    url(r"^open_plugin_v4/status/$", views.open_plugin_v4_status_api, name="open_plugin_v4_status_api"),
 ]
