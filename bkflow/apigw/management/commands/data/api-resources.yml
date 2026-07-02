@@ -5779,3 +5779,31 @@ paths:
         disabledStages: [ ]
         enableWebsocket: false
         pluginConfigs: [ ]
+  /sdk/template/update_template_labels/{template_id}/:
+    post:
+      operationId: sdk_update_template_labels
+      description: 更新模板标签
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/{template_id}/update_labels/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        enableWebsocket: false
+        pluginConfigs: [ ]
