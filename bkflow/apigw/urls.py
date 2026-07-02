@@ -27,6 +27,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.apply_token import apply_token
     from bkflow.apigw.views.apply_webhook_configs import apply_webhook_configs
     from bkflow.apigw.views.create_credential import create_credential
+    from bkflow.apigw.views.create_label import create_label
     from bkflow.apigw.views.create_mock_task import create_mock_task
     from bkflow.apigw.views.create_space import create_space
     from bkflow.apigw.views.create_task import create_task
@@ -38,8 +39,16 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.create_template_with_a2flow import (
         create_template_with_a2flow,
     )
+    from bkflow.apigw.views.create_variable import create_variable
+    from bkflow.apigw.views.delete_label import delete_label
     from bkflow.apigw.views.delete_task import delete_task
     from bkflow.apigw.views.delete_template import delete_template
+    from bkflow.apigw.views.delete_variable import delete_variable
+    from bkflow.apigw.views.get_label_detail import get_label_detail
+    from bkflow.apigw.views.get_label_list import get_label_list
+    from bkflow.apigw.views.get_label_ref_count import get_label_ref_count
+    from bkflow.apigw.views.get_label_tree import get_label_tree
+    from bkflow.apigw.views.get_plugin_outputs import get_plugin_outputs
     from bkflow.apigw.views.get_plugin_schema import get_plugin_schema
     from bkflow.apigw.views.get_space_configs import get_space_configs
     from bkflow.apigw.views.get_task_detail import get_task_detail
@@ -52,11 +61,12 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.get_template_detail_by_app import get_template_detail_by_app
     from bkflow.apigw.views.get_template_list import get_template_list
     from bkflow.apigw.views.get_template_mock_data import get_template_mock_data
+    from bkflow.apigw.views.get_variable_list import get_variable_list
     from bkflow.apigw.views.grant_apigw_permissions_to_app import (
         grant_apigw_permissions_to_app,
     )
     from bkflow.apigw.views.list_plugins import list_plugins
-    from bkflow.apigw.views.operate_task import operate_task
+    from bkflow.apigw.views.operate_task import operate_task, update_task_labels
     from bkflow.apigw.views.operate_task_by_app import operate_task_by_app
     from bkflow.apigw.views.operate_task_node import operate_task_node
     from bkflow.apigw.views.release_template import release_template
@@ -64,7 +74,12 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.revoke_token import revoke_token
     from bkflow.apigw.views.rollback_template import rollback_template
     from bkflow.apigw.views.update_credential import update_credential
-    from bkflow.apigw.views.update_template import update_template
+    from bkflow.apigw.views.update_label import update_label
+    from bkflow.apigw.views.update_template import (
+        update_template,
+        update_template_labels,
+    )
+    from bkflow.apigw.views.update_variable import update_variable
     from bkflow.apigw.views.validate_a2flow import validate_a2flow
     from bkflow.apigw.views.validate_pipeline_tree import validate_pipeline_tree
 
@@ -75,11 +90,19 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/revoke_token/$", revoke_token),
         url(r"^space/(?P<space_id>\d+)/create_template/$", create_template),
         url(r"^space/(?P<space_id>\d+)/get_template_list/$", get_template_list),
+        url(r"^space/(?P<space_id>\d+)/create_label/$", create_label),
+        url(r"^space/(?P<space_id>\d+)/get_label_list/$", get_label_list),
+        url(r"^space/(?P<space_id>\d+)/get_label_tree/$", get_label_tree),
+        url(r"^space/(?P<space_id>\d+)/label/(?P<label_id>\d+)/get_label_detail/$", get_label_detail),
+        url(r"^space/(?P<space_id>\d+)/update_label/(?P<label_id>\d+)/$", update_label),
+        url(r"^space/(?P<space_id>\d+)/delete_label/(?P<label_id>\d+)/$", delete_label),
+        url(r"^space/(?P<space_id>\d+)/get_label_ref_count/$", get_label_ref_count),
         url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_detail/$", get_template_detail),
         url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/get_template_mock_data/$", get_template_mock_data),
         url(r"^space/(?P<space_id>\d+)/renew_space_config/$", renew_space_config),
         url(r"^space/(?P<space_id>\d+)/get_space_configs/$", get_space_configs),
         url(r"^space/(?P<space_id>\d+)/update_template/(?P<template_id>\d+)/$", update_template),
+        url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/update_labels/$", update_template_labels),
         url(r"^space/(?P<space_id>\d+)/delete_template/(?P<template_id>\d+)/$", delete_template),
         url(r"^space/(?P<space_id>\d+)/create_task/$", create_task),
         url(r"^space/(?P<space_id>\d+)/create_mock_task/$", create_mock_task),
@@ -101,6 +124,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
             operate_task_node,
         ),
         url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/operate_task/(?P<operation>\w+)/$", operate_task),
+        url(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/update_labels/$", update_task_labels),
         url(r"^space/(?P<space_id>\d+)/apply_webhook_configs/$", apply_webhook_configs),
         url(r"^space/(?P<space_id>\d+)/delete_task/$", delete_task),
         url(r"^space/(?P<space_id>\d+)/template/(?P<template_id>\d+)/release_template/$", release_template),
@@ -108,9 +132,14 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/list_plugins/$", list_plugins),
         url(r"^space/(?P<space_id>\d+)/get_plugin_schema/$", get_plugin_schema),
         url(r"^space/(?P<space_id>\d+)/validate_a2flow/$", validate_a2flow),
+        url(r"^space/(?P<space_id>\d+)/create_variable/$", create_variable),
+        url(r"^space/(?P<space_id>\d+)/variable/(?P<variable_id>\d+)/update_variable/$", update_variable),
+        url(r"^space/(?P<space_id>\d+)/get_variable_list/$", get_variable_list),
+        url(r"^space/(?P<space_id>\d+)/variable/(?P<variable_id>\d+)/delete_variable/$", delete_variable),
         # 基于 bk_app_code 权限控制的接口
         url(r"^template/(?P<template_id>\d+)/get_template_detail_by_app/$", get_template_detail_by_app),
         url(r"^template/(?P<template_id>\d+)/create_task_by_app/$", create_task_by_app),
         url(r"^task/(?P<task_id>\d+)/operate_task_by_app/(?P<operation>\w+)/$", operate_task_by_app),
         url(r"^task/(?P<task_id>\d+)/get_task_states_by_app/$", get_task_states_by_app),
+        url(r"^space/(?P<space_id>\d+)/get_plugin_outputs/$", get_plugin_outputs),
     ]

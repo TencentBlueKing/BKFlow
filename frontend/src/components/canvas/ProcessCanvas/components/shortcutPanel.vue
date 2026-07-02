@@ -294,13 +294,13 @@
             },
             target: {
               cell: nodeId,
-              port: `port_${target.arrow.toLowerCase()}`,
+              port: 'port_left',
             },
           },
           {
             source: {
               cell: nodeId,
-              port: `port_${source.arrow.toLowerCase()}`,
+              port: 'port_right',
             },
             target: {
               cell: target.id,

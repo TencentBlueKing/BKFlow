@@ -30,6 +30,8 @@ from bkflow.apigw.serializers.task import CreateTaskSerializer
 from bkflow.constants import TaskTriggerMethod, WebhookEventType, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
+from bkflow.label.models import Label
+from bkflow.label.serializers import LabelSerializer
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.template.models import Template
 from bkflow.utils.trace import CallFrom, trace_view
@@ -44,8 +46,9 @@ from bkflow.utils.trace import CallFrom, trace_view
 @return_json_response
 def create_task(request, space_id):
     data = json.loads(request.body)
-    ser = CreateTaskSerializer(data=data)
+    ser = CreateTaskSerializer(data=data, context={"space_id": int(space_id)})
     ser.is_valid(raise_exception=True)
+
     try:
         template = Template.objects.get(id=ser.data["template_id"], space_id=space_id, is_deleted=False)
     except Template.DoesNotExist:
@@ -102,6 +105,15 @@ def create_task(request, space_id):
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)
+
+    if result.get("result") and isinstance(result.get("data"), dict):
+        label_ids = ser.data.get("label_ids") or []
+        label_ids = list(dict.fromkeys(label_ids))
+        if label_ids:
+            labels = Label.objects.filter(id__in=label_ids)
+            result["data"]["labels"] = LabelSerializer(labels, many=True).data
+        else:
+            result["data"]["labels"] = []
 
     task_data = result["data"]
     event_broadcast_signal.send(

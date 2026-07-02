@@ -13,13 +13,14 @@ import copy
 import datetime
 
 from bamboo_engine.context import Context
+from bamboo_engine.eri import ContextValue, ContextValueType
 from bamboo_engine.template import Template
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
-from pipeline.core.flow.io import IntItemSchema
+from pipeline.core.flow.io import ArrayItemSchema, IntItemSchema, ObjectItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pydantic import BaseModel
 
@@ -51,6 +52,14 @@ class SubprocessPluginService(BKFlowBaseService):
     def outputs_format(self):
         return [
             self.OutputItem(name="任务ID", key="task_id", type="int", schema=IntItemSchema(description="Task ID")),
+            self.OutputItem(
+                name="循环输出",
+                key=settings.PLUGIN_LOOP_OUTPUTS_KEY,
+                type="array",
+                schema=ArrayItemSchema(
+                    description="循环输出", item_schema=ObjectItemSchema(description="循环输出", property_schemas={})
+                ),
+            ),
         ]
 
     def _get_subprocess_template(self, data):
@@ -110,6 +119,48 @@ class SubprocessPluginService(BKFlowBaseService):
         inputs_refs = inputs_refs.union(additional_refs)
         self.logger.info(f"subprocess final refs: {inputs_refs}")
         context_values = self.runtime.get_context_values(pipeline_id=self.top_pipeline_id, keys=inputs_refs)
+        node = self.runtime.get_node(self.id)
+        if node.loop_enabled:
+            loop_params = (
+                parent_task.pipeline_tree["activities"][self.id].get("loop_config", {}).get("loop_params") or {}
+            )
+            min_loop_times = None
+            for param_key, param_value in loop_params.items():
+                param_refs = Template(param_value).get_reference()
+                if param_refs:
+                    param_context_values = self.runtime.get_context_values(
+                        pipeline_id=self.top_pipeline_id, keys=param_refs
+                    )
+
+                    hydrated_context = Context(self.runtime, param_context_values, {}).hydrate(deformat=True)
+                    inputs = Template(param_value).render(hydrated_context)
+
+                    # 判断渲染后的值是否为可迭代对象（列表/元组/字典），若不是则抛出异常
+                    if not isinstance(inputs, (list, tuple, dict)):
+                        raise ValidationError(
+                            f"循环参数 {param_key} 的值必须是可迭代对象，" f"当前值类型为 {type(inputs).__name__}，值为：{inputs}"
+                        )
+
+                    if len(inputs) > settings.MAX_LOOP_TIMES:
+                        raise ValidationError(f"循环参数 {param_key} 的值超过最大循环次数 {settings.MAX_LOOP_TIMES}")
+
+                    current_len = len(inputs)
+                    loop_item_value = list(inputs)[self.inner_loop - 1]
+                else:
+                    items = [item.strip() for item in param_value.split(",") if item.strip()]
+                    current_len = len(items)
+                    loop_item_value = items[self.inner_loop - 1]
+
+                min_loop_times = current_len if min_loop_times is None else min(min_loop_times, current_len)
+
+                context_value = ContextValue(
+                    key=param_key, type=ContextValueType.PLAIN, value=loop_item_value, code=None
+                )
+                context_values.append(context_value)
+
+            if not node.loop_times:
+                self.runtime.update_node_loop_times(node_id=self.id, loop_times=min_loop_times)
+
         context_mappings = {c.key: c for c in context_values}
         root_pipeline_inputs = {
             key: inputs.value for key, inputs in self.runtime.get_data_inputs(self.top_pipeline_id).items()
@@ -234,7 +285,11 @@ class SubprocessPluginService(BKFlowBaseService):
 
         pipeline_tree = template["data"]["pipeline_tree"]
         self._process_subprocess_constants(subprocess, pipeline_tree)
-        self._render_parent_parameters(pipeline_tree, parent_task)
+        try:
+            self._render_parent_parameters(pipeline_tree, parent_task)
+        except ValidationError as e:
+            data.set_outputs("ex_data", str(e))
+            return False
 
         # 创建子任务实例
         task_instance = self._create_subprocess_task_instance(subprocess, template, pipeline_tree, parent_task)
@@ -254,10 +309,7 @@ class SubprocessPluginService(BKFlowBaseService):
 
         task_success = callback_data.get("task_success", False)
         task_id = data.get_one_of_outputs("task_id")
-        self.finish_schedule()
-        if not task_success:
-            data.set_outputs("ex_data", "子流程执行失败，请检查失败节点")
-            return False
+
         try:
             subprocess_task = TaskInstance.objects.get(id=task_id)
         except TaskInstance.DoesNotExist:
@@ -272,8 +324,30 @@ class SubprocessPluginService(BKFlowBaseService):
         self.logger.info(f"subprocess execution data outputs: {subprocess_execution_data_outputs}")
         node_outputs = self.runtime.get_data_outputs(self.id)
         self.logger.info(f"node outputs: {node_outputs}")
-        for key in filter(lambda x: x in subprocess_execution_data_outputs, node_outputs.keys()):
-            data.set_outputs(key, subprocess_execution_data_outputs[key])
+
+        self.finish_schedule()
+        if not self.runtime.get_node(self.id).loop_enabled:
+            if not task_success:
+                data.set_outputs("ex_data", "子流程执行失败，请检查失败节点")
+                return False
+
+            for key in filter(lambda x: x in subprocess_execution_data_outputs, node_outputs.keys()):
+                data.set_outputs(key, subprocess_execution_data_outputs[key])
+        else:
+            outputs = {"task_id": task_id}
+            if not task_success:
+                outputs["ex_data"] = "子流程执行失败，请检查失败节点"
+                data.set_outputs("ex_data", "子流程执行失败，请检查失败节点")
+            else:
+                # 遍历子流程的输出，判断该输出是否在节点的输出变量中，在则加入
+                for key, value in subprocess_execution_data_outputs.items():
+                    data.set_outputs(key, subprocess_execution_data_outputs[key])
+                    key = key.removeprefix("${").removesuffix("}")
+                    outputs[key] = value
+            # 无论成功失败，都将 outputs 字典设置到输出中，由 extract_outputs 统一追加到列表
+            data.set_outputs(settings.LOOP_OUTPUTS_INNER_KEY, outputs)
+            if not task_success:
+                return False
         return True
 
 

@@ -405,7 +405,7 @@
         publishFormRules: {
           version: [{ required: true, message: i18n.t('请输入版本号'), trigger: 'blur' }],
         },
-        keysToRemove: ['optional', 'error_ignorable', 'retryable', 'skippable', 'auto_retry', 'timeout_config'],
+        keysToRemove: ['optional', 'error_ignorable', 'retryable', 'skippable', 'auto_retry', 'timeout_config', 'loop_config'],
         isHaveDraft: false,
         versionListData: [],
         versionListLoading: false,
@@ -615,22 +615,6 @@
       },
       // 编辑流程
       onEditClick() {
-        // const curPermission = [...this.authActions, ...this.tplActions]
-        // const applyPermission = this.common ? ['common_flow_edit'] : ['flow_edit']
-        // if (!this.hasPermission(applyPermission, curPermission)) {
-        //   const permissionData = {
-        //     project: [{
-        //       id: this.projectId,
-        //       name: this.projectName,
-        //     }],
-        //   }
-        //   permissionData[this.common ? 'common_flow' : 'flow'] = [{
-        //     id: this.templateId,
-        //     name: this.name,
-        //   }]
-        //   this.applyForPermission(applyPermission, curPermission, permissionData)
-        //   return
-        // }
         const { params, query, name } = this.$route;
         this.$emit('editTemplate', params.type);
         this.$router.push({

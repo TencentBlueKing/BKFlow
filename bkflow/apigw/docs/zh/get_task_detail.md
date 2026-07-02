@@ -36,7 +36,8 @@
         "snapshot_id": null,
         "execution_snapshot_id": null,
         "tree_info_id": null,
-        "extra_info": {}
+        "extra_info": {},
+        "webhook_delivery_history": []
     },
     "code": "0",
     "message": ""
@@ -54,30 +55,31 @@
 
 #### data[item]
 
-| 字段                    | 类型     | 描述       |
-|-----------------------|--------|----------|
-| id                    | int    | 任务ID     |
-| pipeline_tree         | dict   | 任务树数据    |
-| space_id              | int    | 空间ID     |
-| scope_type            | string | 范围类型     |
-| scope_value           | string | 范围值      |
-| instance_id           | string | 实例ID     |
-| template_id           | int    | 模板ID     |
-| name                  | string | 任务名称     |
-| creator               | string | 创建者      |
-| create_time           | string | 创建时间     |
-| executor              | string | 执行者      |
-| start_time            | string | 开始时间     |
-| finish_time           | string | 结束时间     |
-| description           | string | 描述       |
-| is_started            | bool   | 是否已启动    |
-| is_finished           | bool   | 是否已结束    |
-| is_revoked            | bool   | 是否已撤销    |
-| is_deleted            | bool   | 是否已删除    |
-| is_expired            | bool   | 是否已过期    |
-| snapshot_id           | int    | 快照ID     |
-| execution_snapshot_id | int    | 执行快照ID   |
-| tree_info_id          | int    | 任务拓扑信息ID |
+| 字段                                | 类型     | 描述          |
+|-----------------------------------|--------|-------------|
+| id                                | int    | 任务ID        |
+| pipeline_tree                     | dict   | 任务树数据       |
+| space_id                          | int    | 空间ID        |
+| scope_type                        | string | 范围类型        |
+| scope_value                       | string | 范围值         |
+| instance_id                       | string | 实例ID        |
+| template_id                       | int    | 模板ID        |
+| name                              | string | 任务名称        |
+| creator                           | string | 创建者         |
+| create_time                       | string | 创建时间        |
+| executor                          | string | 执行者         |
+| start_time                        | string | 开始时间        |
+| finish_time                       | string | 结束时间        |
+| description                       | string | 描述          |
+| is_started                        | bool   | 是否已启动       |
+| is_finished                       | bool   | 是否已结束       |
+| is_revoked                        | bool   | 是否已撤销       |
+| is_deleted                        | bool   | 是否已删除       |
+| is_expired                        | bool   | 是否已过期       |
+| snapshot_id                       | int    | 快照ID        |
+| execution_snapshot_id             | int    | 执行快照ID      |
+| tree_info_id                      | int    | 任务拓扑信息ID    |
+| webhook_delivery_history          | list   | webhook请求记录 |
 
 #### data.pipeline_tree
 

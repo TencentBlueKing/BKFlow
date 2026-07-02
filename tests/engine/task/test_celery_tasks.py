@@ -242,7 +242,7 @@ class TestSendTaskMessage:
         mock_client_class.return_value = mock_client
         mock_client.broadcast_task_events.return_value = None
 
-        send_task_message(task_instance.instance_id, ATOM_FAILED)
+        send_task_message(task_instance.instance_id, None, ATOM_FAILED)
 
         mock_send_msg.assert_called_once_with(task_instance, ATOM_FAILED)
         mock_client.broadcast_task_events.assert_called_once()
@@ -260,7 +260,7 @@ class TestSendTaskMessage:
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
 
-        send_task_message(task_instance.instance_id, "finished")
+        send_task_message(task_instance.instance_id, None, "finished")
 
         # 验证事件类型
         call_args = mock_client.broadcast_task_events.call_args
@@ -272,7 +272,7 @@ class TestSendTaskMessage:
         """测试发送消息（任务不存在）"""
         fake_instance_id = "fake_instance_id"
 
-        send_task_message(fake_instance_id, ATOM_FAILED)
+        send_task_message(fake_instance_id, None, ATOM_FAILED)
 
         # 不应该调用发送消息
         mock_send_msg.assert_not_called()
@@ -286,7 +286,7 @@ class TestSendTaskMessage:
         mock_send_msg.side_effect = Exception("send error")
 
         # 不应该抛出异常
-        send_task_message(task_instance.instance_id, ATOM_FAILED)
+        send_task_message(task_instance.instance_id, None, ATOM_FAILED)
 
 
 @pytest.mark.django_db(transaction=True)

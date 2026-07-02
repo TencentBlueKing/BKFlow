@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,12 +16,52 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import pytest
 from bamboo_engine.api import EngineAPIResult
 
 from bkflow.task.models import TaskInstance
 from bkflow.task.operations import OperationResult, TaskOperation
 from bkflow.utils.pipeline import build_default_pipeline_tree
+
+
+class TestTaskOperationTrace:
+    def test_start_method_passes_custom_span_attributes_to_execution_span(self, mocker, settings):
+        """启动任务时会把 extra_info 中的自定义 Span 属性传给执行级 Span"""
+        settings.ENABLE_OTEL_TRACE = True
+        custom_span_attributes = {"request_id": "req-001", "source": "apigw"}
+        task_instance = mocker.MagicMock()
+        task_instance.id = 1
+        task_instance.space_id = 100
+        task_instance.instance_id = "pipeline-1"
+        task_instance.execution_data = {"pipeline": "data"}
+        task_instance.extra_info = {"custom_context": {"custom_span_attributes": custom_span_attributes}}
+
+        update_queryset = mocker.MagicMock()
+        update_queryset.update.return_value = 1
+        mocker.patch("bkflow.task.operations.TaskInstance.objects.filter", return_value=update_queryset)
+        mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value={"pipeline": "formatted"})
+        mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {"result": True, "data": {}}
+        mocker.patch(
+            "bkflow.task.operations.bamboo_engine_api.run_pipeline",
+            return_value=EngineAPIResult(result=True, message="success"),
+        )
+        mocker.patch("bkflow.task.operations.taskflow_started.send")
+        mock_create_execution_span = mocker.patch(
+            "bkflow.task.operations.create_execution_span", return_value=("a" * 32, "b" * 16)
+        )
+
+        TaskOperation(task_instance, queue="test_queue").start(operator="test_executor")
+
+        mock_create_execution_span.assert_called_once_with(
+            task_id=task_instance.id,
+            space_id=task_instance.space_id,
+            pipeline_instance_id=task_instance.instance_id,
+            operator="test_executor",
+            custom_span_attributes=custom_span_attributes,
+        )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -36,8 +75,10 @@ class TestTaskOperation:
         executor = "test_executor"
         task_operation = TaskOperation(task_instance, queue)
         mocker.patch("bamboo_engine.api.run_pipeline", return_value=EngineAPIResult(result=True, message="success"))
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {"result": True, "data": {}}
 
-        task_operation.start(executor)
+        task_operation.start(operator=executor)
 
         task_instance.refresh_from_db()
         assert task_instance.is_started is True

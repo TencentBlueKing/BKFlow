@@ -19,7 +19,8 @@
 | description           | string | 否  | 描述                                                     |
 | constants             | json   | 否  | 任务启动参数                                                 |
 | credentials           | dict   | 否  | 凭证字典，用于传递API调用所需的凭证信息，详见下方说明                            |
-| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到所有节点上报的 Span 中，详见下方说明                    |
+| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到执行级根 Span 和所有节点上报的 Span 中，详见下方说明                    |
+| label_ids             | list   | 否  | 标签ID列表 |
 
 ### 开放插件治理说明
 
@@ -28,6 +29,7 @@
 - 插件必须仍存在于当前空间的开放插件目录中
 - 插件来源必须已对当前空间准入
 - 插件状态必须为可用
+- 插件业务版本必须仍在目录可用版本列表中
 - 插件必须已在当前空间开启
 
 校验通过后，BKFlow 会在任务 `extra_info` 中写入开放插件引用快照与 schema 快照，供后续执行与历史回看使用。
@@ -69,7 +71,7 @@
 
 ### custom_span_attributes 参数说明
 
-`custom_span_attributes` 参数用于在创建任务时传递自定义属性到所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
+`custom_span_attributes` 参数用于在创建任务时传递自定义属性到执行级根 Span 和所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
 
 **参数格式要求：**
 - 类型：字典（dict）
@@ -95,8 +97,10 @@
 
 **注意事项：**
 - 自定义属性会被存储在任务的 `extra_info.custom_context.custom_span_attributes` 中
+- 这些属性会添加到执行级根 Span 中，属性名格式为 `bkflow.<key>`
 - 这些属性会通过 `TaskContext` 传递到所有节点的 Span 中
-- 自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
+- 节点 Span 中自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
+- 执行级根 Span 会保留 `task_id`、`space_id`、`pipeline_instance_id`、`operator` 等内置属性，不会被自定义属性覆盖
 
 ### 请求参数示例
 
@@ -104,7 +108,8 @@
 {
     "name": "空间名",
     "template_id": 4,
-    "creator": "创建者"
+    "creator": "创建者",
+    "label_ids": [1, 2, 3]
 }
 ```
 
@@ -160,7 +165,8 @@
 		"snapshot_id": 3,
 		"execution_snapshot_id": 8,
 		"tree_info_id": null,
-		"extra_info": {}
+		"extra_info": {},
+		"labels": []
 		},
 	"code": "0",
 	"message": ""
@@ -213,3 +219,4 @@
 | execution_snapshot_id | int    | 执行快照ID   |
 | tree_info_id          | int    | 任务拓扑信息ID |
 | extra_info            | dict   | 任务额外信息   |
+| labels                | list   | 标签列表（标签对象数组） |

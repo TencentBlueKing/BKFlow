@@ -140,9 +140,13 @@ jobs:
           echo "📦 事件类型: $EVENT_ACTION"
           # 读取项目专属 code review 规范
           REVIEW_STANDARDS=""
-          STANDARDS_FILE=".ai/skills/requesting-code-review/bkflow-review-standards.md"
+          STANDARDS_FILE=".ai/rules/bkflow-review-standards.mdc"
           if [ -f "$STANDARDS_FILE" ]; then
-            REVIEW_STANDARDS=$(cat "$STANDARDS_FILE")
+            REVIEW_STANDARDS=$(awk '
+              NR == 1 && $0 == "---" { in_frontmatter = 1; next }
+              in_frontmatter && $0 == "---" { in_frontmatter = 0; next }
+              !in_frontmatter { print }
+            ' "$STANDARDS_FILE")
             echo "✅ 已加载项目 code review 规范"
           else
             echo "⚠️ 未找到项目 code review 规范文件: $STANDARDS_FILE"
@@ -205,8 +209,8 @@ jobs:
 
           在审查代码时，请参考以下项目文档以理解架构设计和业务上下文：
           - docs/guide/ — 用户指南（架构、快速入门、系统接入、插件等）
-          - docs/specs/ — 设计文档（brainstorming 输出）
-          - docs/plans/ — 实现计划（writing-plans 输出）
+          - docs/specs/ — 设计文档
+          - docs/plans/ — 实现计划
           - .ai/docs/architecture/ — 系统架构（部署、模块职责、通信协议）
           - .ai/docs/specs/ — 技术设计参考（设计模式、插件系统、任务执行等）
           - .ai/rules/docs-management.mdc — 文档目录管理规范

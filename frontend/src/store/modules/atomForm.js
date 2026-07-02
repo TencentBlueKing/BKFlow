@@ -14,6 +14,15 @@ import axios from 'axios';
 import transAtom from '@/utils/transAtom.js';
 
 /**
+ * 获取全局 jQuery 实例上的 $.atoms 对象
+ * webpack ProvidePlugin 提供的模块作用域 $ 与 expose-loader 暴露的 window.$ 是不同实例，
+ * 插件脚本在全局作用域执行时使用 window.$ 注册 $.atoms，因此需要从全局实例读取
+ */
+function getGlobalAtoms() {
+  return (window.$ && window.$.atoms) || (window.jQuery && window.jQuery.atoms) || $.atoms;
+}
+
+/**
  * 异步获取插件配置列表
  * @param {String} atomUrl 配置文件 js 地址
  * @param {Boolean} isEmbedded 是为否嵌入式
@@ -32,13 +41,14 @@ const asyncGetAtomConfig = async function (atomUrl, isEmbedded, atomType, isOutp
   if (isEmbedded) {
     /* eslint-disable-next-line */
         eval(atomUrl)
-    const configData = transAtom($.atoms, type);
+    const configData = transAtom(getGlobalAtoms(), type);
     $.atoms[type] = configData;
     list = $.atoms[type];
   } else {
     list = await new Promise((resolve) => {
       $.getScript(atomUrl, () => {
-        const configData = transAtom($.atoms, type);
+        // 从全局 jQuery 实例读取 atoms，因插件脚本在全局作用域注册 $.atoms
+        const configData = transAtom(getGlobalAtoms(), type);
         $.atoms[type] = configData;
         resolve($.atoms[type]);
       });
@@ -219,6 +229,12 @@ const atomForm = {
      */
     getThirdPluginTags({}, params) {
       return axios.get('/api/plugin_service/tags/', { params }).then(response => response.data);
+    },
+    /**
+     * 加载子流程输出参数
+     */
+    loadSubprocessOutput({}, params) {
+      return axios.get('/api/plugin/subprocess_plugin/', { params }).then(response => response.data);
     },
   },
 };

@@ -16,14 +16,16 @@ limitations under the License. */
       <i
         v-bk-tooltips="{
           boundary: 'window',
-          content: $t('复制')
+          content: $t('复制'),
+          extCls: 'code-editor-tooltip'
         }"
         class="bk-icon icon-copy mr20"
         @click="onCopyKey(value)" />
       <i
         v-bk-tooltips="{
           boundary: 'window',
-          content: isFullScreen ? $t('退出') : $t('全屏')
+          content: isFullScreen ? $t('退出') : $t('全屏'),
+          extCls: 'code-editor-tooltip'
         }"
         class="bk-icon zoom-icon"
         :class="
@@ -140,6 +142,13 @@ limitations under the License. */
     }
     .code-editor {
         height: calc(100% - 38px);
+    }
+}
+</style>
+<style lang="scss">
+.code-editor-tooltip {
+    .tippy-tooltip {
+        background-color: #333 !important;
     }
 }
 </style>

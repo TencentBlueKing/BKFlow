@@ -47,9 +47,7 @@ class TestTaskOperationComplete:
         assert result.result is True
 
         # Revoke
-        cancel_open_plugin_runs = mocker.patch(
-            "bkflow.task.operations.cancel_open_plugin_runs_for_task", create=True
-        )
+        cancel_open_plugin_runs = mocker.patch("bkflow.task.operations.cancel_open_plugin_runs_for_task", create=True)
         mocker.patch("bamboo_engine.api.revoke_pipeline", return_value=EngineAPIResult(result=True, message="success"))
         result = task_operation.revoke(operator="test_operator")
         assert result.result is True
@@ -213,13 +211,11 @@ class TestTaskOperationComplete:
             "bkflow.task.operations.get_pipeline_context",
             return_value={"task_scope_type": "project", "task_scope_value": "123"},
         )
-        mocker.patch(
-            "bkflow.task.operations.EngineSpaceConfig.get_space_var",
-            return_value={
-                "space": {"var1": "value1"},
-                "scope": {"project_123": {"var2": "value2"}},
-            },
-        )
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {
+            "result": True,
+            "data": {"${var1}": "value1", "${var2}": "value2"},
+        }
         mocker.patch("bamboo_engine.api.run_pipeline", return_value=EngineAPIResult(result=True, message="success"))
 
         task_operation = TaskOperation(task_instance)
@@ -235,9 +231,11 @@ class TestTaskOperationComplete:
 
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
-        mocker.patch(
-            "bkflow.task.operations.EngineSpaceConfig.get_space_var", return_value={"space": {"var1": "value1"}}
-        )
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {
+            "result": True,
+            "data": {"${var1}": "value1"},
+        }
         mocker.patch("bamboo_engine.api.run_pipeline", return_value=EngineAPIResult(result=True, message="success"))
 
         task_operation = TaskOperation(task_instance)
@@ -253,7 +251,7 @@ class TestTaskOperationComplete:
 
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
-        mocker.patch("bkflow.task.operations.EngineSpaceConfig.get_space_var", return_value={})
+        mocker.patch("bkflow.task.models.EngineSpaceConfig.get_space_var", return_value={})
         mocker.patch(
             "bamboo_engine.api.run_pipeline",
             return_value=EngineAPIResult(result=False, message="pipeline failed", exc_trace="trace"),
@@ -591,6 +589,7 @@ class TestTaskOperationComplete:
                 "id": node_id,
                 "state": bamboo_engine_states.FINISHED,
                 "loop": 2,
+                "retry": 0,
                 "children": {},
             }
         }
@@ -598,10 +597,14 @@ class TestTaskOperationComplete:
             "bamboo_engine.api.get_children_states",
             return_value=EngineAPIResult(result=True, data=mock_detail, message="success"),
         )
+        mock_node_info = mocker.MagicMock()
+        mock_node_info.loop_strategy = None
+        mocker.patch("pipeline.eri.runtime.BambooDjangoRuntime.get_node", return_value=mock_node_info)
         mock_histories = [
             {
                 "id": 1,
                 "version": "v1",
+                "inputs": {},
                 "outputs": {"ex_data": ""},
                 "state": bamboo_engine_states.FAILED,
                 "loop": 1,
@@ -612,6 +615,7 @@ class TestTaskOperationComplete:
             {
                 "id": 2,
                 "version": "v2",
+                "inputs": {},
                 "outputs": {"ex_data": ""},
                 "loop": 1,
                 "started_time": None,
@@ -686,7 +690,8 @@ class TestTaskOperationComplete:
 
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
-        mocker.patch("bkflow.task.operations.EngineSpaceConfig.get_space_var", return_value={})
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {"result": True, "data": {}}
         mocker.patch("django.conf.settings.ENABLE_OTEL_TRACE", True)
 
         captured_data = {}
@@ -720,7 +725,9 @@ class TestTaskOperationComplete:
 
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
-        mocker.patch("bkflow.task.operations.EngineSpaceConfig.get_space_var", return_value={})
+        mocker.patch("bkflow.task.models.EngineSpaceConfig.get_space_var", return_value={})
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {"result": True, "data": {}}
         mocker.patch("django.conf.settings.ENABLE_OTEL_TRACE", False)
 
         captured_data = {}
@@ -761,7 +768,8 @@ class TestTaskOperationComplete:
 
         mocker.patch("bkflow.task.operations.format_web_data_to_pipeline", return_value=pipeline_tree)
         mocker.patch("bkflow.task.operations.get_pipeline_context", return_value={})
-        mocker.patch("bkflow.task.operations.EngineSpaceConfig.get_space_var", return_value={})
+        mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
+        mock_client.return_value.get_variable.return_value = {"result": True, "data": {}}
         mocker.patch("django.conf.settings.ENABLE_OTEL_TRACE", True)
 
         captured_data = {}

@@ -42,6 +42,8 @@ class ResourceType(Enum):
     TEMPLATE = "TEMPLATE"
     # 作用域
     SCOPE = "SCOPE"
+    # 标签
+    LABEL = "LABEL"
 
 
 class PermissionType(Enum):
@@ -49,9 +51,19 @@ class PermissionType(Enum):
     EDIT = "EDIT"
     OPERATE = "OPERATE"
     MOCK = "MOCK"
+    FLOW_VIEW = "FLOW_VIEW"
+    FLOW_EDIT = "FLOW_EDIT"
+    FLOW_MOCK = "FLOW_MOCK"
 
 
-TASK_PERMISSION_TYPE = [PermissionType.VIEW.value, PermissionType.OPERATE.value]
+TASK_PERMISSION_TYPE = [
+    PermissionType.VIEW.value,
+    PermissionType.OPERATE.value,
+    PermissionType.FLOW_VIEW.value,
+    PermissionType.FLOW_EDIT.value,
+    PermissionType.FLOW_MOCK.value,
+]
+
 TEMPLATE_PERMISSION_TYPE = [
     PermissionType.VIEW.value,
     PermissionType.EDIT.value,
@@ -85,6 +97,7 @@ class Token(models.Model):
         (ResourceType.TASK.value, _("任务")),
         (ResourceType.TEMPLATE.value, _("流程")),
         (ResourceType.SCOPE.value, _("作用域")),
+        (ResourceType.LABEL.value, _("标签")),
     )
 
     PERMISSION_TYPE = (

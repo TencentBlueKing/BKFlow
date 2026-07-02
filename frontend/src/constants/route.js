@@ -40,6 +40,18 @@ export const SPACE_LIST = [
     id: 'credential',
     disabled: false,
   },
+  {
+    name: i18n.t('运营统计'),
+    icon: 'common-icon-sys-monitor',
+    id: 'statistics',
+    disabled: false,
+  },
+  {
+    name: i18n.t('标签管理'),
+    icon: 'common-icon-credential',
+    id: 'labelManage',
+    disabled: false,
+  },
 ];
 
 export const MODULES_LIST = [
@@ -53,6 +65,12 @@ export const MODULES_LIST = [
     name: i18n.t('模块配置'),
     icon: 'common-icon-module',
     id: 'module',
+    disabled: false,
+  },
+  {
+    name: i18n.t('运营统计'),
+    icon: 'common-icon-sys-monitor',
+    id: 'statistics',
     disabled: false,
   },
 ];

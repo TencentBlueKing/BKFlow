@@ -131,7 +131,6 @@
           @modifyTemplateData="modifyTemplateData"
           @createSnapshoot="onCreateSnapshoot"
           @useSnapshoot="onUseSnapshoot"
-          @updateTemplateLabelList="getTemplateLabelList"
           @updateSnapshoot="onUpdateSnapshoot" />
         <!-- :is-show="isShowVersionList" -->
         <version-list
@@ -593,7 +592,7 @@
         if (isNeedRefresh) {
           this.onRefreshVersionList(draftInfo);
         }
-        this.lastedPipelineTree = pipelineTree;
+        this.lastedPipelineTree = tools.deepClone(pipelineTree);
         this.compVersion = null;
         this.setPipelineTree(draftTplData.data.pipeline_tree);
         this.isChangeTplVersionTime = new Date().getTime();
@@ -663,6 +662,9 @@
           // 内置插件
           const atomList = [];
           data.forEach((item) => {
+            if (item.code === 'subprocess_plugin') {
+              return;
+            }
             const atom = atomList.find(atom => atom.code === item.code);
             if (atom) {
               atom.list.push(item);
@@ -834,17 +836,17 @@
       /**
        * 加载模板标签列表
        */
-      async getTemplateLabelList() {
-        try {
-          this.templateLabelLoading = true;
-          const res = await this.getProjectLabelsWithDefault(this.projectId);
-          this.templateLabels = res.data;
-        } catch (e) {
-          console.log(e);
-        } finally {
-          this.templateLabelLoading = false;
-        }
-      },
+    //   async getTemplateLabelList() {
+    //     try {
+    //       this.templateLabelLoading = true;
+    //       const res = await this.getProjectLabelsWithDefault(this.projectId);
+    //       this.templateLabels = res.data;
+    //     } catch (e) {
+    //       console.log(e);
+    //     } finally {
+    //       this.templateLabelLoading = false;
+    //     }
+    //   },
       checkDirtyData() {
         const ins = new DealVarDirtyData(this.constants);
         const illegalKeys = ins.checkKeys();
@@ -1480,10 +1482,11 @@
           start: 'start',
           end: 'end',
         };
+        const normalizedType = data.type === 'tasknode' ? 'task' : data.type;
         const location = {
           id,
           ...data,
-          type: typeMap[data.type] ?? data.type.split('-').join(''),
+          type: typeMap[normalizedType] ?? normalizedType.split('-').join(''),
           ...node.position(),
         };
         if (data?.oldSouceId) {
@@ -1493,7 +1496,7 @@
         this.setLocation({ type, location });
         // 节点编辑时只更新position不更新activities
         if (type === 'edit') return;
-        switch (data.type) {
+        switch (normalizedType) {
           case 'task':
           case 'subflow':
             // 添加任务节点
@@ -1735,9 +1738,10 @@
        */
       onUpdateNodeInfo(id, data) {
         const location = this.locations.find(item => item.id === id);
+        if (!location) return;
         const updatedLocation = Object.assign(location, data);
         this.setLocation({ type: 'edit', location: updatedLocation });
-        const { name, stage_name, group, icon, code } = location;
+        const { name, stage_name, group, icon, code, type, mode } = location;
         this.$refs.processCanvas.onUpdateNodeInfo(id, {
           ...data,
           name,
@@ -1745,6 +1749,8 @@
           group,
           icon,
           code,
+          type: type === 'tasknode' ? 'task' : type,
+          mode: mode || this.type,
         });
       },
       async jumpToTemplateMock() {

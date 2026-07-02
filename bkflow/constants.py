@@ -59,7 +59,9 @@ class TaskOperationType(Enum):
     # 任务节点操作
     callback = _("回调")
     retry = _("重试")
+    loop_retry = _("循环重试")
     skip = _("跳过")
+    loop_skip = _("循环跳过")
     skip_exg = _("跳过失败网关")
     skip_cpg = _("跳过并行条件网关")
     pause_subproc = _("暂停节点")
@@ -114,6 +116,7 @@ class WebhookScopeType(Enum):
     """webhook作用域类型"""
 
     SPACE = "space"
+    TEMPLATE = "template"
 
 
 class WebhookEventType(Enum):
@@ -142,3 +145,13 @@ class TriggerConstantsMode(Enum):
 
     FORM = "form"
     JSON = "json"
+
+
+class VariableType(Enum):
+    """变量类型"""
+
+    SPACE = "space"
+    SCOPE = "scope"
+
+
+VARIABLE_TYPES = [VariableType.SPACE.value, VariableType.SCOPE.value]

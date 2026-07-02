@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import time
 from unittest import mock
 
@@ -192,6 +193,28 @@ class TestPluginMethodSpan:
             assert span_result is not None
             assert span_result.success is True
 
+    @override_settings(ENABLE_OTEL_TRACE=True)
+    def test_plugin_method_span_keeps_lifecycle_method_when_plugin_attrs_include_method(self, mocker):
+        """插件属性包含 method 时，方法 Span 仍保留 execute/schedule 语义"""
+        span = mocker.MagicMock()
+        span.attributes = {}
+        span.set_attribute.side_effect = lambda key, value: span.attributes.__setitem__(key, value)
+        tracer = mocker.MagicMock()
+        tracer.start_span.return_value = span
+        mocker.patch("bkflow.utils.trace.trace.get_tracer", return_value=tracer)
+
+        with plugin_method_span(
+            method_name="schedule",
+            plugin_name="uniform_api",
+            method="POST",
+            http_method="POST",
+            task_id="123",
+        ):
+            pass
+
+        assert span.attributes["bkflow.plugin.method"] == "schedule"
+        assert span.attributes["bkflow.plugin.http_method"] == "POST"
+
 
 class TestStartPluginSpan:
     def test_start_plugin_span_basic(self):
@@ -315,6 +338,37 @@ class TestCreateExecutionSpan:
         assert len(span_id_hex) == 16
         int(trace_id_hex, 16)
         int(span_id_hex, 16)
+
+    @override_settings(ENABLE_OTEL_TRACE=True)
+    def test_create_execution_span_sets_custom_span_attributes(self, mocker):
+        """创建执行级 Span 时会写入自定义 Span 属性"""
+        span = mocker.MagicMock()
+        span.attributes = {}
+        span.set_attribute.side_effect = lambda key, value: span.attributes.__setitem__(key, value)
+        span.get_span_context.return_value.trace_id = int("a" * 32, 16)
+        span.get_span_context.return_value.span_id = int("b" * 16, 16)
+        tracer = mocker.MagicMock()
+        tracer.start_span.return_value = span
+        mocker.patch("bkflow.utils.trace.trace.get_current_span", return_value=None)
+        mocker.patch("bkflow.utils.trace.trace.get_tracer", return_value=tracer)
+
+        create_execution_span(
+            task_id=1,
+            space_id=100,
+            pipeline_instance_id="pipe-123",
+            operator="admin",
+            custom_span_attributes={
+                "request_id": "req-001",
+                "source": "apigw",
+                "empty_value": None,
+                "task_id": "custom-task",
+            },
+        )
+
+        assert span.attributes["bkflow.task_id"] == "1"
+        assert span.attributes["bkflow.request_id"] == "req-001"
+        assert span.attributes["bkflow.source"] == "apigw"
+        assert "bkflow.empty_value" not in span.attributes
 
     @override_settings(ENABLE_OTEL_TRACE=False)
     def test_create_execution_span_disabled(self):

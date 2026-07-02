@@ -10,7 +10,7 @@ fi
 export $(cat tests/interface.env | xargs)
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=${PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION:-python}
 echo "开始运行${BKFLOW_MODULE_TYPE}测试"
-pytest tests/interface tests/plugins tests/project_settings tests/contrib tests/decision_table
+pytest tests/interface tests/plugins tests/project_settings tests/contrib tests/decision_table tests/label
 set +e
 
 set -e

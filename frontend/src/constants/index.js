@@ -13,12 +13,12 @@ import i18n from '@/config/i18n/index.js';
 const TASK_STATE_DICT = {
   EXPIRED: i18n.t('已过期'),
   CREATED: i18n.t('未执行'),
-  RUNNING: i18n.t('执行中'),
+  RUNNING: i18n.t('正在执行'),
   READY: i18n.t('排队中'),
   SUSPENDED: i18n.t('暂停'),
   NODE_SUSPENDED: i18n.t('节点暂停'),
-  FAILED: i18n.t('失败'),
-  FINISHED: i18n.t('完成'),
+  FAILED: i18n.t('执行失败'),
+  FINISHED: i18n.t('执行成功'),
   REVOKED: i18n.t('终止'),
 };
 
@@ -201,6 +201,12 @@ const CREDENTIAL_OPEN_SCOPE_LIST = [
   },
 ];
 
+// 标签范围
+const LABEL_SCOPE = {
+  template: i18n.t('流程'),
+  task: i18n.t('任务'),
+};
+
 const NAME_REG = /^[^'"‘’“”$<>]+$/;
 const PACKAGE_NAME_REG = /^[^\d][\w]*?$/;
 // celery的crontab时间表达式正则表达式（分钟 小时 星期 日 月）（以空格分割）
@@ -215,7 +221,8 @@ export {
   TASK_STATE_DICT,
   NODE_DICT,
   SYSTEM_GROUP_ICON,
-  BK_PLUGIN_ICON, NAME_REG,
+  BK_PLUGIN_ICON,
+  NAME_REG,
   INVALID_NAME_CHAR,
   PACKAGE_NAME_REG,
   URL_REG,
@@ -227,4 +234,5 @@ export {
   COLOR_BLOCK_LIST,
   CREDENTIAL_TYPE_LIST,
   CREDENTIAL_OPEN_SCOPE_LIST,
+  LABEL_SCOPE,
 };

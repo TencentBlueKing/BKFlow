@@ -20,14 +20,43 @@ import base64
 import binascii
 import json
 
+from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TASK_NAME, USER_NAME_MAX_LENGTH
+from bkflow.label.models import Label
 from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
 from bkflow.template.models import TemplateMockData
 from bkflow.utils.strings import standardize_pipeline_node_name
+
+
+def _validate_task_label_ids(label_ids, space_id):
+    if not label_ids:
+        return
+
+    if space_id is None:
+        raise serializers.ValidationError(_("space_id 不能为空"))
+
+    if not Label.objects.check_label_ids(label_ids):
+        raise serializers.ValidationError(_("标签不存在，请检查 label_ids"))
+
+    invalid_scope_label_ids = list(
+        Label.objects.filter(id__in=label_ids)
+        .exclude(Q(label_scope__contains=["task"]) | Q(label_scope__contains=["common"]))
+        .values_list("id", flat=True)
+    )
+    if invalid_scope_label_ids:
+        raise serializers.ValidationError(_("标签范围校验失败，请选择 task 或 common 范围的标签"))
+
+    parent_label_ids = list(
+        Label.objects.filter(space_id=int(space_id), parent_id__in=label_ids)
+        .values_list("parent_id", flat=True)
+        .distinct()
+    )
+    if parent_label_ids:
+        raise serializers.ValidationError(_("父标签不能单独作为标签使用，请选择具体的子标签"))
 
 
 class CredentialsValidationMixin(serializers.Serializer):
@@ -81,6 +110,12 @@ class CreateTaskSerializer(CredentialsValidationMixin, serializers.Serializer):
     custom_span_attributes = serializers.DictField(
         help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
     )
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), child=serializers.IntegerField(), required=False)
+
+    def validate(self, attrs):
+        if "label_ids" in attrs:
+            _validate_task_label_ids(attrs.get("label_ids") or [], self.context.get("space_id"))
+        return attrs
 
 
 class CreateTaskByAppSerializer(serializers.Serializer):
@@ -179,8 +214,22 @@ class GetTaskListSerializer(serializers.Serializer):
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=False)
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
     id = serializers.IntegerField(help_text=_("任务ID"), required=False)
+    task_id_list = serializers.ListField(
+        help_text=_("任务ID列表，按列表精确过滤；GET 重复 key 传参，例如 ?task_id_list=1&task_id_list=3"),
+        child=serializers.IntegerField(),
+        required=False,
+        min_length=1,
+        max_length=50,
+        error_messages={
+            "min_length": _("task_id_list 不能为空，至少需要包含一个任务ID"),
+            "max_length": _("task_id_list 不能超过50个长度"),
+        },
+    )
     executor = serializers.CharField(help_text=_("执行者"), max_length=USER_NAME_MAX_LENGTH, required=False)
     template_id = serializers.IntegerField(help_text=_("流程ID"), required=False)
+
+    def validate_task_id_list(self, value):
+        return ",".join(str(i) for i in value)
 
 
 class GetTasksStatesSerializer(serializers.Serializer):
@@ -213,3 +262,11 @@ class BatchTaskSerializer(serializers.Serializer):
             raise serializers.ValidationError("is_mock must exist when delete all tasks")
 
         return attrs
+
+
+class UpdateTaskLabelsSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), required=True, child=serializers.IntegerField())
+
+    def validate_label_ids(self, value):
+        _validate_task_label_ids(value, self.context.get("space_id"))
+        return value

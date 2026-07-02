@@ -65,32 +65,18 @@ content 需要包含以下字段：
 
 ```json
 {
-    "result": true,
-    "data": {
-        "id": 1,
-        "space_id": 1,
-        "desc": "这是一个测试凭证",
-        "type": "BK_APP",
-        "content": {
-            "bk_app_code": "test_app",
-            "bk_app_secret": "*********"
-        }
-    },
-    "code": 0,
-    "message": ""
+     "id": 1,
+     "space_id": 1,
+     "desc": "这是一个测试凭证",
+     "type": "BK_APP",
+     "content": {
+          "bk_app_code": "test_app",
+          "bk_app_secret": "*********"
+     }
 }
 ```
 
 ### 返回结果参数说明
-
-| 字段      | 类型     | 描述                    |
-|---------|--------|-----------------------|
-| result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | int    | 返回码，0表示成功，其他值表示失败     |
-| message | string | 错误信息                  |
-| data    | dict   | 返回数据                  |
-
-#### data
 
 | 字段       | 类型     | 描述                    |
 |----------|--------|-----------------------|

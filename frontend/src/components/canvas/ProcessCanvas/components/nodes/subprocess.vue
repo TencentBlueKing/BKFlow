@@ -83,7 +83,7 @@
       getIconCls(node) {
         const { code, type } = node;
          if (code === 'subprocess_plugin' || type === 'subflow') {
-          return 'common-icon-subflow-mark';
+          return 'common-icon-sub-process';
         }
         return 'common-icon-sys-default';
       },

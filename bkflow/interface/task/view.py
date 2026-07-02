@@ -40,12 +40,14 @@ from bkflow.interface.task.permissions import (
     TaskTokenPermission,
 )
 from bkflow.interface.task.utils import StageConstantHandler, StageJobStateHandler
-from bkflow.permission.models import TASK_PERMISSION_TYPE, Token
+from bkflow.label.models import Label
+from bkflow.permission.models import TASK_PERMISSION_TYPE, ResourceType, Token
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
+from bkflow.utils.webhook import get_webhook_delivery_history_by_delivery_id
 
 logger = logging.getLogger("root")
 
@@ -56,7 +58,35 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
     @action(methods=["GET"], detail=False, url_path="get_task_list/(?P<space_id>\\d+)")
     def get_task_list(self, request, space_id):
         client = TaskComponentClient(space_id=space_id)
-        result = client.task_list(data={**request.query_params, "space_id": space_id})
+        # 把标签名称转换为id进行搜索
+        query_params = request.query_params.copy()
+        labels = request.query_params.get("label", "")
+        label_ids = Label.get_label_ids_by_names(labels)
+        if label_ids:
+            query_params["label"] = ",".join([str(label_id) for label_id in label_ids])
+        result = client.task_list(data={**query_params, "space_id": space_id})
+
+        label_ids = []
+        for item in result["data"]["results"]:
+            label_ids.extend(item["labels"])
+
+        labels_map = Label.objects.get_labels_map(set(label_ids))
+
+        for item in result["data"]["results"]:
+            item["labels"] = [labels_map.get(label_id) for label_id in item["labels"]]
+
+        return Response(result)
+
+    @action(methods=["POST"], detail=False, url_path="update_labels/(?P<space_id>\\d+)/(?P<pk>\\d+)")
+    def update_labels(self, request, space_id, pk=None):
+        """
+        更新特定任务（pk指定）的标签列表。
+        请求体期望格式：{"label_ids": [1, 2, 5]}
+        """
+        client = TaskComponentClient(space_id=space_id)
+        result = client.update_labels(pk, data={**request.data, "space_id": space_id})
+        labels_map = Label.objects.get_labels_map(set(result["data"]))
+        result["data"] = [labels_map.get(label_id) for label_id in result["data"]]
         return Response(result)
 
     @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
@@ -125,17 +155,24 @@ class TaskInterfaceViewSet(GenericViewSet):
                 resource_id=f"{task_detail['scope_type']}_{task_detail['scope_value']}", resource_type="SCOPE"
             ) | Q(resource_id=task_detail["id"], resource_type="TASK")
 
-            # 只有当任务是MOCK调试任务时，可以TEMPLATE的MOCK权限条件
-            if task_detail.get("create_method") == "MOCK":
-                base_query |= Q(resource_id=task_detail["template_id"], resource_type="TEMPLATE")
+            base_query |= Q(resource_id=task_detail["template_id"], resource_type="TEMPLATE")
 
             permissions = Token.objects.filter(
                 base_query,
                 space_id=task_detail["space_id"],
                 user=request.user.username,
                 expired_time__gte=timezone.now(),
-            ).values_list("permission_type", flat=True)
-            task_detail["auth"] = list(set(permissions))
+            ).values_list("resource_type", "permission_type")
+
+            # 模板权限增加 FLOW_ 前缀，便于前端区分模板权限与任务/作用域权限
+            auth_set = set()
+            for resource_type, permission_type in permissions:
+                if resource_type == ResourceType.TEMPLATE.value:
+                    auth_set.add(f"FLOW_{permission_type}")
+                else:
+                    auth_set.add(permission_type)
+
+            task_detail["auth"] = list(auth_set)
 
     def get_space_id(self, request):
         request_space_id = request.query_params.get("space_id", None) or request.data.get("space_id", None)
@@ -162,6 +199,9 @@ class TaskInterfaceViewSet(GenericViewSet):
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
         result = client.get_task_detail(task_id)
         self._inject_user_task_auth(request, result)
+        if result.get("result") and result.get("data"):
+            webhook_delivery_history = get_webhook_delivery_history_by_delivery_id(str(task_id))
+            result["data"]["webhook_delivery_history"] = webhook_delivery_history
         return Response(result)
 
     @action(methods=["GET"], detail=False, url_path="get_task_states/(?P<task_id>\\d+)")
