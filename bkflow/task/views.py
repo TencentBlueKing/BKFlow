@@ -345,6 +345,26 @@ class TaskInstanceViewSet(
         states = task_operation.get_task_states()
         return Response(dict(states))
 
+    @action(detail=False, methods=["get"], url_path="batch_get_task_states")
+    def batch_get_task_states(self, request, *args, **kwargs):
+        task_ids_str = request.query_params.get("task_ids", "")
+        space_id = request.query_params.get("space_id", "")
+        if not task_ids_str or not space_id:
+            return Response({"result": False, "message": "缺少必要参数task_ids或space_id", "data": {}}, status=400)
+
+        task_id_list = task_ids_str.split(",")
+        if not task_id_list:
+            return Response({"result": False, "message": "无合法的任务ID", "data": {}}, status=400)
+
+        tasks = TaskInstance.objects.filter(id__in=task_id_list, space_id=space_id)
+        states_result = {}
+        for task in tasks:
+            task_operation = TaskOperation(task_instance=task, queue=settings.BKFLOW_MODULE.code)
+            task_states = task_operation.get_task_states()
+            states_result[str(task.id)] = task_states.data if task_states else {}
+
+        return Response(states_result)
+
     @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
     @action(detail=False, methods=["post"], url_path="get_tasks_states")
     def get_tasks_states(self, request, *args, **kwargs):

@@ -187,3 +187,6 @@ class TaskComponentClient(BaseComponentClient):
 
     def get_tasks_pipeline(self, data):
         return self._request(method="get", url=self._get_task_url("task/get_tasks_pipeline/"), data=data)
+
+    def batch_get_task_states(self, data):
+        return self._request(method="get", url=self._get_task_url("task/batch_get_task_states/"), data=data)

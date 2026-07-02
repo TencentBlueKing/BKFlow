@@ -357,3 +357,12 @@ class TaskInterfaceViewSet(GenericViewSet):
             data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
         )
         return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="batch_get_task_states")
+    def batch_get_task_states(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.batch_get_task_states(
+            data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
+        )
+        return Response(result)
