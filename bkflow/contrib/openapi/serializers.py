@@ -58,7 +58,7 @@ class GetTasksStatesBodySerializer(serializers.Serializer):
 class GetNodeOutputsSerializer(serializers.Serializer):
     task_id = serializers.IntegerField(required=True)
     space_id = serializers.IntegerField(required=True)
-    node_ids = serializers.CharField(required=True)
+    node_ids = serializers.ListField(child=serializers.CharField())
 
 
 class TaskEngineAdminSerializer(serializers.Serializer):

@@ -622,6 +622,7 @@ class TaskNodeOperation:
         outputs_result = bamboo_engine_api.get_execution_data_outputs(runtime=runtime, node_id=self.node_id)
         if not outputs_result.result:
             logger.error(f"get_outputs failed: {outputs_result.message}, exc: {outputs_result.exc}")
+            return outputs_result
         if settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_result.data:
             outputs_result.data.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
         outputs_data.append(outputs_result.data)

@@ -482,7 +482,7 @@ class TaskInstanceViewSet(
         ser.is_valid(raise_exception=True)
         task_id = ser.validated_data["task_id"]
         space_id = ser.validated_data["space_id"]
-        node_ids = ser.validated_data["node_ids"].split(",")
+        node_ids = ser.validated_data["node_ids"]
         task_instance = TaskInstance.objects.filter(id=task_id, space_id=space_id)
         node_outputs = [
             {node_id: TaskNodeOperation(task_instance=task_instance, node_id=node_id).get_node_outputs().data}
