@@ -8,10 +8,15 @@
         :key="node.id"
         :class="[
           'node-item',
-          node.id === 'group' ? 'group-node' : (node.id === 'SubCanvas' ? 'loop-node-item' : `common-icon-node-${node.icon}`),
+          node.id === 'group' ? 'group-node' : (node.icon === 'subcanvas' ? 'subcanvas-node' : `common-icon-node-${node.icon}`),
           { disabled: isShowStartOrEndPoint(node) },
         ]"
-        :data-type="node.id" />
+        :data-type="node.id">
+        <img
+          v-if="node.icon === 'subcanvas'"
+          class="node-subcanvas-node"
+          :src="subcanvasIcon">
+      </li>
     </ul>
   </div>
 </template>
@@ -22,13 +27,14 @@
   import Guide from '@/utils/guide.js';
   import dom from '@/utils/dom.js';
   import i18n from '@/config/i18n/index.js';
+  import subcanvasIcon from '@/assets/images/subcanvas-node-icon.svg';
 
   const NODES = [
     { id: 'start', icon: 'startpoint-zh', name: i18n.t('开始节点') },
     { id: 'end', icon: 'endpoint-zh', name: i18n.t('结束节点') },
     { id: 'task', icon: 'tasknode', name: i18n.t('任务节点') },
     { id: 'subflow', icon: 'subflow', name: i18n.t('子流程') },
-    { id: 'SubCanvas', icon: 'loop', name: i18n.t('循环节点') },
+    { id: 'SubCanvas', icon: 'subcanvas', name: i18n.t('循环节点') },
     { id: 'branch-gateway', icon: 'branchgateway', name: i18n.t('分支网关') },
     { id: 'parallel-gateway', icon: 'parallelgateway', name: i18n.t('并行网关') },
     { id: 'conditional-parallel-gateway', icon: 'conditionalparallelgateway', name: i18n.t('条件并行网关') },
@@ -49,6 +55,7 @@
       return {
         NODES,
         dnd: null,
+        subcanvasIcon,
       };
     },
     computed: {
@@ -313,7 +320,7 @@
           },
           {
             el: '.node-item[data-type=SubCanvas]',
-            url: require('@/assets/images/left-subflow-guide.gif'),
+            url: require('@/assets/images/left-subcanvas-guide.gif'),
             text: [
               {
                 type: 'name',
@@ -438,19 +445,15 @@
       }
     }
     .common-icon-node-tasknode,
-    .common-icon-node-subflow {
+    .common-icon-node-subflow{
       font-size: 20px;
     }
-    .loop-node-item {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      &::before {
-        content: '\21BB';
-        font-size: 24px;
-        color: inherit;
+    .subcanvas-node {
+      .node-subcanvas-node {
+        display: block;
+        width: 28px;
+        height: 21px;
+        margin: 0 auto;
       }
     }
     .group-node {

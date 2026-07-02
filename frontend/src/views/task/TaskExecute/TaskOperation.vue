@@ -657,6 +657,9 @@
         'subflowNodeRetry',
         'getNodeActDetail',
         'getTaskInstanceData',
+        'getBatchNodeOutput',
+        'getBatchTaskPipeline',
+        'getBatchTaskStates'
       ]),
       ...mapActions('atomForm/', [
         'loadSingleAtomList',
@@ -811,68 +814,66 @@
         const allSubCanvasNodes = Object.values(this.pipelineData.activities).filter(item => item?.component?.code === 'subcanvas_plugin');
         if (allSubCanvasNodes.length === 0) return;
 
-        // 1、并行获取所有子画布的 taskId 和 pipeline_tree
-        const preparePromises = allSubCanvasNodes.map(async (nodeItem) => {
-          if (nodeItem.subcanvasTaskId) return { nodeItem, taskId: nodeItem.subcanvasTaskId };
-          const nodeState = this.instanceStatus?.children?.[nodeItem.id]?.state;
-          if (!nodeState || ['PENDING', 'READY'].includes(nodeState)) {
-            return { nodeItem, taskId: null };
-          }
-          try {
-            const detailRes = await this.getNodeActDetail({
-              instance_id: this.isTopTask ? this.instanceId : this.taskId,
-              node_id: nodeItem.id,
-              component_code: 'subcanvas_plugin',
-            });
-            if (detailRes.result && detailRes.data) {
-              const taskInfo = (detailRes.data.outputs || []).find(item => item.key === 'task_id') || {};
-              const taskId = taskInfo.value;
-              if (taskId) {
-                this.$set(this.pipelineData.activities[nodeItem.id], 'subcanvasTaskId', taskId);
-                const instanceResp = await this.getTaskInstanceData(taskId);
-                // eslint-disable-next-line
-                if (instanceResp?.pipeline_tree) {
-                  this.$set(this.pipelineData.activities[nodeItem.id], 'pipeline', instanceResp.pipeline_tree);
-                  return { nodeItem, taskId, pipelineUpdated: true };
-                }
-                return { nodeItem, taskId };
-              }
+        let pipelineUpdated = false;
+        try {
+          const batchOutputRes = await this.getBatchNodeOutput({
+            task_id: this.instanceId,
+            space_id: this.spaceId,
+            node_ids: allSubCanvasNodes.map(n => n.id),
+          });
+          const outputDataList = batchOutputRes?.data || [];
+          const nodeTaskMap = allSubCanvasNodes.map((nodeItem) => {
+            const outputs = outputDataList.find(item => Object.prototype.hasOwnProperty.call(item, nodeItem.id));
+            const taskId = outputs?.[nodeItem.id] ? outputs[nodeItem.id][0]['task_id'] : null;
+            if (taskId) {
+              this.$set(this.pipelineData.activities[nodeItem.id], 'subcanvasTaskId', taskId);
             }
-          } catch (e) {
-            console.warn(e);
+            return { nodeItem, taskId };
+          });
+          // 收集所有有效 taskId
+          const validTaskIds = nodeTaskMap.filter(item => item.taskId).map(item => item.taskId);
+          if (validTaskIds.length === 0) {
+            return;
           }
-          return { nodeItem, taskId: null };
-        });
-        const prepareResults = await Promise.allSettled(preparePromises);
-        const pipelineUpdated = prepareResults.some(r => r.status === 'fulfilled' && r.value?.pipelineUpdated);
-        // 2、并行获取所有子画布的执行状态
-        const statusPromises = prepareResults
-          .filter(r => r.status === 'fulfilled' && r.value?.taskId)
-          .map(r => ({
-            nodeItem: r.value.nodeItem,
-            promise: this.getInstanceStatus({ instance_id: r.value.taskId }),
-          }));
-        if (statusPromises.length === 0) {
-          if (pipelineUpdated) {
-            this.subcanvasPipelineChangeKey = new Date().getTime();
+          const batchPipelineRes = await this.getBatchTaskPipeline({
+            task_ids: validTaskIds.join(','),
+          });
+          if (batchPipelineRes?.result && batchPipelineRes.data) {
+            nodeTaskMap.forEach(({ nodeItem, taskId }) => {
+              if (!taskId) return;
+              const taskData = batchPipelineRes.data[taskId];
+              if (taskData) {
+                const oldPipeline = this.pipelineData.activities[nodeItem.id].pipeline;
+                if (!tools.isDataEqual(oldPipeline, taskData)) {
+                  this.$set(this.pipelineData.activities[nodeItem.id], 'pipeline', taskData);
+                  pipelineUpdated = true;
+                }
+              }
+            });
           }
-          return;
+          const batchStatesRes = await this.getBatchTaskStates({
+            task_ids: validTaskIds.join(','),
+            space_id: this.spaceId,
+          });
+          if (batchStatesRes?.result && batchStatesRes.data) {
+            const mergedChildren = {};
+            Object.values(batchStatesRes.data).forEach((taskState) => {
+              if (taskState?.children) {
+                Object.assign(mergedChildren, taskState.children);
+              }
+            });
+            if (Object.keys(mergedChildren).length > 0) {
+              this.instanceStatus.children = Object.assign(
+                {},
+                this.instanceStatus.children || {},
+                mergedChildren,
+              );
+            }
+          }
+        } catch (e) {
+          console.warn(e);
         }
-        const statusResults = await Promise.allSettled(statusPromises.map(item => item.promise));
-        // 3、合并子节点状态
-        const mergedChildren = {};
-        statusResults.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value?.result && result.value?.data?.children) {
-            Object.assign(mergedChildren, result.value.data.children);
-          }
-        });
-        if (Object.keys(mergedChildren).length > 0) {
-          this.instanceStatus.children = Object.assign(
-            {},
-            this.instanceStatus.children || {},
-            mergedChildren,
-          );
-        }
+
         if (pipelineUpdated) {
           this.subcanvasPipelineChangeKey = new Date().getTime();
         }
