@@ -41,7 +41,8 @@ from bkflow.utils.permissions import AdminPermission
 
 
 def _err(exc, code):
-    return Response(exception=True, data={"detail": str(exc)}, status=code)
+    detail = exc.args[0] if getattr(exc, "args", None) else str(exc)
+    return Response(exception=True, data={"detail": detail}, status=code)
 
 
 class DebugViewSet(GenericViewSet):

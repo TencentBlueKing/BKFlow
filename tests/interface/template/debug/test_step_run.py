@@ -302,3 +302,4 @@ class TestStepRunViews:
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 400
+        assert response.data["detail"] == {"detail": "节点不存在", "node_id": "ZZZ"}

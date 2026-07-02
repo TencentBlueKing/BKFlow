@@ -39,6 +39,17 @@ def build_single_node_pipeline_tree(full_tree: dict, node_id: str, var_values: d
     node["outgoing"] = flow_out
     node.setdefault("optional", True)
 
+    node_location = {}
+    for location in full_tree.get("location", []):
+        if location.get("id") == node_id:
+            node_location = copy.deepcopy(location)
+            break
+    node_location.update({"id": node_id, "type": "tasknode"})
+    node_location.setdefault("name", node.get("name", ""))
+    node_location.setdefault("stage_name", node.get("stage_name", ""))
+    node_location.setdefault("x", 240)
+    node_location.setdefault("y", 140)
+
     constants = {}
     for key, c in full_tree.get("constants", {}).items():
         nc = copy.deepcopy(c)
@@ -76,6 +87,23 @@ def build_single_node_pipeline_tree(full_tree: dict, node_id: str, var_values: d
             flow_out: {"id": flow_out, "source": node_id, "target": end_id},
         },
         "gateways": {},
+        "line": [
+            {
+                "id": flow_in,
+                "source": {"arrow": "Right", "id": start_id},
+                "target": {"arrow": "Left", "id": node_id},
+            },
+            {
+                "id": flow_out,
+                "source": {"arrow": "Right", "id": node_id},
+                "target": {"arrow": "Left", "id": end_id},
+            },
+        ],
+        "location": [
+            {"id": start_id, "type": "startpoint", "x": 40, "y": 150},
+            node_location,
+            {"id": end_id, "type": "endpoint", "x": 540, "y": 150},
+        ],
         "constants": constants,
         "outputs": [],
     }
