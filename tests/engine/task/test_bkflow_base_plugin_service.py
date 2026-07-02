@@ -369,3 +369,61 @@ class TestBKFlowBaseService:
         assert trace_context["plugin_span_id"] == plugin_span_id
         assert trace_context["trace_id"] == "a" * 32
         assert trace_context["parent_span_id"] == "b" * 16
+
+
+@pytest.mark.django_db(transaction=True)
+class TestMockFailInjection:
+    """mock 节点失败注入：fail_nodes 命中时设置 ex_data 并返回 False，否则保持原有行为。"""
+
+    def _svc(self, node_id="node1"):
+        svc = BKFlowBaseService()
+        setattr(svc, "id", node_id)
+        return svc
+
+    def test_mock_execute_fail_sets_ex_data_and_returns_false(self):
+        taskflow_id = 101
+        TaskMockData.objects.create(
+            taskflow_id=taskflow_id,
+            data={"nodes": ["node1"], "fail_nodes": ["node1"], "errors": {"node1": "boom"}},
+        )
+        svc = self._svc()
+        data = DataObject(inputs={})
+        result = svc.mock_execute(data, DataObject(inputs={"task_id": taskflow_id}))
+        assert result is False
+        assert data.get_one_of_outputs("ex_data") == "boom"
+
+    def test_mock_execute_no_fail_unchanged(self):
+        taskflow_id = 102
+        TaskMockData.objects.create(
+            taskflow_id=taskflow_id,
+            data={"nodes": ["node1"], "outputs": {"node1": {"k": "v"}}},
+        )
+        svc = self._svc()
+        data = DataObject(inputs={})
+        result = svc.mock_execute(data, DataObject(inputs={"task_id": taskflow_id}))
+        assert result is True
+        assert data.get_one_of_outputs("k") == "v"
+
+    def test_mock_schedule_fail_sets_ex_data_and_returns_false(self):
+        taskflow_id = 103
+        TaskMockData.objects.create(
+            taskflow_id=taskflow_id,
+            data={"nodes": ["node1"], "fail_nodes": ["node1"], "errors": {"node1": "boom"}},
+        )
+        svc = self._svc()
+        data = DataObject(inputs={})
+        result = svc.mock_schedule(data, DataObject(inputs={"task_id": taskflow_id}))
+        assert result is False
+        assert data.get_one_of_outputs("ex_data") == "boom"
+
+    def test_mock_execute_fail_default_message(self):
+        taskflow_id = 104
+        TaskMockData.objects.create(
+            taskflow_id=taskflow_id,
+            data={"nodes": ["node1"], "fail_nodes": ["node1"]},
+        )
+        svc = self._svc()
+        data = DataObject(inputs={})
+        result = svc.mock_execute(data, DataObject(inputs={"task_id": taskflow_id}))
+        assert result is False
+        assert data.get_one_of_outputs("ex_data") == "mock failed"

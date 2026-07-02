@@ -1482,10 +1482,11 @@
           start: 'start',
           end: 'end',
         };
+        const normalizedType = data.type === 'tasknode' ? 'task' : data.type;
         const location = {
           id,
           ...data,
-          type: typeMap[data.type] ?? data.type.split('-').join(''),
+          type: typeMap[normalizedType] ?? normalizedType.split('-').join(''),
           ...node.position(),
         };
         if (data?.oldSouceId) {
@@ -1495,7 +1496,7 @@
         this.setLocation({ type, location });
         // 节点编辑时只更新position不更新activities
         if (type === 'edit') return;
-        switch (data.type) {
+        switch (normalizedType) {
           case 'task':
           case 'subflow':
             // 添加任务节点
@@ -1737,6 +1738,7 @@
        */
       onUpdateNodeInfo(id, data) {
         const location = this.locations.find(item => item.id === id);
+        if (!location) return;
         const updatedLocation = Object.assign(location, data);
         this.setLocation({ type: 'edit', location: updatedLocation });
         const { name, stage_name, group, icon, code, type, mode } = location;
@@ -1747,7 +1749,7 @@
           group,
           icon,
           code,
-          type,
+          type: type === 'tasknode' ? 'task' : type,
           mode: mode || this.type,
         });
       },

@@ -174,6 +174,13 @@ class TaskInstanceViewSet(
             return RetrieveTaskInstanceSerializer
         return super().get_serializer_class()
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # 调试任务（DEBUG）默认不在列表中展示，仅当显式按 create_method 过滤时才返回
+        if self.action == "list" and "create_method" not in self.request.query_params:
+            queryset = queryset.exclude(create_method="DEBUG")
+        return queryset
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
@@ -363,6 +370,15 @@ class TaskInstanceViewSet(
         task_instance = self.get_object()
         task_mock_data = TaskMockData.objects.filter(taskflow_id=task_instance.id).first()
         return Response(task_mock_data.to_json() if task_mock_data else {})
+
+    @swagger_auto_schema(methods=["get"], operation_description="获取任务模板节点 id 到运行时节点 id 的映射")
+    @action(detail=True, methods=["get"], url_path="get_node_id_map")
+    @validate_task_info
+    def get_node_id_map(self, request, *args, **kwargs):
+        task_instance = self.get_object()
+        activities = (task_instance.execution_data or {}).get("activities", {})
+        mapping = {act.get("template_node_id", act_id): act_id for act_id, act in activities.items()}
+        return Response(mapping)
 
     @swagger_auto_schema(methods=["get"], operation_description="任务全局变量查询")
     @action(detail=True, methods=["get"], url_path="render_current_constants")
