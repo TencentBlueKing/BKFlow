@@ -87,9 +87,10 @@
           cell.prop('originSize', size);
           // 循环容器创建后，自动在容器内初始化默认子节点
           // 复制操作时跳过初始化，由 copyLoopGroupLocationAndFlows 统一创建子节点和连线
+          // 画布重建（resetCells）时也跳过初始化，避免重复创建不存在的子节点
           if (shape === 'custom-loop-group-node') {
             const data = cell.getData();
-            if (!data.isCopy) {
+            if (!data.isCopy && !this.instance.isResetting) {
               this.initLoopContainerContent(cell);
             }
           }

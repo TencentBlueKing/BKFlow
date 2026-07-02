@@ -1506,6 +1506,8 @@ const template = {
         status: item.status,
         x: item.x,
         y: item.y,
+        width: item.width,
+        height: item.height,
         parent: item.parent || undefined,
       }));
       return {

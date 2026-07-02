@@ -2335,8 +2335,11 @@
       },
       // 重置画布
       resetCells() {
+        // 标记正在重建画布，阻止 DND 组件的 node:added 监听器为循环节点初始化默认子节点
+        this.graph.isResetting = true;
         this.graph.clearCells(true);
         this.initCanvasData();
+        this.graph.isResetting = false;
         const cells = this.graph.getCells();
         this.graph.resetCells(cells, true);
       },
