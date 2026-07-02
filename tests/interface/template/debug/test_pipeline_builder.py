@@ -69,6 +69,18 @@ class TestBuildSingleNode:
         assert c["value"] == "hydrated"
         assert c["source_type"] == "custom" and c["source_info"] == {}
 
+    def test_web_pipeline_metadata_is_complete(self):
+        """mini tree 应保留 default-engine converter 需要的 web 拓扑元数据"""
+        tree = build_single_node_pipeline_tree(FULL_TREE, "B", var_values={})
+
+        assert {item["id"] for item in tree["location"]} == {
+            tree["start_event"]["id"],
+            "B",
+            tree["end_event"]["id"],
+        }
+        assert [item["type"] for item in tree["location"]] == ["startpoint", "tasknode", "endpoint"]
+        assert {item["id"] for item in tree["line"]} == set(tree["flows"].keys())
+
     def test_node_not_found_raises(self):
         with pytest.raises(KeyError):
             build_single_node_pipeline_tree(FULL_TREE, "ZZZ", var_values={})

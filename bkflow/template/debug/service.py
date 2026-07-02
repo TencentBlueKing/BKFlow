@@ -164,6 +164,7 @@ class DebugService:
                     "node_type": ns.node_type,
                     "execution_mode": ns.execution_mode,
                     "mock_result": ns.mock_result if ns.execution_mode == "mock" else None,
+                    "mock_error": ns.mock_error if ns.execution_mode == "mock" and ns.mock_result == "fail" else None,
                     "status": ns.status,
                     "can_step": can_step,
                     "missing_vars": missing,
@@ -236,11 +237,12 @@ class DebugService:
         ctx.refresh_from_db()
 
     def _release_lock(self, ctx: DebugContext, status="idle"):
-        """释放调试锁：复位状态、清空持锁用户与持锁时间。"""
+        """释放调试锁：复位状态，清空持锁用户、持锁时间与运行任务引用。"""
         ctx.status = status
         ctx.locked_by = ""
         ctx.locked_at = None
-        ctx.save(update_fields=["status", "locked_by", "locked_at"])
+        ctx.active_task_id = None
+        ctx.save(update_fields=["status", "locked_by", "locked_at", "active_task_id"])
 
     def _reclaim_stale_lock(self, ctx: DebugContext) -> bool:
         """回收被遗弃的调试锁。

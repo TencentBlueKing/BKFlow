@@ -74,6 +74,7 @@ class TestSyncFromDebugTask:
         assert ns.log_ref == {"instance_id": 456, "node_id": "rtA", "version": "v1"}
         assert ctx.global_vars.get("${g1}") == "produced"
         assert ctx.status == "idle"  # 整体结束后解锁
+        assert ctx.active_task_id is None
 
     def test_sync_running_task_does_not_release_lock(self, mocker):
         """任务运行中：回写节点态与耗时，但不释放锁"""
