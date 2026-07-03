@@ -627,7 +627,7 @@ export default {
                 const data = this.getTemplateConfig();
                 this.setTplConfig(data);
                 this.closeTab();
-                this.$emit('templateDataChanged');
+                this.$emit('templateDataChanged', 'tabTemplateConfig');
             });
         },
         beforeClose() {
