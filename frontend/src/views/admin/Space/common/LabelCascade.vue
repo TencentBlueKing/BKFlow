@@ -1,7 +1,8 @@
 <template>
   <div
     class="label-cascade-wrap"
-    @click="isVisible(true)">
+    :class="{ 'is-view-mode': isViewMode }"
+    @click="!isViewMode && isVisible(true)">
     <bk-popover
       ref="labelPopover"
       theme="light"
@@ -120,6 +121,10 @@ export default {
         },
         // 外部点击标签删除，需要触发确认事件，刷新列表选中态
         needUpdate: {
+            type: Boolean,
+            default: false,
+        },
+        isViewMode: {
             type: Boolean,
             default: false,
         },
@@ -354,6 +359,9 @@ export default {
     display: flex;
     align-items: center;
     cursor: pointer;
+    &.is-view-mode {
+        cursor: not-allowed;
+    }
 }
 .search-input {
     height: 100%;

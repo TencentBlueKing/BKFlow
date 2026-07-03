@@ -1352,6 +1352,7 @@ const en = {
   JSON源码: 'JSON Source',
   权限中心: 'Permission Center',
   个人中心: 'Personal Center',
+  个人设置: 'Personal Settings',
 };
 
 export default en;

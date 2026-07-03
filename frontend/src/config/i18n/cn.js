@@ -1353,6 +1353,7 @@ const cn = {
   JSON源码: 'JSON源码',
   权限中心: '权限中心',
   个人中心: '个人中心',
+  个人设置: '个人设置',
 };
 
 export default cn;
