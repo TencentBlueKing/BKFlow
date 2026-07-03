@@ -33,6 +33,11 @@ def get_label_list(request, space_id):
     if label_scope:
         queryset = queryset.filter(Q(label_scope__contains=[label_scope]) | Q(label_scope__contains=["common"]))
 
+    if "label_ids" in params:
+        label_ids = params["label_ids"]
+        label_id_list = [int(lid.strip()) for lid in label_ids.split(",") if lid.strip().isdigit()]
+        queryset = queryset.filter(id__in=label_id_list)
+
     if "parent_id" in params:
         queryset = queryset.filter(parent_id=params["parent_id"])
 
