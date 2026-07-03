@@ -44,6 +44,7 @@ limitations under the License. */
             data-test-id="tabTemplateConfig_form_label">
             <label-cascade
               :value="formData.template_labels"
+              :is-view-mode="isViewMode"
               scope="template"
               @confirm="onSelectLabel">
               <template #trigger="{ list, isShow }">
@@ -626,7 +627,7 @@ export default {
                 const data = this.getTemplateConfig();
                 this.setTplConfig(data);
                 this.closeTab();
-                this.$emit('templateDataChanged');
+                this.$emit('templateDataChanged', 'tabTemplateConfig');
             });
         },
         beforeClose() {
