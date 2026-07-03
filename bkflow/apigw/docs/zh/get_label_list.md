@@ -11,14 +11,15 @@
 
 #### 接口参数
 
-| 字段 | 类型 | 必选 | 描述 |
-| --- | --- | --- | --- |
-| offset | int | 否 | 偏移量，默认0 |
-| limit | int | 否 | 返回数量，默认100，最大200 |
-| label_scope | string | 否 | 标签范围筛选，可选值：`task`、`template`、`common` |
-| parent_id | int | 否 | 父标签ID。不传时，接口会返回根标签（并兼容把子标签的父节点也包含在返回结果中） |
-| name | string | 否 | 标签名称，模糊匹配 |
-| is_default | bool | 否 | 是否默认标签 |
+| 字段 | 类型 | 必选 | 描述                                                                                             |
+| --- | --- | --- |------------------------------------------------------------------------------------------------|
+| offset | int | 否 | 偏移量，默认0                                                                                        |
+| limit | int | 否 | 返回数量，默认100，最大200                                                                               |
+| label_ids  | string | 否  | 标签ID，多个逗号分隔                                                                                    |
+| label_scope | string | 否 | 标签范围筛选，可选值：`task`、`template`、`common`                                                          |
+| parent_id | int | 否 | 父标签ID。不传时，接口会返回根标签（并兼容把子标签的父节点也包含在返回结果中）                                                       |
+| name | string | 否 | 标签名称，模糊匹配                                                                                      |
+| is_default | bool | 否 | 是否默认标签                                                                                         |
 | order_by | string | 否 | 排序字段，默认 `-updated_at`，允许值：`created_at`、`updated_at`、`name`、`-created_at`、`-updated_at`、`-name` |
 
 ### 请求参数示例
