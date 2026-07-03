@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import copy
 
 from django.conf import settings
@@ -25,14 +26,14 @@ from pipeline.component_framework.component import Component
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_plugins.utils import convert_dict_value
-from bkflow.plugin.models import OpenPluginCatalogIndex, OpenPluginRunCallbackRef
-from bkflow.plugin.services.open_plugin_callback import (
+from bkflow.space.configs import UniformAPIConfigHandler
+from bkflow.task.models import OpenPluginRunCallbackRef
+from bkflow.task.open_plugin_callback import (
     build_open_plugin_callback_url,
     build_open_plugin_client_request_id,
     callback_token_digest,
     issue_open_plugin_callback_token,
 )
-from bkflow.space.configs import UniformAPIConfigHandler
 from bkflow.utils.handlers import handle_plain_log
 
 from .v3_0_0 import UniformAPIService as V3UniformAPIService
@@ -81,14 +82,7 @@ class UniformAPIService(V3UniformAPIService):
 
     @staticmethod
     def _resolve_open_plugin_source_key(space_id, plugin_id, explicit_source_key=""):
-        if explicit_source_key:
-            return explicit_source_key
-        catalog = (
-            OpenPluginCatalogIndex.objects.filter(space_id=space_id, plugin_id=plugin_id)
-            .order_by("-update_time", "-id")
-            .first()
-        )
-        return getattr(catalog, "source_key", "")
+        return explicit_source_key or ""
 
     @staticmethod
     def _upsert_open_plugin_callback_ref(

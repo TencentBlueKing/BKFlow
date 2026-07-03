@@ -17,11 +17,19 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+from datetime import timedelta
+from unittest import mock
+
 import pytest
 from bamboo_engine import states as bamboo_engine_states
 from bamboo_engine.api import EngineAPIResult
+from django.utils import timezone
 
-from bkflow.task.models import TaskInstance
+from bkflow.task.models import OpenPluginRunCallbackRef, TaskInstance
+from bkflow.task.open_plugin_callback import (
+    callback_token_digest,
+    issue_open_plugin_callback_token,
+)
 from bkflow.task.operations import OperationResult, TaskNodeOperation
 from bkflow.utils.pipeline import build_default_pipeline_tree
 
@@ -29,6 +37,40 @@ from bkflow.utils.pipeline import build_default_pipeline_tree
 @pytest.mark.django_db(transaction=True)
 class TestTaskNodeOperation:
     """测试 TaskNodeOperation 节点操作"""
+
+    def _create_task_instance_with_node(self):
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        task_instance.calculate_tree_info()
+        node_ids = list(task_instance.node_id_set)
+        if not node_ids:
+            pytest.skip("No nodes in pipeline tree")
+        return task_instance, node_ids[0]
+
+    def _create_open_plugin_callback_ref(
+        self,
+        task_instance,
+        node_id,
+        token,
+        node_version="v4.0.0",
+        open_plugin_run_id="run-001",
+        consumed_at=None,
+    ):
+        return OpenPluginRunCallbackRef.objects.create(
+            task_id=task_instance.id,
+            node_id=node_id,
+            node_version=node_version,
+            client_request_id=f"task-{task_instance.id}-node-{node_id}-attempt-1",
+            open_plugin_run_id=open_plugin_run_id,
+            callback_token_digest=callback_token_digest(token),
+            callback_expire_at=timezone.now() + timedelta(hours=1),
+            plugin_source="builtin",
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_version="1.2.0",
+            cancel_url="https://bk-sops.example/open-plugin-runs/run-001/cancel",
+            credential_key="default",
+            consumed_at=consumed_at,
+        )
 
     def test_retry_node(self, mocker):
         """测试重试节点"""
@@ -92,6 +134,157 @@ class TestTaskNodeOperation:
         result = node_operation.callback(operator="test_operator", data={"key": "value"})
         assert isinstance(result, OperationResult)
         assert result.result is True
+
+    def test_open_plugin_callback_accepts_valid_payload(self, mocker):
+        """开放插件回调由 engine 校验 token/ref 后再回调 bamboo engine。"""
+
+        task_instance, node_id = self._create_task_instance_with_node()
+        node_version = "v4.0.0"
+        client_request_id = f"task-{task_instance.id}-node-{node_id}-attempt-1"
+        token, _ = issue_open_plugin_callback_token(
+            task_id=task_instance.id,
+            node_id=node_id,
+            client_request_id=client_request_id,
+            node_version=node_version,
+        )
+        callback_ref = self._create_open_plugin_callback_ref(
+            task_instance=task_instance, node_id=node_id, token=token, node_version=node_version
+        )
+
+        mock_state = type("State", (), {"name": bamboo_engine_states.RUNNING, "version": node_version})()
+        mocker.patch("pipeline.eri.runtime.BambooDjangoRuntime.get_state", return_value=mock_state)
+        callback_api = mocker.patch(
+            "bamboo_engine.api.callback", return_value=EngineAPIResult(result=True, message="success")
+        )
+
+        result = TaskNodeOperation(task_instance, node_id).callback(
+            operator="system",
+            data={
+                "open_plugin_run_id": "run-001",
+                "status": "SUCCEEDED",
+                "outputs": {"job_instance_id": 1001},
+                "_callback_token": token,
+            },
+        )
+
+        assert result.result is True
+        callback_api.assert_called_once_with(
+            runtime=mock.ANY,
+            node_id=node_id,
+            version=node_version,
+            data={
+                "open_plugin_run_id": "run-001",
+                "status": "SUCCEEDED",
+                "outputs": {"job_instance_id": 1001},
+            },
+        )
+        callback_ref.refresh_from_db()
+        assert callback_ref.consumed_at is not None
+
+    def test_open_plugin_callback_rejects_invalid_token(self, mocker):
+        """开放插件回调 token 无效时，engine 不触发 bamboo callback。"""
+
+        task_instance, node_id = self._create_task_instance_with_node()
+        node_version = "v4.0.0"
+        client_request_id = f"task-{task_instance.id}-node-{node_id}-attempt-1"
+        token, _ = issue_open_plugin_callback_token(
+            task_id=task_instance.id,
+            node_id=node_id,
+            client_request_id=client_request_id,
+            node_version=node_version,
+        )
+        self._create_open_plugin_callback_ref(
+            task_instance=task_instance, node_id=node_id, token=token, node_version=node_version
+        )
+        callback_api = mocker.patch(
+            "bamboo_engine.api.callback", return_value=EngineAPIResult(result=True, message="success")
+        )
+
+        result = TaskNodeOperation(task_instance, node_id).callback(
+            operator="system",
+            data={
+                "open_plugin_run_id": "run-001",
+                "status": "SUCCEEDED",
+                "_callback_token": "invalid-token",
+            },
+        )
+
+        assert result.result is False
+        assert "callback token" in result.message
+        callback_api.assert_not_called()
+
+    def test_open_plugin_callback_duplicate_request_is_idempotent(self, mocker):
+        """已消费过的开放插件回调在 engine 侧幂等返回成功。"""
+
+        task_instance, node_id = self._create_task_instance_with_node()
+        node_version = "v4.0.0"
+        client_request_id = f"task-{task_instance.id}-node-{node_id}-attempt-1"
+        token, _ = issue_open_plugin_callback_token(
+            task_id=task_instance.id,
+            node_id=node_id,
+            client_request_id=client_request_id,
+            node_version=node_version,
+        )
+        self._create_open_plugin_callback_ref(
+            task_instance=task_instance,
+            node_id=node_id,
+            token=token,
+            node_version=node_version,
+            consumed_at=timezone.now(),
+        )
+        callback_api = mocker.patch(
+            "bamboo_engine.api.callback", return_value=EngineAPIResult(result=True, message="success")
+        )
+
+        result = TaskNodeOperation(task_instance, node_id).callback(
+            operator="system",
+            data={
+                "open_plugin_run_id": "run-001",
+                "status": "SUCCEEDED",
+                "_callback_token": token,
+            },
+        )
+
+        assert result.result is True
+        assert "already consumed" in result.message
+        callback_api.assert_not_called()
+
+    def test_open_plugin_callback_terminal_node_is_swallowed(self, mocker):
+        """节点已离开运行态时，engine 消费回调但不再触发 bamboo callback。"""
+
+        task_instance, node_id = self._create_task_instance_with_node()
+        node_version = "v4.0.0"
+        client_request_id = f"task-{task_instance.id}-node-{node_id}-attempt-1"
+        token, _ = issue_open_plugin_callback_token(
+            task_id=task_instance.id,
+            node_id=node_id,
+            client_request_id=client_request_id,
+            node_version=node_version,
+        )
+        callback_ref = self._create_open_plugin_callback_ref(
+            task_instance=task_instance, node_id=node_id, token=token, node_version=node_version
+        )
+
+        mock_state = type("State", (), {"name": bamboo_engine_states.FINISHED, "version": node_version})()
+        mocker.patch("pipeline.eri.runtime.BambooDjangoRuntime.get_state", return_value=mock_state)
+        callback_api = mocker.patch(
+            "bamboo_engine.api.callback", return_value=EngineAPIResult(result=True, message="success")
+        )
+
+        result = TaskNodeOperation(task_instance, node_id).callback(
+            operator="system",
+            data={
+                "open_plugin_run_id": "run-001",
+                "status": "SUCCEEDED",
+                "_callback_token": token,
+            },
+        )
+
+        assert result.result is True
+        assert "terminal state" in result.message
+        callback_api.assert_not_called()
+        callback_ref.refresh_from_db()
+        assert callback_ref.consumed_at is not None
 
     def test_skip_exg(self, mocker):
         """测试跳过排他网关"""
