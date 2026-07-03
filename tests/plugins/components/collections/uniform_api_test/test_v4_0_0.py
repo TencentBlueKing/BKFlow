@@ -9,8 +9,8 @@ from bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0 import (
     build_open_plugin_client_request_id,
     build_open_plugin_execute_payload,
 )
-from bkflow.plugin.models import OpenPluginCatalogIndex, OpenPluginRunCallbackRef
-from bkflow.plugin.services.open_plugin_callback import (
+from bkflow.task.models import OpenPluginRunCallbackRef
+from bkflow.task.open_plugin_callback import (
     callback_token_digest,
     issue_open_plugin_callback_token,
     parse_open_plugin_callback_token,
@@ -243,25 +243,14 @@ def test_open_plugin_execute_branch_passes_runtime_context(monkeypatch, settings
     assert captured["data"]["inputs"] == {"target_ip": "127.0.0.1"}
 
 
-@pytest.mark.django_db
-def test_resolve_open_plugin_source_key_from_catalog():
-    OpenPluginCatalogIndex.objects.create(
-        space_id=1,
-        source_key="sops",
-        plugin_id="open_plugin_001",
-        plugin_code="job_execute_task",
-        plugin_name="JOB 执行作业",
-        plugin_source="builtin",
-        group_name="作业平台",
-        wrapper_version="v4.0.0",
-        default_version="1.2.0",
-        latest_version="1.2.0",
-        versions=["1.2.0"],
-        meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
-        status="available",
+def test_resolve_open_plugin_source_key_uses_saved_hidden_field_only():
+    assert (
+        UniformAPIService._resolve_open_plugin_source_key(
+            space_id=1, plugin_id="open_plugin_001", explicit_source_key="sops"
+        )
+        == "sops"
     )
-
-    assert UniformAPIService._resolve_open_plugin_source_key(space_id=1, plugin_id="open_plugin_001") == "sops"
+    assert UniformAPIService._resolve_open_plugin_source_key(space_id=1, plugin_id="open_plugin_001") == ""
 
 
 @pytest.mark.django_db

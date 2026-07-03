@@ -144,34 +144,3 @@ class OpenPluginSpaceGrant(models.Model):
 
     def __str__(self):
         return f"{self.space_id}:{self.source_key}:{self.enabled}"
-
-
-class OpenPluginRunCallbackRef(models.Model):
-    task_id = models.BigIntegerField(verbose_name="任务ID", db_index=True)
-    node_id = models.CharField(verbose_name="节点ID", max_length=64, db_index=True)
-    node_version = models.CharField(verbose_name="节点版本", max_length=32, blank=True, default="")
-    client_request_id = models.CharField(verbose_name="客户端请求ID", max_length=128, unique=True)
-    open_plugin_run_id = models.CharField(verbose_name="开放插件运行ID", max_length=64, unique=True, db_index=True)
-    callback_token_digest = models.CharField(verbose_name="回调令牌摘要", max_length=128)
-    callback_expire_at = models.DateTimeField(verbose_name="回调令牌过期时间")
-    plugin_source = models.CharField(verbose_name="插件来源类型", max_length=64, blank=True, default="")
-    source_key = models.CharField(verbose_name="开放插件来源", max_length=64, blank=True, default="")
-    plugin_id = models.CharField(verbose_name="开放插件ID", max_length=128)
-    plugin_version = models.CharField(verbose_name="开放插件版本", max_length=64, blank=True, default="")
-    cancel_url = models.CharField(verbose_name="开放插件取消URL", max_length=1024, blank=True, default="")
-    credential_key = models.CharField(verbose_name="取消调用使用的凭证key", max_length=128, blank=True, default="")
-    consumed_at = models.DateTimeField(verbose_name="回调消费时间", null=True, blank=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
-    update_time = models.DateTimeField(auto_now=True, verbose_name="更新时间")
-
-    class Meta:
-        verbose_name = "开放插件回调映射"
-        verbose_name_plural = "开放插件回调映射"
-        app_label = "plugin"
-        indexes = [
-            models.Index(fields=["task_id", "node_id"]),
-            models.Index(fields=["callback_expire_at"]),
-        ]
-
-    def __str__(self):
-        return f"{self.task_id}:{self.node_id}:{self.open_plugin_run_id}"
