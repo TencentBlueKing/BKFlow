@@ -14,7 +14,7 @@ class LabelListFilterSerializer(serializers.Serializer):
         choices=[c[0] for c in Label.LABEL_SCOPE_CHOICES],
         required=False,
     )
-    label_ids = serializers.CharField(required=False, allow_null=True, allow_blank=True, help_text=_("标签ID，多个逗号分隔"))
+    label_ids = serializers.CharField(required=False, allow_blank=True, help_text=_("标签ID，多个逗号分隔"))
     parent_id = serializers.IntegerField(help_text=_("父标签ID"), required=False)
     name = serializers.CharField(help_text=_("标签名称"), required=False, allow_blank=False)
     is_default = serializers.BooleanField(help_text=_("是否默认标签"), required=False)

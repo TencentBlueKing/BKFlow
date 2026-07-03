@@ -35,8 +35,11 @@ def get_label_list(request, space_id):
 
     if "label_ids" in params:
         label_ids = params["label_ids"]
-        label_id_list = [int(lid.strip()) for lid in label_ids.split(",") if lid.strip().isdigit()]
-        queryset = queryset.filter(id__in=label_id_list)
+        # 非空才处理，避免空字符串/None导致的报错
+        if label_ids:
+            label_id_list = [int(lid.strip()) for lid in label_ids.split(",") if lid.strip().isdigit()]
+            if label_id_list:
+                queryset = queryset.filter(id__in=label_id_list)
 
     if "parent_id" in params:
         queryset = queryset.filter(parent_id=params["parent_id"])
