@@ -1206,6 +1206,7 @@ const en = {
   更多操作: 'More operations',
   权限中心: 'Permission Center',
   个人中心: 'Personal Center',
+  个人设置: 'Personal Settings',
 };
 
 export default en;
