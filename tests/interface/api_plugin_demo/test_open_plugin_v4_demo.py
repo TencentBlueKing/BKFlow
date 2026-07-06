@@ -41,6 +41,7 @@ class TestOpenPluginV4Demo:
 
     def test_v4_urls_are_the_only_protocol_validation_entrypoints(self):
         """测试 v4 协议验证只暴露简洁版本化路径。"""
+        assert resolve_demo_view("/v4/category/") == v4.category_api
         assert resolve_demo_view("/v4/list_meta/") == v4.list_meta_api
         assert resolve_demo_view("/v4/detail_meta/") == v4.detail_meta_api
         assert resolve_demo_view("/v4/execute/") == v4.execute_api
@@ -49,6 +50,18 @@ class TestOpenPluginV4Demo:
 
         with pytest.raises(Resolver404):
             resolve("/open_plugin_v4/list_meta/", urlconf=URLCONF)
+
+    def test_category_returns_v4_protocol_validation_group(self):
+        """测试 v4 示例分类接口返回协议验证分组。"""
+        request = self.factory.get("/api/api_plugin_demo/v4/category/")
+        response = resolve_demo_view("/v4/category/")(request)
+
+        assert response.status_code == 200
+        assert response.data == {
+            "result": True,
+            "message": "",
+            "data": [{"name": "V4 协议验证", "id": "v4"}],
+        }
 
     def test_list_meta_returns_v4_catalog_fields(self):
         """测试 v4 示例列表返回开放插件目录所需字段。"""
