@@ -338,6 +338,7 @@
             spaceId: this.spaceId,
             meta_url: config.meta_url,
             ...this.scopeInfo,
+            api_name: config.api_key,
           });
           const { methods, url } = resp.data;
           // 请求方法只有一个时，默认选中

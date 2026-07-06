@@ -458,6 +458,7 @@
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,
+              api_name: apiMeta.api_key,
             });
             if (!resp.result) return;
             // 输出参数

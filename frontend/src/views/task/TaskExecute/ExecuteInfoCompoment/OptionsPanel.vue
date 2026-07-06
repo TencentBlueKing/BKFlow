@@ -324,9 +324,6 @@
         'getInstanceStatus',
         'getTaskInstanceData',
       ]),
-      ...mapActions('template/', [
-        'loadUniformApiMeta',
-      ]),
       ...mapActions('atomForm/', [
         'loadAtomConfig',
         'loadPluginServiceDetail',
