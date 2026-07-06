@@ -712,6 +712,7 @@ class TaskLabelRelation(models.Model):
     objects = BaseLabelRelationManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = _("任务标签关系 TaskLabelRelation")
         verbose_name_plural = _("任务标签关系 TaskLabelRelation")
         unique_together = ("task_id", "label_id")
