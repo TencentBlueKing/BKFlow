@@ -24,6 +24,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 WRAPPER_VERSION = "v4.0.0"
+DEMO_CATEGORIES = [{"name": "V4 协议验证", "id": "v4"}]
 
 
 DEMO_PLUGINS = {
@@ -217,6 +218,12 @@ def _build_outputs(open_plugin_run_id):
         "job_instance_id": "demo-job-{}".format(run_token),
         "message": "demo open plugin finished",
     }
+
+
+@api_view(["GET"])
+def category_api(request):
+    """获取 v4 协议验证插件分类。"""
+    return _demo_response(data=copy.deepcopy(DEMO_CATEGORIES))
 
 
 @api_view(["GET"])

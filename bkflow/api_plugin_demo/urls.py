@@ -29,6 +29,7 @@ urlpatterns = [
     url(r"^execute/create_task/$", views.execute_create_task, name="execute_create_task"),
     url(r"^execute/process_data/$", views.execute_process_data, name="execute_process_data"),
     url(r"^execute/api_with_credential/$", views.execute_api_with_credential, name="execute_api_with_credential"),
+    url(r"^v4/category/$", v4.category_api, name="v4_category_api"),
     url(r"^v4/list_meta/$", v4.list_meta_api, name="v4_list_meta_api"),
     url(r"^v4/detail_meta/$", v4.detail_meta_api, name="v4_detail_meta_api"),
     url(r"^v4/execute/$", v4.execute_api, name="v4_execute_api"),
