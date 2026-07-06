@@ -199,6 +199,7 @@ export const graphToJson = (canvasData) => {
       },
       parent: cur.parent || undefined,
       data: {
+        id,
         ...curData,
         type: isLoopGroup ? 'SubCanvas' : nodeCompMap[type],
         // 循环容器节点需要标记 parent: true
