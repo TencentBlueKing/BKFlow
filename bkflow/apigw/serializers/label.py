@@ -19,6 +19,8 @@ class LabelListFilterSerializer(serializers.Serializer):
     name = serializers.CharField(help_text=_("标签名称"), required=False, allow_blank=False)
     is_default = serializers.BooleanField(help_text=_("是否默认标签"), required=False)
     order_by = serializers.CharField(help_text=_("排序字段"), required=False, default="-updated_at")
+    # 是否包含子标签
+    include_children = serializers.BooleanField(help_text=_("是否包含子标签"), required=False, default=False)
 
     def validate_order_by(self, value):
         allow = {

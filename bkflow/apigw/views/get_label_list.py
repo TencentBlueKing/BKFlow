@@ -51,7 +51,7 @@ def get_label_list(request, space_id):
         queryset = queryset.filter(is_default=params["is_default"])
 
     # If parent_id is not provided, return root labels (compatible with LabelFilter.filter_queryset)
-    if "parent_id" not in params:
+    if "parent_id" not in params and not params["include_children"]:
         queryset = queryset.filter(parent_id__isnull=True)
 
     child_subquery = Label.objects.filter(parent_id=OuterRef("pk"))
