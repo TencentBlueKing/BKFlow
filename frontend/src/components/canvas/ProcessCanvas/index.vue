@@ -586,6 +586,7 @@
       },
       // 节点父子关系发生变化（node:change:parent驱动）
       handleNodeChangeParent({ node, current, previous }) {
+        if (this.graph && this.graph.isResetting) return;
         const nodeData = node.getData();
         if (!nodeData) return;
         const nodeType = nodeData.type;
@@ -2339,9 +2340,9 @@
         this.graph.isResetting = true;
         this.graph.clearCells(true);
         this.initCanvasData();
-        this.graph.isResetting = false;
         const cells = this.graph.getCells();
         this.graph.resetCells(cells, true);
+        this.graph.isResetting = false;
       },
       onTogglePerspective() {
         this.isPerspective = !this.isPerspective;

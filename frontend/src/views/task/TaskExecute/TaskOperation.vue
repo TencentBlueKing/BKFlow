@@ -1078,6 +1078,9 @@
       },
       async updateExecuteInfo() {
         const execInfoInstance = this.$refs.executeInfo;
+        if (!execInfoInstance) {
+          return;
+        }
         try {
           execInfoInstance.loading = true;
           await execInfoInstance.loadNodeInfo();
@@ -1095,7 +1098,7 @@
         this.isFailedSubproceeNodeInfo = null;
         try {
           const data = {
-            instance_id: subflowInfo?.taskId || this.instanceId,
+            instance_id: subflowInfo?.taskId || this.getSubCanvasTaskId(id),
             node_id: id,
             operation: 'skip',
             data: {
@@ -1108,7 +1111,7 @@
               message: i18n.t('跳过成功'),
               theme: 'success',
             });
-            if (subflowInfo?.taskId || isTopSubflow) {
+            if (subflowInfo?.taskId || isTopSubflow || this.isNodeInSubCanvas(id)) {
               this.updateExecuteInfo();
             } else {
               this.nodeInfoType = '';
@@ -1131,7 +1134,7 @@
         this.pending.forceFail = true;
         try {
           const params = {
-            instance_id: subflowInfo?.taskId || this.instanceId,
+            instance_id: subflowInfo?.taskId || this.getSubCanvasTaskId(id),
             node_id: id,
             operation: 'forced_fail',
           };
@@ -1142,7 +1145,7 @@
               theme: 'success',
             });
             // this.nodeInfoType = '';
-            if (subflowInfo?.taskId) {
+            if (subflowInfo?.taskId || this.isNodeInSubCanvas(id)) {
               this.updateExecuteInfo();
             } else {
               this.nodeInfoType = '';
@@ -1177,6 +1180,25 @@
           this.pending.selectGateway = false;
         }
       },
+      findSubCanvasParentActivity(nodeId) {
+        return Object.values(this.pipelineData.activities).find(
+          act => act?.component?.code === 'subcanvas_plugin'
+            && act.pipeline?.location?.some(loc => loc.id === nodeId)
+        );
+      },
+      isNodeInSubCanvas(id) {
+        return !!this.findSubCanvasParentActivity(id);
+      },
+      /**
+       * 若节点为循环节点（subcanvas_plugin）的子节点，返回对应循环实例的 taskId；否则返回顶层实例 id
+       */
+      getSubCanvasTaskId(id) {
+        const subCanvasParentActivity = this.findSubCanvasParentActivity(id);
+        if (subCanvasParentActivity) {
+          return subCanvasParentActivity?.taskId || subCanvasParentActivity?.subcanvasTaskId;
+        }
+        return this.instanceId;
+      },
       async nodeResume(id, subflowInfo) {
         if (this.pending.parseNodeResume) {
           return;
@@ -1184,7 +1206,7 @@
         this.pending.parseNodeResume = true;
         try {
           const data = {
-            instance_id: subflowInfo?.taskId || this.instanceId,
+            instance_id: subflowInfo?.taskId || this.getSubCanvasTaskId(id),
             node_id: id,
             operation: 'callback',
             data: { data: {} },
@@ -1196,7 +1218,7 @@
               theme: 'success',
             });
             // this.nodeInfoType = '';
-            if (subflowInfo?.taskId) {
+            if (subflowInfo?.taskId || this.isNodeInSubCanvas(id)) {
               this.updateExecuteInfo();
             } else {
               this.nodeInfoType = '';
@@ -1417,7 +1439,7 @@
             confirmLoading: true,
             confirmFn: async () => {
               const resp = await this.instanceNodeOperate({
-                instance_id: subflowInfo?.taskId || this.instanceId,
+                instance_id: subflowInfo?.taskId || this.getSubCanvasTaskId(id),
                 node_id: id,
                 operation: 'retry',
                 data: {
