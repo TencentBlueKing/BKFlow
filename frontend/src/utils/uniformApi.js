@@ -606,6 +606,7 @@ export const buildV4PluginDetailRequest = ({
 };
 
 export const buildUniformApiMetaParams = ({
+  api_name: apiName,
   meta_url: metaUrl,
   meta_url_template: metaUrlTemplate,
   version,
@@ -618,6 +619,9 @@ export const buildUniformApiMetaParams = ({
     scope_type: scopeType,
     scope_value: scopeValue,
   };
+  if (apiName) {
+    params.api_name = apiName;
+  }
   if (metaUrlTemplate) {
     params.meta_url_template = metaUrlTemplate;
     params.source_key = sourceKey;
