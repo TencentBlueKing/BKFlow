@@ -2,8 +2,6 @@ import ast
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 from bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0 import (
     UniformAPIService,
     build_open_plugin_client_request_id,
@@ -253,8 +251,14 @@ def test_resolve_open_plugin_source_key_uses_saved_hidden_field_only():
     assert UniformAPIService._resolve_open_plugin_source_key(space_id=1, plugin_id="open_plugin_001") == ""
 
 
-@pytest.mark.django_db
-def test_upsert_open_plugin_callback_ref():
+def test_upsert_open_plugin_callback_ref(monkeypatch):
+    captured = {}
+
+    def fake_update_or_create(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(), True
+
+    monkeypatch.setattr(OpenPluginRunCallbackRef.objects, "update_or_create", fake_update_or_create)
     token, expire_at = issue_open_plugin_callback_token(
         task_id=1,
         node_id="node_a",
@@ -278,10 +282,11 @@ def test_upsert_open_plugin_callback_ref():
         credential_key="default",
     )
 
-    callback_ref = OpenPluginRunCallbackRef.objects.get(client_request_id="task-1-node-node_a-attempt-1")
-    assert callback_ref.open_plugin_run_id == "run-001"
-    assert callback_ref.callback_token_digest == callback_token_digest(token)
-    assert callback_ref.plugin_id == "open_plugin_001"
-    assert callback_ref.source_key == "sops"
-    assert callback_ref.cancel_url == "https://bk-sops.example/open-plugin-runs/run-001/cancel"
-    assert callback_ref.credential_key == "default"
+    assert captured["client_request_id"] == "task-1-node-node_a-attempt-1"
+    defaults = captured["defaults"]
+    assert defaults["open_plugin_run_id"] == "run-001"
+    assert defaults["callback_token_digest"] == callback_token_digest(token)
+    assert defaults["plugin_id"] == "open_plugin_001"
+    assert defaults["source_key"] == "sops"
+    assert defaults["cancel_url"] == "https://bk-sops.example/open-plugin-runs/run-001/cancel"
+    assert defaults["credential_key"] == "default"

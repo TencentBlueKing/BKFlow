@@ -47,10 +47,13 @@ def _err(exc, code):
 
 class DebugViewSet(GenericViewSet):
     permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
-    # 读操作（context/input_schema/history）按 view 级；写操作（运行/重置/终止）需 mock 及以上权限，
-    # 因为它们会创建/启动/撤销真实的引擎 TaskInstance
     DEFAULT_PERMISSION = TemplateRelatedResourcePermission.VIEW_PERMISSION
     PERM_MAPPINGS = {
+        # context/history 会返回调试上下文、输入、全局变量、错误与运行历史，按调试数据收敛到 MOCK 权限
+        "context": TemplateRelatedResourcePermission.MOCK_PERMISSION,
+        "history": TemplateRelatedResourcePermission.MOCK_PERMISSION,
+        "input_schema": TemplateRelatedResourcePermission.VIEW_PERMISSION,
+        "reset_impact": TemplateRelatedResourcePermission.VIEW_PERMISSION,
         "global_run": TemplateRelatedResourcePermission.MOCK_PERMISSION,
         "reset": TemplateRelatedResourcePermission.MOCK_PERMISSION,
         "terminate": TemplateRelatedResourcePermission.MOCK_PERMISSION,
@@ -64,21 +67,21 @@ class DebugViewSet(GenericViewSet):
     def context(self, request, *args, **kwargs):
         query = TemplateIdQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
-        svc = DebugService(template_id=query.validated_data["template_id"])
+        svc = DebugService(template_id=query.validated_data["template_id"], space_id=query.validated_data["space_id"])
         return Response(svc.build_context_view())
 
     @action(methods=["GET"], detail=False)
     def input_schema(self, request, *args, **kwargs):
         query = TemplateIdQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
-        svc = DebugService(template_id=query.validated_data["template_id"])
+        svc = DebugService(template_id=query.validated_data["template_id"], space_id=query.validated_data["space_id"])
         return Response({"fields": svc.input_schema()})
 
     @action(methods=["POST"], detail=False)
     def global_run(self, request, *args, **kwargs):
         ser = GlobalRunSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        svc = DebugService(template_id=ser.validated_data["template_id"])
+        svc = DebugService(template_id=ser.validated_data["template_id"], space_id=ser.validated_data["space_id"])
         try:
             data = svc.global_run(inputs=ser.validated_data["inputs"], operator=request.user.username)
         except DebugConflictError as e:
@@ -91,7 +94,7 @@ class DebugViewSet(GenericViewSet):
     def reset(self, request, *args, **kwargs):
         ser = ResetSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        svc = DebugService(template_id=ser.validated_data["template_id"])
+        svc = DebugService(template_id=ser.validated_data["template_id"], space_id=ser.validated_data["space_id"])
         try:
             reset_ids = svc.reset(node_ids=ser.validated_data.get("node_ids"))
         except DebugConflictError as e:
@@ -102,7 +105,7 @@ class DebugViewSet(GenericViewSet):
     def terminate(self, request, *args, **kwargs):
         ser = TerminateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        svc = DebugService(template_id=ser.validated_data["template_id"])
+        svc = DebugService(template_id=ser.validated_data["template_id"], space_id=ser.validated_data["space_id"])
         try:
             data = svc.terminate(node_id=ser.validated_data.get("node_id"), operator=request.user.username)
         except DebugStateError as e:
@@ -113,14 +116,14 @@ class DebugViewSet(GenericViewSet):
     def history(self, request, *args, **kwargs):
         query = TemplateIdQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
-        svc = DebugService(template_id=query.validated_data["template_id"])
+        svc = DebugService(template_id=query.validated_data["template_id"], space_id=query.validated_data["space_id"])
         return Response(svc.history())
 
     @action(methods=["POST"], detail=False)
     def reset_impact(self, request, *args, **kwargs):
         query = TemplateIdQuerySerializer(data=request.data)
         query.is_valid(raise_exception=True)
-        svc = DebugService(template_id=query.validated_data["template_id"])
+        svc = DebugService(template_id=query.validated_data["template_id"], space_id=query.validated_data["space_id"])
         return Response(svc.reset_impact())
 
     @action(methods=["POST"], detail=False)
@@ -128,7 +131,7 @@ class DebugViewSet(GenericViewSet):
         ser = StepRunSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         vd = ser.validated_data
-        svc = DebugService(template_id=vd["template_id"])
+        svc = DebugService(template_id=vd["template_id"], space_id=vd["space_id"])
         try:
             data = svc.step_run(
                 node_id=vd["node_id"],
@@ -151,7 +154,7 @@ class DebugViewSet(GenericViewSet):
         ser = NodeMockSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         vd = ser.validated_data
-        svc = DebugService(template_id=vd["template_id"])
+        svc = DebugService(template_id=vd["template_id"], space_id=vd["space_id"])
         try:
             data = svc.node_mock(
                 node_id=vd["node_id"],
@@ -171,7 +174,7 @@ class DebugViewSet(GenericViewSet):
         ser = ContextVarSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         vd = ser.validated_data
-        svc = DebugService(template_id=vd["template_id"])
+        svc = DebugService(template_id=vd["template_id"], space_id=vd["space_id"])
         try:
             data = svc.set_context_var(key=vd["key"], value=vd["value"])
         except DebugConflictError as e:

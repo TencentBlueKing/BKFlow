@@ -77,6 +77,11 @@ class TemplateRelatedResourcePermission(BaseMockTokenPermission):
     VIEW_PERMISSION = "view"
     MOCK_PERMISSION = "mock"
     DEFAULT_PERMISSION = VIEW_PERMISSION
+    PERMISSION_HIERARCHY = {
+        VIEW_PERMISSION: (VIEW_PERMISSION, EDIT_PERMISSION, MOCK_PERMISSION),
+        EDIT_PERMISSION: (EDIT_PERMISSION, MOCK_PERMISSION),
+        MOCK_PERMISSION: (MOCK_PERMISSION,),
+    }
 
     def get_resource_type(self):
         return "TEMPLATE"
@@ -92,9 +97,17 @@ class TemplateRelatedResourcePermission(BaseMockTokenPermission):
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
         action_perm = self.get_action_perm(view)
-        template_permission = getattr(self, f"has_{action_perm}_permission")(
-            request.user.username, space_id, template_id, request.token
-        )
-        if not template_permission:
-            return self.has_scope_mock_permission(request.user.username, space_id, template_id, request.token)
-        return template_permission
+        for permission_type in self.PERMISSION_HIERARCHY[action_perm]:
+            template_permission = getattr(self, f"has_{permission_type}_permission")(
+                request.user.username, space_id, template_id, request.token
+            )
+            if template_permission:
+                return True
+
+            scope_permission = getattr(self, f"has_scope_{permission_type}_permission")(
+                request.user.username, space_id, template_id, request.token
+            )
+            if scope_permission:
+                return True
+
+        return False

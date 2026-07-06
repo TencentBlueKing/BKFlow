@@ -59,7 +59,9 @@ class TestRunOpsViews:
         self._patch_tree(mocker)
         DebugContext.objects.create(template_id=1, space_id=10, status="running", locked_by="bob")
         view = DebugViewSet.as_view({"post": "global_run"})
-        request = self.factory.post("/debug/global_run/", {"template_id": 1, "inputs": {}}, format="json")
+        request = self.factory.post(
+            "/debug/global_run/", {"space_id": 10, "template_id": 1, "inputs": {}}, format="json"
+        )
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 409
@@ -69,7 +71,7 @@ class TestRunOpsViews:
         ctx = DebugContext.objects.create(template_id=1, space_id=10)
         DebugNodeState.objects.create(debug_context=ctx, node_id="A", status="finished", outputs={"k": "v"})
         view = DebugViewSet.as_view({"post": "reset"})
-        request = self.factory.post("/debug/reset/", {"template_id": 1}, format="json")
+        request = self.factory.post("/debug/reset/", {"space_id": 10, "template_id": 1}, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 200
@@ -84,7 +86,7 @@ class TestRunOpsViews:
         mocker.patch.object(DebugService, "_task_client", return_value=client)
 
         view = DebugViewSet.as_view({"post": "terminate"})
-        request = self.factory.post("/debug/terminate/", {"template_id": 1}, format="json")
+        request = self.factory.post("/debug/terminate/", {"space_id": 10, "template_id": 1}, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
 
@@ -103,7 +105,7 @@ class TestRunOpsViews:
         mocker.patch.object(DebugService, "_task_client", return_value=client)
 
         view = DebugViewSet.as_view({"get": "history"})
-        request = self.factory.get("/debug/history/", {"template_id": 1})
+        request = self.factory.get("/debug/history/", {"space_id": 10, "template_id": 1})
         force_authenticate(request, user=self.user)
         response = view(request)
 
@@ -115,7 +117,7 @@ class TestRunOpsViews:
         self._patch_tree(mocker)
         DebugContext.objects.create(template_id=1, space_id=10, status="running", locked_by="bob")
         view = DebugViewSet.as_view({"post": "reset"})
-        request = self.factory.post("/debug/reset/", {"template_id": 1}, format="json")
+        request = self.factory.post("/debug/reset/", {"space_id": 10, "template_id": 1}, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 409
@@ -124,7 +126,7 @@ class TestRunOpsViews:
         self._patch_tree(mocker)
         DebugContext.objects.create(template_id=1, space_id=10, status="idle")
         view = DebugViewSet.as_view({"post": "terminate"})
-        request = self.factory.post("/debug/terminate/", {"template_id": 1}, format="json")
+        request = self.factory.post("/debug/terminate/", {"space_id": 10, "template_id": 1}, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 400
@@ -138,7 +140,9 @@ class TestRunOpsViews:
         mocker.patch.object(DebugService, "_task_client", return_value=client)
 
         view = DebugViewSet.as_view({"post": "terminate"})
-        request = self.factory.post("/debug/terminate/", {"template_id": 1, "node_id": "A"}, format="json")
+        request = self.factory.post(
+            "/debug/terminate/", {"space_id": 10, "template_id": 1, "node_id": "A"}, format="json"
+        )
         force_authenticate(request, user=self.user)
         response = view(request)
 
@@ -154,7 +158,7 @@ class TestRunOpsViews:
         mocker.patch.object(DebugService, "_task_client", return_value=client)
 
         view = DebugViewSet.as_view({"post": "terminate"})
-        request = self.factory.post("/debug/terminate/", {"template_id": 1}, format="json")
+        request = self.factory.post("/debug/terminate/", {"space_id": 10, "template_id": 1}, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
 

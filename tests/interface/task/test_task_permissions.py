@@ -445,6 +445,40 @@ class TestTaskMockTokenPermission:
         assert result is True
 
     @mock.patch("bkflow.interface.task.permissions.TaskComponentClient")
+    def test_has_permission_debug_task_success(self, mock_client_class):
+        """Test DEBUG task mock data access with template mock permission"""
+        Token.objects.create(
+            token="test_token_debug",
+            space_id=1,
+            user="testuser",
+            resource_type=ResourceType.TEMPLATE.value,
+            resource_id="456",
+            permission_type=PermissionType.MOCK.value,
+            expired_time=timezone.now() + timezone.timedelta(hours=1),
+        )
+
+        mock_client = mock.Mock()
+        mock_client.get_task_detail.return_value = {
+            "result": True,
+            "data": {"id": "123", "template_id": "456", "name": "Test Debug Task", "create_method": "DEBUG"},
+        }
+        mock_client_class.return_value = mock_client
+
+        request = self.factory.get("/task/?space_id=1")
+        request.user = MagicMock()
+        request.user.username = "testuser"
+        request.user.is_superuser = False
+        request.token = "test_token_debug"
+        request.query_params = {"space_id": "1"}
+        request.data = {}
+
+        view = MagicMock()
+        view.kwargs = {"task_id": "123"}
+
+        result = self.permission.has_permission(request, view)
+        assert result is True
+
+    @mock.patch("bkflow.interface.task.permissions.TaskComponentClient")
     def test_has_permission_no_mock_permission(self, mock_client_class):
         """Test has_permission when no mock permission"""
         mock_client = mock.Mock()
