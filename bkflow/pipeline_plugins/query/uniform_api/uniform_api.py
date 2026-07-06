@@ -81,6 +81,7 @@ class UniformAPIMetaSerializer(UniformAPIBaseSerializer):
     meta_url_template = serializers.CharField(required=False, allow_blank=True)
     version = serializers.CharField(required=False, allow_blank=True)
     source_key = serializers.CharField(required=False, allow_blank=True)
+    api_name = serializers.CharField(required=False)
 
     def validate(self, attrs: dict) -> dict:
         attrs = super().validate(attrs)
@@ -408,6 +409,8 @@ def get_space_uniform_api_meta(requests, space_id):
     """
     获取统一API元数据
     """
+    from bkflow.space.models import SpaceConfig
+
     serializer = UniformAPIMetaSerializer(data=requests.query_params)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
@@ -426,8 +429,16 @@ def get_space_uniform_api_meta(requests, space_id):
         template_id=data.get("template_id"),
         task_id=data.get("task_id"),
     )
+    uniform_api_config = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
+    if not uniform_api_config:
+        raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
+    uniform_api_config = UniformAPIConfigHandler(uniform_api_config).handle()
+    api_name = data.pop("api_name", UniformApiConfig.Keys.DEFAULT_API_KEY.value)
     headers = client.gen_default_apigw_header(
-        app_code=credential_content["bk_app_code"], app_secret=credential_content["bk_app_secret"], username=username
+        app_code=credential_content["bk_app_code"],
+        app_secret=credential_content["bk_app_secret"],
+        username=username,
+        headers=uniform_api_config.api.get(api_name, {}).get("headers", {}),
     )
     request_result: HttpRequestResult = client.request(
         url=meta_url, method="GET", data=data, headers=headers, username=username
