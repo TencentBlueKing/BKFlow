@@ -215,7 +215,6 @@
           group_name: category.name,
           metaUrl: plugin.meta_url,
           apiKey: this.crtApiKey,
-          api_name: this.crtApiKey,
         });
       },
       escapeRegExp(str) {
