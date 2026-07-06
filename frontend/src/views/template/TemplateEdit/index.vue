@@ -1396,6 +1396,7 @@
               spaceId: this.spaceId,
               meta_url: api_meta.meta_url,
               ...this.scopeInfo,
+              api_name: api_meta.api_key,
             });
             if (resp.result) {
               this.apiExistMap[id] = { code, version };
@@ -1508,6 +1509,7 @@
                     spaceId: this.spaceId,
                     meta_url: apiMeta.meta_url,
                     ...this.scopeInfo,
+                    api_name: apiMeta.api_key,
                   });
                   const { url, methods, version, credential_key: credentialKey } = resp.data;
                   const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中

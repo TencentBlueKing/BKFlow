@@ -390,13 +390,14 @@
           let isSame = true;
           if (this.isJsonSchema) {
             // 存在类型相同的全局变量(复用变量)
-            const { metaUrl } = this.$parent.$parent.basicInfo;
+            const { metaUrl, apiKey } = this.$parent.$parent.basicInfo;
             // api插件配置
             const resp = await this.loadUniformApiMeta({
               templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: metaUrl,
               ...this.scopeInfo,
+              api_name: apiKey
             });
             if (!resp.result) return;
             const sourceSchema = resp.data.inputs.find(item => item.key === form);

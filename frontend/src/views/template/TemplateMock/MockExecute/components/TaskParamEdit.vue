@@ -276,7 +276,7 @@
           const sourceNodeId = Object.keys(sourceInfo)[0];
           if (!sourceNodeId) return [];
           const { api_meta: apiMeta = {} } = this.activities[sourceNodeId].component;
-          const { meta_url: metaUrl } = apiMeta;
+          const { meta_url: metaUrl, api_key: apiKey } = apiMeta;
           if (!metaUrl) return;
           // api插件配置
           const resp = await this.loadUniformApiMeta({
@@ -284,6 +284,7 @@
             spaceId: this.spaceId,
             meta_url: metaUrl,
             ...this.scopeInfo,
+            api_name: apiKey,
           });
           if (!resp.result) return;
           const tag = sourceTag.split('.')[1];

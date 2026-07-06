@@ -641,6 +641,7 @@
               spaceId: this.spaceId,
               meta_url: this.basicInfo.metaUrl,
               ...this.scopeInfo,
+              api_name: this.basicInfo.apiKey,
             });
             if (!resp.result) return;
             // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
