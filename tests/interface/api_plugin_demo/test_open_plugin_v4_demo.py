@@ -2,13 +2,17 @@
 测试 api_plugin_demo 中用于 stage 联调的 open plugin v4 协议示例。
 """
 
+from pathlib import Path
+
 import pytest
+import yaml
 from django.urls import Resolver404, resolve
 from rest_framework.test import APIRequestFactory
 
 from bkflow.api_plugin_demo import v4
 
 URLCONF = "bkflow.api_plugin_demo.urls"
+APIGW_RESOURCES_PATH = Path(__file__).resolve().parents[3] / "bkflow/apigw/management/commands/data/api-resources.yml"
 
 
 def resolve_demo_view(path):
@@ -18,6 +22,22 @@ def resolve_demo_view(path):
 class TestOpenPluginV4Demo:
     def setup_method(self):
         self.factory = APIRequestFactory()
+
+    def test_apigw_resource_uses_v4_subpath_match(self):
+        """测试 v4 demo 网关资源使用统一版本路径和子路径匹配。"""
+        resources = yaml.safe_load(APIGW_RESOURCES_PATH.read_text())
+        paths = resources["paths"]
+
+        assert "/api_plugin_demo/v4/" in paths
+        assert not any(path.startswith("/api_plugin_demo/v4/") and path != "/api_plugin_demo/v4/" for path in paths)
+
+        resource = paths["/api_plugin_demo/v4/"]
+        assert {"get", "post"} <= set(resource)
+        for method in ("get", "post"):
+            config = resource[method]["x-bk-apigateway-resource"]
+            assert config["matchSubpath"] is True
+            assert config["backend"]["path"] == "/{env.api_sub_path}api/api_plugin_demo/v4/"
+            assert config["backend"]["matchSubpath"] is True
 
     def test_v4_urls_are_the_only_protocol_validation_entrypoints(self):
         """测试 v4 协议验证只暴露简洁版本化路径。"""
