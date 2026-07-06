@@ -1,5 +1,5 @@
 import EncryptJS from 'jsencrypt';
-import { b64tohex, hex2b64 } from 'jsencrypt/lib/jsbn/base64';
+import { b64tohex } from 'jsencrypt/lib/jsbn/base64';
 
 export default class EncryptRSA {
   constructor() {
@@ -76,7 +76,7 @@ export default class EncryptRSA {
       }
       subStr = string.substring(subStart, strLen);
       decrypted += k.encrypt(subStr);
-      return hex2b64(decrypted);
+      return decrypted;
     } catch (err) {
       console.warn(err);
       return '';

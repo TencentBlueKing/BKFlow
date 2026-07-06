@@ -11,101 +11,324 @@
 */
 <template>
   <div class="tag-password">
-    <div v-if="formMode">
-      <el-input
-        type="password"
-        :disabled="!editable || disabled"
-        :placeholder="i18n.placeholder"
-        v-model="password"
-        @focus="clearPassword"
-        @blur="encryptPassword">
-      </el-input>
-      <span v-show="!validateInfo.valid" class="common-error-tip error-info">{{validateInfo.message}}</span>
+    <div
+      v-if="formMode"
+      class="password-edit-wrapper">
+      <bk-select
+        v-if="canUseVar"
+        slot="prepend"
+        class="select-type"
+        :disabled="!editable || !formMode || disabled"
+        :clearable="false"
+        :value="localVal.tag"
+        @selected="handleSelectType">
+        <bk-option
+          id="value"
+          :name="$t('password_手动输入')" />
+        <bk-option
+          id="variable"
+          :name="$t('password_使用密码变量')" />
+      </bk-select>
+      <div
+        v-if="localVal.tag === 'value'"
+        class="value-edit-input">
+        <input
+          v-if="!textareaMode"
+          class="value-input"
+          :type="showInputVal ? 'input' : 'password'"
+          :value="inputDisplayText"
+          :placeholder="inputPlaceholder"
+          :disabled="!editable || !formMode || disabled"
+          @input="handleInput"
+          @focus="handleFocus"
+          @blur="handleBlur">
+        <textarea
+          v-else
+          class="value-textarea"
+          type="textarea"
+          rows="4"
+          :value="inputDisplayText"
+          :placeholder="inputPlaceholder"
+          :disabled="!editable || !formMode || disabled"
+          @keydown="handleTextareaKeyDown"
+          @input="handleTextareaInput"
+          @keyup="handleTextareaKeyUp"
+          @focus="handleFocus"
+          @blur="handleBlur" />
+        <i
+          v-if="inputDisplayText.length > 0"
+          :class="['bk-icon toggle-eye-icon', showInputVal ? 'icon-eye' : 'icon-eye-slash']"
+          @click="showInputVal = !showInputVal" />
+      </div>
+      <bk-select
+        v-else
+        class="select-var"
+        :value="localVal.value"
+        @selected="handleSelectVariable">
+        <bk-option
+          v-for="item in variables"
+          :id="item.id"
+          :key="item.id"
+          :name="item.id" />
+      </bk-select>
     </div>
-    <span v-else class="rf-view-value">{{(value.password === 'undefined' || value.password === '') ? '--' : passwordPlaceholder}}</span>
+    <span
+      v-else
+      class="rf-view-value">{{ (value.password === 'undefined' || value.password === '') ? '--' : '******' }}</span>
+    <div
+      v-show="!validateInfo.valid"
+      class="common-error-tip error-info">
+      {{ validateInfo.message }}
+    </div>
   </div>
 </template>
-
 <script>
-  import '@/utils/i18n.js'
-  import { mapState } from 'vuex'
-  import EncryptRSA from '@/utils/encryptRSA.js'
-  import { getFormMixins } from '../formMixins.js'
+    import cryptoJsSdk from '@blueking/crypto-js-sdk';
+    import '@/utils/i18n.js';
+    import i18n from '@/config/i18n/index.js';
+    import EncryptRSA from '@/utils/encryptRSA.js';
+    import { getFormMixins } from '../formMixins.js';
 
-  export const attrs = {
-    pubKey: {
-      type: String,
-      required: false,
-      default: '',
-    },
-    disabled: {
-      type: Boolean,
-      required: false,
-      default: false,
-      desc: gettext('禁用组件'),
-    },
-    value: {
-      type: [String, Boolean],
-      required: false,
-      default: '',
-    },
-  }
-  export default {
-    name: 'TagPassword',
-    mixins: [getFormMixins(attrs)],
-    data () {
-      return {
-        encrypted: false,
-        passwordPlaceholder: '*****',
-        i18n: {
-          placeholder: gettext('要修改密码请点击后重新输入密码'),
+    export const attrs = {
+        pubKey: {
+            type: String,
+            required: false,
+            default: '',
         },
-      }
-    },
-    computed: {
-      ...mapState({
-        rsa_pub_key: state => state.rsa_pub_key,
-      }),
-      password: {
-        get () {
-          return this.encrypted ? this.tempValue : this.value
+        canUseVar: {
+            type: Boolean,
+            required: false,
+            default: true,
         },
-        set (val) {
-          this.tempValue = val
-          this.updateForm(val)
+        textareaMode: {
+            type: Boolean,
+            required: false,
+            default: false,
         },
-      },
-    },
-    methods: {
-      _tag_init () {
-        if (this.value) {
-          this.encrypted = true
-          this.tempValue = this.passwordPlaceholder
-        }
-      },
-      clearPassword () {
-        this.password = ''
-        this.tempValue = ''
-        this.encrypted = false
-      },
-      encryptPassword () {
-        let val
-        const pubKey = this.pubKey || this.rsa_pub_key
-        if (this.password === this.passwordPlaceholder) {
-          return
-        }
-        if (this.password === '' || this.password === undefined) {
-          val = ''
-          return
-        }
-        const crypt = new EncryptRSA()
-        crypt.setPublicKey(pubKey)
-        val = crypt.encryptChunk(this.password)
+        disabled: {
+            type: Boolean,
+            required: false,
+            default: false,
+            desc: i18n.t('禁用组件'),
+        },
+        value: {
+            type: [String, Object],
+            required: false,
+            default: '',
+        },
+    };
 
-        this.encrypted = true
-        this.tempValue = this.password
-        this.$emit('change', [this.tagCode], val)
-      },
-    },
-  }
+    export default {
+        name: 'TagPassword',
+        mixins: [getFormMixins(attrs)],
+        data() {
+            return {
+                localVal: {
+                    type: 'password_value',
+                    tag: 'value',
+                    value: '',
+                },
+                cursorPos: 0,
+                inputDisplayText: '', // 输入框展示的值
+                inputPlaceholder: '',
+                showInputVal: false,
+                ASYMMETRIC_CIPHER_TYPE: window.ASYMMETRIC_CIPHER_TYPE,
+                ASYMMETRIC_PUBLIC_KEY: window.ASYMMETRIC_PUBLIC_KEY,
+                ASYMMETRIC_PREFIX: window.ASYMMETRIC_PREFIX,
+            };
+        },
+        computed: {
+            variables() {
+                const constants = $.context.getConstants() || {};
+                return Object.keys(constants).filter((key) => {
+                    const item = constants[key];
+                    return item.custom_type === 'password' && key !== this.tagCode;
+                })
+.map((key) => {
+                    const item = constants[key];
+                    return { id: key, name: item.name };
+                });
+            },
+        },
+        watch: {
+            value: {
+                handler(val) {
+                    if (Object.prototype.toString.call(val) === '[object Object]') {
+                        this.localVal = { ...val };
+                    } else {
+                        this.localVal = {
+                            type: 'password_value',
+                            tag: 'value',
+                            value: val,
+                        };
+                    }
+                },
+                immediate: true,
+            },
+        },
+        mounted() {
+            if (this.localVal?.tag === 'value') {
+                this.inputDisplayText = this.localVal.value ? '******' : '';
+            }
+        },
+        methods: {
+            handleSelectType(val) {
+                this.localVal = {
+                    tag: val,
+                    value: '',
+                };
+                this.inputDisplayText = '';
+                this.change();
+            },
+            // 单行文本框输入
+            handleInput(e) {
+                this.localVal.value = e.target.value;
+                this.inputPlaceholder = '';
+            },
+            handleTextareaKeyDown(e) {
+                this.cursorPos = e.target.selectionStart;
+            },
+            // 多行文本框输入
+            handleTextareaInput(e) {
+                const { value } = e.target;
+                const start = this.cursorPos > e.target.selectionStart ? e.target.selectionStart : this.cursorPos;
+                const crtLength = this.localVal.value.length;
+                const targetLength = value.length;
+                const lenGap = targetLength - crtLength;
+                if (lenGap < 0) { // 删除
+                    this.localVal.value = this.localVal.value.slice(0, start) + this.localVal.value.slice(start - lenGap);
+                } else { // 新增
+                    this.localVal.value = this.localVal.value.slice(0, start) + value.slice(start, start + lenGap) + this.localVal.value.slice(start);
+                }
+            },
+            handleTextareaKeyUp(e) {
+                this.inputPlaceholder = '';
+                this.inputDisplayText = e.target.value.replace(/[^\n]/g, '·');
+            },
+            // 获取焦点后清空密码
+            handleFocus() {
+                if (this.localVal.value.length > 0) {
+                    this.inputPlaceholder = i18n.t('要修改密码请点击后重新输入密码');
+                }
+                this.localVal.value = '';
+                this.inputDisplayText = '';
+                this.change();
+            },
+            // 输入框失焦后执行加密逻辑
+            handleBlur() {
+                this.inputDisplayText = this.textareaMode ? this.localVal.value.replace(/[^\n]/g, '·') : this.localVal.value;
+                const encryptedVal = this.encryptPassword();
+                this.localVal.value = encryptedVal;
+                this.change();
+                this.$nextTick(() => {
+                    this.onChange();
+                });
+            },
+            handleToggleEye() {
+                this.showInputVal = !this.showInputVal;
+            },
+            handleSelectVariable(val) {
+                this.localVal.value = val;
+                this.change();
+            },
+            encryptPassword() {
+                if (!this.localVal.value) {
+                    return '';
+                }
+                const pubKey = this.pubKey || this.ASYMMETRIC_PUBLIC_KEY;
+                if (this.ASYMMETRIC_CIPHER_TYPE === 'RSA') {
+                    const crypt = new EncryptRSA();
+                    crypt.setPublicKey(pubKey);
+                    const encryptedStr = crypt.encryptChunk(this.localVal.value);
+                    return `${this.ASYMMETRIC_PREFIX}${encryptedStr}`;
+                }
+                const sm2 = new cryptoJsSdk.SM2();
+                const pkey = cryptoJsSdk.helper.asn1.decode(pubKey);
+                const cipher = sm2.encrypt(pkey, cryptoJsSdk.helper.encode.strToHex(this.localVal.value));
+                const base64Ret = cryptoJsSdk.helper.encode.hexToBase64(cipher);
+                return `${this.ASYMMETRIC_PREFIX}${base64Ret}`;
+            },
+            change() {
+                this.$emit('change', [this.tagCode], this.localVal);
+            },
+        },
+    };
 </script>
+<style lang="scss" scoped>
+    .password-edit-wrapper {
+        display: flex;
+        align-items: flex-start;
+        .select-type {
+            flex: 0 0 120px;
+            border-right: none;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+        .value-edit-input {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            position: relative;
+        }
+        .value-input {
+            flex: 1;
+            padding: 0 10px;
+            width: 100%;
+            height: 32px;
+            line-height: 32px;
+            color: #63656e;
+            background-color: #fff;
+            border-top-right-radius: 2px;
+            border-bottom-right-radius: 2px;
+            font-size: 12px;
+            border: 1px solid #c4c6cc;
+            vertical-align: middle;
+            text-align: left;
+            outline: none;
+            resize: none;
+            &:focus {
+                border-color: #3a84ff;
+                background-color: #ffffff;
+            }
+        }
+        .value-textarea {
+            flex: 1;
+            padding: 6px 10px;
+            width: 100%;
+            line-height: 16px;
+            color: #63656e;
+            background-color: #fff;
+            border-top-right-radius: 2px;
+            border-bottom-right-radius: 2px;
+            font-size: 12px;
+            border: 1px solid #c4c6cc;
+            text-align: left;
+            outline: none;
+            resize: none;
+            &:focus {
+                border-color: #3a84ff;
+                background-color: #ffffff;
+            }
+        }
+        .toggle-eye-icon {
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            font-size: 14px;
+            color: #979ba5;
+            transform: translateY(-50%);
+            cursor: pointer;
+            &:hover {
+                color: #3a84ff;
+            }
+        }
+        .select-var {
+            flex: 1;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+        .bk-select {
+            height: 32px;
+        }
+    }
+</style>
