@@ -23,7 +23,7 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
 from bkflow.permission.models import PermissionType, ResourceType, Token
-from bkflow.template.models import Template
+from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.template.permissions import TemplateRelatedResourcePermission
 from bkflow.template.views.debug import DebugViewSet
 
@@ -51,14 +51,18 @@ class TestTemplateRelatedResourcePermission:
         return view
 
     def _make_template(self):
-        return Template.objects.create(
+        snapshot = TemplateSnapshot.create_snapshot({"activities": {}, "constants": {}}, "testuser", "1.0.0")
+        template = Template.objects.create(
             id=100,
             space_id=1,
             name="debug template",
-            snapshot_id=1,
+            snapshot_id=snapshot.id,
             scope_type="project",
             scope_value="abc",
         )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+        return template
 
     def _make_scope_token(self, token, permission_type):
         Token.objects.create(
