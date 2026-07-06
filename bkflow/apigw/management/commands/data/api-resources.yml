@@ -3876,10 +3876,10 @@ paths:
         descriptionEn: grant apigw permissions of bkflow to other app
         enableWebsocket: false
         pluginConfigs: []
-  /api_plugin_demo/v4/list_meta/:
+  /api_plugin_demo/v4/:
     get:
-      operationId: api_plugin_demo_v4_list_meta
-      description: API 插件 Demo V4 获取插件列表
+      operationId: api_plugin_demo_v4_get
+      description: API 插件 Demo V4 GET 入口
       tags: []
       responses:
         default:
@@ -3893,69 +3893,51 @@ paths:
         schema:
           type: integer
         required: false
-        description: 分页大小
+        description: list_meta 分页大小
       - in: query
         name: offset
         schema:
           type: integer
         required: false
-        description: 分页偏移
+        description: list_meta 分页偏移
       - in: query
         name: category
         schema:
           type: string
         required: false
-        description: 插件分组
-      x-bk-apigateway-resource:
-        isPublic: false
-        allowApplyPermission: false
-        matchSubpath: false
-        backend:
-          method: get
-          path: /{env.api_sub_path}api/api_plugin_demo/v4/list_meta/
-          matchSubpath: false
-          timeout: 0
-          name: default
-        authConfig:
-          userVerifiedRequired: false
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: []
-        descriptionEn: API plugin demo v4 list meta
-        enableWebsocket: false
-        pluginConfigs: []
-  /api_plugin_demo/v4/detail_meta/:
-    get:
-      operationId: api_plugin_demo_v4_detail_meta
-      description: API 插件 Demo V4 获取插件详情
-      tags: []
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      parameters:
+        description: list_meta 插件分组
       - in: query
         name: api_id
         schema:
           type: string
-        required: true
-        description: 插件 ID
+        required: false
+        description: detail_meta 插件 ID
       - in: query
         name: version
         schema:
           type: string
         required: false
-        description: 插件业务版本
+        description: detail_meta 插件业务版本
+      - in: query
+        name: task_tag
+        schema:
+          type: string
+        required: false
+        description: status 查询的 open_plugin_run_id
+      - in: query
+        name: status
+        schema:
+          type: string
+        required: false
+        description: status 演示状态，可选 SUCCEEDED、FAILED、RUNNING
       x-bk-apigateway-resource:
         isPublic: false
         allowApplyPermission: false
-        matchSubpath: false
+        matchSubpath: true
         backend:
           method: get
-          path: /{env.api_sub_path}api/api_plugin_demo/v4/detail_meta/
-          matchSubpath: false
+          path: /{env.api_sub_path}api/api_plugin_demo/v4/
+          matchSubpath: true
           timeout: 0
           name: default
         authConfig:
@@ -3963,13 +3945,12 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
-        descriptionEn: API plugin demo v4 detail meta
+        descriptionEn: API plugin demo v4 get entry
         enableWebsocket: false
         pluginConfigs: []
-  /api_plugin_demo/v4/execute/:
     post:
-      operationId: api_plugin_demo_v4_execute
-      description: API 插件 Demo V4 执行插件
+      operationId: api_plugin_demo_v4_post
+      description: API 插件 Demo V4 POST 入口
       tags: []
       responses:
         default:
@@ -3986,11 +3967,11 @@ paths:
       x-bk-apigateway-resource:
         isPublic: false
         allowApplyPermission: false
-        matchSubpath: false
+        matchSubpath: true
         backend:
           method: post
-          path: /{env.api_sub_path}api/api_plugin_demo/v4/execute/
-          matchSubpath: false
+          path: /{env.api_sub_path}api/api_plugin_demo/v4/
+          matchSubpath: true
           timeout: 0
           name: default
         authConfig:
@@ -3998,85 +3979,7 @@ paths:
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: []
-        descriptionEn: API plugin demo v4 execute
-        enableWebsocket: false
-        pluginConfigs: []
-  /api_plugin_demo/v4/status/:
-    get:
-      operationId: api_plugin_demo_v4_status
-      description: API 插件 Demo V4 查询插件运行状态
-      tags: []
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      parameters:
-      - in: query
-        name: task_tag
-        schema:
-          type: string
-        required: true
-        description: execute 返回的 open_plugin_run_id
-      - in: query
-        name: status
-        schema:
-          type: string
-        required: false
-        description: 演示状态，可选 SUCCEEDED、FAILED、RUNNING
-      x-bk-apigateway-resource:
-        isPublic: false
-        allowApplyPermission: false
-        matchSubpath: false
-        backend:
-          method: get
-          path: /{env.api_sub_path}api/api_plugin_demo/v4/status/
-          matchSubpath: false
-          timeout: 0
-          name: default
-        authConfig:
-          userVerifiedRequired: false
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: []
-        descriptionEn: API plugin demo v4 status
-        enableWebsocket: false
-        pluginConfigs: []
-  /api_plugin_demo/v4/execute/{open_plugin_run_id}/cancel/:
-    post:
-      operationId: api_plugin_demo_v4_cancel
-      description: API 插件 Demo V4 取消插件运行实例
-      tags: []
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: {}
-      parameters:
-      - in: path
-        name: open_plugin_run_id
-        schema:
-          type: string
-        required: true
-        description: execute 返回的 open_plugin_run_id
-      x-bk-apigateway-resource:
-        isPublic: false
-        allowApplyPermission: false
-        matchSubpath: false
-        backend:
-          method: post
-          path: /{env.api_sub_path}api/api_plugin_demo/v4/execute/{open_plugin_run_id}/cancel/
-          matchSubpath: false
-          timeout: 0
-          name: default
-        authConfig:
-          userVerifiedRequired: false
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: []
-        descriptionEn: API plugin demo v4 cancel
+        descriptionEn: API plugin demo v4 post entry
         enableWebsocket: false
         pluginConfigs: []
   /sdk/decision_table/user/:
