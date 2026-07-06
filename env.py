@@ -279,3 +279,11 @@ BK_PLUGIN_SYNC_TENANTS = list(
         tenant.strip() for tenant in os.getenv("BK_PLUGIN_SYNC_TENANTS", "system").split(",") if tenant.strip()
     )
 ) or ["system"]
+
+# 密码变量加解密密钥（RSA / SM2），环境变量中存储的是 base64(PEM) 形式
+RSA_PRIV_KEY = os.getenv("BKAPP_RSA_PRIV_KEY", None)
+RSA_PUB_KEY = os.getenv("BKAPP_RSA_PUB_KEY", None)
+SM2_PRIV_KEY = os.getenv("BKAPP_SM2_PRIV_KEY", None)
+SM2_PUB_KEY = os.getenv("BKAPP_SM2_PUB_KEY", None)
+# 加密算法类型：为空或 "RSA" 走 RSA，配置为 "SHANGMI" 走国密 SM2
+BKPAAS_BK_CRYPTO_TYPE = os.getenv("BKPAAS_BK_CRYPTO_TYPE", "")
