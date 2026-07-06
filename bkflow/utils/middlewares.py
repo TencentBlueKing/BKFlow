@@ -21,7 +21,6 @@ import uuid
 
 import pytz
 from django.conf import settings
-from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
@@ -30,7 +29,7 @@ from rest_framework import serializers
 from bkflow.exceptions import BKFLOWException, ValidationError
 from bkflow.utils import err_code
 from bkflow.utils.logging import local
-from packages.bkapi.bk_login.shortcuts import get_client_by_request
+from bkflow.utils.time_zone import get_user_timezone
 
 logger = logging.getLogger("root")
 NOT_FOUND = object()
@@ -93,33 +92,11 @@ class TraceIDInjectMiddleware(MiddlewareMixin):
 
 
 class TimezoneMiddleware(MiddlewareMixin):
-    def _get_user_timezone(self, request):
-        user_time_zone_cache_key = f"{request.user.username}_time_zone"
-        time_zone_cache = cache.get(user_time_zone_cache_key, default=NOT_FOUND)
-        if time_zone_cache is not NOT_FOUND:
-            # use cache
-            return time_zone_cache
-
-        time_zone = None
-        # get time_zone of user
-        try:
-            client = get_client_by_request(request)
-            user_info = client.api.get_bk_token_userinfo(
-                {"bk_token": request.COOKIES.get("bk_token")}, headers={"X-Bk-Tenant-Id": request.user.tenant_id}
-            )
-
-            time_zone = user_info.get("data", {}).get("time_zone", "")
-        except Exception as e:
-            logger.error("get time_zone error: {}".format(e))
-
-        cache.set(user_time_zone_cache_key, time_zone, 15 * 60)
-        return time_zone
-
     def process_view(self, request, view_func, view_args, view_kwargs):
         if getattr(view_func, "login_exempt", False):
             return None
 
-        time_zone = self._get_user_timezone(request)
+        time_zone = get_user_timezone(request)
         request.session["blueking_timezone"] = time_zone
 
         tzname = request.session.get("blueking_timezone")
