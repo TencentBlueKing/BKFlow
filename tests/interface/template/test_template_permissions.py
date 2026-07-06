@@ -38,6 +38,7 @@ class TestTemplateRelatedResourcePermission:
 
     def _make_request(self, token):
         request = self.factory.get("/debug/input_schema/", {"space_id": 1, "template_id": 100})
+        request.query_params = request.GET
         request.user = MagicMock()
         request.user.username = "testuser"
         request.token = token
