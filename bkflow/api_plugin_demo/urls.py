@@ -19,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 from django.conf.urls import url
 
-from bkflow.api_plugin_demo import views
+from bkflow.api_plugin_demo import v4, views
 
 urlpatterns = [
     url(r"^category/$", views.category_api, name="category_api"),
@@ -29,13 +29,9 @@ urlpatterns = [
     url(r"^execute/create_task/$", views.execute_create_task, name="execute_create_task"),
     url(r"^execute/process_data/$", views.execute_process_data, name="execute_process_data"),
     url(r"^execute/api_with_credential/$", views.execute_api_with_credential, name="execute_api_with_credential"),
-    url(r"^open_plugin_v4/list_meta/$", views.open_plugin_v4_list_meta_api, name="open_plugin_v4_list_meta_api"),
-    url(r"^open_plugin_v4/detail_meta/$", views.open_plugin_v4_detail_meta_api, name="open_plugin_v4_detail_meta_api"),
-    url(r"^open_plugin_v4/execute/$", views.open_plugin_v4_execute_api, name="open_plugin_v4_execute_api"),
-    url(
-        r"^open_plugin_v4/execute/(?P<open_plugin_run_id>[^/]+)/cancel/$",
-        views.open_plugin_v4_cancel_api,
-        name="open_plugin_v4_cancel_api",
-    ),
-    url(r"^open_plugin_v4/status/$", views.open_plugin_v4_status_api, name="open_plugin_v4_status_api"),
+    url(r"^v4/list_meta/$", v4.list_meta_api, name="v4_list_meta_api"),
+    url(r"^v4/detail_meta/$", v4.detail_meta_api, name="v4_detail_meta_api"),
+    url(r"^v4/execute/$", v4.execute_api, name="v4_execute_api"),
+    url(r"^v4/execute/(?P<open_plugin_run_id>[^/]+)/cancel/$", v4.cancel_api, name="v4_cancel_api"),
+    url(r"^v4/status/$", v4.status_api, name="v4_status_api"),
 ]

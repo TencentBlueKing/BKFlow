@@ -24,9 +24,6 @@ from bkflow.api_plugin_demo.plugins import (
     get_api_detail,
     get_api_list,
     get_category_list,
-    get_open_plugin_v4_api_config,
-    get_open_plugin_v4_api_detail,
-    get_open_plugin_v4_api_list,
 )
 
 
@@ -39,15 +36,6 @@ def _demo_response(result=True, data=None, message=""):
             "data": data if data is not None else {},
         }
     )
-
-
-def _open_plugin_v4_outputs(open_plugin_run_id):
-    """按 run id 生成稳定的 demo outputs。"""
-    run_token = open_plugin_run_id.split(":", 1)[-1]
-    return {
-        "job_instance_id": "demo-job-{}".format(run_token),
-        "message": "demo open plugin finished",
-    }
 
 
 @api_view(["GET"])
@@ -364,107 +352,3 @@ def execute_api_with_credential(request):
             },
         }
     )
-
-
-@api_view(["GET"])
-def open_plugin_v4_list_meta_api(request):
-    """
-    Open Plugin V4 List Meta API - 获取 stage 联调用开放插件目录。
-    """
-    limit = int(request.query_params.get("limit", 50))
-    offset = int(request.query_params.get("offset", 0))
-    scope_type = request.query_params.get("scope_type", "")
-    scope_value = request.query_params.get("scope_value", "")
-    category = request.query_params.get("category", "")
-
-    api_list_data = get_open_plugin_v4_api_list(limit, offset, scope_type, scope_value, category, request)
-    return _demo_response(data=api_list_data)
-
-
-@api_view(["GET"])
-def open_plugin_v4_detail_meta_api(request):
-    """
-    Open Plugin V4 Detail Meta API - 获取指定业务版本 schema。
-    """
-    api_id = request.query_params.get("api_id", "")
-    version = request.query_params.get("version", "")
-    if not api_id:
-        return _demo_response(result=False, message="api_id parameter is required")
-
-    try:
-        api_detail = get_open_plugin_v4_api_detail(api_id, version=version or None, request=request)
-    except ValueError as e:
-        return _demo_response(result=False, message=str(e))
-
-    if not api_detail:
-        return _demo_response(result=False, message="API {} not found".format(api_id))
-    return _demo_response(data=api_detail)
-
-
-@api_view(["POST"])
-def open_plugin_v4_execute_api(request):
-    """
-    Open Plugin V4 Execute API - 模拟 SOPS open plugin execute 响应。
-    """
-    plugin_id = request.data.get("plugin_id", "")
-    plugin_version = request.data.get("plugin_version", "")
-    client_request_id = request.data.get("client_request_id", "")
-    inputs = request.data.get("inputs", {})
-    context = request.data.get("context", {})
-
-    if not plugin_id:
-        return _demo_response(result=False, message="plugin_id parameter is required")
-    if not client_request_id:
-        return _demo_response(result=False, message="client_request_id parameter is required")
-
-    try:
-        get_open_plugin_v4_api_detail(plugin_id, version=plugin_version or None, request=request)
-    except ValueError as e:
-        return _demo_response(result=False, message=str(e))
-
-    api_config = get_open_plugin_v4_api_config(plugin_id)
-    if not api_config:
-        return _demo_response(result=False, message="API {} not found".format(plugin_id))
-
-    open_plugin_run_id = "{}:{}".format(plugin_id, client_request_id)
-    status = "WAITING_CALLBACK" if api_config["schedule_mode"] == "callback" else "RUNNING"
-    return _demo_response(
-        data={
-            "open_plugin_run_id": open_plugin_run_id,
-            "status": status,
-            "received_inputs": inputs,
-            "received_context": context,
-            "callback_url_received": bool(request.data.get("callback_url")),
-            "callback_token_received": bool(request.data.get("callback_token")),
-        }
-    )
-
-
-@api_view(["GET"])
-def open_plugin_v4_status_api(request):
-    """
-    Open Plugin V4 Status API - 模拟 polling 状态查询。
-    """
-    open_plugin_run_id = request.query_params.get("task_tag") or request.query_params.get("open_plugin_run_id", "")
-    status = request.query_params.get("status", "SUCCEEDED")
-    if not open_plugin_run_id:
-        return _demo_response(result=False, message="task_tag parameter is required")
-
-    status_data = {
-        "open_plugin_run_id": open_plugin_run_id,
-        "status": status,
-    }
-    if status == "SUCCEEDED":
-        status_data["outputs"] = _open_plugin_v4_outputs(open_plugin_run_id)
-    elif status == "FAILED":
-        status_data["error_message"] = "demo open plugin failed"
-
-    return _demo_response(data=status_data)
-
-
-@api_view(["GET", "POST"])
-def open_plugin_v4_cancel_api(request, open_plugin_run_id):
-    """
-    Open Plugin V4 Cancel API - 模拟取消开放插件运行实例。
-    """
-    return _demo_response(data={"open_plugin_run_id": open_plugin_run_id, "status": "CANCELLED"})
