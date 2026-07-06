@@ -20,15 +20,18 @@ from rest_framework import serializers
 
 
 class TemplateIdQuerySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField()
     template_id = serializers.IntegerField()
 
 
 class GlobalRunSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField()
     template_id = serializers.IntegerField()
     inputs = serializers.JSONField(default=dict)
 
 
 class StepRunSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField()
     template_id = serializers.IntegerField()
     node_id = serializers.CharField()
     mode = serializers.ChoiceField(choices=["real", "mock"], required=False)
@@ -39,6 +42,7 @@ class StepRunSerializer(serializers.Serializer):
 
 
 class NodeMockSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField()
     template_id = serializers.IntegerField()
     node_id = serializers.CharField()
     enable = serializers.BooleanField(required=False, default=True)
@@ -48,16 +52,19 @@ class NodeMockSerializer(serializers.Serializer):
 
 
 class ContextVarSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField()
     template_id = serializers.IntegerField()
     key = serializers.CharField()
     value = serializers.JSONField()
 
 
 class ResetSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField()
     template_id = serializers.IntegerField()
     node_ids = serializers.ListField(child=serializers.CharField(), required=False)
 
 
 class TerminateSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField()
     template_id = serializers.IntegerField()
     node_id = serializers.CharField(required=False)

@@ -47,7 +47,7 @@ class TestDebugContextViews:
             return_value=10,
         )
         view = DebugViewSet.as_view({"get": "context"})
-        request = self.factory.get("/debug/context/", {"template_id": 1})
+        request = self.factory.get("/debug/context/", {"space_id": 10, "template_id": 1})
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 200
@@ -63,7 +63,7 @@ class TestDebugContextViews:
             },
         )
         view = DebugViewSet.as_view({"get": "input_schema"})
-        request = self.factory.get("/debug/input_schema/", {"template_id": 1})
+        request = self.factory.get("/debug/input_schema/", {"space_id": 10, "template_id": 1})
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 200

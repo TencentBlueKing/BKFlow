@@ -88,12 +88,24 @@ class BaseMockTokenPermission(BaseTokenPermission):
             token=token,
         )
 
-    def has_scope_mock_permission(self, username, space_id, resource_id, token):
+    def has_scope_permission(self, username, space_id, resource_id, permission_type, token):
         return Token.verify(
             space_id,
             username,
             resource_type="SCOPE",
             resource_id=resource_id,
-            permission_type=PermissionType.MOCK.value,
+            permission_type=permission_type,
             token=token,
         )
+
+    def has_scope_view_permission(self, username, space_id, resource_id, token):
+        return self.has_scope_permission(username, space_id, resource_id, PermissionType.VIEW.value, token)
+
+    def has_scope_edit_permission(self, username, space_id, resource_id, token):
+        return self.has_scope_permission(username, space_id, resource_id, PermissionType.EDIT.value, token)
+
+    def has_scope_operate_permission(self, username, space_id, resource_id, token):
+        return self.has_scope_permission(username, space_id, resource_id, PermissionType.OPERATE.value, token)
+
+    def has_scope_mock_permission(self, username, space_id, resource_id, token):
+        return self.has_scope_permission(username, space_id, resource_id, PermissionType.MOCK.value, token)

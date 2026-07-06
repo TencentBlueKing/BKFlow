@@ -298,7 +298,9 @@ class TestStepRunViews:
         self._patch_tree(mocker)
         DebugContext.objects.create(template_id=1, space_id=10)
         view = DebugViewSet.as_view({"post": "node_mock"})
-        request = self.factory.post("/debug/node_mock/", {"template_id": 1, "node_id": "ZZZ"}, format="json")
+        request = self.factory.post(
+            "/debug/node_mock/", {"space_id": 10, "template_id": 1, "node_id": "ZZZ"}, format="json"
+        )
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 400
