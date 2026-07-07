@@ -65,7 +65,7 @@ def bkflow_settings(request):
         from bkflow.utils.crypto import get_default_asymmetric_key_config
 
         asymmetric_key_config = get_default_asymmetric_key_config(settings.BKCRYPTO_ASYMMETRIC_CIPHER_TYPE)
-        ctx["RSA_PUB_KEY"] = asymmetric_key_config.public_key_string
+        ctx["RSA_PUB_KEY"] = settings.RSA_PUB_KEY
         ctx["ASYMMETRIC_CIPHER_TYPE"] = settings.BKCRYPTO_ASYMMETRIC_CIPHER_TYPE
         ctx["ASYMMETRIC_PUBLIC_KEY"] = json.dumps(asymmetric_key_config.public_key_string)[1:-1]
         ctx["ASYMMETRIC_PREFIX"] = f"{settings.BKCRYPTO_ASYMMETRIC_CIPHER_TYPE.lower()}_str:::"
