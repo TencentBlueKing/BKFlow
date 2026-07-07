@@ -497,3 +497,84 @@ MAX_WEBHOOK_RETRY_INTERVAL = env.MAX_WEBHOOK_RETRY_INTERVAL
 MAX_WEBHOOK_TIMEOUT = env.MAX_WEBHOOK_TIMEOUT
 
 PLUGIN_LOOP_OUTPUTS_KEY = env.PLUGIN_LOOP_OUTPUTS_KEY
+
+# ===================== 密码变量加解密（RSA / SM2） =====================
+# 默认密钥仅用于本地/测试环境，生产环境请通过环境变量覆盖（参照标准运维）
+DEFAULT_RSA_PRIV_KEY = """
+-----BEGIN RSA PRIVATE KEY-----
+MIICWwIBAAKBgQDA2XZvbf++4M6YLSgS93kYJS34e2TZvq/s6r0yFDz0je38ekW0
+2aH5efPTNijbJgHIbqfXzm8lBpmBbk9VlUHaJVyZitqI6xYBqb3WBRu9WYEd8skF
+y1mwOEbxOgsXoOPd9tLkt4etSMzm7kdBqmZKIeiAOtbmirDqkuz6M64b5wIDAQAB
+AoGAdHxmX5RP4FomMCFGjX5R9NWwWOEf366g0ThRI4i58PYyBElPBZhXkDurna6f
+KxBgD1NXqrEUzYaY/mdFIGrRpQfBPXDTSsJC+r68nxglcGVhuHCFvkY94J5bgYus
+f7z2QkWdHi/LdENxP1eo+4ExcJ/XAHgOC18ThYTnZDo7G2ECQQDuzN9uSccn3sRE
+Namwg54mcekkaTvBPLpX7+zNyLrNG6vGl/3NPQqi9D2ACXYkeWk8aQ65LoqLYnJJ
+4bWmKaRPAkEAzr1S9q1rx/bV6iJOoEeeNGddWizWatTjLCT9XcXkETfIDc3YTpVD
+bESXAcagtf6PbkNP1TG1MeXlTVhYp4tw6QJAa+frtnxkH+ILsf7FtNtkpV6nySo8
+NC9qzL2/taVUs8YjMtQPfaRtoADZoXelCQpLwV5/prIfLKjJmBUD7he3BQJAVKYs
+XBhx8zRcLjvR2cq5OlfAX3XQbXmxcpfKriSi13HxlcVc9gAj1SbYdb+wehQ7AjjJ
+bU+nE0FAfETaN+/eUQJAMN4sJTjEMkeSeE+SBzqsmzc4ajMHRrhtu989JgZZvDyr
+LOah9mmRwLJdcfa3Js+jw2lOCmxzqauYZHVHg/hH7g==
+-----END RSA PRIVATE KEY-----
+"""
+
+# PUB_KEY for frontend, which can not use three quotes
+DEFAULT_RSA_PUB_KEY = (
+    "-----BEGIN PUBLIC KEY-----\\n"
+    + "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDA2XZvbf++4M6YLSgS93kYJS34\\n"
+    + "e2TZvq/s6r0yFDz0je38ekW02aH5efPTNijbJgHIbqfXzm8lBpmBbk9VlUHaJVyZ\\n"
+    + "itqI6xYBqb3WBRu9WYEd8skFy1mwOEbxOgsXoOPd9tLkt4etSMzm7kdBqmZKIeiA\\n"
+    + "OtbmirDqkuz6M64b5wIDAQAB\\n"
+    + "-----END PUBLIC KEY-----"
+)
+
+DEFAULT_SM2_PRIV_KEY = """
+-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEICI+zMQDiQ5/xXmnGxGqLSD++Cp+I601cIFLKRd2yrGBoAoGCCqBHM9V
+AYItoUQDQgAE95+i3TAfODAzb9QhJmyUmxH/HocisveqkrafHJ25NO/uCtkb2yXH
+vrZcCDmoxeO+z5vp88jN/ulVsl9qEqm6vQ==
+-----END EC PRIVATE KEY-----
+"""
+
+DEFAULT_SM2_PUB_KEY = (
+    "-----BEGIN PUBLIC KEY-----\\n"
+    + "MFkwEwYHKoZIzj0CAQYIKoEcz1UBgi0DQgAE95+i3TAfODAzb9QhJmyUmxH/Hoci\\n"
+    + "sveqkrafHJ25NO/uCtkb2yXHvrZcCDmoxeO+z5vp88jN/ulVsl9qEqm6vQ==\\n"
+    + "-----END PUBLIC KEY-----"
+)
+
+RSA_PRIV_KEY = base64.b64decode(env.RSA_PRIV_KEY).decode("utf-8") if env.RSA_PRIV_KEY else DEFAULT_RSA_PRIV_KEY
+RSA_PUB_KEY = base64.b64decode(env.RSA_PUB_KEY).decode("utf-8") if env.RSA_PUB_KEY else DEFAULT_RSA_PUB_KEY
+SM2_PRIV_KEY = base64.b64decode(env.SM2_PRIV_KEY).decode("utf-8") if env.SM2_PRIV_KEY else DEFAULT_SM2_PRIV_KEY
+SM2_PUB_KEY = base64.b64decode(env.SM2_PUB_KEY).decode("utf-8") if env.SM2_PUB_KEY else DEFAULT_SM2_PUB_KEY
+
+from bkcrypto import constants as bkcrypto_constants  # noqa: E402
+from bkcrypto.asymmetric.options import RSAAsymmetricOptions  # noqa: E402
+
+BKCRYPTO = {
+    "ASYMMETRIC_CIPHERS": {
+        "default": {
+            "get_key_config": "bkflow.utils.crypto.get_default_asymmetric_key_config",
+            "cipher_options": {
+                bkcrypto_constants.AsymmetricCipherType.RSA.value: RSAAsymmetricOptions(
+                    padding=bkcrypto_constants.RSACipherPadding.PKCS1_v1_5
+                )
+            },
+        },
+    },
+}
+
+if env.BKPAAS_BK_CRYPTO_TYPE == "SHANGMI":
+    BKCRYPTO_ASYMMETRIC_CIPHER_TYPE = bkcrypto_constants.AsymmetricCipherType.SM2.value
+    BKCRYPTO.update(
+        {
+            "ASYMMETRIC_CIPHER_TYPE": BKCRYPTO_ASYMMETRIC_CIPHER_TYPE,
+        }
+    )
+else:
+    BKCRYPTO_ASYMMETRIC_CIPHER_TYPE = bkcrypto_constants.AsymmetricCipherType.RSA.value
+    BKCRYPTO.update(
+        {
+            "ASYMMETRIC_CIPHER_TYPE": BKCRYPTO_ASYMMETRIC_CIPHER_TYPE,
+        }
+    )
