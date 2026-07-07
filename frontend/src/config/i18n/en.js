@@ -1200,6 +1200,8 @@ const en = {
   密码: 'Password',
   循环失败处理: 'Loop Failure Handling',
   执行方式: 'Execution Method',
+  权限中心: 'IAM',
+  个人设置: 'Personal Settings',
 };
 
 export default en;
