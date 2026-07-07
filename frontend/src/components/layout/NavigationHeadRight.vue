@@ -109,24 +109,24 @@
       }),
       actionList() {
         return [
-            {
-                text: this.$t('权限中心'),
-                icon: 'common-icon-authority',
-                href: window.BK_IAM_SAAS_HOST,
-                target: '_blank',
-            },
-            {
-                text: this.$t('个人设置'),
-                icon: 'bk-icon icon-user',
-                href: `${window.BKPAAS_USER_URL || ''}/personal-center`,
-                target: '_blank',
-            },
-            {
-                text: this.$t('退出登录'),
-                icon: 'common-icon-export',
-                theme: 'danger',
-                handle: this.handleLogout,
-            },
+          {
+            text: this.$t('权限中心'),
+            icon: 'common-icon-authority',
+            href: window.BK_IAM_SAAS_HOST,
+            target: '_blank',
+          },
+          {
+            text: this.$t('个人设置'),
+            icon: 'bk-icon icon-user',
+            href: `${window.BKPAAS_USER_URL || ''}/personal-center`,
+            target: '_blank',
+          },
+          {
+            text: this.$t('退出登录'),
+            icon: 'common-icon-export',
+            theme: 'danger',
+            handle: this.handleLogout,
+          },
         ];
       },
     },
@@ -255,23 +255,6 @@
     .common-icon-help {
       font-size: 14px;
     }
-    .user-avatar {
-      margin-left: 16px;
-      font-size: 14px;
-      color: #96a2b9;
-      cursor: pointer;
-      .icon-down-shape {
-        position: relative;
-        top: -1px;
-        color: #979ba5;
-      }
-      &:hover {
-        color: #d3d9e4;
-        i {
-          color: #d3d9e4;
-        }
-      }
-    }
     ::v-deep .bk-select.is-disabled {
       background: none;
     }
@@ -295,7 +278,6 @@
       }
     }
     #more-language-html,
-    #logout-html,
     #more-operation-html {
       .operate-item {
         display: block;
