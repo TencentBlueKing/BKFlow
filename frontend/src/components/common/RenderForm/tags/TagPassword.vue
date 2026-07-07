@@ -83,176 +83,176 @@
   </div>
 </template>
 <script>
-    import cryptoJsSdk from '@blueking/crypto-js-sdk';
-    import '@/utils/i18n.js';
-    import i18n from '@/config/i18n/index.js';
-    import EncryptRSA from '@/utils/encryptRSA.js';
-    import { getFormMixins } from '../formMixins.js';
+  import cryptoJsSdk from '@blueking/crypto-js-sdk';
+  import '@/utils/i18n.js';
+  import i18n from '@/config/i18n/index.js';
+  import EncryptRSA from '@/utils/encryptRSA.js';
+  import { getFormMixins } from '../formMixins.js';
 
-    export const attrs = {
-        pubKey: {
-            type: String,
-            required: false,
-            default: '',
-        },
-        canUseVar: {
-            type: Boolean,
-            required: false,
-            default: true,
-        },
-        textareaMode: {
-            type: Boolean,
-            required: false,
-            default: false,
-        },
-        disabled: {
-            type: Boolean,
-            required: false,
-            default: false,
-            desc: i18n.t('禁用组件'),
-        },
-        value: {
-            type: [String, Object],
-            required: false,
-            default: '',
-        },
-    };
+  export const attrs = {
+    pubKey: {
+      type: String,
+      required: false,
+      default: '',
+    },
+    canUseVar: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
+    textareaMode: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    disabled: {
+      type: Boolean,
+      required: false,
+      default: false,
+      desc: i18n.t('禁用组件'),
+    },
+    value: {
+      type: [String, Object],
+      required: false,
+      default: '',
+    },
+  };
 
-    export default {
-        name: 'TagPassword',
-        mixins: [getFormMixins(attrs)],
-        data() {
-            return {
-                localVal: {
-                    type: 'password_value',
-                    tag: 'value',
-                    value: '',
-                },
-                cursorPos: 0,
-                inputDisplayText: '', // 输入框展示的值
-                inputPlaceholder: '',
-                showInputVal: false,
-                ASYMMETRIC_CIPHER_TYPE: window.ASYMMETRIC_CIPHER_TYPE,
-                ASYMMETRIC_PUBLIC_KEY: window.ASYMMETRIC_PUBLIC_KEY,
-                ASYMMETRIC_PREFIX: window.ASYMMETRIC_PREFIX,
+  export default {
+    name: 'TagPassword',
+    mixins: [getFormMixins(attrs)],
+    data() {
+      return {
+        localVal: {
+          type: 'password_value',
+          tag: 'value',
+          value: '',
+        },
+        cursorPos: 0,
+        inputDisplayText: '', // 输入框展示的值
+        inputPlaceholder: '',
+        showInputVal: false,
+        ASYMMETRIC_CIPHER_TYPE: window.ASYMMETRIC_CIPHER_TYPE,
+        ASYMMETRIC_PUBLIC_KEY: window.ASYMMETRIC_PUBLIC_KEY,
+        ASYMMETRIC_PREFIX: window.ASYMMETRIC_PREFIX,
+      };
+    },
+    computed: {
+      variables() {
+        const constants = $.context.getConstants() || {};
+        return Object.keys(constants).filter((key) => {
+          const item = constants[key];
+          return item.custom_type === 'password' && key !== this.tagCode;
+        })
+          .map((key) => {
+            const item = constants[key];
+            return { id: key, name: item.name };
+          });
+      },
+    },
+    watch: {
+      value: {
+        handler(val) {
+          if (Object.prototype.toString.call(val) === '[object Object]') {
+            this.localVal = { ...val };
+          } else {
+            this.localVal = {
+              type: 'password_value',
+              tag: 'value',
+              value: val,
             };
+          }
         },
-        computed: {
-            variables() {
-                const constants = $.context.getConstants() || {};
-                return Object.keys(constants).filter((key) => {
-                    const item = constants[key];
-                    return item.custom_type === 'password' && key !== this.tagCode;
-                })
-.map((key) => {
-                    const item = constants[key];
-                    return { id: key, name: item.name };
-                });
-            },
-        },
-        watch: {
-            value: {
-                handler(val) {
-                    if (Object.prototype.toString.call(val) === '[object Object]') {
-                        this.localVal = { ...val };
-                    } else {
-                        this.localVal = {
-                            type: 'password_value',
-                            tag: 'value',
-                            value: val,
-                        };
-                    }
-                },
-                immediate: true,
-            },
-        },
-        mounted() {
-            if (this.localVal?.tag === 'value') {
-                this.inputDisplayText = this.localVal.value ? '******' : '';
-            }
-        },
-        methods: {
-            handleSelectType(val) {
-                this.localVal = {
-                    tag: val,
-                    value: '',
-                };
-                this.inputDisplayText = '';
-                this.change();
-            },
-            // 单行文本框输入
-            handleInput(e) {
-                this.localVal.value = e.target.value;
-                this.inputPlaceholder = '';
-            },
-            handleTextareaKeyDown(e) {
-                this.cursorPos = e.target.selectionStart;
-            },
-            // 多行文本框输入
-            handleTextareaInput(e) {
-                const { value } = e.target;
-                const start = this.cursorPos > e.target.selectionStart ? e.target.selectionStart : this.cursorPos;
-                const crtLength = this.localVal.value.length;
-                const targetLength = value.length;
-                const lenGap = targetLength - crtLength;
-                if (lenGap < 0) { // 删除
-                    this.localVal.value = this.localVal.value.slice(0, start) + this.localVal.value.slice(start - lenGap);
-                } else { // 新增
-                    this.localVal.value = this.localVal.value.slice(0, start) + value.slice(start, start + lenGap) + this.localVal.value.slice(start);
-                }
-            },
-            handleTextareaKeyUp(e) {
-                this.inputPlaceholder = '';
-                this.inputDisplayText = e.target.value.replace(/[^\n]/g, '·');
-            },
-            // 获取焦点后清空密码
-            handleFocus() {
-                if (this.localVal.value.length > 0) {
-                    this.inputPlaceholder = i18n.t('要修改密码请点击后重新输入密码');
-                }
-                this.localVal.value = '';
-                this.inputDisplayText = '';
-                this.change();
-            },
-            // 输入框失焦后执行加密逻辑
-            handleBlur() {
-                this.inputDisplayText = this.textareaMode ? this.localVal.value.replace(/[^\n]/g, '·') : this.localVal.value;
-                const encryptedVal = this.encryptPassword();
-                this.localVal.value = encryptedVal;
-                this.change();
-                this.$nextTick(() => {
-                    this.onChange();
-                });
-            },
-            handleToggleEye() {
-                this.showInputVal = !this.showInputVal;
-            },
-            handleSelectVariable(val) {
-                this.localVal.value = val;
-                this.change();
-            },
-            encryptPassword() {
-                if (!this.localVal.value) {
-                    return '';
-                }
-                const pubKey = this.pubKey || this.ASYMMETRIC_PUBLIC_KEY;
-                if (this.ASYMMETRIC_CIPHER_TYPE === 'RSA') {
-                    const crypt = new EncryptRSA();
-                    crypt.setPublicKey(pubKey);
-                    const encryptedStr = crypt.encryptChunk(this.localVal.value);
-                    return `${this.ASYMMETRIC_PREFIX}${encryptedStr}`;
-                }
-                const sm2 = new cryptoJsSdk.SM2();
-                const pkey = cryptoJsSdk.helper.asn1.decode(pubKey);
-                const cipher = sm2.encrypt(pkey, cryptoJsSdk.helper.encode.strToHex(this.localVal.value));
-                const base64Ret = cryptoJsSdk.helper.encode.hexToBase64(cipher);
-                return `${this.ASYMMETRIC_PREFIX}${base64Ret}`;
-            },
-            change() {
-                this.$emit('change', [this.tagCode], this.localVal);
-            },
-        },
-    };
+        immediate: true,
+      },
+    },
+    mounted() {
+      if (this.localVal?.tag === 'value') {
+        this.inputDisplayText = this.localVal.value ? '******' : '';
+      }
+    },
+    methods: {
+      handleSelectType(val) {
+        this.localVal = {
+          tag: val,
+          value: '',
+        };
+        this.inputDisplayText = '';
+        this.change();
+      },
+      // 单行文本框输入
+      handleInput(e) {
+        this.localVal.value = e.target.value;
+        this.inputPlaceholder = '';
+      },
+      handleTextareaKeyDown(e) {
+        this.cursorPos = e.target.selectionStart;
+      },
+      // 多行文本框输入
+      handleTextareaInput(e) {
+        const { value } = e.target;
+        const start = this.cursorPos > e.target.selectionStart ? e.target.selectionStart : this.cursorPos;
+        const crtLength = this.localVal.value.length;
+        const targetLength = value.length;
+        const lenGap = targetLength - crtLength;
+        if (lenGap < 0) { // 删除
+          this.localVal.value = this.localVal.value.slice(0, start) + this.localVal.value.slice(start - lenGap);
+        } else { // 新增
+          this.localVal.value = this.localVal.value.slice(0, start) + value.slice(start, start + lenGap) + this.localVal.value.slice(start);
+        }
+      },
+      handleTextareaKeyUp(e) {
+        this.inputPlaceholder = '';
+        this.inputDisplayText = e.target.value.replace(/[^\n]/g, '·');
+      },
+      // 获取焦点后清空密码
+      handleFocus() {
+        if (this.localVal.value.length > 0) {
+          this.inputPlaceholder = i18n.t('要修改密码请点击后重新输入密码');
+        }
+        this.localVal.value = '';
+        this.inputDisplayText = '';
+        this.change();
+      },
+      // 输入框失焦后执行加密逻辑
+      handleBlur() {
+        this.inputDisplayText = this.textareaMode ? this.localVal.value.replace(/[^\n]/g, '·') : this.localVal.value;
+        const encryptedVal = this.encryptPassword();
+        this.localVal.value = encryptedVal;
+        this.change();
+        this.$nextTick(() => {
+          this.onChange();
+        });
+      },
+      handleToggleEye() {
+        this.showInputVal = !this.showInputVal;
+      },
+      handleSelectVariable(val) {
+        this.localVal.value = val;
+        this.change();
+      },
+      encryptPassword() {
+        if (!this.localVal.value) {
+          return '';
+        }
+        const pubKey = this.pubKey || this.ASYMMETRIC_PUBLIC_KEY;
+        if (this.ASYMMETRIC_CIPHER_TYPE === 'RSA') {
+          const crypt = new EncryptRSA();
+          crypt.setPublicKey(pubKey);
+          const encryptedStr = crypt.encryptChunk(this.localVal.value);
+          return `${this.ASYMMETRIC_PREFIX}${encryptedStr}`;
+        }
+        const sm2 = new cryptoJsSdk.SM2();
+        const pkey = cryptoJsSdk.helper.asn1.decode(pubKey);
+        const cipher = sm2.encrypt(pkey, cryptoJsSdk.helper.encode.strToHex(this.localVal.value));
+        const base64Ret = cryptoJsSdk.helper.encode.hexToBase64(cipher);
+        return `${this.ASYMMETRIC_PREFIX}${base64Ret}`;
+      },
+      change() {
+        this.$emit('change', [this.tagCode], this.localVal);
+      },
+    },
+  };
 </script>
 <style lang="scss" scoped>
     .password-edit-wrapper {
