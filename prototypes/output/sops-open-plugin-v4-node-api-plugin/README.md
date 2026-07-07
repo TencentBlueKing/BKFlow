@@ -2,7 +2,7 @@
 
 ## 概览
 
-本原型只表达一个前端变动：在 API 插件节点配置里增加“版本”选择项。其它能力如 `context` 透传、polling/callback 调度配置、服务端强校验不在页面上新增复杂 UI。
+本原型只表达一个前端变动：在 API 插件节点配置里增加“版本”选择项。线框按当前模板编辑页的画布 + `NodeConfig` 右侧 800px 侧滑来模拟，保留基础信息、输入参数、输出参数和底部操作区；其它能力如 `context` 透传、polling/callback 调度配置、服务端强校验不在页面上新增复杂 UI。
 
 - 关联设计文档：[2026-06-26-sops-open-plugin-full-capability-design.md](../../../docs/specs/2026-06-26-sops-open-plugin-full-capability-design.md)
 - 关联前端交互设计：[2026-04-20-sops-open-plugin-frontend-interaction-design.md](../../../docs/specs/2026-04-20-sops-open-plugin-frontend-interaction-design.md)
