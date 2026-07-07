@@ -114,23 +114,11 @@
 
 V4.0.0 不新增插件类型，也不新增独立入口。用户仍按普通 API 插件方式选择来源、分类、插件，只新增和明确以下交互：
 
-1. **业务版本选择器**
-   API 插件目录项需要保留 `versions/default_version/latest_version/wrapper_version/source_key/meta_url_template`。用户选择插件后，前端默认选择 `default_version`，并显式展示 `plugin_version` 下拉；单版本插件展示为只读选择态。
+1. 节点配置里新增“版本”选择项，默认选 `default_version`，候选项来自 `versions/latest_version/default_version`。
+2. 用户切换版本后，前端按所选 `plugin_version` 重新获取 schema 并刷新参数表单。
+3. 保存节点时带上用户选择的业务版本；服务端继续校验来源准入、插件开关和版本可用性。
 
-2. **按版本拉取 schema**
-   选择或切换 `plugin_version` 时，前端需要带 `plugin_version` 重新请求详情/schema，并按该版本渲染输入参数。相同字段 key 的值可尽量保留，新增必填字段必须触发前端提交前校验。
-
-3. **节点保存隐藏字段**
-   保存节点时，`component.version` 仍表示 `uniform_api` 包装器版本，例如 `v4.0.0`；业务插件版本保存到 `component.data.uniform_api_plugin_version`，并建议同步保存 `component.data.uniform_api_plugin_id`，便于快照与服务端校验。`polling/callback/url/method/credential_key` 继续作为隐藏字段写入节点。
-
-4. **运行上下文不入表单**
-   `context` 由 BKFlow runtime 在 execute 时构造并透传，前端只展示“运行时由系统注入”的说明，不提供输入控件，不保存到节点。
-
-5. **调度模式只读摘要**
-   `detail_meta` 返回的 `polling` 或 `callback` 配置可在节点侧展示为只读运行摘要，避免用户误以为可以在前端修改调度模式。
-
-6. **失效版本回看态**
-   历史模板引用的 `plugin_version` 不在当前目录 `versions` 中时，页面应展示历史 schema 快照与参数，只读回看，并引导切换到可用版本；前端禁用只是体验优化，保存模板、创建任务、启动任务仍以服务端强校验为准。
+`context` 透传、polling/callback 调度配置、历史版本失效治理不额外增加节点配置 UI。
 
 对应原型与前端说明：
 

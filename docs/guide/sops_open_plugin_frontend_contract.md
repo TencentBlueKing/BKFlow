@@ -36,11 +36,11 @@
 - 模板保存接口  
   用于保存节点当前绑定的插件引用和版本
 
-V4.0.0 节点使用 API 插件时，前端需要额外完成三件事：
+V4.0.0 节点使用 API 插件时，前端只需要额外完成三件事：
 
-- 在 API 插件列表项中保留 `wrapper_version/source_key/versions/default_version/latest_version/meta_url_template` 等目录字段
-- 在节点配置面板中显式提供业务版本选择器，切换版本后按 `plugin_version` 重新获取 schema
-- 保存节点时写入业务插件版本隐藏字段，不能只保存 `uniform_api` 包装器版本
+- 在节点配置面板中展示“版本”选择项
+- 切换版本后按 `plugin_version` 重新获取 schema
+- 保存节点时带上用户选择的业务版本
 
 ### 3. 任务页异常提示
 
@@ -129,12 +129,9 @@ V4.0.0 节点使用 API 插件时，前端需要额外完成三件事：
 - `display_name`
 - `plugin_type`
 - `plugin_version`
-- `wrapper_version`
-- `source_key`
 - `default_version`
 - `latest_version`
 - `versions`
-- `meta_url_template`
 - `availability_status`
 
 参数区至少消费：
@@ -145,16 +142,7 @@ V4.0.0 节点使用 API 插件时，前端需要额外完成三件事：
 节点保存时至少需要写入：
 
 - `component.code = "uniform_api"`
-- `component.version = wrapper_version`，例如 `v4.0.0`
-- `component.api_meta.id`
-- `component.api_meta.source_key`
-- `component.api_meta.plugin_version`
-- `component.data.uniform_api_plugin_id`
 - `component.data.uniform_api_plugin_version`
-- `component.data.uniform_api_plugin_url`
-- `component.data.uniform_api_plugin_method`
-- `component.data.uniform_api_plugin_polling` 或 `component.data.uniform_api_plugin_callback`（由详情接口返回时写入）
-- `component.data.uniform_api_plugin_credential_key`（由详情接口返回时写入）
 
 `context` 不属于节点表单字段，前端不保存；运行时由 BKFlow 根据任务上下文构造。
 
@@ -212,15 +200,13 @@ V4.0.0 节点使用 API 插件时，前端需要额外完成三件事：
 ### 模板编辑页
 
 - `plugin_version` 始终显式展示
-- `wrapper_version` 只作为协议版本摘要展示，不允许用户编辑
 - API 插件业务版本选择器展示的是 `plugin_version`，不是 `uniform_api` 包装器版本
 - 当 `availability_status=available` 时允许正常编辑和保存
 - 当版本不可用但存在历史快照时，允许回看，但页面需提示不能继续新用
 - 仅当后端返回可选新版本时，前端才展示“切换到可用版本”的引导
-- 切换 `plugin_version` 后必须重新获取 schema；同名字段可保留旧值，新增必填字段需要触发前端提交前校验
+- 切换 `plugin_version` 后必须重新获取 schema
 - 切换版本不自动保存，不自动升级历史模板
-- polling/callback 仅展示运行摘要，具体调度配置作为隐藏字段写入节点
-- `context` 仅展示“运行时由系统注入”的说明，不提供输入控件
+- 不额外设计 `context`、polling/callback、版本差异对比 UI
 
 ### 任务异常页
 
