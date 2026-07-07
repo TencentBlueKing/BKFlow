@@ -1,7 +1,4 @@
-# 空间配置改版 · 低保真线框交付稿（给视觉设计师）
-
-> 目的：把「空间配置改版」方案以**低保真线框 + 交互标注**的形式交付给视觉设计师作为出稿输入。
-> 低保真是刻意的——不锁定视觉细节，聚焦**页面结构、控件形态与交互逻辑**，设计师据此产出高保真视觉稿。
+# 空间配置改版 · 低保真交互原型
 
 - 关联设计文档：`docs/specs/2026-07-06-space-config-redesign-design.md`
 - 关联实现计划：`docs/plans/2026-07-06-space-config-redesign.md`
@@ -12,28 +9,24 @@
 
 | 路径 | 说明 |
 |------|------|
-| `README.md` | 本交付稿：概览 + 流程图 + 每屏截图 + 编号交互说明表 |
-| `screens/*.md` | wiremd 线框**源文件**（可版本化 diff、AI 迭代、导出 Figma） |
-| `html/*.html` | 渲染后的**自包含 HTML**（浏览器直接打开，可缩放看细节） |
+| `README.md` | 概览 + 流程图 + 每屏截图 + 编号交互说明表 |
+| `screens/*.md` | wiremd 线框**源文件**（可版本化 diff、AI 迭代、导出 Figma、按需渲染成 HTML） |
 | `shots/*.png` | 各屏全页截图（本文件内嵌用） |
 
-## 如何预览 / 交付
+## 预览与渲染
+
+截图见本文件与 `shots/`。HTML 不随仓库保存，需要交互查看时用 `screens/*.md` 现渲染：
 
 ```bash
-# 1) 直接看：浏览器打开任一 HTML（自包含，无需服务）
-open html/01-config-center-home.html
-
-# 2) 热更迭代：本地起服务，改 screens/*.md 自动刷新
+# 热更迭代：本地起服务，改 screens/*.md 自动刷新
 npx -y @eclectic-ai/wiremd screens/ --serve 3000 --watch --show-comments
 
-# 3) 重新渲染所有屏（sketch 手绘风；可换 --style wireframe/clean）
+# 渲染所有屏为 HTML（sketch 手绘风；可换 --style wireframe/clean）
 for f in screens/*.md; do npx -y @eclectic-ai/wiremd "$f" --style sketch --show-comments -o "html/$(basename "$f" .md).html"; done
 
-# 4) 导出 Figma：生成 JSON 后用 wiremd Figma 插件导入为可编辑 frames
+# 导出 Figma：生成 JSON 后用 wiremd Figma 插件导入为可编辑 frames
 npx -y @eclectic-ai/wiremd screens/04-api-plugin-config.md --format json -o api-plugin.json
 ```
-
-交给设计师的最省事方式：把本目录整体发过去，让其看 `README.md`（GitHub/编辑器可直接渲染 Mermaid 与截图）+ 打开 `html/*.html` 看交互标注（右侧编号 callout）。
 
 ---
 
@@ -158,9 +151,9 @@ flowchart LR
 
 ---
 
-## 给设计师的补充说明
+## 补充说明
 
 1. **媒体位**：屏 1 的「GIF 占位」等媒体位本期仅预留占位 + 文字说明，`canvas_mode`、`gateway_expression` 最该补图，素材后补。
-2. **低保真取舍**：线框只表达结构与交互，配色/字体/圆角/间距等视觉细节请自由发挥；蓝鲸现有设计系统（bk-magic-vue）为落地参考。
-3. **全状态**：本稿覆盖主视图 + 通用控件 + 两个复合控件 + JSON 兜底；每屏的成功/失败/异常态已在截图与说明表中标注。
-4. **可迭代**：所有屏来自 `screens/*.md` 纯文本源，改一行即可重渲染，欢迎在此基础上提修改点。
+2. **视觉细节**：线框只表达结构与交互，配色 / 字体 / 圆角 / 间距等以蓝鲸 bk-magic-vue 设计系统为准。
+3. **全状态**：覆盖主视图 + 通用控件 + 两个复合控件 + JSON 兜底；每屏的成功 / 失败 / 异常态已在截图与说明表中标注。
+4. **可迭代**：所有屏来自 `screens/*.md` 纯文本源，改一行即可重渲染。
