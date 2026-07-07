@@ -16,6 +16,7 @@ specific language governing permissions and limitations under the License.
 密码变量加解密工具，迁移自蓝鲸智云标准运维(gcloud.utils.crypto)
 """
 import base64
+import json
 import typing
 
 from bkcrypto import constants as crypto_constants
@@ -34,10 +35,10 @@ def get_default_asymmetric_key_config(cipher_type: str) -> AsymmetricKeyConfig:
     """
     if cipher_type == crypto_constants.AsymmetricCipherType.SM2.value:
         private_key_string: str = settings.SM2_PRIV_KEY
-        public_key_string: str = settings.SM2_PUB_KEY
+        public_key_string: str = json.loads(f'"{settings.SM2_PUB_KEY}"')
     elif cipher_type == crypto_constants.AsymmetricCipherType.RSA.value:
         private_key_string: str = settings.RSA_PRIV_KEY
-        public_key_string: str = settings.RSA_PUB_KEY
+        public_key_string: str = json.loads(f'"{settings.RSA_PUB_KEY}"')
     else:
         raise NotImplementedError(f"cipher_type -> {cipher_type}")
 
