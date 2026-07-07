@@ -93,8 +93,6 @@ class TraceIDInjectMiddleware(MiddlewareMixin):
 
 class TimezoneMiddleware(MiddlewareMixin):
     def process_view(self, request, view_func, view_args, view_kwargs):
-        if getattr(view_func, "login_exempt", False):
-            return None
 
         time_zone = get_user_timezone(request)
         request.session["blueking_timezone"] = time_zone
