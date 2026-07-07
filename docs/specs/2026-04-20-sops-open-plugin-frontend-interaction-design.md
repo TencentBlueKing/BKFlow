@@ -52,11 +52,13 @@
 - `prototypes/output/sops-open-plugin-space-open-plugin-management.html`
 - `prototypes/output/sops-open-plugin-template-plugin-selection.html`
 - `prototypes/output/sops-open-plugin-task-plugin-error-state.html`
+- `prototypes/output/sops-open-plugin-v4-node-api-plugin/README.md`
 
 其中：
 
 - 主流程原型负责讲清整体链路
 - 独立页面原型负责展开各自页面的信息结构与状态
+- `sops-open-plugin-v4-node-api-plugin/` 按最新 `prototype-wireframe` 规范补充节点使用 API 插件时的 V4.0.0 前端变动：wiremd 线框真源、Mermaid 状态流、全状态覆盖、编号 callout 交互标注
 
 ## 页面关键信息结构
 
@@ -94,6 +96,54 @@
 - 版本区
 - 参数配置区
 - 历史模板回看说明区
+
+### 2.1 V4.0.0 节点使用 API 插件的前端变动补充
+
+本节按最新 `prototype-wireframe` 工具规范补充，范围限定在模板编辑的节点配置抽屉，不覆盖空间治理页和任务异常页。线框源文件位于 `prototypes/output/sops-open-plugin-v4-node-api-plugin/screens/`，README 汇总 Mermaid 状态流与编号交互表。
+
+**基线页面**
+
+- `frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue`
+- `frontend/src/views/template/TemplateEdit/NodeConfig/SelectPanel/apiPlugin.vue`
+- `frontend/src/store/modules/template.js`
+
+现有布局是“画布节点 + 节点配置抽屉 + API 插件选择面板”。V4.0.0 不新增插件类型，也不新增独立入口，而是在 API 插件节点配置中补齐业务版本选择、按版本 schema 刷新和隐藏字段保存。
+
+**字段-控件映射**
+
+| 字段/能力 | 控件/展示 | 交互与保存规则 |
+|---|---|---|
+| `wrapper_version` / `component.version` | 摘要标签，展示 `v4.0.0` | 用户不可编辑，保存到节点 `component.version` |
+| `plugin_version` | 必填 `bk-select`；单版本时展示只读选择态 | 默认选 `default_version`；切换时按版本重新拉 schema；保存为 `uniform_api_plugin_version` |
+| `versions/default_version/latest_version` | 版本列表、默认/最新标签、失效态判断 | 来自目录，不作为最终可信校验；保存/建任务/启动任务仍以服务端校验为准 |
+| `inputs` | 原节点参数表单 | 由所选 `plugin_version` 的 `detail_meta/get_plugin_schema` 渲染；同名字段尽量保留原值 |
+| `polling/callback` | 运行摘要只读标签 | 不暴露为用户输入；保存为 `uniform_api_plugin_polling` 或 `uniform_api_plugin_callback` 隐藏字段 |
+| `context` | 只展示“运行时由系统注入”说明 | 前端不提供表单、不保存；execute 时由 BKFlow runtime 注入 |
+| `source_key/plugin_id` | 插件摘要与隐藏字段 | `source_key` 保留在 `api_meta`；`plugin_id` 建议同步保存为 `uniform_api_plugin_id`，便于快照与服务端校验 |
+
+**状态覆盖**
+
+1. 正常配置态：选择标准运维开放插件来源、分类、插件后，默认选中业务版本，参数区按该版本 schema 渲染，保存按钮可用。
+2. 切换业务版本态：用户从当前保存版本切到最新版本后，展示字段差异摘要；新增必填字段为空时前端提交前校验失败；不自动保存、不自动升级历史模板。
+3. 历史失效版本回看态：历史模板引用的版本不在当前目录 `versions` 中时，展示快照只读态，并引导切换到可用版本。
+
+**交互标注汇总**
+
+| 编号 | 元素 | 交互说明 |
+|---|---|---|
+| 1 | 画布节点摘要 | 节点继续显示为 API 插件节点，同时补充 wrapper 版本与业务版本摘要 |
+| 2 | 业务版本选择器 | 显式选择 `plugin_version`；用户看到的是业务插件版本，不是 `uniform_api` 包装器版本 |
+| 3 | 参数配置区 | 版本变化后按新版本 schema 重新渲染，同 key 字段值尽量保留 |
+| 4 | 调度模式摘要 | 展示同步/轮询/回调模式，只读；不让用户编辑 polling/callback 配置 |
+| 5 | 隐藏字段区域 | 保存 `component.version`、`uniform_api_plugin_id`、`uniform_api_plugin_version`、URL、method、调度字段 |
+| 6 | context 说明 | `context` 不进表单，运行时由 BKFlow 注入 scope/operator/task/node 信息 |
+| 7 | 节点未保存状态 | 切换版本后节点进入待保存状态，画布摘要可提示版本变化 |
+| 8 | 目标版本选择 | 选择新版本后触发 schema 重新加载和字段差异计算 |
+| 9 | 保存时机 | 版本切换不自动保存；必须用户手动确认并保存节点 |
+| 10 | 二次确认 | 存在 schema 差异时保存前提示用户确认 |
+| 11 | 历史快照节点 | 失效版本节点仍可回看历史配置 |
+| 12 | 版本不可用提示 | 当前版本不在目录 `versions` 中时禁用参数编辑与保存 |
+| 13 | 服务端强校验提示 | 前端禁用只是体验优化，保存/建任务/启动任务仍以服务端校验为准 |
 
 ### 3. 任务页异常提示
 
