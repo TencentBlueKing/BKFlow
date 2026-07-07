@@ -46,6 +46,7 @@ from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.utils.permissions import AdminPermission
+from bkflow.utils.time_zone import get_user_timezone
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 from bkflow.utils.webhook import get_webhook_delivery_history_by_delivery_id
 
@@ -57,7 +58,8 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
 
     @action(methods=["GET"], detail=False, url_path="get_task_list/(?P<space_id>\\d+)")
     def get_task_list(self, request, space_id):
-        client = TaskComponentClient(space_id=space_id)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, time_zone=time_zone)
         # 把标签名称转换为id进行搜索
         query_params = request.query_params.copy()
         labels = request.query_params.get("label", "")
@@ -83,7 +85,8 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
         更新特定任务（pk指定）的标签列表。
         请求体期望格式：{"label_ids": [1, 2, 5]}
         """
-        client = TaskComponentClient(space_id=space_id)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, time_zone=time_zone)
         result = client.update_labels(pk, data={**request.data, "space_id": space_id})
         labels_map = Label.objects.get_labels_map(set(result["data"]))
         result["data"] = [labels_map.get(label_id) for label_id in result["data"]]
@@ -92,20 +95,22 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
     @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
     @action(methods=["POST"], detail=False, url_path="get_tasks_states")
     def get_tasks_states(self, request, *args, **kwargs):
+        time_zone = get_user_timezone(request)
         ser = GetTasksStatesBodySerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         space_id, task_ids = ser.validated_data["space_id"], ser.validated_data["task_ids"]
-        client = TaskComponentClient(space_id=space_id)
+        client = TaskComponentClient(space_id=space_id, time_zone=time_zone)
         result = client.get_tasks_states(data={"task_ids": task_ids, "space_id": space_id})
         return Response(result)
 
     @swagger_auto_schema(methods=["post"], operation_description="批量删除任务", request_body=TaskBatchDeleteSerializer)
     @action(methods=["POST"], detail=False, url_path="batch_delete_tasks")
     def batch_delete_tasks(self, request, *args, **kwargs):
+        time_zone = get_user_timezone(request)
         ser = TaskBatchDeleteSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         space_id = ser.validated_data["space_id"]
-        client = TaskComponentClient(space_id=space_id)
+        client = TaskComponentClient(space_id=space_id, time_zone=time_zone)
         data = {
             "task_ids": ser.validated_data["task_ids"],
             "is_full": ser.validated_data["is_full"],
@@ -123,6 +128,7 @@ class TaskInterfaceSystemSuperuserViewSet(GenericViewSet):
     @swagger_auto_schema(methods=["post"], operation_description="触发引擎管理操作", request_body=TaskEngineAdminSerializer)
     @action(methods=["POST"], detail=False, url_path="trigger_engine_admin_action")
     def trigger_engine_admin_action(self, request, *args, **kwargs):
+        time_zone = get_user_timezone(request)
         ser = TaskEngineAdminSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         space_id, instance_id, action, data = (
@@ -131,7 +137,7 @@ class TaskInterfaceSystemSuperuserViewSet(GenericViewSet):
             ser.validated_data["action"],
             ser.validated_data["data"],
         )
-        client = TaskComponentClient(space_id=space_id)
+        client = TaskComponentClient(space_id=space_id, time_zone=time_zone)
         result = client.trigger_engine_admin_action(instance_id, action, data=data)
         return Response(result)
 
@@ -196,7 +202,8 @@ class TaskInterfaceViewSet(GenericViewSet):
     @action(methods=["GET"], detail=False, url_path="get_task_detail/(?P<task_id>\\d+)")
     def get_task_detail(self, request, task_id, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone)
         result = client.get_task_detail(task_id)
         self._inject_user_task_auth(request, result)
         if result.get("result") and result.get("data"):
@@ -207,7 +214,8 @@ class TaskInterfaceViewSet(GenericViewSet):
     @action(methods=["GET"], detail=False, url_path="get_task_states/(?P<task_id>\\d+)")
     def get_task_states(self, request, task_id, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone)
         data = {"space_id": space_id}
         result = client.get_task_states(task_id, data=data)
         return Response(result)
@@ -215,19 +223,22 @@ class TaskInterfaceViewSet(GenericViewSet):
     @action(methods=["GET"], detail=False, url_path="get_task_mock_data/(?P<task_id>\\d+)")
     def get_task_mock_data(self, request, task_id, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone)
         result = client.get_task_mock_data(task_id)
         return Response(result)
 
     @action(methods=["POST"], detail=False, url_path="operate_task/(?P<task_id>\\d+)/(?P<operation>\\w+)")
     def operate_task(self, request, task_id, operation, *args, **kwargs):
         space_id = self.get_space_id(request)
-
+        time_zone = get_user_timezone(request)
         with start_trace(
             "operate_task_interface", True, space_id=space_id, task_id=task_id, call_from=CallFrom.WEB.value
         ):
             append_attributes({"operation": operation})
-            client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+            client = TaskComponentClient(
+                space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone
+            )
             request.data["operator"] = request.user.username
             result = client.operate_task(task_id, operation, request.data)
             return Response(result)
@@ -235,7 +246,8 @@ class TaskInterfaceViewSet(GenericViewSet):
     @action(methods=["GET"], detail=False, url_path="get_task_node_detail/(?P<task_id>\\w+)/node/(?P<node_id>\\w+)")
     def get_task_node_detail(self, request, task_id, node_id, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone)
         result = client.get_task_node_detail(task_id, node_id, username=request.user.username, data=request.GET)
         return Response(result)
 
@@ -246,7 +258,7 @@ class TaskInterfaceViewSet(GenericViewSet):
     )
     def operate_node(self, request, task_id, node_id, operation, *args, **kwargs):
         space_id = self.get_space_id(request)
-
+        time_zone = get_user_timezone(request)
         with start_trace(
             "operate_task_node_interface",
             True,
@@ -256,7 +268,9 @@ class TaskInterfaceViewSet(GenericViewSet):
             call_from=CallFrom.WEB.value,
         ):
             append_attributes({"operation": operation})
-            client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+            client = TaskComponentClient(
+                space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone
+            )
             request.data["operator"] = request.user.username
             result = client.node_operate(task_id, node_id, operation, request.data)
             return Response(result)
@@ -268,28 +282,32 @@ class TaskInterfaceViewSet(GenericViewSet):
     )
     def get_task_node_log(self, request, task_id, node_id, version, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone)
         result = client.get_task_node_log(task_id, node_id, version, data=request.query_params)
         return Response(result)
 
     @action(methods=["GET"], detail=False, url_path="render_current_constants/(?P<task_id>\\d+)")
     def render_current_constants(self, request, task_id, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone)
         result = client.render_current_constants(task_id)
         return Response(result)
 
     @action(methods=["GET"], detail=False, url_path="get_task_operation_record/(?P<task_id>\\d+)")
     def get_task_operation_record(self, request, task_id, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone)
         result = client.get_task_operation_record(task_id, data=request.query_params)
         return Response(result)
 
     @action(methods=["GET"], detail=False, url_path="get_node_snapshot_config/(?P<task_id>\\d+)/(?P<node_id>\\w+)")
     def get_node_snapshot_config(self, request, task_id, node_id, *args, **kwargs):
         space_id = self.get_space_id(request)
-        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        time_zone = get_user_timezone(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser, time_zone=time_zone)
         data = {"node_id": node_id}
         result = client.get_node_snapshot_config(task_id, data)
         return Response(result)
@@ -298,7 +316,8 @@ class TaskInterfaceViewSet(GenericViewSet):
     def get_stage_and_job_states(self, request, task_id, *args, **kwargs):
         """获取stage和job状态的视图函数"""
         space_id = self.get_space_id(request)
-        handler = StageJobStateHandler(space_id, request.user.is_superuser)
+        time_zone = get_user_timezone(request)
+        handler = StageJobStateHandler(space_id, request.user.is_superuser, time_zone=time_zone)
         result = handler.process(task_id)
         return Response(result)
 
@@ -307,10 +326,11 @@ class TaskInterfaceViewSet(GenericViewSet):
     def render_stage_constants(self, request, task_id, *args, **kwargs):
         """渲染stage画布变量"""
         space_id = self.get_space_id(request)
+        time_zone = get_user_timezone(request)
         serializer = RenderConstantsBodySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         node_ids = serializer.validated_data.get("node_ids", [])
         stage_constants = serializer.validated_data.get("to_render_constants", {})
-        handler = StageConstantHandler(space_id, request.user.is_superuser)
+        handler = StageConstantHandler(space_id, request.user.is_superuser, time_zone=time_zone)
         result = handler.process(task_id, node_ids, stage_constants)
         return Response(result)

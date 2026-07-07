@@ -16,9 +16,10 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-
 import logging
 
+import pytz
+from django.conf import settings
 from django.core.cache import cache
 
 from packages.bkapi.bk_login.shortcuts import get_client_by_request
@@ -28,6 +29,14 @@ NOT_FOUND = object()
 
 
 def get_user_timezone(request, use_cache=True):
+    time_zone_header_key = settings.APP_INTERNAL_TIME_ZONE_HEADER_KEY
+    internal_time_zone = request.headers.get(time_zone_header_key, None)
+    if internal_time_zone:
+        try:
+            pytz.timezone(internal_time_zone)
+            return internal_time_zone
+        except pytz.exceptions.UnknownTimeZoneError:
+            logger.warning(f"invalid timezone from header: {internal_time_zone}")
     user_time_zone_cache_key = f"{request.user.username}_time_zone"
     if use_cache:
         time_zone_cache = cache.get(user_time_zone_cache_key, default=NOT_FOUND)
