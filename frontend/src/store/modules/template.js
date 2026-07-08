@@ -1175,12 +1175,18 @@ const template = {
     },
     // api插件请求详情
     loadUniformApiMeta({ state }, data) {
-      const {  spaceId, meta_url, scope_type, scope_value, taskId, templateId } = data;
+      const {  spaceId, meta_url, scope_type, scope_value, taskId, templateId, meta_url_template: metaUrlTemplate, version } = data;
       const paramsData = {
         meta_url,
         scope_type,
         scope_value,
       };
+      if (metaUrlTemplate) {
+        paramsData.meta_url_template = metaUrlTemplate;
+        if (version) {
+          paramsData.version = String(version).replace(/^v/i, '');
+        }
+      }
       if (taskId) {
         paramsData.task_id = taskId;
       } else {
