@@ -589,6 +589,8 @@
               spaceId: this.spaceId,
               meta_url: metaUrl,
               ...this.scopeInfo,
+              meta_url_template: apiMeta.meta_url_template,
+              version: this.activities[sourceNodeId].component.version,
             });
             if (!resp.result) return;
             const tag = sourceTag.split('.')[1];

@@ -60,7 +60,6 @@
         </bk-select>
       </bk-form-item>
       <bk-form-item
-        v-else
         :label="$t('插件版本')"
         data-test-id="templateEdit_form_pluginVersion"
         :required="true"
