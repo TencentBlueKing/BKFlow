@@ -69,6 +69,8 @@ class TemplateManager(models.Manager):
                     node["version"] = new_sub_template.version
                 else:
                     continue
+            elif node["type"] == "SubCanvas":
+                continue
             elif node["component"]["code"] == "dmn_plugin":
                 raise ValidationError("流程中存在决策节点 暂不支持拷贝")
         template.pk = None
