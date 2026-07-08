@@ -696,12 +696,16 @@
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,
+              meta_url_template: apiMeta.meta_url_template,
+              version: this.nodeActivity.component.version,
             });
             if (!resp.result) return;
             // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
             const apiVersion = resp.data.version || 'v2.0.0';
+            // 使用meta API返回的version加载统一api基础配置
+            await this.loadAtomConfig({ atom: plugin, version: apiVersion, space_id: this.spaceId });
             // 输出参数
-            const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
+            const storeOutputs = this.pluginOutput.uniform_api[apiVersion] || [];
             const outputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs, ...outputs];
             const renderConfig = jsonFormSchema(resp.data, { disabled: true });
@@ -812,7 +816,7 @@
             version = componentData.plugin_version.value;
           }
           this.inputs = await this.getAtomConfig({ plugin, version, isThird: this.isThirdPartyNode }) || [];
-          if (!this.isThirdPartyNode) {
+          if (!this.isThirdPartyNode && !this.isApiPlugin) {
             this.outputs = this.pluginOutput[plugin][version];
           }
         } catch (e) {

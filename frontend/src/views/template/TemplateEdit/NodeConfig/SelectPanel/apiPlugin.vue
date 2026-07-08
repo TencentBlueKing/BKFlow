@@ -206,16 +206,26 @@
         this.pagination.current = 1;
         this.getUniformApiList();
       },
+      formatVersion(version) {
+        if (!version) return '';
+        return version.startsWith('v') ? version : `v${version}`;
+      },
       onSelectApiPlugin(plugin) {
         const category = this.categoryList.find(item => item.id === this.categoryActive);
+        const { id, name, default_version, latest_version, versions, meta_url_template, meta_url, description } = plugin;
         this.$emit('select', {
-          id: plugin.id,
+          id,
           code: 'uniform_api',
-          name: plugin.name,
+          name,
           group_id: this.categoryActive,
           group_name: category.name,
-          metaUrl: plugin.meta_url,
+          metaUrl: meta_url,
           apiKey: this.crtApiKey,
+          list: versions.map(v => this.formatVersion(v)),
+          latest_version: this.formatVersion(latest_version),
+          default_version: this.formatVersion(default_version),
+          meta_url_template,
+          desc: description,
         });
       },
     },
