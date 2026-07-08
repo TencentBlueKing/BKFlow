@@ -954,10 +954,8 @@
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
             // 从节点数据中读取uniform_api_plugin_credential_key（如果存在）
             const credentialKey = component.data.uniform_api_plugin_credential_key?.value;
-            // 已保存节点的业务版本优先从隐藏字段读取，否则从 component.version 读取
-            // 旧数据兼容：无版本信息时 component.version 是框架版本(v2.0.0)
-            const uniformApiPluginVersion = component.data.uniform_api_plugin_version?.value
-              || (component.api_meta.versions ? component.version : component.version);
+            // 无版本信息时 component.version 是框架版本(v2.0.0)
+            const uniformApiPluginVersion = component.api_meta.versions ? component.version : "v2.0.0";
             const versions = component.api_meta.versions || [];
             const latestVersion = component.api_meta.latest_version || '';
             const metaUrlTemplate = component.api_meta.meta_url_template || '';
@@ -1280,7 +1278,7 @@
           this.inputsRenderConfig = this.inputs.reduce((acc, crt) => {
             acc[crt.tag_code] = true;
             return acc;
-            }, {});
+          }, {});
         }
       },
       onChangeSubNodeVersion(data) {
