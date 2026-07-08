@@ -221,7 +221,7 @@
           group_name: category.name,
           metaUrl: meta_url,
           apiKey: this.crtApiKey,
-          list: versions.map(v => this.formatVersion(v)),
+          list: (versions || []).map(v => this.formatVersion(v)),
           latest_version: this.formatVersion(latest_version),
           default_version: this.formatVersion(default_version),
           meta_url_template,
