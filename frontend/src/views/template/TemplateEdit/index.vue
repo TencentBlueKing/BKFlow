@@ -1506,7 +1506,6 @@
               if (location.type === 'tasknode') {
                 if (location.atomId === 'uniform_api') {
                   apiMeta = JSON.parse(apiMeta);
-                  console.log('[loadUniformApiMeta] 模板编辑 index - 添加uniform_api节点获取配置');
                   const resp = await this.loadUniformApiMeta({
                     templateId: this.templateId,
                     spaceId: this.spaceId,
