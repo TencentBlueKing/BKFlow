@@ -194,6 +194,7 @@ class TemplateListFilterSerializer(serializers.Serializer):
     create_at_start = serializers.DateTimeField(help_text=_("开始时间小于等于"), required=False)
     create_at_end = serializers.DateTimeField(help_text=_("开始时间大于等于"), required=False)
     order_by = serializers.CharField(help_text=_("排序字段"), required=False, default="-create_at")
+    label = serializers.CharField(help_text=_("标签名称"), required=False)
 
 
 class TemplateDetailQuerySerializer(serializers.Serializer):

@@ -25,7 +25,7 @@ from django.views.decorators.http import require_GET
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.template import TemplateListFilterSerializer
 from bkflow.apigw.utils import paginate_list_data
-from bkflow.label.models import TemplateLabelRelation
+from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.template.models import Template, Trigger
 from bkflow.utils import err_code
 
@@ -55,6 +55,15 @@ def get_template_list(request, space_id):
     for key, value in params_validator_data.items():
         if key in filter_map:
             filter_kwargs[filter_map[key]] = value
+            continue
+        if key == "label":
+            label_ids = Label.get_label_ids_by_names(value)
+            if not label_ids:
+                continue
+            template_ids_subquery = TemplateLabelRelation.objects.filter(label_id__in=label_ids).values_list(
+                "template_id", flat=True
+            )
+            filter_kwargs["id__in"] = list(template_ids_subquery)
             continue
         filter_kwargs[key] = value
 
