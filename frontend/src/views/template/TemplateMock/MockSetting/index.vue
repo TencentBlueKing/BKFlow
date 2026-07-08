@@ -458,6 +458,8 @@
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,
+              meta_url_template: apiMeta.meta_url_template,
+              version,
             });
             if (!resp.result) return;
             // 输出参数

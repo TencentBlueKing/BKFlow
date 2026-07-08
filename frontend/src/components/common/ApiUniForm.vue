@@ -338,6 +338,8 @@
             spaceId: this.spaceId,
             meta_url: config.meta_url,
             ...this.scopeInfo,
+            meta_url_template: config.meta_url_template,
+            version: config.version,
           });
           const { methods, url } = resp.data;
           // 请求方法只有一个时，默认选中

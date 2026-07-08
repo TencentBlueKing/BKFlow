@@ -1396,6 +1396,8 @@
               spaceId: this.spaceId,
               meta_url: api_meta.meta_url,
               ...this.scopeInfo,
+              meta_url_template: api_meta.meta_url_template,
+              version: version,
             });
             if (resp.result) {
               this.apiExistMap[id] = { code, version };
@@ -1504,11 +1506,14 @@
               if (location.type === 'tasknode') {
                 if (location.atomId === 'uniform_api') {
                   apiMeta = JSON.parse(apiMeta);
+                  console.log('[loadUniformApiMeta] 模板编辑 index - 添加uniform_api节点获取配置');
                   const resp = await this.loadUniformApiMeta({
                     templateId: this.templateId,
                     spaceId: this.spaceId,
                     meta_url: apiMeta.meta_url,
                     ...this.scopeInfo,
+                    meta_url_template: apiMeta.meta_url_template,
+                    version: apiMeta.version,
                   });
                   const { url, methods, version, credential_key: credentialKey } = resp.data;
                   const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中
