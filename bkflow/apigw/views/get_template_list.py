@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
+from django.db.models import Subquery
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
@@ -63,7 +64,7 @@ def get_template_list(request, space_id):
             template_ids_subquery = TemplateLabelRelation.objects.filter(label_id__in=label_ids).values_list(
                 "template_id", flat=True
             )
-            filter_kwargs["id__in"] = list(template_ids_subquery)
+            filter_kwargs["id__in"] = Subquery(template_ids_subquery)
             continue
         filter_kwargs[key] = value
 
