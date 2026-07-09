@@ -38,8 +38,7 @@
           <!-- <span class="loop-child-count">{{ childCount }}</span> -->
           <i
             v-if="nodeData.mode !== 'execute'"
-            class="loop-variables-icon bk-icon icon-cog-shape"
-            :title="'全局变量'"
+            class="loop-variables-icon common-icon-export"
             @click.stop="onShowVariables" />
         </div>
         <div class="loop-body" />

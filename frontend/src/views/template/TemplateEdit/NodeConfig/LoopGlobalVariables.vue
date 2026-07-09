@@ -9,7 +9,7 @@
       class="setting-header">
       <span
         :class="[variableData ? 'active' : '']"
-        @click="onBackToList">{{ $t('全局变量') }}</span>
+        @click="onBackToList">{{ $t('循环输出') }}</span>
       <span v-if="variableData">
         {{ '> ' }}
         {{
@@ -54,13 +54,6 @@
         v-show="!variableData"
         :class="{ 'is-hidden': variableData }">
         <div class="add-variable">
-          <bk-button
-            theme="primary"
-            class="add-variable-btn mr5"
-            data-test-id="loopVariable_form_creatVariable"
-            @click="onAddVariable">
-            {{ $t('新建') }}
-          </bk-button>
           <template v-if="deleteVarListLen">
             <bk-button
               theme="default"
@@ -92,7 +85,7 @@
           data-test-id="loopVariable_table_variableList">
           <div class="variable-header clearfix">
             <bk-checkbox
-              v-if="editVarList.length"
+              v-if="!isViewMode && editVarList.length"
               :value="editVarList.length === deleteVarListLen"
               class="variable-checkbox"
               @change="onSelectAll" />
@@ -179,13 +172,14 @@
       isViewMode: {
         type: Boolean,
         default: false,
-      }
+      },
     },
     data() {
       return {
         variableList: [], // 变量列表
         varListLoading: false,
         variableData: null, // 编辑中的变量
+        editingOriginalKey: '', // 编辑变量时的原始 key
         variableCited: {}, // 变量引用情况
         deleteVarList: [], // 批量删除变量
         varTypeList: [],
@@ -200,10 +194,17 @@
       loopNode() {
         return this.activities[this.loopNodeId] || null;
       },
-      // 循环流内部的 constants
+      // 循环流节点的constants，只展示输出参数
       innerConstants() {
         if (this.loopNode && this.loopNode.pipeline && this.loopNode.pipeline.constants) {
-          return this.loopNode.pipeline.constants;
+          const result = {};
+          const { constants } = this.loopNode.pipeline;
+          Object.keys(constants).forEach((key) => {
+            if (constants[key].source_type === 'component_outputs') {
+              result[key] = constants[key];
+            }
+          });
+          return result;
         }
         return {};
       },
@@ -273,29 +274,6 @@
           this.closeEditingPanel();
         }
       },
-      /**
-       * 新增变量
-       */
-      onAddVariable() {
-        const constants = this.innerConstants;
-        this.variableData = {
-          custom_type: 'input',
-          desc: '',
-          form_schema: {},
-          index: Object.keys(constants).length + 1,
-          key: '',
-          name: '',
-          show_type: 'show',
-          source_info: {},
-          source_tag: 'input.input',
-          source_type: 'custom',
-          validation: '^.+$',
-          is_condition_hide: 'false',
-          pre_render_mako: false,
-          value: '',
-          version: 'legacy',
-        };
-      },
       // 变量拖拽，改变顺序
       onDragEnd(event) {
         const { newIndex, oldIndex } = event;
@@ -316,6 +294,7 @@
        * @param {String} key 变量key值
        */
       onEditVariable(key) {
+        this.editingOriginalKey = key;
         const variableData = tools.deepClone(this.innerConstants[key]);
         if (!('is_condition_hide' in variableData)) {
           variableData.is_condition_hide = 'false';
@@ -406,12 +385,10 @@
       },
       // 编辑变量后点击保存
       onSaveEditing(variableData) {
-        if (variableData.key) {
-          // 编辑现有变量
-          this.updateVariable(variableData.key, variableData);
-        } else {
-          // 新建变量
-          this.addVariable(variableData);
+        if (this.editingOriginalKey) {
+          // 编辑现有变量，用原始 key 定位要更新的变量
+          this.updateVariable(this.editingOriginalKey, variableData);
+          this.editingOriginalKey = '';
         }
         this.closeEditingPanel();
         this.getVariableCitedData();
@@ -419,6 +396,7 @@
       // 关闭变量编辑面板
       closeEditingPanel() {
         this.variableData = null;
+        this.editingOriginalKey = '';
       },
       // 关闭面板
       closePanel() {
@@ -494,13 +472,14 @@
     }
     .add-variable {
       position: relative;
+      display: flex;
+      align-items: center;
       padding: 30px 30px 20px;
       .add-variable-btn {
         width: 90px;
       }
       .common-icon-info {
         position: absolute;
-        top: 39px;
         right: 30px;
         font-size: 16px;
         color: #c4c6cc;

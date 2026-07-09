@@ -130,6 +130,7 @@
           <i class="bk-icon icon-more" />
           <template slot="content">
             <p
+              v-if="!isLoopNode"
               class="operate-item"
               @click.stop="onCloneVariable()">{{ $t('克隆') }}</p>
             <p
