@@ -389,9 +389,6 @@
           // 编辑现有变量，用原始 key 定位要更新的变量
           this.updateVariable(this.editingOriginalKey, variableData);
           this.editingOriginalKey = '';
-        } else {
-          // 新建变量
-          this.addVariable(variableData);
         }
         this.closeEditingPanel();
         this.getVariableCitedData();
