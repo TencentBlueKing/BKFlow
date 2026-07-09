@@ -56,7 +56,7 @@ def get_task_list(request, space_id):
         if k in data:
             data[v] = data.pop(k)
 
-    labels = data.get("label") or ""
+    labels = data.pop("label", "")
     label_ids = Label.get_label_ids_by_names(labels, space_id)
     if label_ids:
         data["label"] = ",".join([str(label_id) for label_id in label_ids])

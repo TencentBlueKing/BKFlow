@@ -138,7 +138,7 @@ class TemplateFilterSet(FilterSet):
         根据逗号/加号/换行分隔的 label 字符串过滤任务。
         URL Query Param 示例: ?label=tag1,tag2+tag3\ntag4
         """
-        space_id = self.request.GET.get("space_id")
+        space_id = self.request.GET.get("space_id", -1)
         # 支持逗号、加号或换行分隔，并去除空项与两端空白
         label_ids = Label.get_label_ids_by_names(value, space_id=space_id)
         if not label_ids:
