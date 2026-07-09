@@ -132,6 +132,7 @@
             </section>
             <!-- 输入参数 -->
             <section
+              v-if="!isLoopGroupNode"
               class="config-section"
               data-test-id="templateEdit_form_inputParamsInfo">
               <h3>{{ $t('输入参数') }}</h3>
@@ -170,6 +171,8 @@
                     :is-api-plugin="isApiPlugin"
                     :basic-info="basicInfo"
                     :is-third-party="isThirdParty"
+                    :loop-node-loop-vars="loopNodeLoopVars"
+                    :outer-constants="outerConstants"
                     @hookChange="onHookChange"
                     @renderConfigChange="onRenderConfigChange"
                     @update="updateInputsValue" />
@@ -388,11 +391,56 @@
             || !!(parentPipelineTree.gateways && parentPipelineTree.gateways[id]);
         }) || null;
       },
+      // 循环流分组节点的循环变量（SubCanvas 或 SubCanvas 子节点时使用）
+      loopNodeLoopVars() {
+        let targetNode = null;
+        if (this.isLoopGroupNode) {
+          targetNode = this.nodeConfig;
+        } else if (this.isInLoopGroup) {
+          targetNode = this.parentLoopNode;
+        }
+        if (!targetNode) return {};
+        let loopParams;
+        // eslint-disable-next-line camelcase
+        if (this.isLoopGroupNode && this.basicInfo.loopConfig?.loop_params) {
+          loopParams = this.basicInfo.loopConfig.loop_params;
+        // eslint-disable-next-line camelcase
+        } else if (targetNode.loop_config?.loop_params) {
+          loopParams = targetNode.loop_config.loop_params;
+        }
+        if (!loopParams) return {};
+        if (Array.isArray(loopParams)) {
+          const result = {};
+          loopParams.forEach((item) => {
+            if (item.name && item.value !== undefined && item.value !== '') {
+              result[item.name] = item.value;
+            }
+          });
+          return result;
+        }
+        if (typeof loopParams === 'object') {
+          const result = {};
+          Object.entries(loopParams).forEach(([key, value]) => {
+            if (key && value !== undefined && value !== '') {
+              result[key] = value;
+            }
+          });
+          return result;
+        }
+        return {};
+      },
       targetConstants() {
         if (this.isInLoopGroup && this.parentLoopNode && this.parentLoopNode.pipeline) {
           return this.parentLoopNode.pipeline.constants || {};
         }
         return this.constants;
+      },
+      // 循环流内部节点变量联想时需要补充的外层全局变量
+      outerConstants() {
+        if (this.isInLoopGroup || this.isLoopGroupNode) {
+          return this.constants;
+        }
+        return {};
       },
       // 循环执行时只展示循环输出(outputs)，单次执行时只展示节点输出
       filteredOutputs() {
@@ -610,7 +658,6 @@
           return;
         }
         if (this.isLoopGroupNode) {
-          await this.getLoopGroupInputsConfig();
           await this.getLoopGroupOutputs();
           this.isDataChange = false;
           return;
@@ -908,7 +955,7 @@
           this.constantsLoading = false;
           return;
         }
-        const constants = pipelineTree.constants;
+        const { constants } = pipelineTree;
         const variables = Object.keys(constants)
           .map(key => constants[key])
           .filter(item => item.show_type === 'show')

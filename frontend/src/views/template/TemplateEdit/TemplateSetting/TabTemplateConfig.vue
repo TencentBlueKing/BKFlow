@@ -464,7 +464,6 @@ export default {
         // if (!this.formData.executorProxy.length) {
         //   this.setExecutorProxy()
         // }
-        console.log(this.$store.state.template);
         this.$refs.nameInput.focus();
         // 获取空间配置判断是否允许设置多个触发器
         const res = await this.getNotAuthSpaceConfig();
@@ -626,7 +625,7 @@ export default {
                 const data = this.getTemplateConfig();
                 this.setTplConfig(data);
                 this.closeTab();
-                this.$emit('templateDataChanged');
+                this.$emit('templateDataChanged', 'tabTemplateConfig');
             });
         },
         beforeClose() {
