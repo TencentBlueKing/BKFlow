@@ -1210,6 +1210,7 @@ const en = {
   循环内的节点可以使用循环变量: 'Nodes within the loop can use the loop variable.',
   '循环节点的开始/结束节点不可删除': 'The start and end nodes of a cycle node cannot be deleted.',
   更多操作: 'More Operations',
+  循环输出: 'Loop outputs',
 };
 
 export default en;
