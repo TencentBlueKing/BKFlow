@@ -66,7 +66,7 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
         # 把标签名称转换为id进行搜索
         query_params = request.query_params.copy()
         labels = request.query_params.get("label", "")
-        label_ids = Label.get_label_ids_by_names(labels)
+        label_ids = Label.get_label_ids_by_names(labels, space_id)
         if label_ids:
             query_params["label"] = ",".join([str(label_id) for label_id in label_ids])
         result = client.task_list(data={**query_params, "space_id": space_id})
