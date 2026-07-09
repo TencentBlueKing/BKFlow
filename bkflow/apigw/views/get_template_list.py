@@ -58,8 +58,9 @@ def get_template_list(request, space_id):
             filter_kwargs[filter_map[key]] = value
             continue
         if key == "label":
-            label_ids = Label.get_label_ids_by_names(value)
+            label_ids = Label.get_label_ids_by_names(value, space_id)
             if not label_ids:
+                filter_kwargs["id__in"] = []
                 continue
             template_ids_subquery = TemplateLabelRelation.objects.filter(label_id__in=label_ids).values_list(
                 "template_id", flat=True
