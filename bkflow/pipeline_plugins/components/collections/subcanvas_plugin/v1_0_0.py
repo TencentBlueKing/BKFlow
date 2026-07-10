@@ -55,7 +55,7 @@ class SubcanvasPluginService(LoopBaseService):
             return False
 
         try:
-            self._render_parent_parameters(pipeline_tree, parent_task)
+            sub_constant = self._render_parent_parameters(pipeline_tree, parent_task)
         except ValidationError as e:
             data.set_outputs("ex_data", str(e))
             return False
@@ -65,6 +65,11 @@ class SubcanvasPluginService(LoopBaseService):
         task_instance = self._create_subprocess_task_instance(
             subprocess_name, pipeline_tree, parent_task, TaskTriggerMethod.sub_canvas.name, notify_config=notify_config
         )
+        self.runtime.copy_context_values_to_new_pipeline(
+            self.top_pipeline_id, task_instance.pipeline_tree["id"], {"${_system}", "${outputs}"}
+        )
+        sub_data = {c.key: c for c in sub_constant}
+        self.runtime.upsert_plain_context_values(task_instance.pipeline_tree["id"], sub_data)
 
         constants = task_instance.pipeline_tree["constants"]
         parameters = {key: value["value"] for key, value in constants.items()}
