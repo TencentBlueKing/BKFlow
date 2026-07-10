@@ -1197,8 +1197,9 @@ Expected: 全部 PASS。
 
 ---
 
-## 后续计划（将单独成文，不在本计划范围）
+## 后续计划（已单独成文）
 
+- **P2/P3 实现计划见**：`docs/plans/2026-07-10-space-config-redesign-p2-p3.md`。
 - **P2**：`credential_map`（`api_gateway_credential_name` 与凭证管理完整联动：默认+作用域覆盖、就近新建、跳转管理、引用完整性、作用域校验）+ `api_plugin_config`（`uniform_api` 结构化编辑 + 复用 `UniformAPIClient` 的实时预览验证，在 `UniformApiConfig.verify` 中实现）。
 - **P3**：`plugin_scope`（`space_plugin_config`）、`engine_kv`（`engine_space_config`）、复合控件的"结构化 ↔ JSON 源码"切换、`canvas_mode`/`gateway_expression` 媒体素材补图。
 
