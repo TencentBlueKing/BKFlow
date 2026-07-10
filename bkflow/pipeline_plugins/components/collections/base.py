@@ -16,14 +16,14 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-import datetime
-
 import copy
+import datetime
 import json
 import logging
 
 from bamboo_engine.context import Context
 from bamboo_engine.eri import ContextValue, ContextValueType
+from bamboo_engine.template import Template
 from django.apps import apps
 from django.conf import settings
 from django.db import transaction
@@ -35,9 +35,8 @@ from pipeline.eri.runtime import BambooDjangoRuntime
 
 from bkflow.constants import TaskOperationSource, TaskOperationType
 from bkflow.exceptions import ValidationError
-from bkflow.utils.handlers import mask_sensitive_data_for_display
-from bamboo_engine.template import Template
 from bkflow.utils import crypto
+from bkflow.utils.handlers import mask_sensitive_data_for_display
 from bkflow.utils.trace import (
     PLUGIN_SCHEDULE_COUNT_KEY,
     PLUGIN_SPAN_ENDED_KEY,
@@ -47,7 +46,6 @@ from bkflow.utils.trace import (
     plugin_method_span,
     start_plugin_span,
 )
-
 
 logger = logging.getLogger("root")
 PASSWORD_VALUE_TYPE = "password_value"
@@ -213,7 +211,9 @@ class BKFlowBaseService(Service):
             copy_data_mask = copy.deepcopy(copy_data)
             copy_parent_data_mask = copy.deepcopy(copy_parent_data)
             self._auto_decrypt_password_inputs(copy_data_mask, input_password_refs=input_password_refs, mask_flag=True)
-            self._auto_decrypt_password_inputs(copy_parent_data_mask, input_password_refs=input_password_refs, mask_flag=True)
+            self._auto_decrypt_password_inputs(
+                copy_parent_data_mask, input_password_refs=input_password_refs, mask_flag=True
+            )
 
         result = False
         try:
@@ -238,7 +238,7 @@ class BKFlowBaseService(Service):
                 self._sync_new_fields(copy_data_mask.inputs, data.inputs)
                 self._deep_update(data.inputs, copy_data_mask.inputs)
                 _mask_meta_system_mask_info = {
-                    'decrypt_input_data': copy_data.inputs,
+                    "decrypt_input_data": copy_data.inputs,
                 }
                 data.inputs._mask_meta_system_mask_info = _mask_meta_system_mask_info
 
@@ -246,7 +246,7 @@ class BKFlowBaseService(Service):
                 self._sync_new_fields(copy_parent_data_mask.inputs, parent_data.inputs)
                 self._deep_update(parent_data.inputs, copy_parent_data_mask.inputs)
                 _mask_meta_system_parent_mask_info = {
-                    'decrypt_input_data': copy_parent_data.inputs,
+                    "decrypt_input_data": copy_parent_data.inputs,
                 }
                 parent_data.inputs._mask_meta_system_parent_mask_info = _mask_meta_system_parent_mask_info
 
@@ -302,7 +302,9 @@ class BKFlowBaseService(Service):
             copy_parent_data = copy.deepcopy(parent_data)
             copy_parent_data_mask = copy.deepcopy(parent_data)
             self._auto_decrypt_password_inputs(parent_data, input_password_refs=input_password_refs)
-            self._auto_decrypt_password_inputs(copy_parent_data_mask, input_password_refs=input_password_refs, mask_flag=True)
+            self._auto_decrypt_password_inputs(
+                copy_parent_data_mask, input_password_refs=input_password_refs, mask_flag=True
+            )
 
         result = False
         try:
@@ -331,7 +333,7 @@ class BKFlowBaseService(Service):
                 self._deep_update(data.inputs, copy_data_mask.inputs)
 
                 _mask_meta_system_mask_info = {
-                    'decrypt_input_data': copy_data.inputs,
+                    "decrypt_input_data": copy_data.inputs,
                 }
                 data.inputs._mask_meta_system_mask_info = _mask_meta_system_mask_info
 
@@ -340,7 +342,7 @@ class BKFlowBaseService(Service):
                 self._sync_new_fields(copy_parent_data_mask.inputs, parent_data.inputs)
                 self._deep_update(parent_data.inputs, copy_parent_data_mask.inputs)
                 _mask_meta_system_parent_mask_info = {
-                    'decrypt_input_data': copy_parent_data.inputs,
+                    "decrypt_input_data": copy_parent_data.inputs,
                 }
                 parent_data.inputs._mask_meta_system_parent_mask_info = _mask_meta_system_parent_mask_info
 
@@ -425,7 +427,9 @@ class BKFlowBaseService(Service):
             elif isinstance(value, (dict, list)):
                 self._decrypt_nested_passwords(value, input_password_refs=input_password_refs, mask_flag=mask_flag)
             elif isinstance(value, str):
-                self._try_decrypt_value(value, inputs, key, input_password_refs=input_password_refs, mask_flag=mask_flag)
+                self._try_decrypt_value(
+                    value, inputs, key, input_password_refs=input_password_refs, mask_flag=mask_flag
+                )
 
     def _try_decrypt_value(self, password_struct, container, key_or_index, input_password_refs=None, mask_flag=False):
         """
@@ -694,6 +698,7 @@ class LoopBaseService(BKFlowBaseService):
         self.logger.info(
             f'subprocess parsed constants: {mask_sensitive_data_for_display(pipeline_tree.get("constants", {}))}'
         )
+        return context_values
 
     def _create_subprocess_task_instance(
         self, template_name, pipeline_tree, parent_task, trigger_method, template_id=None, notify_config=None
