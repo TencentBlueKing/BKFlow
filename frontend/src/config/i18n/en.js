@@ -524,6 +524,7 @@ const en = {
   修改成功: 'Modified Successfully',
   '退回节点：': 'Revert Node:',
   来源: 'Source',
+  来源节点: 'Source Node',
   参数明细: 'Parameter Details',
   分支类型: 'Branch Type',
   自定义分支: 'Custom Branch',
@@ -676,6 +677,7 @@ const en = {
   属性: 'Attributes',
   输入: 'Input',
   输出: 'Output',
+  '外层引用示例:': 'Outer Reference Example:',
   显示: 'Show',
   隐藏: 'Hide',
   选择操作: 'Select Operation',
@@ -1211,6 +1213,9 @@ const en = {
   '循环节点的开始/结束节点不可删除': 'The start and end nodes of a cycle node cannot be deleted.',
   更多操作: 'More Operations',
   循环输出: 'Loop outputs',
+  保存为流程变量: 'Save as process variable',
+  循环内变量: 'Loop Variable',
+  循环内输出: 'Loop Output',
 };
 
 export default en;

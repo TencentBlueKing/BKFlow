@@ -26,6 +26,7 @@
         :variable-data="variableData"
         :is-selector-panel-show="isSelectorPanelShow"
         :back-to-variable-panel="backToVariablePanel"
+        :is-in-loop-group-or-loop-node="isInLoopGroupOrLoopNode"
         :is-view-mode="isViewMode"
         :variable-list="variableList"
         @openVariablePanel="openVariablePanel"
@@ -179,11 +180,63 @@
                 </template>
               </div>
             </section>
+            <!-- 循环内变量 -->
+            <section
+              v-else
+              class="config-section"
+              data-test-id="templateEdit_form_loopInnerVariables">
+              <h3>{{ $t('循环内变量') }}</h3>
+              <div>
+                <bk-table
+                  v-if="loopInnerVariables.length"
+                  :data="loopInnerVariables"
+                  :col-border="true"
+                  :outer-border="true">
+                  <bk-table-column
+                    :label="$t('名称')"
+                    :width="180"
+                    prop="name" />
+                  <bk-table-column
+                    label="KEY"
+                    prop="key" />
+                  <bk-table-column
+                    :label="$t('来源节点')"
+                    :width="180">
+                    <template slot-scope="{ row }">
+                      {{ getLoopVariableSourceNode(row) }}
+                    </template>
+                  </bk-table-column>
+                  <bk-table-column
+                    :label="$t('输出')"
+                    :width="100">
+                    <template slot-scope="{ row }">
+                      <div @click.stop>
+                        <bk-switcher
+                          size="small"
+                          theme="primary"
+                          :value="loopInnerOutputs.indexOf(row.key) > -1"
+                          :disabled="isViewMode"
+                          @change="onLoopInnerVariableOutputChange(row.key, $event)" />
+                      </div>
+                    </template>
+                  </bk-table-column>
+                </bk-table>
+                <no-data
+                  v-else
+                  :message="$t('暂无参数')" />
+                <div
+                  v-if="loopInnerVariables.length"
+                  class="loop-output-example">
+                  <span>{{ $t('外层引用示例:') }}</span>
+                  <span class="example-text">${outputs[循环次数]["result"]}</span>
+                </div>
+              </div>
+            </section>
             <!-- 输出参数 -->
             <section
               class="config-section"
               data-test-id="templateEdit_form_outputParamsInfo">
-              <h3>{{ $t('输出参数') }}</h3>
+              <h3>{{ isLoopGroupNode ? $t('循环内输出') : $t('输出参数') }}</h3>
               <div
                 v-bkloading="{ isLoading: outputLoading, zIndex: 100 }"
                 class="outputs-wrapper">
@@ -196,6 +249,7 @@
                   :params="filteredOutputs"
                   :version="basicInfo.version"
                   :node-id="nodeId"
+                  :is-in-loop-group-or-loop-node="isInLoopGroupOrLoopNode"
                   :is-third-party="isThirdParty"
                   :is-view-mode="isViewMode"
                   :uniform-outputs="uniformOutputs"
@@ -245,6 +299,7 @@
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
   import copy from '@/mixins/copy.js';
   import AccessCredential from './AccessCredential.vue';
+  import NoData from '@/components/common/base/NoData.vue';
 
   export default {
     name: 'NodeConfig',
@@ -257,6 +312,7 @@
       SliderHeader,
       SpecialPluginInputForm,
       AccessCredential,
+      NoData,
     },
     mixins: [permission, copy],
     props: {
@@ -366,6 +422,9 @@
       isLoopGroupNode() {
         return this.nodeConfig.type === 'SubCanvas';
       },
+      isInLoopGroupOrLoopNode() {
+        return this.isLoopGroupNode || this.isInLoopGroup;
+      },
       // 判断当前节点是否在循环流分组节点内部
       isInLoopGroup() {
         const { parent, id } = this.nodeConfig;
@@ -469,6 +528,18 @@
       // 特殊输入参数插件
       isSpecialPlugin() {
         return ['dmn_plugin', 'value_assign'].includes(this.basicInfo.plugin);
+      },
+      // 循环内变量列表
+      loopInnerVariables() {
+        if (!this.nodeConfig.pipeline || !this.nodeConfig.pipeline.constants) return [];
+        return Object.keys(this.nodeConfig.pipeline.constants)
+          .map(key => this.nodeConfig.pipeline.constants[key])
+          .sort((a, b) => a.index - b.index);
+      },
+      // 循环内变量输出列表
+      loopInnerOutputs() {
+        if (!this.nodeConfig.pipeline || !this.nodeConfig.pipeline.outputs) return [];
+        return this.nodeConfig.pipeline.outputs;
       },
     },
     watch: {
@@ -940,84 +1011,30 @@
           console.log(e);
         }
       },
-      /**
-       * 加载循环流节点输入参数配置项
-       * 从 pipeline.constants 中获取 show_type === 'show' 的变量作为输入参数
-       */
-      async getLoopGroupInputsConfig() {
-        this.constantsLoading = true;
-        const inputs = [];
-        const pipelineTree = this.nodeConfig.pipeline;
-        if (!pipelineTree || !pipelineTree.constants) {
-          this.inputs = [];
-          this.inputsParamValue = {};
-          this.inputsRenderConfig = {};
-          this.constantsLoading = false;
-          return;
+      // 获取循环内变量的来源节点名称
+      getLoopVariableSourceNode(variable) {
+        const sourceInfo = variable.source_info || {};
+        const nodeId = Object.keys(sourceInfo)[0];
+        if (!nodeId || !this.nodeConfig.pipeline || !this.nodeConfig.pipeline.activities) return '--';
+        const activity = this.nodeConfig.pipeline.activities[nodeId];
+        return activity ? activity.name : '--';
+      },
+      // 循环内变量输出勾选切换
+      onLoopInnerVariableOutputChange(key, checked) {
+        this.isDataChange = true;
+        if (!this.nodeConfig.pipeline) {
+          this.$set(this.nodeConfig, 'pipeline', {});
         }
-        const { constants } = pipelineTree;
-        const variables = Object.keys(constants)
-          .map(key => constants[key])
-          .filter(item => item.show_type === 'show')
-          .sort((a, b) => a.index - b.index);
-
-        const activityConstants = this.nodeConfig.constants || {};
-        const inputsParamValue = {};
-        const inputsRenderConfig = {};
-        await Promise.all(variables.map(async (variable) => {
-          const { key } = variable;
-          const { name, atom, tagCode, classify } = atomFilter.getVariableArgs(variable);
-          const version = variable.version || 'legacy';
-          const isThird = Boolean(variable.plugin_code);
-          const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
-          let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
-          // eslint-disable-next-line camelcase
-          const { meta_transform: metaTransform } = formItemConfig || {};
-          if (variable.is_meta || metaTransform) {
-            formItemConfig = metaTransform(variable.meta || variable);
-            if (!variable.meta) {
-              variable.meta = tools.deepClone(variable);
-              variable.value = formItemConfig.attrs.value;
-            }
-          }
-          // 特殊处理逻辑，针对子流程节点，如果为自定义类型的下拉框变量，默认开始支持用户创建不存在的选项配置项
-          if (variable.custom_type === 'select') {
-            formItemConfig.attrs.allowCreate = true;
-          }
-          formItemConfig.tag_code = key;
-          formItemConfig.attrs.name = variable.name;
-          // 自定义输入框变量正则校验添加到插件配置项
-          if (['input', 'textarea'].includes(variable.custom_type) && variable.validation !== '') {
-            formItemConfig.attrs.validation.push({
-              type: 'regex',
-              args: variable.validation,
-              error_message: i18n.t('默认值不符合正则规则：') + variable.validation,
-            });
-          }
-          // 参数填写时为保证每个表单 tag_code 唯一，原表单 tag_code 会被替换为变量 key，导致事件监听不生效
-          const has = Object.prototype.hasOwnProperty;
-          if (has.call(formItemConfig, 'events')) {
-            formItemConfig.events.forEach((e) => {
-              if (e.source === tagCode) {
-                e.source = `\${${e.source}}`;
-              }
-            });
-          }
-          inputs.push(formItemConfig);
-          // 保存输入参数值和渲染配置
-          // 优先从 activity.constants 中读取已保存的值，否则使用变量默认值
-          if (key in activityConstants && 'value' in activityConstants[key]) {
-            inputsParamValue[key] = tools.deepClone(activityConstants[key].value);
-          } else {
-            inputsParamValue[key] = tools.deepClone(variable.value);
-          }
-          inputsRenderConfig[key] = 'need_render' in variable ? variable.need_render : true;
-        }));
-
-        this.inputs = inputs;
-        this.inputsParamValue = inputsParamValue;
-        this.inputsRenderConfig = inputsRenderConfig;
-        this.constantsLoading = false;
+        if (!this.nodeConfig.pipeline.outputs) {
+          this.$set(this.nodeConfig.pipeline, 'outputs', []);
+        }
+        const { outputs } = this.nodeConfig.pipeline;
+        const index = outputs.indexOf(key);
+        if (checked && index === -1) {
+          outputs.push(key);
+        } else if (!checked && index > -1) {
+          outputs.splice(index, 1);
+        }
       },
       /**
        * 加载子流程输入参数表单配置项
@@ -2456,6 +2473,13 @@
         .inputs-wrapper,
         .outputs-wrapper {
             min-height: 80px;
+        }
+        .loop-output-example {
+            margin-top: 16px;
+            font-size: 12px;
+            .example-text {
+                color: #3a84ff;
+            }
         }
         .section-tips {
             font-size: 16px;
