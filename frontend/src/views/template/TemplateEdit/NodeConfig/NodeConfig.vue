@@ -532,7 +532,6 @@
       // 循环内变量列表
       loopInnerVariables() {
         if (!this.nodeConfig.pipeline || !this.nodeConfig.pipeline.constants) return [];
-        // .filter(item => item.source_type === 'component_outputs')
         return Object.keys(this.nodeConfig.pipeline.constants)
           .map(key => this.nodeConfig.pipeline.constants[key])
           .sort((a, b) => a.index - b.index);
@@ -541,13 +540,6 @@
       loopInnerOutputs() {
         if (!this.nodeConfig.pipeline || !this.nodeConfig.pipeline.outputs) return [];
         return this.nodeConfig.pipeline.outputs;
-      },
-      // 外层引用示例:
-      loopOutputExample() {
-        if (!this.loopInnerOutputs.length) return '';
-        return this.loopInnerOutputs
-          .map(key => `\${outputs.${key.replace(/^\$\{|\}$/g, '')}}`)
-          .join(', ');
       },
     },
     watch: {
