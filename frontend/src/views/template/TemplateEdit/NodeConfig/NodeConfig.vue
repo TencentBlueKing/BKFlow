@@ -228,7 +228,7 @@
                   v-if="loopInnerVariables.length"
                   class="loop-output-example">
                   <span>{{ $t('外层引用示例:') }}</span>
-                  <span class="example-text">${outputs[循环次数]["result"]}</span>
+                  <span class="example-text">${outputs[循环次数-1]["result"]}</span>
                 </div>
               </div>
             </section>
