@@ -136,7 +136,7 @@ class DeleteTemplateSerializer(serializers.Serializer):
 
 
 class BatchDeleteTemplateSerializer(serializers.Serializer):
-    template_ids = serializers.ListField(help_text=_("模板ID列表"), required=False, child=serializers.IntegerField())
+    template_ids = serializers.ListField(help_text=_("模板ID列表"), required=True, child=serializers.IntegerField())
 
 
 class UpdateTemplateSerializer(serializers.Serializer):
