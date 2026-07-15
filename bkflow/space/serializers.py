@@ -83,23 +83,8 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
         return configs
 
 
-class SpaceOpenPluginListQuerySerializer(serializers.Serializer):
+class SpaceConfigVerifySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
-    source_key = serializers.CharField(help_text=_("开放插件来源标识"), required=False, allow_blank=False)
-
-
-class SpaceOpenPluginToggleSerializer(serializers.Serializer):
-    space_id = serializers.IntegerField(help_text=_("空间ID"))
-    source_key = serializers.CharField(help_text=_("开放插件来源标识"))
-    plugin_id = serializers.CharField(help_text=_("开放插件ID"))
-    enabled = serializers.BooleanField(help_text=_("是否开启"))
-
-
-class SpaceOpenPluginBulkActionSerializer(serializers.Serializer):
-    space_id = serializers.IntegerField(help_text=_("空间ID"))
-    source_key = serializers.CharField(help_text=_("开放插件来源标识"), required=False, allow_blank=False)
-
-
-class SpaceOpenPluginDisableSourceSerializer(serializers.Serializer):
-    space_id = serializers.IntegerField(help_text=_("空间ID"))
-    source_key = serializers.CharField(help_text=_("开放插件来源标识"))
+    name = serializers.CharField(help_text=_("配置项名称"))
+    value = serializers.JSONField(help_text=_("待验证的配置值"), required=False)
+    params = serializers.DictField(help_text=_("验证参数"), required=False, default=dict)
