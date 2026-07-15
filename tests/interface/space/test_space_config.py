@@ -49,7 +49,7 @@ class TestSpaceConfigHandler:
         configs = SpaceConfigHandler.get_all_configs()
         assert len(configs) == 12
         configs = SpaceConfigHandler.get_all_configs(only_public=True)
-        assert len(configs) == 11
+        assert len(configs) == 10
 
     def test_get_config(self):
         # valid cases
@@ -147,7 +147,7 @@ class TestSpaceConfigHandler:
     def test_space_plugin_config(self):
         config_cls = SpaceConfigHandler.get_config("space_plugin_config")
         assert config_cls == SpacePluginConfig
-        assert config_cls.default_value is None
+        assert config_cls.default_value == {"default": {"mode": "allow_all", "plugin_codes": []}}
         assert config_cls.value_type == SpaceConfigValueType.JSON.value
         assert config_cls.validate({"default": {"mode": "allow_list", "plugin_codes": ["a"]}})
         assert config_cls.validate({"default": {"mode": "deny_list", "plugin_codes": ["a"]}})
@@ -188,7 +188,7 @@ class TestSpaceConfigHandler:
         config_cls = SpaceConfigHandler.get_config("engine_space_config")
         assert config_cls == SpaceEngineConfig
         assert config_cls.value_type == SpaceConfigValueType.REF.value
-        assert config_cls.is_public is True
+        assert config_cls.is_public is False
 
         # Valid cases
         valid_config = {
@@ -256,6 +256,27 @@ class TestSpaceConfigHandler:
         # Test None value
         with pytest.raises(ValidationError):
             config_cls.validate(None)
+
+    @mock.patch("bkflow.space.configs.settings")
+    def test_token_expiration_max_expiration(self, mock_settings):
+        config_cls = TokenExpirationConfig
+        # Default max expiration limit (30 days)
+        mock_settings.TOKEN_EXPIRATION_MAX_EXPIRATION = "2592000"
+        assert config_cls.validate("30d") is True
+        with pytest.raises(ValidationError):
+            config_cls.validate("31d")
+        # Custom max expiration limit set to 24h
+        mock_settings.TOKEN_EXPIRATION_MAX_EXPIRATION = "86400"
+        assert config_cls.validate("24h") is True
+        with pytest.raises(ValidationError):
+            config_cls.validate("25h")
+        # Empty value means no limit
+        mock_settings.TOKEN_EXPIRATION_MAX_EXPIRATION = ""
+        assert config_cls.validate("365d") is True
+        # Invalid max expiration setting
+        mock_settings.TOKEN_EXPIRATION_MAX_EXPIRATION = "invalid"
+        with pytest.raises(ValidationError):
+            config_cls.validate("1h")
 
     @mock.patch("bkflow.space.configs.check_url_from_apigw")
     def test_callback_hooks_url_validation(self, mock_check_url):

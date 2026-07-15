@@ -37,7 +37,7 @@ class SpaceExemptionPermission(permissions.BasePermission):
 
 class SpaceConfigExemptionPermission(permissions.BasePermission):
     def has_permission(self, request, view):
-        if view.action in ["get_control_config", "check_space_config"]:
+        if view.action in ["get_control_config", "check_space_config", "get_space_configs"]:
             return True
 
 
