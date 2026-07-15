@@ -135,6 +135,10 @@ class DeleteTemplateSerializer(serializers.Serializer):
         return space_id
 
 
+class BatchDeleteTemplateSerializer(serializers.Serializer):
+    template_ids = serializers.ListField(help_text=_("模板ID列表"), required=True, child=serializers.IntegerField())
+
+
 class UpdateTemplateSerializer(serializers.Serializer):
     operator = serializers.CharField(help_text=_("更新人"), max_length=USER_NAME_MAX_LENGTH, required=False)
     name = serializers.CharField(help_text=_("模版名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=False)
