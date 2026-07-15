@@ -5639,3 +5639,32 @@ paths:
         disabledStages: [ ]
         enableWebsocket: false
         pluginConfigs: [ ]
+  /space/{space_id}/batch_delete_template/:
+    post:
+      operationId: batch_delete_template
+      description: 批量删除模板
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/batch_delete_template/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Batch delete template
+        enableWebsocket: false
+        pluginConfigs: [ ]
