@@ -393,6 +393,7 @@
         unhookingVarForm: {}, // 正被取消勾选的表单配置
         isUpdateConstants: false, // 是否更新输入参数配置
         isDataChange: false, // 数据是否改变
+        loopVarKeyChanges: [], // 循环子节点变量key变更记录,保存时统一更新 pipeline.outputs
         isApiPlugin: false, // 是否为Api插件
         apiInputs: [], // api数据
         isInitDecision: true,
@@ -613,6 +614,7 @@
         }
       });
       this.localConstants = tools.deepClone(this.targetConstants);
+      this.loopVarKeyChanges = [];
     },
     async mounted() {
       try {
@@ -1343,13 +1345,8 @@
             // key 变化：删除旧变量 key，创建新变量 key
             this.$delete(this.localConstants, key);
             this.$set(this.localConstants, variable.key, variable);
-            if (this.parentLoopNode) {
-              this.editLoopInnerVariableOutputKey({
-                loopNodeId: this.parentLoopNode.id,
-                oldKey: key,
-                newKey: variable.key,
-              });
-            }
+            // 记录 key 变更，保存时统一更新 pipeline.outputs
+            this.loopVarKeyChanges.push({ oldKey: key, newKey: variable.key });
           } else {
             this.$set(this.localConstants, key, variable);
           }
@@ -2400,6 +2397,15 @@
                 loopNodeId: this.parentLoopNode.id,
                 constants: tools.deepClone(this.localConstants),
               });
+              // 保存时统一更新 pipeline.outputs 中的 key 变更
+              this.loopVarKeyChanges.forEach(({ oldKey, newKey }) => {
+                this.editLoopInnerVariableOutputKey({
+                  loopNodeId: this.parentLoopNode.id,
+                  oldKey,
+                  newKey,
+                });
+              });
+              this.loopVarKeyChanges = [];
             }
             // 将第三方插件信息传给父级存起来
             if (this.isThirdParty) {
