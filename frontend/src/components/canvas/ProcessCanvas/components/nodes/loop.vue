@@ -35,11 +35,6 @@
             {{ nodeData.stage_name }}
           </div>
           <span class="loop-title">{{ nodeData.name || '循环' }}</span>
-          <!-- <span class="loop-child-count">{{ childCount }}</span> -->
-          <i
-            v-if="nodeData.mode !== 'execute'"
-            class="loop-variables-icon common-icon-export"
-            @click.stop="onShowVariables" />
         </div>
         <div class="loop-body" />
         <div
@@ -446,7 +441,7 @@
       display: flex;
       align-items: center;
       padding: 0 8px;
-      height: 20px;
+      height: 24px;
       background: #738abe;
       border-top-left-radius: 4px;
       border-top-right-radius: 4px;
