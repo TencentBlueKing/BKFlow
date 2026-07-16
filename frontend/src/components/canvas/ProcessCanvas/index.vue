@@ -66,7 +66,7 @@
   // svg path解析
   import parseSvgPath from 'parse-svg-path';
 
-  import { uuid } from '@/utils/uuid.js';
+  import { uuid, random4 } from '@/utils/uuid.js';
 
   // 快捷面板
   import ShortcutPanel from './components/shortcutPanel.vue';
@@ -172,6 +172,7 @@
         'setActivities',
         'setGateways',
         'setLocation',
+        'setLocationXY',
         'setLine',
       ]),
       initCanvas() {
@@ -632,7 +633,7 @@
           // 更新节点和相连连线的z-index
           this.updateNodeZIndex(node);
           const connectedEdgesAfterLeave = this.graph.getConnectedEdges(node.id);
-          connectedEdgesAfterLeave.forEach(edge => {
+          connectedEdgesAfterLeave.forEach((edge) => {
             this.updateEdgeZIndex(edge);
           });
           return;
@@ -671,7 +672,7 @@
           }
           // 更新相连连线的 z-index
           const connectedEdgesAfterEnter = this.graph.getConnectedEdges(node.id);
-          connectedEdgesAfterEnter.forEach(edge => {
+          connectedEdgesAfterEnter.forEach((edge) => {
             this.updateEdgeZIndex(edge);
           });
         }
@@ -1552,6 +1553,18 @@
         if (remove) { // 删除节点, 解除节点时不删除节点
         // 如果是分组节点，先删除所有子节点
           if (node.shape === 'custom-loop-group-node') {
+            // 先获取并删除外层连线（顶层 flows/line），避免 removeNode 后 getConnectedEdges 取不到
+            const outerEdges = this.graph.getConnectedEdges(node);
+            outerEdges.forEach((edge) => {
+              const source = edge.getSource();
+              const target = edge.getTarget();
+              this.onLineChange('delete', {
+                id: edge.id,
+                source: { cell: source.cell },
+                target: { cell: target.cell },
+              });
+              this.graph.removeEdge(edge.id);
+            });
             const children = node.getChildren() || [];
             this.setActivities({ type: 'delete', location: { id: node.id } });
             this.setLocation({ type: 'delete', location: { id: node.id } });
@@ -2128,9 +2141,13 @@
 
         // 尺寸同步
         const oldGroupNode = this.getNodeInstance(oldSourceId);
+        let syncedWidth;
+        let syncedHeight;
         if (oldGroupNode) {
           const { width, height } = oldGroupNode.size();
           newGroupNode.resize(width, height);
+          syncedWidth = width;
+          syncedHeight = height;
         }
 
         // 获取旧的 nested pipelineTree
@@ -2232,35 +2249,201 @@
             delete newPT.gateways[oldId];
           }
         });
-        // 重映射 start_event / end_event
+        // 重映射 start_event / end_event 的 ID
         if (newPT.start_event) {
           newPT.start_event.id = oldToNewIdMap[oldStartId] || newPT.start_event.id;
         }
         if (newPT.end_event) {
           newPT.end_event.id = oldToNewIdMap[oldEndId] || newPT.end_event.id;
         }
-        // 重映射 location
+        // 重映射 location（ID + 宽高从旧节点同步）
         (newPT.location || []).forEach((loc) => {
+          const oldLocId = Object.keys(oldToNewIdMap).find(k => oldToNewIdMap[k] === loc.id) || loc.id;
           const newId = oldToNewIdMap[loc.id];
           if (newId) loc.id = newId;
+          // 同步旧节点的宽高
+          const oldCell = this.graph.getCellById(oldLocId);
+          if (oldCell && oldCell.isNode()) {
+            const { width, height } = oldCell.size();
+            loc.width = width;
+            loc.height = height;
+          }
         });
-        // 重映射 flows 中的 source/target
+        // 重映射 flows：flowId 生成新 ID，source/target 重映射节点 ID
+        const flowIdMap = {};
         Object.keys(newPT.flows || {}).forEach((flowId) => {
           const flow = newPT.flows[flowId];
           if (oldToNewIdMap[flow.source]) flow.source = oldToNewIdMap[flow.source];
           if (oldToNewIdMap[flow.target]) flow.target = oldToNewIdMap[flow.target];
+          const newFlowId = `line${uuid()}`;
+          flow.id = newFlowId;
+          flowIdMap[flowId] = newFlowId;
+          delete newPT.flows[flowId];
+          newPT.flows[newFlowId] = flow;
         });
-        // 重映射 line 中的 source/target
+        // 重映射 line：lineId 生成新 ID（与对应 flow 保持一致），source/target 重映射节点 ID
         (newPT.line || []).forEach((line) => {
           if (oldToNewIdMap[line.source.id]) line.source.id = oldToNewIdMap[line.source.id];
           if (oldToNewIdMap[line.target.id]) line.target.id = oldToNewIdMap[line.target.id];
+          const newLineId = flowIdMap[line.id] || `line${uuid()}`;
+          line.id = newLineId;
         });
+        // 重映射 activities 中的 incoming/outgoing 引用的 flowId
+        Object.keys(newPT.activities || {}).forEach((actId) => {
+          const act = newPT.activities[actId];
+          if (act.incoming) {
+            act.incoming = Array.isArray(act.incoming)
+              ? act.incoming.map(id => flowIdMap[id] || id)
+              : (flowIdMap[act.incoming] || act.incoming);
+          }
+          if (act.outgoing) {
+            act.outgoing = Array.isArray(act.outgoing)
+              ? act.outgoing.map(id => flowIdMap[id] || id)
+              : (flowIdMap[act.outgoing] || act.outgoing);
+          }
+        });
+        // 重映射 gateways 中的 incoming/outgoing 和 conditions 引用的 flowId
+        Object.keys(newPT.gateways || {}).forEach((gwId) => {
+          const gw = newPT.gateways[gwId];
+          if (gw.incoming) {
+            gw.incoming = Array.isArray(gw.incoming)
+              ? gw.incoming.map(id => flowIdMap[id] || id)
+              : (flowIdMap[gw.incoming] || gw.incoming);
+          }
+          if (gw.outgoing) {
+            gw.outgoing = Array.isArray(gw.outgoing)
+              ? gw.outgoing.map(id => flowIdMap[id] || id)
+              : (flowIdMap[gw.outgoing] || gw.outgoing);
+          }
+          if (gw.conditions) {
+            const newConditions = {};
+            Object.keys(gw.conditions).forEach((condFlowId) => {
+              const newCondFlowId = flowIdMap[condFlowId] || condFlowId;
+              newConditions[newCondFlowId] = gw.conditions[condFlowId];
+            });
+            gw.conditions = newConditions;
+          }
+        });
+        // 重映射 start_event / end_event 中的 incoming/outgoing
+        if (newPT.start_event && newPT.start_event.outgoing) {
+          newPT.start_event.outgoing = flowIdMap[newPT.start_event.outgoing] || newPT.start_event.outgoing;
+        }
+        if (newPT.end_event && newPT.end_event.incoming) {
+          newPT.end_event.incoming = Array.isArray(newPT.end_event.incoming)
+            ? newPT.end_event.incoming.map(id => flowIdMap[id] || id)
+            : (flowIdMap[newPT.end_event.incoming] || newPT.end_event.incoming);
+        }
+
+        // 重映射 pipeline.constants：更新 source_info 中的旧节点 ID
+        // 对 component_outputs 类型变量生成新 key（避免与原节点冲突），并收集 oldKey→newKey 映射
+        // 用于后续更新所有引用该变量的地方（SubProcess 子节点的 constants.value、component.data.value 等）
+        const constKeyMap = {};
+        if (newPT.constants) {
+          const newConstants = {};
+          Object.keys(newPT.constants).forEach((oldKey) => {
+            const c = newPT.constants[oldKey];
+            // 重映射 source_info 中的节点 ID
+            if (c.source_info) {
+              const newSourceInfo = {};
+              Object.keys(c.source_info).forEach((nodeId) => {
+                const mappedId = oldToNewIdMap[nodeId] || nodeId;
+                newSourceInfo[mappedId] = c.source_info[nodeId];
+              });
+              c.source_info = newSourceInfo;
+            }
+            // 输出变量
+            if (c.source_type === 'component_outputs') {
+              const sourceInfoValues = Object.values(c.source_info || {})[0] || [];
+              const rawKey = sourceInfoValues[0] || oldKey;
+              const baseName = rawKey.replace(/^\$\{|\}$/g, '');
+              const newKey = `\${${baseName}_${random4()}}`;
+              c.key = newKey;
+              constKeyMap[oldKey] = newKey;
+              newConstants[newKey] = c;
+            } else {
+              newConstants[oldKey] = c;
+            }
+          });
+          newPT.constants = newConstants;
+        }
+
+        // 重映射 loop_config.loop_params
+        if (newLoopActivity.loop_config && newLoopActivity.loop_config.loop_params) {
+          const oldLoopParams = newLoopActivity.loop_config.loop_params;
+          const newLoopParams = {};
+          Object.keys(oldLoopParams).forEach((paramKey) => {
+            const baseName = paramKey.replace(/^\$\{|\}$/g, '');
+            const newKey = `\${${baseName}_${random4()}}`;
+            constKeyMap[paramKey] = newKey;
+            newLoopParams[newKey] = oldLoopParams[paramKey];
+          });
+          newLoopActivity.loop_config.loop_params = newLoopParams;
+        }
+
+        // 更新所有引用 pipeline.constants / loop_params 变量的地方
+        // 1) SubProcess 子节点的 constants.value
+        // 2) 各 activity 的 component.data.*.value
+        // 3) SubProcess 子节点的 constants 中的source_info是子流程模板内部节点ID,不在 oldToNewIdMap 中，不重映射
+        const replaceVarRefs = (val) => {
+          if (typeof val !== 'string') return val;
+          let result = val;
+          Object.keys(constKeyMap).forEach((oldKey) => {
+            result = result.split(oldKey).join(constKeyMap[oldKey]);
+          });
+          return result;
+        };
+        const remapVarRefsInData = (dataObj) => {
+          if (!dataObj || typeof dataObj !== 'object') return;
+          Object.keys(dataObj).forEach((fieldKey) => {
+            const field = dataObj[fieldKey];
+            if (field && typeof field === 'object' && 'value' in field) {
+              if (typeof field.value === 'string') {
+                field.value = replaceVarRefs(field.value);
+              }
+            }
+          });
+        };
+        Object.keys(newPT.activities || {}).forEach((actId) => {
+          const act = newPT.activities[actId];
+          // SubProcess 内部 constants.value 中可能引用 pipeline.constants 的输出变量
+          if (act.constants) {
+            Object.keys(act.constants).forEach((ck) => {
+              const c = act.constants[ck];
+              if (typeof c.value === 'string') {
+                c.value = replaceVarRefs(c.value);
+              }
+            });
+          }
+          // component.data 字段中可能引用变量
+          if (act.component && act.component.data) {
+            remapVarRefsInData(act.component.data);
+          }
+        });
+        // 重映射 pipeline.outputs 中的变量 key 引用
+        if (Array.isArray(newPT.outputs)) {
+          newPT.outputs = newPT.outputs.map(key => constKeyMap[key] || key);
+        }
+        // 同步activity.constants：与pipeline.constants保持一致
+        if (newPT.constants) {
+          newLoopActivity.constants = utilsTools.deepClone(newPT.constants);
+        }
 
         // 更新到 store
         this.setActivities({
           type: 'edit',
           location: { ...newLoopActivity, pipeline: newPT },
         });
+        // 同步分组节点坐标和宽高到顶层 store 的 location（在 setActivities edit 之后，确保 location 已存在）
+        if (syncedWidth && syncedHeight) {
+          const { x, y } = newGroupNode.position();
+          this.setLocationXY({
+            id: newNodeId,
+            x,
+            y,
+            width: syncedWidth,
+            height: syncedHeight,
+          });
+        }
       },
       // 清理新分组节点已有的子节点
       clearExistingLoopChildren(loopNodeId) {
