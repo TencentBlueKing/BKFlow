@@ -1143,6 +1143,16 @@ const template = {
         }
       }
     },
+    // 编辑循环流内部变量 key 时同步更新 pipeline.outputs 中的 key
+    editLoopInnerVariableOutputKey(state, payload) {
+      const { loopNodeId, oldKey, newKey } = payload;
+      const loopNode = state.activities[loopNodeId];
+      if (!loopNode || !loopNode.pipeline || !loopNode.pipeline.outputs) return;
+      const idx = loopNode.pipeline.outputs.indexOf(oldKey);
+      if (idx > -1) {
+        Vue.set(loopNode.pipeline.outputs, idx, newKey);
+      }
+    },
     // 设置循环流内部变量的输出状态
     setLoopInnerVariableOutput(state, payload) {
       const { loopNodeId, key, checked } = payload;

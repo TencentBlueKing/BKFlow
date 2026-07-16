@@ -74,6 +74,7 @@
             :common="common"
             :constants="localConstants"
             :template-id="$route.params.templateId"
+            :use-store-directly="!isInLoopGroup"
             @closeEditingPanel="isVariablePanelShow = false"
             @onSaveEditing="onVariableSaveEditing" />
         </div>
@@ -392,6 +393,7 @@
         unhookingVarForm: {}, // 正被取消勾选的表单配置
         isUpdateConstants: false, // 是否更新输入参数配置
         isDataChange: false, // 数据是否改变
+        loopVarKeyChanges: [], // 循环子节点变量key变更记录,保存时统一更新 pipeline.outputs
         isApiPlugin: false, // 是否为Api插件
         apiInputs: [], // api数据
         isInitDecision: true,
@@ -612,6 +614,7 @@
         }
       });
       this.localConstants = tools.deepClone(this.targetConstants);
+      this.loopVarKeyChanges = [];
     },
     async mounted() {
       try {
@@ -654,6 +657,7 @@
         'setConstants',
         'setOutputs',
         'setLoopInnerConstants',
+        'editLoopInnerVariableOutputKey',
       ]),
       async initDefaultData() {
         // 外层activities优先，如果节点已移入循环分组，则从pipeline读取
@@ -1334,8 +1338,24 @@
       onVariableSaveEditing(variable) {
         this.isVariablePanelShow = false;
         const { key, sourceKey } = this.variableData;
-        if (!key || key === variable.key) return;
-
+        if (!key) return;
+        // 循环流内部节点（isInLoopGroup）：变量变更只影响循环节点 pipeline 内的 constants
+        if (this.isInLoopGroup) {
+          if (key !== variable.key) {
+            // key 变化：删除旧变量 key，创建新变量 key
+            this.$delete(this.localConstants, key);
+            this.$set(this.localConstants, variable.key, variable);
+            // 记录 key 变更，保存时统一更新 pipeline.outputs
+            this.loopVarKeyChanges.push({ oldKey: key, newKey: variable.key });
+          } else {
+            this.$set(this.localConstants, key, variable);
+          }
+          // 标记数据变更
+          this.randomKey = new Date().getTime();
+          this.variableData = {};
+          return;
+        }
+        if (key === variable.key) return;
         this.onHookChange('delete', this.variableData);
         this.onHookChange('create', variable);
         if (sourceKey === 'outputs' && this.basicInfo.loopConfig?.enable) {
@@ -2259,7 +2279,9 @@
       // 打开全局变量编辑面板
       async openVariablePanel(variable = {}) {
         if (variable.key) {
-          const variableData = this.variableList.find(item => item.key === variable.key);
+          // 不使用variableList，避免混入外层全局变量
+          const sourceConstants = this.isInLoopGroup ? this.targetConstants : this.localConstants;
+          const variableData = sourceConstants[variable.key];
           const variableCited = await this.getVariableCitedData() || {};
           const { activities, conditions, constants } = variableCited[variable.key];
           const cited = activities.length + conditions.length + constants.length;
@@ -2269,11 +2291,12 @@
             sourceKey: variable.sourceKey, // 保存原始参数 key，用于判断是否为循环输出变量
           };
         } else {
+          const baseConstants = this.isInLoopGroup ? this.targetConstants : this.constants;
           this.variableData = {
             custom_type: 'input',
             desc: '',
             form_schema: {},
-            index: Object.keys(this.constants).length + 1,
+            index: Object.keys(baseConstants).length + 1,
             key: '',
             name: '',
             show_type: 'show',
@@ -2374,6 +2397,15 @@
                 loopNodeId: this.parentLoopNode.id,
                 constants: tools.deepClone(this.localConstants),
               });
+              // 保存时统一更新 pipeline.outputs 中的 key 变更
+              this.loopVarKeyChanges.forEach(({ oldKey, newKey }) => {
+                this.editLoopInnerVariableOutputKey({
+                  loopNodeId: this.parentLoopNode.id,
+                  oldKey,
+                  newKey,
+                });
+              });
+              this.loopVarKeyChanges = [];
             }
             // 将第三方插件信息传给父级存起来
             if (this.isThirdParty) {
