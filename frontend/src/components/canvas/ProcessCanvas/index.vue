@@ -2258,7 +2258,7 @@
         }
         // 重映射 location（ID + 宽高从旧节点同步）
         (newPT.location || []).forEach((loc) => {
-          const oldLocId = Object.keys(oldToNewIdMap).find(k => oldToNewIdMap[k] === loc.id) || loc.id;
+          const oldLocId = loc.id;
           const newId = oldToNewIdMap[loc.id];
           if (newId) loc.id = newId;
           // 同步旧节点的宽高
