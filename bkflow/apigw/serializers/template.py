@@ -190,6 +190,7 @@ class UpdateTemplateLabelsSerializer(serializers.Serializer):
 
 
 class TemplateListFilterSerializer(serializers.Serializer):
+    id = serializers.CharField(help_text=_("模板ID，多个以逗号分割"), required=False)
     name = serializers.CharField(help_text=_("模板名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=False)
     creator = serializers.CharField(help_text=_("创建人"), max_length=USER_NAME_MAX_LENGTH, required=False)
     updated_by = serializers.CharField(help_text=_("更新人"), required=False)
