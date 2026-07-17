@@ -221,7 +221,8 @@ class TemplateSerializer(serializers.ModelSerializer):
             snapshot.template_id = instance.id
             snapshot.save(update_fields=["template_id"])
         instance = super().update(instance, validated_data)
-        self._sync_template_labels(instance.id, template_labels)
+        if template_labels:
+            self._sync_template_labels(instance.id, template_labels)
         # 批量修改流程绑定的触发器:
         try:
             Trigger.objects.compare_constants(
