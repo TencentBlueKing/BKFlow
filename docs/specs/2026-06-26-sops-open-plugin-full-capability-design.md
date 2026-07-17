@@ -71,6 +71,8 @@
 
 未授权空间**连该来源目录都看不到**：`list_space_plugins`、schema 服务、目录同步全部要求存在有效 grant。
 
+展示配置与执行来源分层：`uniform_api.api` 的每个 `api_key` 对应流程编辑器中的一个顶层 API 插件入口；配置项可用可选 `source_key` 指向真实的准入与执行来源，未配置时回退到 `api_key`。因此标准运维内置插件和第三方插件可用两个 `api_key` 分开展示，并通过目录 URL 的固定 `plugin_source` 参数分别过滤，同时共享 `source_key=sops`。目录同步按有效 `source_key` 聚合后一次性刷新，避免两个入口互相把对方插件标记为下架。
+
 ### 4.2 第 2 层（空间级，已有）：per-plugin 治理
 
 沿用 `SpaceOpenPluginAvailability`（新来源默认关）+ per-plugin 开关 + 一键全开 + `disable_source`。「一键全开」仅在**已准入**空间内生效。

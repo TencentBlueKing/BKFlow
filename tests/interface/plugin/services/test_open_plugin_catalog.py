@@ -9,6 +9,70 @@ from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 
 @pytest.mark.django_db
 class TestOpenPluginCatalogService:
+    @patch.object(OpenPluginCatalogService, "_refresh_catalog_index")
+    @patch.object(OpenPluginCatalogService, "_fetch_api_list")
+    @patch.object(OpenPluginCatalogService, "_get_sources")
+    def test_sync_space_plugins_aggregates_api_entries_with_same_source_key(
+        self, mock_get_sources, mock_fetch_api_list, mock_refresh_catalog_index
+    ):
+        """测试两个展示配置映射到同一来源时，只聚合刷新一次目录。"""
+        builtin_entry = MagicMock(source_key="sops")
+        third_party_entry = MagicMock(source_key="sops")
+        builtin_plugin = {"id": "builtin__job_execute_task"}
+        third_party_plugin = {"id": "danny-test-plugin"}
+        mock_get_sources.return_value = {
+            "sops_builtin": builtin_entry,
+            "sops_third_party": third_party_entry,
+        }
+        mock_fetch_api_list.side_effect = [[builtin_plugin], [third_party_plugin]]
+
+        synced_sources = OpenPluginCatalogService.sync_space_plugins(space_id=1)
+
+        assert synced_sources == ["sops"]
+        mock_refresh_catalog_index.assert_called_once_with(
+            space_id=1,
+            source_key="sops",
+            api_list=[builtin_plugin, third_party_plugin],
+        )
+
+    @patch("bkflow.plugin.services.open_plugin_catalog.SpaceConfig")
+    @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIConfigHandler")
+    def test_get_sources_filters_by_effective_source_key(self, mock_handler, mock_sc):
+        """测试同步指定来源时可选中映射到该来源的全部展示配置。"""
+        mock_sc.get_config.return_value = {"api": {}}
+        builtin_entry = MagicMock(source_key="sops")
+        third_party_entry = MagicMock(source_key="sops")
+        mock_model = MagicMock()
+        mock_model.api = {
+            "sops_builtin": builtin_entry,
+            "sops_third_party": third_party_entry,
+        }
+        mock_handler.return_value.handle.return_value = mock_model
+
+        sources = OpenPluginCatalogService._get_sources(space_id=1, source_key="sops")
+
+        assert sources == {
+            "sops_builtin": builtin_entry,
+            "sops_third_party": third_party_entry,
+        }
+
+    @patch("bkflow.plugin.services.open_plugin_catalog.SpaceConfig")
+    @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIConfigHandler")
+    def test_iter_configured_sources_deduplicates_effective_source_key(self, mock_handler, mock_sc):
+        """测试平台准入初始化按执行来源去重，而不是按展示配置授权。"""
+        space_config = MagicMock(space_id=1, json_value={"api": {}})
+        mock_sc.objects.filter.return_value.only.return_value.iterator.return_value = [space_config]
+        mock_model = MagicMock()
+        mock_model.api = {
+            "sops_builtin": MagicMock(source_key="sops"),
+            "sops_third_party": MagicMock(source_key="sops"),
+        }
+        mock_handler.return_value.handle.return_value = mock_model
+
+        configured_sources = list(OpenPluginCatalogService.iter_configured_sources())
+
+        assert configured_sources == [(1, "sops")]
+
     def test_ungranted_space_sees_no_source(self):
         """测试未准入空间看不到对应来源目录"""
         OpenPluginCatalogIndex.objects.create(
