@@ -17,6 +17,9 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+from django.conf import settings
+
+from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
@@ -154,7 +157,7 @@ class OpenPluginCatalogService:
     def _fetch_api_list(cls, space_id, api_entry, username):
         credential = cls._get_apigw_credential(space_id=space_id)
         if not credential:
-            return []
+            raise ValidationError("空间 {} 未配置 API Gateway 凭证".format(space_id))
 
         client = UniformAPIClient()
         headers = client.gen_default_apigw_header(
@@ -168,8 +171,18 @@ class OpenPluginCatalogService:
             data={"limit": 200, "offset": 0},
             headers=headers,
             username=username,
+            timeout=settings.OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT,
         )
-        return list_result.json_resp.get("data", {}).get("apis", [])
+        if not list_result.result:
+            raise APIResponseError("请求开放插件目录失败: {}".format(list_result.message))
+        if not isinstance(list_result.json_resp, dict):
+            raise APIResponseError("请求开放插件目录失败: 响应体不是 JSON 对象")
+
+        response_data = list_result.json_resp.get("data")
+        if not isinstance(response_data, dict):
+            raise APIResponseError("请求开放插件目录失败: 响应体缺少 data 对象")
+        client.validate_response_data(response_data, client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA)
+        return response_data["apis"]
 
     @classmethod
     def _refresh_catalog_index(cls, space_id, source_key, api_list):
