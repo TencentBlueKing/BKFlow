@@ -175,6 +175,7 @@ class TestOpenPluginCatalogService:
 
         mock_client = MagicMock()
         list_resp = MagicMock()
+        list_resp.result = True
         list_resp.json_resp = {
             "data": {
                 "apis": [
@@ -251,6 +252,7 @@ class TestOpenPluginCatalogService:
 
         mock_client = MagicMock()
         list_resp = MagicMock()
+        list_resp.result = True
         list_resp.json_resp = {"data": {"apis": []}}
         mock_client.request.return_value = list_resp
         mock_client_cls.return_value = mock_client
@@ -264,3 +266,43 @@ class TestOpenPluginCatalogService:
 
         assert index.status == OpenPluginCatalogIndex.Status.UNAVAILABLE
         assert availability.enabled is True
+
+    @patch("bkflow.plugin.services.open_plugin_catalog.Credential")
+    @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIClient")
+    @patch("bkflow.plugin.services.open_plugin_catalog.SpaceConfig")
+    def test_fetch_api_list_raises_clear_error_when_remote_request_fails(self, mock_sc, mock_client_cls, mock_cred):
+        """测试目录来源请求失败时抛出可定位的错误，而不是继续解析空响应。"""
+        mock_sc.get_config.return_value = "test_cred"
+        mock_cred_obj = MagicMock()
+        mock_cred_obj.content = {"bk_app_code": "app", "bk_app_secret": "secret"}
+        mock_cred.objects.filter.return_value.first.return_value = mock_cred_obj
+
+        list_resp = MagicMock(result=False, message="gateway unavailable", json_resp=None)
+        mock_client_cls.return_value.request.return_value = list_resp
+
+        with pytest.raises(APIResponseError, match="请求开放插件目录失败.*gateway unavailable"):
+            OpenPluginCatalogService._fetch_api_list(
+                space_id=1,
+                api_entry=MagicMock(meta_apis="http://example.com/meta_apis"),
+                username="admin",
+            )
+
+    @patch("bkflow.plugin.services.open_plugin_catalog.Credential")
+    @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIClient")
+    @patch("bkflow.plugin.services.open_plugin_catalog.SpaceConfig")
+    def test_fetch_api_list_raises_clear_error_for_malformed_response(self, mock_sc, mock_client_cls, mock_cred):
+        """测试目录来源成功但响应体为空时抛出明确错误。"""
+        mock_sc.get_config.return_value = "test_cred"
+        mock_cred_obj = MagicMock()
+        mock_cred_obj.content = {"bk_app_code": "app", "bk_app_secret": "secret"}
+        mock_cred.objects.filter.return_value.first.return_value = mock_cred_obj
+
+        list_resp = MagicMock(result=True, message="", json_resp=None)
+        mock_client_cls.return_value.request.return_value = list_resp
+
+        with pytest.raises(APIResponseError, match="请求开放插件目录失败.*响应体不是 JSON 对象"):
+            OpenPluginCatalogService._fetch_api_list(
+                space_id=1,
+                api_entry=MagicMock(meta_apis="http://example.com/meta_apis"),
+                username="admin",
+            )

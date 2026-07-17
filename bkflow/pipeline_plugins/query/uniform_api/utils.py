@@ -138,6 +138,27 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
     UNIFORM_API_META_RESPONSE_DATA_SCHEMA = {
         "type": "object",
         "required": ["id", "name", "url", "methods", "inputs"],
+        "anyOf": [
+            {
+                "not": {
+                    "anyOf": [
+                        {"required": ["plugin_source"]},
+                        {"required": ["plugin_code"]},
+                        {"required": ["plugin_version"]},
+                        {"required": ["wrapper_version"]},
+                    ]
+                }
+            },
+            {
+                "required": [
+                    "plugin_source",
+                    "plugin_code",
+                    "plugin_version",
+                    "wrapper_version",
+                    "outputs",
+                ]
+            },
+        ],
         "properties": {
             "id": {"type": "string"},
             "name": {"type": "string"},
@@ -167,6 +188,13 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
                         "options": {"type": "array"},
                         "form_type": {"type": "string"},
                     },
+                },
+            },
+            "outputs": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["name", "key"],
                 },
             },
             "polling": {

@@ -200,7 +200,7 @@ class OpenPluginSnapshotService:
             plugin_version = (
                 cls._extract_data_value(data, "uniform_api_plugin_version") or api_meta.get("plugin_version") or ""
             )
-            source_key = api_meta.get("source_key")
+            source_key = cls._extract_data_value(data, "uniform_api_plugin_source_key") or api_meta.get("source_key")
             wrapper_version = component.get("version", "")
 
             if not plugin_id:

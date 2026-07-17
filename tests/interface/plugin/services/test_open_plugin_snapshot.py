@@ -126,6 +126,25 @@ def test_validate_passes_when_source_granted():
     OpenPluginSnapshotService.validate_pipeline_tree(space_id=1, pipeline_tree=build_open_plugin_pipeline_tree())
 
 
+def test_collect_plugin_references_reads_source_key_from_runtime_hidden_field(monkeypatch):
+    monkeypatch.setattr(OpenPluginSnapshotService, "_get_catalog_entry", lambda **kwargs: None)
+    pipeline_tree = build_open_plugin_pipeline_tree()
+    component = pipeline_tree["activities"]["node1"]["component"]
+    component["version"] = "v4.0.0"
+    component["api_meta"] = {}
+    component["data"]["uniform_api_plugin_source_key"] = {"value": "sops"}
+
+    references = OpenPluginSnapshotService.collect_plugin_references(
+        space_id=1,
+        pipeline_tree=pipeline_tree,
+        include_unmatched=True,
+    )
+
+    assert references[0]["source_key"] == "sops"
+    assert references[0]["plugin_version"] == "1.2.0"
+    assert references[0]["wrapper_version"] == "v4.0.0"
+
+
 @pytest.mark.django_db
 def test_validate_rejects_when_plugin_version_not_in_catalog_versions():
     """开放插件已准入且已开启时，仍要拒绝已从目录版本列表移除的业务版本。"""
