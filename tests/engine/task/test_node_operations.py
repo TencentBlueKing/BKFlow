@@ -72,6 +72,42 @@ class TestTaskNodeOperation:
             consumed_at=consumed_at,
         )
 
+    def test_upsert_open_plugin_callback_ref(self):
+        from bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0 import (
+            UniformAPIService,
+        )
+
+        token, expire_at = issue_open_plugin_callback_token(
+            task_id=1,
+            node_id="node_a",
+            client_request_id="task-1-node-node_a-attempt-1",
+            node_version="v4.0.0",
+        )
+
+        UniformAPIService._upsert_open_plugin_callback_ref(
+            task_id=1,
+            node_id="node_a",
+            node_version="v4.0.0",
+            client_request_id="task-1-node-node_a-attempt-1",
+            open_plugin_run_id="run-001",
+            callback_token=token,
+            callback_expire_at=expire_at,
+            plugin_source="builtin",
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_version="1.2.0",
+            cancel_url="https://bk-sops.example/open-plugin-runs/run-001/cancel",
+            credential_key="default",
+        )
+
+        callback_ref = OpenPluginRunCallbackRef.objects.get(client_request_id="task-1-node-node_a-attempt-1")
+        assert callback_ref.open_plugin_run_id == "run-001"
+        assert callback_ref.callback_token_digest == callback_token_digest(token)
+        assert callback_ref.plugin_id == "open_plugin_001"
+        assert callback_ref.source_key == "sops"
+        assert callback_ref.cancel_url == "https://bk-sops.example/open-plugin-runs/run-001/cancel"
+        assert callback_ref.credential_key == "default"
+
     def test_retry_node(self, mocker):
         """测试重试节点"""
         space_id = 1

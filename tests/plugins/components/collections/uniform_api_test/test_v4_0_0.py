@@ -7,9 +7,7 @@ from bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0 import (
     build_open_plugin_client_request_id,
     build_open_plugin_execute_payload,
 )
-from bkflow.task.models import OpenPluginRunCallbackRef
 from bkflow.task.open_plugin_callback import (
-    callback_token_digest,
     issue_open_plugin_callback_token,
     parse_open_plugin_callback_token,
 )
@@ -249,44 +247,3 @@ def test_resolve_open_plugin_source_key_uses_saved_hidden_field_only():
         == "sops"
     )
     assert UniformAPIService._resolve_open_plugin_source_key(space_id=1, plugin_id="open_plugin_001") == ""
-
-
-def test_upsert_open_plugin_callback_ref(monkeypatch):
-    captured = {}
-
-    def fake_update_or_create(**kwargs):
-        captured.update(kwargs)
-        return SimpleNamespace(), True
-
-    monkeypatch.setattr(OpenPluginRunCallbackRef.objects, "update_or_create", fake_update_or_create)
-    token, expire_at = issue_open_plugin_callback_token(
-        task_id=1,
-        node_id="node_a",
-        client_request_id="task-1-node-node_a-attempt-1",
-        node_version="v4.0.0",
-    )
-
-    UniformAPIService._upsert_open_plugin_callback_ref(
-        task_id=1,
-        node_id="node_a",
-        node_version="v4.0.0",
-        client_request_id="task-1-node-node_a-attempt-1",
-        open_plugin_run_id="run-001",
-        callback_token=token,
-        callback_expire_at=expire_at,
-        plugin_source="builtin",
-        source_key="sops",
-        plugin_id="open_plugin_001",
-        plugin_version="1.2.0",
-        cancel_url="https://bk-sops.example/open-plugin-runs/run-001/cancel",
-        credential_key="default",
-    )
-
-    assert captured["client_request_id"] == "task-1-node-node_a-attempt-1"
-    defaults = captured["defaults"]
-    assert defaults["open_plugin_run_id"] == "run-001"
-    assert defaults["callback_token_digest"] == callback_token_digest(token)
-    assert defaults["plugin_id"] == "open_plugin_001"
-    assert defaults["source_key"] == "sops"
-    assert defaults["cancel_url"] == "https://bk-sops.example/open-plugin-runs/run-001/cancel"
-    assert defaults["credential_key"] == "default"

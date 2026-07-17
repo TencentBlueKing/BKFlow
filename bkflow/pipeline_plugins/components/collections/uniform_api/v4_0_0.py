@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 import copy
 
+from django.apps import apps
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
@@ -27,7 +28,6 @@ from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_plugins.utils import convert_dict_value
 from bkflow.space.configs import UniformAPIConfigHandler
-from bkflow.task.models import OpenPluginRunCallbackRef
 from bkflow.task.open_plugin_callback import (
     build_open_plugin_callback_url,
     build_open_plugin_client_request_id,
@@ -100,6 +100,7 @@ class UniformAPIService(V3UniformAPIService):
         cancel_url,
         credential_key="",
     ):
+        callback_ref_model = apps.get_model("task", "OpenPluginRunCallbackRef")
         defaults = {
             "task_id": task_id,
             "node_id": node_id,
@@ -113,7 +114,7 @@ class UniformAPIService(V3UniformAPIService):
             "cancel_url": cancel_url,
             "credential_key": credential_key or "",
         }
-        OpenPluginRunCallbackRef.objects.update_or_create(
+        callback_ref_model.objects.update_or_create(
             client_request_id=client_request_id,
             defaults={**defaults, "open_plugin_run_id": open_plugin_run_id},
         )
