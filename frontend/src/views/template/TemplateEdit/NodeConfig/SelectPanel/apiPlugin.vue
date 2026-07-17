@@ -206,24 +206,38 @@
         this.pagination.current = 1;
         this.getUniformApiList();
       },
-      formatVersion(version) {
-        if (!version) return '';
-        return version.startsWith('v') ? version : `v${version}`;
-      },
       onSelectApiPlugin(plugin) {
-        const category = this.categoryList.find(item => item.id === this.categoryActive);
-        const { id, name, default_version, latest_version, versions, meta_url_template, meta_url, description } = plugin;
+        const {
+          id,
+          name,
+          category: pluginCategory,
+          default_version,
+          latest_version,
+          versions,
+          meta_url_template,
+          meta_url,
+          description,
+          plugin_source,
+          plugin_code,
+          wrapper_version,
+        } = plugin;
+        const categoryId = pluginCategory || this.categoryActive;
+        const category = this.categoryList.find(item => item.id === categoryId) || {};
         this.$emit('select', {
           id,
           code: 'uniform_api',
           name,
-          group_id: this.categoryActive,
-          group_name: category.name,
+          group_id: categoryId,
+          group_name: category.name || categoryId,
           metaUrl: meta_url,
           apiKey: this.crtApiKey,
-          list: (versions || []).map(v => this.formatVersion(v)),
-          latest_version: this.formatVersion(latest_version),
-          default_version: this.formatVersion(default_version),
+          sourceKey: this.crtApiKey,
+          pluginSource: plugin_source,
+          pluginCode: plugin_code,
+          wrapperVersion: wrapper_version,
+          list: versions || [],
+          latest_version,
+          default_version,
           meta_url_template,
           desc: description,
         });
