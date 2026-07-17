@@ -283,6 +283,7 @@ class UniformApiConfig(BaseSpaceConfig):
                 "meta_apis": "{meta_apis url}",
                 "api_categories": "{api_categories url}",
                 "display_name": "{display_name}",
+                "source_key": "{open plugin execution source key}",
                 "headers": {"X-Custom-Header": "${_system.operator}"},
             }
         }
@@ -451,6 +452,7 @@ class ApiModel(BaseModel):
     meta_apis: str
     api_categories: str
     display_name: str
+    source_key: Optional[str] = None
     headers: Optional[dict] = None
 
     def get(self, field_name, default=None):

@@ -103,8 +103,14 @@
       };
     },
     computed: {
+      crtApiConfig() {
+        return this.apiTabList.find(item => item.key === this.currentTab);
+      },
       crtApiKey() {
-        return this.apiTabList.find(item => item.key === this.currentTab)?.key;
+        return this.crtApiConfig?.key;
+      },
+      crtSourceKey() {
+        return this.crtApiConfig?.sourceKey || this.crtApiKey;
       },
     },
     watch: {
@@ -231,7 +237,7 @@
           group_name: category.name || categoryId,
           metaUrl: meta_url,
           apiKey: this.crtApiKey,
-          sourceKey: this.crtApiKey,
+          sourceKey: this.crtSourceKey,
           pluginSource: plugin_source,
           pluginCode: plugin_code,
           wrapperVersion: wrapper_version,

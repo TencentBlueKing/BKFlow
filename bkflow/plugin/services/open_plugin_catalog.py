@@ -34,16 +34,24 @@ from bkflow.space.models import Credential, SpaceConfig
 class OpenPluginCatalogService:
     @classmethod
     def sync_space_plugins(cls, space_id, source_key=None, username="admin"):
-        synced_sources = []
-        for current_source_key, api_entry in cls._get_sources(space_id=space_id, source_key=source_key).items():
+        source_plugins = {}
+        for api_key, api_entry in cls._get_sources(space_id=space_id, source_key=source_key).items():
+            current_source_key = cls._effective_source_key(api_key=api_key, api_entry=api_entry)
             api_list = cls._fetch_api_list(
                 space_id=space_id,
                 api_entry=api_entry,
                 username=username,
             )
-            cls._refresh_catalog_index(space_id=space_id, source_key=current_source_key, api_list=api_list)
-            synced_sources.append(current_source_key)
-        return synced_sources
+            plugins_by_id = source_plugins.setdefault(current_source_key, {})
+            plugins_by_id.update({api_item["id"]: api_item for api_item in api_list})
+
+        for current_source_key, plugins_by_id in source_plugins.items():
+            cls._refresh_catalog_index(
+                space_id=space_id,
+                source_key=current_source_key,
+                api_list=list(plugins_by_id.values()),
+            )
+        return list(source_plugins.keys())
 
     @classmethod
     def list_space_plugins(cls, space_id, source_key=None):
@@ -138,9 +146,20 @@ class OpenPluginCatalogService:
         config = UniformAPIConfigHandler(uniform_api_config).handle()
         sources = config.api
         if source_key:
-            entry = sources.get(source_key)
-            return {source_key: entry} if entry else {}
+            return {
+                api_key: api_entry
+                for api_key, api_entry in sources.items()
+                if cls._effective_source_key(api_key=api_key, api_entry=api_entry) == source_key
+            }
         return sources
+
+    @staticmethod
+    def _effective_source_key(api_key, api_entry):
+        if isinstance(api_entry, dict):
+            source_key = api_entry.get("source_key")
+        else:
+            source_key = getattr(api_entry, "source_key", None)
+        return source_key if isinstance(source_key, str) and source_key else api_key
 
     @classmethod
     def iter_configured_sources(cls):
@@ -150,7 +169,11 @@ class OpenPluginCatalogService:
                 continue
 
             config = UniformAPIConfigHandler(space_config.json_value).handle()
-            for source_key in config.api.keys():
+            source_keys = {
+                cls._effective_source_key(api_key=api_key, api_entry=api_entry)
+                for api_key, api_entry in config.api.items()
+            }
+            for source_key in sorted(source_keys):
                 yield space_config.space_id, source_key
 
     @classmethod
