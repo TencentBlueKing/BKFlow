@@ -837,6 +837,7 @@
           }
           const batchPipelineRes = await this.getBatchTaskPipeline({
             task_ids: validTaskIds.join(','),
+            space_id: this.spaceId,
           });
           if (batchPipelineRes?.result && batchPipelineRes.data) {
             nodeTaskMap.forEach(({ nodeItem, taskId }) => {

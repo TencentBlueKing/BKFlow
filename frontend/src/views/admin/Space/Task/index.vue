@@ -378,6 +378,7 @@ export default {
             const checkStatus = await this.getTaskHasSubTasks({
                 project_id: this.project_id,
                 task_ids: ids.toString(),
+                space_id: this.spaceId,
             });
             list.forEach((item) => {
                 item.isHasChild = checkStatus.data.has_children_taskflow[item.id];
@@ -405,7 +406,7 @@ export default {
                     });
                     curField.width = 20 * (curParent.level + 1) + 100;
                 } else {
-                    const res = await this.getTaskHasSubTaskList({ task_id: row.id });
+                    const res = await this.getTaskHasSubTaskList({ task_id: row.id, space_id: this.spaceId });
                     const { tasks, relations } = res.data;
                     const parentToChildren = {};
                     for (const [childId, parentId] of Object.entries(relations)) {
