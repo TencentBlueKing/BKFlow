@@ -254,6 +254,7 @@
           acc.push({
             key,
             name: value.display_name || key,
+            sourceKey: value.source_key || key,
           });
           return acc;
         }, []);

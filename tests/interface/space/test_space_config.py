@@ -426,6 +426,7 @@ class TestSpaceConfigHandler:
                     "meta_apis": "http://api.apigw.example.com",
                     "api_categories": "http://api.apigw.example.com",
                     "display_name": "Test API",
+                    "source_key": "sops",
                 }
             }
         }
@@ -434,6 +435,7 @@ class TestSpaceConfigHandler:
         assert isinstance(model, SchemaV2Model)
         assert "test_api" in model.api
         assert model.api["test_api"].display_name == "Test API"
+        assert model.api["test_api"].source_key == "sops"
 
         # Test V1 schema (legacy)
         v1_config = {
