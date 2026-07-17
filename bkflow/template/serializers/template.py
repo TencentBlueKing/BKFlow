@@ -195,7 +195,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # TODO: 需要校验哪些字段是不可以更新的
         pipeline_tree = validated_data.pop("pipeline_tree", None)
-        template_labels = validated_data.pop("labels", [])
+        template_labels = validated_data.pop("labels", None)
         # 检查新建任务的流程中是否有未二次授权的蓝鲸插件
         try:
             exist_code_list = [
@@ -221,7 +221,8 @@ class TemplateSerializer(serializers.ModelSerializer):
             snapshot.template_id = instance.id
             snapshot.save(update_fields=["template_id"])
         instance = super().update(instance, validated_data)
-        self._sync_template_labels(instance.id, template_labels)
+        if template_labels is not None:
+            self._sync_template_labels(instance.id, template_labels)
         # 批量修改流程绑定的触发器:
         try:
             Trigger.objects.compare_constants(
