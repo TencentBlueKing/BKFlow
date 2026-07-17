@@ -48,7 +48,7 @@ const taskList = {
     },
     // 获取某个任务的子任务（循环节点任务）列表
     getTaskHasSubTaskList({}, data) {
-      return axios.get(`/task/list_children_taskflow/${data.task_id}/`).then(response => response.data);
+      return axios.get(`/task/list_children_taskflow/${data.task_id}/`, { params: data }).then(response => response.data);
     },
   },
 };
