@@ -169,7 +169,14 @@ class OpenPluginCatalogService:
             headers=headers,
             username=username,
         )
-        return list_result.json_resp.get("data", {}).get("apis", [])
+        if not list_result.result:
+            raise ValueError("开放插件目录请求失败: {}".format(list_result.message))
+        if not isinstance(list_result.json_resp, dict):
+            raise ValueError("开放插件目录响应不是合法 JSON")
+
+        response_data = list_result.json_resp.get("data")
+        client.validate_response_data(response_data, client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA)
+        return response_data["apis"]
 
     @classmethod
     def _refresh_catalog_index(cls, space_id, source_key, api_list):

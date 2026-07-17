@@ -652,12 +652,11 @@
               version: this.basicInfo.version,
             });
             if (!resp.result) return;
-            // basicInfo.version是业务版本，用于版本下拉框
-            const apiVersion = resp.data.version || 'v2.0.0';
-            // 使用meta API返回的version加载统一api基础配置
-            await this.loadAtomConfig({ atom: plugin, version: apiVersion, space_id: this.spaceId });
+            // component.version 保存 uniform_api 包装器版本，业务版本独立保存在隐藏字段中。
+            const wrapperVersion = resp.data.wrapper_version || resp.data.version || 'v2.0.0';
+            await this.loadAtomConfig({ atom: plugin, version: wrapperVersion, space_id: this.spaceId });
             // 输出参数
-            const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
+            const storeOutputs = this.pluginOutput.uniform_api[wrapperVersion] || [];
             this.uniformOutputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs];
             const { url, methods, response_data_path: respDataPath, polling, callback, credential_key } = resp.data;
@@ -671,11 +670,18 @@
               polling,
               callback,
               credentialKey: credential_key,
+              wrapperVersion,
+              pluginSource: resp.data.plugin_source || this.basicInfo.pluginSource,
+              pluginCode: resp.data.plugin_code || this.basicInfo.pluginCode,
             };
+            if (resp.data.plugin_version) {
+              updateData.version = resp.data.plugin_version;
+              updateData.uniform_api_plugin_version = resp.data.plugin_version;
+            }
             // 有 meta_url_template 时已有业务版本，不覆盖为框架版本
             // 无 meta_url_template 时（旧数据）用框架版本作为 version
             if (!this.basicInfo.meta_url_template) {
-              updateData.version = apiVersion;
+              updateData.version = wrapperVersion;
             }
             this.updateBasicInfo(updateData);
             this.apiInputs = resp.data.inputs;
@@ -950,30 +956,55 @@
             credentials,
           };
           if (component.code === 'uniform_api' &&  component.api_meta) { // 新版api插件中component包含api_meta字段
-            const { id, name, api_key: apiKey, meta_url, category = {} } = component.api_meta;
+            const {
+              id,
+              name,
+              api_key: apiKey,
+              meta_url,
+              category = {},
+              source_key: savedSourceKey,
+              plugin_source: pluginSource,
+              plugin_code: pluginCode,
+              wrapper_version: savedWrapperVersion,
+            } = component.api_meta;
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
             // 从节点数据中读取uniform_api_plugin_credential_key（如果存在）
             const credentialKey = component.data.uniform_api_plugin_credential_key?.value;
-            // 无版本信息时 component.version 是框架版本(v2.0.0)
-            const uniformApiPluginVersion = component.api_meta.versions ? component.version : "v2.0.0";
             const versions = component.api_meta.versions || [];
             const latestVersion = component.api_meta.latest_version || '';
+            const defaultVersion = component.api_meta.default_version || '';
             const metaUrlTemplate = component.api_meta.meta_url_template || '';
+            const savedPluginVersion = component.data.uniform_api_plugin_version?.value
+              || component.api_meta.plugin_version;
+            const isOpenPlugin = versions.length > 0;
+            const uniformApiPluginVersion = isOpenPlugin
+              ? savedPluginVersion || latestVersion || defaultVersion
+              : component.version || 'v2.0.0';
+            // 兼容旧版页面曾把业务版本误存到 component.version 的节点。
+            const wrapperVersion = savedWrapperVersion || (isOpenPlugin ? 'v4.0.0' : component.version || 'v2.0.0');
+            const sourceKey = savedSourceKey || (isOpenPlugin ? apiKey : '');
             Object.assign(data, {
               plugin: 'uniform_api',
               name: `${category.name}-${name}`,
+              apiPluginName: name,
               pluginId: id,
-              method: method.value,
+              method: method?.value || '',
               groupId: category.id,
               groupName: category.name,
               apiKey,
+              sourceKey,
+              pluginSource,
+              pluginCode,
+              wrapperVersion,
+              isOpenPlugin,
               metaUrl: meta_url,
-              realMetaUrl,
+              realMetaUrl: realMetaUrl?.value || realMetaUrl,
               credentialKey, // 保存credential_key到basicInfo，以便后续使用
               methodList: [],
               desc,
               versions, // V4 API插件版本列表
               latest_version: latestVersion,
+              default_version: defaultVersion,
               meta_url_template: metaUrlTemplate,
               uniform_api_plugin_version: uniformApiPluginVersion,
               version: uniformApiPluginVersion, // 已保存节点回显已选择的版本
@@ -1174,13 +1205,24 @@
           group_id: groupId,
           metaUrl,
           apiKey,
+          sourceKey,
+          pluginSource,
+          pluginCode,
+          wrapperVersion,
         } = val;
         let versionList = [];
         if (this.isThirdParty) {
           versionList = list;
         } else if (this.isApiPlugin) {
           // API插件版本列表：val.list 是字符串数组，转换为 [{version}] 格式
-          versionList = Array.isArray(list) ? list.map(item => typeof item === 'string' ? { version: item } : item) : [];
+          versionList = Array.isArray(list)
+            ? list.map((item) => {
+              if (typeof item === 'string') {
+                return { version: item };
+              }
+              return item;
+            })
+            : [];
         } else {
           versionList = this.getAtomVersions(code);
         }
@@ -1203,11 +1245,13 @@
         // 新节点默认使用 latest_version，已保存节点优先回显uniform_api_plugin_version
         let apiPluginVersion = null;
         if (this.isApiPlugin) {
-          apiPluginVersion = val.latest_version || (versionList.length > 0 ? versionList[versionList.length - 1].version : 'V2.0.0');
+          apiPluginVersion = val.latest_version
+            || val.default_version
+            || (versionList.length > 0 ? versionList[versionList.length - 1].version : 'v2.0.0');
         }
         const config = {
           plugin: code,
-          version: apiPluginVersion || (this.isApiPlugin ? 'V2.0.0' : list[list.length - 1].version),
+          version: apiPluginVersion || (this.isApiPlugin ? 'v2.0.0' : list[list.length - 1].version),
           name: this.isThirdParty ? name : `${groupName}-${name}`,
           nodeName: name,
           stageName: '',
@@ -1227,6 +1271,12 @@
             groupName,
             metaUrl,
             apiKey,
+            sourceKey,
+            pluginSource,
+            pluginCode,
+            wrapperVersion: wrapperVersion || 'v2.0.0',
+            isOpenPlugin: Boolean(wrapperVersion && pluginSource && pluginCode && versions.length),
+            apiPluginName: name,
             meta_url_template: val.meta_url_template,
             versions,
             latest_version: val.latest_version,
@@ -1741,24 +1791,36 @@
           } else {
             data = this.getNodeComponentData(plugin, version);
           }
+          let componentVersion = version;
+          if (this.isThirdParty) {
+            componentVersion = '1.0.0';
+          } else if (this.isApiPlugin) {
+            componentVersion = this.basicInfo.wrapperVersion || 'v2.0.0';
+          }
           const component = {
             code: this.isThirdParty ? 'remote_plugin' : plugin,
             data,
-            version: this.isThirdParty ? '1.0.0' : version,
+            version: componentVersion,
           };
           if (credentials) {
             component.credentials = credentials;
           }
           if (this.isApiPlugin && this.basicInfo.pluginId) { // 新版api插件中component包含pluginId字段
             // eslint-disable-next-line camelcase
-            const { pluginId, name, metaUrl, groupId, groupName, apiKey,
+            const { pluginId, name, apiPluginName, metaUrl, groupId, groupName, apiKey,
+              sourceKey, pluginSource, pluginCode, wrapperVersion,
               meta_url_template, versions, latest_version, default_version,
               uniform_api_plugin_version, desc } = this.basicInfo;
             component.api_meta = {
               id: pluginId,
-              name: name.split('-')[1],
+              name: apiPluginName || name.substring(name.indexOf('-') + 1),
               meta_url: metaUrl,
               api_key: apiKey,
+              source_key: sourceKey,
+              plugin_source: pluginSource,
+              plugin_code: pluginCode,
+              plugin_version: uniform_api_plugin_version,
+              wrapper_version: wrapperVersion,
               category: {
                 id: groupId,
                 name: groupName,
@@ -1769,8 +1831,6 @@
               default_version,
               desc,
             };
-            // eslint-disable-next-line camelcase
-            component.version = uniform_api_plugin_version || this.basicInfo.version || 'v2.0.0';
           }
           config = Object.assign({}, this.nodeConfig, {
             component,
@@ -1848,6 +1908,16 @@
             data.uniform_api_plugin_version = {
               hook: false,
               value: this.basicInfo.uniform_api_plugin_version,
+            };
+          }
+          if (this.basicInfo.isOpenPlugin) {
+            data.uniform_api_plugin_id = {
+              hook: false,
+              value: this.basicInfo.pluginId,
+            };
+            data.uniform_api_plugin_source_key = {
+              hook: false,
+              value: this.basicInfo.sourceKey,
             };
           }
         }
