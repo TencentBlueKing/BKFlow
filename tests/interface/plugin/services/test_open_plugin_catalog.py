@@ -1,7 +1,9 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.test import override_settings
 
+from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
 from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
@@ -9,6 +11,83 @@ from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 
 @pytest.mark.django_db
 class TestOpenPluginCatalogService:
+    @override_settings(OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT=120)
+    @patch.object(OpenPluginCatalogService, "_get_apigw_credential")
+    @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIClient")
+    def test_fetch_api_list_uses_catalog_sync_timeout(self, mock_client_cls, mock_get_credential):
+        """测试目录同步使用独立超时，不影响普通 API 插件请求超时"""
+        credential = MagicMock()
+        credential.content = {"bk_app_code": "app", "bk_app_secret": "secret"}
+        mock_get_credential.return_value = credential
+
+        list_resp = MagicMock(result=True, json_resp={"data": {"total": 0, "apis": []}})
+        mock_client = mock_client_cls.return_value
+        mock_client.request.return_value = list_resp
+
+        assert (
+            OpenPluginCatalogService._fetch_api_list(
+                space_id=1,
+                api_entry=MagicMock(meta_apis="http://example.com/meta_apis"),
+                username="admin",
+            )
+            == []
+        )
+        mock_client.request.assert_called_once_with(
+            url="http://example.com/meta_apis",
+            method="GET",
+            data={"limit": 200, "offset": 0},
+            headers=mock_client.gen_default_apigw_header.return_value,
+            username="admin",
+            timeout=120,
+        )
+
+    @patch.object(OpenPluginCatalogService, "_get_apigw_credential")
+    @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIClient")
+    def test_fetch_api_list_preserves_source_error(self, mock_client_cls, mock_get_credential):
+        """测试来源请求失败时保留真实错误，不再抛出 NoneType 异常"""
+        credential = MagicMock()
+        credential.content = {"bk_app_code": "app", "bk_app_secret": "secret"}
+        mock_get_credential.return_value = credential
+
+        mock_client_cls.return_value.request.return_value = MagicMock(
+            result=False,
+            message="gateway timeout",
+            json_resp=None,
+        )
+
+        with pytest.raises(APIResponseError, match="gateway timeout"):
+            OpenPluginCatalogService._fetch_api_list(
+                space_id=1,
+                api_entry=MagicMock(meta_apis="http://example.com/meta_apis"),
+                username="admin",
+            )
+
+    @patch.object(OpenPluginCatalogService, "_get_apigw_credential", return_value=None)
+    def test_fetch_api_list_rejects_missing_credential(self, _mock_get_credential):
+        """测试缺少凭证时同步失败，避免把现有目录误判为空目录"""
+        with pytest.raises(ValidationError, match="API Gateway 凭证"):
+            OpenPluginCatalogService._fetch_api_list(
+                space_id=1,
+                api_entry=MagicMock(meta_apis="http://example.com/meta_apis"),
+                username="admin",
+            )
+
+    @patch.object(OpenPluginCatalogService, "_get_apigw_credential")
+    @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIClient")
+    def test_fetch_api_list_rejects_invalid_response_body(self, mock_client_cls, mock_get_credential):
+        """测试成功响应体不符合协议时返回明确协议错误"""
+        credential = MagicMock()
+        credential.content = {"bk_app_code": "app", "bk_app_secret": "secret"}
+        mock_get_credential.return_value = credential
+        mock_client_cls.return_value.request.return_value = MagicMock(result=True, json_resp=None)
+
+        with pytest.raises(APIResponseError, match="响应体"):
+            OpenPluginCatalogService._fetch_api_list(
+                space_id=1,
+                api_entry=MagicMock(meta_apis="http://example.com/meta_apis"),
+                username="admin",
+            )
+
     def test_ungranted_space_sees_no_source(self):
         """测试未准入空间看不到对应来源目录"""
         OpenPluginCatalogIndex.objects.create(
