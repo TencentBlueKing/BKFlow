@@ -71,6 +71,7 @@ def build_open_plugin_cancel_url(trigger_url, open_plugin_run_id):
 
 
 class UniformAPIService(V3UniformAPIService):
+    OPEN_PLUGIN_POLLING_INTERVAL = 10
     OPEN_PLUGIN_WAITING_CALLBACK = "WAITING_CALLBACK"
     OPEN_PLUGIN_RUNNING_STATES = {"CREATED", "RUNNING"}
     OPEN_PLUGIN_SUCCESS_STATES = {"SUCCEEDED"}
@@ -119,6 +120,57 @@ class UniformAPIService(V3UniformAPIService):
             defaults={**defaults, "open_plugin_run_id": open_plugin_run_id},
         )
 
+    def plugin_schedule(self, data, parent_data, callback_data=None):
+        if not self._is_open_plugin_request(data):
+            return super().plugin_schedule(data, parent_data, callback_data)
+
+        need_polling = data.get_one_of_outputs("need_polling", False)
+        need_callback = data.get_one_of_outputs("need_callback", False)
+        if callback_data is not None and need_callback:
+            return self._dispatch_schedule_callback(data, parent_data, callback_data)
+        if need_polling:
+            return self._dispatch_schedule_polling(data, parent_data, callback_data)
+        if need_callback:
+            return self._dispatch_schedule_callback(data, parent_data, callback_data)
+        return self._dispatch_schedule_trigger(data, parent_data, callback_data)
+
+    def _handle_open_plugin_status(self, data, status_data, polling, log_prefix):
+        """Apply a v4 run status while preserving polling as callback fallback."""
+
+        run_status = status_data.get("status")
+        if run_status in self.OPEN_PLUGIN_SUCCESS_STATES:
+            data.outputs.data = status_data.get("outputs", {})
+            data.set_outputs("need_polling", False)
+            data.set_outputs("need_callback", False)
+            self.finish_schedule()
+            return True
+
+        if run_status in self.OPEN_PLUGIN_FAILED_STATES:
+            data.set_outputs("need_polling", False)
+            data.set_outputs("need_callback", False)
+            data.outputs.ex_data = status_data.get("error_message") or f"{log_prefix} get fail status: {status_data}"
+            return False
+
+        if run_status == self.OPEN_PLUGIN_WAITING_CALLBACK:
+            data.set_outputs("need_callback", True)
+            if polling:
+                self.interval.init_interval = self.OPEN_PLUGIN_POLLING_INTERVAL
+                data.set_outputs("need_polling", True)
+            else:
+                self.interval = None
+                data.set_outputs("need_polling", False)
+            return True
+
+        if run_status in self.OPEN_PLUGIN_RUNNING_STATES and polling:
+            self.interval.init_interval = self.OPEN_PLUGIN_POLLING_INTERVAL
+            data.set_outputs("need_polling", True)
+            return True
+
+        message = f"{log_prefix} get status fail: {status_data}"
+        self.logger.error(message)
+        data.outputs.ex_data = message
+        return False
+
     def _dispatch_schedule_trigger(self, data, parent_data, callback_data=None):
         if not self._is_open_plugin_request(data):
             return super()._dispatch_schedule_trigger(data, parent_data, callback_data)
@@ -127,7 +179,7 @@ class UniformAPIService(V3UniformAPIService):
         api_data = copy.deepcopy(data.inputs)
         url = api_data.pop("uniform_api_plugin_url")
         polling = api_data.pop("uniform_api_plugin_polling", None)
-        callback = api_data.pop("uniform_api_plugin_callback", None)
+        api_data.pop("uniform_api_plugin_callback", None)
         method = api_data.pop("uniform_api_plugin_method")
         credential_key = api_data.pop("uniform_api_plugin_credential_key", None)
         plugin_id = api_data.pop("uniform_api_plugin_id")
@@ -268,20 +320,12 @@ class UniformAPIService(V3UniformAPIService):
         )
         data.outputs.trigger_data = {"open_plugin_run_id": open_plugin_run_id}
 
-        run_status = resp_data.get("status")
-        if callback and run_status == self.OPEN_PLUGIN_WAITING_CALLBACK:
-            self.interval = None
-            data.set_outputs("need_callback", True)
-            data.set_outputs("need_polling", False)
-            return True
-        if polling:
-            self.interval.init_interval = 10
-            data.set_outputs("need_polling", True)
-            return True
-
-        data.outputs.data = resp_data
-        self.finish_schedule()
-        return True
+        return self._handle_open_plugin_status(
+            data=data,
+            status_data=resp_data,
+            polling=polling,
+            log_prefix="[uniform_api]",
+        )
 
     def _dispatch_schedule_polling(self, data, parent_data, callback_data=None):
         if not self._is_open_plugin_request(data):
@@ -368,28 +412,25 @@ class UniformAPIService(V3UniformAPIService):
             return False
 
         status_data = request_result.json_resp.get("data", {})
-        run_status = status_data.get("status")
-        if run_status == self.OPEN_PLUGIN_WAITING_CALLBACK:
-            self.interval = None
-            data.set_outputs("need_polling", False)
-            data.set_outputs("need_callback", True)
-            return True
-        if run_status in self.OPEN_PLUGIN_SUCCESS_STATES:
-            data.outputs.data = status_data.get("outputs", {})
-            self.finish_schedule()
-            return True
-        if run_status in self.OPEN_PLUGIN_FAILED_STATES:
-            data.outputs.ex_data = (
-                status_data.get("error_message") or f"[uniform_api polling] get fail status: {status_data}"
-            )
-            return False
-        if run_status in self.OPEN_PLUGIN_RUNNING_STATES:
+        return self._handle_open_plugin_status(
+            data=data,
+            status_data=status_data,
+            polling=polling,
+            log_prefix="[uniform_api polling]",
+        )
+
+    def _dispatch_schedule_callback(self, data, parent_data, callback_data=None):
+        if not self._is_open_plugin_request(data):
+            return super()._dispatch_schedule_callback(data, parent_data, callback_data)
+        if callback_data is None:
             return True
 
-        message = f"[uniform_api polling] get status fail: {status_data}"
-        self.logger.error(message)
-        data.outputs.ex_data = message
-        return False
+        return self._handle_open_plugin_status(
+            data=data,
+            status_data=callback_data,
+            polling=data.get_one_of_inputs("uniform_api_plugin_polling", None),
+            log_prefix="[uniform_api callback]",
+        )
 
 
 class UniformAPIComponent(Component):

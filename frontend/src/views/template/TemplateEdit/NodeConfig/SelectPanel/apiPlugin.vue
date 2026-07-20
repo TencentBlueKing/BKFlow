@@ -22,7 +22,9 @@
           {{ option.name }}
         </div>
       </div>
-      <div class="api-list">
+      <div
+        class="api-list"
+        @scroll="handleApiPluginScroll">
         <template v-if="apiList.length > 0">
           <div
             v-for="(plugin, index) in apiList"
@@ -128,14 +130,6 @@
         deep: true,
         immediate: true,
       },
-    },
-    mounted() {
-      const listWrapEl = this.$el.querySelector('.api-list');
-      listWrapEl.addEventListener('scroll', this.handleApiPluginScroll, false);
-    },
-    beforeDestroy() {
-      const listWrapEl = this.$el.querySelector('.api-list');
-      listWrapEl.removeEventListener('scroll', this.handleApiPluginScroll, false);
     },
     methods: {
       ...mapActions('template', [
