@@ -523,3 +523,51 @@ class TestSpaceConfigHandler:
         assert api_model.get("api_categories") == "http://api.apigw.example.com"
         assert api_model.get("display_name") == "Test API"
         assert api_model.get("non_existent", "default") == "default"
+
+    def test_uniform_api_catalog_mode_defaults_to_remote(self):
+        model = UniformAPIConfigHandler(
+            {
+                "api": {
+                    "test_api": {
+                        "meta_apis": "http://api.apigw.example.com",
+                        "api_categories": "http://api.apigw.example.com",
+                        "display_name": "Test API",
+                    }
+                }
+            }
+        ).handle()
+
+        assert model.api["test_api"].catalog_mode == "remote"
+
+    @pytest.mark.parametrize("catalog_mode", ["remote", "cache_first", "cache_only"])
+    def test_uniform_api_catalog_mode_accepts_supported_values(self, catalog_mode):
+        model = UniformAPIConfigHandler(
+            {
+                "api": {
+                    "test_api": {
+                        "meta_apis": "http://api.apigw.example.com",
+                        "api_categories": "http://api.apigw.example.com",
+                        "display_name": "Test API",
+                        "catalog_mode": catalog_mode,
+                    }
+                }
+            }
+        ).handle()
+
+        assert model.api["test_api"].catalog_mode == catalog_mode
+
+    @mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True)
+    def test_uniform_api_catalog_mode_rejects_unknown_value(self, _mock_check_url):
+        config = {
+            "api": {
+                "test_api": {
+                    "meta_apis": "http://api.apigw.example.com",
+                    "api_categories": "http://api.apigw.example.com",
+                    "display_name": "Test API",
+                    "catalog_mode": "cache",
+                }
+            }
+        }
+
+        with pytest.raises(ValidationError):
+            UniformApiConfig.validate(config)

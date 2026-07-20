@@ -16,22 +16,36 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
+import logging
+from urllib.parse import parse_qs, urlsplit
+
+from django.core.cache import cache
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import serializers
 from rest_framework.decorators import api_view
 
 from bkflow.exceptions import APIResponseError, ValidationError
-from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
-from bkflow.pipeline_plugins.query.uniform_api.utils import resolve_meta_url
+from bkflow.pipeline_plugins.query.uniform_api.utils import (
+    UniformAPIClient,
+    resolve_meta_url,
+)
 from bkflow.pipeline_plugins.query.utils import query_response_handler
+from bkflow.plugin.models import OpenPluginCatalogIndex
+from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
+    UniformAPICatalogMode,
     UniformApiConfig,
     UniformAPIConfigHandler,
 )
 from bkflow.utils.api_client import HttpRequestResult
 
 from .utils import check_resource_token
+
+logger = logging.getLogger(__name__)
+CATALOG_SYNC_DEDUP_SECONDS = 60
 
 
 class UniformAPIBaseSerializer(serializers.Serializer):
@@ -77,19 +91,10 @@ class UniformAPIMetaSerializer(UniformAPIBaseSerializer):
         return attrs
 
 
-def _get_api_credential(space_id: int, template_id: int = None, task_id: int = None) -> dict:
-    """获取API凭证.
-
-    :param space_id: 空间ID
-    :param template_id: 模板ID
-    :param task_id: 任务ID
-    :return: API凭证
-    """
+def _get_request_scope(space_id: int, template_id: int = None, task_id: int = None):
     from bkflow.contrib.api.collections.task import TaskComponentClient
-    from bkflow.space.models import Credential, SpaceConfig
     from bkflow.template.models import Template
 
-    # 校验 space_id template_id task_id 的正确性
     if template_id:
         template = Template.objects.filter(id=template_id, space_id=space_id).first()
         if not template:
@@ -103,6 +108,30 @@ def _get_api_credential(space_id: int, template_id: int = None, task_id: int = N
             raise ValidationError(f"对应 space_id: {space_id} task_id: {task_id} 不存在")
         scope_type, scope_value = result["data"]["scope_type"], result["data"]["scope_value"]
 
+    return scope_type, scope_value
+
+
+def _get_api_credential(
+    space_id: int,
+    template_id: int = None,
+    task_id: int = None,
+    request_scope=None,
+) -> dict:
+    """获取API凭证.
+
+    :param space_id: 空间ID
+    :param template_id: 模板ID
+    :param task_id: 任务ID
+    :param request_scope: 已校验的 (scope_type, scope_value)
+    :return: API凭证
+    """
+    from bkflow.space.models import Credential, SpaceConfig
+
+    scope_type, scope_value = request_scope or _get_request_scope(
+        space_id=space_id,
+        template_id=template_id,
+        task_id=task_id,
+    )
     scope = f"{scope_type}_{scope_value}" if scope_type and scope_value else None
 
     api_credential_config = SpaceConfig.get_config(
@@ -119,23 +148,86 @@ def _get_api_credential(space_id: int, template_id: int = None, task_id: int = N
     return credential.first().content
 
 
-def _get_space_uniform_api_list_info(
-    space_id: int, request_data: dict, config_key: str, username: str, template_id: int = None, task_id: int = None
-):
-    from bkflow.space.models import SpaceConfig
+def _extract_plugin_source(url):
+    plugin_sources = parse_qs(urlsplit(url).query).get("plugin_source", [])
+    return plugin_sources[-1] if plugin_sources else None
 
-    uniform_api_config = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
-    if not uniform_api_config:
-        raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
+
+def _empty_catalog_data(config_key):
+    if config_key == UniformApiConfig.Keys.API_CATEGORIES.value:
+        return []
+    return {"total": 0, "apis": []}
+
+
+def _build_cached_catalog_data(plugins, request_data, config_key, plugin_source=None):
+    visible_plugins = [
+        plugin
+        for plugin in plugins
+        if plugin.get("status") == OpenPluginCatalogIndex.Status.AVAILABLE
+        and plugin.get("enabled") is True
+        and (not plugin_source or plugin.get("plugin_source") == plugin_source)
+    ]
+
+    if config_key == UniformApiConfig.Keys.API_CATEGORIES.value:
+        categories = sorted({plugin.get("group_name") for plugin in visible_plugins if plugin.get("group_name")})
+        return [{"id": "all", "name": "全部"}] + [{"id": category, "name": category} for category in categories]
+
+    category = request_data.get("category")
+    if category and category != "all":
+        visible_plugins = [plugin for plugin in visible_plugins if plugin.get("group_name") == category]
+
+    keyword = str(request_data.get("key") or "").strip().casefold()
+    if keyword:
+        visible_plugins = [
+            plugin
+            for plugin in visible_plugins
+            if any(
+                keyword in str(plugin.get(field) or "").casefold()
+                for field in ("plugin_id", "plugin_name", "plugin_code")
+            )
+        ]
+
+    api_list = [
+        {
+            "id": plugin["plugin_id"],
+            "name": plugin["plugin_name"],
+            "plugin_source": plugin["plugin_source"],
+            "plugin_code": plugin["plugin_code"],
+            "wrapper_version": plugin["wrapper_version"],
+            "default_version": plugin["default_version"],
+            "latest_version": plugin["latest_version"],
+            "versions": plugin["versions"],
+            "meta_url_template": plugin["meta_url_template"],
+            "category": plugin.get("group_name", ""),
+            "description": plugin.get("description", ""),
+        }
+        for plugin in visible_plugins
+    ]
+    total = len(api_list)
+    offset = max(request_data.get("offset", 0), 0)
+    limit = max(request_data.get("limit", 50), 0)
+    return {"total": total, "apis": api_list[offset : offset + limit]}
+
+
+def _request_remote_uniform_api_data(
+    space_id,
+    request_data,
+    config_key,
+    username,
+    url,
+    template_id=None,
+    task_id=None,
+    request_scope=None,
+):
     client = UniformAPIClient()
-    uniform_api_config = UniformAPIConfigHandler(uniform_api_config).handle()
-    # 弹出此参数避免透传
-    api_name = request_data.pop("api_name", UniformApiConfig.Keys.DEFAULT_API_KEY.value)
-    url = uniform_api_config.api.get(api_name, {}).get(config_key)
-    if not url:
-        raise ValidationError("对应API未配置, 请联系对应接入平台管理员")
-    # 根据凭证注入请求头
-    credential_content = _get_api_credential(space_id=space_id, template_id=template_id, task_id=task_id)
+    credential_kwargs = {
+        "space_id": space_id,
+        "template_id": template_id,
+        "task_id": task_id,
+    }
+    if request_scope is not None:
+        credential_kwargs["request_scope"] = request_scope
+    credential_content = _get_api_credential(**credential_kwargs)
     headers = client.gen_default_apigw_header(
         app_code=credential_content["bk_app_code"], app_secret=credential_content["bk_app_secret"], username=username
     )
@@ -149,8 +241,99 @@ def _get_space_uniform_api_list_info(
         if config_key == UniformApiConfig.Keys.API_CATEGORIES.value
         else client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA
     )
-    client.validate_response_data(request_result.json_resp.get("data", {}), response_schema)
-    return request_result.json_resp["data"]
+    response_data = request_result.json_resp.get("data", {})
+    client.validate_response_data(response_data, response_schema)
+    return response_data
+
+
+def _dispatch_catalog_sync(space_id, source_key):
+    lock_key = "open_plugin_catalog_sync_trigger:{}:{}".format(space_id, source_key)
+    try:
+        lock_acquired = cache.add(lock_key, True, timeout=CATALOG_SYNC_DEDUP_SECONDS)
+    except Exception:
+        logger.exception("开放插件目录同步去重锁获取失败: space_id=%s, source_key=%s", space_id, source_key)
+        return
+
+    if not lock_acquired:
+        return
+
+    try:
+        from bkflow.plugin.tasks import sync_open_plugin_catalog_source
+
+        sync_open_plugin_catalog_source.delay(space_id=space_id, source_key=source_key)
+    except Exception:
+        try:
+            cache.delete(lock_key)
+        except Exception:
+            logger.exception("开放插件目录同步去重锁清理失败: space_id=%s, source_key=%s", space_id, source_key)
+        logger.exception("开放插件目录同步任务投递失败: space_id=%s, source_key=%s", space_id, source_key)
+
+
+def _get_space_uniform_api_list_info(
+    space_id: int, request_data: dict, config_key: str, username: str, template_id: int = None, task_id: int = None
+):
+    from bkflow.space.models import SpaceConfig
+
+    uniform_api_config = SpaceConfig.get_config(space_id=space_id, config_name=UniformApiConfig.name)
+    if not uniform_api_config:
+        raise ValidationError("接入平台未注册统一API, 请联系对应接入平台管理员")
+    uniform_api_config = UniformAPIConfigHandler(uniform_api_config).handle()
+    request_data = dict(request_data)
+    # 弹出此参数避免透传
+    api_name = request_data.pop("api_name", UniformApiConfig.Keys.DEFAULT_API_KEY.value)
+    api_entry = uniform_api_config.api.get(api_name)
+    url = api_entry.get(config_key) if api_entry else None
+    if not url:
+        raise ValidationError("对应API未配置, 请联系对应接入平台管理员")
+
+    if api_entry.catalog_mode == UniformAPICatalogMode.REMOTE:
+        return _request_remote_uniform_api_data(
+            space_id=space_id,
+            request_data=request_data,
+            config_key=config_key,
+            username=username,
+            url=url,
+            template_id=template_id,
+            task_id=task_id,
+        )
+
+    request_scope = _get_request_scope(space_id=space_id, template_id=template_id, task_id=task_id)
+    source_key = api_entry.source_key or api_name
+    plugin_source = _extract_plugin_source(url)
+
+    if not OpenPluginGrantService.is_granted(space_id=space_id, source_key=source_key):
+        return _empty_catalog_data(config_key)
+
+    if OpenPluginCatalogService.is_catalog_initialized(
+        space_id=space_id,
+        source_key=source_key,
+        plugin_source=plugin_source,
+    ):
+        plugins = OpenPluginCatalogService.list_space_plugins(space_id=space_id, source_key=source_key)
+        return _build_cached_catalog_data(
+            plugins=plugins,
+            request_data=request_data,
+            config_key=config_key,
+            plugin_source=plugin_source,
+        )
+
+    if api_entry.catalog_mode == UniformAPICatalogMode.CACHE_ONLY:
+        raise ValidationError(
+            "开放插件目录缓存未初始化: source_key={}, plugin_source={}".format(source_key, plugin_source or "all")
+        )
+
+    response_data = _request_remote_uniform_api_data(
+        space_id=space_id,
+        request_data=request_data,
+        config_key=config_key,
+        username=username,
+        url=url,
+        template_id=template_id,
+        task_id=task_id,
+        request_scope=request_scope,
+    )
+    _dispatch_catalog_sync(space_id=space_id, source_key=source_key)
+    return response_data
 
 
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPICategorySerializer)

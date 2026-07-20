@@ -33,6 +33,13 @@ from bkflow.space.models import Credential, SpaceConfig
 
 class OpenPluginCatalogService:
     @classmethod
+    def is_catalog_initialized(cls, space_id, source_key, plugin_source=None):
+        catalog_qs = OpenPluginCatalogIndex.objects.filter(space_id=space_id, source_key=source_key)
+        if plugin_source:
+            catalog_qs = catalog_qs.filter(plugin_source=plugin_source)
+        return catalog_qs.exists()
+
+    @classmethod
     def sync_space_plugins(cls, space_id, source_key=None, username="admin"):
         source_plugins = {}
         for api_key, api_entry in cls._get_sources(space_id=space_id, source_key=source_key).items():
@@ -89,6 +96,8 @@ class OpenPluginCatalogService:
                 "default_version": item.default_version,
                 "latest_version": item.latest_version,
                 "versions": item.versions,
+                "meta_url_template": item.meta_url_template,
+                "description": item.description,
                 "status": item.status,
                 "enabled": enabled_map.get((item.source_key, item.plugin_id), False),
             }

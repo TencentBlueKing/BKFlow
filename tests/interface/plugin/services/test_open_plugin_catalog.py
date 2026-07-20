@@ -171,6 +171,46 @@ class TestOpenPluginCatalogService:
 
         assert OpenPluginCatalogService.list_space_plugins(space_id=999, source_key="sops") == []
 
+    def test_catalog_initialized_is_scoped_by_plugin_source(self):
+        OpenPluginCatalogIndex.objects.create(
+            space_id=999,
+            source_key="sops",
+            plugin_id="builtin__job_execute_task",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+        )
+
+        assert OpenPluginCatalogService.is_catalog_initialized(
+            space_id=999,
+            source_key="sops",
+            plugin_source="builtin",
+        )
+        assert not OpenPluginCatalogService.is_catalog_initialized(
+            space_id=999,
+            source_key="sops",
+            plugin_source="third_party",
+        )
+        assert OpenPluginCatalogService.is_catalog_initialized(space_id=999, source_key="sops")
+
+    def test_list_space_plugins_contains_uniform_api_catalog_fields(self):
+        OpenPluginGrantService.grant(space_id=999, source_key="sops", operator="admin")
+        OpenPluginCatalogIndex.objects.create(
+            space_id=999,
+            source_key="sops",
+            plugin_id="builtin__job_execute_task",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            meta_url_template="https://bk-sops.example/plugins/builtin__job_execute_task/?version={version}",
+            description="执行 JOB 作业",
+        )
+
+        plugin = OpenPluginCatalogService.list_space_plugins(space_id=999, source_key="sops")[0]
+
+        assert plugin["meta_url_template"].endswith("?version={version}")
+        assert plugin["description"] == "执行 JOB 作业"
+
     def test_enable_all_blocked_without_grant(self):
         """测试未准入空间不能一键启用来源下插件"""
         OpenPluginCatalogIndex.objects.create(
