@@ -440,7 +440,11 @@ class TaskInstanceViewSet(
         for task in serializer.data:
             task["labels"] = tasks_labels.get(task["id"], [])
 
-        relations = {info["task_id"]: info["parent_task_id"] for info in children_task_info}
+        # 仅保留实际返回给前端的子流程任务关系，排除子画布等非子流程记录
+        task_id_set = set(task_ids)
+        relations = {
+            info["task_id"]: info["parent_task_id"] for info in children_task_info if info["task_id"] in task_id_set
+        }
         return Response({"tasks": serializer.data, "relations": relations}, status=status.HTTP_200_OK)
 
     @action(methods=["GET"], detail=False, url_path="root_task_info")
