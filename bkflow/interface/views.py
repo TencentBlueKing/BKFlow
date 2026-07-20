@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -37,6 +36,7 @@ from django.views.decorators.http import require_GET, require_POST
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import Space, SpaceConfig
+from bkflow.task.open_plugin_callback import OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY
 
 logger = logging.getLogger("root")
 
@@ -115,9 +115,7 @@ def callback(request, token):
     try:
         callback_data = json.loads(request.body)
     except Exception:
-        message = _("节点回调失败: 无效的请求, 请重试. 如持续失败可联系管理员处理. {msg} | api callback").format(
-            msg=traceback.format_exc()
-        )
+        message = _("节点回调失败: 无效的请求, 请重试. 如持续失败可联系管理员处理. {msg} | api callback").format(msg=traceback.format_exc())
         logger.error(message)
         return JsonResponse({"result": False, "message": message}, status=400)
 
@@ -135,3 +133,49 @@ def callback(request, token):
         "[callback] resp, space_id={}, task_id={}, node_id={}, resp={}".format(space_id, task_id, node_id, resp)
     )
     return JsonResponse(resp)
+
+
+@login_exempt
+@csrf_exempt
+@require_POST
+def open_plugin_callback(request, space_id, task_id, node_id):
+    """Forward a token-authenticated open-plugin callback to the task module."""
+
+    try:
+        callback_data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"result": False, "message": "invalid callback payload"}, status=400)
+
+    if (
+        not isinstance(callback_data, dict)
+        or not callback_data.get("open_plugin_run_id")
+        or not callback_data.get("status")
+    ):
+        return JsonResponse({"result": False, "message": "invalid callback payload"}, status=400)
+
+    callback_token = request.META.get(OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY, "")
+    if not callback_token:
+        return JsonResponse({"result": False, "message": "missing callback token"}, status=400)
+
+    callback_data["_callback_token"] = callback_token
+    client = TaskComponentClient(space_id=space_id)
+    try:
+        resp = client.node_operate(
+            task_id=int(task_id),
+            node_id=node_id,
+            operation="callback",
+            data={"operator": "system", "data": callback_data},
+        )
+    except Exception:
+        message = _("开放插件回调失败: 请求任务模块失败. {msg}").format(msg=traceback.format_exc())
+        logger.error(message)
+        return JsonResponse({"result": False, "message": message}, status=502)
+
+    logger.info(
+        "[open_plugin_callback] space_id=%s, task_id=%s, node_id=%s, resp=%s",
+        space_id,
+        task_id,
+        node_id,
+        resp,
+    )
+    return JsonResponse(resp, status=200 if resp.get("result") else 400)

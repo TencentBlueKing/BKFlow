@@ -8,6 +8,7 @@ from bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0 import (
     build_open_plugin_execute_payload,
 )
 from bkflow.task.open_plugin_callback import (
+    build_open_plugin_callback_url,
     issue_open_plugin_callback_token,
     parse_open_plugin_callback_token,
 )
@@ -110,6 +111,13 @@ def test_issue_open_plugin_callback_token_round_trip():
     assert payload["expire_at"] == expire_at.isoformat()
 
 
+def test_build_open_plugin_callback_url_uses_direct_internal_endpoint(settings):
+    callback_url = build_open_plugin_callback_url(space_id=10, task_id=123, node_id="node_a")
+
+    assert callback_url.endswith("open_plugin_callback/space/10/task/123/node/node_a/")
+    assert "/apigw/" not in callback_url
+
+
 class AttrDict(dict):
     """支持属性访问的测试数据容器。"""
 
@@ -148,6 +156,72 @@ class FakeParentData:
 
     def get_one_of_inputs(self, key, default=None):
         return self.inputs.get(key, default)
+
+
+def test_open_plugin_sync_success_finishes_without_polling():
+    service = UniformAPIService()
+    data = FakeData({})
+
+    result = service._handle_open_plugin_status(
+        data=data,
+        status_data={"status": "SUCCEEDED", "outputs": {"value": "done"}},
+        polling={"url": "https://bk-sops.example/runs/status/"},
+        log_prefix="[uniform_api]",
+    )
+
+    assert result is True
+    assert service.is_schedule_finished() is True
+    assert data.outputs.data == {"value": "done"}
+    assert data.outputs.get("need_polling", False) is False
+
+
+def test_open_plugin_waiting_callback_keeps_polling_fallback():
+    service = UniformAPIService()
+    original_interval = service.interval
+    data = FakeData({})
+
+    result = service._handle_open_plugin_status(
+        data=data,
+        status_data={"status": "WAITING_CALLBACK"},
+        polling={"url": "https://bk-sops.example/runs/status/"},
+        log_prefix="[uniform_api polling]",
+    )
+
+    assert result is True
+    assert service.interval is original_interval
+    assert service.is_schedule_finished() is False
+    assert data.outputs.need_callback is True
+    assert data.outputs.need_polling is True
+
+
+def test_open_plugin_schedule_prefers_callback_data_and_otherwise_polls():
+    service = UniformAPIService()
+    data = FakeData({"uniform_api_plugin_id": "builtin__job_execute_task"})
+    data.outputs.need_callback = True
+    data.outputs.need_polling = True
+    parent_data = FakeParentData({})
+    dispatched = []
+    service._dispatch_schedule_callback = lambda *args, **kwargs: dispatched.append("callback") or True
+    service._dispatch_schedule_polling = lambda *args, **kwargs: dispatched.append("polling") or True
+
+    assert service.plugin_schedule(data, parent_data, callback_data=None) is True
+    assert service.plugin_schedule(data, parent_data, callback_data={"status": "SUCCEEDED"}) is True
+    assert dispatched == ["polling", "callback"]
+
+
+def test_open_plugin_standard_callback_finishes_with_outputs():
+    service = UniformAPIService()
+    data = FakeData({"uniform_api_plugin_id": "builtin__job_execute_task"})
+
+    result = service._dispatch_schedule_callback(
+        data,
+        FakeParentData({}),
+        callback_data={"status": "SUCCEEDED", "outputs": {"value": "callback-done"}},
+    )
+
+    assert result is True
+    assert service.is_schedule_finished() is True
+    assert data.outputs.data == {"value": "callback-done"}
 
 
 def test_open_plugin_execute_branch_passes_runtime_context(monkeypatch, settings):

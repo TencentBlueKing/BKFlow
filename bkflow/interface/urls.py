@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.conf.urls import url
 from django.urls import include
 
@@ -25,6 +26,7 @@ from .views import (
     home,
     is_admin_or_current_space_superuser,
     is_admin_or_space_superuser,
+    open_plugin_callback,
     user_exit,
 )
 
@@ -34,6 +36,10 @@ urlpatterns = [
     url(r"^is_admin_user/$", is_admin_or_space_superuser),
     url(r"^is_current_space_admin/$", is_admin_or_current_space_superuser),
     url(r"^callback/(?P<token>.+)/$", callback),
+    url(
+        r"^open_plugin_callback/space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/node/(?P<node_id>[^/]+)/$",
+        open_plugin_callback,
+    ),
     url(r"^itsm_approve/$", itsm_approve),
     url(r"^openapi/", include("bkflow.interface.openapi.urls")),
     url(r"", include("bkflow.interface.task.urls")),
