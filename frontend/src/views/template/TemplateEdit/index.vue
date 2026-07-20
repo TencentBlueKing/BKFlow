@@ -953,6 +953,8 @@
               this.$bkMessage({
                 message: resp.message,
                 theme: 'error',
+                ellipsisLine: 2,
+                ellipsisCopy: true,
                 delay: 10000,
               });
               this.isParallelGwErrorMsg = resp.message;
@@ -1227,6 +1229,8 @@
           this.$bkMessage({
             message,
             theme: 'error',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
         }
@@ -1499,7 +1503,8 @@
           this.$bkMessage({
             message: validateMessage.message,
             theme: 'error',
-            ellipsisLine: 0,
+            ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
           return;
@@ -2133,6 +2138,7 @@
             message: validateMessage.message,
             theme: 'error',
             ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
           return;
@@ -2150,6 +2156,7 @@
             message,
             theme: 'error',
             ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
           return;

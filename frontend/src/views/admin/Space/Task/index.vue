@@ -439,6 +439,7 @@ export default {
                         arr.forEach((item) => {
                             if (item.parent_id === parentId) {
                                 const task = tasks.find(task => task.id === item.id);
+                                if (!task) return;
                                 task.root_id = item.root_id;
                                 result.push({
                                     ...item,

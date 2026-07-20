@@ -716,6 +716,7 @@
         if (pt.line) {
           pt.line = pt.line.filter(l => l.source.id !== nodeId && l.target.id !== nodeId);
         }
+        this.recalcInnerPipelineInOut(pt);
       },
       // 检查节点是否在指定 loop 的嵌套 pipeline 中
       findNodeInPipelineTree(nodeId, parentLoopId) {
@@ -1809,6 +1810,8 @@
           this.$bkMessage({
             message: validateMessage.message,
             theme: 'warning',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
           });
         }
         return validateMessage.result;
