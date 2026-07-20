@@ -1391,16 +1391,21 @@
           // api插件是否存在
           const { code, api_meta, version } = nodeConfig.component || {};
           if (code === 'uniform_api' && !this.apiExistMap[id]) {
+            // eslint-disable-next-line camelcase
+            const { uniform_api_plugin_version: savedPluginVersion } = nodeConfig.component.data || {};
+            const pluginVersion = savedPluginVersion?.value
+              || api_meta.plugin_version
+              || version;
             const resp = await this.loadUniformApiMeta({
               templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: api_meta.meta_url,
               ...this.scopeInfo,
               meta_url_template: api_meta.meta_url_template,
-              version: version,
+              version: pluginVersion,
             });
             if (resp.result) {
-              this.apiExistMap[id] = { code, version };
+              this.apiExistMap[id] = { code, version: pluginVersion };
             }
             this.isNotExistAtomOrVersion = !resp.result;
           }

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,11 +20,13 @@ import pytest
 from django.conf import settings
 
 from bkflow.exceptions import APIRequestError, ValidationError
+from bkflow.pipeline_plugins.query.uniform_api.uniform_api import (
+    UniformAPIMetaSerializer,
+)
 from bkflow.pipeline_plugins.query.uniform_api.utils import (
     UniformAPIClient,
     resolve_meta_url,
 )
-from bkflow.pipeline_plugins.query.uniform_api.uniform_api import UniformAPIMetaSerializer
 from bkflow.utils.api_client import HttpRequestResult
 
 
@@ -135,6 +136,7 @@ class TestUniformAPIClient:
             "url": "https://bk-sops.example/open-plugin-runs",
             "methods": ["POST"],
             "inputs": [],
+            "outputs": [],
             "polling": {
                 "url": "https://bk-sops.example/open-plugin-runs/status",
                 "task_tag_key": "open_plugin_run_id",
@@ -146,6 +148,45 @@ class TestUniformAPIClient:
 
         with pytest.raises(ValidationError):
             self.client.validate_response_data(invalid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_validate_v4_detail_meta_requires_complete_contract(self):
+        invalid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "1.2.0",
+            "wrapper_version": "v4.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+        }
+
+        with pytest.raises(ValidationError):
+            self.client.validate_response_data(invalid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_validate_complete_v4_detail_meta_contract(self):
+        valid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "legacy",
+            "wrapper_version": "v4.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+            "outputs": [{"name": "作业实例 ID", "key": "job_instance_id"}],
+            "polling": {
+                "url": "https://bk-sops.example/open-plugin-runs/status",
+                "task_tag_key": "open_plugin_run_id",
+                "success_tag": {"key": "status", "value": "SUCCEEDED", "data_key": "data.outputs"},
+                "fail_tag": {"key": "status", "value": "FAILED", "msg_key": "data.error_message"},
+                "running_tag": {"key": "status", "value": "RUNNING"},
+            },
+        }
+
+        self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
 
     def test_resolve_meta_url_returns_plain_meta_url_first(self):
         assert (

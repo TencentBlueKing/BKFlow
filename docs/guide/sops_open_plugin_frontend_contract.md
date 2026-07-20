@@ -36,6 +36,12 @@
 - 模板保存接口  
   用于保存节点当前绑定的插件引用和版本
 
+V4.0.0 节点使用 API 插件时，前端只需要额外完成三件事：
+
+- 在节点配置面板中展示“版本”选择项
+- 切换版本后按 `plugin_version` 重新获取 schema
+- 保存节点时带上用户选择的业务版本
+
 ### 3. 任务页异常提示
 
 前端至少依赖以下能力：
@@ -125,12 +131,20 @@
 - `plugin_version`
 - `default_version`
 - `latest_version`
+- `versions`
 - `availability_status`
 
 参数区至少消费：
 
 - `inputs`
 - `schema_protocol_version`
+
+节点保存时至少需要写入：
+
+- `component.code = "uniform_api"`
+- `component.data.uniform_api_plugin_version`
+
+`context` 不属于节点表单字段，前端不保存；运行时由 BKFlow 根据任务上下文构造。
 
 ### 任务异常页
 
@@ -186,9 +200,13 @@
 ### 模板编辑页
 
 - `plugin_version` 始终显式展示
+- API 插件业务版本选择器展示的是 `plugin_version`，不是 `uniform_api` 包装器版本
 - 当 `availability_status=available` 时允许正常编辑和保存
 - 当版本不可用但存在历史快照时，允许回看，但页面需提示不能继续新用
 - 仅当后端返回可选新版本时，前端才展示“切换到可用版本”的引导
+- 切换 `plugin_version` 后必须重新获取 schema
+- 切换版本不自动保存，不自动升级历史模板
+- 不额外设计 `context`、polling/callback、版本差异对比 UI
 
 ### 任务异常页
 

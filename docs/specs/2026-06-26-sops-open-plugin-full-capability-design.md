@@ -71,6 +71,8 @@
 
 未授权空间**连该来源目录都看不到**：`list_space_plugins`、schema 服务、目录同步全部要求存在有效 grant。
 
+展示配置与执行来源分层：`uniform_api.api` 的每个 `api_key` 对应流程编辑器中的一个顶层 API 插件入口；配置项可用可选 `source_key` 指向真实的准入与执行来源，未配置时回退到 `api_key`。因此标准运维内置插件和第三方插件可用两个 `api_key` 分开展示，并通过目录 URL 的固定 `plugin_source` 参数分别过滤，同时共享 `source_key=sops`。目录同步按有效 `source_key` 聚合后一次性刷新，避免两个入口互相把对方插件标记为下架。
+
 ### 4.2 第 2 层（空间级，已有）：per-plugin 治理
 
 沿用 `SpaceOpenPluginAvailability`（新来源默认关）+ per-plugin 开关 + 一键全开 + `disable_source`。「一键全开」仅在**已准入**空间内生效。
@@ -103,6 +105,28 @@
 | `task_id / node_id / task_name` | 运行时已有 |
 
 全部来自运行时已有数据，**不需要用户在表单中填写**。
+
+### 6.1 前端节点配置变动（V4.0.0 API 插件）
+
+按最新 `prototype-wireframe` 原型规范，节点使用 API 插件时的前端变动集中在模板编辑的节点配置抽屉中，基线页面为：
+
+- `frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue`
+- `frontend/src/views/template/TemplateEdit/NodeConfig/SelectPanel/apiPlugin.vue`
+- `frontend/src/store/modules/template.js`
+
+V4.0.0 不新增插件类型，也不新增独立入口。用户仍按普通 API 插件方式选择来源、分类、插件，只新增和明确以下交互：
+
+1. 节点配置里新增“版本”选择项，默认选 `default_version`，候选项来自 `versions/latest_version/default_version`。
+2. 用户切换版本后，前端按所选 `plugin_version` 重新获取 schema 并刷新参数表单。
+3. 保存节点时带上用户选择的业务版本；服务端继续校验来源准入、插件开关和版本可用性。
+
+`context` 透传、polling/callback 调度配置、历史版本失效治理不额外增加节点配置 UI。
+
+对应原型与前端说明：
+
+- `prototypes/output/sops-open-plugin-v4-node-api-plugin/README.md`
+- `docs/specs/2026-04-20-sops-open-plugin-frontend-interaction-design.md`
+- `docs/guide/sops_open_plugin_frontend_contract.md`
 
 ## 7. 测试与验收（BKFlow 侧）
 

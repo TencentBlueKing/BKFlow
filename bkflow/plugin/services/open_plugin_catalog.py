@@ -17,6 +17,9 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+from django.conf import settings
+
+from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
@@ -30,17 +33,32 @@ from bkflow.space.models import Credential, SpaceConfig
 
 class OpenPluginCatalogService:
     @classmethod
+    def is_catalog_initialized(cls, space_id, source_key, plugin_source=None):
+        catalog_qs = OpenPluginCatalogIndex.objects.filter(space_id=space_id, source_key=source_key)
+        if plugin_source:
+            catalog_qs = catalog_qs.filter(plugin_source=plugin_source)
+        return catalog_qs.exists()
+
+    @classmethod
     def sync_space_plugins(cls, space_id, source_key=None, username="admin"):
-        synced_sources = []
-        for current_source_key, api_entry in cls._get_sources(space_id=space_id, source_key=source_key).items():
+        source_plugins = {}
+        for api_key, api_entry in cls._get_sources(space_id=space_id, source_key=source_key).items():
+            current_source_key = cls._effective_source_key(api_key=api_key, api_entry=api_entry)
             api_list = cls._fetch_api_list(
                 space_id=space_id,
                 api_entry=api_entry,
                 username=username,
             )
-            cls._refresh_catalog_index(space_id=space_id, source_key=current_source_key, api_list=api_list)
-            synced_sources.append(current_source_key)
-        return synced_sources
+            plugins_by_id = source_plugins.setdefault(current_source_key, {})
+            plugins_by_id.update({api_item["id"]: api_item for api_item in api_list})
+
+        for current_source_key, plugins_by_id in source_plugins.items():
+            cls._refresh_catalog_index(
+                space_id=space_id,
+                source_key=current_source_key,
+                api_list=list(plugins_by_id.values()),
+            )
+        return list(source_plugins.keys())
 
     @classmethod
     def list_space_plugins(cls, space_id, source_key=None):
@@ -78,6 +96,8 @@ class OpenPluginCatalogService:
                 "default_version": item.default_version,
                 "latest_version": item.latest_version,
                 "versions": item.versions,
+                "meta_url_template": item.meta_url_template,
+                "description": item.description,
                 "status": item.status,
                 "enabled": enabled_map.get((item.source_key, item.plugin_id), False),
             }
@@ -135,9 +155,20 @@ class OpenPluginCatalogService:
         config = UniformAPIConfigHandler(uniform_api_config).handle()
         sources = config.api
         if source_key:
-            entry = sources.get(source_key)
-            return {source_key: entry} if entry else {}
+            return {
+                api_key: api_entry
+                for api_key, api_entry in sources.items()
+                if cls._effective_source_key(api_key=api_key, api_entry=api_entry) == source_key
+            }
         return sources
+
+    @staticmethod
+    def _effective_source_key(api_key, api_entry):
+        if isinstance(api_entry, dict):
+            source_key = api_entry.get("source_key")
+        else:
+            source_key = getattr(api_entry, "source_key", None)
+        return source_key if isinstance(source_key, str) and source_key else api_key
 
     @classmethod
     def iter_configured_sources(cls):
@@ -147,14 +178,18 @@ class OpenPluginCatalogService:
                 continue
 
             config = UniformAPIConfigHandler(space_config.json_value).handle()
-            for source_key in config.api.keys():
+            source_keys = {
+                cls._effective_source_key(api_key=api_key, api_entry=api_entry)
+                for api_key, api_entry in config.api.items()
+            }
+            for source_key in sorted(source_keys):
                 yield space_config.space_id, source_key
 
     @classmethod
     def _fetch_api_list(cls, space_id, api_entry, username):
         credential = cls._get_apigw_credential(space_id=space_id)
         if not credential:
-            return []
+            raise ValidationError("空间 {} 未配置 API Gateway 凭证".format(space_id))
 
         client = UniformAPIClient()
         headers = client.gen_default_apigw_header(
@@ -168,8 +203,18 @@ class OpenPluginCatalogService:
             data={"limit": 200, "offset": 0},
             headers=headers,
             username=username,
+            timeout=settings.OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT,
         )
-        return list_result.json_resp.get("data", {}).get("apis", [])
+        if not list_result.result:
+            raise APIResponseError("请求开放插件目录失败: {}".format(list_result.message))
+        if not isinstance(list_result.json_resp, dict):
+            raise APIResponseError("请求开放插件目录失败: 响应体不是 JSON 对象")
+
+        response_data = list_result.json_resp.get("data")
+        if not isinstance(response_data, dict):
+            raise APIResponseError("请求开放插件目录失败: 响应体缺少 data 对象")
+        client.validate_response_data(response_data, client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA)
+        return response_data["apis"]
 
     @classmethod
     def _refresh_catalog_index(cls, space_id, source_key, api_list):
