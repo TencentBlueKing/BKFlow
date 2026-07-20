@@ -11,12 +11,8 @@
           node.id === 'group' ? 'group-node' : (node.icon === 'subcanvas' ? 'subcanvas-node' : `common-icon-node-${node.icon}`),
           { disabled: isShowStartOrEndPoint(node) },
         ]"
-        :data-type="node.id">
-        <img
-          v-if="node.icon === 'subcanvas'"
-          class="node-subcanvas-node"
-          :src="subcanvasIcon">
-      </li>
+        :data-type="node.id"
+        :style="node.icon === 'subcanvas' ? { backgroundImage: `url(${subcanvasIcon})` } : {}" />
     </ul>
   </div>
 </template>
@@ -450,12 +446,10 @@
       font-size: 20px;
     }
     .subcanvas-node {
-      .node-subcanvas-node {
-        display: block;
-        width: 28px;
-        height: 21px;
-        margin: 0 auto;
-      }
+      height: 28px;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 28px 21px;
     }
     .group-node {
       display: flex;

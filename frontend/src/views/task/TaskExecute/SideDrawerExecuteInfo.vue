@@ -1883,13 +1883,15 @@
           line-height: 22px !important;
           margin: 0 8px;
           background: #F0F1F5;
-          width: 42px;
+          min-width: 42px;
+          max-width: 55px;
           font-size: 12px;
           border: none;
           .bk-select-name {
             height: 22px;
             color: #63656E !important;
             font-weight: normal;
+            overflow: visible;
           }
           .bk-select-angle {
             top:0
