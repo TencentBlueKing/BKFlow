@@ -166,10 +166,9 @@ class TemplateSerializer(serializers.ModelSerializer):
         reference_snapshot = OpenPluginSnapshotService.build_reference_snapshot(
             space_id=validated_data["space_id"], pipeline_tree=pipeline_tree
         )
-        if reference_snapshot:
-            validated_data["extra_info"] = OpenPluginSnapshotService.merge_snapshots(
-                validated_data.get("extra_info"), reference_snapshot
-            )
+        validated_data["extra_info"] = OpenPluginSnapshotService.merge_snapshots(
+            validated_data.get("extra_info"), reference_snapshot
+        )
         if SpaceConfig.get_config(space_id=validated_data["space_id"], config_name=FlowVersioning.name) == "true":
             snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
         else:
@@ -223,11 +222,10 @@ class TemplateSerializer(serializers.ModelSerializer):
         reference_snapshot = OpenPluginSnapshotService.build_reference_snapshot(
             space_id=instance.space_id, pipeline_tree=pipeline_tree
         )
-        if reference_snapshot:
-            validated_data["extra_info"] = OpenPluginSnapshotService.merge_snapshots(
-                validated_data.get("extra_info", instance.extra_info),
-                reference_snapshot,
-            )
+        validated_data["extra_info"] = OpenPluginSnapshotService.merge_snapshots(
+            validated_data.get("extra_info", instance.extra_info),
+            reference_snapshot,
+        )
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
             instance.update_draft_snapshot(pipeline_tree, username)
         else:

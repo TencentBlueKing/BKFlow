@@ -344,7 +344,7 @@ class TaskInstance(models.Model):
 class OpenPluginRunCallbackRef(models.Model):
     task_id = models.BigIntegerField(verbose_name="任务ID", db_index=True)
     node_id = models.CharField(verbose_name="节点ID", max_length=64, db_index=True)
-    node_version = models.CharField(verbose_name="节点版本", max_length=32, blank=True, default="")
+    node_version = models.CharField(verbose_name="节点版本", max_length=64, blank=True, default="")
     client_request_id = models.CharField(verbose_name="客户端请求ID", max_length=128, unique=True)
     open_plugin_run_id = models.CharField(verbose_name="开放插件运行ID", max_length=64, unique=True, db_index=True)
     callback_token_digest = models.CharField(verbose_name="回调令牌摘要", max_length=128)

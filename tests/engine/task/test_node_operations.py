@@ -38,6 +38,13 @@ from bkflow.utils.pipeline import build_default_pipeline_tree
 class TestTaskNodeOperation:
     """测试 TaskNodeOperation 节点操作"""
 
+    def test_open_plugin_callback_ref_supports_runtime_node_version_length(self):
+        """真实运行时节点版本为 v 加 32 位十六进制串，存储字段不得截断。"""
+
+        node_version_field = OpenPluginRunCallbackRef._meta.get_field("node_version")
+
+        assert node_version_field.max_length >= len("v27b15e4ff8ec4a238e479331c5140cb5")
+
     def _create_task_instance_with_node(self):
         task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
         task_instance.calculate_tree_info()

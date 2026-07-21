@@ -73,6 +73,7 @@ class OpenPluginCatalogIndex(models.Model):
     plugin_name = models.CharField(verbose_name="插件名称", max_length=255)
     plugin_source = models.CharField(verbose_name="插件来源类型", max_length=64)
     group_name = models.CharField(verbose_name="插件分组", max_length=128, blank=True, default="")
+    group_display_name = models.CharField(verbose_name="插件分组展示名", max_length=128, blank=True, default="")
     wrapper_version = models.CharField(verbose_name="包装器版本", max_length=32, blank=True, default="")
     default_version = models.CharField(verbose_name="默认业务版本", max_length=64, blank=True, default="")
     latest_version = models.CharField(verbose_name="最新业务版本", max_length=64, blank=True, default="")
@@ -94,8 +95,8 @@ class OpenPluginCatalogIndex(models.Model):
         app_label = "plugin"
         unique_together = ("space_id", "source_key", "plugin_id")
         indexes = [
-            models.Index(fields=["space_id", "source_key"]),
-            models.Index(fields=["space_id", "status"]),
+            models.Index(fields=["space_id", "source_key"], name="plugin_open_space_i_7102c4_idx"),
+            models.Index(fields=["space_id", "status"], name="plugin_open_space_i_2c81d6_idx"),
         ]
 
     def __str__(self):
