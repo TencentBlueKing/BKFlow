@@ -196,6 +196,7 @@
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import { resolveUniformApiPluginVersion } from '@/utils/uniformApi.js';
   import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
 
   export default {
@@ -588,7 +589,7 @@
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,
               meta_url_template: apiMeta.meta_url_template,
-              version: this.nodeActivity.component.version,
+              version: resolveUniformApiPluginVersion(this.nodeActivity.component),
             });
             if (!resp.result) return;
             // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0

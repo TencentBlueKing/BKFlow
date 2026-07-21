@@ -255,6 +255,7 @@
   import { checkDataType, getDefaultValueFormat } from '@/utils/checkDataType.js';
   import permission from '@/mixins/permission.js';
   import { graphToJson } from '@/utils/graphJson.js';
+  import { resolveUniformApiPluginVersion } from '@/utils/uniformApi.js';
   import axios from 'axios';
   import SubflowCanvas from '../../../components/canvas/ProcessCanvas/SubflowCanvas.vue';
 
@@ -1070,7 +1071,7 @@
                 meta_url: apiMeta.meta_url,
                 ...this.scopeInfo,
                 meta_url_template: apiMeta.meta_url_template,
-                version: this.nodeActivity.component.version,
+                version: resolveUniformApiPluginVersion(this.nodeActivity.component),
               });
               if (!resp.result) return;
               // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
