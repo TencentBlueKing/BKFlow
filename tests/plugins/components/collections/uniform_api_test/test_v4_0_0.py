@@ -8,7 +8,6 @@ from bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0 import (
     build_open_plugin_execute_payload,
 )
 from bkflow.task.open_plugin_callback import (
-    build_open_plugin_callback_url,
     issue_open_plugin_callback_token,
     parse_open_plugin_callback_token,
 )
@@ -109,13 +108,6 @@ def test_issue_open_plugin_callback_token_round_trip():
     assert payload["node_version"] == "v4.0.0"
     assert payload["client_request_id"] == "task-1-node-node_a-attempt-1"
     assert payload["expire_at"] == expire_at.isoformat()
-
-
-def test_build_open_plugin_callback_url_uses_direct_internal_endpoint(settings):
-    callback_url = build_open_plugin_callback_url(space_id=10, task_id=123, node_id="node_a")
-
-    assert callback_url.endswith("open_plugin_callback/space/10/task/123/node/node_a/")
-    assert "/apigw/" not in callback_url
 
 
 class AttrDict(dict):
@@ -271,6 +263,20 @@ def test_open_plugin_execute_branch_passes_runtime_context(monkeypatch, settings
         "bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0.issue_open_plugin_callback_token",
         lambda **kwargs: ("callback-token", None),
     )
+    monkeypatch.setattr(
+        "bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0.get_node_callback_url",
+        lambda space_id, task_id, node_id, node_version="": captured.update(
+            {
+                "callback_url_args": {
+                    "space_id": space_id,
+                    "task_id": task_id,
+                    "node_id": node_id,
+                    "node_version": node_version,
+                }
+            }
+        )
+        or "https://bkflow.example/callback/encrypted-node-token/",
+    )
 
     service = UniformAPIService()
     service.id = "node_a"
@@ -311,6 +317,13 @@ def test_open_plugin_execute_branch_passes_runtime_context(monkeypatch, settings
         "task_name": "全量插件联调",
     }
     assert captured["data"]["inputs"] == {"target_ip": "127.0.0.1"}
+    assert captured["data"]["callback_url"] == "https://bkflow.example/callback/encrypted-node-token/"
+    assert captured["callback_url_args"] == {
+        "space_id": 10,
+        "task_id": 123,
+        "node_id": "node_a",
+        "node_version": "",
+    }
 
 
 def test_resolve_open_plugin_source_key_uses_saved_hidden_field_only():

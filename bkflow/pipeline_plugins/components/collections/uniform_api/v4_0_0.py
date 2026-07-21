@@ -26,10 +26,9 @@ from pipeline.component_framework.component import Component
 
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
-from bkflow.pipeline_plugins.utils import convert_dict_value
+from bkflow.pipeline_plugins.utils import convert_dict_value, get_node_callback_url
 from bkflow.space.configs import UniformAPIConfigHandler
 from bkflow.task.open_plugin_callback import (
-    build_open_plugin_callback_url,
     build_open_plugin_client_request_id,
     callback_token_digest,
     issue_open_plugin_callback_token,
@@ -242,8 +241,11 @@ class UniformAPIService(V3UniformAPIService):
         client_request_id = build_open_plugin_client_request_id(
             task_id=parent_data.get_one_of_inputs("task_id"), node_id=self.id, retry_no=retry_no
         )
-        callback_url = build_open_plugin_callback_url(
-            space_id=space_id, task_id=parent_data.get_one_of_inputs("task_id"), node_id=self.id
+        callback_url = get_node_callback_url(
+            space_id=space_id,
+            task_id=parent_data.get_one_of_inputs("task_id"),
+            node_id=self.id,
+            node_version=getattr(self, "version", ""),
         )
         callback_token, expire_at = issue_open_plugin_callback_token(
             task_id=parent_data.get_one_of_inputs("task_id"),
