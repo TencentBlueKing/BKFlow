@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import logging
 import traceback
@@ -119,6 +120,21 @@ def callback(request, token):
         logger.error(message)
         return JsonResponse({"result": False, "message": message}, status=400)
 
+    callback_token = request.META.get(OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY, "")
+    is_open_plugin_callback = callback_token or (
+        isinstance(callback_data, dict) and callback_data.get("open_plugin_run_id")
+    )
+    if is_open_plugin_callback:
+        if (
+            not isinstance(callback_data, dict)
+            or not callback_data.get("open_plugin_run_id")
+            or not callback_data.get("status")
+        ):
+            return JsonResponse({"result": False, "message": "invalid callback payload"}, status=400)
+        if not callback_token:
+            return JsonResponse({"result": False, "message": "missing callback token"}, status=400)
+        callback_data["_callback_token"] = callback_token
+
     client = TaskComponentClient(space_id=space_id)
 
     data = {"version": node_version, "data": callback_data}
@@ -132,50 +148,5 @@ def callback(request, token):
     logger.info(
         "[callback] resp, space_id={}, task_id={}, node_id={}, resp={}".format(space_id, task_id, node_id, resp)
     )
-    return JsonResponse(resp)
-
-
-@login_exempt
-@csrf_exempt
-@require_POST
-def open_plugin_callback(request, space_id, task_id, node_id):
-    """Forward a token-authenticated open-plugin callback to the task module."""
-
-    try:
-        callback_data = json.loads(request.body)
-    except Exception:
-        return JsonResponse({"result": False, "message": "invalid callback payload"}, status=400)
-
-    if (
-        not isinstance(callback_data, dict)
-        or not callback_data.get("open_plugin_run_id")
-        or not callback_data.get("status")
-    ):
-        return JsonResponse({"result": False, "message": "invalid callback payload"}, status=400)
-
-    callback_token = request.META.get(OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY, "")
-    if not callback_token:
-        return JsonResponse({"result": False, "message": "missing callback token"}, status=400)
-
-    callback_data["_callback_token"] = callback_token
-    client = TaskComponentClient(space_id=space_id)
-    try:
-        resp = client.node_operate(
-            task_id=int(task_id),
-            node_id=node_id,
-            operation="callback",
-            data={"operator": "system", "data": callback_data},
-        )
-    except Exception:
-        message = _("开放插件回调失败: 请求任务模块失败. {msg}").format(msg=traceback.format_exc())
-        logger.error(message)
-        return JsonResponse({"result": False, "message": message}, status=502)
-
-    logger.info(
-        "[open_plugin_callback] space_id=%s, task_id=%s, node_id=%s, resp=%s",
-        space_id,
-        task_id,
-        node_id,
-        resp,
-    )
-    return JsonResponse(resp, status=200 if resp.get("result") else 400)
+    status = 400 if is_open_plugin_callback and not resp.get("result") else 200
+    return JsonResponse(resp, status=status)
