@@ -154,6 +154,57 @@ def test_template_serializer_rejects_ungranted_open_plugin(mock_is_circular_refe
 
 
 @pytest.mark.django_db
+def test_template_serializer_clears_open_plugin_snapshots_after_switching_to_normal_component():
+    """开放插件节点被替换后清除引用/schema 快照，同时保留其他扩展信息。"""
+
+    factory = APIRequestFactory()
+    user, _ = User.objects.get_or_create(username="admin")
+    space = Space.objects.create(name="Open Plugin Space", app_code="test_app")
+    snapshot = TemplateSnapshot.create_snapshot(build_pipeline_tree(), "admin", "1.0.0")
+    template = Template.objects.create(
+        name="Open Plugin Template",
+        creator="admin",
+        updated_by="admin",
+        space_id=space.id,
+        snapshot_id=snapshot.id,
+        extra_info={
+            "plugin_reference_snapshot": [{"node_id": "node1", "plugin_id": "open_plugin_001"}],
+            "plugin_schema_snapshot": {"node1": {"plugin_id": "open_plugin_001"}},
+            "custom_metadata": {"keep": True},
+        },
+    )
+    snapshot.template_id = template.id
+    snapshot.save(update_fields=["template_id"])
+    request = factory.put("/templates/{}/".format(template.id), {})
+    request.user = user
+    serializer = TemplateSerializer(
+        instance=template,
+        data={"pipeline_tree": build_pipeline_tree(), "triggers": []},
+        partial=True,
+        context={"request": request},
+    )
+
+    with mock.patch.object(TemplateSerializer, "_sync_template_labels"), mock.patch(
+        "bkflow.template.serializers.template.PipelineTemplateWebPreviewer.is_circular_reference",
+        return_value={"has_cycle": False},
+    ), mock.patch(
+        "bkflow.template.serializers.template.PipelineTemplateWebPreviewer.validate_loop_variables",
+        return_value={"has_loop": True},
+    ), mock.patch(
+        "bkflow.template.serializers.template.SpaceConfig.get_config",
+        return_value="false",
+    ), mock.patch(
+        "bkflow.template.serializers.template.send_callback"
+    ), mock.patch(
+        "bkflow.template.serializers.template.event_broadcast_signal.send"
+    ):
+        assert serializer.is_valid(), serializer.errors
+        updated_template = serializer.save()
+
+    assert updated_template.extra_info == {"custom_metadata": {"keep": True}}
+
+
+@pytest.mark.django_db
 class TestAdminTemplateViewSet:
     """测试 AdminTemplateViewSet"""
 

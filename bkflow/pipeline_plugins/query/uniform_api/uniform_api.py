@@ -169,8 +169,14 @@ def _build_cached_catalog_data(plugins, request_data, config_key, plugin_source=
     ]
 
     if config_key == UniformApiConfig.Keys.API_CATEGORIES.value:
-        categories = sorted({plugin.get("group_name") for plugin in visible_plugins if plugin.get("group_name")})
-        return [{"id": "all", "name": "全部"}] + [{"id": category, "name": category} for category in categories]
+        categories = {
+            plugin["group_name"]: plugin.get("group_display_name") or plugin["group_name"]
+            for plugin in visible_plugins
+            if plugin.get("group_name")
+        }
+        return [{"id": "all", "name": "全部"}] + [
+            {"id": category, "name": categories[category]} for category in sorted(categories)
+        ]
 
     category = request_data.get("category")
     if category and category != "all":
@@ -199,6 +205,7 @@ def _build_cached_catalog_data(plugins, request_data, config_key, plugin_source=
             "versions": plugin["versions"],
             "meta_url_template": plugin["meta_url_template"],
             "category": plugin.get("group_name", ""),
+            "category_name": plugin.get("group_display_name") or plugin.get("group_name", ""),
             "description": plugin.get("description", ""),
         }
         for plugin in visible_plugins
