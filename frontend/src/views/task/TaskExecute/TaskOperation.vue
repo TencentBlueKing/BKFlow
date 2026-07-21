@@ -1314,7 +1314,6 @@
        * @param {object} conditionData - 当前节点条件数据
        */
       async setNodeDetailConfig(id, rootNode, subflowNode, nodeType, conditionData) {
-        // console.log('设置节点详细配置', { id, rootNode, subflowNode, nodeType, conditionData });
         let code; let version; let componentData;
         const allActivities = Object.assign({}, this.pipelineData.activities, this.subActivities);
         const allGateways = Object.assign({}, this.pipelineData.gateways || {});

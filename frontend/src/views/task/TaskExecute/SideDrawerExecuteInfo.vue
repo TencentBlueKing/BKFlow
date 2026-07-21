@@ -172,7 +172,7 @@
         </div>
         <!-- 底部操作按钮 -->
         <div
-          v-if="isShowActionWrap && isInLatestExecuteNum"
+          v-if="isActionWrapperVisible"
           class="action-wrapper">
           <template v-if="realTimeState.state === 'RUNNING' && !isSubProcessNode">
             <bk-button
@@ -365,6 +365,7 @@
       return {
         loading: false,
         isRenderOutputForm: false,
+        currentExecuteTime: 1,
         executeInfo: {},
         executeRecord: {},
         historyInfo: [],
@@ -419,7 +420,6 @@
         },
         breadcrumbData: [],
         isBreadCrumbLoading: false,
-        isInLatestExecuteNum: true,
         executeBodyLoading: false,
       };
     },
@@ -548,6 +548,45 @@
       isShowUnexecutedSubflow() {
         return this.historyInfo.length < 1 && this.isExistInSubCanvas(this.nodeDetailConfig.node_id);
       },
+      isActionWrapperVisible() {
+        const isLatest = this.isInLatestExecuteNum;
+        return this.isShowActionWrap && isLatest;
+      },
+      // 当前是否展示最新一次执行记录
+      isInLatestExecuteNum() {
+        // 子画布场景：检查面包屑链路上所有节点的执行次数是否都是最后一次
+        if (this.isShowSubflowExceutedCount && this.breadcrumbData.length > 0) {
+          // breadcrumbData[0]：子流程根节点，需同时检查循环次数和重试次数是否最新
+          const root = this.breadcrumbData[0];
+          // 检查循环次数：当前循环必须是最后一次
+          if (root.loopOptions && root.loopOptions.length > 0) {
+            const latestLoop = root.loopOptions[root.loopOptions.length - 1];
+            if (root.currentLoop !== latestLoop) {
+              return false;
+            }
+          }
+          // 检查重试次数是否最新
+          if (root.retryLatestOptions !== undefined) {
+            const latestRetry = root.retryLatestOptions + 1;
+            if (root.currentRetry !== latestRetry) {
+              return false;
+            }
+          }
+          // breadcrumbData[1..n]：子流程内路径节点，检查执行次数是否最新
+          for (let i = 1; i < this.breadcrumbData.length; i++) {
+            const item = this.breadcrumbData[i];
+            if (item.totalCount && item.curSelectCount !== item.totalCount) {
+              return false;
+            }
+          }
+        }
+        // 检查当前节点的执行记录是否最新：用 currentExecuteTime 而不是对象引用比较
+        if (!this.historyInfo || this.historyInfo.length === 0) {
+          return true;
+        }
+        const isLatest = this.currentExecuteTime === this.historyInfo.length;
+        return isLatest;
+      },
       // 加入子流程节点后的nodeDisplayStatus
       processNodeDisplayStatus() {
         this.currentNodeDisplayStatus.children = Object.assign({}, this.currentNodeDisplayStatus.children, this.subflowNodeStatus);
@@ -657,21 +696,21 @@
       selectRetryCount(value) {
         // 由于retry是从0开始的 为了展示次数 在下拉框都是+1了的 在过滤时需将retey-1
         if (!this.breadcrumbData[0]) return;
-        this.breadcrumbData[0].currentRetry = value;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], currentRetry: value });
         this.updateLoopAndExecuteOptions();
         this.filterHistoryData();
       },
       // 选择循环次数
       selectLoopCount(value) {
         if (!this.breadcrumbData[0]) return;
-        this.breadcrumbData[0].currentLoop = value;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], currentLoop: value });
         this.updateExecuteOptions();
         this.filterHistoryData();
       },
       // 选择执行次数
       selectExecuteCount(value) {
         if (!this.breadcrumbData[0]) return;
-        this.breadcrumbData[0].currentExecute = value;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], currentExecute: value });
         this.filterHistoryData();
       },
       // 更新循环和执行次数选项
@@ -683,12 +722,9 @@
         const currentRetryHistories = allExecutedInfo.filter(item => item.retry === (currentRetry - 1));
         const loopSet = new Set();
         currentRetryHistories.forEach(item => loopSet.add(item.loop));
-        this.breadcrumbData[0].loopOptions = Array.from(loopSet).sort((a, b) => a - b);
-        if (this.breadcrumbData[0].loopOptions.length > 0) {
-          this.breadcrumbData[0].currentLoop = Math.max(...this.breadcrumbData[0].loopOptions);
-        } else {
-          this.breadcrumbData[0].currentLoop = 1;
-        }
+        const loopOptions = Array.from(loopSet).sort((a, b) => a - b);
+        const currentLoop = loopOptions.length > 0 ? Math.max(...loopOptions) : 1;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], loopOptions, currentLoop });
         this.updateExecuteOptions();
       },
       // 更新执行次数选项
@@ -702,12 +738,8 @@
         currentHistories.forEach((item, index) => {
           executeOptions.push(index + 1);
         });
-        this.breadcrumbData[0].executeOptions = executeOptions;
-        if (executeOptions.length > 0) {
-          this.breadcrumbData[0].currentExecute = Math.max(...executeOptions);
-        } else {
-          this.breadcrumbData[0].currentExecute = 1;
-        }
+        const currentExecute = executeOptions.length > 0 ? Math.max(...executeOptions) : 1;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], executeOptions, currentExecute });
       },
       // 根据选择过滤历史数据
       async filterHistoryData() {
@@ -826,8 +858,10 @@
             }
           }
         }
-        item.curSelectCount = value;
-        item.taskId = taskId;
+        const index = this.breadcrumbData.indexOf(item);
+        if (index !== -1) {
+          this.$set(this.breadcrumbData, index, { ...item, curSelectCount: value, taskId });
+        }
         await this.onSelectExecuteRecord(value, this.historyInfo);
         this.isBreadCrumbLoading = false;
         this.executeBodyLoading = false;
@@ -1548,7 +1582,17 @@
           this.isBreadCrumbLoading = true;
           this.breadcrumbData = this.findNodePath(this.curNodeData[0].children, this.nodeDetailConfig.node_id);
           this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
+          // 兼容画布直接点击子节点
+          const subflowTaskId = this.subflowTaskId || this.currentSubflowTaskId;
+          if (subflowTaskId) {
+            for (let i = 1; i < this.breadcrumbData.length; i++) {
+              if (!this.breadcrumbData[i].taskId) {
+                this.breadcrumbData[i].taskId = subflowTaskId;
+              }
+            }
+          }
           for (let index = 0; index < this.breadcrumbData.length; index++) {
+            console.log('this.breadcrumbData[index]', this.breadcrumbData[index]);
             const item = this.breadcrumbData[index];
             if (item.id && item.taskId) {
               const query = {
@@ -1612,8 +1656,6 @@
             }
             // 获取记录详情
             await this.onSelectExecuteRecord(this.historyInfo.length, this.historyInfo);
-            // 初始化循环与执行次数信息
-            await this.loadBreadCrumbData();
             const taskInfo = respData.outputsInfo.find(item => item.key === 'task_id') || {};
             this.currentSubflowTaskId = taskInfo.value || ''; // 子流程的任务id
             this.executeInfo.plugin_version = this.isThirdPartyNode ? respData.inputs.plugin_version : version;
@@ -1647,7 +1689,7 @@
                     this.setSubActivities(this.subCanvsActivityCollection);
                     this.updateCanvasData(parentActivity.pipeline);
                   }
-                } else if (subflowNodeParent) { 
+                } else if (subflowNodeParent) {
                   // subprocess_plugin: 通过模板ID获取模板树
                   const { template_id: templateId } = subflowNodeParent?.component?.data?.subprocess.value || {};
                   const query = {
@@ -1663,6 +1705,8 @@
               }
             }
           }
+          // 初始化循环与执行次数信息
+          await this.loadBreadCrumbData();
           // 获取执行失败节点是否允许跳过，重试状态
           if (this.realTimeState.state === 'FAILED') {
             const activityCollection = Object.assign({}, this.subCanvsActivityCollection, this.pipelineData.activities);
@@ -1695,6 +1739,7 @@
       },
       // 切换执行次数
       async onSelectExecuteRecord(time, historyInfo) {
+        this.currentExecuteTime = time;
         const record = historyInfo[time - 1];
         if (record) {
           if (!('isExpand' in record)) {
