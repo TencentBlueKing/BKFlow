@@ -150,6 +150,72 @@ class FakeParentData:
         return self.inputs.get(key, default)
 
 
+def test_open_plugin_sync_success_finishes_without_polling():
+    service = UniformAPIService()
+    data = FakeData({})
+
+    result = service._handle_open_plugin_status(
+        data=data,
+        status_data={"status": "SUCCEEDED", "outputs": {"value": "done"}},
+        polling={"url": "https://bk-sops.example/runs/status/"},
+        log_prefix="[uniform_api]",
+    )
+
+    assert result is True
+    assert service.is_schedule_finished() is True
+    assert data.outputs.data == {"value": "done"}
+    assert data.outputs.get("need_polling", False) is False
+
+
+def test_open_plugin_waiting_callback_keeps_polling_fallback():
+    service = UniformAPIService()
+    original_interval = service.interval
+    data = FakeData({})
+
+    result = service._handle_open_plugin_status(
+        data=data,
+        status_data={"status": "WAITING_CALLBACK"},
+        polling={"url": "https://bk-sops.example/runs/status/"},
+        log_prefix="[uniform_api polling]",
+    )
+
+    assert result is True
+    assert service.interval is original_interval
+    assert service.is_schedule_finished() is False
+    assert data.outputs.need_callback is True
+    assert data.outputs.need_polling is True
+
+
+def test_open_plugin_schedule_prefers_callback_data_and_otherwise_polls():
+    service = UniformAPIService()
+    data = FakeData({"uniform_api_plugin_id": "builtin__job_execute_task"})
+    data.outputs.need_callback = True
+    data.outputs.need_polling = True
+    parent_data = FakeParentData({})
+    dispatched = []
+    service._dispatch_schedule_callback = lambda *args, **kwargs: dispatched.append("callback") or True
+    service._dispatch_schedule_polling = lambda *args, **kwargs: dispatched.append("polling") or True
+
+    assert service.plugin_schedule(data, parent_data, callback_data=None) is True
+    assert service.plugin_schedule(data, parent_data, callback_data={"status": "SUCCEEDED"}) is True
+    assert dispatched == ["polling", "callback"]
+
+
+def test_open_plugin_standard_callback_finishes_with_outputs():
+    service = UniformAPIService()
+    data = FakeData({"uniform_api_plugin_id": "builtin__job_execute_task"})
+
+    result = service._dispatch_schedule_callback(
+        data,
+        FakeParentData({}),
+        callback_data={"status": "SUCCEEDED", "outputs": {"value": "callback-done"}},
+    )
+
+    assert result is True
+    assert service.is_schedule_finished() is True
+    assert data.outputs.data == {"value": "callback-done"}
+
+
 def test_open_plugin_execute_branch_passes_runtime_context(monkeypatch, settings):
     """开放插件 execute 分支把运行时 scope/operator 透传给标准运维。"""
 
@@ -197,6 +263,20 @@ def test_open_plugin_execute_branch_passes_runtime_context(monkeypatch, settings
         "bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0.issue_open_plugin_callback_token",
         lambda **kwargs: ("callback-token", None),
     )
+    monkeypatch.setattr(
+        "bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0.get_node_callback_url",
+        lambda space_id, task_id, node_id, node_version="": captured.update(
+            {
+                "callback_url_args": {
+                    "space_id": space_id,
+                    "task_id": task_id,
+                    "node_id": node_id,
+                    "node_version": node_version,
+                }
+            }
+        )
+        or "https://bkflow.example/callback/encrypted-node-token/",
+    )
 
     service = UniformAPIService()
     service.id = "node_a"
@@ -237,6 +317,13 @@ def test_open_plugin_execute_branch_passes_runtime_context(monkeypatch, settings
         "task_name": "全量插件联调",
     }
     assert captured["data"]["inputs"] == {"target_ip": "127.0.0.1"}
+    assert captured["data"]["callback_url"] == "https://bkflow.example/callback/encrypted-node-token/"
+    assert captured["callback_url_args"] == {
+        "space_id": 10,
+        "task_id": 123,
+        "node_id": "node_a",
+        "node_version": "",
+    }
 
 
 def test_resolve_open_plugin_source_key_uses_saved_hidden_field_only():

@@ -54,7 +54,21 @@
 
 ### 3.2 改动位置
 
-`bkflow/pipeline_plugins/components/collections/uniform_api/v4_0_0.py` 的开放插件执行分支：在构造 execute payload 时附加 `context`。其余执行 / 轮询 / 回调逻辑不变。
+`bkflow/pipeline_plugins/components/collections/uniform_api/v4_0_0.py` 的开放插件执行分支：在构造 execute payload 时附加 `context`。
+
+### 3.3 调度模式自适应与回调入口
+
+V4 节点不在流程保存时固化同步、轮询或回调模式，而是以 execute / polling 每次返回的 `status` 决定后续动作：
+
+- `SUCCEEDED / FAILED / CANCELLED` 立即结束，不因 detail 中存在 polling 配置而额外等待一次轮询。
+- `CREATED / RUNNING` 继续轮询。
+- `WAITING_CALLBACK` 同时接受真实回调并保留轮询兜底；回调投递失败时，节点仍可通过状态查询收敛，不把当前 polling tick 切成 callback tick 后提前结束。
+
+标准运维不持有 BKFlow APIGW 应用凭证，因此 callback URL 复用 BKFlow 已有的节点回调入口（方案 B）：
+
+`/callback/{encrypted_node_token}/`
+
+URL 中的存量 token 用于定位 `space/task/node/version`；入口收到开放插件回调后，再把 `X-Callback-Token` 运行凭证转发至 task 模块。engine 侧继续校验运行 token 的签名、有效期，以及 token 与 task/node/client_request_id/open_plugin_run_id 的绑定关系。只有 engine 返回 `result=True` 时，interface 才返回 2xx，标准运维方才可把本次投递标记为成功。普通存量节点回调不要求 `X-Callback-Token`，行为保持不变。
 
 ## 4. 两层空间准入
 
