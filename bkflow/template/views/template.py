@@ -686,6 +686,8 @@ class TemplateViewSet(UserModelViewSet):
         pipeline_tree = replace_subprocess_version(draft_snapshot.data, flow_version_config)
 
         data["pipeline_tree"] = pipeline_tree
+        if template_obj.subprocess_info:
+            data["subprocess_info"] = template_obj.subprocess_info
         return Response(data=data)
 
     @action(methods=["GET"], detail=True, url_path="calculate_version")
