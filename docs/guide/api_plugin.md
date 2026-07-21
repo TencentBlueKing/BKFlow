@@ -126,6 +126,24 @@ sequenceDiagram
         "default": "abc"  // 可选
       }
     ],
+    "form_schema": { // 可选，完整 JSON 表单 schema；存在 properties 时优先于 inputs 渲染
+      "type": "object",
+      "properties": {
+        "xxx": {
+          "type": "string",
+          "title": "xxx",
+          "ui:component": {
+            "name": "select",
+            "props": {
+              "datasource": [
+                {"label": "A", "value": "a"},
+                {"label": "B", "value": "b"}
+              ]
+            }
+          }
+        }
+      }
+    },
     "outputs": [
       {
         "key": "xxx",
@@ -181,6 +199,8 @@ sequenceDiagram
 - `credential_key` 字段仅在使用 `uniform_api` 插件版本 `v3.0.0` 时生效
 - 用户创建任务时，可以通过 `credentials` 参数传入对应的凭证，格式参考 [create_task API 文档](../apigw/docs/zh/create_task.md)
 - 基于inputs和outputs字段，动态进行表单生成
+	- 当响应包含带 `properties` 的 `form_schema` 时，BKFlow 优先按完整 schema 渲染，并保留其中的 `ui:component`、`ui:rules`、`ui:reactions` 等配置
+	- `inputs` 仍为必填兼容字段；未提供 `form_schema` 时继续按 `inputs` 生成表单
 	- 字段类型(type)与表单类型映射关系：
 		- string -> 输入框
 		- list -> checkbox，需要提供options字段
@@ -649,4 +669,3 @@ sequenceDiagram
    - `data_key` 和 `msg_key` 都支持 jmespath 语法，可以提取嵌套字段
    - 例如：`"data.result"` 可以提取 `{"data": {"result": "value"}}` 中的 `"value"`
    - 例如：`"items[0].name"` 可以提取数组第一个元素的 name 字段
-

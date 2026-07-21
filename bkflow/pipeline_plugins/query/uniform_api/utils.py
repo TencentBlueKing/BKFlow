@@ -190,6 +190,14 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
                     },
                 },
             },
+            "form_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string"},
+                    "properties": {"type": "object"},
+                    "required": {"type": "array", "items": {"type": "string"}},
+                },
+            },
             "outputs": {
                 "type": "array",
                 "items": {
