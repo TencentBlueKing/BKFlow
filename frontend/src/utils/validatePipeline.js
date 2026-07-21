@@ -13,6 +13,197 @@ import i18n from '@/config/i18n/index.js';
 import { NODE_DICT } from '@/constants/index.js';
 import validator from '@/constants/pipelineTreeSchema.js';
 
+/**
+ * AJV 校验错误 keyword 到中文提示的映射
+ */
+const AJV_ERROR_CN_MAP = {
+  pattern: '{field}格式不正确',
+  required: '{field}为必填字段',
+  minLength: '{field}长度不能少于{limit}个字符',
+  maxLength: '{field}长度不能超过{limit}个字符',
+  type: '{field}类型错误',
+  const: '{field}取值不合法',
+  enum: '{field}取值不在允许范围内',
+  minimum: '{field}不能小于{limit}',
+  maximum: '{field}不能大于{limit}',
+  additionalProperties: '不允许存在额外字段',
+  oneOf: '{field}数据不满足节点类型要求',
+  allOf: '{field}数据不满足节点类型要求',
+  anyOf: '{field}数据不满足节点类型要求',
+};
+
+/**
+ * 字段名中文映射
+ */
+const FIELD_NAME_CN_MAP = {
+  id: '节点ID',
+  name: '节点名称',
+  incoming: '输入连线',
+  outgoing: '输出连线',
+  type: '节点类型',
+  component: '插件配置',
+  code: '插件编码',
+  data: '插件数据',
+  constants: '变量配置',
+  pipeline: '子流程配置',
+  activities: '任务节点',
+  gateways: '网关',
+  flows: '连线',
+  line: '连线',
+  location: '坐标',
+  outputs: '输出变量',
+  start_event: '开始事件',
+  end_event: '结束事件',
+  template_id: '模板ID',
+  version: '版本号',
+  error_ignorable: '是否忽略错误',
+  retryable: '是否可重试',
+  skippable: '是否可跳过',
+  can_retry: '是否可重试',
+  isSkipped: '是否可跳过',
+  optional: '是否可选',
+  conditions: '分支条件',
+  evaluate: '分支表达式',
+  source: '源节点',
+  target: '目标节点',
+  is_default: '是否默认连线',
+  key: '变量KEY',
+  desc: '描述',
+  index: '索引',
+  show_type: '显示类型',
+  source_info: '变量来源信息',
+  custom_type: '自定义类型',
+  source_tag: '来源标签',
+  source_type: '来源类型',
+  validation: '校验规则',
+  x: 'X坐标',
+  y: 'Y坐标',
+  state_name: '状态名称',
+};
+
+/**
+ * 从 dataPath 中解析节点名称
+ * 支持嵌套路径，如 .activities['outerId'].pipeline.activities['innerId'].outgoing
+ * 返回包含节点名和容器名的对象
+ */
+function getNodeNameFromPath(dataPath, data) {
+  // 匹配路径中所有的 .activities['xxx'] 和 .gateways['xxx']
+  const pathSegments = [];
+  const actReg = /\.activities\['([^']+)'\]/g;
+  const gwReg = /\.gateways\['([^']+)'\]/g;
+  let match;
+  while ((match = actReg.exec(dataPath)) !== null) {
+    pathSegments.push({ type: 'activity', id: match[1] });
+  }
+  while ((match = gwReg.exec(dataPath)) !== null) {
+    pathSegments.push({ type: 'gateway', id: match[1] });
+  }
+  if (pathSegments.length === 0) {
+    // 可能是 start_event / end_event 等顶层字段
+    if (dataPath.includes('start_event')) return { nodeName: data.start_event?.id || '开始节点', nodeType: 'start_event' };
+    if (dataPath.includes('end_event')) return { nodeName: data.end_event?.id || '结束节点', nodeType: 'end_event' };
+    return { nodeName: '' };
+  }
+
+  const hasPipeline = dataPath.includes('.pipeline.');
+  let nodeName = '';
+  let containerName = '';
+  let nodeType = '';
+  let nodeDisplayName = '';
+
+  // 顶层节点（非嵌套）：activities / gateways 在 data 根层级
+  if (!hasPipeline && pathSegments.length === 1) {
+    const seg = pathSegments[0];
+    if (seg.type === 'activity') {
+      const act = data.activities?.[seg.id];
+      return { nodeName: seg.id, nodeType: 'activity', nodeDisplayName: act?.name || '', containerName };
+    }
+    if (seg.type === 'gateway') {
+      const gw = data.gateways?.[seg.id];
+      return { nodeName: seg.id, nodeType: 'gateway', nodeDisplayName: gw?.name || '', containerName };
+    }
+  }
+
+  // 嵌套场景（hasPipeline 或 pathSegments.length > 1）
+  // 第一个 segment 是最外层容器
+  const firstSeg = pathSegments[0];
+  if (firstSeg.type === 'activity') {
+    const outerAct = data.activities?.[firstSeg.id];
+    if (outerAct) {
+      containerName = firstSeg.id;
+
+      if (hasPipeline) {
+        // 取最后一个 .pipeline. 之后的部分，判断内部出错节点
+        const parts = dataPath.split('.pipeline.');
+        const lastPart = parts[parts.length - 1];
+
+        if (lastPart.startsWith('start_event')) {
+          nodeName = outerAct.pipeline?.['start_event']?.id || '开始节点';
+          nodeType = 'start_event';
+        } else if (lastPart.startsWith('end_event')) {
+          nodeName = outerAct.pipeline?.['end_event']?.id || '结束节点';
+          nodeType = 'end_event';
+        } else if (pathSegments.length > 1) {
+          // 内部嵌套的 activities/gateways
+          let currentPipeline = outerAct.pipeline;
+          for (let i = 1; i < pathSegments.length; i++) {
+            const seg = pathSegments[i];
+            if (!currentPipeline) break;
+            if (i === pathSegments.length - 1) {
+              nodeName = seg.id;
+              nodeType = seg.type;
+              if (seg.type === 'activity') {
+                nodeDisplayName = currentPipeline.activities?.[seg.id]?.name || '';
+              } else if (seg.type === 'gateway') {
+                nodeDisplayName = currentPipeline.gateways?.[seg.id]?.name || '';
+              }
+            }
+            // 继续向深层遍历（处理多层嵌套）
+            if (seg.type === 'activity') {
+              currentPipeline = currentPipeline.activities?.[seg.id]?.pipeline;
+            }
+          }
+        }
+        // else: pathSegments.length === 1 且 lastPart 不是 start_event/end_event
+        // → 错误字段可能为 pipeline 自身或其非节点子字段，nodeName 留空
+      } else {
+        // pathSegments.length > 1 但没有 .pipeline. 标记（防御性分支，正常不应进入）
+        const lastSeg = pathSegments[pathSegments.length - 1];
+        nodeName = lastSeg.id;
+        nodeType = lastSeg.type;
+      }
+    }
+  }
+  return { nodeName, containerName, nodeType, nodeDisplayName };
+}
+
+/**
+ * 从 dataPath 最后一段提取字段名，如 .outgoing → outgoing
+ */
+function getFieldNameFromPath(dataPath) {
+  const parts = dataPath.replace(/\[/g, '.').replace(/['\]]/g, '').split('.');
+  return parts[parts.length - 1] || '';
+}
+
+/**
+ * 将单个 AJV 错误格式化为中文提示
+ */
+function formatAjvError(error) {
+  const { keyword, dataPath, params } = error;
+  const field = getFieldNameFromPath(dataPath);
+  const fieldLabel = FIELD_NAME_CN_MAP[field] || field || '数据';
+  let cnMsg = AJV_ERROR_CN_MAP[keyword];
+  if (!cnMsg) {
+    // 未映射的 keyword，使用原始 message
+    cnMsg = error.message;
+  } else {
+    cnMsg = cnMsg
+      .replace('{field}', fieldLabel)
+      .replace('{limit}', params?.limit ?? params?.minimum ?? params?.maximum ?? '');
+  }
+  return cnMsg;
+}
+
 const NODE_RULE = {
   startpoint: {
     min_in: 0,
@@ -301,18 +492,38 @@ const validatePipeline = {
     let errorId = '';
     if (!valid) {
       const error = validator.errors[0];
-      let nodeName = '';
-      const nodeReg = /^\.activities\['(\w+)'\]/;
-      const matchResult = error.dataPath.match(nodeReg);
-      if (matchResult) {
-        const activity = activities[matchResult[1]];
-        if (activity) {
-          nodeName = activity.name;
-          errorId = activity.id;
+      const { nodeName, containerName, nodeType, nodeDisplayName } = getNodeNameFromPath(error.dataPath, data);
+      // 提取 errorId：出错节点或外层容器的 ID
+      const pathSegments = [];
+      const actReg = /\.activities\['([^']+)'\]/g;
+      let match;
+      while ((match = actReg.exec(error.dataPath)) !== null) {
+        pathSegments.push({ type: 'activity', id: match[1] });
+      }
+      if (pathSegments.length > 0) {
+        errorId = pathSegments[pathSegments.length - 1].id;
+      }
+      `${nodeName} ${error.dataPath} ${error.message}`;
+      const cnMsg = formatAjvError(error);
+      // 最终消息：容器名 + 节点名 + 错误描述
+      const parts = [];
+      if (containerName) {
+        parts.push(`循环节点[${containerName}]`);
+      }
+      if (nodeName) {
+        if (nodeType === 'start_event') {
+          parts.push(`开始节点[${nodeName}]`);
+        } else if (nodeType === 'end_event') {
+          parts.push(`结束节点[${nodeName}]`);
+        } else if (nodeDisplayName) {
+          parts.push(`${nodeDisplayName}节点[${nodeName}]`);
+        } else {
+          parts.push(`节点[${nodeName}]`);
         }
       }
-      message = `${nodeName} ${error.dataPath} ${error.message}`;
-      return this.getMessage(valid, message);
+      parts.push(cnMsg);
+      message = parts.join('的');
+      return this.getMessage(valid, message, errorId);
     }
 
     const nodes = [
@@ -325,7 +536,19 @@ const validatePipeline = {
     valid = !nodes.some((node) => {
       const result = this.isFlowValid(node, flows);
       if (!result.valid) {
-        message = result.message;
+        let prefix;
+        if (node.type === 'EmptyStartEvent') {
+          prefix = `开始节点[${node.id}]`;
+        } else if (node.type === 'EmptyEndEvent') {
+          prefix = `结束节点[${node.id}]`;
+        } else if (node.type === 'SubCanvas') {
+          prefix = `${i18n.t('循环节点')}[${node.id}]`;
+        } else {
+          const name = node.name || '';
+          prefix = name ? `${name}节点[${node.id}]` : `节点[${node.id}]`;
+        }
+        message = `${prefix}：${result.message}`;
+        errorId = node.id;
         return true;
       }
       // 检查并行网关/条件并行网关是否和汇聚网关相连
@@ -345,6 +568,24 @@ const validatePipeline = {
       }
       return false;
     });
+
+    if (valid) {
+      // 递归校验 SubCanvas（循环节点）的子流程
+      const subCanvasNodes = Object.keys(activities).filter(id => {
+        const act = activities[id];
+        return act.type === 'SubCanvas' && act.pipeline;
+      });
+
+      for (const actId of subCanvasNodes) {
+        const act = activities[actId];
+        const subResult = this.isPipelineDataValid(act.pipeline);
+        if (!subResult.result) {
+          message = `${i18n.t('循环节点')}[${actId}]${i18n.t('的子流程校验失败')}：${subResult.message}`;
+          errorId = subResult.errorId || actId;
+          return this.getMessage(false, message, errorId);
+        }
+      }
+    }
 
     return this.getMessage(valid, message, errorId);
   },

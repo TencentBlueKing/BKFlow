@@ -410,6 +410,7 @@
         instanceStatus: {},
         taskParamsType: '',
         timer: null,
+        isTaskOperationDestroyed: false,
         pipelineData,
         treeNodeConfig: {},
         nodeDetailConfig: {},
@@ -632,6 +633,8 @@
         source.cancel('cancelled');
       }
       this.cancelTaskStatusTimer();
+      // 标记组件已销毁，防止正在执行的异步链路继续设置新的轮询定时器
+      this.isTaskOperationDestroyed = true;
     },
     methods: {
       ...mapActions('task/', [
@@ -709,6 +712,7 @@
         }
       },
       async loadTaskStatus() {
+        if (this.isTaskOperationDestroyed) return;
         try {
           let instanceStatus = {};
           if (['FINISHED', 'REVOKED'].includes(this.state) && this.cacheStatus && this.cacheStatus.children[this.taskId]) { // 总任务：完成/终止时,取实例缓存数据
@@ -811,6 +815,7 @@
        * 收集已执行 subcanvas_plugin 的子节点执行状态，合并到 this.instanceStatus.children
        */
       async collectSubCanvasChildrenStatus() {
+        if (this.isTaskOperationDestroyed) return;
         const allSubCanvasNodes = Object.values(this.pipelineData.activities).filter(item => item?.component?.code === 'subcanvas_plugin');
         if (allSubCanvasNodes.length === 0) return;
 
@@ -1237,6 +1242,7 @@
       },
       setTaskStatusTimer(time = 2000) {
         this.cancelTaskStatusTimer();
+        if (this.isTaskOperationDestroyed) return;
         this.timer = setTimeout(() => {
           this.loadTaskStatus();
         }, time);
@@ -1308,7 +1314,6 @@
        * @param {object} conditionData - 当前节点条件数据
        */
       async setNodeDetailConfig(id, rootNode, subflowNode, nodeType, conditionData) {
-        // console.log('设置节点详细配置', { id, rootNode, subflowNode, nodeType, conditionData });
         let code; let version; let componentData;
         const allActivities = Object.assign({}, this.pipelineData.activities, this.subActivities);
         const allGateways = Object.assign({}, this.pipelineData.gateways || {});

@@ -16,7 +16,7 @@
         v-if="!currentNodeDetailConfig.nodeType"
         ref="conditionEdit"
         :is-readonly="true"
-        :gateways="gateways"
+        :gateways="mergedGateways"
         :condition-data="conditionData" />
       <template v-else>
         <!-- 执行次数-初始化默认显示最新执行信息 -->
@@ -279,6 +279,20 @@
          return [baseTabs[0], configTab, ...baseTabs.slice(1)];
         }
         return baseTabs;
+      },
+      // 外层网关+SubCanvas内嵌网关
+      mergedGateways() {
+        const result = { ...this.gateways };
+        if (this.pipelineData && this.pipelineData.activities) {
+          Object.values(this.pipelineData.activities).forEach((activity) => {
+            const isSubCanvas = activity.type === 'SubCanvas'
+              || (activity.component && activity.component.code === 'subcanvas_plugin');
+            if (isSubCanvas && activity.pipeline && activity.pipeline.gateways) {
+              Object.assign(result, activity.pipeline.gateways);
+            }
+          });
+        }
+        return result;
       },
     },
     watch: {
