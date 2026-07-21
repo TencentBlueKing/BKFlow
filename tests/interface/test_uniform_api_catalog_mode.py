@@ -31,6 +31,7 @@ def build_cached_plugin(
     name="执行作业",
     plugin_source="builtin",
     category="JOB",
+    category_name=None,
     status="available",
     enabled=True,
 ):
@@ -41,6 +42,7 @@ def build_cached_plugin(
         "plugin_name": name,
         "plugin_source": plugin_source,
         "group_name": category,
+        "group_display_name": category_name or category,
         "wrapper_version": "v4.0.0",
         "default_version": "legacy",
         "latest_version": "legacy",
@@ -89,12 +91,18 @@ def test_build_cached_list_filters_visibility_source_keyword_and_paginates():
     assert result["total"] == 2
     assert [plugin["id"] for plugin in result["apis"]] == ["builtin__job_execute_task_2"]
     assert result["apis"][0]["meta_url_template"].endswith("?version={version}")
+    assert result["apis"][0]["category"] == "JOB"
 
 
 def test_build_cached_categories_uses_visible_plugin_groups():
     plugins = [
-        build_cached_plugin(category="JOB"),
-        build_cached_plugin(plugin_id="builtin__cc_update_host", name="更新主机", category="CC"),
+        build_cached_plugin(category="JOB", category_name="作业平台"),
+        build_cached_plugin(
+            plugin_id="builtin__cc_update_host",
+            name="更新主机",
+            category="CC",
+            category_name="配置平台",
+        ),
         build_cached_plugin(plugin_id="builtin__disabled", name="停用", category="MONITOR", enabled=False),
     ]
 
@@ -107,8 +115,8 @@ def test_build_cached_categories_uses_visible_plugin_groups():
 
     assert result == [
         {"id": "all", "name": "全部"},
-        {"id": "CC", "name": "CC"},
-        {"id": "JOB", "name": "JOB"},
+        {"id": "CC", "name": "配置平台"},
+        {"id": "JOB", "name": "作业平台"},
     ]
 
 

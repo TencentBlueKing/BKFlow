@@ -35,7 +35,7 @@ const Configuration = {
         {
             rules: {
                 'content-rule': ({subject}) => {
-                    const pattern = /#\d+$|--story=\d+$|--bug=\d+$/;
+                    const pattern = /(?:#\d+|--story=\d+|--bug=\d+)(?: \(#\d+\))?$/;
                     return [
                         pattern.test(subject.trim()),
                         `Your subject should contain issue id`,

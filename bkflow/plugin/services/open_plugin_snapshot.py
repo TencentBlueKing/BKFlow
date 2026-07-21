@@ -131,6 +131,9 @@ class OpenPluginSnapshotService:
         merged = dict(extra_info or {})
         if reference_snapshot:
             merged[cls.REFERENCE_SNAPSHOT_KEY] = reference_snapshot
+        else:
+            merged.pop(cls.REFERENCE_SNAPSHOT_KEY, None)
+            merged.pop(cls.SCHEMA_SNAPSHOT_KEY, None)
         if schema_snapshot:
             merged[cls.SCHEMA_SNAPSHOT_KEY] = schema_snapshot
         return merged

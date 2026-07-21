@@ -293,7 +293,8 @@ class TestOpenPluginCatalogService:
                         "latest_version": "1.3.0",
                         "versions": ["1.2.0", "1.3.0"],
                         "meta_url_template": "https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
-                        "category": "作业平台",
+                        "category": "JOB",
+                        "category_name": "作业平台",
                     }
                 ]
             }
@@ -309,6 +310,8 @@ class TestOpenPluginCatalogService:
         )
 
         assert index.plugin_code == "job_execute_task"
+        assert index.group_name == "JOB"
+        assert index.group_display_name == "作业平台"
         assert index.status == OpenPluginCatalogIndex.Status.AVAILABLE
         assert availability.enabled is False
 
