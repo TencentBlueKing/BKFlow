@@ -248,7 +248,7 @@
         const isLoopGroupAppendNode = type === 'SubCanvas';
         // 循环流节点宽度自适应，需根据实际宽度偏移
         const xOffset = isLoopGroupCurrNode
-          ? this.activeCell.getSize().width + 200
+          ? this.getNodeInstance(currLoc.id).getSize().width + 200
           : 200;
         // 判断当前节点是否在分组内（子节点），需要将新节点也加入同一分组
         let loopGroupParent = null;
