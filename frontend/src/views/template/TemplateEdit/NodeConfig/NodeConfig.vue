@@ -1816,7 +1816,6 @@
               name: apiPluginName || name.substring(name.indexOf('-') + 1),
               meta_url: metaUrl,
               api_key: apiKey,
-              source_key: sourceKey,
               plugin_source: pluginSource,
               plugin_code: pluginCode,
               plugin_version: uniform_api_plugin_version,
@@ -1831,6 +1830,9 @@
               default_version,
               desc,
             };
+            if (this.basicInfo.isOpenPlugin) {
+              component.api_meta.source_key = sourceKey;
+            }
           }
           config = Object.assign({}, this.nodeConfig, {
             component,
