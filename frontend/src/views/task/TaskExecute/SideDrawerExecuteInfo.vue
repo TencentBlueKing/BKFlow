@@ -247,6 +247,7 @@
   import OptionsPanel from './ExecuteInfoCompoment/OptionsPanel.vue';
   import LoopCountSelector from './ExecuteInfoCompoment/LoopCountSelector.vue';
   import { getOrderNodeToNodeTree } from '@/utils/orderCanvasNodeToNodeTree.js';
+  import { resolveUniformApiPluginVersion } from '@/utils/uniformApi.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import SubStageCanvas from '../../../components/canvas/StageCanvas/SubStageCanvas.vue';
   const { CancelToken } = axios;
@@ -1259,7 +1260,7 @@
           try {
             // api插件输入输出
             if (this.pluginCode === 'uniform_api') {
-              const { api_meta: apiMeta, version } = this.nodeActivity.component || {};
+              const { api_meta: apiMeta } = this.nodeActivity.component || {};
               if (!apiMeta) return;
               // 先获取api插件配置，以获取正确的version
               const resp = await this.loadUniformApiMeta({
@@ -1268,7 +1269,7 @@
                 meta_url: apiMeta.meta_url,
                 ...this.scopeInfo,
                 meta_url_template: apiMeta.meta_url_template,
-                version,
+                version: resolveUniformApiPluginVersion(this.nodeActivity.component),
               });
               if (!resp.result) return;
               // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
