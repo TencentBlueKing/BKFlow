@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from copy import deepcopy
 
 from rest_framework import serializers
@@ -29,6 +30,7 @@ class OpenPluginSnapshotService:
     REFERENCE_SNAPSHOT_KEY = "plugin_reference_snapshot"
     SCHEMA_SNAPSHOT_KEY = "plugin_schema_snapshot"
     SCHEMA_PROTOCOL_VERSION = "open_plugin_snapshot.v1"
+    OPEN_PLUGIN_WRAPPER_VERSION = "v4.0.0"
 
     @classmethod
     def get_reference_snapshot(cls, extra_info):
@@ -196,6 +198,8 @@ class OpenPluginSnapshotService:
             component = node.get("component", {})
             if component.get("code") != "uniform_api":
                 continue
+            if not cls._is_open_plugin_component(component):
+                continue
 
             data = component.get("data", {})
             api_meta = component.get("api_meta", {})
@@ -210,10 +214,6 @@ class OpenPluginSnapshotService:
                 continue
 
             catalog = cls._get_catalog_entry(space_id=space_id, plugin_id=plugin_id, source_key=source_key)
-            is_explicit_open_plugin = bool(source_key or cls._extract_data_value(data, "uniform_api_plugin_id"))
-            if catalog is None and not is_explicit_open_plugin:
-                continue
-
             if catalog and not plugin_version:
                 plugin_version = catalog.latest_version or catalog.default_version or ""
 
@@ -241,6 +241,22 @@ class OpenPluginSnapshotService:
         if include_unmatched:
             return references
         return [ref for ref in references if ref["catalog"] is not None]
+
+    @classmethod
+    def _is_open_plugin_component(cls, component):
+        """判断 uniform_api 节点是否使用开放插件 v4 协议。"""
+
+        data = component.get("data", {})
+        api_meta = component.get("api_meta", {})
+        if cls._extract_data_value(data, "uniform_api_plugin_id"):
+            return True
+
+        wrapper_version = api_meta.get("wrapper_version") or component.get("version")
+        if wrapper_version == cls.OPEN_PLUGIN_WRAPPER_VERSION:
+            return True
+
+        # 兼容早期页面曾将业务版本写入 component.version 的开放插件节点。
+        return bool(api_meta.get("versions") and api_meta.get("meta_url_template"))
 
     @staticmethod
     def _extract_data_value(data, key):

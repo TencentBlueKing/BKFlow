@@ -145,6 +145,54 @@ def test_collect_plugin_references_reads_source_key_from_runtime_hidden_field(mo
     assert references[0]["wrapper_version"] == "v4.0.0"
 
 
+def test_validate_pipeline_tree_ignores_legacy_uniform_api_with_source_key():
+    """旧版 API 插件即使携带入口 source_key，也不应进入开放插件目录校验。"""
+
+    pipeline_tree = build_open_plugin_pipeline_tree()
+    component = pipeline_tree["activities"]["node1"]["component"]
+    component["version"] = "v2.0.0"
+    component["api_meta"] = {
+        "id": "34097",
+        "name": "Tlog_玩家状态快照",
+        "source_key": "default",
+        "meta_url": "https://example.com/meta/?function_id=34097",
+    }
+    component["data"] = {
+        "uniform_api_plugin_url": {"value": "https://example.com/execute/"},
+        "uniform_api_plugin_method": {"value": "POST"},
+        "uniform_api_plugin_version": {"value": "v2.0.0"},
+    }
+    with patch.object(OpenPluginSnapshotService, "_get_catalog_entry", return_value=None) as get_catalog_entry:
+        OpenPluginSnapshotService.validate_pipeline_tree(space_id=1, pipeline_tree=pipeline_tree)
+
+    get_catalog_entry.assert_not_called()
+
+
+def test_collect_plugin_references_recognizes_legacy_saved_open_plugin_metadata(monkeypatch):
+    """早期开放插件节点即使误存了业务版本，也应继续参与开放插件校验。"""
+
+    pipeline_tree = build_open_plugin_pipeline_tree()
+    component = pipeline_tree["activities"]["node1"]["component"]
+    component["version"] = "1.2.0"
+    component["api_meta"] = {
+        "id": "open_plugin_001",
+        "source_key": "sops",
+        "versions": ["1.2.0"],
+        "meta_url_template": "https://example.com/open-plugins/open_plugin_001?version={version}",
+    }
+    component["data"].pop("uniform_api_plugin_id")
+    monkeypatch.setattr(OpenPluginSnapshotService, "_get_catalog_entry", lambda **kwargs: None)
+
+    references = OpenPluginSnapshotService.collect_plugin_references(
+        space_id=1,
+        pipeline_tree=pipeline_tree,
+        include_unmatched=True,
+    )
+
+    assert references[0]["plugin_id"] == "open_plugin_001"
+    assert references[0]["source_key"] == "sops"
+
+
 @pytest.mark.django_db
 def test_validate_rejects_when_plugin_version_not_in_catalog_versions():
     """开放插件已准入且已开启时，仍要拒绝已从目录版本列表移除的业务版本。"""
