@@ -1592,7 +1592,6 @@
             }
           }
           for (let index = 0; index < this.breadcrumbData.length; index++) {
-            console.log('this.breadcrumbData[index]', this.breadcrumbData[index]);
             const item = this.breadcrumbData[index];
             if (item.id && item.taskId) {
               const query = {

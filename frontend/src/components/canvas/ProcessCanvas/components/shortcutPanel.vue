@@ -179,7 +179,7 @@
           return list.filter(item => item.id !== 'converge-gateway' && !(this.isInLoopGroup && item.id === 'SubCanvas'));
         }
         if (this.isInLoopGroup) {
-          return list.filter(item => item.id !== 'SubCanvas');
+          return list.filter(item => !['subflow', 'SubCanvas'].includes(item.id));
         }
         return list;
       },
