@@ -38,3 +38,21 @@ def test_api_uniform_registers_monaco_code_editor():
     assert "codeEditor: ApiCodeEditor" in uniform_source
     assert "<FullCodeEditor" in editor_source
     assert "@input=\"$emit('input', $event)\"" in editor_source
+
+
+def test_template_editor_uses_render_form_for_uniform_api_plugins():
+    frontend_root = Path(__file__).resolve().parents[3] / "frontend" / "src"
+    node_config = (frontend_root / "views" / "template" / "TemplateEdit" / "NodeConfig" / "NodeConfig.vue").read_text(
+        encoding="utf-8"
+    )
+    input_params = (frontend_root / "views" / "template" / "TemplateEdit" / "NodeConfig" / "InputParams.vue").read_text(
+        encoding="utf-8"
+    )
+
+    assert "import renderFormSchema from '@/utils/renderFormSchema.js'" in node_config
+    assert "import jsonFormSchema from '@/utils/jsonFormSchema.js'" not in node_config
+    assert "return renderFormSchema(resp.data" in node_config
+    assert ':api-inputs="apiInputs"' in node_config
+    assert "apiInputs:" in input_params
+    assert "if (this.isApiPlugin)" in input_params
+    assert "const schema = this.apiInputs.find(item => item.key === form)" in input_params

@@ -166,6 +166,7 @@
                     :is-view-mode="isViewMode"
                     :constants="localConstants"
                     :is-api-plugin="isApiPlugin"
+                    :api-inputs="apiInputs"
                     :basic-info="basicInfo"
                     :is-third-party="isThirdParty"
                     @hookChange="onHookChange"
@@ -237,7 +238,7 @@
   import bus from '@/utils/bus.js';
   import permission from '@/mixins/permission.js';
   import formSchema from '@/utils/formSchema.js';
-  import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import renderFormSchema from '@/utils/renderFormSchema.js';
   import copy from '@/mixins/copy.js';
   import AccessCredential from './AccessCredential.vue';
 
@@ -684,8 +685,8 @@
               updateData.version = wrapperVersion;
             }
             this.updateBasicInfo(updateData);
-            this.apiInputs = resp.data.inputs;
-            return jsonFormSchema(resp.data, { disabled: this.isViewMode });
+            this.apiInputs = Array.isArray(resp.data.inputs) ? resp.data.inputs : [];
+            return renderFormSchema(resp.data, { readOnly: this.isViewMode });
           }
           // 第三方插件
           if (isThird) {
