@@ -20,7 +20,7 @@ to the current version of the project delivered to anyone in the future.
 from django.conf.urls import include, url
 from rest_framework.routers import DefaultRouter
 
-from bkflow.template.views.debug import DebugViewSet
+from bkflow.template.views.debug import DebugSdkViewSet, DebugViewSet
 from bkflow.template.views.template import (
     AdminTemplateViewSet,
     TemplateInternalViewSet,
@@ -39,6 +39,7 @@ router.register(r"^template_mock_data", TemplateMockDataViewSet, basename="templ
 router.register(r"^template_mock_scheme", TemplateMockSchemeViewSet, basename="template_mock_scheme")
 router.register(r"^template_mock_task", TemplateMockTaskViewSet, basename="template_mock_task")
 router.register(r"^snapshot", TemplateVersionViewSet, basename="template_snapshot")
+router.register(r"^debug_sdk", DebugSdkViewSet, basename="debug_sdk")
 router.register(r"^debug", DebugViewSet, basename="debug")
 router.register(r"", TemplateViewSet, basename="template")
 router.register(r"^internal", TemplateInternalViewSet, basename="template_id")

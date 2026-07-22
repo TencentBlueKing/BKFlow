@@ -38,6 +38,7 @@ from bkflow.template.debug.service import (
 )
 from bkflow.template.permissions import TemplateRelatedResourcePermission
 from bkflow.utils.permissions import AdminPermission
+from bkflow.utils.views import SimpleGenericViewSet
 
 
 def _err(exc, code):
@@ -180,3 +181,9 @@ class DebugViewSet(GenericViewSet):
         except DebugConflictError as e:
             return _err(e, status.HTTP_409_CONFLICT)
         return Response(data)
+
+
+class DebugSdkViewSet(SimpleGenericViewSet, DebugViewSet):
+    """
+    SDK/APIGW 调试接口：复用内部调试动作，响应由 SimpleGenericViewSet 统一包装为标准协议。
+    """
