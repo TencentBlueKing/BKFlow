@@ -165,6 +165,7 @@ function testStructuredObjectArrayUsesDatatableColumns() {
   });
 
   assert.strictEqual(schema[0].type, 'datatable');
+  assert.strictEqual(schema[0].attrs.add_btn, true);
   assert.strictEqual(schema[0].attrs.editable, true);
   assert.strictEqual(schema[0].attrs.columns[0].type, 'input');
   assert.deepStrictEqual(schema[0].attrs.columns[0].attrs.validation, [{ type: 'required' }]);
@@ -179,8 +180,10 @@ function testFlatInputsAndInvalidStructuredSchemaRemainCompatible() {
 
   const flatSchema = renderFormSchema(inputs);
   const fallbackSchema = renderFormSchema({ inputs, form_schema: { type: 'object', properties: null } });
+  const arrayFallbackSchema = renderFormSchema({ inputs, form_schema: { type: 'object', properties: [] } });
 
   assert.deepStrictEqual(fallbackSchema, flatSchema);
+  assert.deepStrictEqual(arrayFallbackSchema, flatSchema);
   assert.strictEqual(flatSchema[0].attrs.default, 0);
   assert.strictEqual(flatSchema[1].attrs.default, false);
 }

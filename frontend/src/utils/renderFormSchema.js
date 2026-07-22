@@ -113,7 +113,9 @@ function structuredPropertiesToFields(formSchema, fallbackInputs = []) {
 function resolveFields(data) {
   if (Array.isArray(data)) return data;
   if (!data || typeof data !== 'object') return [];
-  if (data.form_schema?.properties && typeof data.form_schema.properties === 'object') {
+  if (data.form_schema?.properties
+    && typeof data.form_schema.properties === 'object'
+    && !Array.isArray(data.form_schema.properties)) {
     const fields = structuredPropertiesToFields(data.form_schema, data.inputs || []);
     if (fields.length || Object.keys(data.form_schema.properties).length === 0) return fields;
   }
@@ -172,7 +174,6 @@ function getComponentAttrs(field, renderType) {
   const attrs = { ...(field.uiComponentProps || {}) };
   delete attrs.datasource;
   if (renderType === 'select') {
-    if (hasOwn(attrs, 'allowCreate')) attrs.allowCreate = attrs.allowCreate;
     if (hasOwn(attrs, 'allow_create')) {
       attrs.allowCreate = attrs.allow_create;
       delete attrs.allow_create;
@@ -215,6 +216,7 @@ function buildRenderFormField(field, config) {
 
   setOptions(schema, field);
   if (renderType === 'datatable') {
+    schema.attrs.add_btn = hasOwn(schema.attrs, 'add_btn') ? schema.attrs.add_btn : true;
     schema.attrs.editable = hasOwn(schema.attrs, 'editable') ? schema.attrs.editable : true;
     schema.attrs.deleteable = hasOwn(schema.attrs, 'deleteable') ? schema.attrs.deleteable : true;
     schema.attrs.columns = renderFormSchema(field.table?.fields || [], {
