@@ -89,28 +89,15 @@
             <span class="status-text-messages">{{ nodeState }}</span>
 
             <JumpLinkBKFlowOrExternal
-              v-if="isSubflowExecuted"
+              v-for="link in visibleSubflowViewLinks"
+              :key="link.key"
               :query="{ id: currentSubflowTaskId, type:'task' }"
-              :get-target-url="onViewSubProcessExecute">
-              <div
-                class="view-subflow">
+              :get-target-url="link.getUrl">
+              <div class="view-subflow">
                 <span class="dividing-line" />
                 <i class="common-icon-box-top-right-corner icon-link-to-sub" />
                 <p class="text-link-to-sub">
-                  {{ $t('查看子流程') }}
-                </p>
-              </div>
-            </JumpLinkBKFlowOrExternal>
-            <JumpLinkBKFlowOrExternal
-              v-if="currentSubflowTaskId && isSubCanvasNode && !isFirstSubFlow(nodeDetailConfig.node_id)"
-              :query="{ id: currentSubflowTaskId, type:'task' }"
-              :get-target-url="onViewSubCanvasExecute">
-              <div
-                class="view-subflow">
-                <span class="dividing-line" />
-                <i class="common-icon-box-top-right-corner icon-link-to-sub" />
-                <p class="text-link-to-sub">
-                  {{ $t('查看子任务') }}
+                  {{ $t(link.label) }}
                 </p>
               </div>
             </JumpLinkBKFlowOrExternal>
@@ -261,6 +248,7 @@
   import { getOrderNodeToNodeTree } from '@/utils/orderCanvasNodeToNodeTree.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import SubStageCanvas from '../../../components/canvas/StageCanvas/SubStageCanvas.vue';
+  // import { DEBUG_MOCK_PIPELINE_TREE } from './__debug_mock_pipeline_tree.js'; // DEBUG MOCK
   const { CancelToken } = axios;
   let source = CancelToken.source();
 
@@ -611,6 +599,13 @@
       isSubflowExecuted() {
         // this.nodeDetailConfig.component_code === 'subprocess_plugin'
        return this.currentSubflowTaskId !== '' && this.isSubProcessNode;
+      },
+      visibleSubflowViewLinks() {
+        const links = [
+          { key: 'subflow', visible: this.isSubflowExecuted, label: '查看子流程', getUrl: this.onViewSubProcessExecute },
+          { key: 'subcanvas', visible: this.currentSubflowTaskId && this.isSubCanvasNode && !this.isFirstSubFlow(this.nodeDetailConfig.node_id), label: '查看子任务', getUrl: this.onViewSubCanvasExecute },
+        ];
+        return links.filter(item => item.visible);
       },
 
       subProcessTaskId() { // 独立子流程节点的任务id
