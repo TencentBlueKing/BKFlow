@@ -51,7 +51,8 @@ class TestDebugContextViews:
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 200
-        assert response.data["status"] == "idle"
+        assert response.data["result"] is True
+        assert response.data["data"]["status"] == "idle"
         assert DebugContext.objects.filter(template_id=1).exists()
 
     def test_input_schema_view(self, mocker):
@@ -67,4 +68,5 @@ class TestDebugContextViews:
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 200
-        assert response.data["fields"][0]["key"] == "${b}"
+        assert response.data["result"] is True
+        assert response.data["data"]["fields"][0]["key"] == "${b}"

@@ -25,21 +25,23 @@ TEMPLATE_URL_SOURCE = PROJECT_ROOT / "bkflow" / "template" / "urls.py"
 APIGW_RESOURCE_SOURCE = PROJECT_ROOT / "bkflow" / "apigw" / "management" / "commands" / "data" / "api-resources.yml"
 
 
-def test_debug_sdk_viewset_uses_standard_response_wrapper():
+def test_debug_viewset_uses_standard_response_wrapper():
     source = DEBUG_VIEW_SOURCE.read_text()
 
     assert "from bkflow.utils.views import SimpleGenericViewSet" in source
-    assert "class DebugSdkViewSet(SimpleGenericViewSet, DebugViewSet):" in source
+    assert "class DebugViewSet(SimpleGenericViewSet):" in source
+    assert "class DebugSdkViewSet" not in source
 
 
-def test_debug_sdk_viewset_has_separate_internal_route():
+def test_debug_viewset_has_single_internal_route():
     source = TEMPLATE_URL_SOURCE.read_text()
 
-    assert "DebugSdkViewSet" in source
-    assert 'router.register(r"^debug_sdk", DebugSdkViewSet, basename="debug_sdk")' in source
+    assert "DebugSdkViewSet" not in source
+    assert 'router.register(r"^debug", DebugViewSet, basename="debug")' in source
+    assert 'router.register(r"^debug_sdk"' not in source
 
 
-def test_sdk_debug_apigw_resources_route_to_standard_response_endpoint():
+def test_sdk_debug_apigw_resources_route_to_debug_viewset():
     source = APIGW_RESOURCE_SOURCE.read_text()
 
     sdk_debug_paths = [
@@ -55,5 +57,5 @@ def test_sdk_debug_apigw_resources_route_to_standard_response_endpoint():
         "context_var",
     ]
     for path in sdk_debug_paths:
-        assert f"path: /{{env.api_sub_path}}api/template/debug_sdk/{path}/" in source
-        assert f"path: /{{env.api_sub_path}}api/template/debug/{path}/" not in source
+        assert f"path: /{{env.api_sub_path}}api/template/debug/{path}/" in source
+        assert f"path: /{{env.api_sub_path}}api/template/debug_sdk/{path}/" not in source

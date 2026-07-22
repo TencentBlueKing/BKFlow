@@ -55,14 +55,15 @@ class TestRunOpsViews:
             return_value=10,
         )
 
-    def test_global_run_conflict_returns_409(self, mocker):
+    def test_global_run_conflict_returns_standard_error(self, mocker):
         self._patch_tree(mocker)
         DebugContext.objects.create(template_id=1, space_id=10, status="running", locked_by="bob")
         view = DebugViewSet.as_view({"post": "global_run"})
         request = self.factory.post("/debug/global_run/", {"template_id": 1, "inputs": {}}, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
-        assert response.status_code == 409
+        assert response.status_code == 200
+        assert response.data["result"] is False
 
     def test_reset_clears_results(self, mocker):
         self._patch_tree(mocker)
@@ -73,7 +74,7 @@ class TestRunOpsViews:
         force_authenticate(request, user=self.user)
         response = view(request)
         assert response.status_code == 200
-        assert "A" in response.data["reset_node_ids"]
+        assert "A" in response.data["data"]["reset_node_ids"]
         assert DebugNodeState.objects.get(debug_context=ctx, node_id="A").status == "not_run"
 
     def test_terminate_global_revokes(self, mocker):
@@ -89,7 +90,7 @@ class TestRunOpsViews:
         response = view(request)
 
         assert response.status_code == 200
-        assert response.data["status"] == "terminating"
+        assert response.data["data"]["status"] == "terminating"
         client.operate_task.assert_called_once_with(456, "revoke", {"operator": "admin"})
 
     def test_history_lists_debug_runs(self, mocker):
@@ -108,26 +109,28 @@ class TestRunOpsViews:
         response = view(request)
 
         assert response.status_code == 200
-        assert response.data["runs"][0]["task_id"] == 7
-        assert response.data["runs"][0]["status"] == "finished"
+        assert response.data["data"]["runs"][0]["task_id"] == 7
+        assert response.data["data"]["runs"][0]["status"] == "finished"
 
-    def test_reset_while_running_returns_409(self, mocker):
+    def test_reset_while_running_returns_standard_error(self, mocker):
         self._patch_tree(mocker)
         DebugContext.objects.create(template_id=1, space_id=10, status="running", locked_by="bob")
         view = DebugViewSet.as_view({"post": "reset"})
         request = self.factory.post("/debug/reset/", {"template_id": 1}, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
-        assert response.status_code == 409
+        assert response.status_code == 200
+        assert response.data["result"] is False
 
-    def test_terminate_when_idle_returns_400(self, mocker):
+    def test_terminate_when_idle_returns_standard_error(self, mocker):
         self._patch_tree(mocker)
         DebugContext.objects.create(template_id=1, space_id=10, status="idle")
         view = DebugViewSet.as_view({"post": "terminate"})
         request = self.factory.post("/debug/terminate/", {"template_id": 1}, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
-        assert response.status_code == 400
+        assert response.status_code == 200
+        assert response.data["result"] is False
 
     def test_terminate_node_uses_forced_fail(self, mocker):
         self._patch_tree(mocker)
@@ -143,7 +146,7 @@ class TestRunOpsViews:
         response = view(request)
 
         assert response.status_code == 200
-        assert response.data["status"] == "terminating"
+        assert response.data["data"]["status"] == "terminating"
         client.node_operate.assert_called_once_with(456, "rtA", "forced_fail", {"operator": "admin"})
 
     def test_terminate_failure_rolls_back_to_running(self, mocker):
@@ -158,5 +161,6 @@ class TestRunOpsViews:
         force_authenticate(request, user=self.user)
         response = view(request)
 
-        assert response.status_code == 400
+        assert response.status_code == 200
+        assert response.data["result"] is False
         assert DebugContext.objects.get(template_id=1).status == "running"

@@ -5585,7 +5585,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}api/template/debug_sdk/context/
+          path: /{env.api_sub_path}api/template/debug/context/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5626,7 +5626,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}api/template/debug_sdk/input_schema/
+          path: /{env.api_sub_path}api/template/debug/input_schema/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5667,7 +5667,7 @@ paths:
         backend:
           name: sdk
           method: get
-          path: /{env.api_sub_path}api/template/debug_sdk/history/
+          path: /{env.api_sub_path}api/template/debug/history/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5714,7 +5714,7 @@ paths:
         backend:
           name: sdk
           method: post
-          path: /{env.api_sub_path}api/template/debug_sdk/global_run/
+          path: /{env.api_sub_path}api/template/debug/global_run/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5762,7 +5762,7 @@ paths:
         backend:
           name: sdk
           method: post
-          path: /{env.api_sub_path}api/template/debug_sdk/reset/
+          path: /{env.api_sub_path}api/template/debug/reset/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5808,7 +5808,7 @@ paths:
         backend:
           name: sdk
           method: post
-          path: /{env.api_sub_path}api/template/debug_sdk/terminate/
+          path: /{env.api_sub_path}api/template/debug/terminate/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5851,7 +5851,7 @@ paths:
         backend:
           name: sdk
           method: post
-          path: /{env.api_sub_path}api/template/debug_sdk/reset_impact/
+          path: /{env.api_sub_path}api/template/debug/reset_impact/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5915,7 +5915,7 @@ paths:
         backend:
           name: sdk
           method: post
-          path: /{env.api_sub_path}api/template/debug_sdk/step_run/
+          path: /{env.api_sub_path}api/template/debug/step_run/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -5975,7 +5975,7 @@ paths:
         backend:
           name: sdk
           method: post
-          path: /{env.api_sub_path}api/template/debug_sdk/node_mock/
+          path: /{env.api_sub_path}api/template/debug/node_mock/
           matchSubpath: false
           timeout: 0
         authConfig:
@@ -6025,7 +6025,7 @@ paths:
         backend:
           name: sdk
           method: post
-          path: /{env.api_sub_path}api/template/debug_sdk/context_var/
+          path: /{env.api_sub_path}api/template/debug/context_var/
           matchSubpath: false
           timeout: 0
         authConfig:
