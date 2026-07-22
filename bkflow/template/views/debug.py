@@ -19,7 +19,6 @@ to the current version of the project delivered to anyone in the future.
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.viewsets import GenericViewSet
 
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.template.debug.serializers import (
@@ -46,7 +45,7 @@ def _err(exc, code):
     return Response(exception=True, data={"detail": detail}, status=code)
 
 
-class DebugViewSet(GenericViewSet):
+class DebugViewSet(SimpleGenericViewSet):
     permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
     DEFAULT_PERMISSION = TemplateRelatedResourcePermission.VIEW_PERMISSION
     PERM_MAPPINGS = {
@@ -181,9 +180,3 @@ class DebugViewSet(GenericViewSet):
         except DebugConflictError as e:
             return _err(e, status.HTTP_409_CONFLICT)
         return Response(data)
-
-
-class DebugSdkViewSet(SimpleGenericViewSet, DebugViewSet):
-    """
-    SDK/APIGW 调试接口：复用内部调试动作，响应由 SimpleGenericViewSet 统一包装为标准协议。
-    """
