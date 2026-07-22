@@ -694,6 +694,16 @@ class DebugContext(CommonModel):
     """
 
     STATUS_CHOICES = (("idle", "idle"), ("running", "running"), ("terminating", "terminating"))
+    RUN_TYPE_CHOICES = (("global", "global"), ("step", "step"))
+    RUN_STATUS_CHOICES = (
+        ("not_run", "not_run"),
+        ("running", "running"),
+        ("waiting", "waiting"),
+        ("paused", "paused"),
+        ("finished", "finished"),
+        ("failed", "failed"),
+        ("revoked", "revoked"),
+    )
 
     template_id = models.BigIntegerField(_("模板ID"), unique=True)
     space_id = models.IntegerField(_("空间ID"), db_index=True)
@@ -701,6 +711,12 @@ class DebugContext(CommonModel):
     tree_fingerprint = models.JSONField(_("树指纹"), default=dict, blank=True)
     status = models.CharField(_("调试状态"), max_length=16, choices=STATUS_CHOICES, default="idle")
     active_task_id = models.BigIntegerField(_("当前DEBUG任务ID"), null=True, blank=True)
+    active_run_type = models.CharField(_("当前调试类型"), max_length=16, choices=RUN_TYPE_CHOICES, blank=True, default="")
+    active_node_id = models.CharField(_("当前单步节点ID"), max_length=33, blank=True, default="")
+    last_task_id = models.BigIntegerField(_("最近DEBUG任务ID"), null=True, blank=True)
+    last_run_type = models.CharField(_("最近调试类型"), max_length=16, choices=RUN_TYPE_CHOICES, blank=True, default="")
+    last_run_status = models.CharField(_("最近调试状态"), max_length=16, choices=RUN_STATUS_CHOICES, default="not_run")
+    last_error_detail = models.JSONField(_("最近调试错误详情"), default=dict, blank=True)
     last_inputs = models.JSONField(_("最近一次输入"), default=dict, blank=True)
     locked_by = models.CharField(_("持锁用户"), max_length=32, blank=True, default="")
     locked_at = models.DateTimeField(_("持锁时间"), null=True, blank=True)
@@ -718,6 +734,8 @@ class DebugNodeState(models.Model):
     STATUS_CHOICES = (
         ("not_run", "not_run"),
         ("running", "running"),
+        ("waiting", "waiting"),
+        ("paused", "paused"),
         ("finished", "finished"),
         ("failed", "failed"),
     )
@@ -732,6 +750,7 @@ class DebugNodeState(models.Model):
     mock_outputs = models.JSONField(_("Mock预设输出"), default=dict, blank=True)
     mock_error = models.CharField(_("Mock错误信息"), max_length=1024, blank=True, default="")
     status = models.CharField(_("运行状态"), max_length=16, choices=STATUS_CHOICES, default="not_run")
+    waiting_reason = models.CharField(_("等待原因"), max_length=32, blank=True, default="")
     inputs = models.JSONField(_("最近输入快照"), default=dict, blank=True)
     outputs = models.JSONField(_("最近输出快照"), default=dict, blank=True)
     duration_ms = models.IntegerField(_("耗时(ms)"), null=True, blank=True)

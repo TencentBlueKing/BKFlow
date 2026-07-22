@@ -35,3 +35,22 @@
   }
 }
 ```
+
+### real 模式返回结果示例
+
+real 单步创建并启动引擎任务后立即返回。调用方通过 `debug_context` 轮询任务后续的 `running | waiting | paused | finished | failed` 状态。
+
+```json
+{
+  "node_id": "node1",
+  "task_id": 456,
+  "status": "running",
+  "log_ref": {
+    "instance_id": 456,
+    "node_id": "runtime_node_id",
+    "version": "v1"
+  }
+}
+```
+
+mock 模式仍同步返回 `finished` 或 `failed` 及对应输出、错误详情和更新后的全局变量。

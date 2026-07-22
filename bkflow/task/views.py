@@ -336,7 +336,11 @@ class TaskInstanceViewSet(
     def get_states(self, request, *args, **kwargs):
         task_instance = self.get_object()
         task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
-        states = task_operation.get_task_states()
+        truthy = {"1", "true", "yes"}
+        states = task_operation.get_task_states(
+            with_ex_data=str(request.query_params.get("with_ex_data", "")).lower() in truthy,
+            include_schedule=str(request.query_params.get("include_schedule", "")).lower() in truthy,
+        )
         return Response(dict(states))
 
     @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
