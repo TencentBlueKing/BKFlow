@@ -552,6 +552,7 @@
       ...mapActions('template/', [
         'loadProjectBaseInfo',
         'loadTemplateData',
+        'batchGetTemplateVersion',
         'saveTemplateData',
         'getLayoutedPipeline',
         'loadInternalVariable',
@@ -635,7 +636,6 @@
         this.buildSubprocessInfoFromTree(pipelineTree);
       },
       /**
-       * 从指定 pipelineTree 的 activities 中遍历 SubProcess 节点，
        * 查询每个子流程模板的最新版本和名称，构造 subprocess_info 数组
        */
       async buildSubprocessInfoFromTree(pipelineTree) {
@@ -650,22 +650,23 @@
           this.constructedSubprocessInfo = [];
           return;
         }
-        // 按 template_id 去重，避免重复请求
         const uniqueTemplateIds = [...new Set(subProcessNodes.map(n => n.template_id))];
         const templateDataMap = {};
-        const fetchPromises = uniqueTemplateIds.map(async (templateId) => {
-          try {
-            const data = await this.loadTemplateData({
-              templateId,
-              common: this.common,
-              checkPermission: false,
+        try {
+          const res = await this.batchGetTemplateVersion({
+            templateIds: uniqueTemplateIds.join(','),
+          });
+          if (res.result) {
+            res.data.forEach((item) => {
+              templateDataMap[item.template_id] = {
+                name: item.name,
+                version: item.version,
+              };
             });
-            templateDataMap[templateId] = data || {};
-          } catch (e) {
-            templateDataMap[templateId] = {};
           }
-        });
-        await Promise.all(fetchPromises);
+        } catch (e) {
+          console.error(e);
+        }
         // 构造 subprocess_info
         this.constructedSubprocessInfo = subProcessNodes.map((node) => {
           const tplData = templateDataMap[node.template_id] || {};
