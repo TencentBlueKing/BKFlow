@@ -13,7 +13,21 @@
 :::
 
 ::: card
-#### api_key: bkci  ((common)){primary}
+#### 通用设置 · common（对所有 api_key 生效）
+
+空字段过滤 · exclude_none_fields
+请求前剔除值为空的字段
+((已开启)){success}
+
+参数类型转换 · enable_api_parameter_conversion
+对 POST 参数做 JSON 类型还原（字符串 → 数字/布尔/数组）
+((已关闭))
+:::
+
+<!-- ❶ common 是跨全部 api_key 的通用开关，独立成区，不隶属某个 api_key。 -->
+
+::: card
+#### api_key: bkci
 
 展示名称
 [蓝盾统一 API____________]
@@ -30,18 +44,20 @@ Meta 接口 · apigw URL（必填，如 apigw.example.com/api/bkci/meta）
 |-----|-------|-|
 | X-Bkapi-Source | bkflow | [删除]{danger} |
 
-[+ 添加请求头]{secondary}  [+ 新增 api_key]{secondary}
+::: row
+[+ 添加请求头]{secondary}  [测试该 api_key]*
+:::
 :::
 
-<!-- ❶ 多 api_key 分块编辑；((common)) 徽标表示是否作为通用接入。 -->
 <!-- ❷ URL 控件即时校验 apigw 域名格式，非法标红。 -->
-
-::: card
-#### 验证 · 实时预览
+<!-- ❸ 每个 api_key 各带「测试」按钮，按 api_key 粒度验证（后端 verify 即按单个 api_key）。 -->
 
 ::: row
-[测试连接]*
+[+ 新增 api_key]{secondary}
 :::
+
+::: card
+#### 验证 · 实时预览（当前测试：bkci）
 
 状态：((成功)){success}
 
@@ -56,7 +72,7 @@ Meta 接口 · apigw URL（必填，如 apigw.example.com/api/bkci/meta）
 
 :::
 
-<!-- ❸ 验证用「表单当前填的值」，未保存也能测；鉴权凭证默认取空间默认凭证（复用 UniformAPIClient meta/分类拉取）。 -->
+<!-- ❹ 验证用「表单当前填的值」，未保存也能测；鉴权凭证默认取空间默认凭证（复用 UniformAPIClient meta/分类拉取）；预览区回显被测 api_key 的结果。 -->
 
 ::: row {right}
 [高级（JSON 源码）]{secondary} [取消] [保存]*

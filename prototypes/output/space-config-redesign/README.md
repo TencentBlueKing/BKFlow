@@ -129,15 +129,16 @@ flowchart LR
 
 ## 屏 4 · API 插件 · 结构化配置 + 实时预览（api_plugin_config 复合控件）
 
-按 api_key 分块结构化编辑，验证区一键测试并回显拉取到的接口/分类预览。
+按 api_key 分块结构化编辑，common 通用开关独立成区；每个 api_key 各自「测试」，验证区回显被测 api_key 拉取到的接口/分类预览。
 
 ![API 插件配置](shots/04-api-plugin-config.png)
 
 | 编号 | 元素 | 交互说明 |
 |------|------|----------|
-| ❶ | api_key 分块 | 多 api_key 分块编辑；`((common))` 徽标表示是否作为通用接入；可「+ 新增 api_key」。 |
+| ❶ | 通用设置 · common | 跨**全部** api_key 生效的通用开关（`exclude_none_fields` 空字段过滤 / `enable_api_parameter_conversion` 参数类型转换），独立成区，不隶属任何单个 api_key。 |
 | ❷ | URL 控件 | 即时校验 apigw 域名格式，非法标红。 |
-| ❸ | 验证 · 实时预览 | 用「表单当前填的值」，未保存也能测；鉴权凭证默认取空间默认凭证（复用 `UniformAPIClient` meta/分类拉取）。成功回显数量 + 前 3 条样例，失败回显状态码 + 报错片段，警告不阻断保存。 |
+| ❸ | 按 api_key 测试 | 每个 api_key 分块自带「测试该 api_key」按钮，按 api_key 粒度验证（后端 `verify` 即以单个 api_key 为单位），便于精确定位是哪一个接入出错；可「+ 新增 api_key」。 |
+| ❹ | 验证 · 实时预览 | 用「表单当前填的值」，未保存也能测；鉴权凭证默认取空间默认凭证（复用 `UniformAPIClient` meta/分类拉取）；预览区回显**被测 api_key**（当前测试：bkci）的结果：成功显示数量 + 前 3 条样例，失败显示状态码 + 报错片段，警告不阻断保存。 |
 
 ## 屏 5 · 复合项 · JSON 源码兜底（高级模式）
 
