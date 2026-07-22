@@ -251,7 +251,7 @@
   import NodeLog from './ExecuteInfo/NodeLog.vue';
   import ExecuteInfoForm from './ExecuteInfo/ExecuteInfoForm.vue';
   import taskCondition from './taskCondition.vue';
-  import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import renderFormSchema from '@/utils/renderFormSchema.js';
   import { checkDataType, getDefaultValueFormat } from '@/utils/checkDataType.js';
   import permission from '@/mixins/permission.js';
   import { graphToJson } from '@/utils/graphJson.js';
@@ -1082,7 +1082,7 @@
               const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
               const outputs = resp.data.outputs || [];
               this.outputs = [...storeOutputs, ...outputs];
-              this.renderConfig = jsonFormSchema(resp.data, { disabled: this.isViewMode });
+              this.renderConfig = renderFormSchema(resp.data, { readOnly: this.isViewMode });
               return;
             }
             const res = await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
