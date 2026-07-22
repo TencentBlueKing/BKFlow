@@ -1192,6 +1192,13 @@ const template = {
         },
       }).then(response => response.data.data);
     },
+    // 批量获取模板最新版本信息
+    batchGetTemplateVersion({}, data) {
+      const { templateIds } = data;
+      return axios.get('api/template/batch_get_template_version/', {
+        params: { template_ids: templateIds },
+      }).then(response => response.data);
+    },
     loadCustomVarCollection() {
       return axios.get('api/template/variable/').then(response => response.data.data);
     },

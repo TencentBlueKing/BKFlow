@@ -320,6 +320,7 @@
           tasknode: [],
           subflow: [],
         },
+        constructedSubprocessInfo: null, // 非最新已发布版本时，从对应版本的 pipeline_tree 构造的 subprocess_info
         thirdPartyList: {},
         apiExistMap: {}, // api插件是否存在
         snapshoots: [],
@@ -430,11 +431,15 @@
           this.validateConnectFailList = [...new Set(this.validateConnectFailList)];
           const status = this.validateConnectFailList.includes(location.id) ? 'FAILED' : '';
           const data = { ...location, mode: 'edit', status };
+          // 未开启版本管理直接取 store；开启后仅最新已发布版本用 store，其余从 pipeline_tree 构造
+          const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
+            ? this.subprocess_info
+            : this.constructedSubprocessInfo;
           if (
-            this.subprocess_info
+            subprocessInfo
             && location.type === 'subflow'
           ) {
-            this.subprocess_info.some((subflow) => {
+            subprocessInfo.some((subflow) => {
               if (subflow.subprocess_node_id === location.id) {
                 data.hasUpdated = subflow.expired;
                 return true;
@@ -452,8 +457,12 @@
         });
       },
       subflowShouldUpdated() {
-        if (this.subprocess_info) {
-          const subflowShouldUpdateList = this.subprocess_info.reduce((acc, cur) => {
+        // 未开启版本管理直接取 store；开启后仅最新已发布版本用 store，其余从 pipeline_tree 构造
+        const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
+          ? this.subprocess_info
+          : this.constructedSubprocessInfo;
+        if (subprocessInfo) {
+          const subflowShouldUpdateList = subprocessInfo.reduce((acc, cur) => {
             const nodeId = cur.subprocess_node_id;
             if (!this.activities[nodeId]) {
               return acc;
@@ -543,6 +552,7 @@
       ...mapActions('template/', [
         'loadProjectBaseInfo',
         'loadTemplateData',
+        'batchGetTemplateVersion',
         'saveTemplateData',
         'getLayoutedPipeline',
         'loadInternalVariable',
@@ -622,6 +632,70 @@
         this.compVersion = null;
         this.setPipelineTree(draftTplData.data.pipeline_tree);
         this.isChangeTplVersionTime = new Date().getTime();
+        // 草稿版本需要构造 subprocess_info
+        this.buildSubprocessInfoFromTree(pipelineTree);
+      },
+      /**
+       * 查询每个子流程模板的最新版本和名称，构造 subprocess_info 数组
+       */
+      async buildSubprocessInfoFromTree(pipelineTree) {
+        if (!pipelineTree || !pipelineTree.activities) {
+          this.constructedSubprocessInfo = [];
+          return;
+        }
+        const activities = pipelineTree.activities;
+        const subProcessNodes = Object.values(activities)
+          .filter(act => act.type === 'SubProcess' && act.template_id);
+        if (subProcessNodes.length === 0) {
+          this.constructedSubprocessInfo = [];
+          return;
+        }
+        const uniqueTemplateIds = [...new Set(subProcessNodes.map(n => n.template_id))];
+        const templateDataMap = {};
+        try {
+          const res = await this.batchGetTemplateVersion({
+            templateIds: uniqueTemplateIds.join(','),
+          });
+          if (res.result) {
+            res.data.forEach((item) => {
+              templateDataMap[item.template_id] = {
+                name: item.name,
+                version: item.version,
+              };
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+        // 构造 subprocess_info
+        this.constructedSubprocessInfo = subProcessNodes.map((node) => {
+          const tplData = templateDataMap[node.template_id] || {};
+          const latestVersion = tplData.version || '';
+          return {
+            subprocess_template_id: String(node.template_id),
+            subprocess_node_id: node.id,
+            version: node.version || '',
+            always_use_latest: node.always_use_latest || false,
+            expired: latestVersion ? node.version !== latestVersion : false,
+            subprocess_template_name: tplData.name || '',
+          };
+        });
+        // 同步画布节点的小红点状态
+        this.syncCanvasSubflowHasUpdated();
+      },
+      /**
+       * 根据当前有效的 subprocess_info 更新画布上子流程节点的小红点 (hasUpdated)
+       */
+      syncCanvasSubflowHasUpdated() {
+        const processCanvas = this.$refs.processCanvas;
+        if (!processCanvas) return;
+        const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
+          ? this.subprocess_info
+          : this.constructedSubprocessInfo;
+        if (!subprocessInfo) return;
+        subprocessInfo.forEach(item => {
+          processCanvas.onUpdateNodeInfo(item.subprocess_node_id, { hasUpdated: item.expired });
+        });
       },
       // 判断是否开启版本管理
       async checkoutSpace(spaceId) {
@@ -2560,9 +2634,17 @@
             templateId: this.templateId,
             version,
           });
-          this.setPipelineTree(previewData.data.pipeline_tree);
+          const pipelineTree = previewData.data.pipeline_tree;
+          this.setPipelineTree(pipelineTree);
           this.isChangeTplVersionTime = new Date().getTime();
           this.compVersion = version;
+          // 开启版本管理且非最新已发布版本时，需要用该版本数据构造 subprocess_info
+          if (this.isEnableVersionManage && version !== this.latestedVersion) {
+            this.buildSubprocessInfoFromTree(pipelineTree);
+          } else {
+            // 最新已发布版本或未开启版本管理，同步 store 的 subprocess_info 到画布节点
+            this.syncCanvasSubflowHasUpdated();
+          }
         }
         this.isAtPublish = false;
         // this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;

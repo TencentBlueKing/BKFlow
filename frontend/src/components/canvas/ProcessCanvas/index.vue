@@ -270,6 +270,15 @@
           },
           embedding: { // 嵌套交互
             enabled: true,
+            validate: ({ child, parent }) => {
+              const childData = child.getData();
+              const parentData = parent.getData();
+              // 禁止子流程节点嵌入 SubCanvas 容器
+              if (childData?.type === 'subflow' && parentData?.type === 'SubCanvas') {
+                return false;
+              }
+              return true;
+            },
             findParent({ node }) {
               // 排除容器节点自身（不允许分组嵌套分组）
               if (node.shape === 'custom-group-node' || node.shape === 'custom-loop-group-node') {
