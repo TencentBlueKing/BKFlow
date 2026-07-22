@@ -201,6 +201,8 @@ sequenceDiagram
 - 基于inputs和outputs字段，动态进行表单生成
 	- 当响应包含带 `properties` 的 `form_schema` 时，BKFlow 优先按完整 schema 渲染，并保留其中的 `ui:component`、`ui:rules`、`ui:reactions` 等配置
 	- `inputs` 仍为必填兼容字段；未提供 `form_schema` 时继续按 `inputs` 生成表单
+	- 标准控件名支持 `input`、`textarea`、`password`、`codeEditor`、`select`、`radio`、`checkbox`、`switcher` 和 `table`；`code_editor` 会兼容转换为 `codeEditor`
+	- `codeEditor` 使用 BKFlow 内置 Monaco 编辑器，可通过 `props.language`、`props.height` 和 `props.showMiniMap` 配置；未知控件名会按字段类型降级，不会加载提供方 JavaScript
 	- 字段类型(type)与表单类型映射关系：
 		- string -> 输入框
 		- list -> checkbox，需要提供options字段

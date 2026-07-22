@@ -125,9 +125,14 @@
   import { mapActions } from 'vuex';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
   import tools from '@/utils/tools.js';
+  import ApiCodeEditor from './ApiCodeEditor.vue';
   import createForm from '@blueking/bkui-form';
   import '@blueking/bkui-form/dist/bkui-form.css';
-  const BkUniForm = createForm();
+  const BkUniForm = createForm({
+    components: {
+      codeEditor: ApiCodeEditor,
+    },
+  });
   export default {
     name: '',
     components: {

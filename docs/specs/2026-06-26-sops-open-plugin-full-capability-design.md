@@ -142,6 +142,20 @@ V4.0.0 不新增插件类型，也不新增独立入口。用户仍按普通 API
 - `docs/specs/2026-04-20-sops-open-plugin-frontend-interaction-design.md`
 - `docs/guide/sops_open_plugin_frontend_contract.md`
 
+### 6.2 声明式表单控件
+
+V4 插件详情可携带可选 `form_schema`。BKFlow 优先使用该 schema，并仅渲染已注册的标准控件；没有 `form_schema` 时继续从 `inputs` 生成兼容表单。
+
+本轮标准控件包括：
+
+- `input / textarea / password / codeEditor`
+- `select / radio / checkbox / switcher`
+- `table`
+
+`codeEditor` 复用 BKFlow 现有 Monaco 能力，通过 API 插件表单专用包装组件接入 `@blueking/bkui-form`，支持语言、只读状态和稳定高度。所有控件配置必须是 JSON 可序列化数据；BKFlow 不获取、不解析、不执行插件提供方的旧表单 JavaScript。
+
+未知控件名必须回退到按 JSON Schema 类型推导的基础控件，避免渲染空白自定义标签。`tree / upload / cascader / category / combine` 等依赖动态数据或动作函数的控件，待统一数据源协议落地后再开放，不在本轮宣称原生等价。
+
 ## 7. 测试与验收（BKFlow 侧）
 
 - execute body 携带 `context`；老来源不带 context 时仍可正常执行（兼容回归）。

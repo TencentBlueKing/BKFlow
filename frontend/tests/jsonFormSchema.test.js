@@ -88,6 +88,68 @@ function testFlatInputsRemainCompatible() {
   assert.deepStrictEqual(schema.properties.targets['ui:component'].props.datasource, []);
 }
 
+function testFlatStandardCustomControlsAreNormalized() {
+  const schema = jsonFormSchema({
+    id: 'plugin-demo',
+    inputs: [
+      { key: 'password', name: 'Password', type: 'string', form_type: 'password' },
+      { key: 'script', name: 'Script', type: 'string', form_type: 'code_editor' },
+    ],
+  });
+
+  assert.strictEqual(schema.properties.password['ui:component'].name, 'bfInput');
+  assert.strictEqual(schema.properties.password['ui:component'].props.type, 'password');
+  assert.strictEqual(schema.properties.script['ui:component'].name, 'codeEditor');
+}
+
+function testStructuredCodeEditorPreservesDeclarativeProps() {
+  const schema = jsonFormSchema({
+    id: 'plugin-demo',
+    form_schema: {
+      type: 'object',
+      properties: {
+        script: {
+          type: 'string',
+          'ui:component': {
+            name: 'code_editor',
+            props: { language: 'shell', height: '400px' },
+          },
+        },
+      },
+    },
+  });
+
+  assert.strictEqual(schema.properties.script['ui:component'].name, 'codeEditor');
+  assert.strictEqual(schema.properties.script['ui:component'].props.language, 'shell');
+  assert.strictEqual(schema.properties.script['ui:component'].props.height, '400px');
+}
+
+function testUnknownStructuredControlFallsBackWithoutDroppingBehavior() {
+  const reaction = { source: 'mode', effect: 'update' };
+  const rules = [{ required: true, message: 'required' }];
+  const schema = jsonFormSchema({
+    id: 'plugin-demo',
+    form_schema: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          'ui:component': { name: 'legacy_magic_editor', props: { theme: 'dark' } },
+          'ui:reactions': [reaction],
+          'ui:rules': rules,
+        },
+      },
+    },
+  });
+
+  assert.strictEqual(schema.properties.content['ui:component'].name, 'bfInput');
+  assert.deepStrictEqual(schema.properties.content['ui:reactions'], [reaction]);
+  assert.deepStrictEqual(schema.properties.content['ui:rules'], rules);
+}
+
 testStructuredFormSchemaTakesPrecedence();
 testFlatInputsRemainCompatible();
+testFlatStandardCustomControlsAreNormalized();
+testStructuredCodeEditorPreservesDeclarativeProps();
+testUnknownStructuredControlFallsBackWithoutDroppingBehavior();
 console.log('jsonFormSchema tests passed');

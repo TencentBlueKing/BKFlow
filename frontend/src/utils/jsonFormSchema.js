@@ -1,5 +1,31 @@
 import tools from './tools';
 
+const SUPPORTED_COMPONENTS = new Set([
+  'button',
+  'select',
+  'radio',
+  'checkbox',
+  'table',
+  'group',
+  'bfArray',
+  'tab',
+  'collapse',
+  'switcher',
+  'color',
+  'bfInput',
+  'input',
+  'bk-input',
+  'bk-date-picker',
+  'codeEditor',
+]);
+
+const COMPONENT_ALIASES = {
+  textarea: { name: 'bfInput', props: { type: 'textarea' } },
+  password: { name: 'bfInput', props: { type: 'password' } },
+  code_editor: { name: 'codeEditor', props: {} },
+  'code-editor': { name: 'codeEditor', props: {} },
+};
+
 function getDataType(type) {
   if (type === 'bool') return 'boolean';
   if (type === 'int') return 'number';
@@ -58,7 +84,13 @@ function getCompType(type, formType, options) {
   let compType = 'bfInput';
   // 支持表单类型
   if (formType) {
-    compType = ['input', 'textarea'].includes(formType) ? compType : formType;
+    if (['input', 'textarea', 'password'].includes(formType)) {
+      compType = 'bfInput';
+    } else if (['code_editor', 'code-editor'].includes(formType)) {
+      compType = 'codeEditor';
+    } else {
+      compType = formType;
+    }
   } else if (type === 'list') {
     compType = formType === 'time_range' ? 'datetimerange' : 'checkbox';
     compType = formType === 'table' ? 'table' : compType;
@@ -99,10 +131,16 @@ function setComponentProps(acc, cur, key, config) {
       value: item && Object.prototype.hasOwnProperty.call(item, 'value') ? item.value : item,
     }));
     acc[key]['ui:component'].props = { datasource: dataSource };
+  } else if (compType === 'codeEditor') {
+    acc[key]['ui:component'].props = {
+      ...config,
+      language: 'plaintext',
+    };
   } else if (['int', 'string', 'textarea'].includes(type)) {
     // 区分文本框和数字框
     let inputType = type === 'int' ? 'number' : 'text';
     inputType = formType === 'textarea' ? 'textarea' : inputType;
+    inputType = formType === 'password' ? 'password' : inputType;
     acc[key]['ui:component'].props = {
       ...config,
       placeholder: hint,
@@ -216,14 +254,19 @@ function mergeStructuredProperty(fallback, property, config) {
       ...fallback.extend,
       ...(property.extend || {}),
     },
+    'ui:component': fallback['ui:component'],
   };
   const customComponent = property['ui:component'];
-  if (customComponent) {
+  const alias = COMPONENT_ALIASES[customComponent?.name];
+  const normalizedName = alias?.name || customComponent?.name;
+  if (SUPPORTED_COMPONENTS.has(normalizedName)) {
     merged['ui:component'] = {
       ...fallback['ui:component'],
       ...customComponent,
+      name: normalizedName,
       props: {
         ...(fallback['ui:component'].props || {}),
+        ...(alias?.props || {}),
         ...(customComponent.props || {}),
         ...config,
       },
