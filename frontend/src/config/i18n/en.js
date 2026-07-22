@@ -1216,6 +1216,8 @@ const en = {
   保存为流程变量: 'Save as process variable',
   循环内变量: 'Loop Variable',
   循环内输出: 'Loop Output',
+  查看子任务: 'View Subtasks',
+  禁用组件: 'Disable Component',
 };
 
 export default en;
