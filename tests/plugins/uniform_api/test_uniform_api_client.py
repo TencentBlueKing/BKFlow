@@ -176,6 +176,17 @@ class TestUniformAPIClient:
             "url": "https://bk-sops.example/open-plugin-runs",
             "methods": ["POST"],
             "inputs": [],
+            "form_schema": {
+                "type": "object",
+                "required": ["biz_id"],
+                "properties": {
+                    "biz_id": {
+                        "type": "number",
+                        "title": "业务 ID",
+                        "ui:component": {"name": "bk-input", "props": {"type": "number"}},
+                    }
+                },
+            },
             "outputs": [{"name": "作业实例 ID", "key": "job_instance_id"}],
             "polling": {
                 "url": "https://bk-sops.example/open-plugin-runs/status",

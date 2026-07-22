@@ -1,9 +1,43 @@
 import tools from './tools';
 
+const SUPPORTED_COMPONENTS = new Set([
+  'button',
+  'select',
+  'radio',
+  'checkbox',
+  'table',
+  'group',
+  'bfArray',
+  'tab',
+  'collapse',
+  'switcher',
+  'color',
+  'bfInput',
+  'input',
+  'bk-input',
+  'bk-date-picker',
+  'codeEditor',
+]);
+
+const COMPONENT_ALIASES = {
+  textarea: { name: 'bfInput', props: { type: 'textarea' } },
+  password: { name: 'bfInput', props: { type: 'password' } },
+  code_editor: { name: 'codeEditor', props: {} },
+  'code-editor': { name: 'codeEditor', props: {} },
+};
+
 function getDataType(type) {
   if (type === 'bool') return 'boolean';
   if (type === 'int') return 'number';
   if (type === 'list') return 'array';
+  return 'string';
+}
+
+function getSourceType(type) {
+  if (['boolean', 'bool'].includes(type)) return 'bool';
+  if (['integer', 'number', 'int', 'float'].includes(type)) return 'int';
+  if (['array', 'list'].includes(type)) return 'list';
+  if (['object', 'json'].includes(type)) return 'json';
   return 'string';
 }
 
@@ -50,7 +84,13 @@ function getCompType(type, formType, options) {
   let compType = 'bfInput';
   // 支持表单类型
   if (formType) {
-    compType = ['input', 'textarea'].includes(formType) ? compType : formType;
+    if (['input', 'textarea', 'password'].includes(formType)) {
+      compType = 'bfInput';
+    } else if (['code_editor', 'code-editor'].includes(formType)) {
+      compType = 'codeEditor';
+    } else {
+      compType = formType;
+    }
   } else if (type === 'list') {
     compType = formType === 'time_range' ? 'datetimerange' : 'checkbox';
     compType = formType === 'table' ? 'table' : compType;
@@ -64,15 +104,16 @@ function getCompType(type, formType, options) {
 function setComponentProps(acc, cur, key, config) {
   const { multiple, hint, allow_create: allowCreate, options, type, form_type: formType } = cur;
   const { name: compType } = acc[key]['ui:component'];
+  const safeOptions = Array.isArray(options) ? options : [];
 
   if (compType === 'select') {
-    const dataSource = options.map((item) => {
+    const dataSource = safeOptions.map((item) => {
       const result = {
         label: item.text || item,
-        value: item.value || item,
+        value: item && Object.prototype.hasOwnProperty.call(item, 'value') ? item.value : item,
       };
       return result;
-    }) || [];
+    });
     acc[key].type = multiple ? 'array' :  acc[key].type;
     acc[key]['ui:component'].props = {
       ...config,
@@ -85,15 +126,21 @@ function setComponentProps(acc, cur, key, config) {
     acc[key]['ui:props'] = {
       ...config,
     };
-    const dataSource = options.map(item => ({
+    const dataSource = safeOptions.map(item => ({
       label: item.text || item,
-      value: item.value || item,
-    })) || [];
+      value: item && Object.prototype.hasOwnProperty.call(item, 'value') ? item.value : item,
+    }));
     acc[key]['ui:component'].props = { datasource: dataSource };
+  } else if (compType === 'codeEditor') {
+    acc[key]['ui:component'].props = {
+      ...config,
+      language: 'plaintext',
+    };
   } else if (['int', 'string', 'textarea'].includes(type)) {
     // 区分文本框和数字框
     let inputType = type === 'int' ? 'number' : 'text';
     inputType = formType === 'textarea' ? 'textarea' : inputType;
+    inputType = formType === 'password' ? 'password' : inputType;
     acc[key]['ui:component'].props = {
       ...config,
       placeholder: hint,
@@ -155,7 +202,9 @@ function getProperties(data = [], config = {}) {
 
     if (metaDesc) acc[key].metaDesc = metaDesc;
     if (required) acc[key]['ui:rules'] = createValidationRules(type);
-    if (cur.default) acc[key].default = getDefaultVal(cur.default, type);
+    if (Object.prototype.hasOwnProperty.call(cur, 'default')) {
+      acc[key].default = getDefaultVal(cur.default, type);
+    }
 
     if (formType === 'table') {
       setTableProps(acc, cur, key, config);
@@ -166,7 +215,111 @@ function getProperties(data = [], config = {}) {
   }, {});
 }
 
+function schemaPropertyToInput(key, property, required) {
+  const type = getSourceType(property.type);
+  const input = {
+    key,
+    name: property.title || key,
+    desc: property.description || '',
+    type,
+    required,
+  };
+  if (Object.prototype.hasOwnProperty.call(property, 'default')) {
+    input.default = property.default;
+  }
+
+  const itemSchema = property.items || {};
+  const options = property.enum || itemSchema.enum;
+  if (Array.isArray(options)) input.options = options;
+  if (type === 'list' && itemSchema.type === 'object') {
+    const itemRequired = new Set(itemSchema.required || []);
+    input.form_type = 'table';
+    input.table = {
+      fields: Object.entries(itemSchema.properties || {}).map(([itemKey, item]) => (
+        schemaPropertyToInput(itemKey, item, itemRequired.has(itemKey))
+      )),
+      meta: {},
+    };
+  }
+  return input;
+}
+
+function mergeStructuredProperty(fallback, property, config) {
+  const merged = {
+    ...fallback,
+    ...property,
+    sourceType: property.sourceType || fallback.sourceType,
+    formType: property.formType || fallback.formType,
+    extend: {
+      ...fallback.extend,
+      ...(property.extend || {}),
+    },
+    'ui:component': fallback['ui:component'],
+  };
+  const customComponent = property['ui:component'];
+  const alias = COMPONENT_ALIASES[customComponent?.name];
+  const normalizedName = alias?.name || customComponent?.name;
+  if (SUPPORTED_COMPONENTS.has(normalizedName)) {
+    merged['ui:component'] = {
+      ...fallback['ui:component'],
+      ...customComponent,
+      name: normalizedName,
+      props: {
+        ...(fallback['ui:component'].props || {}),
+        ...(alias?.props || {}),
+        ...(customComponent.props || {}),
+        ...config,
+      },
+    };
+  }
+  return merged;
+}
+
+function normalizeStructuredProperties(properties = {}, required = [], config = {}) {
+  const requiredFields = new Set(required);
+  return Object.entries(properties).reduce((acc, [key, rawProperty]) => {
+    const property = { ...rawProperty };
+    if (property.items?.type === 'object') {
+      property.items = {
+        ...property.items,
+        properties: normalizeStructuredProperties(
+          property.items.properties,
+          property.items.required,
+          config,
+        ),
+      };
+    }
+    if (property.type === 'object' && property.properties) {
+      property.properties = normalizeStructuredProperties(property.properties, property.required, config);
+    }
+
+    const input = schemaPropertyToInput(key, property, requiredFields.has(key));
+    const fallback = getProperties([input], config)[key];
+    acc[key] = mergeStructuredProperty(fallback, property, config);
+    return acc;
+  }, {});
+}
+
+function normalizeStructuredFormSchema(data, config) {
+  const formSchema = data.form_schema;
+  const schema = {
+    ...formSchema,
+    title: formSchema.title || data.id,
+    description: formSchema.description || data.desc || '',
+    type: 'object',
+  };
+  schema.properties = normalizeStructuredProperties(
+    formSchema.properties,
+    formSchema.required,
+    config,
+  );
+  return schema;
+}
+
 export default function jsonFormSchema(data, config = {}) {
+  if (data.form_schema?.properties) {
+    return normalizeStructuredFormSchema(data, config);
+  }
   const { id, desc, inputs } = data;
   if (!Array.isArray(inputs)) return {};
   const keys = inputs.reduce((acc, cur) => {
