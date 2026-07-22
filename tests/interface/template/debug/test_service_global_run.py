@@ -63,6 +63,12 @@ class TestGlobalRun:
         assert result["task_id"] == 456
         assert ctx.status == "running"
         assert ctx.active_task_id == 456
+        assert ctx.active_run_type == "global"
+        assert ctx.active_node_id == ""
+        assert ctx.last_task_id == 456
+        assert ctx.last_run_type == "global"
+        assert ctx.last_run_status == "running"
+        assert ctx.last_error_detail == {}
         assert ctx.last_inputs == {"${biz}": "100"}
 
         # 重置运行结果、保留 mock 配置
@@ -125,6 +131,10 @@ class TestGlobalRun:
         assert ctx.status == "idle"
         assert ctx.locked_by == ""
         assert ctx.active_task_id is None
+        assert ctx.last_task_id == 456
+        assert ctx.last_run_type == "global"
+        assert ctx.last_run_status == "failed"
+        assert ctx.last_error_detail == {"type": "start", "message": "start boom", "task_id": 456}
         client.delete_task.assert_called_once_with(456)
 
     def test_acquire_lock_conflict_branch(self, mocker):

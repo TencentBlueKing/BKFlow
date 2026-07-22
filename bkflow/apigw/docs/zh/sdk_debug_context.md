@@ -29,8 +29,35 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
   "status": "idle",
   "locked_by": "",
   "active_task_id": null,
+  "active_run_type": null,
+  "active_node_id": null,
+  "last_task_id": 456,
+  "last_run_type": "global",
+  "last_run_status": "failed",
+  "last_error_detail": {
+    "type": "runtime",
+    "message": "multiple conditions meet",
+    "task_id": 456,
+    "failures": [
+      {
+        "node_id": "runtime_gateway_id",
+        "template_node_id": null,
+        "message": "multiple conditions meet"
+      }
+    ]
+  },
   "last_inputs": {},
   "global_vars": {},
-  "nodes": []
+  "nodes": [
+    {
+      "node_id": "node1",
+      "status": "waiting",
+      "waiting_reason": "callback"
+    }
+  ]
 }
 ```
+
+`status` 表示上下文锁状态，取值为 `idle | running | terminating`。运行结果以 `last_run_status` 为准，取值为 `not_run | running | waiting | paused | finished | failed | revoked`。
+
+`active_task_id` 仅在任务运行期间有值，任务结束后清空；`last_task_id` 会保留最近一次真实引擎任务 ID。节点 `status` 取值为 `not_run | running | waiting | paused | finished | failed`。存在引擎调度记录时，`waiting_reason` 为 `callback | multiple_callback | poll`。

@@ -31,7 +31,7 @@ from bamboo_engine import exceptions as bamboo_exceptions
 from bamboo_engine import states as bamboo_engine_states
 from bamboo_engine.api import EngineAPIResult
 from bamboo_engine.context import Context
-from bamboo_engine.eri import ContextValue, ContextValueType
+from bamboo_engine.eri import ContextValue, ContextValueType, ScheduleType
 from bamboo_engine.template import Template
 from django.conf import settings
 from django.db import transaction
@@ -40,6 +40,7 @@ from pipeline.component_framework.library import ComponentLibrary
 from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.eri.imp.serializer import SerializerMixin
 from pipeline.eri.models import ExecutionData as DBExecutionData
+from pipeline.eri.models import Schedule as DBSchedule
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.parser.context import get_pipeline_context
 from pydantic import BaseModel, validator
@@ -443,7 +444,12 @@ class TaskOperation:
 
     @uniform_task_operation_result
     def get_task_states(
-        self, subprocess_id: str = None, with_ex_data: bool = False, *args, **kwargs
+        self,
+        subprocess_id: str = None,
+        with_ex_data: bool = False,
+        include_schedule: bool = False,
+        *args,
+        **kwargs,
     ) -> OperationResult:
         if self.task_instance.is_expired:
             return OperationResult(result=True, data={"state": TaskStates.EXPIRED.value})
@@ -510,6 +516,32 @@ class TaskOperation:
                     status_tree["state"] = "NODE_SUSPENDED"
 
         format_bamboo_engine_status(task_states)
+
+        if include_schedule:
+            nodes = []
+
+            def collect_nodes(status_tree):
+                for child in status_tree.get("children", {}).values():
+                    nodes.append(child)
+                    collect_nodes(child)
+
+            collect_nodes(task_states)
+            node_versions = {(node.get("id"), node.get("version")) for node in nodes}
+            node_ids = {node_id for node_id, _ in node_versions if node_id}
+            schedules = DBSchedule.objects.filter(node_id__in=node_ids, finished=False, expired=False).values(
+                "node_id", "version", "type"
+            )
+            schedule_types = {}
+            for schedule in schedules:
+                try:
+                    schedule_type = ScheduleType(schedule["type"]).name
+                except ValueError:
+                    continue
+                schedule_types[(schedule["node_id"], schedule["version"])] = schedule_type
+            for node in nodes:
+                schedule_type = schedule_types.get((node.get("id"), node.get("version")))
+                if schedule_type:
+                    node["schedule_type"] = schedule_type
 
         def collect_fail_nodes(task_status: dict) -> list:
             task_status["ex_data"] = {}
