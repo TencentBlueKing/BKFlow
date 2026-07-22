@@ -477,6 +477,8 @@
           EmptyEndEvent: 'empty-end-event',
           EmptyStartEvent: 'empty-start-event',
           SubProcess: 'task',
+          SubCanvas: 'task',
+          tasknode: 'task',
         },
         subflowInfo: {}, // 子流程根节点id和任务id
         webhookHistory: [],
