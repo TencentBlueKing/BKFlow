@@ -101,6 +101,19 @@
                 </p>
               </div>
             </JumpLinkBKFlowOrExternal>
+            <JumpLinkBKFlowOrExternal
+              v-if="currentSubflowTaskId && isSubCanvasNode && !isFirstSubFlow(nodeDetailConfig.node_id)"
+              :query="{ id: currentSubflowTaskId, type:'task' }"
+              :get-target-url="onViewSubCanvasExecute">
+              <div
+                class="view-subflow">
+                <span class="dividing-line" />
+                <i class="common-icon-box-top-right-corner icon-link-to-sub" />
+                <p class="text-link-to-sub">
+                  {{ $t('查看子任务') }}
+                </p>
+              </div>
+            </JumpLinkBKFlowOrExternal>
           </div>
         </div>
         <div
@@ -599,6 +612,7 @@
         // this.nodeDetailConfig.component_code === 'subprocess_plugin'
        return this.currentSubflowTaskId !== '' && this.isSubProcessNode;
       },
+
       subProcessTaskId() { // 独立子流程节点的任务id
         return this.nodeDetailConfig.instance_id;
       },
@@ -676,6 +690,9 @@
         'loadSubflowConfig',
         'getInstanceStatus',
         'getTaskInstanceData',
+        'getBatchNodeOutput',
+        'getBatchTaskStates',
+        'getBatchTaskPipeline',
       ]),
       ...mapMutations('task/', [
         'setSubActivities',
@@ -872,7 +889,7 @@
           const { instanceId } = this.$route.query;
           const tempPath = [...currentPath, {
             id: node.id,
-            name: node.name,
+            name: node?.conditionType === 'condition' ? node.title : node.name,
             taskId: this.isFirstSubFlow(node.id) ? instanceId : node.taskId,
             component_code: node?.component?.code || '',
             type: node.type,
@@ -914,6 +931,8 @@
             }
             this.subflowState = resp.data.state;
             this.subflowNodeStatus = resp.data.children || {};
+            // 收集子流程中 SubCanvas（循环容器）子节点的执行状态
+            await this.collectSubprocessSubCanvasStatus();
             if (['FINISHED', 'REVOKED', 'FAILED'].includes(resp.data.state)) {
                this.cancelTaskStatusTimer();
             } else {
@@ -923,6 +942,85 @@
             console.warn(error);
         } finally {
             source = null;
+        }
+      },
+      /**
+       * 收集子流程中已执行的 SubCanvas（循环容器）节点的子节点状态
+       * 参考 TaskOperation.vue 中 collectSubCanvasChildrenStatus 的实现模式
+       */
+      async collectSubprocessSubCanvasStatus() {
+        // 从子流程的 activities 中找出 SubCanvas 节点
+        const subCanvasNodes = Object.values(this.subCanvsActivityCollection).filter(
+          item => item?.component?.code === 'subcanvas_plugin'
+        );
+        if (subCanvasNodes.length === 0) return;
+        try {
+          // 批量获取 SubCanvas 节点的输出参数，从中提取 task_id
+          const batchOutputRes = await this.getBatchNodeOutput({
+            task_id: this.subflowTaskId,
+            space_id: this.spaceId,
+            node_ids: subCanvasNodes.map(n => n.id),
+          });
+          const outputDataList = batchOutputRes?.data || [];
+          const nodeTaskMap = subCanvasNodes.map((nodeItem) => {
+            const outputs = outputDataList.find(item => Object.prototype.hasOwnProperty.call(item, nodeItem.id));
+            const taskId = outputs?.[nodeItem.id] ? outputs[nodeItem.id][0]?.['task_id'] : null;
+            return { nodeItem, taskId };
+          });
+          // 收集所有有效 taskId
+          const validTaskIds = nodeTaskMap.filter(item => item.taskId).map(item => item.taskId);
+          if (validTaskIds.length === 0) return;
+
+          // 批量获取 SubCanvas 子任务的 pipeline 数据，用执行后的实例 pipeline 替换模板 pipeline
+          // （模板 node ID 与实例 node ID 不同，状态更新需要匹配实例 ID）
+          const batchPipelineRes = await this.getBatchTaskPipeline({
+            task_ids: validTaskIds.join(','),
+            space_id: this.spaceId,
+          });
+          let pipelineUpdated = false;
+          if (batchPipelineRes?.result && batchPipelineRes.data) {
+            nodeTaskMap.forEach(({ nodeItem, taskId }) => {
+              if (!taskId) return;
+              const taskData = batchPipelineRes.data[taskId];
+              if (taskData) {
+                // 同步更新 subCanvsActivityCollection 和 subCanvasData.activities 中的 pipeline
+                const oldPipeline = this.subCanvsActivityCollection[nodeItem.id]?.pipeline;
+                if (!tools.isDataEqual(oldPipeline, taskData)) {
+                  if (this.subCanvsActivityCollection[nodeItem.id]) {
+                    this.subCanvsActivityCollection[nodeItem.id].pipeline = taskData;
+                  }
+                  if (this.subCanvasData.activities?.[nodeItem.id]?.component?.code === 'subcanvas_plugin') {
+                    this.subCanvasData.activities[nodeItem.id].pipeline = taskData;
+                  }
+                  pipelineUpdated = true;
+                }
+              }
+            });
+          }
+
+          // pipeline 更新后也要刷新 canvasData，让画布使用实例 node ID
+          if (pipelineUpdated) {
+            this.updateCanvasData(this.subCanvasData);
+          }
+
+          // 批量获取 SubCanvas 子任务的节点状态
+          const batchStatesRes = await this.getBatchTaskStates({
+            task_ids: validTaskIds.join(','),
+            space_id: this.spaceId,
+          });
+          if (batchStatesRes?.result && batchStatesRes.data) {
+            const mergedChildren = {};
+            Object.values(batchStatesRes.data).forEach((taskState) => {
+              if (taskState?.children) {
+                Object.assign(mergedChildren, taskState.children);
+              }
+            });
+            if (Object.keys(mergedChildren).length > 0) {
+              this.subflowNodeStatus = Object.assign({}, this.subflowNodeStatus, mergedChildren);
+            }
+          }
+        } catch (e) {
+          console.warn(e);
         }
       },
       setTaskStatusTimer(time = 3000) {
@@ -1065,10 +1163,19 @@
       // 更新子流程画布节点状态
       updateSubflowCanvasNodeInfo() {
         const nodes = this.subflowNodeStatus;
+        // 合并嵌套 SubCanvas pipeline 的 activities，用于查找 SubCanvas 子节点的 skippable 等属性
+        const allActivities = Object.assign({}, this.subCanvasData.activities || {});
+        Object.keys(this.subCanvasData.activities || {}).forEach((key) => {
+          const activity = this.subCanvasData.activities[key];
+          if (activity?.component?.code === 'subcanvas_plugin' && activity.pipeline?.activities) {
+            Object.assign(allActivities, activity.pipeline.activities);
+          }
+        });
+
         nodes && Object.keys(nodes).forEach((id) => {
           let code; let skippable; let retryable; let errorIgnorable; let autoRetry;
           const currentNode = nodes[id];
-          const nodeActivities = this.subCanvasData.activities[id];
+          const nodeActivities = allActivities[id];
 
           if (nodeActivities) {
             code = nodeActivities.component ? nodeActivities.component.code : '';
@@ -1129,8 +1236,22 @@
       },
       // 点击子流程画布中的节点
       onSubflowNodeClick(id) {
-        this.subCanvasActiveId = id;
-        // this.$emit('onClickSubCanvasNode', id, type, this.subCanvasData);
+        // 禁止点击循环容器（SubCanvas）内部的子节点，重定向到循环容器节点本身
+        const parentSubCanvasId = this.getSubCanvasParentIdInSubCanvas(id);
+        this.subCanvasActiveId = parentSubCanvasId || id;
+      },
+      // 在子流程画布中查找节点所属的 SubCanvas（循环容器）父节点ID
+      getSubCanvasParentIdInSubCanvas(nodeId) {
+        const activities = this.subCanvasData?.activities || {};
+        for (const key of Object.keys(activities)) {
+          const activity = activities[key];
+          if (activity?.component?.code === 'subcanvas_plugin' && activity.pipeline?.location) {
+            if (activity.pipeline.location.some(loc => loc.id === nodeId)) {
+              return key;
+            }
+          }
+        }
+        return null;
       },
       // 子流程画布点击网关条件
       onSubConditionClick(data) {
@@ -1140,6 +1261,19 @@
         this.$emit('onOpenConditionInfo', data, isCondition);
       },
       onViewSubProcessExecute() {
+        const { href } = this.$router.resolve({
+            name: 'taskExecute',
+            params: {
+              spaceId: this.spaceId,
+            },
+            query: {
+              instanceId: this.currentSubflowTaskId,
+            },
+        });
+        return href;
+      },
+      // 查看子画布任务详情
+      onViewSubCanvasExecute() {
         const { href } = this.$router.resolve({
             name: 'taskExecute',
             params: {

@@ -13,7 +13,7 @@
     </bk-tab>
     <div class="scroll-area">
       <task-condition
-        v-if="!currentNodeDetailConfig.nodeType"
+        v-if="!currentNodeDetailConfig.nodeType && conditionData && conditionData.nodeId"
         ref="conditionEdit"
         :is-readonly="true"
         :gateways="mergedGateways"
