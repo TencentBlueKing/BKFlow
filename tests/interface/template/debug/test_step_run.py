@@ -293,8 +293,8 @@ class TestStepRunViews:
             return_value=10,
         )
 
-    def test_node_mock_bad_node_returns_400(self, mocker):
-        """node_mock 视图：未知 node_id 返回 400 而非 500（I-5）"""
+    def test_node_mock_bad_node_returns_standard_error(self, mocker):
+        """node_mock 视图：未知 node_id 返回标准错误协议。"""
         self._patch_tree(mocker)
         DebugContext.objects.create(template_id=1, space_id=10)
         view = DebugViewSet.as_view({"post": "node_mock"})
@@ -303,5 +303,6 @@ class TestStepRunViews:
         )
         force_authenticate(request, user=self.user)
         response = view(request)
-        assert response.status_code == 400
-        assert response.data["detail"] == {"detail": "节点不存在", "node_id": "ZZZ"}
+        assert response.status_code == 200
+        assert response.data["result"] is False
+        assert response.data["data"]["detail"] == {"detail": "节点不存在", "node_id": "ZZZ"}

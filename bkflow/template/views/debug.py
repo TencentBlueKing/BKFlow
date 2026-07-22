@@ -19,7 +19,6 @@ to the current version of the project delivered to anyone in the future.
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.viewsets import GenericViewSet
 
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.template.debug.serializers import (
@@ -38,6 +37,7 @@ from bkflow.template.debug.service import (
 )
 from bkflow.template.permissions import TemplateRelatedResourcePermission
 from bkflow.utils.permissions import AdminPermission
+from bkflow.utils.views import SimpleGenericViewSet
 
 
 def _err(exc, code):
@@ -45,7 +45,7 @@ def _err(exc, code):
     return Response(exception=True, data={"detail": detail}, status=code)
 
 
-class DebugViewSet(GenericViewSet):
+class DebugViewSet(SimpleGenericViewSet):
     permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
     DEFAULT_PERMISSION = TemplateRelatedResourcePermission.VIEW_PERMISSION
     PERM_MAPPINGS = {
