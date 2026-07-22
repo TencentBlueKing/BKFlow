@@ -146,8 +146,8 @@ class TestStepRunAndMock:
         ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
         assert ns.status == "not_run"  # 仅配置，未运行
 
-    def test_step_run_real_targets_activity_and_records_duration(self, mocker):
-        """real 单步应命中活动 runtime id（非 start/end 事件）并落库耗时（评审 #1/#2）"""
+    def test_step_run_real_starts_async_and_tracks_active_task(self, mocker):
+        """real 单步命中活动 runtime id，启动后立即返回并由 context 后续追踪。"""
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
         ctx = svc.get_or_create_context()
         svc.sync_node_states()
@@ -157,31 +157,27 @@ class TestStepRunAndMock:
         client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
         client.operate_task.return_value = {"result": True, "data": {}, "message": ""}
         client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
-        client.get_task_states.return_value = {
-            "result": True,
-            "data": {
-                "state": "FINISHED",
-                "children": {
-                    "start_evt": {"state": "FINISHED", "elapsed_time": 0},
-                    "rtA": {"state": "FINISHED", "elapsed_time": 3},
-                },
-            },
-            "message": "",
-        }
-        client.get_task_node_detail.return_value = {
-            "result": True,
-            "data": {"outputs": [{"key": "k1", "value": "produced"}], "version": "v1"},
-            "message": "",
-        }
         mocker.patch.object(svc, "_task_client", return_value=client)
 
         result = svc.step_run(node_id="A", operator="admin", mode="real")
-        assert result["status"] == "finished"
+        assert result == {
+            "node_id": "A",
+            "task_id": 789,
+            "status": "running",
+            "log_ref": {"instance_id": 789, "node_id": "rtA", "version": "v1"},
+        }
         ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
         assert ns.log_ref == {"instance_id": 789, "node_id": "rtA", "version": "v1"}
-        assert ns.duration_ms == 3000
         ctx.refresh_from_db()
-        assert ctx.global_vars["${g1}"] == "produced"
+        assert ctx.status == "running"
+        assert ctx.active_task_id == 789
+        assert ctx.active_run_type == "step"
+        assert ctx.active_node_id == "A"
+        assert ctx.last_task_id == 789
+        assert ctx.last_run_type == "step"
+        assert ctx.last_run_status == "running"
+        client.get_task_states.assert_not_called()
+        client.get_task_node_detail.assert_not_called()
 
     def test_step_run_real_create_failure_raises_and_releases_lock(self, mocker):
         """create 失败：抛 DebugStateError、释放锁、无任务故不清理（I-1）"""
@@ -207,6 +203,7 @@ class TestStepRunAndMock:
 
         client = mocker.MagicMock()
         client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
         client.operate_task.return_value = {"result": False, "message": "no"}
         mocker.patch.object(svc, "_task_client", return_value=client)
 
@@ -234,8 +231,8 @@ class TestStepRunAndMock:
         ctx.refresh_from_db()
         assert ctx.status == "idle"
 
-    def test_step_run_real_failed_node_keeps_task(self, mocker):
-        """引擎正常跑完但节点失败：正常返回 failed，不删任务（log_ref 仍可查日志），不回写全局变量"""
+    def test_step_run_real_missing_runtime_id_cleans_up(self, mocker):
+        """单步任务无法定位 runtime id 时立即清理，不留下无法同步的 active task。"""
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
         ctx = svc.get_or_create_context()
         svc.sync_node_states()
@@ -243,26 +240,16 @@ class TestStepRunAndMock:
         client = mocker.MagicMock()
         client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
         client.operate_task.return_value = {"result": True, "data": {}, "message": ""}
-        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
-        client.get_task_states.return_value = {
-            "result": True,
-            "data": {"state": "FAILED", "children": {"rtA": {"state": "FAILED", "elapsed_time": 1}}},
-            "message": "",
-        }
-        client.get_task_node_detail.return_value = {
-            "result": True,
-            "data": {"ex_data": "boom", "version": "v1"},
-            "message": "",
-        }
+        client.get_node_id_map.return_value = {"result": True, "data": {}, "message": ""}
         mocker.patch.object(svc, "_task_client", return_value=client)
 
-        result = svc.step_run(node_id="A", operator="admin", mode="real")
-        assert result["status"] == "failed"
-        assert result["error_detail"]
-        client.delete_task.assert_not_called()
+        with pytest.raises(DebugStateError):
+            svc.step_run(node_id="A", operator="admin", mode="real")
+
+        client.delete_task.assert_called_once_with(789)
         ctx.refresh_from_db()
-        assert "${g1}" not in ctx.global_vars
         assert ctx.status == "idle"
+        assert ctx.active_task_id is None
 
     def test_step_run_bad_node_raises_state_error(self):
         """未知 node_id 收敛为 DebugStateError，而非 DoesNotExist/500（I-5）"""

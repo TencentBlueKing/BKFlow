@@ -46,7 +46,14 @@ logger = logging.getLogger(__name__)
 # 引擎（bamboo）整体结束态：据此释放调试锁
 ENGINE_FINISHED_STATES = {"FINISHED", "REVOKED", "FAILED"}
 # 引擎节点态 -> DebugNodeState.status 映射
-NODE_STATE_MAP = {"FINISHED": "finished", "FAILED": "failed", "RUNNING": "running", "READY": "not_run"}
+NODE_STATE_MAP = {
+    "FINISHED": "finished",
+    "FAILED": "failed",
+    "RUNNING": "running",
+    "READY": "not_run",
+    "SUSPENDED": "paused",
+}
+ENGINE_RUN_STATE_MAP = {"FINISHED": "finished", "FAILED": "failed", "REVOKED": "revoked"}
 
 
 class DebugConflictError(Exception):
@@ -165,6 +172,7 @@ class DebugService:
                     "execution_mode": ns.execution_mode,
                     "mock_result": ns.mock_result if ns.execution_mode == "mock" else None,
                     "status": ns.status,
+                    "waiting_reason": ns.waiting_reason or None,
                     "can_step": can_step,
                     "missing_vars": missing,
                     "duration_ms": ns.duration_ms,
@@ -177,6 +185,12 @@ class DebugService:
             "status": ctx.status,
             "locked_by": ctx.locked_by,
             "active_task_id": ctx.active_task_id,
+            "active_run_type": ctx.active_run_type or None,
+            "active_node_id": ctx.active_node_id or None,
+            "last_task_id": ctx.last_task_id,
+            "last_run_type": ctx.last_run_type or None,
+            "last_run_status": ctx.last_run_status,
+            "last_error_detail": ctx.last_error_detail or None,
             "last_inputs": ctx.last_inputs,
             "global_vars": ctx.global_vars,
             "nodes": node_views,
@@ -236,11 +250,23 @@ class DebugService:
         ctx.refresh_from_db()
 
     def _release_lock(self, ctx: DebugContext, status="idle"):
-        """释放调试锁：复位状态、清空持锁用户与持锁时间。"""
+        """释放调试锁：复位状态并清空 active 字段，保留最近一次运行结果。"""
         ctx.status = status
         ctx.locked_by = ""
         ctx.locked_at = None
-        ctx.save(update_fields=["status", "locked_by", "locked_at"])
+        ctx.active_task_id = None
+        ctx.active_run_type = ""
+        ctx.active_node_id = ""
+        ctx.save(
+            update_fields=[
+                "status",
+                "locked_by",
+                "locked_at",
+                "active_task_id",
+                "active_run_type",
+                "active_node_id",
+            ]
+        )
 
     def _reclaim_stale_lock(self, ctx: DebugContext) -> bool:
         """回收被遗弃的调试锁。
@@ -261,7 +287,14 @@ class DebugService:
         # 避免与正常释放或他人正常持锁竞争。
         reclaimed = DebugContext.objects.filter(
             id=ctx.id, status__in=("running", "terminating"), locked_at__lt=threshold
-        ).update(status="idle", locked_by="", locked_at=None, active_task_id=None)
+        ).update(
+            status="idle",
+            locked_by="",
+            locked_at=None,
+            active_task_id=None,
+            active_run_type="",
+            active_node_id="",
+        )
         if not reclaimed:
             return False
         logger.warning(
@@ -292,6 +325,7 @@ class DebugService:
         reset_ids = list(qs.values_list("node_id", flat=True))
         qs.update(
             status="not_run",
+            waiting_reason="",
             inputs={},
             outputs={},
             duration_ms=None,
@@ -358,7 +392,23 @@ class DebugService:
                 raise DebugStateError(message)
             task_id = create_result["data"]["id"]
             ctx.active_task_id = task_id
-            ctx.save(update_fields=["active_task_id"])
+            ctx.active_run_type = "global"
+            ctx.active_node_id = ""
+            ctx.last_task_id = task_id
+            ctx.last_run_type = "global"
+            ctx.last_run_status = "running"
+            ctx.last_error_detail = {}
+            ctx.save(
+                update_fields=[
+                    "active_task_id",
+                    "active_run_type",
+                    "active_node_id",
+                    "last_task_id",
+                    "last_run_type",
+                    "last_run_status",
+                    "last_error_detail",
+                ]
+            )
 
             start_result = client.operate_task(task_id, "start", {"operator": operator})
             if not start_result.get("result"):
@@ -369,6 +419,9 @@ class DebugService:
                     task_id,
                     message,
                 )
+                ctx.last_run_status = "failed"
+                ctx.last_error_detail = {"type": "start", "message": message, "task_id": task_id}
+                ctx.save(update_fields=["last_run_status", "last_error_detail"])
                 raise DebugStateError(message)
             return {"task_id": task_id, "status": "running"}
         except DebugConflictError:
@@ -404,23 +457,81 @@ class DebugService:
         constants = copy.deepcopy(self.pipeline_tree.get("constants", {}))
         return classify_constants(constants, is_subprocess=False)["acts_outputs"]
 
+    @staticmethod
+    def _flatten_state_children(children):
+        flattened = {}
+        pending = list((children or {}).items())
+        while pending:
+            node_id, child = pending.pop(0)
+            flattened[node_id] = child
+            pending.extend((child.get("children") or {}).items())
+        return flattened
+
+    @staticmethod
+    def _debug_node_status(child):
+        state = child.get("state")
+        schedule_type = child.get("schedule_type")
+        if state == "RUNNING" and schedule_type:
+            return "waiting", str(schedule_type).lower()
+        return NODE_STATE_MAP.get(state), ""
+
+    @staticmethod
+    def _task_error_detail(task_id, data, runtime_to_template, runtime_errors, children):
+        ex_data = data.get("ex_data") or {}
+        if not isinstance(ex_data, dict):
+            ex_data = {"": ex_data}
+        failures = []
+        for runtime_id, message in ex_data.items():
+            failures.append(
+                {
+                    "node_id": runtime_id or None,
+                    "template_node_id": runtime_to_template.get(runtime_id),
+                    "message": message or "task failed",
+                }
+            )
+        if not failures:
+            for runtime_id, message in runtime_errors.items():
+                failures.append(
+                    {
+                        "node_id": runtime_id,
+                        "template_node_id": runtime_to_template.get(runtime_id),
+                        "message": message or "task failed",
+                    }
+                )
+        if not failures:
+            for runtime_id, child in children.items():
+                if child.get("state") == "FAILED":
+                    failures.append(
+                        {
+                            "node_id": runtime_id,
+                            "template_node_id": runtime_to_template.get(runtime_id),
+                            "message": "task failed",
+                        }
+                    )
+        message = failures[0]["message"] if failures else "task failed"
+        return {"type": "runtime", "message": message, "task_id": task_id, "failures": failures}
+
     def sync_from_debug_task(self, ctx: DebugContext):
-        """惰性回写：读引擎任务态，回填节点 status/duration/log_ref/outputs 与全局变量，结束则解锁。"""
+        """惰性回写真实调试任务；全局和单步共用同一条状态生命周期。"""
         # 早返回守卫：仅运行中且存在 active_task_id 才同步，避免空闲态构建真实客户端
         if ctx.status not in ("running", "terminating") or not ctx.active_task_id:
             return
         client = self._task_client()
-        states = client.get_task_states(ctx.active_task_id)
+        task_id = ctx.active_task_id
+        states = client.get_task_states(task_id, data={"with_ex_data": True, "include_schedule": True})
         if not states.get("result"):
             return
         data = states["data"]
-        children = data.get("children", {})
+        children = self._flatten_state_children(data.get("children", {}))
         # id_map 失败时直接返回：避免空回写后误判结束而释放锁，导致该次结束的结果永久丢失
         id_map_resp = client.get_node_id_map(ctx.active_task_id)
         if not id_map_resp.get("result"):
             return
         id_map = id_map_resp.get("data", {})
         acts_outputs = self._acts_outputs()
+        runtime_to_template = {runtime_id: tpl_node_id for tpl_node_id, runtime_id in id_map.items()}
+        runtime_errors = {}
+        observed_statuses = []
 
         for tpl_node_id, runtime_id in id_map.items():
             ns = DebugNodeState.objects.filter(debug_context=ctx, node_id=tpl_node_id).first()
@@ -429,24 +540,59 @@ class DebugService:
             child = children.get(runtime_id)
             if not child:
                 continue
-            ns.status = NODE_STATE_MAP.get(child.get("state"), ns.status)
+            node_status, waiting_reason = self._debug_node_status(child)
+            if node_status:
+                ns.status = node_status
+            ns.waiting_reason = waiting_reason
+            observed_statuses.append(ns.status)
             ns.duration_ms = int((child.get("elapsed_time") or 0) * 1000)
             if ns.status in ("finished", "failed"):
-                detail = client.get_task_node_detail(ctx.active_task_id, runtime_id, data={"include_data": True})
+                detail = client.get_task_node_detail(task_id, runtime_id, data={"include_data": True})
                 ddata = detail.get("data", {}) if detail.get("result") else {}
                 version = ddata.get("version") or ddata.get("history_id") or "v1"
-                ns.log_ref = {"instance_id": ctx.active_task_id, "node_id": runtime_id, "version": version}
+                ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version}
                 outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
-                ns.outputs = outputs
-                # 输出按 source_act/source_key 回写全局变量
-                for out_key, var_key in acts_outputs.get(tpl_node_id, {}).items():
-                    if out_key in outputs:
-                        ctx.global_vars[var_key] = outputs[out_key]
+                if ns.status == "finished":
+                    ns.outputs = outputs
+                    ns.error_detail = {}
+                    for out_key, var_key in acts_outputs.get(tpl_node_id, {}).items():
+                        if out_key in outputs:
+                            ctx.global_vars[var_key] = outputs[out_key]
+                else:
+                    message = ddata.get("ex_data") or "step failed"
+                    runtime_errors[runtime_id] = message
+                    ns.outputs = {}
+                    ns.error_detail = {"type": "runtime", "message": message}
             ns.save()
 
-        if data.get("state") in ENGINE_FINISHED_STATES:
+        engine_state = data.get("state")
+        ctx.last_task_id = task_id
+        ctx.last_run_type = ctx.active_run_type or ctx.last_run_type or "global"
+        if engine_state in ENGINE_RUN_STATE_MAP:
+            ctx.last_run_status = ENGINE_RUN_STATE_MAP[engine_state]
+        elif engine_state in ("NODE_SUSPENDED", "SUSPENDED") or "paused" in observed_statuses:
+            ctx.last_run_status = "paused"
+        elif "waiting" in observed_statuses:
+            ctx.last_run_status = "waiting"
+        else:
+            ctx.last_run_status = "running"
+        if ctx.last_run_status == "failed":
+            ctx.last_error_detail = self._task_error_detail(
+                task_id, data, runtime_to_template, runtime_errors, children
+            )
+        elif ctx.last_run_status in ("finished", "revoked"):
+            ctx.last_error_detail = {}
+        ctx.save(
+            update_fields=[
+                "global_vars",
+                "last_task_id",
+                "last_run_type",
+                "last_run_status",
+                "last_error_detail",
+            ]
+        )
+        if engine_state in ENGINE_FINISHED_STATES:
             self._release_lock(ctx, status="idle")
-        ctx.save(update_fields=["global_vars"])
 
     # ---- 重置 / 终止 / 历史 ----
     def reset(self, node_ids=None) -> list:
@@ -633,6 +779,7 @@ class DebugService:
 
     def _step_run_mock(self, ctx, ns, mock_result, mock_outputs, mock_error):
         ns.log_ref = {}
+        ns.waiting_reason = ""
         ns.duration_ms = 0  # mock 不经引擎，耗时记 0
         ns.last_run_at = timezone.now()
         if mock_result == "fail":
@@ -678,8 +825,7 @@ class DebugService:
         else:
             var_values = dict(input_overrides)
 
-        # 复用 global_run 的抢锁/清理纪律：CAS 抢锁（非 idle 抛 DebugConflictError）。
-        # 微型单步任务不写 ctx.active_task_id（那是全局运行专用），以免 sync_from_debug_task 误同步。
+        # real 单步与全局调试共用 active task 生命周期，结果由 context 轮询同步。
         self._acquire_lock(ctx, operator)
         client = self._task_client()
         task_id = None
@@ -701,42 +847,58 @@ class DebugService:
             if not create_result.get("result"):
                 raise DebugStateError(create_result.get("message", "create step task failed"))
             task_id = create_result["data"]["id"]
+
+            id_map_resp = client.get_node_id_map(task_id)
+            runtime_id = (id_map_resp.get("data") or {}).get(ns.node_id) if id_map_resp.get("result") else None
+            if not runtime_id:
+                raise DebugStateError("node id map missing")
+
             ns.status = "running"
+            ns.waiting_reason = ""
+            ns.duration_ms = None
+            ns.outputs = {}
+            ns.error_detail = {}
+            ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": "v1"}
             ns.last_run_at = timezone.now()
-            ns.save(update_fields=["status", "last_run_at"])
+            ns.save(
+                update_fields=[
+                    "status",
+                    "waiting_reason",
+                    "duration_ms",
+                    "outputs",
+                    "error_detail",
+                    "log_ref",
+                    "last_run_at",
+                ]
+            )
 
             start_result = client.operate_task(task_id, "start", {"operator": operator})
             if not start_result.get("result"):  # I-2：启动失败必须收敛，否则会空轮询到超时
                 raise DebugStateError(start_result.get("message", "start step task failed"))
 
-            # 用节点 id 映射精确定位该活动的 runtime id，避免误读 start/end 事件（评审 #1）；
-            # id_map 失败时置空，交由 poller 优雅处理（I-3）
-            id_map_resp = client.get_node_id_map(task_id)
-            runtime_id = (id_map_resp.get("data") or {}).get(ns.node_id) if id_map_resp.get("result") else None
-            outputs, status_str, error_detail, version, duration_ms = self._poll_single_node_result(
-                client, task_id, runtime_id
+            ctx.active_task_id = task_id
+            ctx.active_run_type = "step"
+            ctx.active_node_id = ns.node_id
+            ctx.last_task_id = task_id
+            ctx.last_run_type = "step"
+            ctx.last_run_status = "running"
+            ctx.last_error_detail = {}
+            ctx.save(
+                update_fields=[
+                    "active_task_id",
+                    "active_run_type",
+                    "active_node_id",
+                    "last_task_id",
+                    "last_run_type",
+                    "last_run_status",
+                    "last_error_detail",
+                ]
             )
-            ns.status = status_str
-            ns.duration_ms = duration_ms  # 落库单步耗时（评审 #2）
-            ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version} if runtime_id else {}
-            if status_str == "finished":
-                ns.outputs = outputs
-                ns.error_detail = {}
-                ns.save()
-                self._apply_outputs_to_global_vars(ctx, ns.node_id, outputs)
-            else:
-                # 引擎正常跑完但节点失败属正常返回：保留任务以供查日志，不进入清理分支
-                ns.outputs = {}
-                ns.error_detail = error_detail or {"type": "runtime", "message": "step failed"}
-                ns.save()
-            ctx.refresh_from_db()
             return {
                 "node_id": ns.node_id,
-                "status": ns.status,
-                "outputs": outputs if status_str == "finished" else None,
-                "error_detail": ns.error_detail or None,
-                "updated_global_vars": ctx.global_vars,
-                "log_ref": ns.log_ref or None,
+                "task_id": task_id,
+                "status": "running",
+                "log_ref": ns.log_ref,
             }
         except Exception as exc:
             if not isinstance(exc, (DebugStateError, DebugConflictError)):
@@ -745,7 +907,7 @@ class DebugService:
                     self.template_id,
                     task_id,
                 )
-            # 已创建但未跑完的孤儿任务尽力清理，并把卡在 running 的节点标记为 failed
+            # 未建立可追踪上下文的任务必须清理，避免遗留孤儿任务。
             if task_id is not None:
                 try:
                     client.delete_task(task_id)
@@ -758,35 +920,7 @@ class DebugService:
                     )
             if ns.status == "running":
                 ns.status = "failed"
-                ns.save(update_fields=["status"])
-            raise
-        finally:
+                ns.waiting_reason = ""
+                ns.save(update_fields=["status", "waiting_reason"])
             self._release_lock(ctx, status="idle")
-
-    def _poll_single_node_result(self, client, task_id, runtime_id, max_loops=60, interval=1.0):
-        """只针对目标活动节点的 runtime_id 轮询。
-
-        :return: (outputs, status, error_detail, version, duration_ms)
-        """
-        import time
-
-        if not runtime_id:
-            return {}, "failed", {"type": "runtime", "message": "node id map missing"}, "v1", None
-        for _ in range(max_loops):
-            states = client.get_task_states(task_id)
-            data = states.get("data", {}) if states.get("result") else {}
-            child = (data.get("children", {}) or {}).get(runtime_id)
-            if child and child.get("state") in ("FINISHED", "FAILED"):
-                duration_ms = int((child.get("elapsed_time") or 0) * 1000)
-                detail = client.get_task_node_detail(task_id, runtime_id, data={"include_data": True})
-                ddata = detail.get("data", {}) if detail.get("result") else {}
-                version = ddata.get("version") or ddata.get("history_id") or "v1"
-                outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
-                if child["state"] == "FINISHED":
-                    return outputs, "finished", {}, version, duration_ms
-                error_detail = {"type": "runtime", "message": ddata.get("ex_data", "step failed")}
-                return {}, "failed", error_detail, version, duration_ms
-            if data.get("state") in ("FINISHED", "FAILED", "REVOKED"):
-                break
-            time.sleep(interval)
-        return {}, "failed", {"type": "timeout", "message": "step run timeout"}, "v1", None
+            raise

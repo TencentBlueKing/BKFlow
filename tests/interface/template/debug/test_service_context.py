@@ -104,3 +104,8 @@ class TestDebugServiceContext:
         assert node_a["status"] == "not_run"
         assert node_a["can_step"] is True  # Phase 3 前的占位
         assert node_a["log_ref"] is None and node_a["error_detail"] is None
+        assert node_a["waiting_reason"] is None
+        assert view["last_task_id"] is None
+        assert view["last_run_type"] is None
+        assert view["last_run_status"] == "not_run"
+        assert view["last_error_detail"] is None

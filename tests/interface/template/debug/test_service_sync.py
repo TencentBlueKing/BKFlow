@@ -49,6 +49,10 @@ class TestSyncFromDebugTask:
         svc.sync_node_states()
         ctx.status = "running"
         ctx.active_task_id = 456
+        ctx.active_run_type = "global"
+        ctx.last_task_id = 456
+        ctx.last_run_type = "global"
+        ctx.last_run_status = "running"
         ctx.save()
 
         client = mocker.MagicMock()
@@ -74,6 +78,12 @@ class TestSyncFromDebugTask:
         assert ns.log_ref == {"instance_id": 456, "node_id": "rtA", "version": "v1"}
         assert ctx.global_vars.get("${g1}") == "produced"
         assert ctx.status == "idle"  # 整体结束后解锁
+        assert ctx.active_task_id is None
+        assert ctx.active_run_type == ""
+        assert ctx.last_task_id == 456
+        assert ctx.last_run_type == "global"
+        assert ctx.last_run_status == "finished"
+        assert ctx.last_error_detail == {}
 
     def test_sync_running_task_does_not_release_lock(self, mocker):
         """任务运行中：回写节点态与耗时，但不释放锁"""
@@ -99,6 +109,130 @@ class TestSyncFromDebugTask:
         assert ctx.status == "running"  # 未结束，不解锁
         assert ns.status == "running"
         assert ns.duration_ms == 1000  # elapsed_time(s) -> ms
+
+    def test_sync_step_callback_is_waiting_and_keeps_lock(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        ctx.status = "running"
+        ctx.active_task_id = 456
+        ctx.active_run_type = "step"
+        ctx.active_node_id = "A"
+        ctx.last_task_id = 456
+        ctx.last_run_type = "step"
+        ctx.last_run_status = "running"
+        ctx.save()
+
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {
+                "state": "RUNNING",
+                "children": {"rtA": {"state": "RUNNING", "elapsed_time": 2, "schedule_type": "CALLBACK"}},
+            },
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+
+        ctx.refresh_from_db()
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert ns.status == "waiting"
+        assert ns.waiting_reason == "callback"
+        assert ctx.status == "running"
+        assert ctx.active_task_id == 456
+        assert ctx.last_run_status == "waiting"
+        client.get_task_states.assert_called_once_with(456, data={"with_ex_data": True, "include_schedule": True})
+
+    def test_sync_step_completion_writes_outputs_and_releases_lock(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        ctx.status = "running"
+        ctx.active_task_id = 456
+        ctx.active_run_type = "step"
+        ctx.active_node_id = "A"
+        ctx.last_task_id = 456
+        ctx.last_run_type = "step"
+        ctx.last_run_status = "waiting"
+        ctx.save()
+
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "FINISHED", "children": {"rtA": {"state": "FINISHED", "elapsed_time": 3}}},
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
+        client.get_task_node_detail.return_value = {
+            "result": True,
+            "data": {"outputs": [{"key": "k1", "value": "produced"}], "version": "v2"},
+            "message": "",
+        }
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+
+        ctx.refresh_from_db()
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert ns.status == "finished"
+        assert ns.waiting_reason == ""
+        assert ns.duration_ms == 3000
+        assert ns.outputs == {"k1": "produced"}
+        assert ctx.global_vars["${g1}"] == "produced"
+        assert ctx.status == "idle"
+        assert ctx.active_task_id is None
+        assert ctx.active_run_type == ""
+        assert ctx.active_node_id == ""
+        assert ctx.last_task_id == 456
+        assert ctx.last_run_status == "finished"
+
+    def test_sync_gateway_failure_keeps_task_level_error(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        ctx.status = "running"
+        ctx.active_task_id = 456
+        ctx.active_run_type = "global"
+        ctx.last_task_id = 456
+        ctx.last_run_type = "global"
+        ctx.last_run_status = "running"
+        ctx.save()
+
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {
+                "state": "FAILED",
+                "children": {"rt_gateway": {"state": "FAILED", "elapsed_time": 0}},
+                "ex_data": {"rt_gateway": "multiple conditions meet"},
+            },
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+        assert ctx.active_task_id is None
+        assert ctx.last_task_id == 456
+        assert ctx.last_run_status == "failed"
+        assert ctx.last_error_detail == {
+            "type": "runtime",
+            "message": "multiple conditions meet",
+            "task_id": 456,
+            "failures": [
+                {
+                    "node_id": "rt_gateway",
+                    "template_node_id": None,
+                    "message": "multiple conditions meet",
+                }
+            ],
+        }
 
     def test_sync_returns_early_when_node_id_map_fails(self, mocker):
         """id_map 调用失败：不回写、不释放锁，结束结果可在下次重试"""
