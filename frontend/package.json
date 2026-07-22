@@ -9,7 +9,7 @@
     "build": "cross-env npm run build:production",
     "build:development": "cross-env DEV_VAR=development webpack --config ./build/webpack.prod.conf.js",
     "build:production": "cross-env DEV_VAR=production webpack --config ./build/webpack.prod.conf.js",
-    "test:json-form-schema": "node tests/jsonFormSchema.test.js",
+    "test:render-form-schema": "node tests/renderFormSchema.test.js",
     "lint": "eslint --ext .js,.vue src/",
     "fix": "eslint --fix --ext .js,.vue src/"
   },

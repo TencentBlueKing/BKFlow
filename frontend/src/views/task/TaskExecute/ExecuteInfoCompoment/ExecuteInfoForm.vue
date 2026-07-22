@@ -238,7 +238,7 @@
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
-  import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import renderFormSchema from '@/utils/renderFormSchema.js';
   import { resolveUniformApiPluginVersion } from '@/utils/uniformApi.js';
   import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
 
@@ -487,7 +487,9 @@
             await this.getPluginDetail();
           }
           // 获取输入参数的勾选状态
-          this.hooked = !this.isApiPlugin && this.getFormsHookState();
+          if (Array.isArray(this.inputs)) {
+            this.hooked = this.getFormsHookState();
+          }
         } catch (error) {
           console.warn(error);
         }
@@ -640,41 +642,6 @@
         this.constantsLoading = false;
         return inputs;
       },
-      setFormsSchema(inputs) {
-        const keys = Object.keys(this.constants);
-        const { properties } = inputs;
-        Object.keys(properties).forEach((form) => {
-          // 已勾选到全局变量中, 判断勾选的输入参数生成的变量及自定义全局变量source_info是否包含该节点对应表单tag_code
-          // 可能存在表单勾选时已存在相同key的变量，选择复用自定义变量
-          keys.some((item) => {
-            let result = false;
-            const varItem = this.constants[item];
-            if (['component_inputs', 'custom'].includes(varItem.source_type)) {
-              const sourceInfo = varItem.source_info[this.nodeActivity.id];
-              if (sourceInfo && sourceInfo.includes(form)) {
-                const schema = properties[form];
-                this.inputsFormData[form] = `\${${form}}`;
-                inputs.properties[form] = {
-                  extend: {
-                    can_hook: true,
-                    hook: true,
-                  },
-                  title: schema.title,
-                  type: 'string',
-                  'ui:component': {
-                    name: 'bfInput',
-                    props: {
-                      disabled: true,
-                    },
-                  },
-                };
-                result = true;
-              }
-            }
-            return result;
-          });
-        });
-      },
       /**
        * 加载标准插件表单配置项文件
        */
@@ -709,8 +676,7 @@
             const storeOutputs = this.pluginOutput.uniform_api[apiVersion] || [];
             const outputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs, ...outputs];
-            const renderConfig = jsonFormSchema(resp.data, { disabled: true });
-            this.setFormsSchema(renderConfig);
+            const renderConfig = renderFormSchema(resp.data, { readOnly: true });
             return renderConfig;
           }
           // 第三方插件

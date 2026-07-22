@@ -118,6 +118,10 @@
       },
       isViewMode: Boolean,
       isApiPlugin: Boolean,
+      apiInputs: {
+        type: Array,
+        default: () => ([]),
+      },
       basicInfo: {
         type: Object,
         default: () => ({}),
@@ -388,7 +392,7 @@
 
         if (reuseList.length > 0) { // 存在类型相同的全局变量
           let isSame = true;
-          if (this.isJsonSchema) {
+          if (this.isApiPlugin) {
             // 存在类型相同的全局变量(复用变量)
             const { metaUrl, meta_url_template, version } = this.$parent.$parent.basicInfo;
             // api插件配置
@@ -401,8 +405,8 @@
               version,
             });
             if (!resp.result) return;
-            const sourceSchema = resp.data.inputs.find(item => item.key === form);
-            const crtSchema = this.$parent.$parent.apiInputs.find(item => item.key === form);
+            const sourceSchema = (resp.data.inputs || []).find(item => item.key === form);
+            const crtSchema = this.apiInputs.find(item => item.key === form);
             isSame = tools.isDataEqual(sourceSchema, crtSchema);
           }
           if (isSame) {
@@ -469,7 +473,9 @@
           key: variableKey,
           source_info: { [this.nodeId]: [this.hookingVarForm] },
           value: tools.deepClone(this.formData[this.hookingVarForm]) || '',
-          form_schema: this.isJsonSchema ? {} : formSchema.getSchema(this.hookingVarForm, this.scheme),
+          form_schema: this.isJsonSchema || this.isApiPlugin
+            ? {}
+            : formSchema.getSchema(this.hookingVarForm, this.scheme),
           plugin_code: pluginCode,
         };
         if (this.isSubflow) {
@@ -494,7 +500,7 @@
             version,
           });
           // jsonSchema表单
-          if (this.isJsonSchema) {
+          if (this.isJsonSchema || this.isApiPlugin) {
             config.form_schema = {};
             config.plugin_code = '';
             config.version = 'v2.0.0';
@@ -524,9 +530,9 @@
         // api插件json格式勾选需透传meta_desc、type、form_type、required
         if (this.isApiPlugin) {
           const form = config.source_tag.split('.')[1];
-          const schema = this.formsScheme.properties[form];
+          const schema = this.apiInputs.find(item => item.key === form) || {};
           const extraInfo = {
-            type: schema.type,
+            type: schema.type || 'string',
           };
           if (schema.metaDesc) {
             extraInfo.meta_desc = schema.metaDesc;
