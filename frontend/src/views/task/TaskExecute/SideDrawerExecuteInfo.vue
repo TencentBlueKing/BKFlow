@@ -1951,7 +1951,7 @@
       onForceFailClick({ id, isFromSubNode = false } = {}) {
         if (isFromSubNode) {
           const emitParams = this.getSubCanvasNodeEmitParams(id);
-          this.$emit('onForceFailClick', id, emitParams, isFromSubNode);
+          this.$emit('onForceFail', id, emitParams, isFromSubNode);
         }
       },
       // 确定往后继续执行

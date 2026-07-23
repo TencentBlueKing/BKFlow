@@ -1096,7 +1096,6 @@
         }
         try {
           execInfoInstance.loading = true;
-          await execInfoInstance.loadNodeInfo();
           await execInfoInstance.refreshSubCanvasState();
           // 刷新 TaskOperation 自身的主任务状态和主画布节点状态
           await this.loadTaskStatus();
