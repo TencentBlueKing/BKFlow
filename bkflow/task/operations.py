@@ -363,6 +363,27 @@ class TaskOperation:
                 schedule_type = schedule_types.get((node.get("id"), node.get("version")))
                 if schedule_type:
                     node["schedule_type"] = schedule_type
+                    continue
+                if node.get("state") != bamboo_engine_states.RUNNING or not node.get("id"):
+                    continue
+                try:
+                    if not runtime.get_sleep_process_info_with_current_node_id(node["id"]):
+                        continue
+                    engine_node = runtime.get_node(node["id"])
+                    service = runtime.get_service(
+                        code=engine_node.code,
+                        version=engine_node.version,
+                        name=engine_node.name,
+                    )
+                    inferred_type = service.schedule_type()
+                    if inferred_type:
+                        node["schedule_type"] = inferred_type.name
+                except Exception:
+                    logger.warning(
+                        "[get_task_states] infer schedule type failed, node_id=%s",
+                        node["id"],
+                        exc_info=True,
+                    )
 
         def collect_fail_nodes(task_status: dict) -> list:
             task_status["ex_data"] = {}

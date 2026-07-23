@@ -189,7 +189,7 @@ class TestSyncFromDebugTask:
         assert ctx.last_task_id == 456
         assert ctx.last_run_status == "finished"
 
-    def test_sync_gateway_failure_keeps_task_level_error(self, mocker):
+    def test_sync_gateway_failure_fetches_detail_when_state_ex_data_is_empty(self, mocker):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
         ctx = svc.get_or_create_context()
         svc.sync_node_states()
@@ -207,11 +207,20 @@ class TestSyncFromDebugTask:
             "data": {
                 "state": "FAILED",
                 "children": {"rt_gateway": {"state": "FAILED", "elapsed_time": 0}},
-                "ex_data": {"rt_gateway": "multiple conditions meet"},
+                "ex_data": {},
             },
             "message": "",
         }
-        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
+        client.get_node_id_map.return_value = {
+            "result": True,
+            "data": {"A": "rtA", "G": "rt_gateway"},
+            "message": "",
+        }
+        client.get_task_node_detail.return_value = {
+            "result": True,
+            "data": {"ex_data": "multiple conditions meet", "outputs": []},
+            "message": "",
+        }
         mocker.patch.object(svc, "_task_client", return_value=client)
 
         svc.sync_from_debug_task(ctx)
@@ -228,11 +237,12 @@ class TestSyncFromDebugTask:
             "failures": [
                 {
                     "node_id": "rt_gateway",
-                    "template_node_id": None,
+                    "template_node_id": "G",
                     "message": "multiple conditions meet",
                 }
             ],
         }
+        client.get_task_node_detail.assert_called_once_with(456, "rt_gateway", data={"include_data": True})
 
     def test_sync_returns_early_when_node_id_map_fails(self, mocker):
         """id_map 调用失败：不回写、不释放锁，结束结果可在下次重试"""

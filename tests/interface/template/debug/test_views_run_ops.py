@@ -101,6 +101,11 @@ class TestRunOpsViews:
             "data": {"results": [{"id": 7, "creator": "admin", "start_time": "t", "is_finished": True}]},
             "message": "",
         }
+        client.get_tasks_states.return_value = {
+            "result": True,
+            "data": {"7": {"state": "FAILED"}},
+            "message": "",
+        }
         mocker.patch.object(DebugService, "_task_client", return_value=client)
 
         view = DebugViewSet.as_view({"get": "history"})
@@ -110,7 +115,8 @@ class TestRunOpsViews:
 
         assert response.status_code == 200
         assert response.data["data"]["runs"][0]["task_id"] == 7
-        assert response.data["data"]["runs"][0]["status"] == "finished"
+        assert response.data["data"]["runs"][0]["status"] == "failed"
+        client.get_tasks_states.assert_called_once_with(data={"task_ids": [7], "space_id": 10})
 
     def test_reset_while_running_returns_standard_error(self, mocker):
         self._patch_tree(mocker)

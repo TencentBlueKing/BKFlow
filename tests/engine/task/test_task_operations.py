@@ -436,6 +436,45 @@ class TestTaskOperationComplete:
 
         assert result.data["children"]["node_1"]["schedule_type"] == schedule_type.name
 
+    def test_get_task_states_infers_schedule_type_for_sleeping_service(self, mocker):
+        task_instance = TaskInstance.objects.create(
+            name="test_task", space_id=1, instance_id=node_uniqid(), is_started=True
+        )
+        mock_states = {
+            task_instance.instance_id: {
+                "id": task_instance.instance_id,
+                "state": bamboo_engine_states.RUNNING,
+                "version": "root-v1",
+                "children": {
+                    "node_1": {
+                        "id": "node_1",
+                        "state": bamboo_engine_states.RUNNING,
+                        "version": "v1",
+                        "children": {},
+                    }
+                },
+            }
+        }
+        mocker.patch(
+            "bamboo_engine.api.get_pipeline_states",
+            return_value=EngineAPIResult(result=True, data=mock_states, message="success"),
+        )
+        mocker.patch(
+            "pipeline.eri.runtime.BambooDjangoRuntime.get_sleep_process_info_with_current_node_id",
+            return_value=mocker.MagicMock(),
+        )
+        mocker.patch(
+            "pipeline.eri.runtime.BambooDjangoRuntime.get_node",
+            return_value=mocker.MagicMock(code="pause_node", version="legacy", name="pause"),
+        )
+        service = mocker.MagicMock()
+        service.schedule_type.return_value = ScheduleType.CALLBACK
+        mocker.patch("pipeline.eri.runtime.BambooDjangoRuntime.get_service", return_value=service)
+
+        result = TaskOperation(task_instance).get_task_states(include_schedule=True)
+
+        assert result.data["children"]["node_1"]["schedule_type"] == ScheduleType.CALLBACK.name
+
     def test_get_task_states_does_not_include_schedule_type_by_default(self, mocker):
         task_instance = TaskInstance.objects.create(
             name="test_task", space_id=1, instance_id=node_uniqid(), is_started=True

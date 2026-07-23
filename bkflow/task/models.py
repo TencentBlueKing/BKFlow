@@ -93,8 +93,9 @@ class TaskInstanceManager(models.Manager):
         """
         pipeline 注入原始模板节点 ID
         """
-        for act_id, act in pipeline_tree[PE.activities].items():
-            act["template_node_id"] = act["template_node_id"] = act.get("template_node_id") or act_id
+        for node_type in (PE.activities, PE.gateways):
+            for node_id, node in pipeline_tree.get(node_type, {}).items():
+                node["template_node_id"] = node.get("template_node_id") or node_id
 
     def create_instance(self, *args, **kwargs):
         """

@@ -566,6 +566,15 @@ class DebugService:
             ns.save()
 
         engine_state = data.get("state")
+        if engine_state == "FAILED":
+            state_errors = data.get("ex_data") if isinstance(data.get("ex_data"), dict) else {}
+            for runtime_id, child in children.items():
+                if child.get("state") != "FAILED" or runtime_errors.get(runtime_id) or state_errors.get(runtime_id):
+                    continue
+                detail = client.get_task_node_detail(task_id, runtime_id, data={"include_data": True})
+                ddata = detail.get("data", {}) if detail.get("result") else {}
+                if ddata.get("ex_data"):
+                    runtime_errors[runtime_id] = ddata["ex_data"]
         ctx.last_task_id = task_id
         ctx.last_run_type = ctx.active_run_type or ctx.last_run_type or "global"
         if engine_state in ENGINE_RUN_STATE_MAP:
@@ -638,19 +647,40 @@ class DebugService:
             data={"template_id": self.template_id, "space_id": self.space_id, "create_method": "DEBUG"}
         )
         items = (result.get("data") or {}).get("results", [])
+        task_ids = [item["id"] for item in items if item.get("id") is not None]
+        engine_states = {}
+        if task_ids:
+            states_result = client.get_tasks_states(data={"task_ids": task_ids, "space_id": self.space_id})
+            if states_result.get("result"):
+                engine_states = states_result.get("data") or {}
+        status_map = {
+            "CREATED": "created",
+            "READY": "created",
+            "RUNNING": "running",
+            "SUSPENDED": "paused",
+            "NODE_SUSPENDED": "paused",
+            "FINISHED": "finished",
+            "FAILED": "failed",
+            "REVOKED": "revoked",
+            "EXPIRED": "expired",
+        }
         runs = []
         for item in items:
-            if item.get("is_revoked"):
-                run_status = "revoked"
-            elif item.get("is_finished"):
-                run_status = "finished"
-            elif item.get("is_started"):
-                run_status = "running"
-            else:
-                run_status = "created"
+            task_id = item.get("id")
+            engine_state = (engine_states.get(task_id) or engine_states.get(str(task_id)) or {}).get("state")
+            run_status = status_map.get(engine_state)
+            if not run_status:
+                if item.get("is_revoked"):
+                    run_status = "revoked"
+                elif item.get("is_finished"):
+                    run_status = "finished"
+                elif item.get("is_started"):
+                    run_status = "running"
+                else:
+                    run_status = "created"
             runs.append(
                 {
-                    "task_id": item.get("id"),
+                    "task_id": task_id,
                     "operator": item.get("creator") or item.get("executor"),
                     "started_at": item.get("start_time") or item.get("create_time"),
                     "status": run_status,
