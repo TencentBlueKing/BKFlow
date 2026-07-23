@@ -4,7 +4,7 @@
       theme="light"
       placement="bottom-end"
       ext-cls="custom-node-popover"
-      :disabled="nodeData.mode !== 'execute' || nodeData.task_state === 'REVOKED'"
+      :disabled="nodeData.mode !== 'execute' || nodeData.task_state === 'REVOKED' || nodeData.isSubflowCanvas"
       :distance="5"
       :arrow="false">
       <div
