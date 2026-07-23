@@ -37,17 +37,22 @@ class TokenResourceValidator:
 
     def task_exists(self, task_id):
         client = TaskComponentClient(space_id=self.space_id)
-        query_data = {"id": task_id, "space_id": self.space_id, "limit": 1, "offset": 0}
-        resp = client.task_list(data=query_data)
-        if not resp["result"]:
-            logger.info("[TokenResourceValidator] query task error , resp = {}".format(resp))
+        resp = client.get_task_detail(task_id)
+        if not resp.get("result"):
+            logger.info(
+                "[TokenResourceValidator] query task detail error, code=%s, message=%s",
+                resp.get("code"),
+                resp.get("message"),
+            )
             return False
 
-        logger.info("[TokenResourceValidator] query task success, resp = {}".format(resp))
-        if resp.get("data", {}).get("count", []) == 1:
-            return True
-
-        return False
+        task = resp.get("data") or {}
+        logger.info(
+            "[TokenResourceValidator] query task detail success, task_id=%s, space_id=%s",
+            task.get("id"),
+            task.get("space_id"),
+        )
+        return str(task.get("id")) == str(task_id) and str(task.get("space_id")) == str(self.space_id)
 
     def template_exists(self, template_id):
         return Template.exists(template_id, self.space_id)
