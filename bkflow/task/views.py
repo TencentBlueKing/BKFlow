@@ -380,8 +380,11 @@ class TaskInstanceViewSet(
     @validate_task_info
     def get_node_id_map(self, request, *args, **kwargs):
         task_instance = self.get_object()
-        activities = (task_instance.execution_data or {}).get("activities", {})
-        mapping = {act.get("template_node_id", act_id): act_id for act_id, act in activities.items()}
+        execution_data = task_instance.execution_data or {}
+        mapping = {}
+        for node_type in ("activities", "gateways"):
+            for node_id, node in execution_data.get(node_type, {}).items():
+                mapping[node.get("template_node_id", node_id)] = node_id
         return Response(mapping)
 
     @swagger_auto_schema(methods=["get"], operation_description="任务全局变量查询")
