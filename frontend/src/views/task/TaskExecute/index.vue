@@ -29,7 +29,8 @@
         :canvas-mode="canvasMode"
         :instance-actions="instanceActions"
         :trigger-method="triggerMethod"
-        :parent-task-info="parentTaskInfo" />
+        :parent-task-info="parentTaskInfo"
+        :is-enable-version-manage="isEnableVersionManage" />
     </template>
   </div>
 </template>
@@ -74,12 +75,14 @@
         createMethod: '',
         canvasMode: '',
         triggerMethod: '',
+        isEnableVersionManage: false,
         parentTaskInfo: {},
       };
     },
-    created() {
+    async created() {
       const { spaceId } = this.$route.params;
       this.setSpaceId(Number(spaceId));
+      await this.checkoutSpace(Number(spaceId));
       this.getTaskData();
     },
     methods: {
@@ -94,6 +97,25 @@
         'loadSubflowConfig',
         'getNodeActDetail',
       ]),
+      ...mapActions('spaceConfig/', [
+        'getNotAuthSpaceConfig',
+        'checkSpaceConfig',
+      ]),
+      // 判断是否开启版本管理
+      async checkoutSpace(spaceId) {
+        try {
+          const res = await this.getNotAuthSpaceConfig();
+          if (!res.data.flow_versioning || !spaceId) {
+            this.isEnableVersionManage = false;
+            return;
+          }
+          const { name } = res.data.flow_versioning;
+          const result = await this.checkSpaceConfig({ id: spaceId, name });
+          this.isEnableVersionManage = result.data.value === 'true';
+        } catch (error) {
+          this.isEnableVersionManage = false;
+        }
+      },
       async getTaskData() {
         try {
           this.taskDataLoading = true;
@@ -128,6 +150,7 @@
               const params = {
                 templateId: template_id,
                 is_all_nodes: true,
+                ...(this.isEnableVersionManage ? { version: currentItem.component?.version } : {}),
               };
               const res = await this.loadSubflowConfig(params);
               currentItem.pipeline = res.data.pipeline_tree;

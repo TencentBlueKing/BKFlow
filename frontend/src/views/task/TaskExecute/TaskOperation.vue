@@ -142,6 +142,7 @@
           :template-id="templateId"
           :instance-actions="instanceActions"
           :canvas-mode="canvasMode"
+          :is-enable-version-manage="isEnableVersionManage"
           @onOpenConditionInfo="onOpenConditionInfo"
           @onRetryClick="onRetryClick"
           @onSkipClick="onSkipClick"
@@ -380,6 +381,10 @@
       parentTaskInfo: {
         type: Object,
         default: () => ({}),
+      },
+      isEnableVersionManage: {
+        type: Boolean,
+        default: false,
       },
     },
     data() {
@@ -1092,6 +1097,10 @@
         try {
           execInfoInstance.loading = true;
           await execInfoInstance.loadNodeInfo();
+          await execInfoInstance.refreshSubCanvasState();
+          // 刷新 TaskOperation 自身的主任务状态和主画布节点状态
+          await this.loadTaskStatus();
+          this.updateNodeInfo();
           execInfoInstance.setTaskStatusTimer();
         } catch (error) {
           execInfoInstance.loading = false;

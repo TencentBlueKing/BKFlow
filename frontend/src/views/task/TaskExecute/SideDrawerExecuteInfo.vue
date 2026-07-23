@@ -130,7 +130,12 @@
               :template-id="subTemplateId"
               :canvas-data="canvasData"
               @onSubflowNodeClick="onSubflowNodeClick"
-              @onConditionClick="onSubConditionClick" />
+              @onConditionClick="onSubConditionClick"
+              @onRetryClick="id => onRetryClick({ id, isFromSubNode: true })"
+              @onSkipClick="id => onSkipClick({ id, isFromSubNode: true })"
+              @onApprovalClick="id => onApprovalClick({ id, isFromSubNode: true })"
+              @onForceFail="id => onForceFailClick({ id, isFromSubNode: true })"
+              @onTaskNodeResumeClick="id => onTaskNodeResumeClick({ id, isFromSubNode: true })" />
             <div
               v-if="templateComponentName!=='SubStageCanvas'"
               class="flow-option">
@@ -201,28 +206,28 @@
               v-if="isShowRetryBtn && !isSubCanvasNode"
               theme="primary"
               data-test-id="taskExcute_form_retryBtn"
-              @click="onRetryClick(false)">
+              @click="onRetryClick()">
               {{ $t('重试') }}
             </bk-button>
             <bk-button
               v-if="isShowLoopRetryBtn && isShowSubflowOperationsWithinLoop"
               theme="default"
               data-test-id="taskExcute_form_loopRetryBtn"
-              @click="onRetryClick(true)">
+              @click="onRetryClick({ isLoopOperate: true })">
               {{ $t('循环内重试') }}
             </bk-button>
             <bk-button
               v-if="isShowSkipBtn && !isSubCanvasNode"
               theme="default"
               data-test-id="taskExcute_form_skipBtn"
-              @click="onSkipClick(false)">
+              @click="onSkipClick()">
               {{ $t('跳过') }}
             </bk-button>
             <bk-button
               v-if="isShowLoopSkipBtn && isShowSubflowOperationsWithinLoop"
               theme="default"
               data-test-id="taskExcute_form_loopSkipBtn"
-              @click="onSkipClick(true)">
+              @click="onSkipClick({ isLoopOperate: true })">
               {{ $t('循环内跳过') }}
             </bk-button>
           </template>
@@ -360,6 +365,10 @@
       canvasMode: {
         type: String,
         default: '',
+      },
+      isEnableVersionManage: {
+        type: Boolean,
+        default: false,
       },
     },
     data() {
@@ -945,9 +954,7 @@
        */
       async collectSubprocessSubCanvasStatus() {
         // 从子流程的 activities 中找出 SubCanvas 节点
-        const subCanvasNodes = Object.values(this.subCanvsActivityCollection).filter(
-          item => item?.component?.code === 'subcanvas_plugin'
-        );
+        const subCanvasNodes = Object.values(this.subCanvsActivityCollection).filter(item => item?.component?.code === 'subcanvas_plugin');
         if (subCanvasNodes.length === 0) return;
         try {
           // 批量获取 SubCanvas 节点的输出参数，从中提取 task_id
@@ -976,6 +983,10 @@
           if (batchPipelineRes?.result && batchPipelineRes.data) {
             nodeTaskMap.forEach(({ nodeItem, taskId }) => {
               if (!taskId) return;
+              // 将 SubCanvas 的 task_id 存储到 subCanvsActivityCollection，用于后续操作事件传递
+              if (this.subCanvsActivityCollection[nodeItem.id]) {
+                this.subCanvsActivityCollection[nodeItem.id].subcanvasTaskId = taskId;
+              }
               const taskData = batchPipelineRes.data[taskId];
               if (taskData) {
                 // 同步更新 subCanvsActivityCollection 和 subCanvasData.activities 中的 pipeline
@@ -1025,6 +1036,10 @@
           this.updateSubflowCanvasNodeInfo();
           this.templateComponentName === 'SubStageCanvas' && this.$refs.subProcessCanvas.setRefreshTaskStageCanvasData();
         }, time);
+      },
+      // 立即刷新子画布状态,避免等定时器才刷新
+      async refreshSubCanvasState() {
+        await this.loadNodeInfo();
       },
       cancelTaskStatusTimer() {
         if (this.timer) {
@@ -1247,6 +1262,15 @@
           }
         }
         return null;
+      },
+      getSubCanvasNodeEmitParams(id) {
+        const parentSubCanvasId = this.getSubCanvasParentIdInSubCanvas(id);
+        if (!parentSubCanvasId) return null;
+        const parentActivity = this.subCanvsActivityCollection[parentSubCanvasId];
+        const taskId = parentActivity?.subcanvasTaskId || parentActivity?.taskId;
+        return {
+          taskId: taskId || this.currentSubflowTaskId,
+        };
       },
       // 子流程画布点击网关条件
       onSubConditionClick(data) {
@@ -1822,6 +1846,7 @@
                   const { template_id: templateId } = subflowNodeParent?.component?.data?.subprocess.value || {};
                   const query = {
                     subTemplateId: templateId ?? '',
+                    ...(this.isEnableVersionManage ? { version: subflowNodeParent?.component?.version ?? '' } : {}),
                   };
                   await this.getUnexcutedSubflowTemplateCanvas(query);
                 }
@@ -1883,16 +1908,22 @@
       async onSelectNode(selectNodeId, nodeType, node) {
         this.$emit('onClickTreeNode', selectNodeId, nodeType, node);
       },
-      onRetryClick(isLoopOperate = false) {
-        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+      onRetryClick({ id, isFromSubNode = false, isLoopOperate = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onRetryClick', id, emitParams, false, isLoopOperate, isFromSubNode);
+        } else if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onRetryClick', this.nodeDetailConfig.node_id, this.getEmitParams, false, isLoopOperate);
         } else {
           const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.isSubProcessLikeNode;
           this.$emit('onRetryClick', this.nodeDetailConfig.node_id, null, isTopSubflow, isLoopOperate);
         }
       },
-      onSkipClick(isLoopOperate = false) {
-         if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+      onSkipClick({ id, isFromSubNode = false, isLoopOperate = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onSkipClick', id, emitParams, false, isLoopOperate, isFromSubNode);
+        } else if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onSkipClick', this.nodeDetailConfig.node_id, this.getEmitParams, false, isLoopOperate);
         } else {
           const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.isSubProcessLikeNode;
@@ -1906,11 +1937,28 @@
           this.$emit('onTaskNodeResumeClick', this.nodeDetailConfig.node_id, null);
         }
       },
-      onApprovalClick() {
-        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+      onApprovalClick({ id, isFromSubNode = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onApprovalClick', id, emitParams, isFromSubNode);
+        } else if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onApprovalClick', this.nodeDetailConfig.node_id, this.getEmitParams);
         } else {
           this.$emit('onApprovalClick', this.nodeDetailConfig.node_id, null);
+        }
+      },
+      // 强制终止
+      onForceFailClick({ id, isFromSubNode = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onForceFailClick', id, emitParams, isFromSubNode);
+        }
+      },
+      // 确定往后继续执行
+      onTaskNodeResumeClick({ id, isFromSubNode = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onTaskNodeResumeClick', id, emitParams, isFromSubNode);
         }
       },
       onModifyTimeClick() {
