@@ -324,6 +324,7 @@ const en = {
   复制成功: 'Copied Successfully',
   小于: 'Less Than',
   节点不可连接自身: 'Node cannot connect to itself',
+  '被循环容器遮挡，请移动节点避免被遮挡': 'Hidden by loop container, please move the node to avoid being hidden',
   只能添加输入连线: 'Only input connections can be added',
   只能添加输出连线: 'Only output connections can be added',
   不能连接: 'Cannot Connect',
