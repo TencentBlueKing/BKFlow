@@ -181,7 +181,8 @@ function getNodeNameFromPath(dataPath, data) {
  * 从 dataPath 最后一段提取字段名，如 .outgoing → outgoing
  */
 function getFieldNameFromPath(dataPath) {
-  const parts = dataPath.replace(/\[/g, '.').replace(/['\]]/g, '').split('.');
+  const parts = dataPath.replace(/\[/g, '.').replace(/['\]]/g, '')
+    .split('.');
   return parts[parts.length - 1] || '';
 }
 
@@ -399,10 +400,6 @@ const validatePipeline = {
     return this.getMessage();
   },
   /**
-     * 画布节点连线数目校验
-     * @param {Object} data
-     */
-  /**
      * 检查是否有节点被 SubCanvas（循环容器）遮挡
      * 通过轴对齐矩形相交检测，判断非循环容器节点是否与循环容器的矩形区域重叠
      * @param {Object} data - { locations, ... }
@@ -417,12 +414,25 @@ const validatePipeline = {
     // 获取节点默认尺寸（location 中可能没有 width/height）
     const getNodeRect = (loc) => {
       const taskNodeTypes = ['tasknode', 'subflow'];
+      const isSubCanvas = loc.type === 'SubCanvas';
       const isTaskNode = taskNodeTypes.includes(loc.type);
+      let defaultWidth;
+      let defaultHeight;
+      if (isSubCanvas) {
+        defaultWidth = 415;
+        defaultHeight = 158;
+      } else if (isTaskNode) {
+        defaultWidth = 154;
+        defaultHeight = 54;
+      } else {
+        defaultWidth = 34;
+        defaultHeight = 34;
+      }
       return {
         x: loc.x,
         y: loc.y,
-        width: loc.width || (isTaskNode ? 154 : 34),
-        height: loc.height || (isTaskNode ? 54 : 34),
+        width: loc.width || defaultWidth,
+        height: loc.height || defaultHeight,
       };
     };
     // 判断两个轴对齐矩形是否重叠
@@ -624,7 +634,7 @@ const validatePipeline = {
 
     if (valid) {
       // 递归校验 SubCanvas（循环节点）的子流程
-      const subCanvasNodes = Object.keys(activities).filter(id => {
+      const subCanvasNodes = Object.keys(activities).filter((id) => {
         const act = activities[id];
         return act.type === 'SubCanvas' && act.pipeline;
       });
