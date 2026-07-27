@@ -239,7 +239,7 @@
   import atomFilter from '@/utils/atomFilter.js';
   import { TASK_STATE_DICT, NODE_DICT } from '@/constants/index.js';
   import NodeTree from './NodeTree';
-  import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import renderFormSchema from '@/utils/renderFormSchema.js';
   import { checkDataType, getDefaultValueFormat } from '@/utils/checkDataType.js';
   import { graphToJson } from '@/utils/graphJson.js';
   import axios from 'axios';
@@ -1280,7 +1280,7 @@
               const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
               const outputs = resp.data.outputs || [];
               this.outputs = [...storeOutputs, ...outputs];
-              this.renderConfig = jsonFormSchema(resp.data, { disabled: this.isViewMode });
+              this.renderConfig = renderFormSchema(resp.data, { readOnly: this.isViewMode });
               return;
             }
             const res = await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });

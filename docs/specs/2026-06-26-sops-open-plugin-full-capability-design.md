@@ -142,12 +142,55 @@ V4.0.0 不新增插件类型，也不新增独立入口。用户仍按普通 API
 - `docs/specs/2026-04-20-sops-open-plugin-frontend-interaction-design.md`
 - `docs/guide/sops_open_plugin_frontend_contract.md`
 
+### 6.2 声明式表单控件
+
+V4 插件详情可携带可选 `form_schema`。BKFlow 优先使用该 schema；没有 `form_schema` 时继续从 `inputs` 生成兼容表单。无论插件来自标准运维还是 BKFlow，本地最终都转换为现有 `RenderForm` 的数组 schema，并使用同一套 Tag 组件渲染：
+
+```text
+BKFlow 内置插件 -------------------+
+BKFlow 第三方插件 -----------------+--> RenderForm schema --> RenderForm
+标准运维内置插件 ---- V4 适配器 ----+
+标准运维第三方插件 -- V4 适配器 ----+
+```
+
+这里统一的是前端渲染模型，不强制四类提供方使用相同的原始元数据格式：
+
+- BKFlow 内置插件和存量第三方插件继续提供已有的 `RenderForm` 数组 schema。
+- 标准运维内置插件和第三方插件通过 `uniform_api` 提供 JSON 可序列化的 `form_schema` 或兼容 `inputs`。
+- `frontend/src/utils/renderFormSchema.js` 是唯一的 V4 协议适配层，负责将两种 uniform API 元数据转换为 `RenderForm` 数组 schema。
+- 模板节点配置、任务详情、侧边任务详情和 API 插件变量编辑都调用该适配层，不再为 API 插件维护独立的 `bkui-form` 控件注册表。
+
+`JsonschemaInputParams` 和任务详情中的 `JsonschemaForm` 继续保留给非插件 JSON Schema 场景，避免扩大本次改动范围；四类插件的输入表单不再进入该分支。`RenderForm`、已有 Tag 组件及其注册机制原则上不修改。
+
+本轮标准控件包括：
+
+- `input / textarea / password / codeEditor`
+- `select / radio / checkbox / switcher`
+- `table`
+
+适配器将上述控件分别映射到现有 `TagInput / TagTextarea / TagPassword / TagCodeEditor / TagSelect / TagRadio / TagCheckbox / TagSwitch / TagDatatable`。`codeEditor` 因此直接复用 `TagCodeEditor` 和 `FullCodeEditor` 的 Monaco 能力，并保留 `language / height / showMiniMap / readOnly` 等声明式属性，不新增 API 插件专用编辑器组件。
+
+适配器同时保留下列协议语义：
+
+- 字段标题、描述、默认值和必填校验。
+- `enum/options` 选项及值为 `0`、`false`、空字符串时的精确值语义。
+- 对象数组到 `datatable` 的列定义和列级控件。
+- 编辑态、只读态和变量勾选所需的字段元数据。
+
+所有跨系统控件配置必须是 JSON 可序列化数据。BKFlow 不获取、不解析、不执行标准运维或开放插件提供方的旧表单 JavaScript；BKFlow 存量第三方插件已有的本地 `renderform` 加载机制本轮保持不变，但其结果同样交给 `RenderForm` 渲染。
+
+未知控件名必须回退到按 JSON Schema 类型推导的基础 Tag，避免渲染空白自定义标签。无效的 `form_schema` 不阻断节点配置：有合法 `inputs` 时回退到 `inputs`，两者均不可用时展示无参数状态并记录错误。`tree / upload / cascader / category / combine` 等依赖动态数据源或动作函数的控件，待统一数据源与动作协议落地后再开放，不在本轮宣称原生等价。
+
+`ui:reactions` 等尚未定义跨系统安全语义的联动配置不转换为可执行函数。后续如需跨来源一致支持，必须先定义有限、声明式、可验证的联动协议，再由适配器映射到 `RenderForm` 能力。
+
 ## 7. 测试与验收（BKFlow 侧）
 
 - execute body 携带 `context`；老来源不带 context 时仍可正常执行（兼容回归）。
 - 两层准入：平台 grant + 空间 per-plugin；未准入空间看不到该来源。
 - 四处服务端强校验生效。
 - 快照与版本治理回归不退化。
+- 四类插件在模板编辑和任务详情中均进入 `RenderForm`，V4 的代码、多行文本、密码、选项、布尔和表格控件使用已有 Tag 正确渲染。
+- V4 `form_schema` 缺失、未知控件及非法结构能按约定回退，不出现空白表单或未注册组件。
 - 遵循 TDD：先写失败测试再实现。
 
 ### 联调验收（与标准运维侧共同覆盖）

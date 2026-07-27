@@ -26,3 +26,55 @@ def test_each_api_plugin_list_owns_its_scroll_handler():
 
     assert '@scroll="handleApiPluginScroll"' in source
     assert "querySelector('.api-list')" not in source
+
+
+def test_uniform_api_does_not_keep_a_parallel_form_renderer():
+    frontend_root = Path(__file__).resolve().parents[3] / "frontend" / "src"
+    uniform_source = (frontend_root / "components" / "common" / "ApiUniForm.vue").read_text(encoding="utf-8")
+    json_schema_source = (frontend_root / "utils" / "jsonFormSchema.js").read_text(encoding="utf-8")
+
+    assert not (frontend_root / "components" / "common" / "ApiCodeEditor.vue").exists()
+    assert "ApiCodeEditor" not in uniform_source
+    assert "codeEditor:" not in uniform_source
+    assert "normalizeStructuredFormSchema" not in json_schema_source
+
+
+def test_template_editor_uses_render_form_for_uniform_api_plugins():
+    frontend_root = Path(__file__).resolve().parents[3] / "frontend" / "src"
+    node_config = (frontend_root / "views" / "template" / "TemplateEdit" / "NodeConfig" / "NodeConfig.vue").read_text(
+        encoding="utf-8"
+    )
+    input_params = (frontend_root / "views" / "template" / "TemplateEdit" / "NodeConfig" / "InputParams.vue").read_text(
+        encoding="utf-8"
+    )
+
+    assert "import renderFormSchema from '@/utils/renderFormSchema.js'" in node_config
+    assert "import jsonFormSchema from '@/utils/jsonFormSchema.js'" not in node_config
+    assert "return renderFormSchema(resp.data" in node_config
+    assert ':api-inputs="apiInputs"' in node_config
+    assert "apiInputs:" in input_params
+    assert "if (this.isApiPlugin)" in input_params
+    assert "const schema = this.apiInputs.find(item => item.key === form)" in input_params
+
+
+def test_task_detail_and_mock_use_render_form_for_uniform_api_plugins():
+    frontend_root = Path(__file__).resolve().parents[3] / "frontend" / "src"
+    source_paths = [
+        frontend_root / "views" / "task" / "TaskExecute" / "ExecuteInfo.vue",
+        frontend_root / "views" / "task" / "TaskExecute" / "SideDrawerExecuteInfo.vue",
+        frontend_root / "views" / "task" / "TaskExecute" / "ExecuteInfo" / "ExecuteInfoForm.vue",
+        frontend_root / "views" / "task" / "TaskExecute" / "ExecuteInfoCompoment" / "ExecuteInfoForm.vue",
+        frontend_root / "views" / "template" / "TemplateMock" / "MockSetting" / "index.vue",
+    ]
+
+    for source_path in source_paths:
+        source = source_path.read_text(encoding="utf-8")
+        assert "import renderFormSchema from '@/utils/renderFormSchema.js'" in source, source_path
+        assert "renderFormSchema(resp.data" in source, source_path
+        assert "jsonFormSchema(resp.data" not in source, source_path
+
+    for source_path in source_paths[2:4]:
+        source = source_path.read_text(encoding="utf-8")
+        assert "this.setFormsSchema(renderConfig);" not in source, source_path
+        assert "Array.isArray(this.inputs)" in source, source_path
+        assert "this.hooked = this.getFormsHookState();" in source, source_path
