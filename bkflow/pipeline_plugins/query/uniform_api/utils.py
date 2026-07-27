@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 from functools import wraps
 
@@ -198,6 +199,15 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
                     "required": {"type": "array", "items": {"type": "string"}},
                 },
             },
+            "forms": {
+                "type": "object",
+                "required": ["input", "output"],
+                "properties": {
+                    "input": {"type": ["object", "null"]},
+                    "output": {"type": ["object", "null"]},
+                },
+            },
+            "form_context": {"type": "object"},
             "outputs": {
                 "type": "array",
                 "items": {

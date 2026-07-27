@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import pytest
 from django.conf import settings
 
@@ -198,6 +199,33 @@ class TestUniformAPIClient:
         }
 
         self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    @pytest.mark.parametrize(
+        "invalid_fields",
+        (
+            {"forms": {"input": None}},
+            {"form_context": []},
+        ),
+        ids=("forms-missing-output", "form-context-not-object"),
+    )
+    def test_validate_v4_native_form_fields(self, invalid_fields):
+        """V4 原生表单字段必须符合 input/output 与 context 对象契约。"""
+        invalid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "1.2.0",
+            "wrapper_version": "v4.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+            "outputs": [],
+            **invalid_fields,
+        }
+
+        with pytest.raises(ValidationError):
+            self.client.validate_response_data(invalid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
 
     def test_resolve_meta_url_returns_plain_meta_url_first(self):
         assert (
