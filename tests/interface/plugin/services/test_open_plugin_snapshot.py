@@ -1,5 +1,6 @@
 import io
 from copy import deepcopy
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -145,6 +146,51 @@ def test_collect_plugin_references_reads_source_key_from_runtime_hidden_field(mo
     assert references[0]["wrapper_version"] == "v4.0.0"
 
 
+def test_collect_plugin_references_does_not_infer_missing_exact_version(monkeypatch):
+    pipeline_tree = build_open_plugin_pipeline_tree(plugin_version="")
+    catalog = SimpleNamespace(
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        latest_version="1.2.0",
+        default_version="1.1.0",
+    )
+    monkeypatch.setattr(OpenPluginSnapshotService, "_get_catalog_entry", lambda **kwargs: catalog)
+
+    with patch.object(SpaceOpenPluginAvailability.objects, "filter") as availability_filter:
+        availability_filter.return_value.exists.return_value = True
+        references = OpenPluginSnapshotService.collect_plugin_references(
+            space_id=1,
+            pipeline_tree=pipeline_tree,
+            include_unmatched=True,
+        )
+
+    assert references[0]["plugin_version"] == ""
+
+
+def test_validate_rejects_missing_exact_version_even_when_catalog_has_no_version_list(monkeypatch):
+    catalog = SimpleNamespace(
+        source_key="sops",
+        status=OpenPluginCatalogIndex.Status.AVAILABLE,
+        is_plugin_version_available=lambda plugin_version: True,
+    )
+    monkeypatch.setattr(
+        OpenPluginSnapshotService,
+        "collect_plugin_references",
+        lambda **kwargs: [
+            {
+                "plugin_id": "open_plugin_001",
+                "plugin_version": "",
+                "catalog": catalog,
+                "enabled": True,
+            }
+        ],
+    )
+    monkeypatch.setattr(OpenPluginGrantService, "is_granted", lambda *args, **kwargs: True)
+
+    with pytest.raises(serializers.ValidationError, match="未指定精确版本"):
+        OpenPluginSnapshotService.validate_pipeline_tree(space_id=1, pipeline_tree={})
+
+
 def test_validate_pipeline_tree_ignores_legacy_uniform_api_with_source_key():
     """旧版 API 插件即使携带入口 source_key，也不应进入开放插件目录校验。"""
 
@@ -204,6 +250,20 @@ def test_validate_rejects_when_plugin_version_not_in_catalog_versions():
         OpenPluginSnapshotService.validate_pipeline_tree(
             space_id=1,
             pipeline_tree=build_open_plugin_pipeline_tree(plugin_version="9.9.9"),
+        )
+
+
+@pytest.mark.django_db
+def test_validate_rejects_when_saved_open_plugin_has_no_exact_version():
+    """已保存的 V4 节点缺少业务版本时，不应静默回退目录默认版本。"""
+
+    create_available_open_plugin(space_id=1, enabled=True)
+    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+
+    with pytest.raises(serializers.ValidationError, match="未指定精确版本"):
+        OpenPluginSnapshotService.validate_pipeline_tree(
+            space_id=1,
+            pipeline_tree=build_open_plugin_pipeline_tree(plugin_version=""),
         )
 
 

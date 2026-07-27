@@ -75,6 +75,8 @@ class OpenPluginSnapshotService:
                 raise serializers.ValidationError("开放插件来源 [{}] 未对当前空间准入".format(ref["catalog"].source_key))
             if ref["catalog"].status != OpenPluginCatalogIndex.Status.AVAILABLE:
                 raise serializers.ValidationError("开放插件 [{}] 当前不可用".format(ref["plugin_id"]))
+            if not ref["plugin_version"]:
+                raise serializers.ValidationError("开放插件 [{}] 未指定精确版本".format(ref["plugin_id"]))
             if not ref["catalog"].is_plugin_version_available(ref["plugin_version"]):
                 raise serializers.ValidationError(
                     "开放插件 [{}] 版本 [{}] 当前不可用".format(ref["plugin_id"], ref["plugin_version"] or "")
@@ -214,8 +216,6 @@ class OpenPluginSnapshotService:
                 continue
 
             catalog = cls._get_catalog_entry(space_id=space_id, plugin_id=plugin_id, source_key=source_key)
-            if catalog and not plugin_version:
-                plugin_version = catalog.latest_version or catalog.default_version or ""
 
             enabled = False
             if catalog is not None:

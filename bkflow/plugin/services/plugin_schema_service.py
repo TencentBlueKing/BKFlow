@@ -442,7 +442,7 @@ class PluginSchemaService:
             return None
         return Credential.objects.filter(space_id=self.space_id, name=credential_name).first()
 
-    def _get_single_by_type(self, code, plugin_type, version=None):
+    def _get_single_by_type(self, code, plugin_type, version=None, source_key=None):
         if plugin_type == "component":
             obj = ComponentModel.objects.filter(code=code, status=True).first()
             if not obj:
@@ -471,9 +471,16 @@ class PluginSchemaService:
             }
         elif plugin_type == "uniform_api":
             api_list = self._list_uniform_api_plugins()
-            api_item = next((a for a in api_list if a["code"] == code), None)
+            api_item = next(
+                (
+                    item
+                    for item in api_list
+                    if item["code"] == code and (source_key is None or item.get("source_key") == source_key)
+                ),
+                None,
+            )
             if not api_item:
-                self._raise_uniform_api_catalog_access_error(code)
+                self._raise_uniform_api_catalog_access_error(code, source_key=source_key)
                 raise ValueError("未找到 API 插件 '{}'".format(code))
             if version:
                 self._validate_uniform_api_plugin_version(api_item, version)
@@ -517,12 +524,11 @@ class PluginSchemaService:
             return api_item
         return self._get_single_by_type(code, resolved_type, version=version)
 
-    def _raise_uniform_api_catalog_access_error(self, code):
-        catalog = (
-            OpenPluginCatalogIndex.objects.filter(space_id=self.space_id, plugin_id=code)
-            .order_by("-update_time", "-id")
-            .first()
-        )
+    def _raise_uniform_api_catalog_access_error(self, code, source_key=None):
+        filters = {"space_id": self.space_id, "plugin_id": code}
+        if source_key is not None:
+            filters["source_key"] = source_key
+        catalog = OpenPluginCatalogIndex.objects.filter(**filters).order_by("-update_time", "-id").first()
         if not catalog:
             return
         if not OpenPluginGrantService.is_granted(self.space_id, catalog.source_key):
