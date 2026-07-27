@@ -49,18 +49,21 @@
             <section class="config-section">
               <h4>{{ $t('输入参数') }}</h4>
               <div class="inputs-wrapper">
-                <input-params
-                  v-if="subflow.currentForm.inputsConfig.length > 0"
-                  :is-subflow="true"
-                  :node-id="subflow.id"
-                  :template-id="templateId"
-                  :editable="false"
-                  :scheme="subflow.currentForm.inputsConfig"
-                  :version="subflow.currentForm.version"
-                  :subflow-forms="subflow.currentForm.form"
-                  :value="subflow.currentForm.inputsValue"
-                  :render-config="subflow.currentForm.inputsRenderConfig"
-                  :constants="$store.state.template.constants" />
+                <template v-if="hasPluginFormSections(subflow.currentForm.sections)">
+                  <input-params
+                    v-for="section in subflow.currentForm.sections"
+                    :key="section.type"
+                    :is-subflow="true"
+                    :node-id="subflow.id"
+                    :template-id="templateId"
+                    :editable="false"
+                    :scheme="section.scheme"
+                    :version="subflow.currentForm.version"
+                    :subflow-forms="subflow.currentForm.form"
+                    :value="subflow.currentForm.inputsValue"
+                    :render-config="subflow.currentForm.inputsRenderConfig"
+                    :constants="$store.state.template.constants" />
+                </template>
                 <no-data
                   v-else
                   :message="$t('暂无参数')" />
@@ -92,21 +95,24 @@
             <section class="config-section">
               <h4>{{ $t('输入参数') }}</h4>
               <div class="inputs-wrapper">
-                <input-params
-                  v-if="subflow.latestForm.inputsConfig.length > 0"
-                  ref="inputParams"
-                  :is-subflow="true"
-                  :node-id="subflow.id"
-                  :template-id="templateId"
-                  :scheme="subflow.latestForm.inputsConfig"
-                  :version="subflow.latestForm.version"
-                  :subflow-forms="subflow.latestForm.form"
-                  :value="subflow.latestForm.inputsValue"
-                  :render-config="subflow.latestForm.inputsRenderConfig"
-                  :constants="localConstants"
-                  @hookChange="onHookChange"
-                  @renderConfigChange="onRenderConfigChange(subflow.id, $event)"
-                  @update="updateInputsValue(subflow.id, $event)" />
+                <template v-if="hasPluginFormSections(subflow.latestForm.sections)">
+                  <input-params
+                    v-for="section in subflow.latestForm.sections"
+                    :key="section.type"
+                    :ref="`inputParams-${subflow.id}`"
+                    :is-subflow="true"
+                    :node-id="subflow.id"
+                    :template-id="templateId"
+                    :scheme="section.scheme"
+                    :version="subflow.latestForm.version"
+                    :subflow-forms="subflow.latestForm.form"
+                    :value="subflow.latestForm.inputsValue"
+                    :render-config="subflow.latestForm.inputsRenderConfig"
+                    :constants="localConstants"
+                    @hookChange="onHookChange"
+                    @renderConfigChange="onRenderConfigChange(subflow.id, $event)"
+                    @update="updateInputsValue(subflow.id, $event)" />
+                </template>
                 <no-data
                   v-else
                   :message="$t('暂无参数')" />
@@ -190,6 +196,16 @@
   import InputParams from './NodeConfig/InputParams.vue';
   import OutputParams from './NodeConfig/OutputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
+  import {
+    buildV4PluginDetailRequest,
+    createPluginFormRequestRegistry,
+    isPluginFormStale,
+    isV4OpenPlugin,
+    mergePluginFormSections,
+    normalizePluginFormRefs,
+    validatePluginFormSections,
+  } from '@/utils/uniformApi.js';
+  import { hasPluginFormFields, selectPluginFormField } from '@/utils/pluginFormLoader.js';
 
   export default {
     name: 'BatchUpdateDialog',
@@ -227,6 +243,11 @@
         isCancelGloVarDialogShow: false,
         variableCited: {},
         unhookingVarForm: {}, // 正被取消勾选的表单配置
+        v4FormCache: {},
+        v4OutputsCache: {},
+        v4RequestRegistry: createPluginFormRequestRegistry(),
+        formGeneration: 0,
+        isDestroyed: false,
       };
     },
     computed: {
@@ -237,6 +258,7 @@
         gateways: state => state.template.gateways,
         internalVariable: state => state.template.internalVariable,
         pluginConfigs: state => state.atomForm.config,
+        scopeInfo: state => state.template.scopeInfo,
       }),
       expiredTplNum() {
         return this.list.filter(item => item.expired).length;
@@ -247,6 +269,11 @@
     },
     created() {
       this.loadSubflowForms();
+    },
+    beforeDestroy() {
+      this.isDestroyed = true;
+      this.formGeneration += 1;
+      this.v4RequestRegistry.invalidate();
     },
     methods: {
       ...mapMutations('template/', [
@@ -262,7 +289,74 @@
       ...mapActions('atomForm/', [
         'loadAtomConfig',
         'loadPluginServiceDetail',
+        'loadV4OpenPluginForm',
       ]),
+      hasPluginFormFields,
+      hasPluginFormSections(sections = []) {
+        return sections.some(section => hasPluginFormFields(section.scheme));
+      },
+      getV4Component(variable, plugin, version) {
+        if (variable.component) return variable.component;
+        const sourceNodeId = Object.keys(variable.source_info || {})[0];
+        const activity = sourceNodeId && this.activities[sourceNodeId];
+        if (activity && activity.component) return activity.component;
+        return {
+          code: variable.plugin_code || plugin,
+          version: variable.wrapper_version || version,
+          data: variable.component_data || variable.data || variable,
+          api_meta: variable.api_meta || {},
+        };
+      },
+      getV4FormCacheKey(component) {
+        const data = component.data || {};
+        const getValue = (key, fallback) => {
+          const value = data[key];
+          return value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'value')
+            ? value.value
+            : (value || fallback);
+        };
+        const apiMeta = component.api_meta || {};
+        const sourceKey = getValue('uniform_api_plugin_source_key', apiMeta.source_key);
+        const pluginId = getValue('uniform_api_plugin_id', apiMeta.id || apiMeta.plugin_id);
+        const pluginVersion = getValue('uniform_api_plugin_version', apiMeta.plugin_version);
+        return [sourceKey, pluginId, pluginVersion].map(value => String(value || '')).join(':');
+      },
+      async getV4PluginForm(variable, plugin, version) {
+        const component = this.getV4Component(variable, plugin, version);
+        if (!isV4OpenPlugin(component)) return null;
+        const cacheKey = this.getV4FormCacheKey(component);
+        if (this.v4FormCache[cacheKey]) return this.v4FormCache[cacheKey];
+        const generation = this.formGeneration;
+        const request = this.v4RequestRegistry.start(cacheKey, generation);
+        const isCurrent = () => !this.isDestroyed
+          && generation === this.formGeneration
+          && request.isCurrent(this.formGeneration);
+        try {
+          const result = await this.loadV4OpenPluginForm({
+            request: buildV4PluginDetailRequest({
+              component,
+              spaceId: this.spaceId,
+              templateId: variable.template_id || this.templateId,
+              scopeType: variable.scope_type || this.scopeInfo.scope_type,
+              scopeValue: variable.scope_value || this.scopeInfo.scope_value,
+            }),
+            readOnly: false,
+            isCurrent,
+            runtimeContext: {
+              inputs: {},
+              outputs: [],
+              state: '',
+            },
+          });
+          if (!isCurrent()) return null;
+          this.$set(this.v4FormCache, cacheKey, result.input);
+          this.$set(this.v4OutputsCache, cacheKey, result.detail.outputs || []);
+          return result.input;
+        } catch (error) {
+          if (isPluginFormStale(error, isCurrent)) return null;
+          throw error;
+        }
+      },
       // 批量加载待更新流程模版当前版本和最新版本表单数据
       async loadSubflowForms() {
         try {
@@ -340,9 +434,15 @@
             });
           });
           this.subflowForms = subflowForms;
-          this.getTplsFormConfig(subflowForms);
+          await this.getTplsFormConfig(subflowForms);
         } catch (e) {
           console.error(e);
+          if (e?.code !== 'FORM_LOAD_STALE') {
+            this.$bkMessage({
+              message: e.message || this.$t('原生表单加载失败'),
+              theme: 'error',
+            });
+          }
         } finally {
           this.subflowFormsLoading = false;
         }
@@ -367,8 +467,12 @@
         allSubflowInputForms.forEach((subflowItem) => {
           [...subflowItem.latestFormArr, ...subflowItem.currentFormArr].forEach((item) => {
             const formKey = item.custom_type || item.source_tag.split('.')[0];
-            if (!uniqueConfigMap[`${formKey}_${item.version}`]) {
-              uniqueConfigMap[`${formKey}_${item.version}`] = true;
+            const component = this.getV4Component(item, formKey, item.version || 'legacy');
+            const configKey = isV4OpenPlugin(component)
+              ? `v4_${this.getV4FormCacheKey(component)}`
+              : `${formKey}_${item.version}`;
+            if (!uniqueConfigMap[configKey]) {
+              uniqueConfigMap[configKey] = true;
               item.id = subflowItem.id;
               variables.push(item);
             }
@@ -379,8 +483,19 @@
           const { name, atom, classify } = atomFilter.getVariableArgs(variable);
           const version = variable.version || 'legacy';
           const isThird = Boolean(variable.plugin_code);
-          const config = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
-          variablesConfig[`${formKey}_${variable.version}`] = config;
+          const config = await this.getAtomConfig({
+            plugin: atom,
+            version,
+            classify,
+            name,
+            isThird,
+            variable,
+          });
+          const component = this.getV4Component(variable, formKey, version);
+          const configKey = isV4OpenPlugin(component)
+            ? `v4_${this.getV4FormCacheKey(component)}`
+            : `${formKey}_${variable.version}`;
+          variablesConfig[configKey] = config;
         }));
 
         allSubflowInputForms.forEach((subflow, index) => {
@@ -389,8 +504,12 @@
             let formValue = item.value;
             const oldVariable = constants[item.key];
             const formKey = item.custom_type || item.source_tag.split('.')[0];
-            const formConfig = this.getSubflowInputFormItemConfig(item, variablesConfig[`${formKey}_${item.version}`]);
-            this.subflowForms[index].latestForm.inputsConfig.push(formConfig);
+            const component = this.getV4Component(item, formKey, item.version || 'legacy');
+            const configKey = isV4OpenPlugin(component)
+              ? `v4_${this.getV4FormCacheKey(component)}`
+              : `${formKey}_${item.version}`;
+            const formConfig = this.getSubflowInputFormItemConfig(item, variablesConfig[configKey]);
+            this.appendInputFormConfig(this.subflowForms[index].latestForm, formConfig);
 
             // 节点当前输入参数表单存在与最新版本输入参数 key相同，且custom_type 或 source_tag 相同变量，则复用当前值
             if (oldVariable
@@ -402,8 +521,12 @@
           });
           subflow.currentFormArr.forEach((item) => {
             const formKey = item.custom_type || item.source_tag.split('.')[0];
-            const formConfig = this.getSubflowInputFormItemConfig(item, variablesConfig[`${formKey}_${item.version}`]);
-            this.subflowForms[index].currentForm.inputsConfig.push(formConfig);
+            const component = this.getV4Component(item, formKey, item.version || 'legacy');
+            const configKey = isV4OpenPlugin(component)
+              ? `v4_${this.getV4FormCacheKey(component)}`
+              : `${formKey}_${item.version}`;
+            const formConfig = this.getSubflowInputFormItemConfig(item, variablesConfig[configKey]);
+            this.appendInputFormConfig(this.subflowForms[index].currentForm, formConfig);
             this.subflowForms[index].currentForm.inputsValue[item.key] = tools.deepClone(constants[item.key].value);
             const renderVal = 'need_render' in constants[item.key] ? constants[item.key].need_render : true;
             this.$set(this.subflowForms[index].currentForm.inputsRenderConfig, item.key, renderVal);
@@ -412,7 +535,12 @@
       },
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
+        const component = this.getV4Component(config.variable || {}, plugin, version);
+        const isV4 = isV4OpenPlugin(component);
         try {
+          if (isV4) {
+            return await this.getV4PluginForm(config.variable || {}, plugin, version);
+          }
           // 先取标准节点缓存的数据
           const pluginGroup = this.pluginConfigs[plugin];
           if (pluginGroup && pluginGroup[version]) {
@@ -443,6 +571,7 @@
           const config = $.atoms[plugin];
           return config;
         } catch (e) {
+          if (isV4) throw e;
           console.error(e);
         }
       },
@@ -468,14 +597,27 @@
         return {
           form: inputForms,
           outputs: outputParams,
-          inputsConfig: [],
+          sections: [],
           inputsValue: {},
           inputsRenderConfig: {},
           version,
         };
       },
+      appendInputFormConfig(form, formConfig) {
+        if (!formConfig) return;
+        this.$set(form, 'sections', mergePluginFormSections(form.sections, formConfig));
+      },
       getSubflowInputFormItemConfig(variable, atomConfig) {
         const { tagCode } = atomFilter.getVariableArgs(variable);
+        if (atomConfig && atomConfig.properties) {
+          const field = selectPluginFormField(atomConfig, tagCode);
+          const sourceKey = Object.keys(field.properties)[0];
+          return {
+            ...field,
+            properties: { [variable.key]: field.properties[sourceKey] },
+            required: (field.required || []).includes(sourceKey) ? [variable.key] : [],
+          };
+        }
         let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
         if (variable.is_meta || formItemConfig.meta_transform) {
           formItemConfig = formItemConfig.meta_transform(variable.meta || variable);
@@ -554,8 +696,10 @@
               sourceInfo[id].splice(atomIndex, 1);
             }
             const index = this.subflowForms.findIndex(item => item.id === id);
-            const refDoms = source === 'input' ? this.$refs.inputParams : this.$refs.outputParams;
-            refDoms && refDoms[index].setFormData();
+            const refDoms = source === 'input'
+              ? normalizePluginFormRefs(this.$refs[`inputParams-${id}`])
+              : normalizePluginFormRefs(this.$refs.outputParams?.[index]);
+            refDoms.forEach(ref => ref.setFormData());
           }
         }
       },
@@ -594,8 +738,10 @@
           constant.source_info = {};
         }
         const index = this.subflowForms.findIndex(item => item.id === id);
-        const refDoms = source === 'input' ? this.$refs.inputParams : this.$refs.outputParams;
-        refDoms && refDoms[index].setFormData({ ...this.unhookingVarForm });
+        const refDoms = source === 'input'
+          ? normalizePluginFormRefs(this.$refs[`inputParams-${id}`])
+          : normalizePluginFormRefs(this.$refs.outputParams?.[index]);
+        refDoms.forEach(ref => ref.setFormData({ ...this.unhookingVarForm }));
         this.isCancelGloVarDialogShow = false;
       },
       updateInputsValue(subflowId, value) {
@@ -724,11 +870,11 @@
 
         this.setConstants(constants);
       },
-      onConfirm() {
-        const selectedInputForms = this.$refs.inputParams
-          ? this.$refs.inputParams.filter((item, index) => this.subflowForms[index].checked)
-          : [];
-        if (selectedInputForms.every(item => item.validate())) {
+      async onConfirm() {
+        const selectedInputForms = this.subflowForms
+          .filter(item => item.checked)
+          .flatMap(item => normalizePluginFormRefs(this.$refs[`inputParams-${item.id}`]));
+        if (await validatePluginFormSections(selectedInputForms)) {
           this.subflowForms.filter(item => item.checked).forEach((item) => {
             const activity = tools.deepClone(this.activities[item.id]);
             activity.version = item.latestForm.version;

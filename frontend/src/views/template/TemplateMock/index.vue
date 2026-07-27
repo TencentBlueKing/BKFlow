@@ -389,7 +389,7 @@
         this.curSelectedNodeId = id;
       },
       // 退出调试
-      onReturnMock() {
+      async onReturnMock() {
         if (this.mockStep === 'setting') {
           if (this.$router.history.length > 1) {
             this.$router.back();
@@ -407,7 +407,7 @@
           return;
         }
         const { mockExecute } = this.$refs;
-        const isEqual = mockExecute ? mockExecute.judgeDataEqual() : true;
+        const isEqual = mockExecute ? await mockExecute.judgeDataEqual() : true;
         const navigateBack = () => {
           this.$router.replace({
             name: 'templateMock',
@@ -547,13 +547,13 @@
         return this.$t('系统不会保存您所做的更改，确认离开？');
       },
     },
-    beforeRouteLeave(to, from, next) {
+    async beforeRouteLeave(to, from, next) {
       let isEqual = true;
       if (this.mockStep === 'setting') {
         isEqual = this.judgeDataEqual();
       } else {
         const { mockExecute } = this.$refs;
-        isEqual = mockExecute ? mockExecute.judgeDataEqual() : true;
+        isEqual = mockExecute ? await mockExecute.judgeDataEqual() : true;
       }
       if (!isEqual) {
         this.$bkInfo({

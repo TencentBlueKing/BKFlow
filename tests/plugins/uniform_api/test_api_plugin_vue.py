@@ -7,6 +7,33 @@ Licensed under the MIT License. See http://opensource.org/licenses/MIT.
 
 from pathlib import Path
 
+TASK_V4_SOURCES = [
+    "frontend/src/views/task/TaskExecute/ExecuteInfo.vue",
+    "frontend/src/views/task/TaskExecute/SideDrawerExecuteInfo.vue",
+    "frontend/src/views/task/TaskExecute/RetryNode.vue",
+    "frontend/src/views/task/TaskParamEdit.vue",
+]
+TASK_OPERATION_SOURCE = "frontend/src/views/task/TaskExecute/TaskOperation.vue"
+V4_CALLER_SOURCES = [
+    "frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue",
+    "frontend/src/views/task/TaskExecute/ExecuteInfo.vue",
+    "frontend/src/views/task/TaskExecute/SideDrawerExecuteInfo.vue",
+    "frontend/src/views/task/TaskExecute/RetryNode.vue",
+    "frontend/src/views/task/TaskParamEdit.vue",
+    "frontend/src/views/task/TaskExecute/ExecuteInfo/ExecuteInfoForm.vue",
+    "frontend/src/views/task/TaskExecute/ExecuteInfoCompoment/ExecuteInfoForm.vue",
+]
+V4_AUXILIARY_SOURCES = [
+    "frontend/src/views/template/TemplateMock/MockSetting/index.vue",
+    "frontend/src/views/template/TemplateMock/MockExecute/components/TaskParamEdit.vue",
+    "frontend/src/views/template/TemplateEdit/BatchUpdateDialog.vue",
+    "frontend/src/views/template/TemplateEdit/TemplateSetting/TabGlobalVariables/VariableEdit.vue",
+]
+
+
+def read(relative_path):
+    return (Path(__file__).resolve().parents[3] / relative_path).read_text(encoding="utf-8")
+
 
 def test_each_api_plugin_list_owns_its_scroll_handler():
     """Every rendered source tab binds pagination to its own scroll container."""
@@ -39,22 +66,249 @@ def test_uniform_api_does_not_keep_a_parallel_form_renderer():
     assert "normalizeStructuredFormSchema" not in json_schema_source
 
 
-def test_template_editor_uses_render_form_for_uniform_api_plugins():
+def test_pipeline_tree_save_keeps_legacy_uniform_api_metadata_unchanged():
+    """V2/V3 save must preserve the original component metadata and hidden fields."""
+
+    source = read("frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue")
+    save_start = source.index("const component = {")
+    save_end = source.index("return config", save_start)
+    save_source = source[save_start:save_end]
+
+    assert "const isV4 = isV4OpenPlugin(buildUniformApiComponent(this.basicInfo));" in save_source
+    assert "const originalApiMeta = this.nodeConfig.component?.['api_meta'];" in save_source
+    assert "if (originalApiMeta) component.api_meta = tools.deepClone(originalApiMeta);" in save_source
+    assert "if (isV4) {" in save_source
+    assert save_source.index("if (isV4) {") < save_source.index("component.api_meta = {")
+
+    form_source = source[source.index("getNodeComponentData(plugin, version)") :]
+    assert "const isV4 = isV4OpenPlugin(buildUniformApiComponent(this.basicInfo));" in form_source
+    assert form_source.index("if (isV4) {") < form_source.index("data.uniform_api_plugin_version = {")
+
+
+def test_pipeline_tree_save_preserves_v4_identity_and_execution_fields():
+    """V4 save keeps identity and execution fields as explicit pipeline-tree data."""
+
+    source = read("frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue")
+    save_source = source[source.index("getNodeComponentData(plugin, version) {") :]
+    utility_source = read("frontend/src/utils/uniformApi.js")
+    for field in (
+        "uniform_api_plugin_id",
+        "uniform_api_plugin_source_key",
+        "uniform_api_plugin_version",
+        "uniform_api_plugin_url",
+        "uniform_api_plugin_method",
+        "uniform_api_plugin_polling",
+        "uniform_api_plugin_callback",
+        "uniform_api_plugin_credential_key",
+    ):
+        assert field in save_source or field in utility_source
+
+
+def test_template_editor_routes_only_v4_open_plugin_to_unified_loader():
     frontend_root = Path(__file__).resolve().parents[3] / "frontend" / "src"
     node_config = (frontend_root / "views" / "template" / "TemplateEdit" / "NodeConfig" / "NodeConfig.vue").read_text(
         encoding="utf-8"
     )
-    input_params = (frontend_root / "views" / "template" / "TemplateEdit" / "NodeConfig" / "InputParams.vue").read_text(
+
+    assert "buildUniformApiComponent(this.basicInfo)" in node_config
+    assert "'loadV4OpenPluginForm'" in node_config
+    assert "buildV4PluginDetailRequest" in node_config
+    assert "loadUniformApiMeta" in node_config
+    assert "loadAtomConfig" in node_config
+    assert "loadPluginServiceDetail" in node_config
+
+
+def test_task_scenes_route_v4_to_unified_loader_and_keep_legacy_actions():
+    for path in TASK_V4_SOURCES:
+        source = read(path)
+        assert "isV4OpenPlugin" in source
+        assert "loadV4OpenPluginForm" in source
+        assert "loadAtomConfig" in source
+
+    for path in TASK_V4_SOURCES[:2]:
+        assert "loadPluginServiceDetail" in read(path)
+
+
+def test_auxiliary_scenes_use_v4_loader_without_replacing_legacy_paths():
+    for path in V4_AUXILIARY_SOURCES:
+        source = read(path)
+        assert "isV4OpenPlugin" in source
+        assert "loadV4OpenPluginForm" in source
+        assert "loadAtomConfig" in source
+
+
+def test_retry_node_receives_task_context_from_task_operation():
+    operation = read(TASK_OPERATION_SOURCE)
+    retry_node = read("frontend/src/views/task/TaskExecute/RetryNode.vue")
+
+    retry_start = operation.index("<RetryNode")
+    retry_block = operation[retry_start : operation.index("/>", retry_start) + 2]
+    assert ':space-id="spaceId"' in retry_block
+    assert ':template-id="templateId"' in retry_block
+    assert ':scope-info="scopeInfo"' in retry_block
+    assert "spaceId:" in retry_node
+    assert "templateId:" in retry_node
+    assert "scopeInfo:" in retry_node
+    assert "templateId: this.templateId" in retry_node
+    assert "scopeType: this.scopeInfo.scope_type" in retry_node
+    assert "scopeValue: this.scopeInfo.scope_value" in retry_node
+    assert "this.nodeDetailConfig.template_id" not in retry_node
+    assert "this.nodeDetailConfig.scope_type" not in retry_node
+    assert "this.nodeDetailConfig.scope_value" not in retry_node
+
+
+def test_task_param_edit_prefers_explicit_template_id_and_modify_params_forwards_it():
+    task_param_edit = read("frontend/src/views/task/TaskParamEdit.vue")
+    modify_params = read("frontend/src/views/task/TaskExecute/ModifyParams.vue")
+
+    assert "templateId:" in task_param_edit
+    assert "resolveTemplateId" in task_param_edit
+    assert "this.templateId !== ''" in task_param_edit
+    assert "templateId: this.resolveTemplateId()" in task_param_edit
+    assert ':template-id="templateId"' in modify_params
+
+
+def test_task_detail_async_branches_guard_stale_results_before_state_writes():
+    for path in TASK_V4_SOURCES[:2]:
+        source = read(path)
+        get_node_config_start = source.index("async getNodeConfig")
+        get_node_config = source[
+            get_node_config_start : source.index("async getSubflowInputsConfig", get_node_config_start)
+        ]
+        set_fill_record_start = source.index("async setFillRecordField")
+        set_fill_record = source[set_fill_record_start : source.index("async getTaskNodeDetail", set_fill_record_start)]
+
+        assert "canApplyPluginDetailResult" in source
+        assert "const canApply =" in get_node_config
+        assert get_node_config.count("if (!canApply()) return;") >= 4
+        assert "recordRequestId" in set_fill_record
+        assert "isCurrentRecord" in set_fill_record
+        assert set_fill_record.count("if (!isCurrentRecord()) return") >= 2
+
+
+def test_v4_auxiliary_forms_propagate_non_stale_errors_and_close_loading():
+    """V4 辅助页面不能把原生表单加载失败伪装成空表单。"""
+    mock_execute = read("frontend/src/views/template/TemplateMock/MockExecute/components/TaskParamEdit.vue")
+    mock_setting = read("frontend/src/views/template/TemplateMock/MockSetting/index.vue")
+    batch_update = read("frontend/src/views/template/TemplateEdit/BatchUpdateDialog.vue")
+
+    assert "this.isConfigLoading = false" in mock_execute
+    assert "throw error" in mock_execute
+    assert "isPluginFormStale" in mock_execute
+    assert "isPluginFormStale" in mock_setting
+    assert "isPluginFormStale" in batch_update
+    assert "throw error" in mock_setting
+    assert "throw e" in batch_update
+
+
+def test_v4_auxiliary_form_error_entrypoints_and_per_key_requests_are_wired():
+    """页面入口必须消费错误，批量表单必须使用按 cache key 的请求身份。"""
+    mock_execute = read("frontend/src/views/template/TemplateMock/MockExecute/components/TaskParamEdit.vue")
+    mock_setting = read("frontend/src/views/template/TemplateMock/MockSetting/index.vue")
+    batch_update = read("frontend/src/views/template/TemplateEdit/BatchUpdateDialog.vue")
+
+    assert "async loadFormData" in mock_execute
+    assert mock_execute.count("this.loadFormData();") >= 2
+    assert "shouldNotifyPluginFormError" in mock_execute
+    get_plugin_detail = mock_setting[mock_setting.index("async getPluginDetail") :]
+    assert "isPluginFormStale" in get_plugin_detail
+    assert "createPluginFormRequestRegistry" in batch_update
+
+
+def test_task_param_edit_aggregates_all_v4_object_properties_and_required_fields():
+    source = read("frontend/src/views/task/TaskParamEdit.vue")
+    helper_source = read("frontend/src/utils/uniformApi.js")
+
+    assert "mergeV4ObjectSchema" in source
+    assert "mergeV4ObjectSchema(schema, formSchema" in source
+    assert "Object.entries(properties)" in helper_source
+
+
+def test_all_task5_v4_loaders_receive_their_request_current_guard():
+    for path in V4_CALLER_SOURCES:
+        source = read(path)
+        assert "isCurrent:" in source, path
+
+
+def test_retry_node_guards_every_async_branch_and_final_state_write():
+    source = read("frontend/src/views/task/TaskExecute/RetryNode.vue")
+    start = source.index("async getNodeConfig")
+    end = source.index("async getSubflowInputsConfig", start)
+    get_node_config = source[start:end]
+
+    assert "this.pluginFormRequestId += 1;" in get_node_config
+    assert "const canApply =" in get_node_config
+    assert get_node_config.count("if (!canApply()) return") >= 6
+    assert "finally" in get_node_config
+    assert "if (canApply())" in get_node_config
+
+
+def test_task_param_edit_commits_one_current_generation_and_awaits_all_section_validation():
+    source = read("frontend/src/views/task/TaskParamEdit.vue")
+    modify_params = read("frontend/src/views/task/TaskExecute/ModifyParams.vue")
+    start = source.index("async getFormData")
+    end = source.index("setAtomDisable(atomList", start)
+    get_form_data = source[start:end]
+
+    assert "formGeneration" in source
+    assert "const generation = this.formGeneration" in get_form_data
+    assert "isCurrentGeneration" in source
+    assert "nextFormSections" in get_form_data
+    assert "this.formSections = nextFormSections" in get_form_data
+    assert "await this.validate()" in source
+    assert "await paramEditComp.validate()" in modify_params
+
+
+def test_new_atom_config_request_clears_remote_credential_loading_before_each_branch():
+    frontend_root = Path(__file__).resolve().parents[3] / "frontend" / "src"
+    node_config = (frontend_root / "views" / "template" / "TemplateEdit" / "NodeConfig" / "NodeConfig.vue").read_text(
         encoding="utf-8"
     )
 
-    assert "import renderFormSchema from '@/utils/renderFormSchema.js'" in node_config
-    assert "import jsonFormSchema from '@/utils/jsonFormSchema.js'" not in node_config
-    assert "return renderFormSchema(resp.data" in node_config
-    assert ':api-inputs="apiInputs"' in node_config
-    assert "apiInputs:" in input_params
-    assert "if (this.isApiPlugin)" in input_params
-    assert "const schema = this.apiInputs.find(item => item.key === form)" in input_params
+    request_start = node_config.index("this.atomConfigRequestId += 1;")
+    request_reset = node_config.index("this.credentialLoading = false;", request_start)
+    branch_markers = [
+        "if (isV4)",
+        "if (isApiPlugin && (currentBasicInfo.metaUrl || currentBasicInfo.meta_url_template))",
+        "if (isThird)",
+        "await this.loadAtomConfig({ atom: plugin",
+    ]
+
+    assert request_start < request_reset
+    assert all(request_reset < node_config.index(marker, request_start) for marker in branch_markers)
+    assert "withLoadingState" in node_config
+
+
+def test_template_editor_invalidates_v4_detail_requests_when_node_config_is_destroyed():
+    """NodeConfig must invalidate V4 detail/form callbacks before Vue destroys it."""
+    node_config = read("frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue")
+
+    assert "isDestroyed: false" in node_config
+    assert "beforeDestroy()" in node_config
+    destroy_start = node_config.index("beforeDestroy()")
+    destroy_block = node_config[destroy_start : node_config.index("mounted()", destroy_start)]
+    assert "this.isDestroyed = true;" in destroy_block
+    assert "this.atomConfigRequestId += 1;" in destroy_block
+    assert "isCurrentPluginDetailRequest" in node_config
+    assert "isCurrentPluginDetailRequest(requestId)" in node_config
+
+
+def test_template_editor_guards_init_default_data_writes_after_async_basic_info_load():
+    """initDefaultData must stop all component writes when getNodeBasic resolves after destroy."""
+    node_config = read("frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue")
+    method_start = node_config.index("async initDefaultData()")
+    method_end = node_config.index("async setThirdPartyList", method_start)
+    init_default_data = node_config[method_start:method_end]
+
+    await_basic_info = init_default_data.index("const basicInfo = await this.getNodeBasic(nodeConfig);")
+    destroy_guard = init_default_data.index("if (this.isDestroyed) return;", await_basic_info)
+    basic_info_write = init_default_data.index("this.basicInfo = basicInfo;", destroy_guard)
+    next_tick = init_default_data.index("this.$nextTick(() => {", basic_info_write)
+    next_tick_guard = init_default_data.index("if (!this.isDestroyed)", next_tick)
+    loading_write = init_default_data.index("this.isBaseInfoLoading = false;", next_tick_guard)
+
+    assert await_basic_info < destroy_guard < basic_info_write < next_tick
+    assert next_tick < next_tick_guard < loading_write
 
 
 def test_task_detail_and_mock_use_render_form_for_uniform_api_plugins():
@@ -78,3 +332,48 @@ def test_task_detail_and_mock_use_render_form_for_uniform_api_plugins():
         assert "this.setFormsSchema(renderConfig);" not in source, source_path
         assert "Array.isArray(this.inputs)" in source, source_path
         assert "this.hooked = this.getFormsHookState();" in source, source_path
+
+
+def test_variable_edit_v4_keeps_native_array_field_for_the_existing_renderer():
+    source = read("frontend/src/views/template/TemplateEdit/TemplateSetting/TabGlobalVariables/VariableEdit.vue")
+    start = source.index("async getAtomConfig")
+    v4_start = source.index("if (isV4OpenPlugin(component)) {", start)
+    v4_end = source.index("const { api_meta: apiMeta = {} }", v4_start)
+    v4_branch = source[v4_start:v4_end]
+
+    assert "selectPluginFormField(result.input, tag)" in v4_branch
+    assert "? [field]" in v4_branch
+    assert "renderFormSchema" not in v4_branch
+    assert ": field;" in v4_branch
+
+
+def test_mock_task_param_edit_validates_every_section_and_preserves_falsy_values():
+    source = read("frontend/src/views/template/TemplateMock/MockExecute/components/TaskParamEdit.vue")
+
+    assert 'ref="renderForm-array"' in source
+    assert 'ref="renderForm-object"' in source
+    assert "normalizePluginFormRefs" in source
+    assert "await validatePluginFormSections" in source
+    assert "Object.prototype.hasOwnProperty.call(this.renderData, key)" in source
+
+
+def test_batch_update_keeps_array_and_object_as_separate_sections():
+    source = read("frontend/src/views/template/TemplateEdit/BatchUpdateDialog.vue")
+
+    assert "mergePluginFormSections" in source
+    assert "sections" in source
+    assert ':scheme="section.scheme"' in source
+    assert ':ref="`inputParams-${subflow.id}`"' in source
+    assert "inputsConfig.length" not in source
+
+
+def test_mock_setting_builds_runtime_inputs_before_loading_v4_form():
+    source = read("frontend/src/views/template/TemplateMock/MockSetting/index.vue")
+    init_start = source.index("async initData")
+    normal_start = source.index("// 普通任务节点", init_start)
+    inputs_assignment = source.index("this.inputsFormData = paramsVal;", normal_start)
+    detail_load = source.index("await this.getPluginDetail();", normal_start)
+
+    assert inputs_assignment < detail_load
+    assert "runtimeContext" in source
+    assert "inputs: this.inputsFormData" in source
