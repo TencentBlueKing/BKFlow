@@ -247,7 +247,13 @@
   import OptionsPanel from './ExecuteInfoCompoment/OptionsPanel.vue';
   import LoopCountSelector from './ExecuteInfoCompoment/LoopCountSelector.vue';
   import { getOrderNodeToNodeTree } from '@/utils/orderCanvasNodeToNodeTree.js';
-  import { resolveUniformApiPluginVersion } from '@/utils/uniformApi.js';
+  import {
+    buildV4PluginDetailRequest,
+    canApplyPluginDetailResult,
+    isV4OpenPlugin,
+    resolveUniformApiPluginVersion,
+    resolveV4OpenPluginVersion,
+  } from '@/utils/uniformApi.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import SubStageCanvas from '../../../components/canvas/StageCanvas/SubStageCanvas.vue';
   const { CancelToken } = axios;
@@ -422,6 +428,9 @@
         isBreadCrumbLoading: false,
         isInLatestExecuteNum: true,
         executeBodyLoading: false,
+        pluginFormRequestId: 0,
+        nodeDetailRequestId: 0,
+        isDestroyed: false,
       };
     },
     computed: {
@@ -627,6 +636,9 @@
       },
     },
     beforeDestroy() {
+      this.isDestroyed = true;
+      this.pluginFormRequestId += 1;
+      this.nodeDetailRequestId += 1;
       if (source) {
           source.cancel('cancelled');
       }
@@ -650,6 +662,7 @@
         'loadAtomConfig',
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
+        'loadV4OpenPluginForm',
       ]),
       selectSubOutRetryCount(value) {
         this.theCurOutRetryTime = value;
@@ -1095,7 +1108,9 @@
         return href;
       },
       // 补充记录缺少的字段
-      async setFillRecordField(record) {
+      async setFillRecordField(record, recordRequestId = this.startNodeDetailRequest()) {
+        const isCurrentRecord = () => this.isCurrentNodeDetailRequest(recordRequestId);
+        if (!isCurrentRecord()) return null;
          const { version, component_code: componentCode, componentData = {}, node_id: nodeId } = this.nodeDetailConfig;
         const { inputs, state } = record;
         let { outputs } = record;
@@ -1133,8 +1148,9 @@
           this.renderConfig = await this.getSubflowInputsConfig(constants);
         } else if (componentCode) { // 任务节点需要加载标准插件
           const pluginVersion = componentData.plugin_version?.value;
-          await this.getNodeConfig(componentCode, version, pluginVersion);
+          await this.getNodeConfig(componentCode, version, pluginVersion, { inputs, outputs, state });
         }
+        if (!isCurrentRecord()) return null;
         inputsInfo = Object.keys(inputs).reduce((acc, cur) => {
           const scheme = Array.isArray(this.renderConfig)
             ? this.renderConfig.find(item => item.tag_code === cur)
@@ -1210,6 +1226,7 @@
         } else {
           failInfo = this.transformFailInfo(record.ex_data);
         }
+        if (!isCurrentRecord()) return null;
         this.$set(record, 'renderData', renderData);
         this.$set(record, 'renderConfig', this.renderConfig);
         this.$set(record, 'constants', constants);
@@ -1221,7 +1238,14 @@
         this.$set(record, 'isExpand', true);
         return record;
       },
-      async getTaskNodeDetail(isChangeExecuteLoop) {
+      startNodeDetailRequest() {
+        this.nodeDetailRequestId += 1;
+        return this.nodeDetailRequestId;
+      },
+      isCurrentNodeDetailRequest(requestId) {
+        return !this.isDestroyed && canApplyPluginDetailResult(requestId, this.nodeDetailRequestId);
+      },
+      async getTaskNodeDetail(isChangeExecuteLoop, requestId = this.nodeDetailRequestId) {
         try {
           // 未执行的时候不展示任何信息
           const { state, subflowNodeParent, node_id } = this.nodeDetailConfig;
@@ -1241,6 +1265,7 @@
             query.instance_id = this.$route.query.instanceId;
           }
           const res = await this.getNodeActDetail(query);
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           if (res.result) {
             return res.data;
           }
@@ -1248,11 +1273,56 @@
           console.log(e);
         }
       },
-      async getNodeConfig(type, version, pluginVersion) {
+      async getNodeConfig(type, version, pluginVersion, runtimeContext = {}) {
+        this.pluginFormRequestId += 1;
+        const requestId = this.pluginFormRequestId;
+        const canApply = () => !this.isDestroyed
+          && canApplyPluginDetailResult(requestId, this.pluginFormRequestId);
+        const component = this.nodeActivity && this.nodeActivity.component;
+        const isV4 = this.pluginCode === 'uniform_api' && isV4OpenPlugin(component);
+        if (isV4) {
+          this.renderConfig = [];
+          this.outputRenderConfig = [];
+          this.outputs = [];
+          this.isRenderOutputForm = false;
+          try {
+            const result = await this.loadV4OpenPluginForm({
+              request: buildV4PluginDetailRequest({
+                component,
+                spaceId: this.spaceId,
+                templateId: this.templateId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+              }),
+              readOnly: true,
+              isCurrent: canApply,
+              runtimeContext: {
+                inputs: runtimeContext.inputs || {},
+                outputs: runtimeContext.outputs || [],
+                state: runtimeContext.state,
+              },
+            });
+            if (!canApply()) return;
+            this.renderConfig = result.input;
+            this.outputRenderConfig = result.output || [];
+            this.outputs = result.detail.outputs || [];
+            this.isRenderOutputForm = result.isRenderOutputForm;
+          } catch (error) {
+            if (!canApply()) return;
+            const errorCode = error && error.code ? error.code : 'FORM_LOAD_FAILED';
+            const loadedVersion = resolveV4OpenPluginVersion(component) || pluginVersion || '--';
+            this.$bkMessage({
+              message: `${errorCode}: ${loadedVersion}`,
+              theme: 'error',
+            });
+          }
+          return;
+        }
         if (
           atomFilter.isConfigExists(type, version, this.atomFormConfig)
           && atomFilter.isConfigExists(type, version, this.atomOutputConfig)
         ) {
+          if (!canApply()) return;
           this.renderConfig = this.atomFormConfig[type][version];
           this.outputRenderConfig = this.atomOutputConfig[type][version];
           this.isRenderOutputForm = true;
@@ -1271,11 +1341,13 @@
                 meta_url_template: apiMeta.meta_url_template,
                 version: resolveUniformApiPluginVersion(this.nodeActivity.component),
               });
+              if (!canApply()) return;
               if (!resp.result) return;
               // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
               const apiVersion = resp.data.version || 'v2.0.0';
               // 使用meta API返回的version加载统一api基础配置
               await this.loadAtomConfig({ atom: type, version: apiVersion, space_id: this.spaceId });
+              if (!canApply()) return;
               // 输出参数
               const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
               const outputs = resp.data.outputs || [];
@@ -1284,6 +1356,7 @@
               return;
             }
             const res = await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
+            if (!canApply()) return;
             // 第三方插件节点拼接输出参数
             if (this.isThirdPartyNode) {
               const resp = await this.loadPluginServiceDetail({
@@ -1291,6 +1364,7 @@
                 plugin_version: pluginVersion,
                 with_app_detail: true,
               });
+              if (!canApply()) return;
               if (!resp.result) return;
               const { outputs: respsOutputs, forms, inputs } = resp.data;
               // 输出参数
@@ -1330,8 +1404,10 @@
             }
             this.isRenderOutputForm = res.isRenderOutputForm;
           } catch (e) {
+            if (!canApply()) return;
+            const errorCode = e && e.code ? e.code : 'FORM_LOAD_FAILED';
             this.$bkMessage({
-              message: e,
+              message: errorCode,
               theme: 'error',
               delay: 10000,
             });
@@ -1550,12 +1626,14 @@
         this.isBreadCrumbLoading = false;
       },
       async loadNodeInfo(isChangeExecuteLoop = false) {
+        const requestId = this.startNodeDetailRequest();
         this.loading = true;
         this.breadcrumbData = this.findNodePath(this.curNodeData[0].children, this.nodeDetailConfig.node_id);
         this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
         try {
           this.renderConfig = [];
-          let respData = await this.getTaskNodeDetail(isChangeExecuteLoop);
+          let respData = await this.getTaskNodeDetail(isChangeExecuteLoop, requestId);
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           if (!respData) {
             this.isReadyStatus = false;
             this.executeInfo = {};
@@ -1566,7 +1644,8 @@
           }
           this.isReadyStatus = ['RUNNING', 'SUSPENDED', 'FINISHED', 'FAILED'].indexOf(respData.state) > -1;
 
-          respData = await this.setFillRecordField(respData);
+          respData = await this.setFillRecordField(respData, requestId);
+          if (!respData || !this.isCurrentNodeDetailRequest(requestId)) return;
           if (!isChangeExecuteLoop) {
             this.loop = respData.loop;
             this.theExecuteTime = respData.loop;
@@ -1579,8 +1658,10 @@
           }
           // 获取记录详情
           await this.onSelectExecuteRecord(this.historyInfo.length, this.historyInfo);
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           // 初始化循环与执行次数信息
           await this.loadBreadCrumbData();
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           this.executeInfo.name = this.location.name || NODE_DICT[this.location.type];
           const taskInfo = respData.outputsInfo.find(item => item.key === 'task_id') || {};
           this.currentSubflowTaskId = taskInfo.value || ''; // 子流程的任务id
@@ -1598,6 +1679,7 @@
               // if (!this.isExistInSubCanvas(nodeId)) {
               if (subflowNodeParent && subflowNodeParent.taskId) { // 已经执行
                 const resp = await this.getTaskInstanceData(subflowNodeParent.taskId);
+                if (!this.isCurrentNodeDetailRequest(requestId)) return;
                 this.currentSubflowTaskId = subflowNodeParent.taskId;
                 this.subflowTaskId = subflowNodeParent.taskId;
                 this.subCanvsLocationCollection = [...resp.pipeline_tree.location, ...this.subCanvsLocationCollection];
@@ -1605,6 +1687,7 @@
                 this.setSubActivities(this.subCanvsActivityCollection);
                 this.updateCanvasData(resp.pipeline_tree);
                 await this.loadSubprocessStatus();
+                if (!this.isCurrentNodeDetailRequest(requestId)) return;
                 this.updateSubflowCanvasNodeInfo();
               } else { // 未执行
                   const { template_id: templateId } = subflowNodeParent?.component?.data?.subprocess.value || {};
@@ -1633,12 +1716,15 @@
             this.onMoveClickNode(nodeId);
           });
         } catch (e) {
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           this.theExecuteTime = undefined;
           this.executeInfo = {};
           this.historyInfo = [];
           console.log(e);
         } finally {
-          this.loading = false;
+          if (this.isCurrentNodeDetailRequest(requestId)) {
+            this.loading = false;
+          }
         }
       },
 
@@ -1652,7 +1738,10 @@
         const record = historyInfo[time - 1];
         if (record) {
           if (!('isExpand' in record)) {
-            this.executeInfo = await this.setFillRecordField(record);
+            const requestId = this.startNodeDetailRequest();
+            const filledRecord = await this.setFillRecordField(record, requestId);
+            if (!filledRecord || !this.isCurrentNodeDetailRequest(requestId)) return;
+            this.executeInfo = filledRecord;
             this.executeInfo.id = this.nodeDetailConfig.node_id;
             this.executeInfo.name = this.location.name || NODE_DICT[this.location.type];
           }

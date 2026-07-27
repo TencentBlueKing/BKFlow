@@ -224,12 +224,20 @@
           <div
             v-bkloading="{ isLoading: atomConfigLoading, opacity: 1, zIndex: 100 }"
             class="form-content">
-            <template v-if="!atomConfigLoading && renderConfig.length">
+            <template v-if="!atomConfigLoading && hasPluginFormFields(renderConfig)">
               <RenderForm
+                v-if="Array.isArray(renderConfig)"
                 ref="renderForm"
                 v-model="renderData"
                 :scheme="renderConfig"
                 :form-option="renderOption" />
+              <JsonschemaInputParams
+                v-else
+                ref="jsonSchemaForm"
+                :schema="renderConfig"
+                :form-data="renderData"
+                :is-view-mode="isViewMode"
+                @update="updateRenderData" />
             </template>
           </div>
         </div>
@@ -266,12 +274,16 @@
   import atomFilter from '@/utils/atomFilter.js';
   import formSchema from '@/utils/formSchema.js';
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
+  import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import renderFormSchema from '@/utils/renderFormSchema.js';
+  import { buildV4PluginDetailRequest, isV4OpenPlugin } from '@/utils/uniformApi.js';
+  import { hasPluginFormFields, selectPluginFormField } from '@/utils/pluginFormLoader.js';
 
   export default {
     name: 'VariableEdit',
     components: {
       RenderForm,
+      JsonschemaInputParams,
     },
     props: {
       variableData: {
@@ -342,6 +354,9 @@
         validationRule: {
           validReg: true,
         },
+        formGeneration: 0,
+        pluginFormRequestId: 0,
+        isDestroyed: false,
       };
     },
     computed: {
@@ -473,6 +488,11 @@
       }
       this.setTriggerCondInfo();
     },
+    beforeDestroy() {
+      this.isDestroyed = true;
+      this.formGeneration += 1;
+      this.pluginFormRequestId += 1;
+    },
     methods: {
       ...mapActions('template/', [
         'loadCustomVarCollection',
@@ -482,6 +502,7 @@
       ...mapActions('atomForm/', [
         'loadAtomConfig',
         'loadPluginServiceDetail',
+        'loadV4OpenPluginForm',
       ]),
       ...mapMutations('template/', [
         'addVariable',
@@ -565,9 +586,22 @@
         // 兼容旧数据自定义变量勾选为输入参数 source_tag 为空
         const atom = tagStr.split('.')[0] || customType;
         const classify = customType ? 'variable' : 'component';
+        this.formGeneration += 1;
+        this.pluginFormRequestId += 1;
+        const generation = this.formGeneration;
+        const requestId = this.pluginFormRequestId;
+        const isCurrent = () => !this.isDestroyed
+          && generation === this.formGeneration
+          && requestId === this.pluginFormRequestId;
+        const sourceNodeId = Object.keys(sourceInfo || {})[0];
+        const v4Component = sourceNodeId && this.activities[sourceNodeId]
+          ? this.activities[sourceNodeId].component
+          : null;
+        const isV4 = atom === 'uniform_api' && isV4OpenPlugin(v4Component);
         this.atomConfigLoading = true;
         this.atomTypeKey = atom;
-        if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 判断配置文件是否已经获取过
+        this.renderConfig = [];
+        if (!isV4 && atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 判断配置文件是否已经获取过
           this.getRenderConfig();
           this.$nextTick(() => {
             this.atomConfigLoading = false;
@@ -579,8 +613,33 @@
           // api插件变量
           if (atom === 'uniform_api') {
             this.isApiPlugin = true;
-            const sourceNodeId = Object.keys(sourceInfo)[0];
-            const { api_meta: apiMeta = {} } = this.activities[sourceNodeId].component;
+            const component = v4Component || {};
+            if (isV4OpenPlugin(component)) {
+              const result = await this.loadV4OpenPluginForm({
+                request: buildV4PluginDetailRequest({
+                  component,
+                  spaceId: this.spaceId,
+                  templateId: this.templateId,
+                  scopeType: this.scopeInfo.scope_type,
+                  scopeValue: this.scopeInfo.scope_value,
+                }),
+                readOnly: this.isViewMode,
+                isCurrent,
+                runtimeContext: {
+                  inputs: this.renderData,
+                  outputs: this.outputs,
+                  state: '',
+                },
+              });
+              if (!isCurrent()) return;
+              const tag = sourceTag.split('.')[1];
+              const field = selectPluginFormField(result.input, tag);
+              this.renderConfig = Array.isArray(result.input)
+                ? [field]
+                : field;
+              return;
+            }
+            const { api_meta: apiMeta = {} } = component;
             const { meta_url: metaUrl } = apiMeta;
             if (!metaUrl) return;
             // api插件配置
@@ -634,6 +693,14 @@
         } finally {
           this.atomConfigLoading = false;
         }
+      },
+      hasPluginFormFields,
+      updateRenderData(value) {
+        this.renderData = { ...this.renderData, ...value };
+      },
+      getRenderFieldKey() {
+        if (Array.isArray(this.renderConfig)) return this.renderConfig[0]?.['tag_code'];
+        return Object.keys(this.renderConfig.properties || {})[0];
       },
       getRenderConfig() {
         const {
@@ -778,6 +845,7 @@
       },
       // 校验正则规则是否合法
       onBlurValidation() {
+        if (!Array.isArray(this.renderConfig) || !this.renderConfig[0]) return;
         const config = tools.deepClone(this.renderConfig[0]);
         const regValidate = config.attrs.validation.find(item => item.type === 'regex');
         if (!this.veeErrors.has('valueValidation')) {
@@ -804,7 +872,8 @@
         const validateSet = this.getValidateSet();
         this.$set(this.renderOption, 'validateSet', validateSet);
 
-        if (['input', 'textarea'].includes(this.theEditingData.custom_type)) {
+        if (['input', 'textarea'].includes(this.theEditingData.custom_type)
+          && Array.isArray(this.renderConfig) && this.renderConfig[0]) {
           const config = tools.deepClone(this.renderConfig[0]);
           const regValidate = config.attrs.validation.find(item => item.type === 'regex');
           regValidate.args = this.getInputDefaultValueValidation();
@@ -860,8 +929,8 @@
         } else {
           const editingVariable = tools.deepClone(this.theEditingData);
           editingVariable.key = /^\$\{\w+\}$/.test(editingVariable.key) ? editingVariable.key : `\${${editingVariable.key}}`;
-          if (this.renderConfig.length > 0) {
-            const tagCode = this.renderConfig[0].tag_code;
+          if (hasPluginFormFields(this.renderConfig)) {
+            const tagCode = this.getRenderFieldKey();
             editingVariable.value = this.renderData[tagCode];
           }
 
@@ -898,8 +967,8 @@
             variable.pre_render_mako = Boolean(variable.pre_render_mako);
           }
           // renderform表单校验
-          if (this.renderConfig.length > 0) {
-            const tagCode = this.renderConfig[0].tag_code;
+          if (hasPluginFormFields(this.renderConfig)) {
+            const tagCode = this.getRenderFieldKey();
 
             if (this.$refs.renderForm) {
               // 默认值执行校验的逻辑
@@ -908,6 +977,8 @@
               if (variable.show_type === 'hide' || !tools.isDataEqual(variable.value, this.renderData[tagCode])) {
                 formValid = await this.$refs.renderForm.validate();
               }
+            } else if (this.$refs.jsonSchemaForm) {
+              formValid = await this.$refs.jsonSchemaForm.validate();
             }
 
             if (!formValid) {

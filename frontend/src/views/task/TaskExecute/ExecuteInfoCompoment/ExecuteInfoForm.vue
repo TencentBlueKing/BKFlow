@@ -239,7 +239,12 @@
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
   import renderFormSchema from '@/utils/renderFormSchema.js';
-  import { resolveUniformApiPluginVersion } from '@/utils/uniformApi.js';
+  import {
+    buildV4PluginDetailRequest,
+    isV4OpenPlugin,
+    resolveUniformApiPluginVersion,
+    resolveV4OpenPluginVersion,
+  } from '@/utils/uniformApi.js';
   import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
 
   export default {
@@ -320,6 +325,8 @@
         subflowLoading: false,
         constantsLoading: false,
         isTemSubflowNode: false,
+        pluginFormRequestId: 0,
+        isDestroyed: false,
         currentExecuteInfo: tools.deepClone(this.executeInfo),
         currentNodeDetailConfig: tools.deepClone(this.nodeDetailConfig),
       };
@@ -424,6 +431,8 @@
       }
     },
     beforeDestroy() {
+      this.isDestroyed = true;
+      this.pluginFormRequestId += 1;
       $.context.exec_env = '';
     },
     methods: {
@@ -442,6 +451,7 @@
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
         'loadSubprocessOutput',
+        'loadV4OpenPluginForm',
       ]),
       // 初始化节点数据
       async initData() {
@@ -647,11 +657,36 @@
        */
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
+        this.pluginFormRequestId += 1;
+        const requestId = this.pluginFormRequestId;
         try {
           // 先取标准节点缓存的数据
-          const pluginGroup = this.pluginConfigs[plugin];
-          if (pluginGroup && pluginGroup[version]) {
+          const { [plugin]: pluginGroup } = this.pluginConfigs;
+          if (pluginGroup && pluginGroup[version]
+            && !(this.isApiPlugin && isV4OpenPlugin(this.nodeActivity.component))) {
             return pluginGroup[version];
+          }
+          if (this.isApiPlugin && isV4OpenPlugin(this.nodeActivity.component)) {
+            const { component } = this.nodeActivity;
+            const result = await this.loadV4OpenPluginForm({
+              request: buildV4PluginDetailRequest({
+                component,
+                spaceId: this.spaceId,
+                templateId: this.templateId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+              }),
+              readOnly: true,
+              isCurrent: () => !this.isDestroyed && requestId === this.pluginFormRequestId,
+              runtimeContext: {
+                inputs: this.executeInfo.inputs || {},
+                outputs: this.executeInfo.outputs || [],
+                state: this.executeInfo.state,
+              },
+            });
+            if (this.isDestroyed || requestId !== this.pluginFormRequestId) return null;
+            this.outputs = result.detail.outputs || [];
+            return result.input;
           }
           // api插件输入输出
           if (this.isApiPlugin) {
@@ -689,7 +724,14 @@
           const config = $.atoms[plugin];
           return config;
         } catch (e) {
-          console.log(e);
+          if (this.isDestroyed || requestId !== this.pluginFormRequestId) return null;
+          if (this.isApiPlugin && isV4OpenPlugin(this.nodeActivity.component)) {
+            const errorCode = e && e.code ? e.code : 'FORM_LOAD_FAILED';
+            const pluginVersion = resolveV4OpenPluginVersion(this.nodeActivity.component) || version || '--';
+            this.$bkMessage({ message: `${errorCode}: ${pluginVersion}`, theme: 'error' });
+          } else {
+            console.log(e);
+          }
         }
       },
       // 第三方插件输入输出配置
