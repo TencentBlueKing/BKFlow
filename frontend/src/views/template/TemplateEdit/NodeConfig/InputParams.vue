@@ -10,7 +10,7 @@
 */
 <template>
   <div class="input-params">
-    <template v-if="!isJsonSchema && scheme.length > 0">
+    <template v-if="!formError && Array.isArray(scheme) && scheme.length > 0">
       <render-form
         ref="inputParamsForm"
         :scheme="formsScheme"
@@ -42,7 +42,7 @@
       </bk-collapse>
     </template>
     <jsonschema-input-params
-      v-else-if="scheme && scheme.properties && Object.keys(scheme.properties).length > 0"
+      v-else-if="!formError && isJsonSchema && scheme.properties && Object.keys(scheme.properties).length > 0"
       ref="inputParamsForm"
       :key="randomKey"
       :form-data="formData"
@@ -51,6 +51,9 @@
       :is-api-plugin="isApiPlugin"
       @onHookForm="onHookForm"
       @update="$emit('update', $event)" />
+    <no-data
+      v-else-if="formError"
+      :message="formError" />
     <no-data
       v-else
       :message="$t('暂无参数')" />
@@ -134,9 +137,13 @@
         type: [String, Number],
         default: '',
       },
+      formError: {
+        type: String,
+        default: '',
+      },
     },
     data() {
-      const defaultScheme = Array.isArray(this.scheme) ? [] : {};
+      const defaultScheme = Array.isArray(this.scheme) ? [] : (this.scheme || {});
       return {
         formData: tools.deepClone(this.value),
         hooked: {},
@@ -169,7 +176,7 @@
         scopeInfo: state => state.template.scopeInfo,
       }),
       isJsonSchema() { // 是否为jsonSchemaForm表单
-        return !Array.isArray(this.scheme);
+        return Boolean(this.scheme && !Array.isArray(this.scheme));
       },
     },
     watch: {
@@ -247,6 +254,7 @@
         return hooked;
       },
       getFormScheme(type = 'referred') {
+        if (!Array.isArray(this.scheme)) return [];
         if (this.isSubflow && Object.keys(this.formsNotReferred).length > 0) {
           const has = Object.prototype.hasOwnProperty;
           return this.scheme.filter((item) => {
@@ -262,7 +270,7 @@
       */
       setFormsSchema() {
         const keys = Object.keys(this.constants);
-        const formSchema = tools.deepClone(this.scheme);
+        const formSchema = tools.deepClone(this.scheme || {});
         const { properties = {} } = formSchema;
         Object.keys(properties).forEach((form) => {
           // 已勾选到全局变量中, 判断勾选的输入参数生成的变量及自定义全局变量source_info是否包含该节点对应表单tag_code

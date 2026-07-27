@@ -274,7 +274,7 @@
         let modifiedKeys = [];
         let formValid = true;
         if (paramEditComp) {
-          formValid = paramEditComp.validate();
+          formValid = await paramEditComp.validate();
           if (!formValid) return false;
           const variables = await paramEditComp.getVariableData();
           Object.keys(variables).forEach((key) => {

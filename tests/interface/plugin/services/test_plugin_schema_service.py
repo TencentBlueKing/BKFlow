@@ -210,6 +210,46 @@ class TestRemotePlugins:
         mock_cache.set.assert_called_once()
 
 
+class TestUniformApiSourceSelection:
+    """测试多来源开放插件的详情目录选择。"""
+
+    @patch.object(PluginSchemaService, "_list_uniform_api_plugins")
+    def test_get_single_uniform_api_selects_exact_source_and_version(self, list_plugins):
+        """同一空间同一插件 ID 存在多个来源时，详情选择必须锁定来源和版本。"""
+        list_plugins.return_value = [
+            {
+                "code": "shared_open_plugin",
+                "source_key": "first-source",
+                "plugin_code": "first-code",
+                "versions": ["first-v1", "first-v2"],
+                "default_version": "first-v1",
+                "latest_version": "first-v2",
+                "_meta_url_template": "https://first.example/{version}",
+            },
+            {
+                "code": "shared_open_plugin",
+                "source_key": "second-source",
+                "plugin_code": "second-code",
+                "versions": ["second-v1", "second-v2"],
+                "default_version": "second-v1",
+                "latest_version": "second-v2",
+                "_meta_url_template": "https://second.example/{version}",
+            },
+        ]
+
+        selected = PluginSchemaService(space_id=1)._get_single_by_type(
+            "shared_open_plugin",
+            "uniform_api",
+            version="second-v2",
+            source_key="second-source",
+        )
+
+        assert selected["source_key"] == "second-source"
+        assert selected["plugin_code"] == "second-code"
+        assert selected["version"] == "second-v2"
+        assert selected["_meta_url"] == "https://second.example/second-v2"
+
+
 @pytest.mark.django_db
 class TestUniformApiPlugins:
     """测试 API 插件查询"""
