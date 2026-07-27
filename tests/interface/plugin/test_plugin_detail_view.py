@@ -30,6 +30,7 @@ EXPECTED_DETAIL_KEYS = {
     "outputs",
     "credentials",
     "forms",
+    "form_schema",
     "form_context",
     "execution_kind",
     "url",

@@ -44,6 +44,7 @@ EXPECTED_DETAIL_KEYS = {
     "outputs",
     "credentials",
     "forms",
+    "form_schema",
     "form_context",
     "execution_kind",
     "url",
@@ -744,6 +745,49 @@ class TestUniformApiDetailAdapter:
             uniform_detail_data(),
             client_cls.return_value.UNIFORM_API_META_RESPONSE_DATA_SCHEMA,
         )
+
+    @patch("bkflow.plugin.services.plugin_detail._get_api_credential", create=True)
+    @patch("bkflow.plugin.services.plugin_detail.UniformAPIClient", create=True)
+    def test_uniform_adapter_preserves_form_schema(
+        self,
+        client_cls,
+        get_credential,
+        available_open_plugin,
+        service,
+    ):
+        """V4 provider 的完整 JSON Schema 表单不能退化为扁平 inputs。"""
+        form_schema = {
+            "type": "object",
+            "required": ["vendor"],
+            "properties": {
+                "vendor": {
+                    "type": "string",
+                    "title": "云厂商",
+                    "ui:component": {
+                        "name": "select",
+                        "props": {
+                            "datasource": [
+                                {"label": "腾讯云-自研云", "value": "tcloud-ziyan"},
+                                {"label": "腾讯云-公有云", "value": "tcloud"},
+                            ]
+                        },
+                    },
+                }
+            },
+        }
+        get_credential.return_value = {"bk_app_code": "bkflow", "bk_app_secret": "secret"}
+        client_cls.return_value.request.return_value = uniform_result(
+            data=uniform_detail_data(
+                inputs=[{"key": "vendor", "name": "云厂商", "type": "string", "required": True}],
+                forms={"input": None, "output": None},
+                form_schema=form_schema,
+            )
+        )
+
+        detail = service.get_detail("uniform_api", available_open_plugin.plugin_id, "v2.0", "sops")
+
+        assert detail["forms"] == {"input": None, "output": None}
+        assert detail["form_schema"] == form_schema
 
     @patch("bkflow.plugin.services.plugin_detail.UniformAPIClient", create=True)
     def test_uniform_adapter_rejects_source_without_grant(self, client_cls, available_open_plugin, service):
