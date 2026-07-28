@@ -305,8 +305,13 @@ class TaskInstance(models.Model):
         }
 
     def change_parent_task_node_state_to_running(self):
-        if not self.trigger_method == TaskTriggerMethod.subprocess.name:
-            logger.info("taskflow[id=%s] is not child taskflow, cannot change parent task node state to running")
+        if self.trigger_method not in [
+            TaskTriggerMethod.subprocess.name,
+            TaskTriggerMethod.sub_canvas.name,
+        ]:
+            logger.info(
+                "taskflow[id=%s] is not child taskflow, cannot change parent task node state to running", self.id
+            )
             return
 
         with transaction.atomic():
