@@ -1734,7 +1734,7 @@ class TestTemplateFilterAndBranches:
 
     def test_filter_by_labels_returns_queryset_when_no_match(self):
         """Cover TemplateFilterSet.filter_by_labels empty label_ids branch (137-139)."""
-        template = self._create_template("t_no_label")
+        self._create_template("t_no_label")
 
         view = TemplateViewSet.as_view({"get": "list_template"})
         request = self.factory.get(f"/templates/list_template/?space_id={self.space.id}&label=__not_exists__")
@@ -1743,8 +1743,8 @@ class TestTemplateFilterAndBranches:
 
         assert response.status_code == 200
         results = response.data.get("data", {}).get("results", [])
-        # should not error and should include created template
-        assert any(item.get("id") == template.id for item in results)
+        # no template has the non-existent label, so the filtered result should be empty
+        assert not results
 
     def test_filter_by_labels_filters_queryset(self):
         """Cover TemplateFilterSet.filter_by_labels subquery filter branch (141-143)."""

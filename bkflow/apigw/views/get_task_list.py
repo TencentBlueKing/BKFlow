@@ -62,13 +62,14 @@ def get_task_list(request, space_id):
 
     client = TaskComponentClient(space_id=space_id)
     result = client.task_list(data=data)
-    label_ids = []
-    for item in result["data"]["results"]:
-        label_ids.extend(item["labels"])
+    if not result.get("result"):
+        label_ids = []
+        for item in result["data"]["results"]:
+            label_ids.extend(item["labels"])
 
-    labels_map = Label.objects.get_labels_map(set(label_ids))
+        labels_map = Label.objects.get_labels_map(set(label_ids))
 
-    for item in result["data"]["results"]:
-        item["labels"] = [labels_map.get(label_id) for label_id in item["labels"]]
+        for item in result["data"]["results"]:
+            item["labels"] = [labels_map.get(label_id) for label_id in item["labels"]]
 
     return result

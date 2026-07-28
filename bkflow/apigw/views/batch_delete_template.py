@@ -21,6 +21,7 @@ import json
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.db import transaction
+from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -85,18 +86,21 @@ def batch_delete_template(request, space_id):
             failed_data["root_template_info"] = dict(sub_root_map)
 
     if failed_data:
-        return {"result": False, "data": failed_data, "code": err_code.VALIDATION_ERROR.code, "message": "模板被引用，无法删除"}
-    try:
-        with transaction.atomic():
-            Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(is_deleted=True)
-            clear_result = clear_scope_webhooks([str(tid) for tid in template_ids])
-            if not clear_result["result"]:
-                message = clear_result["message"]
-                raise Exception(message)
-            trigger_ids = Trigger.objects.filter(template_id__in=template_ids).values_list("id", flat=True)
-            Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
-            TemplateLabelRelation.objects.filter(template_id__in=template_ids).delete()
-    except Exception as e:
-        return {"result": False, "data": {}, "code": err_code.ERROR.code, "message": str(e)}
+        return {
+            "result": False,
+            "data": failed_data,
+            "code": err_code.VALIDATION_ERROR.code,
+            "message": _("模板被引用，无法删除"),
+        }
+
+    with transaction.atomic():
+        Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(is_deleted=True)
+        clear_result = clear_scope_webhooks([str(tid) for tid in template_ids])
+        if not clear_result["result"]:
+            message = clear_result["message"]
+            raise Exception(message)
+        trigger_ids = Trigger.objects.filter(template_id__in=template_ids).values_list("id", flat=True)
+        Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
+        TemplateLabelRelation.objects.filter(template_id__in=template_ids).delete()
 
     return {"result": True, "data": {}, "code": err_code.SUCCESS.code}
