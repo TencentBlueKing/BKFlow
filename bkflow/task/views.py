@@ -325,7 +325,10 @@ class TaskInstanceViewSet(
             template_id=task_instance.template_id,
             executor=task_instance.executor,
         ):
-            if task_instance.trigger_method == TaskTriggerMethod.subprocess.name and operation in ["skip", "retry"]:
+            if task_instance.trigger_method in [
+                TaskTriggerMethod.subprocess.name,
+                TaskTriggerMethod.sub_canvas.name,
+            ] and operation in ["skip", "retry"]:
                 task_instance.change_parent_task_node_state_to_running()
             node_operation = TaskNodeOperation(task_instance=task_instance, node_id=node_id)
             operation_method = getattr(node_operation, operation, None)
