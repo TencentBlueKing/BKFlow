@@ -532,12 +532,13 @@
       // 通过快捷面板删除连线
       onDeleteLineClick() {
         const info = this.effectiveLines.find(line => line.id === this.activeCell.id);
+        // 先移除边（从 X6 图中删除），再触发 onLineChange 同步数据
+        this.instance.removeEdge(info.id);
         this.$emit('onLineChange', 'delete', {
           id: info.id,
           source: { cell: info.source.id },
           target: { cell: info.target.id },
         });
-        this.instance.removeEdge(info.id);
         this.$emit('updateShortcutPanel');
       },
     },

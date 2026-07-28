@@ -2193,6 +2193,19 @@
           end_event: this.end_event,
           lines: this.lines,
         };
+        // 校验节点是否被循环容器遮挡
+        const overlapResult = validatePipeline.isNodeOverlappedBySubCanvas(canvasData);
+        if (!overlapResult.result) {
+          this.validateConnectFailList = overlapResult.errorId || [];
+          this.$bkMessage({
+            message: overlapResult.message,
+            theme: 'error',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
+            delay: 10000,
+          });
+          return;
+        }
         const validateMessage = validatePipeline.isNodeLineNumValid(canvasData);
         if (!validateMessage.result) {
           // 获取检验不合格节点

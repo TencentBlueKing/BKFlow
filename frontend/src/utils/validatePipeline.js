@@ -181,7 +181,8 @@ function getNodeNameFromPath(dataPath, data) {
  * 从 dataPath 最后一段提取字段名，如 .outgoing → outgoing
  */
 function getFieldNameFromPath(dataPath) {
-  const parts = dataPath.replace(/\[/g, '.').replace(/['\]]/g, '').split('.');
+  const parts = dataPath.replace(/\[/g, '.').replace(/['\]]/g, '')
+    .split('.');
   return parts[parts.length - 1] || '';
 }
 
@@ -399,6 +400,68 @@ const validatePipeline = {
     return this.getMessage();
   },
   /**
+     * 检查是否有节点被 SubCanvas（循环容器）遮挡
+     * 通过轴对齐矩形相交检测，判断非循环容器节点是否与循环容器的矩形区域重叠
+     * @param {Object} data - { locations, ... }
+     * @returns {{ result: boolean, message: string, errorId: string[] }}
+     */
+  isNodeOverlappedBySubCanvas(data) {
+    const { locations } = data;
+    const subCanvasNodes = locations.filter(loc => loc.type === 'SubCanvas');
+    if (subCanvasNodes.length === 0) {
+      return this.getMessage();
+    }
+    // 获取节点默认尺寸（location 中可能没有 width/height）
+    const getNodeRect = (loc) => {
+      const taskNodeTypes = ['tasknode', 'subflow'];
+      const isSubCanvas = loc.type === 'SubCanvas';
+      const isTaskNode = taskNodeTypes.includes(loc.type);
+      let defaultWidth;
+      let defaultHeight;
+      if (isSubCanvas) {
+        defaultWidth = 415;
+        defaultHeight = 158;
+      } else if (isTaskNode) {
+        defaultWidth = 154;
+        defaultHeight = 54;
+      } else {
+        defaultWidth = 34;
+        defaultHeight = 34;
+      }
+      return {
+        x: loc.x,
+        y: loc.y,
+        width: loc.width || defaultWidth,
+        height: loc.height || defaultHeight,
+      };
+    };
+    // 判断两个轴对齐矩形是否重叠
+    const isRectOverlap = (a, b) => a.x < b.x + b.width
+        && a.x + a.width > b.x
+        && a.y < b.y + b.height
+        && a.y + a.height > b.y;
+    const overlappedIds = [];
+    locations.forEach((node) => {
+      if (node.type === 'SubCanvas') return;
+      const nodeRect = getNodeRect(node);
+      for (const subCanvas of subCanvasNodes) {
+        if (isRectOverlap(nodeRect, getNodeRect(subCanvas))) {
+          overlappedIds.push(node.id);
+          break; // 每个节点只记录一次重叠即可
+        }
+      }
+    });
+    if (overlappedIds.length > 0) {
+      const names = overlappedIds.map((id) => {
+        const loc = locations.find(l => l.id === id);
+        return loc ? (loc.name || NODE_DICT[loc.type] || id) : id;
+      }).join('、');
+      const message = `${i18n.t('节点')}[${names}]${i18n.t('被循环容器遮挡，请移动节点避免被遮挡')}`;
+      return this.getMessage(false, message, overlappedIds);
+    }
+    return this.getMessage();
+  },
+  /**
      * 画布节点连线数目校验
      * @param {Object} data
      */
@@ -571,7 +634,7 @@ const validatePipeline = {
 
     if (valid) {
       // 递归校验 SubCanvas（循环节点）的子流程
-      const subCanvasNodes = Object.keys(activities).filter(id => {
+      const subCanvasNodes = Object.keys(activities).filter((id) => {
         const act = activities[id];
         return act.type === 'SubCanvas' && act.pipeline;
       });
