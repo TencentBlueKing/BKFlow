@@ -6,8 +6,9 @@
       <span>
         {{ $t('改动可能影响流程编排中「API插件」可选的接口与分类中已使用该接入的流程，请谨慎修改！') }}
       </span>
-      <!-- v-if="docLink" -->
-      <div class="apc-doc-link">
+      <div
+        v-if="docLink"
+        class="apc-doc-link">
         <bk-link
           theme="primary"
           :href="docLink"
@@ -411,6 +412,10 @@ import { mapActions } from 'vuex';
           };
         } catch (error) {
           console.log(error);
+          apiItem.testResult = {
+            ok: false,
+            error: String(error),
+          };
         } finally {
           apiItem.testLoading = false;
         }

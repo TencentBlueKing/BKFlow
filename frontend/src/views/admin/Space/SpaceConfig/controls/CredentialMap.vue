@@ -156,7 +156,6 @@
             },
           ],
         },
-        sliderShow: false,
         lastEmittedValue: undefined,
       };
     },

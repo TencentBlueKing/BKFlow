@@ -248,16 +248,14 @@
       },
     },
     watch: {
-      config: {
-        handler(val) {
-          this.formValue = this.readValue(val);
-          // 同步重置初始值快照，切换配置项后重新计算是否变动
-          this.initialValue = tools.deepClone(this.readValue(val));
-          // 切换配置项时清空测试结果
-          this.localVerifyResult = null;
-          // 切换配置项时清空保存失败标记
-          this.localSaveError = false;
-        },
+      config(val) {
+        this.formValue = this.readValue(val);
+        // 同步重置初始值快照，切换配置项后重新计算是否变动
+        this.initialValue = tools.deepClone(this.readValue(val));
+        // 切换配置项时清空测试结果
+        this.localVerifyResult = null;
+        // 切换配置项时清空保存失败标记
+        this.localSaveError = false;
       },
     },
     methods: {

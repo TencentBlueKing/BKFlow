@@ -63,7 +63,7 @@
     },
     computed: {
       isDuration() {
-        return this.schema.validation.type === 'duration';
+        return this.schema?.validation?.type === 'duration';
       },
     },
     watch: {
