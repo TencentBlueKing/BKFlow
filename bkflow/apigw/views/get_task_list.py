@@ -62,7 +62,7 @@ def get_task_list(request, space_id):
 
     client = TaskComponentClient(space_id=space_id)
     result = client.task_list(data=data)
-    if not result.get("result"):
+    if result.get("result"):
         label_ids = []
         for item in result["data"]["results"]:
             label_ids.extend(item["labels"])
