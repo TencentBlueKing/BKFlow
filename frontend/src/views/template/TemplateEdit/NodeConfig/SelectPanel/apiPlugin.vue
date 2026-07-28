@@ -96,7 +96,7 @@
         categoryList: [],
         categoryActive: '',
         apiList: [],
-        apiActive: this.crtPlugin,
+        apiActive: this.apiTabList.some(item => item.key === this.currentTab) ? this.crtPlugin : '',
         pagination: {
           current: 1,
           count: 0,
@@ -117,14 +117,11 @@
     },
     watch: {
       crtApiKey: {
-        handler(val) {
+        handler(val, oldVal) {
+          const preserveSelection = oldVal === undefined && Boolean(this.apiActive);
+          this.resetCatalogState(!preserveSelection);
           if (val) {
-            this.getUniformCategoryList();
-          } else {
-            this.categoryActive = '';
-            this.categoryList = [];
-            this.apiActive = '';
-            this.apiList = [];
+            this.getUniformCategoryList(preserveSelection ? this.crtGroup : '');
           }
         },
         deep: true,
@@ -136,7 +133,17 @@
         'loadUniformCategoryList',
         'loadUniformApiList',
       ]),
-      async getUniformCategoryList() {
+      resetCatalogState(clearSelection = true) {
+        this.categoryActive = '';
+        this.categoryList = [];
+        this.apiList = [];
+        this.pagination.current = 1;
+        this.pagination.count = 0;
+        if (clearSelection) {
+          this.apiActive = '';
+        }
+      },
+      async getUniformCategoryList(preferredCategory = '') {
         try {
           this.categoryLoading = true;
           const resp = await this.loadUniformCategoryList({
@@ -146,10 +153,9 @@
           });
           if (!resp.result) return;
           this.categoryList = resp.data;
-          if (!this.categoryActive) {
-            this.categoryActive = this.crtGroup || this.categoryList[0]?.id;
-          }
-          this.getUniformApiList();
+          const hasPreferredCategory = this.categoryList.some(item => item.id === preferredCategory);
+          this.categoryActive = hasPreferredCategory ? preferredCategory : this.categoryList[0]?.id;
+          if (this.categoryActive) this.getUniformApiList();
         } catch (error) {
           console.warn(error);
         } finally {
@@ -205,6 +211,12 @@
         this.categoryActive = categoryId;
         this.pagination.current = 1;
         this.getUniformApiList();
+      },
+      handleSearch() {
+        this.pagination.current = 1;
+        this.pagination.count = 0;
+        this.apiList = [];
+        if (this.categoryActive) this.getUniformApiList();
       },
       onSelectApiPlugin(plugin) {
         const {

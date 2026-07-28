@@ -55,6 +55,40 @@ def test_each_api_plugin_list_owns_its_scroll_handler():
     assert "querySelector('.api-list')" not in source
 
 
+def test_api_plugin_source_switch_resets_catalog_state():
+    """Switching API sources must not reuse the previous source's category or page."""
+
+    source = read("frontend/src/views/template/TemplateEdit/NodeConfig/SelectPanel/apiPlugin.vue")
+
+    assert "handler(val, oldVal)" in source
+    assert "const preserveSelection = oldVal === undefined && Boolean(this.apiActive);" in source
+    assert "this.resetCatalogState(!preserveSelection);" in source
+    assert "resetCatalogState(clearSelection = true)" in source
+    assert "this.categoryActive = '';" in source
+    assert "this.categoryList = [];" in source
+    assert "this.apiList = [];" in source
+    assert "this.pagination.current = 1;" in source
+    assert "this.pagination.count = 0;" in source
+    assert "this.categoryList.some(item => item.id === preferredCategory)" in source
+
+
+def test_api_plugin_tabs_reuse_plugin_search_and_reload_first_page():
+    """API plugin tabs must expose search and reload the remote list from page one."""
+
+    panel_source = read("frontend/src/views/template/TemplateEdit/NodeConfig/SelectPanel/plugin.vue")
+    api_source = read("frontend/src/views/template/TemplateEdit/NodeConfig/SelectPanel/apiPlugin.vue")
+
+    assert 'ref="apiPlugin"' in panel_source
+    assert "v-if=\"['builtIn', 'thirdParty'].includes(curTab)\"" not in panel_source
+    assert '@handleSearch="handleSearch"' in panel_source
+    assert "const { apiPlugin } = this.$refs;" in panel_source
+    assert "apiPlugin.handleSearch();" in panel_source
+    assert "handleSearch()" in api_source
+    assert "this.pagination.current = 1;" in api_source
+    assert "this.apiList = [];" in api_source
+    assert "this.getUniformApiList();" in api_source
+
+
 def test_uniform_api_does_not_keep_a_parallel_form_renderer():
     frontend_root = Path(__file__).resolve().parents[3] / "frontend" / "src"
     uniform_source = (frontend_root / "components" / "common" / "ApiUniForm.vue").read_text(encoding="utf-8")
