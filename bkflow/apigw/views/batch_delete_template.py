@@ -46,9 +46,25 @@ def batch_delete_template(request, space_id):
     ser.is_valid(raise_exception=True)
 
     template_ids = ser.validated_data["template_ids"]
+
+    # 先收敛出本空间合法（存在且未删除）的模板 id 集合，避免跨空间误删
+    valid_ids = set(
+        Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).values_list("id", flat=True)
+    )
+    invalid_ids = set(template_ids) - valid_ids
+    if invalid_ids:
+        return {
+            "result": False,
+            "data": {},
+            "code": err_code.VALIDATION_ERROR.code,
+            "message": _("模板不存在或不属于当前空间: {}").format(sorted(invalid_ids)),
+        }
+
     failed_data = {}
     decision_templates = list(
-        DecisionTable.objects.filter(template_id__in=template_ids, is_deleted=False).values("id", "name", "template_id")
+        DecisionTable.objects.filter(template_id__in=valid_ids, space_id=space_id, is_deleted=False).values(
+            "id", "name", "template_id"
+        )
     )
     if decision_templates:
         decision_template_map = {}
@@ -60,21 +76,22 @@ def batch_delete_template(request, space_id):
         if decision_template_map:
             failed_data["decision_info"] = decision_template_map
 
-    template_references_obj = TemplateReference.objects.filter(subprocess_template_id__in=template_ids)
+    template_references_obj = TemplateReference.objects.filter(subprocess_template_id__in=valid_ids)
     root_template_ids = list(template_references_obj.values_list("root_template_id", flat=True))
     template_references = template_references_obj.values("subprocess_template_id", "root_template_id")
 
     if template_references:
         sub_root_map = {}
-        all_needed_template_ids = set(map(str, template_ids)) | set(root_template_ids)
-        templates = Template.objects.filter(id__in=list(all_needed_template_ids), is_deleted=False)
+        all_needed_template_ids = set(map(str, valid_ids)) | set(root_template_ids)
+        # 父流程名称只取本空间的，避免越权泄露其它空间的模板名
+        templates = Template.objects.filter(space_id=space_id, id__in=list(all_needed_template_ids), is_deleted=False)
         templates_map = {str(t.id): t.name for t in templates}
 
         for ref in template_references:
             template_key = ref["subprocess_template_id"]
             root_id = ref["root_template_id"]
             # 如果父流程也在删除列表中或父流程已经被删除了，则跳过
-            if (int(root_id) in template_ids) or (root_id not in templates_map):
+            if (int(root_id) in valid_ids) or (root_id not in templates_map):
                 continue
             if template_key not in sub_root_map:
                 sub_root_map[template_key] = []
@@ -94,13 +111,13 @@ def batch_delete_template(request, space_id):
         }
 
     with transaction.atomic():
-        Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(is_deleted=True)
-        clear_result = clear_scope_webhooks([str(tid) for tid in template_ids])
+        Template.objects.filter(space_id=space_id, id__in=valid_ids, is_deleted=False).update(is_deleted=True)
+        clear_result = clear_scope_webhooks([str(tid) for tid in valid_ids])
         if not clear_result["result"]:
             message = clear_result["message"]
             raise Exception(message)
-        trigger_ids = Trigger.objects.filter(template_id__in=template_ids).values_list("id", flat=True)
+        trigger_ids = Trigger.objects.filter(space_id=space_id, template_id__in=valid_ids).values_list("id", flat=True)
         Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
-        TemplateLabelRelation.objects.filter(template_id__in=template_ids).delete()
+        TemplateLabelRelation.objects.filter(template_id__in=valid_ids).delete()
 
     return {"result": True, "data": {}, "code": err_code.SUCCESS.code}
