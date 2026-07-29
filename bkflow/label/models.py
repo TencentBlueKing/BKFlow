@@ -172,7 +172,7 @@ class Label(models.Model):
         super().save(*args, **kwargs)
 
     @staticmethod
-    def get_label_ids_by_names(names):
+    def get_label_ids_by_names(names, space_id):
         """通过标签名称列表获取对应的标签ID列表"""
         labels = [s.strip() for s in re.split(r"[,\s]+", names) if s.strip()]
 
@@ -181,7 +181,8 @@ class Label(models.Model):
             q_objects = Q()
             for keyword in labels:
                 q_objects |= Q(name__icontains=keyword)
-            label_ids = list(Label.objects.filter(q_objects).values_list("id", flat=True))
+            # 与标签列表查询语义对齐：默认标签(space_id=-1)对本空间也可见、可被筛选
+            label_ids = list(Label.objects.filter(q_objects, space_id__in=[-1, space_id]).values_list("id", flat=True))
 
         all_child_label_ids = list(Label.objects.filter(parent_id__in=label_ids).values_list("id", flat=True))
         label_ids = list(set(label_ids + all_child_label_ids))

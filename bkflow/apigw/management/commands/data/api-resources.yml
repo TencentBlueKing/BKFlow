@@ -6268,10 +6268,10 @@ paths:
         disabledStages: [ ]
         enableWebsocket: false
         pluginConfigs: [ ]
-  /sdk/create_label/:
+  /space/{space_id}/batch_delete_template/:
     post:
-      operationId: sdk_create_label
-      description: 创建标签
+      operationId: batch_delete_template
+      description: 批量删除模板
       tags: [ ]
       responses:
         default:
@@ -6284,155 +6284,16 @@ paths:
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          name: sdk
           method: post
-          path: /{env.api_sub_path}api/label/
+          path: /{env.api_sub_path}apigw/space/{space_id}/batch_delete_template/
           matchSubpath: false
           timeout: 0
+          name: default
         authConfig:
-          userVerifiedRequired: true
+          userVerifiedRequired: false
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/delete_label/{label_id}/:
-    delete:
-      operationId: sdk_delete_label
-      description: 删除标签
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: delete
-          path: /{env.api_sub_path}api/label/{label_id}/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/get_label_list/:
-    get:
-      operationId: sdk_get_label_list
-      description: 获取标签列表
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: get
-          path: /{env.api_sub_path}api/label/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/get_label_ref_count/:
-    get:
-      operationId: sdk_get_label_ref_count
-      description: 获取标签引用次数
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: get
-          path: /{env.api_sub_path}api/label/get_label_ref_count/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/update_label/{label_id}/:
-    put:
-      operationId: sdk_update_label
-      description: 更新标签
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: put
-          path: /{env.api_sub_path}api/label/{label_id}/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/template/update_template_labels/{template_id}/:
-    post:
-      operationId: sdk_update_template_labels
-      description: 更新模板标签
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: post
-          path: /{env.api_sub_path}api/template/{template_id}/update_labels/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
+        descriptionEn: Batch delete template
         enableWebsocket: false
         pluginConfigs: [ ]

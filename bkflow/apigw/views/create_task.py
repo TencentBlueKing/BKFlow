@@ -115,16 +115,16 @@ def create_task(request, space_id):
         else:
             result["data"]["labels"] = []
 
-    task_data = result["data"]
-    event_broadcast_signal.send(
-        sender=WebhookEventType.TASK_CREATE.value,
-        scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
-        extra_info={
-            "task_id": task_data["id"],
-            "task_name": task_data["name"],
-            "template_id": task_data["template_id"],
-            "parameters": task_data["parameters"],
-            "trigger_source": TaskTriggerMethod.api.name,
-        },
-    )
+        task_data = result["data"]
+        event_broadcast_signal.send(
+            sender=WebhookEventType.TASK_CREATE.value,
+            scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
+            extra_info={
+                "task_id": task_data["id"],
+                "task_name": task_data["name"],
+                "template_id": task_data["template_id"],
+                "parameters": task_data["parameters"],
+                "trigger_source": TaskTriggerMethod.api.name,
+            },
+        )
     return result
