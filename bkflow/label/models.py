@@ -174,7 +174,7 @@ class Label(models.Model):
     @staticmethod
     def get_label_ids_by_names(names, space_id):
         """通过标签名称列表获取对应的标签ID列表"""
-        labels = [s.strip() for s in re.split(r"[,\s]+", names) if s.strip]
+        labels = [s.strip() for s in re.split(r"[,\s]+", names) if s.strip()]
 
         label_ids = []
         if labels:
