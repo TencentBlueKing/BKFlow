@@ -469,6 +469,7 @@ const validatePipeline = {
     let message;
     let tasknode = 0;
     let subflow = 0;
+    let subcanvas = 0;
     const errorId = [];
     const isLineNumValid = data.locations.every((loc) => {
       const rule = NODE_RULE[loc.type];
@@ -479,6 +480,8 @@ const validatePipeline = {
         tasknode += 1;
       } else if (loc.type === 'subflow') {
         subflow += 1;
+      } else if (loc.type === 'SubCanvas') {
+        subcanvas += 1;
       }
       data.lines.forEach((line) => {
         if (line.source.id === loc.id) {
@@ -508,7 +511,7 @@ const validatePipeline = {
       return this.getMessage(false, message, errorId);
     }
 
-    if ((tasknode + subflow) === 0) {
+    if ((tasknode + subflow + subcanvas) === 0) {
       message = i18n.t('请添加任务节点');
       return this.getMessage(false, message);
     }
