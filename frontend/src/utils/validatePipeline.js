@@ -511,7 +511,7 @@ const validatePipeline = {
       return this.getMessage(false, message, errorId);
     }
 
-    if ((tasknode + subflow +subcanvas) === 0) {
+    if ((tasknode + subflow + subcanvas) === 0) {
       message = i18n.t('请添加任务节点');
       return this.getMessage(false, message);
     }
