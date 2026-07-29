@@ -2595,10 +2595,10 @@
       async onMultipleTabConfirm() {
         try {
           await this.checkNodeAndSaveTemplate();
+          this.multipleTabDialogShow = false;
         } catch (error) {
           console.warn(error);
         }
-        this.multipleTabDialogShow = false;
       },
       getTplTabData() {
         return {
