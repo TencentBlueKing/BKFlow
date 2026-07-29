@@ -693,7 +693,7 @@
           ? this.subprocess_info
           : this.constructedSubprocessInfo;
         if (!subprocessInfo) return;
-        subprocessInfo.forEach(item => {
+        subprocessInfo.forEach((item) => {
           processCanvas.onUpdateNodeInfo(item.subprocess_node_id, { hasUpdated: item.expired });
         });
       },
@@ -2165,7 +2165,7 @@
         });
       },
       // 点击保存模板按钮回调
-      onSaveTemplate(saveAndCreate, pid) {
+      async onSaveTemplate(saveAndCreate, pid) {
         if (this.templateSaving || this.createTaskSaving) {
           return;
         }
@@ -2179,7 +2179,11 @@
             this.isExecuteSchemeDialog = true;
           }
         } else {
-          this.checkNodeAndSaveTemplate();
+          try {
+            await this.checkNodeAndSaveTemplate();
+          } catch (error) {
+            console.warn(error);
+          }
         }
       },
       // 校验节点配置
@@ -2204,8 +2208,10 @@
             ellipsisCopy: true,
             delay: 10000,
           });
-          return;
+          throw new Error(overlapResult.message);
         }
+        // 清空因重叠失败记录的节点,避免status 残留
+        this.validateConnectFailList = [];
         const validateMessage = validatePipeline.isNodeLineNumValid(canvasData);
         if (!validateMessage.result) {
           // 获取检验不合格节点
@@ -2228,7 +2234,7 @@
             ellipsisCopy: true,
             delay: 10000,
           });
-          return;
+          throw new Error(validateMessage.message);
         }
         // 节点配置是否错误
         const nodeWithErrors = document.querySelectorAll('.canvas-node-item .failed');
@@ -2246,22 +2252,23 @@
             ellipsisCopy: true,
             delay: 10000,
           });
-          return;
+          throw new Error(message);
         }
         const isAllNodeValid = this.validateAtomNode();
-        if (isAllNodeValid) {
-          if (this.common && this.saveAndCreate && this.pid === undefined) { // 公共流程保存并创建任务，没有选择项目
-            this.$refs.templateHeader.setProjectSelectDialogShow();
-          } else {
-            if (this.isExecuteScheme) {
-              if (this.type === 'clone' || this.isTemplateDataChanged) {
-                this.isExecuteSchemeDialog = true;
-              } else {
-                this.isEditProcessPage = false;
-              }
+        if (!isAllNodeValid) {
+          throw new Error('validateAtomNode failed');
+        }
+        if (this.common && this.saveAndCreate && this.pid === undefined) { // 公共流程保存并创建任务，没有选择项目
+          this.$refs.templateHeader.setProjectSelectDialogShow();
+        } else {
+          if (this.isExecuteScheme) {
+            if (this.type === 'clone' || this.isTemplateDataChanged) {
+              this.isExecuteSchemeDialog = true;
             } else {
-              await this.saveTemplate();
+              this.isEditProcessPage = false;
             }
+          } else {
+            await this.saveTemplate();
           }
         }
       },
@@ -2585,8 +2592,12 @@
         }
       },
       // 多 tab 打开同一流程模板
-      onMultipleTabConfirm() {
-        this.checkNodeAndSaveTemplate();
+      async onMultipleTabConfirm() {
+        try {
+          await this.checkNodeAndSaveTemplate();
+        } catch (error) {
+          console.warn(error);
+        }
         this.multipleTabDialogShow = false;
       },
       getTplTabData() {
