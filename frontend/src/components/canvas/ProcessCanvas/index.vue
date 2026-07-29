@@ -1589,6 +1589,26 @@
             const parent = node.getParent();
             const parentId = parent ? parent.id : undefined;
             const isGroupInner = !!parentId;
+            // 先获取并处理连线，避免 removeNode 后 getConnectedEdges 取不到（与循环容器分支同理）
+            const connectedEdgesBeforeRemove = this.graph.getConnectedEdges(node);
+            connectedEdgesBeforeRemove.forEach((edge) => {
+              const edgeId = edge.id;
+              const source = edge.getSource();
+              const target = edge.getTarget();
+              const isInnerLine = parentId && this.activities[parentId]?.type === 'SubCanvas';
+              if (isInnerLine) {
+                // 分组子节点的连线：从内嵌pipeline中删除
+                this.deleteInnerLine(edgeId, parentId);
+              } else {
+                // 外层节点的连线：从外层store中删除
+                this.onLineChange('delete', {
+                  id: edgeId,
+                  source: { cell: source.cell },
+                  target: { cell: target.cell },
+                });
+              }
+              this.graph.removeEdge(edgeId);
+            });
             if (parentId && isGroupInner) {
               this.removeFromPipelineTree(node.id, parentId);
             }
@@ -1602,27 +1622,6 @@
           const nodeInstance = this.getNodeInstance(node.id);
           this.graph.select(nodeInstance);
         }
-        // 删除节点两端旧的连线-获取节点在画布上的实际连线（包括分组子节点的内嵌连线）
-        const connectedEdges = this.graph.getConnectedEdges(node.id);
-        connectedEdges.forEach((edge) => {
-          const edgeId = edge.id;
-          const source = edge.getSource();
-          const target = edge.getTarget();
-          const parentNode = node.getParent();
-          const isInnerLine = parentNode && this.activities[parentNode.id]?.type === 'SubCanvas';
-          if (isInnerLine) {
-            // 分组子节点的连线：从内嵌pipeline中删除
-            this.deleteInnerLine(edgeId, parentNode.id);
-          } else {
-            // 外层节点的连线：从外层store中删除
-            this.onLineChange('delete', {
-              id: edgeId,
-              source: { cell: source.cell },
-              target: { cell: target.cell },
-            });
-          }
-          this.graph.removeEdge(edgeId);
-        });
         // 被删除的节点只存在一条输入连线和输出连线时才允许自动连线
         const { incoming = [], outgoing } = nodeConfig;
         if (
