@@ -189,6 +189,50 @@ class TestSyncFromDebugTask:
         assert ctx.last_task_id == 456
         assert ctx.last_run_status == "finished"
 
+    @pytest.mark.parametrize(
+        "child",
+        [
+            {"state": "RUNNING", "elapsed_time": 3},
+            {"state": "RUNNING", "elapsed_time": 3, "schedule_type": "POLL"},
+            {"state": "SUSPENDED", "elapsed_time": 3},
+        ],
+        ids=["running", "waiting", "paused"],
+    )
+    def test_sync_revoked_task_marks_active_node_revoked(self, mocker, child):
+        """任务撤销后，仍活跃的节点状态应统一收敛为 revoked。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        ctx.status = "terminating"
+        ctx.active_task_id = 456
+        ctx.active_run_type = "global"
+        ctx.last_task_id = 456
+        ctx.last_run_type = "global"
+        ctx.last_run_status = "running"
+        ctx.save()
+
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "REVOKED", "children": {"rtA": child}},
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+
+        ctx.refresh_from_db()
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert ns.status == "revoked"
+        assert ns.waiting_reason == ""
+        assert ns.duration_ms == 3000
+        assert ctx.status == "idle"
+        assert ctx.active_task_id is None
+        assert ctx.last_task_id == 456
+        assert ctx.last_run_status == "revoked"
+        assert ctx.last_error_detail == {}
+
     def test_sync_gateway_failure_fetches_detail_when_state_ex_data_is_empty(self, mocker):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
         ctx = svc.get_or_create_context()
