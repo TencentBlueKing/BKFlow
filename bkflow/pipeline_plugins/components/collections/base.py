@@ -785,19 +785,46 @@ class LoopBaseService(BKFlowBaseService):
         node_outputs = self.runtime.get_data_outputs(self.id)
         self.logger.info(f"node outputs: {node_outputs}")
 
+        node = self.runtime.get_node(self.id)
+        loop_outputs_key = node.loop_outputs_key
         self.finish_schedule()
-        if not self.runtime.get_node(self.id).loop_enabled:
+        if not node.loop_enabled:
             if not task_success:
-                data.set_outputs("ex_data", "子流程执行失败，请检查失败节点")
+                data.set_outputs("ex_data", "子任务执行失败，请检查失败节点")
                 return False
 
             for key in filter(lambda x: x in subprocess_execution_data_outputs, node_outputs.keys()):
                 data.set_outputs(key, subprocess_execution_data_outputs[key])
         else:
-            outputs = {"task_id": task_id}
+            # 先剔除上下文循环输出列表中与当前循环次数（inner_loop）相同的旧记录，
+            # 避免同一次循环被重复回调时（如节点先失败跳过、后重试成功的场景）
+            # 导致上下文输出列表中出现重复记录。之后再由 extract_outputs 统一追加本次的 outputs。
+            parent_task_id = parent_data.get_one_of_inputs("task_id")
+            parent_pipeline_id = TaskInstance.objects.get(id=parent_task_id).instance_id
+
+            loop_context_values = self.runtime.get_context_values(parent_pipeline_id, {loop_outputs_key})
+            if loop_context_values:
+                current_value = loop_context_values[0].value
+                if isinstance(current_value, list):
+                    filtered_value = [
+                        item
+                        for item in current_value
+                        if not (isinstance(item, dict) and item.get("inner_loop") == self.inner_loop)
+                    ]
+                    if len(filtered_value) != len(current_value):
+                        updated_context_values = [
+                            ContextValue(
+                                key=loop_outputs_key,
+                                type=ContextValueType.PLAIN,
+                                value=filtered_value,
+                            )
+                        ]
+                        self.runtime.update_context_values(parent_pipeline_id, updated_context_values)
+
+            outputs = {"task_id": task_id, "inner_loop": self.inner_loop}
             if not task_success:
-                outputs["ex_data"] = "子流程执行失败，请检查失败节点"
-                data.set_outputs("ex_data", "子流程执行失败，请检查失败节点")
+                outputs["ex_data"] = "子任务执行失败，请检查失败节点"
+                data.set_outputs("ex_data", "子任务执行失败，请检查失败节点")
             else:
                 # 遍历子流程的输出，判断该输出是否在节点的输出变量中，在则加入
                 for key, value in subprocess_execution_data_outputs.items():
