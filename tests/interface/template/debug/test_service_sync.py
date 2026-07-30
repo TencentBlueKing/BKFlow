@@ -233,6 +233,29 @@ class TestSyncFromDebugTask:
         assert ctx.last_run_status == "revoked"
         assert ctx.last_error_detail == {}
 
+    def test_sync_repairs_stale_waiting_node_after_revoked_task_was_released(self, mocker):
+        """兼容发布前遗留状态：锁已释放但等待节点尚未收敛。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        ctx.status = "idle"
+        ctx.active_task_id = None
+        ctx.last_task_id = 456
+        ctx.last_run_status = "revoked"
+        ctx.save()
+        DebugNodeState.objects.filter(debug_context=ctx, node_id="A").update(
+            status="waiting",
+            waiting_reason="poll",
+        )
+        task_client = mocker.patch.object(svc, "_task_client")
+
+        svc.sync_from_debug_task(ctx)
+
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert ns.status == "revoked"
+        assert ns.waiting_reason == ""
+        task_client.assert_not_called()
+
     def test_sync_gateway_failure_fetches_detail_when_state_ex_data_is_empty(self, mocker):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
         ctx = svc.get_or_create_context()
