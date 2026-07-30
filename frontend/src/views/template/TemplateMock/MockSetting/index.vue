@@ -332,7 +332,10 @@
             ...resp.data.custom_constants,
             ...resp.data.constants_not_referred,
           };
-
+          if (this.nodeConfig.loop_config?.enable) {
+            this.outputs = [];
+            return;
+          }
           // 输出变量
           this.outputs = Object.keys(resp.data.outputs).map((item) => {
             const output = resp.data.outputs[item];
