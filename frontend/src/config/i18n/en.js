@@ -1219,6 +1219,7 @@ const en = {
   循环内输出: 'Loop Output',
   查看子任务: 'View Subtasks',
   禁用组件: 'Disable Component',
+  '执行控制选择循环执行的状态下只保留 ${outputs} 输出参数': 'When the execution control is set to "Select Loop Execution," only the ${outputs} output parameters are retained.',
 };
 
 export default en;
