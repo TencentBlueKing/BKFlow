@@ -101,6 +101,7 @@ class TestDebugServiceContext:
         node_a = view["nodes"][0]
         assert node_a["execution_mode"] == "real"
         assert node_a["mock_result"] is None  # real 模式不返回 mock_result
+        assert node_a["mock_outputs"] is None
         assert node_a["status"] == "not_run"
         assert node_a["can_step"] is True  # Phase 3 前的占位
         assert node_a["log_ref"] is None and node_a["error_detail"] is None
@@ -109,6 +110,19 @@ class TestDebugServiceContext:
         assert view["last_run_type"] is None
         assert view["last_run_status"] == "not_run"
         assert view["last_error_detail"] is None
+
+    def test_build_context_view_returns_mock_outputs_for_success_preset(self):
+        """mock 成功预设刷新后应能回填保存的输出"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        DebugNodeState.objects.filter(debug_context=ctx, node_id="A").update(
+            execution_mode="mock", mock_result="success", mock_outputs={"response": {"code": 0}}
+        )
+
+        node_a = svc.build_context_view()["nodes"][0]
+
+        assert node_a["mock_outputs"] == {"response": {"code": 0}}
 
     def test_build_context_view_returns_mock_error_for_fail_preset(self):
         """mock 失败预设刷新后应能回填错误文案"""
@@ -124,3 +138,4 @@ class TestDebugServiceContext:
         assert node_a["execution_mode"] == "mock"
         assert node_a["mock_result"] == "fail"
         assert node_a["mock_error"] == "preset boom"
+        assert node_a["mock_outputs"] is None
