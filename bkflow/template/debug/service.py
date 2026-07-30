@@ -171,6 +171,9 @@ class DebugService:
                     "node_type": ns.node_type,
                     "execution_mode": ns.execution_mode,
                     "mock_result": ns.mock_result if ns.execution_mode == "mock" else None,
+                    "mock_outputs": (
+                        ns.mock_outputs if ns.execution_mode == "mock" and ns.mock_result == "success" else None
+                    ),
                     "status": ns.status,
                     "waiting_reason": ns.waiting_reason or None,
                     "can_step": can_step,
