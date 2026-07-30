@@ -738,6 +738,7 @@ class DebugNodeState(models.Model):
         ("paused", "paused"),
         ("finished", "finished"),
         ("failed", "failed"),
+        ("revoked", "revoked"),
     )
 
     debug_context = models.ForeignKey(

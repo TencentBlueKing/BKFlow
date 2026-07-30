@@ -567,6 +567,11 @@ class DebugService:
             ns.save()
 
         engine_state = data.get("state")
+        if engine_state == "REVOKED":
+            DebugNodeState.objects.filter(
+                debug_context=ctx,
+                status__in=("running", "waiting", "paused"),
+            ).update(status="revoked", waiting_reason="")
         if engine_state == "FAILED":
             state_errors = data.get("ex_data") if isinstance(data.get("ex_data"), dict) else {}
             for runtime_id, child in children.items():
