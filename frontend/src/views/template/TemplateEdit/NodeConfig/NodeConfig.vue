@@ -237,7 +237,15 @@
             <section
               class="config-section"
               data-test-id="templateEdit_form_outputParamsInfo">
-              <h3>{{ isLoopGroupNode ? $t('循环内输出') : $t('输出参数') }}</h3>
+              <h3 class="outputs-config-section">
+                {{ isLoopGroupNode ? $t('循环内输出') : $t('输出参数') }}
+                <div
+                  v-if="isSubflow && basicInfo.loopConfig && basicInfo.loopConfig.enable"
+                  class="outputs-tips">
+                  <bk-icon type="info" />
+                  <span>{{ $t('执行控制选择循环执行的状态下只保留 ${outputs} 输出参数') }}</span>
+                </div>
+              </h3>
               <div
                 v-bkloading="{ isLoading: outputLoading, zIndex: 100 }"
                 class="outputs-wrapper">
@@ -2487,6 +2495,22 @@
             line-height: 1;
             color: #313238;
             border-bottom: 1px solid #cacecb;
+        }
+        .outputs-config-section{
+          display: flex;
+          align-items: center;
+          .outputs-tips{
+            display: inline-flex;
+            align-items: center;
+            color: #63656e;
+            margin-left: 8px;
+            font-size: 12px;
+            font-weight: normal;
+            .bk-icon{
+              margin-right: 2px;
+              margin-top: 1px;
+            }
+          }
         }
         .citations-waivers-guide {
             position: absolute;
