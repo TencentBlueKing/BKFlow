@@ -2496,21 +2496,21 @@
             color: #313238;
             border-bottom: 1px solid #cacecb;
         }
-        .outputs-config-section{
-          display: flex;
-          align-items: center;
-          .outputs-tips{
-            display: inline-flex;
+        .outputs-config-section {
+            display: flex;
             align-items: center;
-            color: #63656e;
-            margin-left: 8px;
-            font-size: 12px;
-            font-weight: normal;
-            .bk-icon{
-              margin-right: 2px;
-              margin-top: 1px;
+            .outputs-tips{
+              display: inline-flex;
+              align-items: center;
+              color: #63656e;
+              margin-left: 8px;
+              font-size: 12px;
+              font-weight: normal;
+              .bk-icon{
+                margin-right: 2px;
+                margin-top: 1px;
+              }
             }
-          }
         }
         .citations-waivers-guide {
             position: absolute;
