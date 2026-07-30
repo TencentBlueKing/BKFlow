@@ -515,6 +515,11 @@ class DebugService:
         """惰性回写真实调试任务；全局和单步共用同一条状态生命周期。"""
         # 早返回守卫：仅运行中且存在 active_task_id 才同步，避免空闲态构建真实客户端
         if ctx.status not in ("running", "terminating") or not ctx.active_task_id:
+            if ctx.status == "idle" and ctx.last_run_status == "revoked":
+                DebugNodeState.objects.filter(
+                    debug_context=ctx,
+                    status__in=("running", "waiting", "paused"),
+                ).update(status="revoked", waiting_reason="")
             return
         client = self._task_client()
         task_id = ctx.active_task_id
