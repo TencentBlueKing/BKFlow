@@ -36,6 +36,7 @@ from bkflow.pipeline_converter.converters.a2flow_v2.node_builder import (
     build_activity,
     build_end_event,
     build_start_event,
+    build_subprocess,
 )
 from bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver import (
     PluginResolver,
@@ -48,6 +49,7 @@ from bkflow.pipeline_converter.exceptions import (
     A2FlowValidationError,
     ErrorTypes,
 )
+from bkflow.template.models import Template, TemplateSnapshot
 
 logger = logging.getLogger("root")
 
@@ -145,6 +147,20 @@ class A2FlowV2Converter:
                     incoming=incoming,
                     outgoing=outgoing_val,
                     stage_name=node.stage_name,
+                    failure_strategy=node.failure_strategy,
+                )
+            elif node.type == NodeType.SUBPROCESS:
+                outgoing_val = outgoing[0] if len(outgoing) == 1 else outgoing
+                activities[new_id] = build_subprocess(
+                    node_id=new_id,
+                    name=node.name,
+                    template_id=node.template_id,
+                    incoming=incoming,
+                    outgoing=outgoing_val,
+                    stage_name=node.stage_name,
+                    always_use_latest=node.always_use_latest,
+                    constants=node.constants or {},
+                    failure_strategy=node.failure_strategy,
                 )
             elif node.type in GATEWAY_TYPES:
                 default_next_flow_id = None
@@ -172,6 +188,7 @@ class A2FlowV2Converter:
 
         constants = {}
         for idx, var in enumerate(pipeline.variables):
+            self._remap_variable_source_info(var, id_mapping)
             constants[var.key] = build_constant(var, idx)
 
         return {
@@ -334,14 +351,159 @@ class A2FlowV2Converter:
                     )
                 )
 
+            if node.type in [NodeType.ACTIVITY, NodeType.SUBPROCESS] and node.failure_strategy is not None:
+                self._validate_failure_strategy(node, errors)
+
+            if node.type == NodeType.SUBPROCESS:
+                template_id = node.template_id
+
+                try:
+                    template = Template.objects.get(id=template_id, space_id=self.space_id)
+                    if self.scope_type != template.scope_type or self.scope_value != template.scope_value:
+                        errors.append(
+                            A2FlowConvertError(
+                                error_type=ErrorTypes.INVALID_REFERENCE,
+                                message="节点 '{}'选择的子流程作用域范围与当前流程配置不一致".format(node.id),
+                                node_id=node.id,
+                                field="template_id",
+                                value=template_id,
+                            )
+                        )
+                    template_snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
+                    if template_snapshot.draft:
+                        errors.append(
+                            A2FlowConvertError(
+                                error_type=ErrorTypes.MISSING_REQUIRED_FIELD,
+                                message="节点 '{}' 选择的子流程版本为草稿版本，无法使用".format(node.id),
+                                node_id=node.id,
+                                field="template_id",
+                                value=template_id,
+                            )
+                        )
+
+                except Template.DoesNotExist:
+                    errors.append(
+                        A2FlowConvertError(
+                            error_type=ErrorTypes.INVALID_REFERENCE,
+                            message="节点 '{}' 的 template_id 引用了不存在或其他空间的模板 '{}'".format(node.id, template_id),
+                            node_id=node.id,
+                            field="template_id",
+                            value=template_id,
+                        )
+                    )
+
         if errors:
             raise A2FlowValidationError(errors)
+
+    def _validate_failure_strategy(self, node, errors):
+        """
+        校验 Activity 节点的失败处理策略互斥关系：
+        1. error_ignorable(自动跳过) / auto_retry.enable(自动重试) / timeout_config.enable(超时控制) 三者互斥
+        2. 自动跳过 = True 时，retryable / skippable / auto_retry / timeout_config 均须为 False
+        3. 自动重试 = True 时，仅允许 skippable(手动跳过)，retryable / error_ignorable / timeout_config 均须为 False
+        4. 超时控制 = True 时，允许 retryable(手动重试) 和 skippable(手动跳过)，其余须为 False
+        """
+        fs = node.failure_strategy
+        auto_skip = fs.error_ignorable
+        auto_retry = fs.auto_retry.enable
+        timeout = fs.timeout_config.enable
+
+        enabled = [
+            name
+            for name, flag in (
+                ("error_ignorable(自动跳过)", auto_skip),
+                ("auto_retry(自动重试)", auto_retry),
+                ("timeout_config(超时控制)", timeout),
+            )
+            if flag
+        ]
+        if len(enabled) > 1:
+            errors.append(
+                A2FlowConvertError(
+                    error_type=ErrorTypes.FAILURE_STRATEGY_CONFLICT,
+                    message="节点 '{}' 的失败处理策略冲突：{} 不能同时开启".format(node.id, "、".join(enabled)),
+                    node_id=node.id,
+                    field="failure_strategy",
+                    hint="自动跳过 / 自动重试 / 超时控制 三者互斥，至多开启其中一项",
+                )
+            )
+            return
+
+        def _combo_error(strategy_name, illegal_fields):
+            errors.append(
+                A2FlowConvertError(
+                    error_type=ErrorTypes.FAILURE_STRATEGY_INVALID_COMBO,
+                    message="节点 '{}' 开启了{}后，以下字段必须为 false：{}".format(node.id, strategy_name, "、".join(illegal_fields)),
+                    node_id=node.id,
+                    field="failure_strategy",
+                    hint="{} 下的合法组合请参考 a2flow v2 文档".format(strategy_name),
+                )
+            )
+
+        if auto_skip:
+            illegal = []
+            if fs.retryable:
+                illegal.append("retryable")
+            if fs.skippable:
+                illegal.append("skippable")
+            if illegal:
+                _combo_error("自动跳过(error_ignorable)", illegal)
+        elif auto_retry:
+            illegal = []
+            if fs.error_ignorable:
+                illegal.append("error_ignorable")
+            if fs.retryable:
+                illegal.append("retryable")
+            if illegal:
+                _combo_error("自动重试(auto_retry)", illegal)
+        elif timeout:
+            illegal = []
+            if fs.error_ignorable:
+                illegal.append("error_ignorable")
+            if illegal:
+                _combo_error("超时控制(timeout_config)", illegal)
 
     def _generate_id_mapping(self, nodes):
         mapping = {}
         for node in nodes:
             mapping[node.id] = "n{}".format(uuid.uuid4().hex[:31])
         return mapping
+
+    def _remap_variable_source_info(self, var, id_mapping):
+        """
+        将变量 source_info 里的用户侧节点 ID 替换为内部生成的节点 ID。
+
+        - 仅 source_type == "component_outputs" 时才需要处理；其它类型 source_info 通常为空。
+        - 如果 source_info 引用了不存在的节点 ID，直接抛出 A2FlowValidationError，
+          避免生成的 pipeline_tree 中出现死链。
+        - 保持字段结构不变：dict[node_id -> list[output_key]]。
+        """
+        if not var.source_info:
+            return
+
+        remapped = {}
+        unknown_nodes = []
+        # todo 还需补充节点字段的校验
+        for original_node_id, output_keys in var.source_info.items():
+            if original_node_id in id_mapping:
+                remapped[id_mapping[original_node_id]] = output_keys
+            else:
+                unknown_nodes.append(original_node_id)
+
+        if unknown_nodes:
+            raise A2FlowValidationError(
+                [
+                    A2FlowConvertError(
+                        error_type=ErrorTypes.INVALID_REFERENCE,
+                        message="变量 '{}' 的 source_info 引用了未定义的节点 '{}'".format(var.key, " ".join(unknown_nodes)),
+                        field="source_info",
+                        value=" ".join(unknown_nodes),
+                        hint="source_info 的 key 必须与 nodes[].id 一致",
+                    )
+                ]
+            )
+
+        var.source_info = remapped
 
     def _build_flows(self, nodes, id_mapping):
         flows = {}

@@ -16,10 +16,16 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import re
+
 from bkflow.pipeline_converter.converters.a2flow_v2.data_models import A2FlowVariable
 
 
 def build_constant(var: A2FlowVariable, index: int) -> dict:
+    if var.validation and var.value:
+        if not re.match(var.validation, var.value):
+            raise ValueError(f"Variable {var.key} value {var.value} does not match validation {var.validation}")
+
     return {
         "key": var.key,
         "name": var.name,
@@ -28,9 +34,9 @@ def build_constant(var: A2FlowVariable, index: int) -> dict:
         "custom_type": var.custom_type,
         "source_type": var.source_type,
         "source_tag": "",
-        "source_info": {},
+        "source_info": var.source_info,
         "show_type": var.show_type,
-        "validation": "",
+        "validation": var.validation,
         "index": index,
         "version": "legacy",
         "form_schema": {},
