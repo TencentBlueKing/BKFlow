@@ -26,9 +26,8 @@
         @dynamicLoad="handleDynamicLoad"
         @onSelectNode="onSelectNode" />
       <div
-        v-if="location"
-        v-bkloading="{ isLoading: loading, opacity: 1, zIndex: 100 }"
-        :class="['execute-info', { 'loading': loading }]">
+        v-bkloading="{ isLoading: loading || !location, opacity: 1, zIndex: 100 }"
+        :class="['execute-info', { 'loading': loading || !location }]">
         <div class="execute-head">
           <bk-breadcrumb
             v-if="isShowSubflowExceutedCount"
@@ -83,22 +82,22 @@
           <span
             v-else
             class="node-name">
-            {{ nodeDetailConfig?.conditionData ? nodeDetailConfig.conditionData.name : executeInfo.name || location.name }}
+            {{ nodeDetailConfig?.conditionData ? nodeDetailConfig.conditionData.name : executeInfo?.name || location?.name }}
           </span>
           <div class="node-state">
             <span :class="displayStatus" />
             <span class="status-text-messages">{{ nodeState }}</span>
 
             <JumpLinkBKFlowOrExternal
-              v-if="isSubflowExecuted"
+              v-for="link in visibleSubflowViewLinks"
+              :key="link.key"
               :query="{ id: currentSubflowTaskId, type:'task' }"
-              :get-target-url="onViewSubProcessExecute">
-              <div
-                class="view-subflow">
+              :get-target-url="link.getUrl">
+              <div class="view-subflow">
                 <span class="dividing-line" />
                 <i class="common-icon-box-top-right-corner icon-link-to-sub" />
                 <p class="text-link-to-sub">
-                  {{ $t('查看子流程') }}
+                  {{ $t(link.label) }}
                 </p>
               </div>
             </JumpLinkBKFlowOrExternal>
@@ -131,7 +130,12 @@
               :template-id="subTemplateId"
               :canvas-data="canvasData"
               @onSubflowNodeClick="onSubflowNodeClick"
-              @onConditionClick="onSubConditionClick" />
+              @onConditionClick="onSubConditionClick"
+              @onRetryClick="id => onRetryClick({ id, isFromSubNode: true })"
+              @onSkipClick="id => onSkipClick({ id, isFromSubNode: true })"
+              @onApprovalClick="id => onApprovalClick({ id, isFromSubNode: true })"
+              @onForceFail="id => onForceFailClick({ id, isFromSubNode: true })"
+              @onTaskNodeResumeClick="id => onTaskNodeResumeClick({ id, isFromSubNode: true })" />
             <div
               v-if="templateComponentName!=='SubStageCanvas'"
               class="flow-option">
@@ -173,7 +177,7 @@
         </div>
         <!-- 底部操作按钮 -->
         <div
-          v-if="isShowActionWrap && isInLatestExecuteNum"
+          v-if="isActionWrapperVisible"
           class="action-wrapper">
           <template v-if="realTimeState.state === 'RUNNING' && !isSubProcessNode">
             <bk-button
@@ -199,31 +203,31 @@
           </template>
           <template v-if="isShowRetryBtn || isShowSkipBtn">
             <bk-button
-              v-if="isShowRetryBtn"
+              v-if="isShowRetryBtn && !isSubCanvasNode"
               theme="primary"
               data-test-id="taskExcute_form_retryBtn"
-              @click="onRetryClick(false)">
+              @click="onRetryClick()">
               {{ $t('重试') }}
             </bk-button>
             <bk-button
               v-if="isShowLoopRetryBtn && isShowSubflowOperationsWithinLoop"
               theme="default"
               data-test-id="taskExcute_form_loopRetryBtn"
-              @click="onRetryClick(true)">
+              @click="onRetryClick({ isLoopOperate: true })">
               {{ $t('循环内重试') }}
             </bk-button>
             <bk-button
-              v-if="isShowSkipBtn"
+              v-if="isShowSkipBtn && !isSubCanvasNode"
               theme="default"
               data-test-id="taskExcute_form_skipBtn"
-              @click="onSkipClick(false)">
+              @click="onSkipClick()">
               {{ $t('跳过') }}
             </bk-button>
             <bk-button
               v-if="isShowLoopSkipBtn && isShowSubflowOperationsWithinLoop"
               theme="default"
               data-test-id="taskExcute_form_loopSkipBtn"
-              @click="onSkipClick(true)">
+              @click="onSkipClick({ isLoopOperate: true })">
               {{ $t('循环内跳过') }}
             </bk-button>
           </template>
@@ -249,6 +253,7 @@
   import { getOrderNodeToNodeTree } from '@/utils/orderCanvasNodeToNodeTree.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import SubStageCanvas from '../../../components/canvas/StageCanvas/SubStageCanvas.vue';
+  // import { DEBUG_MOCK_PIPELINE_TREE } from './__debug_mock_pipeline_tree.js'; // DEBUG MOCK
   const { CancelToken } = axios;
   let source = CancelToken.source();
 
@@ -361,11 +366,16 @@
         type: String,
         default: '',
       },
+      isEnableVersionManage: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
-        loading: true,
+        loading: false,
         isRenderOutputForm: false,
+        currentExecuteTime: 1,
         executeInfo: {},
         executeRecord: {},
         historyInfo: [],
@@ -394,6 +404,7 @@
         subCanvasData: {},
         subCanvsLocationCollection: [],
         subCanvsActivityCollection: [],
+        subCanvsGatewayCollection: {},
         canvasData: [],
         canvasDataChangeKey: '',
         currentDefaultActiveId: this.defaultActiveId,
@@ -419,7 +430,6 @@
         },
         breadcrumbData: [],
         isBreadCrumbLoading: false,
-        isInLatestExecuteNum: true,
         executeBodyLoading: false,
       };
     },
@@ -471,17 +481,10 @@
       // 节点位置
       location() {
         const { node_id: nodeId } = this.nodeDetailConfig;
-        // const currentPipelineData  = subflowNodeParent ? subflowNodeParent.children : this.pipelineData.location;
         const locationData = this.pipelineData?.location || [];
         const currentPipelineData = [...locationData, ...this.subCanvsLocationCollection];
-        const curLocation = currentPipelineData.find((item) => {
-          let result = false;
-          if (item.id === nodeId) {
-            result = true;
-          }
-          return result;
-        });
-        if (!curLocation?.name) {
+        const curLocation = currentPipelineData.find(item => item.id === nodeId);
+        if (curLocation && !curLocation.name) {
           curLocation.name = this.translateLocationName[curLocation.type];
         }
         return curLocation;
@@ -494,6 +497,12 @@
       },
       isSubProcessNode() {
         return this.pluginCode === 'subprocess_plugin';
+      },
+      isSubCanvasNode() {
+        return this.pluginCode === 'subcanvas_plugin';
+      },
+      isSubProcessLikeNode() {
+        return this.isSubProcessNode || this.isSubCanvasNode;
       },
       thirdPartyNodeCode() {
         if (!this.isThirdPartyNode) return '';
@@ -518,35 +527,75 @@
         return this.isSubProcessNode ? this.nodeActivity.component.data.subprocess.value : {};
       },
       isShowLoopSkipBtn() {
-        return this.isSubProcessNode && this.nodeActivity.loop_config?.skippable;
+        return this.isSubProcessLikeNode && this.nodeActivity.loop_config?.skippable;
       },
       isShowLoopRetryBtn() {
-        return this.isSubProcessNode && this.nodeActivity.loop_config?.retryable;
+        return this.isSubProcessLikeNode && this.nodeActivity.loop_config?.retryable;
       },
       isShowActionWrap() {
         // 任务终止时禁止节点操作
         if (this.state === 'REVOKED' || !this.instanceActions.includes('OPERATE')) {
           return false;
         }
-        return (this.realTimeState.state === 'RUNNING' && !this.isSubProcessNode) || this.isShowRetryBtn || this.isShowSkipBtn;
+        return (this.realTimeState.state === 'RUNNING' && !this.isSubProcessLikeNode) || this.isShowRetryBtn || this.isShowSkipBtn;
       },
       isShowSubflowCanvas() {
         const subflowParent = this.nodeDetailConfig?.subflowNodeParent;
-        const isSubChildren = subflowParent !== null && subflowParent?.component?.code === 'subprocess_plugin';
+        const isSubChildren = subflowParent !== null && (subflowParent?.component?.code === 'subprocess_plugin' || subflowParent?.component?.code === 'subcanvas_plugin');
         const isSubprocessNode = this.nodeDetailConfig.component_code === 'subprocess_plugin';
-        // const isUnExecutedNode = this.nodeDetailConfig.state && this.nodeDetailConfig.state !== 'gateway';
-        return isSubprocessNode || isSubChildren || this.nodeDetailConfig.isNodeInSubflow || this.isExistInSubCanvas(this.nodeDetailConfig.node_id);
+        const isSubCanvasNode = this.nodeDetailConfig.component_code === 'subcanvas_plugin';
+        const isSubCanvasChildNode = !!this.findSubCanvasParentActivity(this.nodeDetailConfig.node_id);
+        return isSubprocessNode || isSubCanvasNode || isSubCanvasChildNode || isSubChildren || this.nodeDetailConfig.isNodeInSubflow || this.isExistInSubCanvas(this.nodeDetailConfig.node_id);
       },
       isShowSubflowOperationsWithinLoop() {
         const { node_id: nodeId, component_code: componentCode } = this.nodeDetailConfig;
-        return this.isFirstSubFlow(nodeId) && componentCode === 'subprocess_plugin';
+        return this.isFirstSubFlow(nodeId) && (componentCode === 'subprocess_plugin' || componentCode === 'subcanvas_plugin');
       },
       isShowSubflowExceutedCount() {
         const { node_id: nodeId, component_code: componentCode } = this.nodeDetailConfig;
-        return this.isExistInSubCanvas(nodeId) || (this.isFirstSubFlow(nodeId) && componentCode === 'subprocess_plugin');
+        return this.isExistInSubCanvas(nodeId) || (this.isFirstSubFlow(nodeId) && (componentCode === 'subprocess_plugin' || componentCode === 'subcanvas_plugin'));
       },
       isShowUnexecutedSubflow() {
         return this.historyInfo.length < 1 && this.isExistInSubCanvas(this.nodeDetailConfig.node_id);
+      },
+      isActionWrapperVisible() {
+        const isLatest = this.isInLatestExecuteNum;
+        return this.isShowActionWrap && isLatest;
+      },
+      // 当前是否展示最新一次执行记录
+      isInLatestExecuteNum() {
+        // 子画布场景：检查面包屑链路上所有节点的执行次数是否都是最后一次
+        if (this.isShowSubflowExceutedCount && this.breadcrumbData.length > 0) {
+          // breadcrumbData[0]：子流程根节点，需同时检查循环次数和重试次数是否最新
+          const root = this.breadcrumbData[0];
+          // 检查循环次数：当前循环必须是最后一次
+          if (root.loopOptions && root.loopOptions.length > 0) {
+            const latestLoop = root.loopOptions[root.loopOptions.length - 1];
+            if (root.currentLoop !== latestLoop) {
+              return false;
+            }
+          }
+          // 检查重试次数是否最新
+          if (root.retryLatestOptions !== undefined) {
+            const latestRetry = root.retryLatestOptions + 1;
+            if (root.currentRetry !== latestRetry) {
+              return false;
+            }
+          }
+          // breadcrumbData[1..n]：子流程内路径节点，检查执行次数是否最新
+          for (let i = 1; i < this.breadcrumbData.length; i++) {
+            const item = this.breadcrumbData[i];
+            if (item.totalCount && item.curSelectCount !== item.totalCount) {
+              return false;
+            }
+          }
+        }
+        // 检查当前节点的执行记录是否最新：用 currentExecuteTime 而不是对象引用比较
+        if (!this.historyInfo || this.historyInfo.length === 0) {
+          return true;
+        }
+        const isLatest = this.currentExecuteTime === this.historyInfo.length;
+        return isLatest;
       },
       // 加入子流程节点后的nodeDisplayStatus
       processNodeDisplayStatus() {
@@ -560,6 +609,14 @@
         // this.nodeDetailConfig.component_code === 'subprocess_plugin'
        return this.currentSubflowTaskId !== '' && this.isSubProcessNode;
       },
+      visibleSubflowViewLinks() {
+        const links = [
+          { key: 'subflow', visible: this.isSubflowExecuted, label: '查看子流程', getUrl: this.onViewSubProcessExecute },
+          { key: 'subcanvas', visible: this.currentSubflowTaskId && this.isSubCanvasNode && !this.isFirstSubFlow(this.nodeDetailConfig.node_id), label: '查看子任务', getUrl: this.onViewSubCanvasExecute },
+        ];
+        return links.filter(item => item.visible);
+      },
+
       subProcessTaskId() { // 独立子流程节点的任务id
         return this.nodeDetailConfig.instance_id;
       },
@@ -637,6 +694,9 @@
         'loadSubflowConfig',
         'getInstanceStatus',
         'getTaskInstanceData',
+        'getBatchNodeOutput',
+        'getBatchTaskStates',
+        'getBatchTaskPipeline',
       ]),
       ...mapMutations('task/', [
         'setSubActivities',
@@ -657,55 +717,50 @@
       selectRetryCount(value) {
         // 由于retry是从0开始的 为了展示次数 在下拉框都是+1了的 在过滤时需将retey-1
         if (!this.breadcrumbData[0]) return;
-        this.breadcrumbData[0].currentRetry = value;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], currentRetry: value });
         this.updateLoopAndExecuteOptions();
         this.filterHistoryData();
       },
       // 选择循环次数
       selectLoopCount(value) {
         if (!this.breadcrumbData[0]) return;
-        this.breadcrumbData[0].currentLoop = value;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], currentLoop: value });
         this.updateExecuteOptions();
         this.filterHistoryData();
       },
       // 选择执行次数
       selectExecuteCount(value) {
         if (!this.breadcrumbData[0]) return;
-        this.breadcrumbData[0].currentExecute = value;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], currentExecute: value });
         this.filterHistoryData();
       },
       // 更新循环和执行次数选项
       updateLoopAndExecuteOptions() {
         if (!this.breadcrumbData[0]) return;
         const { currentRetry, allExecutedInfo } = this.breadcrumbData[0];
+        if (!allExecutedInfo) return;
         // 获取当前重试次数下的所有循环次数
         const currentRetryHistories = allExecutedInfo.filter(item => item.retry === (currentRetry - 1));
         const loopSet = new Set();
         currentRetryHistories.forEach(item => loopSet.add(item.loop));
-        this.breadcrumbData[0].loopOptions = Array.from(loopSet).sort((a, b) => a - b);
-        if (this.breadcrumbData[0].loopOptions.length > 0) {
-          this.breadcrumbData[0].currentLoop = Math.max(...this.breadcrumbData[0].loopOptions);
-        } else {
-          this.breadcrumbData[0].currentLoop = 1;
-        }
+        const loopOptions = Array.from(loopSet).sort((a, b) => a - b);
+        const currentLoop = loopOptions.length > 0 ? Math.max(...loopOptions) : 1;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], loopOptions, currentLoop });
         this.updateExecuteOptions();
       },
       // 更新执行次数选项
       updateExecuteOptions() {
         if (!this.breadcrumbData[0]) return;
         const { currentRetry, currentLoop, allExecutedInfo } = this.breadcrumbData[0];
+        if (!allExecutedInfo) return;
         // 获取当前重试次数和循环次数下的执行次数
         const currentHistories = allExecutedInfo.filter(item => item.retry === (currentRetry - 1) && item.loop === currentLoop);
         const executeOptions = [];
         currentHistories.forEach((item, index) => {
           executeOptions.push(index + 1);
         });
-        this.breadcrumbData[0].executeOptions = executeOptions;
-        if (executeOptions.length > 0) {
-          this.breadcrumbData[0].currentExecute = Math.max(...executeOptions);
-        } else {
-          this.breadcrumbData[0].currentExecute = 1;
-        }
+        const currentExecute = executeOptions.length > 0 ? Math.max(...executeOptions) : 1;
+        this.$set(this.breadcrumbData, 0, { ...this.breadcrumbData[0], executeOptions, currentExecute });
       },
       // 根据选择过滤历史数据
       async filterHistoryData() {
@@ -741,18 +796,23 @@
           try {
             // 获取当前节点在对应任务实例里面的节点id
             const resp = await this.getTaskInstanceData(taskId);
-            const { activities, end_event, start_event } = resp.pipeline_tree;
+            const { activities, end_event, start_event, gateways } = resp.pipeline_tree;
             const activitiesArray = Object.values(activities);
+            const gatewaysArray = Object.values(gateways);
             let curNewNodeId;
-            if (!this.subCanvsActivityCollection[this.nodeDetailConfig.node_id]) {
+            if (!this.subCanvsActivityCollection[this.nodeDetailConfig.node_id] && !this.subCanvsGatewayCollection[this.nodeDetailConfig.node_id]) {
               if (this.nodeDetailConfig.nodeType === 'empty-end-event') {
                 curNewNodeId = end_event.id;
               } else if (this.nodeDetailConfig.nodeType === 'empty-start-event') {
                 curNewNodeId = start_event.id;
               }
             } else {
-              const { template_node_id: templateNodeId } = this.subCanvsActivityCollection[this.nodeDetailConfig.node_id];
-              curNewNodeId = activitiesArray.find(item => item.template_node_id === templateNodeId).id;
+              const activityItem = this.subCanvsActivityCollection[this.nodeDetailConfig.node_id];
+              const gatewayItem = this.subCanvsGatewayCollection[this.nodeDetailConfig.node_id];
+              const templateNodeId = activityItem ? activityItem.template_node_id : gatewayItem.template_node_id;
+              const node = activitiesArray.find(item => item.template_node_id === templateNodeId)
+                || gatewaysArray.find(item => item.template_node_id === templateNodeId);
+              curNewNodeId = node.id;
             }
 
             const query = {
@@ -819,8 +879,10 @@
             }
           }
         }
-        item.curSelectCount = value;
-        item.taskId = taskId;
+        const index = this.breadcrumbData.indexOf(item);
+        if (index !== -1) {
+          this.$set(this.breadcrumbData, index, { ...item, curSelectCount: value, taskId });
+        }
         await this.onSelectExecuteRecord(value, this.historyInfo);
         this.isBreadCrumbLoading = false;
         this.executeBodyLoading = false;
@@ -831,7 +893,7 @@
           const { instanceId } = this.$route.query;
           const tempPath = [...currentPath, {
             id: node.id,
-            name: node.name,
+            name: node?.conditionType === 'condition' ? node.title : node.name,
             taskId: this.isFirstSubFlow(node.id) ? instanceId : node.taskId,
             component_code: node?.component?.code || '',
             type: node.type,
@@ -873,6 +935,8 @@
             }
             this.subflowState = resp.data.state;
             this.subflowNodeStatus = resp.data.children || {};
+            // 收集子流程中 SubCanvas（循环容器）子节点的执行状态
+            await this.collectSubprocessSubCanvasStatus();
             if (['FINISHED', 'REVOKED', 'FAILED'].includes(resp.data.state)) {
                this.cancelTaskStatusTimer();
             } else {
@@ -882,33 +946,123 @@
             console.warn(error);
         } finally {
             source = null;
-            this.isSubprocessLoading = false;
+        }
+      },
+      /**
+       * 收集子流程中已执行的 SubCanvas（循环容器）节点的子节点状态
+       * 参考 TaskOperation.vue 中 collectSubCanvasChildrenStatus 的实现模式
+       */
+      async collectSubprocessSubCanvasStatus() {
+        // 从子流程的 activities 中找出 SubCanvas 节点
+        const subCanvasNodes = Object.values(this.subCanvsActivityCollection).filter(item => item?.component?.code === 'subcanvas_plugin');
+        if (subCanvasNodes.length === 0) return;
+        try {
+          // 批量获取 SubCanvas 节点的输出参数，从中提取 task_id
+          const batchOutputRes = await this.getBatchNodeOutput({
+            task_id: this.subflowTaskId,
+            space_id: this.spaceId,
+            node_ids: subCanvasNodes.map(n => n.id),
+          });
+          const outputDataList = batchOutputRes?.data || [];
+          const nodeTaskMap = subCanvasNodes.map((nodeItem) => {
+            const outputs = outputDataList.find(item => Object.prototype.hasOwnProperty.call(item, nodeItem.id));
+            const taskId = outputs?.[nodeItem.id] ? outputs[nodeItem.id][0]?.['task_id'] : null;
+            return { nodeItem, taskId };
+          });
+          // 收集所有有效 taskId
+          const validTaskIds = nodeTaskMap.filter(item => item.taskId).map(item => item.taskId);
+          if (validTaskIds.length === 0) return;
+
+          // 批量获取 SubCanvas 子任务的 pipeline 数据，用执行后的实例 pipeline 替换模板 pipeline
+          // （模板 node ID 与实例 node ID 不同，状态更新需要匹配实例 ID）
+          const batchPipelineRes = await this.getBatchTaskPipeline({
+            task_ids: validTaskIds.join(','),
+            space_id: this.spaceId,
+          });
+          let pipelineUpdated = false;
+          if (batchPipelineRes?.result && batchPipelineRes.data) {
+            nodeTaskMap.forEach(({ nodeItem, taskId }) => {
+              if (!taskId) return;
+              // 将 SubCanvas 的 task_id 存储到 subCanvsActivityCollection，用于后续操作事件传递
+              if (this.subCanvsActivityCollection[nodeItem.id]) {
+                this.subCanvsActivityCollection[nodeItem.id].subcanvasTaskId = taskId;
+              }
+              const taskData = batchPipelineRes.data[taskId];
+              if (taskData) {
+                // 同步更新 subCanvsActivityCollection 和 subCanvasData.activities 中的 pipeline
+                const oldPipeline = this.subCanvsActivityCollection[nodeItem.id]?.pipeline;
+                if (!tools.isDataEqual(oldPipeline, taskData)) {
+                  if (this.subCanvsActivityCollection[nodeItem.id]) {
+                    this.subCanvsActivityCollection[nodeItem.id].pipeline = taskData;
+                  }
+                  if (this.subCanvasData.activities?.[nodeItem.id]?.component?.code === 'subcanvas_plugin') {
+                    this.subCanvasData.activities[nodeItem.id].pipeline = taskData;
+                  }
+                  pipelineUpdated = true;
+                }
+              }
+            });
+          }
+
+          // pipeline 更新后也要刷新 canvasData，让画布使用实例 node ID
+          if (pipelineUpdated) {
+            this.updateCanvasData(this.subCanvasData);
+          }
+
+          // 批量获取 SubCanvas 子任务的节点状态
+          const batchStatesRes = await this.getBatchTaskStates({
+            task_ids: validTaskIds.join(','),
+            space_id: this.spaceId,
+          });
+          if (batchStatesRes?.result && batchStatesRes.data) {
+            const mergedChildren = {};
+            Object.values(batchStatesRes.data).forEach((taskState) => {
+              if (taskState?.children) {
+                Object.assign(mergedChildren, taskState.children);
+              }
+            });
+            if (Object.keys(mergedChildren).length > 0) {
+              this.subflowNodeStatus = Object.assign({}, this.subflowNodeStatus, mergedChildren);
+            }
+          }
+        } catch (e) {
+          console.warn(e);
         }
       },
       setTaskStatusTimer(time = 3000) {
-          this.cancelTaskStatusTimer();
-          this.timer = setTimeout(() => {
-            this.loadSubprocessStatus();
-            this.updateSubflowCanvasNodeInfo();
-            this.templateComponentName === 'SubStageCanvas' && this.$refs.subProcessCanvas.setRefreshTaskStageCanvasData();
-          }, time);
+        this.cancelTaskStatusTimer();
+        this.timer = setTimeout(() => {
+          this.loadSubprocessStatus();
+          this.updateSubflowCanvasNodeInfo();
+          this.templateComponentName === 'SubStageCanvas' && this.$refs.subProcessCanvas.setRefreshTaskStageCanvasData();
+        }, time);
+      },
+      // 立即刷新子画布状态,避免等定时器才刷新
+      async refreshSubCanvasState() {
+        await this.loadNodeInfo();
       },
       cancelTaskStatusTimer() {
-          if (this.timer) {
-              clearTimeout(this.timer);
-              this.timer = null;
-          }
+        if (this.timer) {
+            clearTimeout(this.timer);
+            this.timer = null;
+        }
       },
       isExistInSubCanvas(id) {
-        let isExist = false;
         if (this.subCanvasData.location) {
+          let isExist = false;
           this.subCanvasData.location.forEach((item) => {
             if (item.id === id) {
               isExist = true;
             }
           });
+          if (isExist) return true;
         }
-        return isExist;
+        return !!this.findSubCanvasParentActivity(id);
+      },
+      findSubCanvasParentActivity(nodeId) {
+        const activities = this.pipelineData?.activities || {};
+        return Object.values(activities).find(item => item?.component?.code === 'subcanvas_plugin'
+            && item.pipeline?.location?.some(locationItem => locationItem.id === nodeId));
       },
       // 获取外层画布节点配置
       getNodeDetailConfig(node, instanceId) {
@@ -947,6 +1101,7 @@
             this.subTemplateId = resp.template_id;
             this.subCanvsLocationCollection = [...resp.pipeline_tree.location, ...this.subCanvsLocationCollection];
             this.subCanvsActivityCollection = Object.assign({}, resp.pipeline_tree.activities);
+            this.subCanvsGatewayCollection = Object.assign({}, this.subCanvsGatewayCollection, resp.pipeline_tree.gateways);
             this.setSubActivities(this.subCanvsActivityCollection);
             const pipelineTree = resp.pipeline_tree;
             if (!this.nodeDetailConfig.isNodeInSubflow && !isOnlyExpand) {
@@ -980,6 +1135,17 @@
       async handleDynamicLoad(node, expanded) {
           try {
             if (expanded) {
+              if (node?.component?.code === 'subcanvas_plugin') {
+                // 未执行时使用模板数据
+                const curNodeInfo = tools.deepClone(node);
+                if (node.pipeline) {
+                  curNodeInfo.children = getOrderNodeToNodeTree(node.pipeline);
+                }
+                curNodeInfo.dynamicLoad = false;
+                curNodeInfo.expanded = true;
+                this.updateTreeNode(this.curNodeData[0].children, curNodeInfo);
+                return;
+              }
               const { instanceId } = this.$route.query;
               const nodeDetailConfig = this.getNodeDetailConfig(node, instanceId);
               const query = Object.assign({}, nodeDetailConfig, { loop: this.theExecuteTime });
@@ -1007,10 +1173,19 @@
       // 更新子流程画布节点状态
       updateSubflowCanvasNodeInfo() {
         const nodes = this.subflowNodeStatus;
+        // 合并嵌套 SubCanvas pipeline 的 activities，用于查找 SubCanvas 子节点的 skippable 等属性
+        const allActivities = Object.assign({}, this.subCanvasData.activities || {});
+        Object.keys(this.subCanvasData.activities || {}).forEach((key) => {
+          const activity = this.subCanvasData.activities[key];
+          if (activity?.component?.code === 'subcanvas_plugin' && activity.pipeline?.activities) {
+            Object.assign(allActivities, activity.pipeline.activities);
+          }
+        });
+
         nodes && Object.keys(nodes).forEach((id) => {
           let code; let skippable; let retryable; let errorIgnorable; let autoRetry;
           const currentNode = nodes[id];
-          const nodeActivities = this.subCanvasData.activities[id];
+          const nodeActivities = allActivities[id];
 
           if (nodeActivities) {
             code = nodeActivities.component ? nodeActivities.component.code : '';
@@ -1071,8 +1246,31 @@
       },
       // 点击子流程画布中的节点
       onSubflowNodeClick(id) {
-        this.subCanvasActiveId = id;
-        // this.$emit('onClickSubCanvasNode', id, type, this.subCanvasData);
+        // 禁止点击循环容器（SubCanvas）内部的子节点，重定向到循环容器节点本身
+        const parentSubCanvasId = this.getSubCanvasParentIdInSubCanvas(id);
+        this.subCanvasActiveId = parentSubCanvasId || id;
+      },
+      // 在子流程画布中查找节点所属的 SubCanvas（循环容器）父节点ID
+      getSubCanvasParentIdInSubCanvas(nodeId) {
+        const activities = this.subCanvasData?.activities || {};
+        for (const key of Object.keys(activities)) {
+          const activity = activities[key];
+          if (activity?.component?.code === 'subcanvas_plugin' && activity.pipeline?.location) {
+            if (activity.pipeline.location.some(loc => loc.id === nodeId)) {
+              return key;
+            }
+          }
+        }
+        return null;
+      },
+      getSubCanvasNodeEmitParams(id) {
+        const parentSubCanvasId = this.getSubCanvasParentIdInSubCanvas(id);
+        if (!parentSubCanvasId) return null;
+        const parentActivity = this.subCanvsActivityCollection[parentSubCanvasId];
+        const taskId = parentActivity?.subcanvasTaskId || parentActivity?.taskId;
+        return {
+          taskId: taskId || this.currentSubflowTaskId,
+        };
       },
       // 子流程画布点击网关条件
       onSubConditionClick(data) {
@@ -1082,6 +1280,19 @@
         this.$emit('onOpenConditionInfo', data, isCondition);
       },
       onViewSubProcessExecute() {
+        const { href } = this.$router.resolve({
+            name: 'taskExecute',
+            params: {
+              spaceId: this.spaceId,
+            },
+            query: {
+              instanceId: this.currentSubflowTaskId,
+            },
+        });
+        return href;
+      },
+      // 查看子画布任务详情
+      onViewSubCanvasExecute() {
         const { href } = this.$router.resolve({
             name: 'taskExecute',
             params: {
@@ -1198,7 +1409,7 @@
                 }
               }
             });
-          } else if (this.adminView) {
+          } else if (this.adminView || componentCode === 'subcanvas_plugin') {
             outputsInfo = outputs;
           } else { // 普通插件展示 preset 为 true 的输出参数
             outputsInfo = outputs.filter(output => output.preset);
@@ -1223,10 +1434,9 @@
       async getTaskNodeDetail(isChangeExecuteLoop) {
         try {
           // 未执行的时候不展示任何信息
-          const { state, subflowNodeParent, node_id } = this.nodeDetailConfig;
-          // const isUnexecutedSubprocess = componentCode === 'SubProcess' && ['READY', 'WAIT'].includes(state);
+          const { state, subflowNodeParent, node_id, isFirstSubUnexecuted } = this.nodeDetailConfig;
           const isUnexecutedSubprocess = this.isExistInSubCanvas(node_id) && ['READY', 'WAIT'].includes(state);
-          const isExceted = subflowNodeParent && ['READY', 'WAIT'].includes(subflowNodeParent.state);
+          const isExceted = subflowNodeParent && (['READY', 'WAIT'].includes(subflowNodeParent.state) || isFirstSubUnexecuted);
           if (this.nodeDetailConfig.root_node || isExceted || this.nodeDetailConfig?.conditionData || isUnexecutedSubprocess) return;
           const query = { ...this.nodeDetailConfig };
           if (isChangeExecuteLoop) {
@@ -1457,6 +1667,7 @@
           const res = await this.loadSubflowConfig(params);
           this.subCanvsLocationCollection = [...res.data.pipeline_tree.location, ...this.subCanvsLocationCollection];
           this.subCanvsActivityCollection = Object.assign({}, res.data.pipeline_tree.activities);
+          this.subCanvsGatewayCollection = Object.assign({}, this.subCanvsGatewayCollection, res.data.pipeline_tree.gateways);
           this.setSubActivities(this.subCanvsActivityCollection);
           this.updateCanvasData(res.data.pipeline_tree);
       },
@@ -1472,6 +1683,7 @@
         this.canvasData = graphToJson({
           locations,
           lines: line,
+          activities: canvasData.activities || {},
         });
         this.canvasDataChangeKey = new Date().getTime();
       },
@@ -1479,12 +1691,12 @@
         return this.pipelineData.location.some(item => item.id === nodeId);
       },
       async getFirstSubTaskInstance(nodeId, componentCode, componentData, version) {
-        if (this.isSubProcessNode) {
-          this.isSubprocessLoading = true;
-          this.currentIndependentSubFlowId = nodeId;
-          const taskId = this.currentSubflowTaskId; // 子流程的任务id
-          // nodeData 用于渲染流程树的数据
-          const nodeInfo = this.getNodeInfo(this.curNodeData, nodeId);
+        this.isSubprocessLoading = true;
+        this.currentIndependentSubFlowId = nodeId;
+        const taskId = this.currentSubflowTaskId; // 子流程的任务id
+        // nodeData 用于渲染流程树的数据
+        const nodeInfo = this.getNodeInfo(this.curNodeData, nodeId);
+        try {
           if (taskId) { // 子流程任务已执行才可以查详情和状态
               await this.getSubprocessData(taskId, nodeInfo);
               this.subflowTaskId = taskId;
@@ -1492,16 +1704,29 @@
               this.updateSubflowCanvasNodeInfo(); // 更新画布节点状态
               this.templateComponentName === 'SubStageCanvas' && this.$refs.subProcessCanvas.setRefreshTaskStageCanvasData();
           } else { // 未执行情况下获取模板树
-          // componentCode === 'subprocess_plugin' && !isNodeInSubflow
-          if (componentCode === 'subprocess_plugin') {
-                const query = {
-                    subTemplateId: componentData.subprocess.value.template_id,
-                    version,
-                };
-                this.subTemplateId = componentData.subprocess.value.template_id;
-                this.getUnexcutedSubflowTemplateCanvas(query);
+            if (componentCode === 'subprocess_plugin') {
+              const query = {
+                  subTemplateId: componentData.subprocess.value.template_id,
+                  version,
+              };
+              this.subTemplateId = componentData.subprocess.value.template_id;
+              await this.getUnexcutedSubflowTemplateCanvas(query);
+            }
+            if (this.isSubCanvasNode) {
+              const parentActivity = this.pipelineData.activities[nodeId];
+              if (parentActivity?.pipeline) {
+                this.subCanvsLocationCollection = [...parentActivity.pipeline.location, ...this.subCanvsLocationCollection];
+                this.subCanvsActivityCollection = Object.assign({}, parentActivity.pipeline.activities, this.subCanvsActivityCollection);
+                this.subCanvsGatewayCollection = Object.assign({}, this.subCanvsGatewayCollection, parentActivity.pipeline.gateways);
+                this.setSubActivities(this.subCanvsActivityCollection);
+                this.updateCanvasData(parentActivity.pipeline);
+              }
             }
           }
+        } finally {
+          this.$nextTick(() => {
+            this.isSubprocessLoading = false;
+          });
         }
       },
       // 初始化节点循环/执行次数
@@ -1510,39 +1735,46 @@
           this.isBreadCrumbLoading = true;
           this.breadcrumbData = this.findNodePath(this.curNodeData[0].children, this.nodeDetailConfig.node_id);
           this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
-          this.breadcrumbData.forEach(async (item, index) => {
-          if (item.id) {
-            const query = {
-              space_id: this.spaceId,
-              instance_id: item.taskId,
-              node_id: item.id,
-              component_code: item.component_code,
-            };
-            const resp = await this.getNodeActDetail(query);
-            item.allExecutedInfo = resp.data?.skip ? [] : [resp.data];
-            if (resp.data?.histories) {
-              item.allExecutedInfo.unshift(...resp.data.histories);
-              item.curSelectCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
-              item.totalCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
-            } else {
-              item.curSelectCount = item.allExecutedInfo.length;
-              item.totalCount = item.allExecutedInfo.length;
-            }
-            if (index === 0) {
-              this.isBreadCrumbLoading = true;
-              // 初始化breadcrumbData[0]的选项数据
-              if (!this.breadcrumbData[0] || !this.executeInfo) {
-                this.isBreadCrumbLoading = false;
-                return;
+          // 兼容画布直接点击子节点
+          const subflowTaskId = this.subflowTaskId || this.currentSubflowTaskId;
+          if (subflowTaskId) {
+            for (let i = 1; i < this.breadcrumbData.length; i++) {
+              if (!this.breadcrumbData[i].taskId) {
+                this.breadcrumbData[i].taskId = subflowTaskId;
               }
-              this.breadcrumbData[0].retryLatestOptions = resp.data.retry;
-              this.breadcrumbData[0].currentRetry = resp.data.retry + 1;
-              // 初始化循环和执行次数选项
-              this.updateLoopAndExecuteOptions();
-              this.isBreadCrumbLoading = false;
             }
           }
-          });
+          for (let index = 0; index < this.breadcrumbData.length; index++) {
+            const item = this.breadcrumbData[index];
+            if (item.id && item.taskId) {
+              const query = {
+                space_id: this.spaceId,
+                instance_id: item.taskId,
+                node_id: item.id,
+                component_code: item.component_code,
+              };
+              const resp = await this.getNodeActDetail(query);
+              item.allExecutedInfo = resp.data?.skip ? [] : [resp.data];
+              if (resp.data?.histories) {
+                item.allExecutedInfo.unshift(...resp.data.histories);
+                item.curSelectCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
+                item.totalCount = resp.data?.skip ? resp.data.histories.length : resp.data.histories.length + 1;
+              } else {
+                item.curSelectCount = item.allExecutedInfo.length;
+                item.totalCount = item.allExecutedInfo.length;
+              }
+              if (index === 0) {
+                // 初始化breadcrumbData[0]的选项数据
+                if (!this.breadcrumbData[0] || !this.executeInfo) {
+                  continue;
+                }
+                this.breadcrumbData[0].retryLatestOptions = resp.data.retry;
+                this.breadcrumbData[0].currentRetry = resp.data.retry + 1;
+                // 初始化循环和执行次数选项
+                this.updateLoopAndExecuteOptions();
+              }
+            }
+          }
         }
         this.isBreadCrumbLoading = false;
       },
@@ -1552,79 +1784,93 @@
         this.breadcrumbData = this.breadcrumbData.filter(item => !!item.id);
         try {
           this.renderConfig = [];
+          const { version, node_id: nodeId, componentData, component_code: componentCode, subflowNodeParent } = this.nodeDetailConfig;
           let respData = await this.getTaskNodeDetail(isChangeExecuteLoop);
           if (!respData) {
             this.isReadyStatus = false;
             this.executeInfo = {};
             this.theExecuteTime = undefined;
             this.historyInfo = [];
-            this.onMoveClickNode(this.nodeDetailConfig.node_id);
-            return;
-          }
-          this.isReadyStatus = ['RUNNING', 'SUSPENDED', 'FINISHED', 'FAILED'].indexOf(respData.state) > -1;
+            this.currentSubflowTaskId = '';
+          } else {
+            this.isReadyStatus = ['RUNNING', 'SUSPENDED', 'FINISHED', 'FAILED'].indexOf(respData.state) > -1;
 
-          respData = await this.setFillRecordField(respData);
-          if (!isChangeExecuteLoop) {
-            this.loop = respData.loop;
-            this.theExecuteTime = respData.loop;
+            respData = await this.setFillRecordField(respData);
+            if (!isChangeExecuteLoop) {
+              this.loop = respData.loop;
+              this.theExecuteTime = respData.loop;
+            }
+            this.executeInfo = respData;
+            // 执行历史信息
+            this.historyInfo = respData.skip ? [] : [respData];
+            if (respData.histories) {
+              this.historyInfo.unshift(...respData.histories);
+            }
+            // 获取记录详情
+            await this.onSelectExecuteRecord(this.historyInfo.length, this.historyInfo);
+            const taskInfo = respData.outputsInfo.find(item => item.key === 'task_id') || {};
+            this.currentSubflowTaskId = taskInfo.value || ''; // 子流程的任务id
+            this.executeInfo.plugin_version = this.isThirdPartyNode ? respData.inputs.plugin_version : version;
           }
-          this.executeInfo = respData;
-          // 执行历史信息
-          this.historyInfo = respData.skip ? [] : [respData];
-          if (respData.histories) {
-            this.historyInfo.unshift(...respData.histories);
-          }
-          // 获取记录详情
-          await this.onSelectExecuteRecord(this.historyInfo.length, this.historyInfo);
-          // 初始化循环与执行次数信息
-          await this.loadBreadCrumbData();
-          this.executeInfo.name = this.location.name || NODE_DICT[this.location.type];
-          const taskInfo = respData.outputsInfo.find(item => item.key === 'task_id') || {};
-          this.currentSubflowTaskId = taskInfo.value || ''; // 子流程的任务id
-          // isNodeInSubflow
-          const { version, node_id: nodeId, componentData, component_code: componentCode, subflowNodeParent } = this.nodeDetailConfig;
-          this.executeInfo.plugin_version = this.isThirdPartyNode ? respData.inputs.plugin_version : version;
-          // 获取第一层独立子流程实例数据-只要外层pipeLineTree包含该节点就是子流程第一层
-          // this.isSubProcessNode && !this.nodeDetailConfig.isNodeInSubflow
-          if (this.isFirstSubFlow(nodeId) && componentCode === 'subprocess_plugin') {
+            // 获取第一层独立子流程实例数据-只要外层pipeLineTree包含该节点就是子流程第一层
+          if (this.isFirstSubFlow(nodeId) && this.isSubProcessLikeNode) {
             this.getFirstSubTaskInstance(nodeId, componentCode, componentData, version);
           } else {
             // 顶层子流程执行后subflowNodeParent存在taskId
             if (!this.isFirstSubFlow(nodeId)) {
               this.isSubprocessLoading = true;
-              // if (!this.isExistInSubCanvas(nodeId)) {
-              if (subflowNodeParent && subflowNodeParent.taskId) { // 已经执行
-                const resp = await this.getTaskInstanceData(subflowNodeParent.taskId);
-                this.currentSubflowTaskId = subflowNodeParent.taskId;
-                this.subflowTaskId = subflowNodeParent.taskId;
-                this.subCanvsLocationCollection = [...resp.pipeline_tree.location, ...this.subCanvsLocationCollection];
-                this.subCanvsActivityCollection = Object.assign({}, resp.pipeline_tree.activities);
-                this.setSubActivities(this.subCanvsActivityCollection);
-                this.updateCanvasData(resp.pipeline_tree);
-                await this.loadSubprocessStatus();
-                this.updateSubflowCanvasNodeInfo();
-              } else { // 未执行
+              try {
+                if (subflowNodeParent && subflowNodeParent.taskId) { // 已经执行
+                  const resp = await this.getTaskInstanceData(subflowNodeParent.taskId);
+                  this.currentSubflowTaskId = subflowNodeParent.taskId;
+                  this.subflowTaskId = subflowNodeParent.taskId;
+                  this.subCanvsLocationCollection = [...resp.pipeline_tree.location, ...this.subCanvsLocationCollection];
+                  this.subCanvsActivityCollection = Object.assign({}, resp.pipeline_tree.activities);
+                  this.subCanvsGatewayCollection = Object.assign({}, this.subCanvsGatewayCollection, resp.pipeline_tree.gateways);
+                  this.setSubActivities(this.subCanvsActivityCollection);
+                  this.updateCanvasData(resp.pipeline_tree);
+                  await this.loadSubprocessStatus();
+                  this.updateSubflowCanvasNodeInfo();
+                } else if (subflowNodeParent?.component?.code === 'subcanvas_plugin') { // 未执行
+                  // subcanvas_plugin: 从外层pipeline的activities获取内嵌pipeline
+                  const parentActivity = this.findSubCanvasParentActivity(nodeId);
+                  if (parentActivity?.pipeline) {
+                    this.subCanvsLocationCollection = [...parentActivity.pipeline.location, ...this.subCanvsLocationCollection];
+                    this.subCanvsActivityCollection = Object.assign({}, parentActivity.pipeline.activities, this.subCanvsActivityCollection);
+                    this.subCanvsGatewayCollection = Object.assign({}, this.subCanvsGatewayCollection, parentActivity.pipeline.gateways);
+                    this.setSubActivities(this.subCanvsActivityCollection);
+                    this.updateCanvasData(parentActivity.pipeline);
+                  }
+                } else if (subflowNodeParent) {
+                  // subprocess_plugin: 通过模板ID获取模板树
                   const { template_id: templateId } = subflowNodeParent?.component?.data?.subprocess.value || {};
                   const query = {
                     subTemplateId: templateId ?? '',
-                    version: this.nodeDetailConfig.version,
+                    ...(this.isEnableVersionManage ? { version: subflowNodeParent?.component?.version ?? '' } : {}),
                   };
-                this.getUnexcutedSubflowTemplateCanvas(query);
+                  await this.getUnexcutedSubflowTemplateCanvas(query);
+                }
+              } finally {
+                // 子流程数据加载并渲染完成后关闭子画布loading
+                this.$nextTick(() => {
+                  this.isSubprocessLoading = false;
+                });
               }
-              // }
             }
           }
+          // 初始化循环与执行次数信息
+          await this.loadBreadCrumbData();
           // 获取执行失败节点是否允许跳过，重试状态
           if (this.realTimeState.state === 'FAILED') {
             const activityCollection = Object.assign({}, this.subCanvsActivityCollection, this.pipelineData.activities);
             const activity = activityCollection[nodeId];
-            this.isShowSkipBtn = this.location.type === 'tasknode' && activity.skippable;
-            this.isShowRetryBtn = this.location.type === 'tasknode' ? activity.retryable : false;
+            this.isShowSkipBtn = this.location?.type && ['tasknode', 'SubCanvas'].includes(this.location.type) && activity.skippable;
+            this.isShowRetryBtn = this.location?.type && ['tasknode', 'SubCanvas'].includes(this.location.type) ? activity.retryable : false;
           } else {
             this.isShowSkipBtn = false;
             this.isShowRetryBtn = false;
           }
-          this.isSubprocessLoading = false;
+          this.executeInfo.name = this.location?.name || NODE_DICT[this.location?.type];
           // 激活子流程画布节点
           this.$nextTick(() => {
             this.onMoveClickNode(nodeId);
@@ -1646,12 +1892,13 @@
       },
       // 切换执行次数
       async onSelectExecuteRecord(time, historyInfo) {
+        this.currentExecuteTime = time;
         const record = historyInfo[time - 1];
         if (record) {
           if (!('isExpand' in record)) {
             this.executeInfo = await this.setFillRecordField(record);
             this.executeInfo.id = this.nodeDetailConfig.node_id;
-            this.executeInfo.name = this.location.name || NODE_DICT[this.location.type];
+            this.executeInfo.name = this.location?.name || NODE_DICT[this.location?.type];
           }
           this.executeRecord = record;
         } else {
@@ -1661,19 +1908,25 @@
       async onSelectNode(selectNodeId, nodeType, node) {
         this.$emit('onClickTreeNode', selectNodeId, nodeType, node);
       },
-      onRetryClick(isLoopOperate = false) {
-        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+      onRetryClick({ id, isFromSubNode = false, isLoopOperate = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onRetryClick', id, emitParams, false, isLoopOperate, isFromSubNode);
+        } else if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onRetryClick', this.nodeDetailConfig.node_id, this.getEmitParams, false, isLoopOperate);
         } else {
-          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin';
+          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.isSubProcessLikeNode;
           this.$emit('onRetryClick', this.nodeDetailConfig.node_id, null, isTopSubflow, isLoopOperate);
         }
       },
-      onSkipClick(isLoopOperate = false) {
-         if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+      onSkipClick({ id, isFromSubNode = false, isLoopOperate = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onSkipClick', id, emitParams, false, isLoopOperate, isFromSubNode);
+        } else if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onSkipClick', this.nodeDetailConfig.node_id, this.getEmitParams, false, isLoopOperate);
         } else {
-          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.nodeDetailConfig.component_code === 'subprocess_plugin';
+          const isTopSubflow = this.isFirstSubFlow(this.nodeDetailConfig.node_id) && this.isSubProcessLikeNode;
           this.$emit('onSkipClick', this.nodeDetailConfig.node_id, null, isTopSubflow, isLoopOperate);
         }
       },
@@ -1684,11 +1937,28 @@
           this.$emit('onTaskNodeResumeClick', this.nodeDetailConfig.node_id, null);
         }
       },
-      onApprovalClick() {
-        if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
+      onApprovalClick({ id, isFromSubNode = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onApprovalClick', id, emitParams, isFromSubNode);
+        } else if (this.isExistInSubCanvas(this.nodeDetailConfig.node_id)) {
           this.$emit('onApprovalClick', this.nodeDetailConfig.node_id, this.getEmitParams);
         } else {
           this.$emit('onApprovalClick', this.nodeDetailConfig.node_id, null);
+        }
+      },
+      // 强制终止
+      onForceFailClick({ id, isFromSubNode = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onForceFail', id, emitParams, isFromSubNode);
+        }
+      },
+      // 确定往后继续执行
+      onTaskNodeResumeClick({ id, isFromSubNode = false } = {}) {
+        if (isFromSubNode) {
+          const emitParams = this.getSubCanvasNodeEmitParams(id);
+          this.$emit('onTaskNodeResumeClick', id, emitParams, isFromSubNode);
         }
       },
       onModifyTimeClick() {
@@ -1796,9 +2066,13 @@
             :first-child {
                 margin: 2px 5px 0;
             }
+            .status-text-messages {
+                white-space: nowrap;
+            }
             .view-subflow {
               display: flex;
               align-items: center;
+              white-space: nowrap;
               .dividing-line {
                 margin: 0 13px;
                 border-right: 1px solid #DCDEE5;
@@ -1830,13 +2104,15 @@
           line-height: 22px !important;
           margin: 0 8px;
           background: #F0F1F5;
-          width: 42px;
+          min-width: 42px;
+          max-width: 55px;
           font-size: 12px;
           border: none;
           .bk-select-name {
             height: 22px;
             color: #63656E !important;
             font-weight: normal;
+            overflow: visible;
           }
           .bk-select-angle {
             top:0
