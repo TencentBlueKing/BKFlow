@@ -18,7 +18,8 @@ to the current version of the project delivered to anyone in the future.
 """
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, validator
+from pipeline.variable_framework.models import VariableModel
+from pydantic import BaseModel, Field, root_validator, validator
 
 from bkflow.pipeline_converter.constants import A2FlowPluginType, NodeType
 
@@ -28,6 +29,37 @@ class A2FlowCondition(BaseModel):
 
     evaluate: str = "True"
     name: str = ""
+
+    class Config:
+        extra = "forbid"
+
+
+class A2FlowAutoRetry(BaseModel):
+    enable: bool = False
+    interval: int = 0  # 秒
+    times: int = 1  # >=1
+
+    class Config:
+        extra = "forbid"
+
+
+class A2FlowTimeoutConfig(BaseModel):
+    enable: bool = False
+    seconds: int = 10
+    action: str = "forced_fail"  # forced_fail / forced_fail_and_skip
+
+    class Config:
+        extra = "forbid"
+
+
+class A2FlowFailureStrategy(BaseModel):
+    """节点失败处理策略（仅对 Activity 生效）"""
+
+    error_ignorable: bool = False
+    retryable: bool = True
+    skippable: bool = True
+    auto_retry: A2FlowAutoRetry = Field(default_factory=A2FlowAutoRetry)
+    timeout_config: A2FlowTimeoutConfig = Field(default_factory=A2FlowTimeoutConfig)
 
     class Config:
         extra = "forbid"
@@ -47,6 +79,10 @@ class A2FlowNode(BaseModel):
     conditions: Optional[List[A2FlowCondition]] = None
     default_next: Optional[str] = None
     converge_gateway_id: Optional[str] = None
+    constants: Optional[Dict[str, Any]] = None
+    template_id: Optional[str] = None
+    always_use_latest: bool = False
+    failure_strategy: Optional[A2FlowFailureStrategy] = None
 
     @validator("type", pre=True, always=True)
     def set_default_type(cls, v):
@@ -59,6 +95,16 @@ class A2FlowNode(BaseModel):
             if v not in valid_values:
                 raise ValueError(f"plugin_type 必须是 {valid_values} 之一，收到: {v}")
         return v
+
+    @root_validator
+    def validate_subprocess_required_fields(cls, values):
+        """SubProcess 类型节点必须提供 template_id"""
+        if values.get("type") != NodeType.SUBPROCESS:
+            return values
+        if not values.get("template_id"):
+            node_id = values.get("id") or "<unknown>"
+            raise ValueError("SubProcess 节点 '{}' 缺少必填字段: template_id".format(node_id))
+        return values
 
     class Config:
         extra = "forbid"
@@ -74,9 +120,20 @@ class A2FlowVariable(BaseModel):
     custom_type: str = "input"
     description: str = ""
     show_type: str = "show"
+    source_info: Dict[str, Any] = Field(default_factory=dict)
+    validation: str = ""
 
     class Config:
         extra = "forbid"
+
+    @validator("custom_type")
+    def validate_custom_type(cls, v):
+        try:
+            VariableModel.objects.get(code=v)
+        except VariableModel.DoesNotExist:
+            variables = VariableModel.objects.all().only("code")
+            raise ValueError(f"custom_type 必须是有效的变量类型，收到: {v}，可用的变量类型: {[item.code for item in variables]}")
+        return v
 
 
 class A2FlowPipeline(BaseModel):
