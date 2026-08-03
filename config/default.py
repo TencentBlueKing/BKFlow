@@ -340,20 +340,20 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
         "propagate": True,
     }
 
-    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": True}
+    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": False}
 
     logging_dict["loggers"]["pipeline.eri.log"] = {"handlers": ["pipeline_eri"], "level": "INFO", "propagate": True}
 
     logging_dict["loggers"]["bamboo_engine"] = {
         "handlers": ["root", "bamboo_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["pipeline_engine"] = {
         "handlers": ["root", "pipeline_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["bk-monitor-report"] = {
@@ -370,8 +370,6 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
                 for handler in logger_config["handlers"]
                 if handler not in ["pipeline_engine_context", "bamboo_engine_context", "pipeline_eri"]
             ]
-            if not logger_config["handlers"]:
-                logger_config["handlers"] = ["root"]
 
     def handler_filter_injection(filters: list):
         for _, handler in logging_dict["handlers"].items():
