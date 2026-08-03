@@ -2185,11 +2185,11 @@
         oldToNewIdMap[oldEndId] = createNewId();
         // 映射 activities 和 gateways
         Object.keys(oldPT.activities || {}).forEach((id) => {
- oldToNewIdMap[id] = createNewId();
-});
+          oldToNewIdMap[id] = createNewId();
+        });
         Object.keys(oldPT.gateways || {}).forEach((id) => {
- oldToNewIdMap[id] = createNewId();
-});
+          oldToNewIdMap[id] = createNewId();
+        });
 
         // 在 X6 图上创建子节点副本
         const oldChildNodes = this.graph.getNodes().filter((n) => {

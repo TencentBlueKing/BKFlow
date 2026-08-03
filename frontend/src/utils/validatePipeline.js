@@ -291,7 +291,7 @@ const NODE_RULE = {
     max_in: 1000,
     min_out: 1,
     max_out: 1,
-    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end', 'start', 'SubCanvas'],
+    allowed_out: ['tasknode', 'subflow', 'branchgateway', 'parallelgateway', 'conditionalparallelgateway', 'convergegateway', 'endpoint', 'end', 'SubCanvas'],
     unique: false,
   },
 };
@@ -569,7 +569,6 @@ const validatePipeline = {
       if (pathSegments.length > 0) {
         errorId = pathSegments[pathSegments.length - 1].id;
       }
-      `${nodeName} ${error.dataPath} ${error.message}`;
       const cnMsg = formatAjvError(error);
       // 最终消息：容器名 + 节点名 + 错误描述
       const parts = [];
