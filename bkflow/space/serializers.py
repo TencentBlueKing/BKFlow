@@ -81,3 +81,10 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
             logger.exception(f"[validate_configs] error: {e}")
             raise serializers.ValidationError(e.message)
         return configs
+
+
+class SpaceConfigVerifySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    name = serializers.CharField(help_text=_("配置项名称"))
+    value = serializers.JSONField(help_text=_("待验证的配置值"), required=False)
+    params = serializers.DictField(help_text=_("验证参数"), required=False, default=dict)
