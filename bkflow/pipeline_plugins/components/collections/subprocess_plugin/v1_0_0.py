@@ -33,6 +33,7 @@ from bkflow.constants import (
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
+from bkflow.task.utils import check_template_concurrency, update_running_task
 from bkflow.utils.handlers import mask_sensitive_data_for_display
 
 
@@ -300,7 +301,13 @@ class SubprocessPluginService(BKFlowBaseService):
         operation_method = getattr(task_operation, "start", None)
         if operation_method is None:
             raise ValidationError("task operation not found")
-        operation_method(operator=parent_task.creator)
+        is_allowed, msg = check_template_concurrency(task_instance.space_id, task_instance.template_id)
+        if not is_allowed:
+            data.set_outputs("ex_data", msg)
+            return False
+        operation_result = operation_method(operator=parent_task.creator)
+        if operation_result.result:
+            update_running_task(task_instance.template_id, task_instance.id, action="add")
 
         return True
 

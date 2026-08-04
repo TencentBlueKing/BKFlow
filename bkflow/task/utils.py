@@ -28,6 +28,7 @@ from pipeline.core import constants as pipeline_constants
 from pipeline.engine.utils import calculate_elapsed_time
 from redis.client import Redis
 
+from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.utils.dates import format_datetime
 from bkflow.utils.message import send_message
 
@@ -166,3 +167,79 @@ def extract_extra_info(constants, keys=None):
     for key in list(constants.keys()) if not keys else keys:
         extra_info.update({key: {"name": constants[key]["name"], "value": constants[key]["value"]}})
     return json.dumps(extra_info, ensure_ascii=False)
+
+
+def get_running_tasks_redis_key(template_id) -> str:
+    return f"bkflow_running_tasks_template_{template_id}"
+
+
+@redis_inst_check
+def get_running_task_count(template_id) -> int:
+    """获取指定模板当前运行中的任务数量。Redis 不可用时返回 0，不阻塞流程。"""
+    if template_id is None:
+        return 0
+    try:
+        return int(settings.redis_inst.scard(get_running_tasks_redis_key(template_id)) or 0)
+    except Exception as e:
+        logger.exception(f"[get_running_task_count] template_id={template_id} error: {e}")
+        return 0
+
+
+@redis_inst_check
+def update_running_task(template_id, task_id, action: str) -> bool:
+    """更新模板运行中任务集合。
+
+    :param template_id: 模板 ID
+    :param task_id: 任务 ID
+    :param action: 操作类型，"add"：加入运行集合；"remove"：从运行集合移除
+    :return: 操作是否成功
+    """
+    if template_id is None:
+        return False
+    if action not in ("add", "remove"):
+        logger.error(f"[update_running_task] invalid action: {action}")
+        return False
+    try:
+        key = get_running_tasks_redis_key(template_id)
+        if action == "add":
+            settings.redis_inst.sadd(key, str(task_id))
+        else:
+            settings.redis_inst.srem(key, str(task_id))
+        return True
+    except Exception as e:
+        logger.exception(
+            f"[update_running_task] action={action} template_id={template_id} task_id={task_id} error: {e}"
+        )
+        return False
+
+
+def check_template_concurrency(space_id, template_id):
+    """检查模板当前运行中任务数是否达到空间配置的最大并发上限。
+
+    :param space_id: 空间 ID
+    :param template_id: 模板 ID
+    :return: (is_allowed, message)
+        is_allowed: True 表示允许执行；False 表示已达上限。
+        message: 当 is_allowed 为 False 时为提示信息。
+    """
+    if template_id is None:
+        return True, ""
+    try:
+        interface_client = InterfaceModuleClient()
+        space_infos_result = interface_client.get_space_infos(
+            {"space_id": space_id, "config_names": "concurrency_control"}
+        )
+        space_configs = space_infos_result.get("data", {}).get("configs", {})
+        max_running = int(space_configs.get("concurrency_control", 0))
+    except Exception as e:
+        logger.exception(f"[check_template_concurrency] get space concurrency_control error: {e}")
+        return True, ""
+
+    if not max_running:
+        return True, ""
+
+    running_count = get_running_task_count(template_id)
+    if running_count >= max_running:
+        msg = f"当前模板(template_id={template_id})正在运行的任务数已达上限({max_running})，" f"当前运行中数量为{running_count}，请稍后再试"
+        return False, msg
+    return True, ""
