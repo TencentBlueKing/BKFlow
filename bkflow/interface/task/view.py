@@ -314,3 +314,44 @@ class TaskInterfaceViewSet(GenericViewSet):
         handler = StageConstantHandler(space_id, request.user.is_superuser)
         result = handler.process(task_id, node_ids, stage_constants)
         return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="list_children_taskflow/(?P<task_id>\\d+)")
+    def list_children_taskflow(self, request, task_id, *args, **kwargs):
+        """获取根任务下的所有子任务列表"""
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.list_children_taskflow(data={"task_id": task_id, "space_id": space_id})
+        return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="root_task_info")
+    def root_task_info(self, request, *args, **kwargs):
+        """批量查询任务是否包含子任务"""
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.root_task_info(data={"task_ids": request.query_params.get("task_ids"), "space_id": space_id})
+        return Response(result)
+
+    @action(methods=["POST"], detail=False, url_path="get_node_outputs")
+    def get_node_outputs(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.get_node_outputs(data={"space_id": space_id, **request.data})
+        return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="get_tasks_pipeline")
+    def get_tasks_pipeline(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.get_tasks_pipeline(
+            data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
+        )
+        return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="batch_get_task_states")
+    def batch_get_task_states(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.batch_get_task_states(
+            data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
+        )
+        return Response(result)
