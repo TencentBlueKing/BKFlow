@@ -107,7 +107,9 @@
           @templateDataChanged="templateDataChanged"
           @onConditionClick="onOpenConditionEdit"
           @onShowNodeConfig="onShowNodeConfig"
-          @updateCondition="setBranchCondition($event)" />
+          @updateCondition="setBranchCondition($event)"
+          @onShowLoopVariables="onShowLoopVariables"
+          @onLoopGroupResizeEnd="onLoopGroupResizeEnd" />
       </template>
       <div class="side-content">
         <node-config
@@ -130,20 +132,31 @@
           @close="closeConfigPanel"
           @viewAllSubflowVerison="viewAllSubflowVerison"
           @closeSubflowVersionPanel="closeSubflowVersionPanel" />
+        <loop-global-variables
+          v-if="isLoopVariablePanelShow"
+          :loop-node-id="loopNodeIdForVariables"
+          :is-view-mode="isViewMode"
+          @close="isLoopVariablePanelShow = false"
+          @updateVariable="onUpdateLoopVariable"
+          @addVariable="onAddLoopVariable"
+          @deleteVariable="onDeleteLoopVariable"
+          @onChangeVariableOutput="onChangeLoopVariableOutput"
+          @onLoopVariableCitedNodeClick="onLoopVariableCitedNodeClick" />
         <condition-edit
           v-if="isShowConditionEdit"
           ref="conditionEdit"
           :is-show="isShowConditionEdit"
           :is-readonly="isViewMode || isNeedToProhibitEdit"
-          :gateways="gateways"
+          :gateways="conditionEditGateways"
           :condition-data="conditionData"
+          :loop-node-id="conditionEditLoopNodeId"
           :back-to-variable-panel="backToVariablePanel"
           :space-related-config="spaceRelatedConfig"
           @onBeforeClose="onBeforeClose"
           @updateCanvasCondition="updateCanvasCondition"
           @close="onCloseConfigPanel" />
         <template-setting
-          :is-readonly="isViewMode || isNeedToProhibitEdit"
+          :is-view-mode="isViewMode || isNeedToProhibitEdit"
           :project-info-loading="projectInfoLoading"
           :template-label-loading="templateLabelLoading"
           :template-labels="templateLabels"
@@ -262,6 +275,7 @@
   import VersionList from './VersionList.vue';
   import bus from '@/utils/bus.js';
   import SubflowUpdateTips from './SubflowUpdateTips.vue';
+  import LoopGlobalVariables from './NodeConfig/LoopGlobalVariables.vue';
   import { cloneDeepWith } from 'lodash';
   import '@blueking/bkflow-canvas-editor-vue2/style';
   import { FlowEditBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-edit';
@@ -288,6 +302,7 @@
       FlowViewBridge,
       FlowDebugBridge,
       FlowCreateTaskBridge,
+      LoopGlobalVariables,
     },
     mixins: [permission],
     props: {
@@ -342,6 +357,7 @@
           tasknode: [],
           subflow: [],
         },
+        constructedSubprocessInfo: null, // 非最新已发布版本时，从对应版本的 pipeline_tree 构造的 subprocess_info
         thirdPartyList: {},
         apiExistMap: {}, // api插件是否存在
         snapshoots: [],
@@ -409,6 +425,11 @@
         draftInfo: {},
         isManualVersionChange: true,
         isShowCreateTaskDialog: false,
+        // 循环流全局变量面板
+        isLoopVariablePanelShow: false,
+        loopNodeIdForVariables: '', // 当前打开全局变量面板的循环流节点ID
+        conditionEditGateways: {}, // 条件编辑面板使用的gateways（支持循环流内部）
+        conditionEditLoopNodeId: '',  // 条件编辑面板所属循环流节点ID（若在循环流内部）
       };
     },
     computed: {
@@ -448,11 +469,15 @@
           this.validateConnectFailList = [...new Set(this.validateConnectFailList)];
           const status = this.validateConnectFailList.includes(location.id) ? 'FAILED' : '';
           const data = { ...location, mode: 'edit', status };
+          // 未开启版本管理直接取 store；开启后仅最新已发布版本用 store，其余从 pipeline_tree 构造
+          const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
+            ? this.subprocess_info
+            : this.constructedSubprocessInfo;
           if (
-            this.subprocess_info
+            subprocessInfo
             && location.type === 'subflow'
           ) {
-            this.subprocess_info.some((subflow) => {
+            subprocessInfo.some((subflow) => {
               if (subflow.subprocess_node_id === location.id) {
                 data.hasUpdated = subflow.expired;
                 return true;
@@ -470,8 +495,12 @@
         });
       },
       subflowShouldUpdated() {
-        if (this.subprocess_info) {
-          const subflowShouldUpdateList = this.subprocess_info.reduce((acc, cur) => {
+        // 未开启版本管理直接取 store；开启后仅最新已发布版本用 store，其余从 pipeline_tree 构造
+        const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
+          ? this.subprocess_info
+          : this.constructedSubprocessInfo;
+        if (subprocessInfo) {
+          const subflowShouldUpdateList = subprocessInfo.reduce((acc, cur) => {
             const nodeId = cur.subprocess_node_id;
             if (!this.activities[nodeId]) {
               return acc;
@@ -578,6 +607,7 @@
       ...mapActions('template/', [
         'loadProjectBaseInfo',
         'loadTemplateData',
+        'batchGetTemplateVersion',
         'saveTemplateData',
         'getLayoutedPipeline',
         'loadInternalVariable',
@@ -610,6 +640,7 @@
         'setProjectBaseInfo',
         'setTemplateName',
         'setTemplateData',
+        'setInnerLocation',
         'setLocation',
         'setLocationXY',
         'setLine',
@@ -623,6 +654,11 @@
         'setPipelineTree',
         'setInternalVariable',
         'setConstants',
+        'editLoopInnerVariable',
+        'addLoopInnerVariable',
+        'deleteLoopInnerVariable',
+        'setLoopInnerVariableOutput',
+        'setLoopInnerConstants',
       ]),
       ...mapMutations('atomForm/', [
         'clearAtomForm',
@@ -652,6 +688,70 @@
         this.compVersion = null;
         this.setPipelineTree(draftTplData.data.pipeline_tree);
         this.isChangeTplVersionTime = new Date().getTime();
+        // 草稿版本需要构造 subprocess_info
+        this.buildSubprocessInfoFromTree(pipelineTree);
+      },
+      /**
+       * 查询每个子流程模板的最新版本和名称，构造 subprocess_info 数组
+       */
+      async buildSubprocessInfoFromTree(pipelineTree) {
+        if (!pipelineTree || !pipelineTree.activities) {
+          this.constructedSubprocessInfo = [];
+          return;
+        }
+        const activities = pipelineTree.activities;
+        const subProcessNodes = Object.values(activities)
+          .filter(act => act.type === 'SubProcess' && act.template_id);
+        if (subProcessNodes.length === 0) {
+          this.constructedSubprocessInfo = [];
+          return;
+        }
+        const uniqueTemplateIds = [...new Set(subProcessNodes.map(n => n.template_id))];
+        const templateDataMap = {};
+        try {
+          const res = await this.batchGetTemplateVersion({
+            templateIds: uniqueTemplateIds.join(','),
+          });
+          if (res.result) {
+            res.data.forEach((item) => {
+              templateDataMap[item.template_id] = {
+                name: item.name,
+                version: item.version,
+              };
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+        // 构造 subprocess_info
+        this.constructedSubprocessInfo = subProcessNodes.map((node) => {
+          const tplData = templateDataMap[node.template_id] || {};
+          const latestVersion = tplData.version || '';
+          return {
+            subprocess_template_id: String(node.template_id),
+            subprocess_node_id: node.id,
+            version: node.version || '',
+            always_use_latest: node.always_use_latest || false,
+            expired: latestVersion ? node.version !== latestVersion : false,
+            subprocess_template_name: tplData.name || '',
+          };
+        });
+        // 同步画布节点的小红点状态
+        this.syncCanvasSubflowHasUpdated();
+      },
+      /**
+       * 根据当前有效的 subprocess_info 更新画布上子流程节点的小红点 (hasUpdated)
+       */
+      syncCanvasSubflowHasUpdated() {
+        const processCanvas = this.$refs.processCanvas;
+        if (!processCanvas) return;
+        const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
+          ? this.subprocess_info
+          : this.constructedSubprocessInfo;
+        if (!subprocessInfo) return;
+        subprocessInfo.forEach((item) => {
+          processCanvas.onUpdateNodeInfo(item.subprocess_node_id, { hasUpdated: item.expired });
+        });
       },
       // 判断是否开启版本管理
       async checkoutSpace(spaceId) {
@@ -718,7 +818,7 @@
           // 内置插件
           const atomList = [];
           data.forEach((item) => {
-            if (item.code === 'subprocess_plugin') {
+            if (['subcanvas_plugin', 'subprocess_plugin'].includes(item.code)) {
               return;
             }
             const atom = atomList.find(atom => atom.code === item.code);
@@ -983,6 +1083,8 @@
               this.$bkMessage({
                 message: resp.message,
                 theme: 'error',
+                ellipsisLine: 2,
+                ellipsisCopy: true,
                 delay: 10000,
               });
               this.isParallelGwErrorMsg = resp.message;
@@ -1229,6 +1331,11 @@
             } else {
               isNodeValid = false; // 节点标准插件类型为空
             }
+          } else if (node.type === 'SubCanvas') {
+            // 循环容器节点：不需要 template_id，仅校验名称
+            if (!node.name) {
+              isNodeValid = false;
+            }
           } else { // @todo 子流程节点只校验名称和模板id，输入参数未校验
             if (!node.name || node.template_id === undefined) {
               isNodeValid = false;
@@ -1252,6 +1359,8 @@
           this.$bkMessage({
             message,
             theme: 'error',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
         }
@@ -1388,11 +1497,49 @@
         });
       },
       /**
+       * 查找节点location
+       */
+      getLocationById(id) {
+        let loc = this.locations.find(item => item.id === id);
+        if (loc) return loc;
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.location) continue;
+          loc = act.pipeline.location.find(item => item.id === id);
+          if (loc) return loc;
+        }
+        return undefined;
+      },
+      /**
+       * 判断节点是否在循环分组内
+       */
+      isNodeInLoopGroup(id) {
+        if (this.locations.some(item => item.id === id)) return false;
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.location) continue;
+          if (act.pipeline.location.some(item => item.id === id)) return true;
+        }
+        return false;
+      },
+      /**
+       * 查找activity数据
+       */
+      getActivityById(id) {
+        if (this.activities[id]) return this.activities[id];
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.activities) continue;
+          if (act.pipeline.activities[id]) return act.pipeline.activities[id];
+        }
+        return undefined;
+      },
+      /**
        * 打开节点配置面板
        */
       async onShowNodeConfig(id) {
         // 判断节点配置的插件是否存在
-        const nodeConfig = this.$store.state.template.activities[id];
+        const nodeConfig = this.getActivityById(id);
         const isDefaultPlugin = nodeConfig && nodeConfig.component ? !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code) : true ;
         if (nodeConfig && nodeConfig.type === 'ServiceActivity' && nodeConfig.name && isDefaultPlugin) {
           let atom = true;
@@ -1411,10 +1558,10 @@
           this.validateConnectFailList.splice(index, 1);
         }
         // 获取节点信息
-        const location = this.locations.find(item => item.id === id);
-        if (['tasknode', 'subflow'].includes(location.type)) {
+        const location = this.getLocationById(id);
+        if (location && ['tasknode', 'task', 'subflow', 'SubCanvas'].includes(location.type)) {
           // 设置第三方插件缓存
-          const nodeConfig = this.$store.state.template.activities[id];
+          const nodeConfig = this.getActivityById(id);
           // 远程插件且未缓存
           if (nodeConfig.component
             && nodeConfig.component.code === 'remote_plugin'
@@ -1486,7 +1633,8 @@
           this.$bkMessage({
             message: validateMessage.message,
             theme: 'error',
-            ellipsisLine: 0,
+            ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
           return;
@@ -1529,7 +1677,7 @@
        * @param {String} changeType 变更类型,添加、删除、编辑
        * @param {Object} location 节点 location 字段
        */
-      async onLocationChange(type, node) {
+      async onLocationChange(type, node, isGroupInner = false, groupParentId = undefined) {
         if (!node) return;
         const { id, data } = node;
         const typeMap = {
@@ -1537,23 +1685,38 @@
           subflow: 'subflow',
           start: 'start',
           end: 'end',
+          SubCanvas: 'SubCanvas',
         };
+        const normalizedType = data.type === 'tasknode' ? 'task' : data.type;
         const location = {
           id,
           ...data,
-          type: typeMap[data.type] ?? data.type.split('-').join(''),
+          type: typeMap[normalizedType] ?? normalizedType.split('-').join(''),
           ...node.position(),
+          ...node.size(),
         };
         if (data?.oldSouceId) {
           location.oldSouceId = data.oldSouceId;
         }
+        if (node.getParent()) {
+          location.parent = node.getParent().id;
+        } else if (groupParentId) {
+          // 删除节点时画布已先移除，getParent() 返回 null，使用传入的 groupParentId
+          location.parent = groupParentId;
+        }
         let { apiMeta } = data;
-        this.setLocation({ type, location });
+        // 判断节点是否在循环容器内部
+        const isInLoopGroup = isGroupInner || (location.parent && this.activities[location.parent]?.type === 'SubCanvas');
+        if (!isInLoopGroup) {
+          this.setLocation({ type, location });
+        }
         // 节点编辑时只更新position不更新activities
         if (type === 'edit') return;
-        switch (data.type) {
+        switch (normalizedType) {
           case 'task':
           case 'subflow':
+            // 循环容器内的节点由syncLoopGroupInnerNodes写入嵌套pipelineTree
+            if (isInLoopGroup) return;
             // 添加任务节点
             if (type === 'add' && location.atomId) {
               if (location.type === 'tasknode') {
@@ -1623,15 +1786,95 @@
           case 'parallel-gateway':
           case 'converge-gateway':
           case 'conditional-parallel-gateway':
+            if (isInLoopGroup) return;
             // 添加语法标识
             location.parseLang = this.spaceRelatedConfig.gateway_expression;
             this.setGateways({ type, location });
             break;
           case 'start':
-            this.setStartpoint({ type, location });
+            if (!isGroupInner) {
+              this.setStartpoint({ type, location });
+            } else {
+              // 循环容器内的开始节点：同步更新对应的 SubCanvas 的 pipeline.start_event
+              const parentId = location.parent;
+              if (parentId && this.activities[parentId] && this.activities[parentId].type === 'SubCanvas') {
+                const loopAct = this.activities[parentId];
+                if (!loopAct.pipeline) {
+                  // 初始化 pipeline
+                  this.setActivities({
+                    type: 'edit',
+                    location: {
+                      ...loopAct,
+                      pipeline: {
+                        activities: {},
+                        constants: {},
+                        flows: {},
+                        gateways: {},
+                        line: [],
+                        location: [],
+                        start_event: {},
+                        end_event: {},
+                        outputs: [],
+                      },
+                    },
+                  });
+                }
+                if (type === 'add') {
+                  loopAct.pipeline.start_event = {
+                    id: location.id,
+                    type: 'EmptyStartEvent',
+                    incoming: '',
+                    outgoing: '',
+                    name: location.name || '',
+                  };
+                } else if (type === 'delete') {
+                  loopAct.pipeline.start_event = {};
+                }
+              }
+            }
             break;
           case 'end':
-            this.setEndpoint({ type, location });
+            if (!isGroupInner) {
+              this.setEndpoint({ type, location });
+            } else {
+              const parentId = location.parent;
+              if (parentId && this.activities[parentId] && this.activities[parentId].type === 'SubCanvas') {
+                const loopAct = this.activities[parentId];
+                if (!loopAct.pipeline) {
+                  this.setActivities({
+                    type: 'edit',
+                    location: {
+                      ...loopAct,
+                      pipeline: {
+                        activities: {},
+                        constants: {},
+                        flows: {},
+                        gateways: {},
+                        line: [],
+                        location: [],
+                        start_event: {},
+                        end_event: {},
+                        outputs: [],
+                      },
+                    },
+                  });
+                }
+                if (type === 'add') {
+                  loopAct.pipeline.end_event = {
+                    id: location.id,
+                    type: 'EmptyEndEvent',
+                    incoming: '',
+                    outgoing: '',
+                    name: location.name || '',
+                  };
+                } else if (type === 'delete') {
+                  loopAct.pipeline.end_event = {};
+                }
+              }
+            }
+            break;
+          case 'SubCanvas':
+            this.setActivities({ type, location });
             break;
         }
         // 异常节点状态处理
@@ -1777,9 +2020,14 @@
        * 节点位置移动
        */
       onLocationMoveDone(node) {
+        const parent = node.getParent();
+        const position = parent && parent.isNode()
+          ? node.getPosition({ relative: false })
+          : node.position();
+
         this.setLocationXY({
           id: node.id,
-          ...node.position(),
+          ...position,
         });
       },
       /**
@@ -1792,19 +2040,55 @@
        * 更新单个节点的信息
        */
       onUpdateNodeInfo(id, data) {
-        const location = this.locations.find(item => item.id === id);
-        const updatedLocation = Object.assign(location, data);
-        this.setLocation({ type: 'edit', location: updatedLocation });
-        const { name, stage_name, group, icon, code, type, mode } = location;
-        this.$refs.processCanvas && this.$refs.processCanvas.onUpdateNodeInfo(id, {
+        const location = this.getLocationById(id);
+        if (!location) return;
+        const isInner = this.isNodeInLoopGroup(id);
+        if (isInner) {
+          // 节点在循环分组内，更新 pipeline.location
+          this.setInnerLocation({ nodeId: id, data });
+        } else {
+          const updatedLocation = Object.assign(location, data);
+          this.setLocation({ type: 'edit', location: updatedLocation });
+        }
+        let { name } = location;
+        let stageName = location.stage_name;
+        let displayType = location.type === 'tasknode' ? 'task' : location.type;
+        let displayIcon = location.icon;
+        let displayCode = location.code;
+        let displayGroup = location.group;
+
+        if (isInner) {
+          const act = this.getActivityById(id);
+          if (act) {
+            name = act.name || name;
+            stageName = act.stage_name || stageName;
+            displayType = act.type === 'SubProcess' ? 'subflow' : 'task';
+            if (act.component) {
+              if (act.component.code === 'remote_plugin') {
+                displayGroup = location.group_name || act.group_name;
+                displayCode = act.name || act.component.code;
+                displayIcon = location.group_icon || act.group_icon;
+              } else {
+                const atom = this.atomList.find(item => act.component.code === item.code);
+                if (atom) {
+                  displayIcon = atom.group_icon;
+                  displayGroup = atom.group_name;
+                  displayCode = atom.code;
+                }
+              }
+            }
+          }
+        }
+
+        this.$refs.processCanvas.onUpdateNodeInfo(id, {
           ...data,
           name,
-          stage_name,
-          group,
-          icon,
-          code,
-          type,
-          mode: mode || this.type,
+          stage_name: stageName,
+          group: displayGroup,
+          icon: displayIcon,
+          code: displayCode,
+          type: displayType,
+          mode: displayType === 'subflow' ? 'subflow' : (location.type || this.type),
         });
       },
       async jumpToTemplateMock() {
@@ -1892,7 +2176,7 @@
         });
       },
       // 点击保存模板按钮回调
-      onSaveTemplate(saveAndCreate, pid) {
+      async onSaveTemplate(saveAndCreate, pid) {
         if (this.templateSaving || this.createTaskSaving) {
           return;
         }
@@ -1906,7 +2190,11 @@
             this.isExecuteSchemeDialog = true;
           }
         } else {
-          this.checkNodeAndSaveTemplate();
+          try {
+            await this.checkNodeAndSaveTemplate();
+          } catch (error) {
+            console.warn(error);
+          }
         }
       },
       // 校验节点配置
@@ -1920,6 +2208,21 @@
           end_event: this.end_event,
           lines: this.lines,
         };
+        // 校验节点是否被循环容器遮挡
+        const overlapResult = validatePipeline.isNodeOverlappedBySubCanvas(canvasData);
+        if (!overlapResult.result) {
+          this.validateConnectFailList = overlapResult.errorId || [];
+          this.$bkMessage({
+            message: overlapResult.message,
+            theme: 'error',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
+            delay: 10000,
+          });
+          throw new Error(overlapResult.message);
+        }
+        // 清空因重叠失败记录的节点,避免status 残留
+        this.validateConnectFailList = [];
         const validateMessage = validatePipeline.isNodeLineNumValid(canvasData);
         if (!validateMessage.result) {
           // 获取检验不合格节点
@@ -1939,9 +2242,10 @@
             message: validateMessage.message,
             theme: 'error',
             ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
-          return;
+          throw new Error(validateMessage.message);
         }
         // 节点配置是否错误
         const nodeWithErrors = document.querySelectorAll('.canvas-node-item .failed');
@@ -1956,24 +2260,26 @@
             message,
             theme: 'error',
             ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
-          return;
+          throw new Error(message);
         }
         const isAllNodeValid = this.validateAtomNode();
-        if (isAllNodeValid) {
-          if (this.common && this.saveAndCreate && this.pid === undefined) { // 公共流程保存并创建任务，没有选择项目
-            this.$refs.templateHeader.setProjectSelectDialogShow();
-          } else {
-            if (this.isExecuteScheme) {
-              if (this.type === 'clone' || this.isTemplateDataChanged) {
-                this.isExecuteSchemeDialog = true;
-              } else {
-                this.isEditProcessPage = false;
-              }
+        if (!isAllNodeValid) {
+          throw new Error('validateAtomNode failed');
+        }
+        if (this.common && this.saveAndCreate && this.pid === undefined) { // 公共流程保存并创建任务，没有选择项目
+          this.$refs.templateHeader.setProjectSelectDialogShow();
+        } else {
+          if (this.isExecuteScheme) {
+            if (this.type === 'clone' || this.isTemplateDataChanged) {
+              this.isExecuteSchemeDialog = true;
             } else {
-              await this.saveTemplate();
+              this.isEditProcessPage = false;
             }
+          } else {
+            await this.saveTemplate();
           }
         }
       },
@@ -2006,6 +2312,24 @@
       onOpenConditionEdit(data) {
         this.isShowConditionEdit = true;
         this.conditionData = { ...data };
+        const { nodeId } = data;
+        let gateways = {};
+        let loopNodeId = '';
+        if (this.gateways[nodeId]) {
+          gateways = this.gateways;
+        } else {
+          const activitiesList = Object.values(this.activities);
+          for (const act of activitiesList) {
+            if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.gateways) continue;
+            if (act.pipeline.gateways[nodeId]) {
+              gateways = act.pipeline.gateways;
+              loopNodeId = act.id;
+              break;
+            }
+          }
+        }
+        this.conditionEditGateways = gateways;
+        this.conditionEditLoopNodeId = loopNodeId;
       },
       // 分支条件侧滑点击遮罩事件
       onBeforeClose() {
@@ -2025,7 +2349,7 @@
       },
       // 更新分支数据
       updateCanvasCondition(data) {
-        // 更新 cavans 页面数据
+        // 更新 canvas 页面数据
         this.$refs.processCanvas.updateConditionCanvasData(data);
       },
       // 流程模板数据编辑更新
@@ -2077,6 +2401,78 @@
           this.activeSettingTab = '';
           this.onOpenConditionEdit(conditionData);
         }
+      },
+      // 显示循环流全局变量面板
+      onShowLoopVariables(loopNodeId) {
+        const loopNode = this.$store.state.template.activities[loopNodeId];
+        if (!loopNode || loopNode.type !== 'SubCanvas') {
+          return;
+        }
+        this.isLoopVariablePanelShow = true;
+        this.loopNodeIdForVariables = loopNodeId;
+        // 关闭其他面板
+        this.isNodeConfigPanelShow = false;
+        this.isShowConditionEdit = false;
+      },
+      // 循环流容器节点 resize 结束：持久化尺寸到 location 数据
+      onLoopGroupResizeEnd(node) {
+        const { id } = node;
+        const { x, y } = node.position();
+        const { width, height } = node.size();
+        this.setLocationXY({ id, x, y, width, height });
+        this.$emit('templateDataChanged');
+      },
+      // 循环流变量面板引用节点点击回调
+      onLoopVariableCitedNodeClick(data) {
+        const { group, id } = data;
+        // 关闭循环流变量面板
+        this.isLoopVariablePanelShow = false;
+        if (group === 'activities') {
+          // 打开节点配置面板
+          this.showConfigPanel(id);
+        } else if (group === 'conditions') {
+          const loopNode = this.$store.state.template.activities[this.loopNodeIdForVariables];
+          const { gateways, line } = loopNode.pipeline;
+          const curLLine = line.find(l => l.id === id);
+          const nodeId = curLLine.source.id;
+          const lineCondition = gateways[nodeId]?.conditions?.[id];
+          const { evaluate, name } = lineCondition;
+          const conditionData = {
+            id,
+            name,
+            nodeId,
+            overlayId: `condition${id}`,
+            value: evaluate,
+          };
+          this.onOpenConditionEdit(conditionData);
+        }
+      },
+      // 更新循环流内部变量
+      onUpdateLoopVariable(payload) {
+        this.editLoopInnerVariable(payload);
+        this.templateDataChanged();
+      },
+      // 添加循环流内部变量
+      onAddLoopVariable(payload) {
+        const { loopNodeId, variable } = payload;
+        // 生成变量 key
+        const loopNode = this.$store.state.template.activities[loopNodeId];
+        const constants = loopNode && loopNode.pipeline ? loopNode.pipeline.constants : {};
+        const varLen = Object.keys(constants).length;
+        variable.key = `\${${variable.name}_${varLen}}`;
+        variable.index = varLen;
+        this.addLoopInnerVariable({ loopNodeId, variable });
+        this.templateDataChanged();
+      },
+      // 删除循环流内部变量
+      onDeleteLoopVariable(payload) {
+        this.deleteLoopInnerVariable(payload);
+        this.templateDataChanged();
+      },
+      // 改变循环流内部变量输出状态
+      onChangeLoopVariableOutput({ key, checked, loopNodeId }) {
+        this.setLoopInnerVariableOutput({ loopNodeId, key, checked });
+        this.templateDataChanged();
       },
       /**
        * 移动画布，将节点放到画布左上角
@@ -2207,9 +2603,13 @@
         }
       },
       // 多 tab 打开同一流程模板
-      onMultipleTabConfirm() {
-        this.checkNodeAndSaveTemplate();
-        this.multipleTabDialogShow = false;
+      async onMultipleTabConfirm() {
+        try {
+          await this.checkNodeAndSaveTemplate();
+          this.multipleTabDialogShow = false;
+        } catch (error) {
+          console.warn(error);
+        }
       },
       getTplTabData() {
         return {
@@ -2269,9 +2669,17 @@
             templateId: this.templateId,
             version,
           });
-          this.setPipelineTree(previewData.data.pipeline_tree);
+          const pipelineTree = previewData.data.pipeline_tree;
+          this.setPipelineTree(pipelineTree);
           this.isChangeTplVersionTime = new Date().getTime();
           this.compVersion = version;
+          // 开启版本管理且非最新已发布版本时，需要用该版本数据构造 subprocess_info
+          if (this.isEnableVersionManage && version !== this.latestedVersion) {
+            this.buildSubprocessInfoFromTree(pipelineTree);
+          } else {
+            // 最新已发布版本或未开启版本管理，同步 store 的 subprocess_info 到画布节点
+            this.syncCanvasSubflowHasUpdated();
+          }
         }
         this.isAtPublish = false;
         // this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;

@@ -188,6 +188,8 @@ MAKO_SANDBOX_SHIELD_WORDS = [
     "vars",
     "__import__",
 ]
+LOOP_OUTPUTS_INNER_KEY = env.PIPELINE_LOOP_OUTPUTS_INNER_KEY
+BambooSettings.LOOP_OUTPUTS_INNER_KEY = LOOP_OUTPUTS_INNER_KEY
 BambooSettings.MAKO_SANDBOX_SHIELD_WORDS = MAKO_SANDBOX_SHIELD_WORDS
 MAKO_SANDBOX_IMPORT_MODULES = {
     "datetime": "datetime",
@@ -201,6 +203,28 @@ MAKO_SANDBOX_IMPORT_MODULES = {
 BambooSettings.MAKO_SANDBOX_IMPORT_MODULES = MAKO_SANDBOX_IMPORT_MODULES
 # 支持 mako 表达式在 dict/list/tuple 情况下嵌套索引
 BambooSettings.ENABLE_RENDER_OBJ_BY_MAKO_STRING = True
+
+# Mako 模板根标识符白名单（详见 bamboo_engine.utils.mako_safety）：
+#   - off     -> 关闭白名单，回退到历史 deny-list（兼容旧用法）
+#   - warn    -> 仅打日志不拦截（灰度阶段使用，线上灰度若干天确认无误伤再切 enforce）
+#   - enforce -> 命中即按 ForbiddenMakoTemplateException 风格 inert 掉模板片段
+# 通过 ``BKFLOW_MAKO_WHITELIST_MODE`` 环境变量覆盖（默认 enforce）。
+MAKO_TEMPLATE_NAME_WHITELIST_MODE = env.BKFLOW_MAKO_WHITELIST_MODE
+if MAKO_TEMPLATE_NAME_WHITELIST_MODE not in {"off", "warn", "enforce"}:
+    raise ValueError(
+        "invalid BKFLOW_MAKO_WHITELIST_MODE: %r (must be one of 'off' / 'warn' / 'enforce')"
+        % MAKO_TEMPLATE_NAME_WHITELIST_MODE
+    )
+
+# 渲染期注入到 Mako context 的特殊根名（不会出现在 user-defined context keys 里）：
+# - ``_system``：``TaskContext`` / ``SystemObject``，承载 ``executor / task_id /
+#   task_start_time / task_name`` 等。详见 ``bkflow/utils/context.py``。
+# - ``_loop`` / ``_inner_loop``：循环节点的迭代序号，详见
+#   ``docs/apidoc/zh/sdk_get_task_node_detail.md``。
+MAKO_TEMPLATE_NAME_EXTRA_WHITELIST = frozenset({"_system", "_loop", "_inner_loop"})
+
+BambooSettings.MAKO_TEMPLATE_NAME_WHITELIST_MODE = MAKO_TEMPLATE_NAME_WHITELIST_MODE
+BambooSettings.MAKO_TEMPLATE_NAME_EXTRA_WHITELIST = MAKO_TEMPLATE_NAME_EXTRA_WHITELIST
 
 # 所有环境的日志级别可以在这里配置
 # LOG_LEVEL = 'INFO'
@@ -316,20 +340,20 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
         "propagate": True,
     }
 
-    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": True}
+    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": False}
 
     logging_dict["loggers"]["pipeline.eri.log"] = {"handlers": ["pipeline_eri"], "level": "INFO", "propagate": True}
 
     logging_dict["loggers"]["bamboo_engine"] = {
         "handlers": ["root", "bamboo_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["pipeline_engine"] = {
         "handlers": ["root", "pipeline_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["bk-monitor-report"] = {
@@ -346,8 +370,6 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
                 for handler in logger_config["handlers"]
                 if handler not in ["pipeline_engine_context", "bamboo_engine_context", "pipeline_eri"]
             ]
-            if not logger_config["handlers"]:
-                logger_config["handlers"] = ["root"]
 
     def handler_filter_injection(filters: list):
         for _, handler in logging_dict["handlers"].items():
@@ -464,3 +486,12 @@ if locals().get("DISABLED_APPS"):
 
 TEMPLATE_MAX_RECURSIVE_NUMBER = env.TEMPLATE_MAX_RECURSIVE_NUMBER
 REQUEST_RETRY_NUMBER = env.REQUEST_RETRY_NUMBER
+
+MAX_LOOP_TIMES = env.MAX_LOOP_TIMES
+
+# webhook配置
+MAX_WEBHOOK_RETRY_TIMES = env.MAX_WEBHOOK_RETRY_TIMES
+MAX_WEBHOOK_RETRY_INTERVAL = env.MAX_WEBHOOK_RETRY_INTERVAL
+MAX_WEBHOOK_TIMEOUT = env.MAX_WEBHOOK_TIMEOUT
+
+PLUGIN_LOOP_OUTPUTS_KEY = env.PLUGIN_LOOP_OUTPUTS_KEY

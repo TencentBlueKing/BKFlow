@@ -280,8 +280,9 @@ const template = {
           }
           if (key === 'location') {
             val = val.map((item) => {
-              if (item.type === 'tasknode' || item.type === 'subflow' || item.type === 'SubProcess') {
+              if (item.type === 'tasknode' || item.type === 'subflow' || item.type === 'SubProcess' || item.type === 'SubCanvas') {
                 const node = state.activities[item.id];
+                if (!node) return item;
                 const loc = Object.assign({}, item, {
                   name: node.name,
                   stage_name: node.stage_name,
@@ -514,26 +515,33 @@ const template = {
     },
     // 配置分支网关条件
     setBranchCondition(state, condition) {
-      const { id, nodeId, name, value, loc, default_condition: defaultCondition } = condition;
-      const { conditions } = state.gateways[nodeId];
+      const { id, nodeId, name, value, loc, default_condition: defaultCondition, loopNodeId } = condition;
+      // 若条件属于循环流内部，则从loopNodeId对应的 pipeline 中获取网关配置
+      let gatewayState;
+      if (loopNodeId && state.activities[loopNodeId] && state.activities[loopNodeId].pipeline) {
+        gatewayState = state.activities[loopNodeId].pipeline;
+      } else {
+        gatewayState = state;
+      }
+      const { conditions } = gatewayState.gateways[nodeId];
       if (defaultCondition) {
-        state.gateways[nodeId].default_condition = defaultCondition;
+        gatewayState.gateways[nodeId].default_condition = defaultCondition;
         Vue.delete(conditions, id);
       } else if (conditions[id]) {
         conditions[id].name = name;
         conditions[id].evaluate = value;
       } else if (!conditions[id]) {
-        const { tag } = state.gateways[nodeId].default_condition;
+        const { tag } = gatewayState.gateways[nodeId].default_condition;
         conditions[id] = {
           tag,
           name,
           evaluate: value,
         };
-        Vue.delete(state.gateways[nodeId], 'default_condition');
+        Vue.delete(gatewayState.gateways[nodeId], 'default_condition');
       }
       if (loc !== undefined) {
         if (defaultCondition) {
-          state.gateways[nodeId].default_condition.loc = loc;
+          gatewayState.gateways[nodeId].default_condition.loc = loc;
         } else if (conditions[id]) {
           conditions[id].loc = loc;
         }
@@ -554,7 +562,9 @@ const template = {
         const loc = tools.deepClone(location);
         delete loc.atomId; // 添加节点后删除标准插件类型字段
         state.location.push(loc);
-      } else {
+      } else if (isLocationExist) {
+        // 只有当目标 id 在 location 中实际存在时才执行编辑/删除操作
+        // 否则 splice(undefined, 1) 会误删数组的第一个元素
         if (type === 'edit') {
           state.location.splice(locationIndex, 1, location);
         } else if (type === 'delete') {
@@ -562,12 +572,27 @@ const template = {
         }
       }
     },
-    // 节点拖动，位置更新
+    // 节点拖动，位置/尺寸更新
     setLocationXY(state, location) {
-      const { id, x, y } = location;
+      const { id, x, y, width, height } = location;
       const data = state.location.find(item => item.id === id);
-      data.x = x;
-      data.y = y;
+      if (data) {
+        data.x = x;
+        data.y = y;
+        if (width !== undefined) data.width = width;
+        if (height !== undefined) data.height = height;
+        return;
+      }
+      Object.values(state.activities).forEach((act) => {
+        if (act.type !== 'SubCanvas' || !act.pipeline) return;
+        const loc = act.pipeline.location.find(item => item.id === id);
+        if (loc) {
+          loc.x = x;
+          loc.y = y;
+          if (width !== undefined) loc.width = width;
+          if (height !== undefined) loc.height = height;
+        }
+      });
     },
     // 增加、删除节点连线操作，更新模板各相关字段数据
     setLine(state, payload) {
@@ -585,11 +610,9 @@ const template = {
           source: sourceNode,
           target: targetNode,
         });
-
         if (state.activities[sourceNode]) {
           state.activities[sourceNode].outgoing = id;
         }
-
         if (state.activities[targetNode]) {
           state.activities[targetNode].incoming = updateIncoming(state.activities[targetNode].incoming, id, 'add');
         }
@@ -601,6 +624,18 @@ const template = {
         if (state.end_event.id === targetNode) {
           state.end_event.incoming = updateIncoming(state.end_event.incoming, id, 'add');
         }
+
+        // 循环容器内部开始/结束节点连线处理
+        Object.values(state.activities).forEach((a) => {
+          if (a.type !== 'SubCanvas' || !a.pipeline) return;
+          const pt = a.pipeline;
+          if (pt.start_event && pt.start_event.id === sourceNode) {
+            pt.start_event.outgoing = id;
+          }
+          if (pt.end_event && pt.end_event.id === targetNode) {
+            pt.end_event.incoming = updateIncoming(pt.end_event.incoming, id, 'add');
+          }
+        });
 
         if (state.gateways[sourceNode]) {
           const gatewayNode = state.gateways[sourceNode];
@@ -688,6 +723,18 @@ const template = {
           state.end_event.incoming = updateIncoming(state.end_event.incoming, deletedLine.id, 'delete');
         }
 
+        // 循环容器内部开始/结束节点连线删除处理
+        Object.values(state.activities).forEach((a) => {
+          if (a.type !== 'SubCanvas' || !a.pipeline) return;
+          const pt = a.pipeline;
+          if (pt.start_event && pt.start_event.id === sourceNode) {
+            pt.start_event.outgoing = '';
+          }
+          if (pt.end_event && pt.end_event.id === targetNode) {
+            pt.end_event.incoming = updateIncoming(pt.end_event.incoming, deletedLine.id, 'delete');
+          }
+        });
+
         state.line = state.line.filter(ln => ln.id !== deletedLine.id);
         if (state.gateways[sourceNode]) {
           const gatewayNode = state.gateways[sourceNode];
@@ -750,6 +797,7 @@ const template = {
                 seconds: 10,
                 action: 'forced_fail',
               },
+              parent: location.parent || null,
             };
           } else if (location.type === 'subflow') {
             activity = {
@@ -771,6 +819,38 @@ const template = {
               always_use_latest: false,
               scheme_id_list: [],
               template_source: location.tplSource || 'business',
+              parent: location.parent || null,
+            };
+          } else if (location.type === 'SubCanvas') {
+            activity = {
+              constants: {},
+              hooked_constants: [],
+              error_ignorable: false,
+              id: location.id,
+              incoming: [],
+              loop: null,
+              name: location.name || '',
+              optional: true,
+              outgoing: '',
+              stage_name: '',
+              template_id: location.atomId,
+              version: location.atomVersion,
+              type: 'SubCanvas',
+              retryable: true,
+              skippable: true,
+              always_use_latest: false,
+              scheme_id_list: [],
+              template_source: location.tplSource || 'business',
+              pipeline: null,
+              loop_config: {
+                enable: true,
+                type: 'time_loop',
+                loop_times: 3,
+                loop_params: {},
+                fail_skip: false,
+                retryable: true,
+                skippable: true,
+              },
             };
           }
           Vue.set(state.activities, location.id, activity);
@@ -805,6 +885,14 @@ const template = {
             newActivitie.incoming = '';
             newActivitie.loop = null;
             newActivitie.outgoing = '';
+            newActivitie.parent = location.parent || null;
+            state.activities[location.id] = newActivitie;
+          } else if (location.type === 'SubCanvas') {
+            // 复制 SubCanvas：直接 deepClone，嵌套 pipeline 中的子节点 ID 由 copyLoopGroupLocationAndFlows 负责重映射
+            newActivitie.id = location.id;
+            newActivitie.incoming = '';
+            newActivitie.outgoing = '';
+            newActivitie.parent = location.parent || null;
             state.activities[location.id] = newActivitie;
           }
         }
@@ -831,6 +919,43 @@ const template = {
           }
         });
       }
+    },
+    // 更新嵌套pipelineTree 中的activity数据
+    setInnerActivity(state, { nodeId, config }) {
+      let found = false;
+      Object.values(state.activities).forEach((act) => {
+        if (act.type !== 'SubCanvas' || !act.pipeline) return;
+        const pt = act.pipeline;
+        if (pt.activities && pt.activities[nodeId]) {
+          // 保留 pipeline 特有的字段（parent），用配置数据覆盖其余字段
+          const existingParent = pt.activities[nodeId].parent;
+          pt.activities[nodeId] = { ...config, parent: existingParent };
+          // 同步更新 location 中的 name 和 stage_name
+          if (pt.location) {
+            const loc = pt.location.find(l => l.id === nodeId);
+            if (loc) {
+              loc.name = config.name || '';
+              loc.stage_name = config.stage_name || '';
+            }
+          }
+          found = true;
+        }
+      });
+      if (!found && process.env.NODE_ENV === 'development') {
+        console.warn(`[setInnerActivity] node ${nodeId} not found in any pipeline`);
+      }
+    },
+    // 更新嵌套pipelineTree中的location数据
+    setInnerLocation(state, { nodeId, data }) {
+      Object.values(state.activities).forEach((item) => {
+        if (item.type !== 'SubCanvas' || !item.pipeline) return;
+        const innerPipeline = item.pipeline;
+        if (!innerPipeline.location) return;
+        const locIdx = innerPipeline.location.findIndex(l => l.id === nodeId);
+        if (locIdx >= 0) {
+          Object.assign(innerPipeline.location[locIdx], data);
+        }
+      });
     },
     // 网关节点增加、删除操作，更新模板各相关字段数据
     setGateways(state, payload) {
@@ -860,6 +985,9 @@ const template = {
           if (location.type !== 'convergegateway') {
             state.gateways[location.id].converge_gateway_id = location.convergeGatewayId || '';
           }
+          if (location.parent) {
+            state.gateways[location.id].parent = location.parent;
+          }
         }
       } else if (type === 'delete') {
         Vue.delete(state.gateways, location.id);
@@ -870,6 +998,17 @@ const template = {
               Vue.set(state.gateways[gateway.id], 'converge_gateway_id', '');
             }
           });
+        }
+      } else if (type === 'edit') {
+        // 编辑已有网关
+        if (state.gateways[location.id]) {
+          Object.assign(state.gateways[location.id], location);
+          // 如果传入数据中不包含parent（即网关从分组中移出），显式清除残留的parent
+          if (!('parent' in location) && state.gateways[location.id].parent) {
+            Vue.delete(state.gateways[location.id], 'parent');
+          }
+        } else {
+          Vue.set(state.gateways, location.id, { ...location });
         }
       }
     },
@@ -948,6 +1087,90 @@ const template = {
     setSpaceId(state, id) {
       state.spaceId = id;
     },
+    // 批量设置循环流内部变量
+    setLoopInnerConstants(state, payload) {
+      const { loopNodeId, constants } = payload;
+      const loopNode = state.activities[loopNodeId];
+      if (!loopNode || !loopNode.pipeline) return;
+      Vue.set(loopNode.pipeline, 'constants', constants);
+      Vue.set(loopNode, 'constants', tools.deepClone(constants));
+    },
+    // 添加循环流内部变量
+    addLoopInnerVariable(state, payload) {
+      const { loopNodeId, variable } = payload;
+      const loopNode = state.activities[loopNodeId];
+      if (loopNode && loopNode.pipeline) {
+        if (!loopNode.pipeline.constants) {
+          Vue.set(loopNode.pipeline, 'constants', {});
+        }
+        Vue.set(loopNode.pipeline.constants, variable.key, variable);
+        if (!loopNode.constants) {
+          Vue.set(loopNode, 'constants', {});
+        }
+        Vue.set(loopNode.constants, variable.key, tools.deepClone(variable));
+      }
+    },
+    // 编辑循环流内部变量
+    editLoopInnerVariable(state, payload) {
+      const { loopNodeId, key, variable } = payload;
+      const loopNode = state.activities[loopNodeId];
+      if (loopNode && loopNode.pipeline && loopNode.pipeline.constants) {
+        Vue.delete(loopNode.pipeline.constants, key);
+        Vue.set(loopNode.pipeline.constants, variable.key, variable);
+        if (loopNode.constants) {
+          if (loopNode.constants[key]) {
+            Vue.delete(loopNode.constants, key);
+          }
+          Vue.set(loopNode.constants, variable.key, tools.deepClone(variable));
+        }
+      }
+    },
+    // 删除循环流内部变量
+    deleteLoopInnerVariable(state, payload) {
+      const { loopNodeId, key } = payload;
+      const loopNode = state.activities[loopNodeId];
+      if (loopNode && loopNode.pipeline && loopNode.pipeline.constants) {
+        if (loopNode.pipeline.constants[key]) {
+          Vue.delete(loopNode.pipeline.constants, key);
+        }
+        // 同步删除 loopNode.constants 中的变量
+        if (loopNode.constants && loopNode.constants[key]) {
+          Vue.delete(loopNode.constants, key);
+        }
+        // 如果变量勾选了输出，从 pipeline.outputs 列表中移除
+        if (loopNode.pipeline && loopNode.pipeline.outputs && loopNode.pipeline.outputs.includes(key)) {
+          loopNode.pipeline.outputs.splice(loopNode.pipeline.outputs.indexOf(key), 1);
+        }
+      }
+    },
+    // 编辑循环流内部变量 key 时同步更新 pipeline.outputs 中的 key
+    editLoopInnerVariableOutputKey(state, payload) {
+      const { loopNodeId, oldKey, newKey } = payload;
+      const loopNode = state.activities[loopNodeId];
+      if (!loopNode || !loopNode.pipeline || !loopNode.pipeline.outputs) return;
+      const idx = loopNode.pipeline.outputs.indexOf(oldKey);
+      if (idx > -1) {
+        Vue.set(loopNode.pipeline.outputs, idx, newKey);
+      }
+    },
+    // 设置循环流内部变量的输出状态
+    setLoopInnerVariableOutput(state, payload) {
+      const { loopNodeId, key, checked } = payload;
+      const loopNode = state.activities[loopNodeId];
+      if (!loopNode || !loopNode.pipeline) return;
+      if (!loopNode.pipeline.outputs) {
+        Vue.set(loopNode.pipeline, 'outputs', []);
+      }
+      if (checked) {
+        if (!loopNode.pipeline.outputs.includes(key)) {
+          loopNode.pipeline.outputs.push(key);
+        }
+      } else {
+        if (loopNode.pipeline.outputs.includes(key)) {
+          loopNode.pipeline.outputs.splice(loopNode.pipeline.outputs.indexOf(key), 1);
+        }
+      }
+    },
   },
   actions: {
     loadProjectBaseInfo() {
@@ -968,6 +1191,13 @@ const template = {
           'Tpl-Node-Permission-Check': checkPermission,
         },
       }).then(response => response.data.data);
+    },
+    // 批量获取模板最新版本信息
+    batchGetTemplateVersion({}, data) {
+      const { templateIds } = data;
+      return axios.get('api/template/batch_get_template_version/', {
+        params: { template_ids: templateIds },
+      }).then(response => response.data);
     },
     loadCustomVarCollection() {
       return axios.get('api/template/variable/').then(response => response.data.data);
@@ -1006,8 +1236,11 @@ const template = {
         stage_name: item.stage_name,
         x: item.x,
         y: item.y,
+        width: item.width,
+        height: item.height,
         group: item.group,
         icon: item.icon,
+        parent: item.parent || undefined,
       }));
       // 剔除 gateways condition中默认分支配置
       const pureGateways = Object.values(gateways).reduce((acc, cur) => {
@@ -1124,14 +1357,6 @@ const template = {
     getProcessOpenRetryAndTimeout({}, data) {
       const { id } = data;
       return axios.get(`/api/template/${id}/enable_independent_subprocess/`, { params: data }).then(response => response.data);
-    },
-    // 批量获取任务是否有独立子任务
-    getTaskHasSubTasks({}, data) {
-      return axios.get('/api/taskflow/root_task_info/', { params: data }).then(response => response.data);
-    },
-    // 获取某个任务的子任务列表
-    getTaskHasSubTaskList({}, data) {
-      return axios.get('/api/taskflow/list_children_taskflow/', { params: data }).then(response => response.data);
     },
     // 获取流程详情公开信息
     getTemplatePublicData({}, data) {
@@ -1298,6 +1523,9 @@ const template = {
         status: item.status,
         x: item.x,
         y: item.y,
+        width: item.width,
+        height: item.height,
+        parent: item.parent || undefined,
       }));
       return {
         activities,

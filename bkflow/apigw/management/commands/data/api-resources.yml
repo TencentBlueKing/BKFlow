@@ -2014,6 +2014,12 @@ paths:
                       updated_by:
                         type: string
                         description: 流程更新者
+                      enable_webhook:
+                        type: boolean
+                        description: 是否启用webhook
+                      webhook_configs:
+                        type: object
+                        description: webhook配置
                     description: result=true 时成功数据，详细信息请见下面说明
                   message:
                     type: string
@@ -2075,6 +2081,9 @@ paths:
                   type: object
                   description: 模板信息
                   additionalProperties: true
+                webhook_configs:
+                  type: object
+                  description: webhook配置
         required: true
         description: ''
       x-bk-apigateway-resource:
@@ -2284,6 +2293,16 @@ paths:
           type: string
         required: true
         description: ''
+      - in: query
+        name: task_id_list
+        schema:
+          type: array
+          items:
+            type: integer
+        style: form
+        explode: true
+        required: false
+        description: 任务ID列表，按列表精确过滤；GET 请求使用重复 key 形式传参，例如 ?task_id_list=1&task_id_list=3&task_id_list=5；若传入该参数，必须至少包含一个值，最多 50 个长度
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -3481,6 +3500,12 @@ paths:
                       updated_by:
                         type: string
                         description: 流程更新者
+                      enable_webhook:
+                        type: boolean
+                        description: 是否启用webhook
+                      webhook_configs:
+                        type: object
+                        description: webhook配置
                     description: result=true 时成功数据，详细信息请见下面说明
                   message:
                     type: string
@@ -3543,6 +3568,12 @@ paths:
                   type: object
                   description: 模板信息
                   additionalProperties: true
+                enable_webhook:
+                  type: boolean
+                  description: 是否启用webhook
+                webhook_configs:
+                  type: object
+                  description: webhook配置
         required: true
         description: ''
       x-bk-apigateway-resource:
@@ -5411,3 +5442,172 @@ paths:
         descriptionEn: Get label reference counts
         enableWebsocket: false
         pluginConfigs: []
+  /sdk/task/get_task_node_detail/{task_id}/node/{node_id}/:
+    get:
+      operationId: sdk_get_task_node_detail
+      summary: Get task node detail
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}task/get_task_node_detail/{task_id}/node/{node_id}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /sdk/task/get_node_snapshot_config/{task_id}/{node_id}/:
+    get:
+      operationId: sdk_get_node_snapshot_config
+      summary: Get node snapshot config
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}task/get_node_snapshot_config/{task_id}/{node_id}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /sdk/task/get_task_node_log/{task_id}/{node_id}/{version}/:
+    get:
+      operationId: sdk_get_task_node_log
+      summary: Get task node log
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}task/get_task_node_log/{task_id}/{node_id}/{version}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /sdk/template/{template_id}/create_mock_task/:
+    post:
+      operationId: sdk_create_mock_task
+      summary: 创建MOCK任务
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/{template_id}/create_mock_task/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/plugin_service/logs/:
+    post:
+      operationId: sdk_get_plugin_service_logs
+      summary: Get plugin service logs
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/plugin_service/logs/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/get_plugin_outputs/:
+    post:
+      operationId: get_plugin_outputs
+      description: 获取插件输出
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_plugin_outputs/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get plugin outputs
+        enableWebsocket: false
+        pluginConfigs: [ ]

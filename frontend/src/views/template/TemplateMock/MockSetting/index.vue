@@ -53,6 +53,7 @@
             :inputs-render-config="inputsRenderConfig"
             :sub-flow-forms="subFlowForms"
             :is-sub-flow="isSubFlow"
+            :is-sub-canvas="isSubCanvas"
             :is-api-plugin="isApiPlugin"
             :constants="constants"
             @updateOutputs="updateOutputs" />
@@ -63,7 +64,8 @@
           <ControlOption
             :node-config="nodeConfig"
             :activities="activities"
-            :is-sub-flow="isSubFlow" />
+            :is-sub-flow="isSubFlow"
+            :is-sub-canvas="isSubCanvas" />
         </bk-tab-panel>
       </bk-tab>
     </div>
@@ -149,7 +151,10 @@
         return this.activities[this.nodeId];
       },
       isSubFlow() {
-        return this.nodeConfig.type !== 'ServiceActivity';
+        return this.nodeConfig.type === 'SubProcess';
+      },
+      isSubCanvas() {
+        return this.nodeConfig.type === 'SubCanvas';
       },
       isThirdPartyNode() {
         return this.nodeConfig.component.code === 'remote_plugin';
@@ -228,7 +233,7 @@
       // 初始化节点数据
       async initData() {
         try {
-          if (this.isSubFlow) {
+          if (this.isSubFlow || this.isSubCanvas) {
             const forms = {};
             const renderConfig = {};
             const constants = this.nodeConfig.constants || {};
@@ -239,7 +244,26 @@
                 renderConfig[key] = 'need_render' in form ? form.need_render : true;
               }
             });
-            await this.getSubFlowDetail(this.compVersion);
+            if (this.isSubFlow) {
+              await this.getSubFlowDetail(this.compVersion);
+            } else {
+              const { pipeline } = this.nodeConfig || {};
+              this.subFlowForms = pipeline.constants;
+              // 输出变量
+              this.outputs = pipeline.outputs.map((item) => {
+                const output = pipeline.constants[item];
+                const has = Object.prototype.hasOwnProperty;
+                return {
+                  plugin_code: output.plugin_code,
+                  name: output.name,
+                  key: output.key,
+                  version: has.call(output, 'version')
+                    ? output.version
+                    : 'legacy',
+                  type: output.custom_type,
+                };
+              });
+            }
             this.inputs = await this.getSubFlowInputsConfig();
             this.inputsFormData = this.getSubFlowInputsValue(forms);
             this.inputsRenderConfig = renderConfig;
@@ -308,7 +332,10 @@
             ...resp.data.custom_constants,
             ...resp.data.constants_not_referred,
           };
-
+          if (this.nodeConfig.loop_config?.enable) {
+            this.outputs = [];
+            return;
+          }
           // 输出变量
           this.outputs = Object.keys(resp.data.outputs).map((item) => {
             const output = resp.data.outputs[item];
