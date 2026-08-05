@@ -50,6 +50,7 @@
 
 <script>
   import { mapActions } from 'vuex';
+  import tools from '@/utils/tools.js';
   import NoData from '@/components/common/base/NoData.vue';
   export default {
     name: 'ApiPlugin',
@@ -170,7 +171,7 @@
           });
           if (!resp.result) return;
           const pluginList = resp.data.apis;
-          const searchStr = this.escapeRegExp(this.searchStr);
+          const searchStr = tools.escapeRegExp(this.searchStr);
           const reg = new RegExp(searchStr, 'i');
           pluginList.forEach((item) => {
             if (this.searchStr !== '') {
@@ -216,12 +217,6 @@
           metaUrl: plugin.meta_url,
           apiKey: this.crtApiKey,
         });
-      },
-      escapeRegExp(str) {
-        if (typeof str !== 'string') {
-          return '';
-        }
-        return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&');
       },
     },
   };

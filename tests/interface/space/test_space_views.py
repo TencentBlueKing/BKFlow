@@ -7,7 +7,9 @@ import pytest
 from blueapps.account.models import User
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, force_authenticate
+from webhook.base_models import Scope
 
+from bkflow.constants import WebhookScopeType
 from bkflow.space.configs import ApiGatewayCredentialConfig, SuperusersConfig
 from bkflow.space.models import (
     Credential,
@@ -242,7 +244,13 @@ class TestSpaceInternalViewSet:
     def test_broadcast_task_events(self, mock_signal):
         """Test broadcast_task_events action"""
         view = SpaceInternalViewSet.as_view({"post": "broadcast_task_events"})
-        data = {"space_id": self.space.id, "event": "task_created", "extra_info": {"task_id": 123}}
+        data = {
+            "space_id": self.space.id,
+            "template_id": 1,
+            "task_id": 123,
+            "event": "task_created",
+            "extra_info": {"task_id": 123},
+        }
         request = self.factory.post("/spaces/broadcast_task_events/", data, format="json")
         force_authenticate(request, user=self.user)
 
@@ -251,7 +259,16 @@ class TestSpaceInternalViewSet:
         assert response.status_code == 200
         # Response is wrapped by SimpleGenericViewSet.finalize_response
         assert response.data.get("data") == "success"
-        mock_signal.send.assert_called_once()
+        # broadcast_task_events 会触发两次 signal：空间级别 + 流程级别
+        assert mock_signal.send.call_count == 2
+        calls = mock_signal.send.call_args_list
+        # 第一次：空间级别回调
+        assert calls[0].kwargs["sender"] == "task_created"
+        assert calls[0].kwargs["scopes"] == [Scope(type=WebhookScopeType.SPACE.value, code=str(self.space.id))]
+        # 第二次：流程级别回调
+        assert calls[1].kwargs["sender"] == "task_created"
+        assert calls[1].kwargs["scopes"] == [Scope(type=WebhookScopeType.TEMPLATE.value, code="1")]
+        assert calls[1].kwargs["extra_info"]["delivery_id"] == 123
 
     def test_get_credential_config(self):
         """Test get_credential_config with existing and non-existing credentials"""

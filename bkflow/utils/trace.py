@@ -164,6 +164,7 @@ def create_execution_span(
     space_id: int,
     pipeline_instance_id: str,
     operator: str = None,
+    custom_span_attributes: dict = None,
 ) -> tuple:
     """创建执行级根 Span，作为任务内所有插件 Span 的统一父级
 
@@ -174,6 +175,7 @@ def create_execution_span(
     :param space_id: 空间 ID
     :param pipeline_instance_id: pipeline 实例 ID
     :param operator: 操作人
+    :param custom_span_attributes: 自定义 Span 属性
     :return: (trace_id_hex, span_id_hex) 元组，失败时返回 (None, None)
     """
     if not settings.ENABLE_OTEL_TRACE:
@@ -202,6 +204,12 @@ def create_execution_span(
         span.set_attribute(f"{platform_code}.pipeline_instance_id", str(pipeline_instance_id))
         if operator is not None:
             span.set_attribute(f"{platform_code}.operator", str(operator))
+        if isinstance(custom_span_attributes, dict):
+            reserved_attribute_keys = {"task_id", "space_id", "pipeline_instance_id", "operator"}
+            for key, value in custom_span_attributes.items():
+                if key in reserved_attribute_keys or value is None:
+                    continue
+                span.set_attribute(f"{platform_code}.{key}", str(value))
 
         span_context = span.get_span_context()
         trace_id_hex = format(span_context.trace_id, "032x")

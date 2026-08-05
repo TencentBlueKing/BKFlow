@@ -138,6 +138,7 @@
         :parent-value="parentValue"
         :is-subflow="isSubflow"
         :subflow-loop-vars="subflowLoopVars"
+        :outer-constants="outerConstants"
         @init="$emit('init', $event)"
         @change="updateForm"
         @onShow="onShowForm"
@@ -266,6 +267,10 @@
         default: false,
       },
       subflowLoopVars: {
+        type: Object,
+        default: () => ({}),
+      },
+      outerConstants: {
         type: Object,
         default: () => ({}),
       },
