@@ -58,6 +58,6 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
 }
 ```
 
-`status` 表示上下文锁状态，取值为 `idle | running | terminating`。运行结果以 `last_run_status` 为准，取值为 `not_run | running | waiting | paused | finished | failed | revoked`。
+`status` 表示上下文锁状态，取值为 `idle | running | terminating`。运行结果以 `last_run_status` 为准，取值为 `not_run | running | waiting | paused | finished | failed | revoked`。其中 `revoked` 仅表示全局调试被主动终止，前端展示为“调试终止”；单节点终止完成后为 `not_run`。
 
-`active_task_id` 仅在任务运行期间有值，任务结束后清空；`last_task_id` 会保留最近一次真实引擎任务 ID。节点 `status` 取值为 `not_run | running | waiting | paused | finished | failed`。存在引擎调度记录时，`waiting_reason` 为 `callback | multiple_callback | poll`。
+`active_task_id` 仅在任务运行期间有值，任务结束后清空；`last_task_id` 会保留最近一次真实引擎任务 ID。节点 `status` 取值为 `not_run | running | waiting | paused | finished | failed`。全局调试终止时，仍活跃的节点会恢复为 `not_run`，已完成或自然失败节点保留原状态。存在引擎调度记录时，`waiting_reason` 为 `callback | multiple_callback | poll`。

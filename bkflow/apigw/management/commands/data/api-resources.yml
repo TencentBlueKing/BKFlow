@@ -5945,7 +5945,7 @@ paths:
                   description: 流程模板ID
                 node_id:
                   type: string
-                  description: 节点ID，不传则终止全局调试任务
+                  description: 节点ID；传入时终止单节点并恢复为未调试，不传时终止全局调试任务
               required:
               - space_id
               - template_id
