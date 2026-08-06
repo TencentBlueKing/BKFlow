@@ -379,7 +379,9 @@ class TestTaskNodeOperation:
         """测试强制失败"""
         space_id = 1
         task_instance = TaskInstance.objects.create_instance(
-            space_id=space_id, pipeline_tree=build_default_pipeline_tree()
+            space_id=space_id,
+            pipeline_tree=build_default_pipeline_tree(),
+            create_method="DEBUG",
         )
         task_instance.calculate_tree_info()
         node_ids = list(task_instance.node_id_set)
@@ -389,14 +391,28 @@ class TestTaskNodeOperation:
         node_id = node_ids[0]
         node_operation = TaskNodeOperation(task_instance, node_id)
         cancel_open_plugin_runs = mocker.patch("bkflow.task.operations.cancel_open_plugin_runs_for_node", create=True)
-        mocker.patch(
+        suppress_failure_side_effects = mocker.patch(
+            "bkflow.task.operations.suppress_node_failure_side_effects", create=True
+        )
+        forced_fail_activity = mocker.patch(
             "bamboo_engine.api.forced_fail_activity",
             return_value=EngineAPIResult(result=True, message="success"),
         )
 
-        result = node_operation.forced_fail(operator="test_operator", ex_data="test error")
+        result = node_operation.forced_fail(
+            operator="test_operator",
+            ex_data="test error",
+            suppress_failure_side_effects=True,
+        )
         assert isinstance(result, OperationResult)
         assert result.result is True
+        suppress_failure_side_effects.assert_called_once_with(task_instance.instance_id, node_id)
+        forced_fail_activity.assert_called_once_with(
+            runtime=node_operation.runtime,
+            node_id=node_id,
+            ex_data="test error",
+            send_post_set_state_signal=True,
+        )
         cancel_open_plugin_runs.assert_called_once_with(
             task_instance=task_instance, node_id=node_id, operator="test_operator"
         )

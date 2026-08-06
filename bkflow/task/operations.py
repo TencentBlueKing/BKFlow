@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import functools
 import logging
 import traceback
+from contextlib import nullcontext
 from copy import deepcopy
 from datetime import datetime
 from types import SimpleNamespace
@@ -68,6 +69,7 @@ from bkflow.task.open_plugin_callback import (
     callback_token_digest,
     parse_open_plugin_callback_token,
 )
+from bkflow.task.signals.context import suppress_node_failure_side_effects
 from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.canvas import get_variable_mapping
@@ -801,12 +803,22 @@ class TaskNodeOperation:
     @record_operation(RecordType.task_node.name, TaskOperationType.forced_fail.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def forced_fail(self, operator: str, *args, **kwargs) -> OperationResult:
-        result = bamboo_engine_api.forced_fail_activity(
-            runtime=self.runtime,
-            node_id=self.node_id,
-            ex_data=kwargs.get("ex_data", f"forced fail by {operator}"),
-            send_post_set_state_signal=kwargs.get("send_post_set_state_signal", True),
-        )
+        suppress_side_effects = kwargs.get("suppress_failure_side_effects", False)
+        if suppress_side_effects and self.task_instance.create_method != "DEBUG":
+            suppress_side_effects = False
+
+        if suppress_side_effects:
+            suppression = suppress_node_failure_side_effects(self.task_instance.instance_id, self.node_id)
+        else:
+            suppression = nullcontext()
+
+        with suppression:
+            result = bamboo_engine_api.forced_fail_activity(
+                runtime=self.runtime,
+                node_id=self.node_id,
+                ex_data=kwargs.get("ex_data", f"forced fail by {operator}"),
+                send_post_set_state_signal=kwargs.get("send_post_set_state_signal", True),
+            )
         if result.result:
             cancel_open_plugin_runs_for_node(task_instance=self.task_instance, node_id=self.node_id, operator=operator)
         return result
