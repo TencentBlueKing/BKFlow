@@ -181,8 +181,9 @@
               v-else
               class="test-fail-text-warp">
               <span class="test-text">{{ $t('测试失败') }}</span>
+              <span class="test-text test-text-colon">:</span>
               <div class="test-fail-text">
-                {{ apiItem.testResult?.error ? ':' + apiItem.testResult?.error : '' }}
+                {{ apiItem.testResult?.error || '' }}
               </div>
             </div>
           </template>
@@ -591,6 +592,9 @@ import { mapActions } from 'vuex';
       color: #4d4f56;
       font-size: 12px;
       white-space: nowrap;
+    }
+    .test-text-colon{
+      margin-right: 4px;
     }
     .test-fail-text-warp {
       display: flex;
