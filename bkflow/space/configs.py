@@ -455,7 +455,7 @@ class UniformApiConfig(BaseSpaceConfig):
             cred_config = SpaceConfig.objects.filter(
                 space_id=space_id, name=ApiGatewayCredentialConfig.name).first()
             if cred_config:
-                credential_name = ApiGatewayCredentialConfig.get_value(cred_config)
+                credential_name = ApiGatewayCredentialConfig.get_value(cred_config, scope='default')
 
         if not credential_name:
             raise ValidationError("[uniform_api verify] 空间未配置默认网关凭证，无法测试")
