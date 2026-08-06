@@ -92,7 +92,7 @@ def _get_api_credential(space_id: int, template_id: int = None, task_id: int = N
             raise ValidationError(f"对应 space_id: {space_id} task_id: {task_id} 不存在")
         scope_type, scope_value = result["data"]["scope_type"], result["data"]["scope_value"]
 
-    scope = f"{scope_type}_{scope_value}" if scope_type and scope_value else None
+    scope = f"{scope_type}_{scope_value}" if scope_type and scope_value else "default"
 
     api_credential_config = SpaceConfig.get_config(
         space_id=space_id, config_name=ApiGatewayCredentialConfig.name, scope=scope
