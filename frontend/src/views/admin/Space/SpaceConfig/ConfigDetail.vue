@@ -334,26 +334,6 @@
         }
         this.$emit('save', this.buildPayload());
       },
-      async handleVerify() {
-        try {
-          this.localVerifying = true;
-          this.localVerifyResult = null;
-          const resp = await this.verifySpaceConfig({
-            space_id: this.spaceId,
-            name: this.config.name,
-            value: this.formValue,
-          });
-          this.localVerifyResult = resp.data || resp;
-        } catch (error) {
-          this.localVerifyResult = {
-            ok: false,
-            error: { message: String(error) },
-          };
-        } finally {
-          this.localVerifying = false;
-        }
-      },
-
       // api插件配置测试
       async onControlVerify(payload) {
         try {

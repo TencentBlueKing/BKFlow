@@ -43,7 +43,7 @@ export default {
     },
     // 目前仅支持 uniform_api 配置项的校验配置项验证
     verifySpaceConfig({}, data) {
-      return axios.post('api/space/admin/space_config/verify/', data).then(response => response.data);
+      return axios.post('api/space/admin/space_config/verify/', data).then(response => response.data.data);
     },
   },
 };
