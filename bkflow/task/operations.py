@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import functools
 import logging
 import traceback
+from contextlib import nullcontext
 from copy import deepcopy
 from typing import Any, List, Optional
 
@@ -55,6 +56,7 @@ from bkflow.exceptions import ValidationError
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
 from bkflow.task.context import SystemObject
 from bkflow.task.models import TaskInstance
+from bkflow.task.signals.context import suppress_node_failure_side_effects
 from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.canvas import get_variable_mapping
@@ -555,12 +557,22 @@ class TaskNodeOperation:
     @record_operation(RecordType.task_node.name, TaskOperationType.forced_fail.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def forced_fail(self, operator: str, *args, **kwargs) -> OperationResult:
-        return bamboo_engine_api.forced_fail_activity(
-            runtime=self.runtime,
-            node_id=self.node_id,
-            ex_data=kwargs.get("ex_data", f"forced fail by {operator}"),
-            send_post_set_state_signal=kwargs.get("send_post_set_state_signal", True),
-        )
+        suppress_side_effects = kwargs.get("suppress_failure_side_effects", False)
+        if suppress_side_effects and self.task_instance.create_method != "DEBUG":
+            suppress_side_effects = False
+
+        if suppress_side_effects:
+            suppression = suppress_node_failure_side_effects(self.task_instance.instance_id, self.node_id)
+        else:
+            suppression = nullcontext()
+
+        with suppression:
+            return bamboo_engine_api.forced_fail_activity(
+                runtime=self.runtime,
+                node_id=self.node_id,
+                ex_data=kwargs.get("ex_data", f"forced fail by {operator}"),
+                send_post_set_state_signal=kwargs.get("send_post_set_state_signal", True),
+            )
 
     @trace_task_operation("get_node_detail", operation_type="task_node")
     @uniform_task_operation_result

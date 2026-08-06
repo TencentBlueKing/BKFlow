@@ -138,9 +138,32 @@ class TestRunOpsViews:
         assert response.status_code == 200
         assert response.data["result"] is False
 
-    def test_terminate_node_uses_forced_fail(self, mocker):
+    def test_terminate_node_uses_forced_fail_and_resets_node(self, mocker):
+        """单节点终止后立即恢复未调试并释放调试锁。"""
         self._patch_tree(mocker)
-        DebugContext.objects.create(template_id=1, space_id=10, status="running", active_task_id=456)
+        ctx = DebugContext.objects.create(
+            template_id=1,
+            space_id=10,
+            status="running",
+            active_task_id=456,
+            active_run_type="step",
+            active_node_id="A",
+            last_task_id=456,
+            last_run_type="step",
+            last_run_status="waiting",
+            last_error_detail={"type": "runtime", "message": "old error"},
+        )
+        DebugNodeState.objects.create(
+            debug_context=ctx,
+            node_id="A",
+            status="waiting",
+            waiting_reason="poll",
+            inputs={"input": "value"},
+            outputs={"output": "value"},
+            duration_ms=3000,
+            error_detail={"message": "old error"},
+            log_ref={"instance_id": 456, "node_id": "rtA", "version": "v1"},
+        )
         client = mocker.MagicMock()
         client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
         client.node_operate.return_value = {"result": True, "data": {}, "message": ""}
@@ -152,8 +175,31 @@ class TestRunOpsViews:
         response = view(request)
 
         assert response.status_code == 200
-        assert response.data["data"]["status"] == "terminating"
-        client.node_operate.assert_called_once_with(456, "rtA", "forced_fail", {"operator": "admin"})
+        assert response.data["data"] == {"status": "idle", "reset_node_ids": ["A"]}
+        client.node_operate.assert_called_once_with(
+            456,
+            "rtA",
+            "forced_fail",
+            {"operator": "admin", "suppress_failure_side_effects": True},
+        )
+
+        ctx.refresh_from_db()
+        node_state = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
+        assert node_state.status == "not_run"
+        assert node_state.waiting_reason == ""
+        assert node_state.inputs == {}
+        assert node_state.outputs == {}
+        assert node_state.duration_ms is None
+        assert node_state.error_detail == {}
+        assert node_state.log_ref == {}
+        assert ctx.status == "idle"
+        assert ctx.active_task_id is None
+        assert ctx.active_run_type == ""
+        assert ctx.active_node_id == ""
+        assert ctx.last_task_id == 456
+        assert ctx.last_run_type == "step"
+        assert ctx.last_run_status == "not_run"
+        assert ctx.last_error_detail == {}
 
     def test_terminate_failure_rolls_back_to_running(self, mocker):
         self._patch_tree(mocker)

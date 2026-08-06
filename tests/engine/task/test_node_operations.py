@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import pytest
 from bamboo_engine import states as bamboo_engine_states
 from bamboo_engine.api import EngineAPIResult
@@ -142,7 +143,9 @@ class TestTaskNodeOperation:
         """测试强制失败"""
         space_id = 1
         task_instance = TaskInstance.objects.create_instance(
-            space_id=space_id, pipeline_tree=build_default_pipeline_tree()
+            space_id=space_id,
+            pipeline_tree=build_default_pipeline_tree(),
+            create_method="DEBUG",
         )
         task_instance.calculate_tree_info()
         node_ids = list(task_instance.node_id_set)
@@ -151,14 +154,28 @@ class TestTaskNodeOperation:
 
         node_id = node_ids[0]
         node_operation = TaskNodeOperation(task_instance, node_id)
-        mocker.patch(
+        suppress_failure_side_effects = mocker.patch(
+            "bkflow.task.operations.suppress_node_failure_side_effects", create=True
+        )
+        forced_fail_activity = mocker.patch(
             "bamboo_engine.api.forced_fail_activity",
             return_value=EngineAPIResult(result=True, message="success"),
         )
 
-        result = node_operation.forced_fail(operator="test_operator", ex_data="test error")
+        result = node_operation.forced_fail(
+            operator="test_operator",
+            ex_data="test error",
+            suppress_failure_side_effects=True,
+        )
         assert isinstance(result, OperationResult)
         assert result.result is True
+        suppress_failure_side_effects.assert_called_once_with(task_instance.instance_id, node_id)
+        forced_fail_activity.assert_called_once_with(
+            runtime=node_operation.runtime,
+            node_id=node_id,
+            ex_data="test error",
+            send_post_set_state_signal=True,
+        )
 
     def test_get_node_detail_not_executed(self, mocker):
         """测试获取未执行节点详情"""

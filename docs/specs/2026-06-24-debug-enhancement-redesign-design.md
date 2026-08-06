@@ -475,7 +475,12 @@ DebugService 是唯一编排入口：管理 `DebugContext` 状态机与并发锁
 ```json
 // 请求（传 node_id 则节点级强制失败，否则整体 revoke）
 {"template_id": 123, "node_id": "node_xxx"}
-// 响应 data
+// 单节点终止响应 data：节点已恢复为未调试
+{"status": "idle", "reset_node_ids": ["node_xxx"]}
+
+// 全局终止请求（不传 node_id）
+{"template_id": 123}
+// 全局终止响应 data：继续轮询 context，直到 status=idle、last_run_status=revoked
 {"status": "terminating"}
 ```
 

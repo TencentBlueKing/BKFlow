@@ -516,13 +516,18 @@ class DebugService:
 
     def sync_from_debug_task(self, ctx: DebugContext):
         """惰性回写真实调试任务；全局和单步共用同一条状态生命周期。"""
+        # 单节点终止由 terminate() 在 forced_fail 返回后立即重置；期间不读取引擎 FAILED，
+        # 避免轮询抢先把节点回写为失败并释放调试锁。
+        if ctx.status == "terminating" and ctx.active_node_id:
+            return
         # 早返回守卫：仅运行中且存在 active_task_id 才同步，避免空闲态构建真实客户端
         if ctx.status not in ("running", "terminating") or not ctx.active_task_id:
             if ctx.status == "idle" and ctx.last_run_status == "revoked":
-                DebugNodeState.objects.filter(
+                active_node_ids = DebugNodeState.objects.filter(
                     debug_context=ctx,
-                    status__in=("running", "waiting", "paused"),
-                ).update(status="revoked", waiting_reason="")
+                    status__in=("running", "waiting", "paused", "revoked"),
+                ).values_list("node_id", flat=True)
+                self.reset_run_results(ctx, node_ids=list(active_node_ids))
             return
         client = self._task_client()
         task_id = ctx.active_task_id
@@ -575,10 +580,11 @@ class DebugService:
 
         engine_state = data.get("state")
         if engine_state == "REVOKED":
-            DebugNodeState.objects.filter(
+            active_node_ids = DebugNodeState.objects.filter(
                 debug_context=ctx,
-                status__in=("running", "waiting", "paused"),
-            ).update(status="revoked", waiting_reason="")
+                status__in=("running", "waiting", "paused", "revoked"),
+            ).values_list("node_id", flat=True)
+            self.reset_run_results(ctx, node_ids=list(active_node_ids))
         if engine_state == "FAILED":
             state_errors = data.get("ex_data") if isinstance(data.get("ex_data"), dict) else {}
             for runtime_id, child in children.items():
@@ -633,24 +639,45 @@ class DebugService:
         ctx = self.get_or_create_context()
         if ctx.status == "idle" or not ctx.active_task_id:
             raise DebugStateError("当前没有运行中的调试")
+        active_task_id = ctx.active_task_id
+        previous_active_node_id = ctx.active_node_id
         ctx.status = "terminating"
-        ctx.save(update_fields=["status"])
+        ctx.active_node_id = node_id or ""
+        ctx.save(update_fields=["status", "active_node_id"])
         client = self._task_client()
         if node_id:
-            id_map_resp = client.get_node_id_map(ctx.active_task_id)
+            id_map_resp = client.get_node_id_map(active_task_id)
             if not id_map_resp.get("result"):
                 ctx.status = "running"
-                ctx.save(update_fields=["status"])
+                ctx.active_node_id = previous_active_node_id
+                ctx.save(update_fields=["status", "active_node_id"])
                 raise DebugStateError("获取节点 id 映射失败")
             runtime_id = id_map_resp.get("data", {}).get(node_id, node_id)
-            op_result = client.node_operate(ctx.active_task_id, runtime_id, "forced_fail", {"operator": operator})
+            op_result = client.node_operate(
+                active_task_id,
+                runtime_id,
+                "forced_fail",
+                {"operator": operator, "suppress_failure_side_effects": True},
+            )
         else:
-            op_result = client.operate_task(ctx.active_task_id, "revoke", {"operator": operator})
+            op_result = client.operate_task(active_task_id, "revoke", {"operator": operator})
         if not op_result.get("result"):
             ctx.status = "running"
-            ctx.save(update_fields=["status"])
+            ctx.active_node_id = previous_active_node_id
+            ctx.save(update_fields=["status", "active_node_id"])
             raise DebugStateError(op_result.get("message", "终止调试失败"))
-        # 锁由 sync_from_debug_task 在任务到达 REVOKED 时释放（其守卫含 terminating）
+
+        if node_id:
+            reset_node_ids = self.reset_run_results(ctx, node_ids=[node_id])
+            ctx.last_task_id = active_task_id
+            ctx.last_run_type = ctx.active_run_type or ctx.last_run_type or "step"
+            ctx.last_run_status = "not_run"
+            ctx.last_error_detail = {}
+            ctx.save(update_fields=["last_task_id", "last_run_type", "last_run_status", "last_error_detail"])
+            self._release_lock(ctx, status="idle")
+            return {"status": "idle", "reset_node_ids": reset_node_ids}
+
+        # 全局终止由 sync_from_debug_task 在任务到达 REVOKED 时回写结果并释放锁。
         return {"status": "terminating"}
 
     def history(self) -> dict:

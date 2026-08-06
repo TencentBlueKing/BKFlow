@@ -198,8 +198,8 @@ class TestSyncFromDebugTask:
         ],
         ids=["running", "waiting", "paused"],
     )
-    def test_sync_revoked_task_marks_active_node_revoked(self, mocker, child):
-        """任务撤销后，仍活跃的节点状态应统一收敛为 revoked。"""
+    def test_sync_revoked_task_resets_active_node(self, mocker, child):
+        """全局调试终止后整体记为 revoked，活跃节点恢复为未调试。"""
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
         ctx = svc.get_or_create_context()
         svc.sync_node_states()
@@ -224,17 +224,18 @@ class TestSyncFromDebugTask:
 
         ctx.refresh_from_db()
         ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
-        assert ns.status == "revoked"
+        assert ns.status == "not_run"
         assert ns.waiting_reason == ""
-        assert ns.duration_ms == 3000
+        assert ns.duration_ms is None
         assert ctx.status == "idle"
         assert ctx.active_task_id is None
         assert ctx.last_task_id == 456
         assert ctx.last_run_status == "revoked"
         assert ctx.last_error_detail == {}
 
-    def test_sync_repairs_stale_waiting_node_after_revoked_task_was_released(self, mocker):
-        """兼容发布前遗留状态：锁已释放但等待节点尚未收敛。"""
+    @pytest.mark.parametrize("stale_status", ["running", "waiting", "paused", "revoked"])
+    def test_sync_repairs_stale_active_node_after_revoked_task_was_released(self, mocker, stale_status):
+        """兼容发布前遗留状态：已终止全局调试的活跃节点恢复为未调试。"""
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
         ctx = svc.get_or_create_context()
         svc.sync_node_states()
@@ -244,16 +245,26 @@ class TestSyncFromDebugTask:
         ctx.last_run_status = "revoked"
         ctx.save()
         DebugNodeState.objects.filter(debug_context=ctx, node_id="A").update(
-            status="waiting",
+            status=stale_status,
             waiting_reason="poll",
+            inputs={"input": "value"},
+            outputs={"output": "value"},
+            duration_ms=3000,
+            error_detail={"message": "old error"},
+            log_ref={"instance_id": 456},
         )
         task_client = mocker.patch.object(svc, "_task_client")
 
         svc.sync_from_debug_task(ctx)
 
         ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
-        assert ns.status == "revoked"
+        assert ns.status == "not_run"
         assert ns.waiting_reason == ""
+        assert ns.inputs == {}
+        assert ns.outputs == {}
+        assert ns.duration_ms is None
+        assert ns.error_detail == {}
+        assert ns.log_ref == {}
         task_client.assert_not_called()
 
     def test_sync_gateway_failure_fetches_detail_when_state_ex_data_is_empty(self, mocker):
