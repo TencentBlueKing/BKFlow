@@ -408,7 +408,7 @@ import { mapActions } from 'vuex';
           });
           apiItem.testResult = {
             ok: resp.ok,
-            error: (resp.error && resp.data.message) || '',
+            error: (resp.error && resp.error.message) || '',
             data: resp.data,
           };
         } catch (error) {
