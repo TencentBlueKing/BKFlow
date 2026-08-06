@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import copy
 import datetime
 import logging
+import time
 
 from django.conf import settings
 from django.db import transaction
@@ -31,6 +32,12 @@ from bkflow.template.debug.dependency import (
     build_dependency_graph,
     closure,
     compute_tree_fingerprint,
+)
+from bkflow.template.debug.gateway import (
+    DEBUGGABLE_GATEWAY_TYPES,
+    GatewayEvaluationError,
+    evaluate_gateway,
+    gateway_missing_vars,
 )
 from bkflow.template.models import (
     DebugContext,
@@ -98,22 +105,40 @@ class DebugService:
         """按当前 pipeline_tree 增删 DebugNodeState；保留已存在节点的配置与运行态。"""
         ctx = self.get_or_create_context()
         activities = self.pipeline_tree.get("activities", {})
+        gateways = {
+            node_id: gateway
+            for node_id, gateway in self.pipeline_tree.get("gateways", {}).items()
+            if gateway.get("type") in DEBUGGABLE_GATEWAY_TYPES
+        }
+        debug_nodes = {**activities, **gateways}
         existing = {ns.node_id: ns for ns in DebugNodeState.objects.filter(debug_context=ctx)}
-        tree_node_ids = set(activities.keys())
+        tree_node_ids = set(debug_nodes)
 
-        new_node_ids = [node_id for node_id in activities if node_id not in existing]
+        new_node_ids = [node_id for node_id in debug_nodes if node_id not in existing]
         to_create = [
             DebugNodeState(
                 debug_context=ctx,
                 node_id=node_id,
-                node_type=activities[node_id].get("type", "ServiceActivity"),
+                node_type=debug_nodes[node_id].get("type", "ServiceActivity"),
             )
             for node_id in new_node_ids
         ]
         if to_create:
             # 并发安全：ignore_conflicts 保证并发 sync 不会因唯一键冲突报错
             DebugNodeState.objects.bulk_create(to_create, ignore_conflicts=True)
-            self._apply_legacy_mock_scheme(ctx, new_node_ids)
+            self._apply_legacy_mock_scheme(ctx, [node_id for node_id in new_node_ids if node_id in activities])
+        to_update = []
+        for node_id, ns in existing.items():
+            expected_type = (debug_nodes.get(node_id) or {}).get("type", "ServiceActivity")
+            if node_id in debug_nodes and ns.node_type != expected_type:
+                ns.node_type = expected_type
+                to_update.append(ns)
+        if to_update:
+            DebugNodeState.objects.bulk_update(to_update, ["node_type"])
+        if gateways:
+            DebugNodeState.objects.filter(debug_context=ctx, node_id__in=gateways).exclude(
+                execution_mode="real"
+            ).update(execution_mode="real")
         stale = set(existing.keys()) - tree_node_ids
         if stale:
             DebugNodeState.objects.filter(debug_context=ctx, node_id__in=stale).delete()
@@ -158,6 +183,10 @@ class DebugService:
             )
         return fields
 
+    def _is_debuggable_gateway(self, node_id):
+        gateway = self.pipeline_tree.get("gateways", {}).get(node_id) or {}
+        return gateway.get("type") in DEBUGGABLE_GATEWAY_TYPES
+
     def build_context_view(self) -> dict:
         ctx = self.sync_node_states()
         self.sync_from_debug_task(ctx)
@@ -165,14 +194,24 @@ class DebugService:
         node_views = []
         for ns in DebugNodeState.objects.filter(debug_context=ctx).order_by("node_id"):
             can_step, missing = self.compute_can_step(ctx, ns.node_id)
+            is_gateway = self._is_debuggable_gateway(ns.node_id)
+            gateway_result = (ns.outputs or {}) if is_gateway else {}
             node_views.append(
                 {
                     "node_id": ns.node_id,
                     "node_type": ns.node_type,
-                    "execution_mode": ns.execution_mode,
-                    "mock_result": ns.mock_result if ns.execution_mode == "mock" else None,
+                    "execution_mode": "real" if is_gateway else ns.execution_mode,
+                    "supports_mock": not is_gateway,
+                    "mock_result": ns.mock_result if not is_gateway and ns.execution_mode == "mock" else None,
                     "mock_outputs": (
-                        ns.mock_outputs if ns.execution_mode == "mock" and ns.mock_result == "success" else None
+                        ns.mock_outputs
+                        if not is_gateway and ns.execution_mode == "mock" and ns.mock_result == "success"
+                        else None
+                    ),
+                    "mock_error": (
+                        ns.mock_error
+                        if not is_gateway and ns.execution_mode == "mock" and ns.mock_result == "fail"
+                        else None
                     ),
                     "status": ns.status,
                     "waiting_reason": ns.waiting_reason or None,
@@ -181,6 +220,8 @@ class DebugService:
                     "duration_ms": ns.duration_ms,
                     "error_detail": ns.error_detail or None,
                     "log_ref": ns.log_ref or None,
+                    "selected_flow_ids": gateway_result.get("selected_flow_ids", []),
+                    "condition_results": gateway_result.get("condition_results", []),
                 }
             )
         return {
@@ -201,6 +242,9 @@ class DebugService:
 
     def compute_can_step(self, ctx, node_id):
         """判定节点是否可单步：引用的产出型变量须已在 global_vars 有值，否则返回缺失项。"""
+        if self._is_debuggable_gateway(node_id):
+            missing = gateway_missing_vars(self.pipeline_tree, node_id, ctx.global_vars or {})
+            return (len(missing) == 0), missing
         act = self.pipeline_tree.get("activities", {}).get(node_id)
         if not act:
             return False, []
@@ -566,7 +610,22 @@ class DebugService:
                 ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version}
                 outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
                 if ns.status == "finished":
-                    ns.outputs = outputs
+                    if self._is_debuggable_gateway(tpl_node_id):
+                        try:
+                            ns.outputs = evaluate_gateway(self.pipeline_tree, tpl_node_id, ctx.global_vars or {})
+                        except GatewayEvaluationError as error:
+                            logger.warning(
+                                "[debug] sync gateway selected flows failed, template_id=%s, node_id=%s, error=%s",
+                                self.template_id,
+                                tpl_node_id,
+                                error,
+                            )
+                            ns.outputs = {
+                                "selected_flow_ids": [],
+                                "condition_results": error.condition_results,
+                            }
+                    else:
+                        ns.outputs = outputs
                     ns.error_detail = {}
                     for out_key, var_key in acts_outputs.get(tpl_node_id, {}).items():
                         if out_key in outputs:
@@ -574,7 +633,17 @@ class DebugService:
                 else:
                     message = ddata.get("ex_data") or "step failed"
                     runtime_errors[runtime_id] = message
-                    ns.outputs = {}
+                    if self._is_debuggable_gateway(tpl_node_id):
+                        try:
+                            gateway_result = evaluate_gateway(self.pipeline_tree, tpl_node_id, ctx.global_vars or {})
+                            ns.outputs = gateway_result
+                        except GatewayEvaluationError as error:
+                            ns.outputs = {
+                                "selected_flow_ids": [],
+                                "condition_results": error.condition_results,
+                            }
+                    else:
+                        ns.outputs = {}
                     ns.error_detail = {"type": "runtime", "message": message}
             ns.save()
 
@@ -803,6 +872,8 @@ class DebugService:
             ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
         except DebugNodeState.DoesNotExist:
             raise DebugStateError({"detail": "节点不存在", "node_id": node_id})
+        if self._is_debuggable_gateway(node_id):
+            raise DebugStateError("条件网关不支持 Mock")
         if enable:
             ns.execution_mode = "mock"
             ns.mock_result = mock_result
@@ -843,9 +914,70 @@ class DebugService:
             raise DebugStateError({"detail": "节点不存在", "node_id": node_id})
         effective_mode = mode or ns.execution_mode
 
+        if self._is_debuggable_gateway(node_id):
+            if effective_mode == "mock":
+                raise DebugStateError("条件网关不支持 Mock")
+            return self._step_run_gateway(ctx, ns, operator, input_overrides)
         if effective_mode == "mock":
             return self._step_run_mock(ctx, ns, mock_result, mock_outputs, mock_error)
         return self._step_run_real(ctx, ns, operator, input_overrides)
+
+    def _step_run_gateway(self, ctx, ns, operator, input_overrides):
+        values = dict(ctx.global_vars or {}) if input_overrides is None else dict(input_overrides)
+        missing = gateway_missing_vars(self.pipeline_tree, ns.node_id, values)
+        if missing:
+            raise DebugStateError({"detail": "依赖未满足", "missing_vars": missing})
+
+        self._acquire_lock(ctx, operator)
+        started_at = time.monotonic()
+        try:
+            ns.execution_mode = "real"
+            ns.status = "running"
+            ns.waiting_reason = ""
+            ns.outputs = {}
+            ns.error_detail = {}
+            ns.log_ref = {}
+            ns.last_run_at = timezone.now()
+            ns.save()
+            try:
+                result = evaluate_gateway(self.pipeline_tree, ns.node_id, values)
+                ns.status = "finished"
+                ns.outputs = result
+                ns.error_detail = {}
+                ctx.last_run_status = "finished"
+                ctx.last_error_detail = {}
+                response = {
+                    "node_id": ns.node_id,
+                    "status": "finished",
+                    "selected_flow_ids": result["selected_flow_ids"],
+                    "condition_results": result["condition_results"],
+                    "error_detail": None,
+                }
+            except GatewayEvaluationError as error:
+                detail = {"type": "gateway", "message": str(error)}
+                ns.status = "failed"
+                ns.outputs = {
+                    "selected_flow_ids": [],
+                    "condition_results": error.condition_results,
+                }
+                ns.error_detail = detail
+                ctx.last_run_status = "failed"
+                ctx.last_error_detail = detail
+                response = {
+                    "node_id": ns.node_id,
+                    "status": "failed",
+                    "selected_flow_ids": [],
+                    "condition_results": error.condition_results,
+                    "error_detail": detail,
+                }
+
+            ns.duration_ms = int((time.monotonic() - started_at) * 1000)
+            ns.save()
+            ctx.last_run_type = "step"
+            ctx.save(update_fields=["last_run_type", "last_run_status", "last_error_detail"])
+            return response
+        finally:
+            self._release_lock(ctx, status="idle")
 
     def _step_run_mock(self, ctx, ns, mock_result, mock_outputs, mock_error):
         ns.log_ref = {}

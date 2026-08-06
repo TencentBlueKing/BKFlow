@@ -17,6 +17,8 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+import copy
+
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIRequestFactory, force_authenticate
@@ -75,9 +77,116 @@ TREE_DEP = {
     },
 }
 
+TREE_GATEWAY = {
+    "activities": {
+        "A": {"id": "A", "type": "ServiceActivity", "component": {"code": "t", "data": {}}},
+    },
+    "flows": {
+        "flow_positive": {"id": "flow_positive", "source": "G", "target": "A"},
+        "flow_default": {"id": "flow_default", "source": "G", "target": "A"},
+    },
+    "gateways": {
+        "G": {
+            "id": "G",
+            "type": "ExclusiveGateway",
+            "conditions": {"flow_positive": {"name": "positive", "evaluate": "${g1} > 0"}},
+            "default_condition": {"flow_id": "flow_default"},
+            "extra_info": {"parse_lang": "boolrule"},
+        }
+    },
+    "constants": {
+        "${g1}": {
+            "key": "${g1}",
+            "name": "g1",
+            "show_type": "hide",
+            "value": "",
+            "source_type": "component_outputs",
+            "source_info": {"A": ["k1"]},
+            "custom_type": "",
+            "source_tag": "",
+        }
+    },
+}
+
 
 @pytest.mark.django_db
 class TestStepRunAndMock:
+    def test_step_run_gateway_evaluates_path_without_creating_task(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_GATEWAY)
+        ctx = svc.get_or_create_context()
+        ctx.global_vars = {"${g1}": 1}
+        ctx.save(update_fields=["global_vars"])
+        svc.sync_node_states()
+        client = mocker.MagicMock()
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        result = svc.step_run(node_id="G", operator="admin", mode="real")
+
+        assert result["status"] == "finished"
+        assert result["selected_flow_ids"] == ["flow_positive"]
+        assert result["condition_results"][0]["matched"] is True
+        assert "task_id" not in result
+        client.create_task.assert_not_called()
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+        assert ctx.last_run_type == "step"
+        assert ctx.last_run_status == "finished"
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="G")
+        assert ns.status == "finished"
+        assert ns.outputs["selected_flow_ids"] == ["flow_positive"]
+
+    def test_step_run_gateway_rejects_mock_mode(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_GATEWAY)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError, match="条件网关不支持 Mock"):
+            svc.step_run(node_id="G", operator="admin", mode="mock")
+
+    def test_node_mock_rejects_gateway(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_GATEWAY)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError, match="条件网关不支持 Mock"):
+            svc.node_mock(node_id="G", enable=True)
+
+    def test_step_run_gateway_is_blocked_when_output_dependency_is_missing(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_GATEWAY)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        client = mocker.MagicMock()
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        with pytest.raises(DebugStateError) as exc_info:
+            svc.step_run(node_id="G", operator="admin", mode="real")
+
+        assert exc_info.value.args[0] == {
+            "detail": "依赖未满足",
+            "missing_vars": [{"key": "${g1}", "source_node_id": "A"}],
+        }
+        client.create_task.assert_not_called()
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+
+    def test_step_run_gateway_failure_is_persisted_and_releases_lock(self):
+        tree = copy.deepcopy(TREE_GATEWAY)
+        tree["gateways"]["G"]["conditions"] = {
+            "flow_positive": {"name": "first", "evaluate": "1 == 1"},
+            "flow_default": {"name": "second", "evaluate": "2 == 2"},
+        }
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=tree)
+        ctx = svc.sync_node_states()
+
+        result = svc.step_run(node_id="G", operator="admin", mode="real")
+
+        assert result["status"] == "failed"
+        assert result["error_detail"]["type"] == "gateway"
+        assert "多个分支条件同时满足" in result["error_detail"]["message"]
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+        assert ctx.last_run_status == "failed"
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="G")
+        assert ns.status == "failed"
+
     def test_step_run_mock_success_writes_global_vars(self):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
         ctx = svc.get_or_create_context()
@@ -268,11 +377,11 @@ class TestStepRunViews:
             username="admin", defaults={"is_superuser": True, "is_staff": True}
         )
 
-    def _patch_tree(self, mocker):
+    def _patch_tree(self, mocker, tree=TREE):
         mocker.patch(
             "bkflow.template.debug.service.DebugService.pipeline_tree",
             new_callable=mocker.PropertyMock,
-            return_value=TREE,
+            return_value=tree,
         )
         mocker.patch(
             "bkflow.template.debug.service.DebugService.space_id",
@@ -290,3 +399,23 @@ class TestStepRunViews:
         response = view(request)
         assert response.status_code == 200
         assert response.data["result"] is False
+        assert response.data["data"]["detail"] == "{'detail': '节点不存在', 'node_id': 'ZZZ'}"
+
+    def test_step_run_gateway_returns_selected_flows_in_standard_response(self, mocker):
+        self._patch_tree(mocker, tree=TREE_GATEWAY)
+        DebugContext.objects.create(template_id=1, space_id=10, global_vars={"${g1}": 1})
+        view = DebugViewSet.as_view({"post": "step_run"})
+        request = self.factory.post(
+            "/debug/step_run/",
+            {"space_id": 10, "template_id": 1, "node_id": "G", "mode": "real"},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        assert response.data["result"] is True
+        assert response.data["data"]["status"] == "finished"
+        assert response.data["data"]["selected_flow_ids"] == ["flow_positive"]
+        assert response.data["data"]["condition_results"][0]["matched"] is True
