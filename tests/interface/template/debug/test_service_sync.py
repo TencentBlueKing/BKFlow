@@ -40,6 +40,35 @@ PIPELINE = {
     },
 }
 
+PIPELINE_GATEWAY = {
+    "activities": {},
+    "flows": {
+        "flow_positive": {"id": "flow_positive", "source": "G", "target": "positive"},
+        "flow_default": {"id": "flow_default", "source": "G", "target": "fallback"},
+    },
+    "gateways": {
+        "G": {
+            "id": "G",
+            "type": "ExclusiveGateway",
+            "conditions": {"flow_positive": {"name": "positive", "evaluate": "${count} > 0"}},
+            "default_condition": {"flow_id": "flow_default"},
+            "extra_info": {"parse_lang": "boolrule"},
+        }
+    },
+    "constants": {
+        "${count}": {
+            "key": "${count}",
+            "name": "count",
+            "show_type": "hide",
+            "value": 0,
+            "source_type": "custom",
+            "custom_type": "int",
+            "source_tag": "",
+            "source_info": {},
+        }
+    },
+}
+
 
 @pytest.mark.django_db
 class TestSyncFromDebugTask:
@@ -268,7 +297,7 @@ class TestSyncFromDebugTask:
         task_client.assert_not_called()
 
     def test_sync_gateway_failure_fetches_detail_when_state_ex_data_is_empty(self, mocker):
-        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE_GATEWAY)
         ctx = svc.get_or_create_context()
         svc.sync_node_states()
         ctx.status = "running"
@@ -320,7 +349,45 @@ class TestSyncFromDebugTask:
                 }
             ],
         }
+        gateway = DebugNodeState.objects.get(debug_context=ctx, node_id="G")
+        assert gateway.status == "failed"
+        assert gateway.error_detail == {"type": "runtime", "message": "multiple conditions meet"}
         client.get_task_node_detail.assert_called_once_with(456, "rt_gateway", data={"include_data": True})
+
+    def test_sync_finished_gateway_persists_selected_flows(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE_GATEWAY)
+        ctx = svc.sync_node_states()
+        ctx.status = "running"
+        ctx.active_task_id = 456
+        ctx.active_run_type = "global"
+        ctx.global_vars = {"${count}": 1}
+        ctx.last_run_status = "running"
+        ctx.save()
+
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {
+                "state": "FINISHED",
+                "children": {"rt_gateway": {"state": "FINISHED", "elapsed_time": 0.1}},
+            },
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {"result": True, "data": {"G": "rt_gateway"}, "message": ""}
+        client.get_task_node_detail.return_value = {
+            "result": True,
+            "data": {"outputs": [], "version": "v1"},
+            "message": "",
+        }
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+
+        gateway = DebugNodeState.objects.get(debug_context=ctx, node_id="G")
+        assert gateway.status == "finished"
+        assert gateway.outputs["selected_flow_ids"] == ["flow_positive"]
+        assert gateway.outputs["condition_results"][0]["matched"] is True
+        assert gateway.log_ref == {"instance_id": 456, "node_id": "rt_gateway", "version": "v1"}
 
     def test_sync_returns_early_when_node_id_map_fails(self, mocker):
         """id_map 调用失败：不回写、不释放锁，结束结果可在下次重试"""

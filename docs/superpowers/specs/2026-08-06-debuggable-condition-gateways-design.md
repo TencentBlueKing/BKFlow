@@ -97,4 +97,3 @@ During a real global debug run, gateway runtime IDs already appear in `get_node_
 - Unit tests cover boolrule selection, default branches, conditional parallel multi-selection, missing variables, malformed expressions, and exclusive multiple-match failure.
 - Service tests verify synchronous gateway step state, mock rejection, lock release, reset behavior, and global-run gateway state synchronization.
 - View tests verify standard response wrapping and HTTP 400 errors.
-

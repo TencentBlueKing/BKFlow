@@ -15,7 +15,7 @@
 | space_id | int | 是 | 空间ID |
 | template_id | int | 是 | 流程模板ID |
 | node_id | string | 是 | 节点ID |
-| mode | string | 否 | 执行模式，`real` 或 `mock` |
+| mode | string | 否 | 执行模式，`real` 或 `mock`；条件网关仅支持 `real` |
 | input_overrides | dict | 否 | 输入覆盖参数 |
 | mock_result | string | 否 | mock 结果，`success` 或 `fail` |
 | mock_outputs | dict | 否 | mock 输出 |
@@ -54,3 +54,27 @@ real 单步创建并启动引擎任务后立即返回。调用方通过 `debug_c
 ```
 
 mock 模式仍同步返回 `finished` 或 `failed` 及对应输出、错误详情和更新后的全局变量。
+
+### 条件网关 real 模式返回结果示例
+
+分支网关和条件并行网关同步计算分支条件，只返回命中的连线，不创建引擎任务，也不会执行命中连线后的节点。前端使用 `selected_flow_ids` 将对应路径标记为绿色。
+
+```json
+{
+  "node_id": "gateway1",
+  "status": "finished",
+  "selected_flow_ids": ["flow_true"],
+  "condition_results": [
+    {
+      "flow_id": "flow_true",
+      "name": "条件1",
+      "expression": "${count} > 0",
+      "resolved_expression": "1 > 0",
+      "matched": true
+    }
+  ],
+  "error_detail": null
+}
+```
+
+条件网关依赖的前序节点输出尚不存在时，接口返回“依赖未满足”及 `missing_vars`。表达式解析失败、分支网关同时命中多个条件等执行错误会同步返回 `status=failed`，并将错误写入 `error_detail`；随后也可从 `debug_context.nodes[]` 获取相同状态和分支结果。

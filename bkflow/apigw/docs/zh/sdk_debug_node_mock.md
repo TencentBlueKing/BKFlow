@@ -20,6 +20,8 @@
 | mock_outputs | dict | 否 | mock 输出 |
 | mock_error | string | 否 | mock 失败信息 |
 
+分支网关和条件并行网关不支持 Mock。对这两类节点调用本接口会返回“条件网关不支持 Mock”。
+
 ### 请求参数示例
 
 ```json
