@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import logging
 import time
@@ -32,13 +33,19 @@ from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.task.models import (
     AutoRetryNodeStrategy,
+    OpenPluginRunCallbackRef,
     PeriodicTask,
     TaskInstance,
     TimeoutNodeConfig,
     TimeoutNodesRecord,
 )
 from bkflow.task.node_timeout import node_timeout_handler
-from bkflow.task.operations import TaskNodeOperation, TaskOperation
+from bkflow.task.operations import (
+    TaskNodeOperation,
+    TaskOperation,
+    _cancel_open_plugin_run,
+    _get_open_plugin_space_configs,
+)
 from bkflow.task.serializers import CreateTaskInstanceSerializer
 from bkflow.task.utils import (
     ATOM_FAILED,
@@ -49,6 +56,42 @@ from bkflow.task.utils import (
 from bkflow.utils.json import safe_for_json
 
 logger = logging.getLogger("celery")
+
+
+@current_app.task(ignore_result=True)
+def cancel_open_plugin_runs(task_id, operator, node_id=None):
+    try:
+        task_instance = TaskInstance.objects.get(id=task_id)
+    except TaskInstance.DoesNotExist:
+        logger.warning("[open_plugin cancel] task(%s) does not exist", task_id)
+        return
+
+    callback_refs = OpenPluginRunCallbackRef.objects.filter(task_id=task_id, consumed_at__isnull=True)
+    if node_id:
+        callback_refs = callback_refs.filter(node_id=node_id)
+    callback_refs = list(callback_refs.iterator())
+    if not callback_refs:
+        return
+
+    space_configs = _get_open_plugin_space_configs(task_instance)
+    if not space_configs:
+        return
+
+    for callback_ref in callback_refs:
+        try:
+            _cancel_open_plugin_run(
+                task_instance=task_instance,
+                callback_ref=callback_ref,
+                operator=operator,
+                space_configs=space_configs,
+            )
+        except Exception:
+            logger.exception(
+                "[open_plugin cancel] unexpected error for task(%s) node(%s) run(%s)",
+                task_id,
+                callback_ref.node_id,
+                callback_ref.open_plugin_run_id,
+            )
 
 
 def _ensure_node_can_retry(node_id):

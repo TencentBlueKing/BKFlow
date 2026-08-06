@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,12 +20,17 @@ to the current version of the project delivered to anyone in the future.
 from django.conf.urls import include, url
 from rest_framework.routers import DefaultRouter
 
-from bkflow.plugin.views.plugin import ComponentModelSetViewSet, UniformPluginViewSet
+from bkflow.plugin.views.plugin import (
+    ComponentModelSetViewSet,
+    PluginDetailView,
+    UniformPluginViewSet,
+)
 
 router = DefaultRouter()
 router.register(r"", ComponentModelSetViewSet, basename="component")
 router.register(r"uniform_plugin_query", UniformPluginViewSet, basename="uniform_plugin_query")
 
 urlpatterns = [
+    url(r"^detail/$", PluginDetailView.as_view(), name="plugin_detail"),
     url(r"^", include(router.urls)),
 ]

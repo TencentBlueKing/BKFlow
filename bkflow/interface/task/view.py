@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from django.db.models import Q
@@ -42,6 +43,7 @@ from bkflow.interface.task.permissions import (
 from bkflow.interface.task.utils import StageConstantHandler, StageJobStateHandler
 from bkflow.label.models import Label
 from bkflow.permission.models import TASK_PERMISSION_TYPE, ResourceType, Token
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
@@ -229,6 +231,15 @@ class TaskInterfaceViewSet(GenericViewSet):
             append_attributes({"operation": operation})
             client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
             request.data["operator"] = request.user.username
+            if operation == "start":
+                task_detail = client.get_task_detail(task_id)
+                if not task_detail.get("result"):
+                    return Response(task_detail)
+                pipeline_tree = task_detail.get("data", {}).get("pipeline_tree")
+                if pipeline_tree:
+                    OpenPluginSnapshotService.validate_pipeline_tree(
+                        space_id=int(space_id), pipeline_tree=pipeline_tree
+                    )
             result = client.operate_task(task_id, operation, request.data)
             return Response(result)
 

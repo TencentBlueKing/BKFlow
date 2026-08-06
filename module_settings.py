@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import os
 from enum import Enum
@@ -323,6 +324,10 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
 
     # 添加定时任务
     app.conf.beat_schedule = {
+        "dispatch_open_plugin_catalog_sync": {
+            "task": "bkflow.plugin.tasks.dispatch_open_plugin_catalog_sync",
+            "schedule": _parse_crontab(env.OPEN_PLUGIN_CATALOG_SYNC_CRONTAB),
+        },
         # 同步蓝鲸插件任务
         "sync_bk_plugins": {
             "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 from copy import deepcopy
 
@@ -28,6 +29,7 @@ from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import CharFilter, DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
+from rest_framework import serializers as drf_serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -57,6 +59,7 @@ from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.configs import (
     FlowVersioning,
     GatewayExpressionConfig,
@@ -247,6 +250,18 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
+        try:
+            create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+                space_id=int(space_id),
+                pipeline_tree=pre_pipeline_tree,
+                extra_info=create_task_data.get("extra_info"),
+                username=request.user.username,
+                scope_type=template.scope_type,
+                scope_id=template.scope_value,
+            )
+        except drf_serializers.ValidationError as error:
+            detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
+            raise ValidationError(str(detail))
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:

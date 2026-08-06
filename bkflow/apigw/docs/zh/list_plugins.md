@@ -4,6 +4,8 @@
 
 查询指定空间下可用的插件列表，支持按类型过滤、关键词搜索和分页。
 
+当 `plugin_type=uniform_api` 时，列表只返回已对当前空间准入的开放插件来源，且插件需已在当前空间开启。
+
 #### 请求方法
 
 GET
@@ -36,6 +38,8 @@ GET
 | data[].group_name | string | 分组名称 |
 | data[].inputs | array | 输入参数列表（with_detail=true 时返回） |
 | data[].outputs | array | 输出参数列表（with_detail=true 时返回） |
+
+开放插件（`plugin_type=uniform_api`）额外受两层准入控制：来源必须已对当前空间准入，插件必须已在当前空间开启；未准入或未开启的开放插件不会出现在列表中。
 
 #### 请求示例
 

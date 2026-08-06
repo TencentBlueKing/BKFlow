@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
@@ -23,6 +24,7 @@ from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_task_bk_app_code, return_json_response
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 
 
@@ -48,5 +50,15 @@ def operate_task_by_app(request, task_id, operation):
     ):
         append_attributes({"operation": operation})
         client = TaskComponentClient(space_id=space_id)
+        if operation == "start":
+            task_data = getattr(request, "task_data", None)
+            if task_data is None:
+                task_detail = client.get_task_detail(task_id)
+                if not task_detail.get("result"):
+                    return task_detail
+                task_data = task_detail.get("data", {})
+            pipeline_tree = task_data.get("pipeline_tree")
+            if pipeline_tree:
+                OpenPluginSnapshotService.validate_pipeline_tree(space_id=int(space_id), pipeline_tree=pipeline_tree)
         result = client.operate_task(task_id, operation, data={"operator": operator})
         return result

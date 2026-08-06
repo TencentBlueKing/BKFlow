@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -24,9 +25,27 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.serializers.task import OperateTaskNodeSerializer
+from bkflow.apigw.serializers.task import (
+    OpenPluginCallbackSerializer,
+    OperateTaskNodeSerializer,
+)
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
+
+
+def _build_open_plugin_callback_payload(data):
+    callback_payload = {
+        "open_plugin_run_id": data["open_plugin_run_id"],
+        "status": data["status"],
+    }
+    for key in ("outputs", "error_message", "truncated", "truncated_fields", "_callback_token"):
+        if key in data:
+            callback_payload[key] = data[key]
+    return callback_payload
+
+
+def _is_open_plugin_callback_request(operation, data):
+    return operation == "callback" and isinstance(data, dict) and "open_plugin_run_id" in data
 
 
 @login_exempt
@@ -37,8 +56,14 @@ from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 @return_json_response
 def operate_task_node(request, space_id, task_id, node_id, operation):
     data = json.loads(request.body)
-    ser = OperateTaskNodeSerializer(data=data)
-    ser.is_valid(raise_exception=True)
+    is_open_plugin_callback = _is_open_plugin_callback_request(operation, data)
+    if is_open_plugin_callback:
+        ser = OpenPluginCallbackSerializer(data=data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+    else:
+        ser = OperateTaskNodeSerializer(data=data)
+        ser.is_valid(raise_exception=True)
 
     with start_trace(
         "operate_task_node_interface",
@@ -50,5 +75,9 @@ def operate_task_node(request, space_id, task_id, node_id, operation):
     ):
         append_attributes({"operation": operation})
         client = TaskComponentClient(space_id=space_id)
-        result = client.node_operate(task_id, node_id, operation, data)
+        forward_task_id = int(task_id) if is_open_plugin_callback else task_id
+        if is_open_plugin_callback:
+            data["_callback_token"] = request.META.get("HTTP_X_CALLBACK_TOKEN", "")
+            data = {"operator": "system", "data": _build_open_plugin_callback_payload(data)}
+        result = client.node_operate(forward_task_id, node_id, operation, data)
         return result

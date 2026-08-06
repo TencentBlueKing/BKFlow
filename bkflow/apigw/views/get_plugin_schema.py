@@ -52,8 +52,8 @@ def get_plugin_schema(request, space_id):
 
     try:
         result = service.get_plugin_schema(
-            code=params["code"],
-            version=params.get("version"),
+            code=params.get("plugin_id") or params["code"],
+            version=params.get("plugin_version") or params.get("version"),
             plugin_type=params.get("plugin_type"),
         )
     except ValueError as e:
