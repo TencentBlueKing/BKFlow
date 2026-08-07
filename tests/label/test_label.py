@@ -276,35 +276,35 @@ class TestLabelModel:
         l2 = make_label("banana")
 
         # Test exact name matching
-        ids = Label.get_label_ids_by_names("apple")
+        ids = Label.get_label_ids_by_names("apple", space_id=1)
         assert ids == [l1.id]
 
         # Test multiple names separated by commas
-        ids = Label.get_label_ids_by_names("apple,banana")
+        ids = Label.get_label_ids_by_names("apple,banana", space_id=1)
         assert set(ids) == {l1.id, l2.id}
 
         # Test multiple names separated by spaces
-        ids = Label.get_label_ids_by_names("apple banana")
+        ids = Label.get_label_ids_by_names("apple banana", space_id=1)
         assert set(ids) == {l1.id, l2.id}
 
         # Test case insensitive matching
-        ids = Label.get_label_ids_by_names("APPLE")
+        ids = Label.get_label_ids_by_names("APPLE", space_id=1)
         assert ids == [l1.id]
 
         # Test partial matching
-        ids = Label.get_label_ids_by_names("app")
+        ids = Label.get_label_ids_by_names("app", space_id=1)
         assert ids == [l1.id]
 
         # Test no matches
-        ids = Label.get_label_ids_by_names("grape")
+        ids = Label.get_label_ids_by_names("grape", space_id=1)
         assert ids == []
 
         # Test empty input
-        ids = Label.get_label_ids_by_names("")
+        ids = Label.get_label_ids_by_names("", space_id=1)
         assert ids == []
 
         # Test with extra whitespace
-        ids = Label.get_label_ids_by_names("  apple  ,  banana  ")
+        ids = Label.get_label_ids_by_names("  apple  ,  banana  ", space_id=1)
         assert set(ids) == {l1.id, l2.id}
 
 

@@ -133,6 +133,9 @@
       .bk-schema-form-item-auto-height {
         display: none;
       }
+      .bk-form-unit-input textarea {
+        min-height: 110px;
+      }
     }
   }
   .edit-mode {

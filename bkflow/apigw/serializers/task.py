@@ -227,6 +227,7 @@ class GetTaskListSerializer(serializers.Serializer):
     )
     executor = serializers.CharField(help_text=_("执行者"), max_length=USER_NAME_MAX_LENGTH, required=False)
     template_id = serializers.IntegerField(help_text=_("流程ID"), required=False)
+    label = serializers.CharField(help_text=_("标签名称"), required=False)
 
     def validate_task_id_list(self, value):
         return ",".join(str(i) for i in value)

@@ -26,6 +26,7 @@
         :variable-data="variableData"
         :is-selector-panel-show="isSelectorPanelShow"
         :back-to-variable-panel="backToVariablePanel"
+        :is-in-loop-group-or-loop-node="isInLoopGroupOrLoopNode"
         :is-view-mode="isViewMode"
         :variable-list="variableList"
         @openVariablePanel="openVariablePanel"
@@ -35,7 +36,7 @@
       <template slot="content">
         <!-- 插件/插件版本不存在面板 -->
         <bk-exception
-          v-if="isNotExistAtomOrVersion"
+          v-if="!isLoopGroupNode && isNotExistAtomOrVersion"
           class="exception-wrap"
           type="500">
           <span>{{ $t('未找到可用的插件或插件版本') }}</span>
@@ -47,7 +48,7 @@
         </bk-exception>
         <!-- 插件/子流程选择面板 -->
         <select-panel
-          v-else-if="isSelectorPanelShow"
+          v-else-if="!isLoopGroupNode && isSelectorPanelShow"
           :project_id="projectId"
           :template-labels="templateLabels"
           :node-config="nodeConfig"
@@ -73,6 +74,7 @@
             :common="common"
             :constants="localConstants"
             :template-id="$route.params.templateId"
+            :use-store-directly="!isInLoopGroup"
             @closeEditingPanel="isVariablePanelShow = false"
             @onSaveEditing="onVariableSaveEditing" />
         </div>
@@ -96,6 +98,8 @@
                 :node-config="nodeConfig"
                 :version-list="versionList"
                 :is-subflow="isSubflow"
+                :is-loop-group-node="isLoopGroupNode"
+                :is-in-loop-group="isInLoopGroup"
                 :input-loading="inputLoading"
                 :project-id="projectId"
                 :common="common"
@@ -130,6 +134,7 @@
             </section>
             <!-- 输入参数 -->
             <section
+              v-if="!isLoopGroupNode"
               class="config-section"
               data-test-id="templateEdit_form_inputParamsInfo">
               <h3>{{ $t('输入参数') }}</h3>
@@ -168,17 +173,79 @@
                     :is-api-plugin="isApiPlugin"
                     :basic-info="basicInfo"
                     :is-third-party="isThirdParty"
+                    :loop-node-loop-vars="loopNodeLoopVars"
+                    :outer-constants="outerConstants"
                     @hookChange="onHookChange"
                     @renderConfigChange="onRenderConfigChange"
                     @update="updateInputsValue" />
                 </template>
               </div>
             </section>
+            <!-- 循环内变量 -->
+            <section
+              v-else
+              class="config-section"
+              data-test-id="templateEdit_form_loopInnerVariables">
+              <h3>{{ $t('循环内变量') }}</h3>
+              <div>
+                <bk-table
+                  v-if="loopInnerVariables.length"
+                  :data="loopInnerVariables"
+                  :col-border="true"
+                  :outer-border="true">
+                  <bk-table-column
+                    :label="$t('名称')"
+                    :width="180"
+                    prop="name" />
+                  <bk-table-column
+                    label="KEY"
+                    prop="key" />
+                  <bk-table-column
+                    :label="$t('来源节点')"
+                    :width="180">
+                    <template slot-scope="{ row }">
+                      {{ getLoopVariableSourceNode(row) }}
+                    </template>
+                  </bk-table-column>
+                  <bk-table-column
+                    :label="$t('输出')"
+                    :width="100">
+                    <template slot-scope="{ row }">
+                      <div @click.stop>
+                        <bk-switcher
+                          size="small"
+                          theme="primary"
+                          :value="loopInnerOutputs.indexOf(row.key) > -1"
+                          :disabled="isViewMode"
+                          @change="onLoopInnerVariableOutputChange(row.key, $event)" />
+                      </div>
+                    </template>
+                  </bk-table-column>
+                </bk-table>
+                <no-data
+                  v-else
+                  :message="$t('暂无参数')" />
+                <div
+                  v-if="loopInnerVariables.length"
+                  class="loop-output-example">
+                  <span>{{ $t('外层引用示例:') }}</span>
+                  <span class="example-text">${outputs[循环次数-1]["result"]}</span>
+                </div>
+              </div>
+            </section>
             <!-- 输出参数 -->
             <section
               class="config-section"
               data-test-id="templateEdit_form_outputParamsInfo">
-              <h3>{{ $t('输出参数') }}</h3>
+              <h3 class="outputs-config-section">
+                {{ isLoopGroupNode ? $t('循环内输出') : $t('输出参数') }}
+                <div
+                  v-if="isSubflow && basicInfo.loopConfig && basicInfo.loopConfig.enable"
+                  class="outputs-tips">
+                  <bk-icon type="info" />
+                  <span>{{ $t('执行控制选择循环执行的状态下只保留 ${outputs} 输出参数') }}</span>
+                </div>
+              </h3>
               <div
                 v-bkloading="{ isLoading: outputLoading, zIndex: 100 }"
                 class="outputs-wrapper">
@@ -191,6 +258,7 @@
                   :params="filteredOutputs"
                   :version="basicInfo.version"
                   :node-id="nodeId"
+                  :is-in-loop-group-or-loop-node="isInLoopGroupOrLoopNode"
                   :is-third-party="isThirdParty"
                   :is-view-mode="isViewMode"
                   :uniform-outputs="uniformOutputs"
@@ -240,6 +308,7 @@
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
   import copy from '@/mixins/copy.js';
   import AccessCredential from './AccessCredential.vue';
+  import NoData from '@/components/common/base/NoData.vue';
 
   export default {
     name: 'NodeConfig',
@@ -252,6 +321,7 @@
       SliderHeader,
       SpecialPluginInputForm,
       AccessCredential,
+      NoData,
     },
     mixins: [permission, copy],
     props: {
@@ -331,6 +401,7 @@
         unhookingVarForm: {}, // 正被取消勾选的表单配置
         isUpdateConstants: false, // 是否更新输入参数配置
         isDataChange: false, // 数据是否改变
+        loopVarKeyChanges: [], // 循环子节点变量key变更记录,保存时统一更新 pipeline.outputs
         isApiPlugin: false, // 是否为Api插件
         apiInputs: [], // api数据
         isInitDecision: true,
@@ -356,11 +427,96 @@
         return [...systemVars, ...userVars];
       },
       isSubflow() {
-        return this.nodeConfig.type !== 'ServiceActivity';
+        return this.nodeConfig.type === 'SubProcess';
+      },
+      isLoopGroupNode() {
+        return this.nodeConfig.type === 'SubCanvas';
+      },
+      isInLoopGroupOrLoopNode() {
+        return this.isLoopGroupNode || this.isInLoopGroup;
+      },
+      // 判断当前节点是否在循环流分组节点内部
+      isInLoopGroup() {
+        const { parent, id } = this.nodeConfig;
+        if (parent && this.activities[parent]?.type === 'SubCanvas') {
+          return true;
+        }
+        return Object.values(this.activities).some((item) => {
+          if (item.type !== 'SubCanvas' || !item.pipeline) return false;
+          const findPipelineTree = item.pipeline;
+          return !!(findPipelineTree.activities && findPipelineTree.activities[id])
+            || !!(findPipelineTree.gateways && findPipelineTree.gateways[id])
+            || (findPipelineTree.start_event && findPipelineTree.start_event.id === id)
+            || (findPipelineTree.end_event && findPipelineTree.end_event.id === id);
+        });
+      },
+      // 当前节点所属的循环流分组节点对象
+      parentLoopNode() {
+        const { id } = this.nodeConfig;
+        return Object.values(this.activities).find((item) => {
+          if (item.type !== 'SubCanvas' || !item.pipeline) return false;
+          const parentPipelineTree = item.pipeline;
+          return !!(parentPipelineTree.activities && parentPipelineTree.activities[id])
+            || !!(parentPipelineTree.gateways && parentPipelineTree.gateways[id]);
+        }) || null;
+      },
+      // 循环流分组节点的循环变量（SubCanvas 或 SubCanvas 子节点时使用）
+      loopNodeLoopVars() {
+        let targetNode = null;
+        if (this.isLoopGroupNode) {
+          targetNode = this.nodeConfig;
+        } else if (this.isInLoopGroup) {
+          targetNode = this.parentLoopNode;
+        }
+        if (!targetNode) return {};
+        let loopParams;
+        // eslint-disable-next-line camelcase
+        if (this.isLoopGroupNode && this.basicInfo.loopConfig?.loop_params) {
+          loopParams = this.basicInfo.loopConfig.loop_params;
+        // eslint-disable-next-line camelcase
+        } else if (targetNode.loop_config?.loop_params) {
+          loopParams = targetNode.loop_config.loop_params;
+        }
+        if (!loopParams) return {};
+        if (Array.isArray(loopParams)) {
+          const result = {};
+          loopParams.forEach((item) => {
+            if (item.name && item.value !== undefined && item.value !== '') {
+              result[item.name] = item.value;
+            }
+          });
+          return result;
+        }
+        if (typeof loopParams === 'object') {
+          const result = {};
+          Object.entries(loopParams).forEach(([key, value]) => {
+            if (key && value !== undefined && value !== '') {
+              result[key] = value;
+            }
+          });
+          return result;
+        }
+        return {};
+      },
+      targetConstants() {
+        if (this.isInLoopGroup && this.parentLoopNode && this.parentLoopNode.pipeline) {
+          return this.parentLoopNode.pipeline.constants || {};
+        }
+        return this.constants;
+      },
+      // 循环流内部节点变量联想时需要补充的外层全局变量
+      outerConstants() {
+        if (this.isInLoopGroup || this.isLoopGroupNode) {
+          return this.constants;
+        }
+        return {};
       },
       // 循环执行时只展示循环输出(outputs)，单次执行时只展示节点输出
       filteredOutputs() {
-        if (this.basicInfo.loopConfig && this.basicInfo.loopConfig.enable) {
+        if (this.isLoopGroupNode) {
+           return this.outputs;
+        }
+        if (this.basicInfo.loopConfig?.enable) {
           return this.outputs.filter(item => item.key === 'outputs');
         }
         return this.outputs.filter(item => item.key !== 'outputs');
@@ -383,9 +539,21 @@
       isSpecialPlugin() {
         return ['dmn_plugin', 'value_assign'].includes(this.basicInfo.plugin);
       },
+      // 循环内变量列表
+      loopInnerVariables() {
+        if (!this.nodeConfig.pipeline || !this.nodeConfig.pipeline.constants) return [];
+        return Object.keys(this.nodeConfig.pipeline.constants)
+          .map(key => this.nodeConfig.pipeline.constants[key])
+          .sort((a, b) => a.index - b.index);
+      },
+      // 循环内变量输出列表
+      loopInnerOutputs() {
+        if (!this.nodeConfig.pipeline || !this.nodeConfig.pipeline.outputs) return [];
+        return this.nodeConfig.pipeline.outputs;
+      },
     },
     watch: {
-      constants(val) {
+      targetConstants(val) {
         this.localConstants = tools.deepClone(val);
       },
       subflowListLoading(val) {
@@ -453,7 +621,8 @@
           this.outputs = outputs;
         }
       });
-      this.localConstants = tools.deepClone(this.constants);
+      this.localConstants = tools.deepClone(this.targetConstants);
+      this.loopVarKeyChanges = [];
     },
     async mounted() {
       try {
@@ -491,15 +660,25 @@
       ...mapMutations('template/', [
         'setSubprocessUpdated',
         'setActivities',
+        'setInnerActivity',
         'addVariable',
         'setConstants',
         'setOutputs',
+        'setLoopInnerConstants',
+        'editLoopInnerVariableOutputKey',
       ]),
       async initDefaultData() {
-        const nodeConfig = tools.deepClone(this.activities[this.nodeId]);
+        // 外层activities优先，如果节点已移入循环分组，则从pipeline读取
+        let nodeConfig = tools.deepClone(this.activities[this.nodeId]);
+        if (!nodeConfig) {
+          nodeConfig = this.getActivityFromPipelineTree(this.nodeId);
+        }
         const isThirdParty = nodeConfig.component && nodeConfig.component.code === 'remote_plugin';
         const isApiPlugin = nodeConfig.component && nodeConfig.component.code === 'uniform_api';
         if (nodeConfig.type === 'ServiceActivity') {
+          this.basicInfo = await this.getNodeBasic(nodeConfig);
+        } else if (nodeConfig.type === 'SubCanvas') {
+          // 循环流节点不需要选择插件或流程，直接设置基础信息
           this.basicInfo = await this.getNodeBasic(nodeConfig);
         } else {
           this.isSelectorPanelShow = !nodeConfig.template_id;
@@ -514,7 +693,13 @@
           const code = isThirdParty ? nodeConfig.name : nodeConfig.component.code;
           versionList = isApiPlugin ? [] : this.getAtomVersions(code, isThirdParty);
         }
-        const isSelectorPanelShow = nodeConfig.type === 'ServiceActivity' ? !basicInfo.plugin : !basicInfo.tpl;
+        let isSelectorPanelShow;
+        if (nodeConfig.type === 'SubCanvas') {
+          // 循环流节点不需要显示选择面板
+          isSelectorPanelShow = false;
+        } else {
+          isSelectorPanelShow = nodeConfig.type === 'ServiceActivity' ? !basicInfo.plugin : !basicInfo.tpl;
+        }
         return {
           nodeConfig,
           isThirdParty,
@@ -552,7 +737,12 @@
       },
       // 初始化节点数据
       async initData() {
-        if (!this.basicInfo.plugin && !this.basicInfo.tpl) { // 未选择插件
+        if (!this.basicInfo.plugin && !this.basicInfo.tpl && !this.isLoopGroupNode) { // 未选择插件
+          return;
+        }
+        if (this.isLoopGroupNode) {
+          await this.getLoopGroupOutputs();
+          this.isDataChange = false;
           return;
         }
         if (!this.isSubflow) {
@@ -804,6 +994,61 @@
         }
       },
       /**
+       * 加载循环流节点输出参数
+       * 从子流程标准插件(subprocess_plugin)获取内置输出参数
+       */
+      async getLoopGroupOutputs() {
+        try {
+          const has = Object.prototype.hasOwnProperty;
+          const subprocessPlugin = this.atomList.find(item => item.code === 'subprocess_plugin');
+          const subprocessPluginVersion = subprocessPlugin?.list?.[0]?.version || '';
+          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion });
+          const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
+            if (item.key === 'outputs') {
+              acc[item.key] = item;
+            }
+            return acc;
+          }, {});
+          this.outputs = Object.keys(subBuiltInOutputs).map((item) => {
+            const output = subBuiltInOutputs[item];
+            return {
+              // eslint-disable-next-line camelcase
+              plugin_code: output?.plugin_code || '',
+              name: output.name,
+              key: output.key,
+              version: has.call(output, 'version') ? output.version : 'legacy',
+            };
+          });
+        } catch (e) {
+          console.log(e);
+        }
+      },
+      // 获取循环内变量的来源节点名称
+      getLoopVariableSourceNode(variable) {
+        const sourceInfo = variable.source_info || {};
+        const nodeId = Object.keys(sourceInfo)[0];
+        if (!nodeId || !this.nodeConfig.pipeline || !this.nodeConfig.pipeline.activities) return '--';
+        const activity = this.nodeConfig.pipeline.activities[nodeId];
+        return activity ? activity.name : '--';
+      },
+      // 循环内变量输出勾选切换
+      onLoopInnerVariableOutputChange(key, checked) {
+        this.isDataChange = true;
+        if (!this.nodeConfig.pipeline) {
+          this.$set(this.nodeConfig, 'pipeline', {});
+        }
+        if (!this.nodeConfig.pipeline.outputs) {
+          this.$set(this.nodeConfig.pipeline, 'outputs', []);
+        }
+        const { outputs } = this.nodeConfig.pipeline;
+        const index = outputs.indexOf(key);
+        if (checked && index === -1) {
+          outputs.push(key);
+        } else if (!checked && index > -1) {
+          outputs.splice(index, 1);
+        }
+      },
+      /**
        * 加载子流程输入参数表单配置项
        * 遍历每个非隐藏的全局变量，由 source_tag、coustom_type 字段确定需要加载的标准插件
        * 同时根据 source_tag 信息获取全局变量对应标准插件的某一个表单配置项
@@ -825,6 +1070,9 @@
           const isThird = Boolean(variable.plugin_code);
           const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
           let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
+          if (!formItemConfig) {
+            return;
+          }
           // eslint-disable-next-line camelcase
           const { meta_transform: metaTransform } = formItemConfig || {};
           if (variable.is_meta || metaTransform) {
@@ -955,6 +1203,23 @@
           }
           return data;
         }
+        // 循环流节点基础信息
+        if (config.type === 'SubCanvas') {
+          const {
+            name,
+            stage_name: stageName = '',
+            labels,
+            optional,
+            loop_config: loopConfig,
+          } = config;
+          return {
+            nodeName: name, // 节点名称
+            stageName,
+            nodeLabel: labels || [],
+            selectable: optional,
+            loopConfig: loopConfig || {},
+          };
+        }
         const {
           template_id: templateId,
           name,
@@ -1072,6 +1337,7 @@
       },
       // 由标准插件(子流程)选择面板返回配置面板
       goBackToConfig() {
+        if (this.isLoopGroupNode) return;
         if (this.isSelectorPanelShow && (this.basicInfo.plugin || this.basicInfo.tpl)) {
           this.isSelectorPanelShow = false;
         }
@@ -1080,8 +1346,24 @@
       onVariableSaveEditing(variable) {
         this.isVariablePanelShow = false;
         const { key, sourceKey } = this.variableData;
-        if (!key || key === variable.key) return;
-
+        if (!key) return;
+        // 循环流内部节点（isInLoopGroup）：变量变更只影响循环节点 pipeline 内的 constants
+        if (this.isInLoopGroup) {
+          if (key !== variable.key) {
+            // key 变化：删除旧变量 key，创建新变量 key
+            this.$delete(this.localConstants, key);
+            this.$set(this.localConstants, variable.key, variable);
+            // 记录 key 变更，保存时统一更新 pipeline.outputs
+            this.loopVarKeyChanges.push({ oldKey: key, newKey: variable.key });
+          } else {
+            this.$set(this.localConstants, key, variable);
+          }
+          // 标记数据变更
+          this.randomKey = new Date().getTime();
+          this.variableData = {};
+          return;
+        }
+        if (key === variable.key) return;
         this.onHookChange('delete', this.variableData);
         this.onHookChange('create', variable);
         if (sourceKey === 'outputs' && this.basicInfo.loopConfig?.enable) {
@@ -1599,9 +1881,94 @@
         }
         return true;
       },
+      // 从所有 SubCanvas 的 pipeline 中查找节点配置
+      getActivityFromPipelineTree(nodeId) {
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline) continue;
+          const pt = act.pipeline;
+          if (pt.activities && pt.activities[nodeId]) {
+            return tools.deepClone(pt.activities[nodeId]);
+          }
+        }
+        return null;
+      },
+      // 查找节点所属的 SubCanvas id，未找到返回 null
+      findLoopGroupParentId(nodeId) {
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline) continue;
+          const pt = act.pipeline;
+          if ((pt.activities && pt.activities[nodeId])
+            || (pt.gateways && pt.gateways[nodeId])
+            || (pt.start_event && pt.start_event.id === nodeId)
+            || (pt.end_event && pt.end_event.id === nodeId)) {
+            return act.id;
+          }
+        }
+        return null;
+      },
       getNodeFullConfig() {
         let config;
-        if (this.isSubflow) {
+        if (this.isLoopGroupNode) {
+          // 循环流节点配置
+          const {
+            nodeName,
+            stageName,
+            nodeLabel,
+            selectable,
+            autoRetry,
+            timeoutConfig,
+            loopConfig,
+          } = this.basicInfo;
+          // 保存输入参数值到 activity.constants
+          const constants = {};
+          const pipelineTreeConstants = this.nodeConfig.pipeline?.constants || {};
+          Object.keys(this.inputsParamValue).forEach((key) => {
+            if (pipelineTreeConstants[key]) {
+              constants[key] = {
+                ...tools.deepClone(pipelineTreeConstants[key]),
+                value: tools.deepClone(this.inputsParamValue[key]),
+              };
+            }
+          });
+          // 将数组格式的 loop_params 转换为 key-value 对象格式
+          if (Array.isArray(loopConfig.loop_params) && loopConfig.loop_params.length > 0) {
+            const result = loopConfig.loop_params.reduce((obj, item) => {
+              if (item.name?.trim() && item.value?.trim()) {
+                if (!/^\$\{\w+\}$/.test(item.name)) {
+                  item.name = `\${${item.name}}`;
+                }
+                obj[item.name] = item.value || '';
+              }
+              return obj;
+            }, {});
+            loopConfig.loop_params = result;
+          }
+          if (loopConfig.type === 'array_loop' && loopConfig.loop_params) {
+            const varReg = /^\$\{[^}]+\}$/;
+            const loopParamValues = Object.values(loopConfig.loop_params);
+            const hasVarValue = loopParamValues.some(val => varReg.test(String(val)));
+            if (hasVarValue) {
+              loopConfig.loop_times = null;
+            } else {
+              const lengths = loopParamValues.map(val => String(val).split(',').length);
+              if (lengths.length > 0) {
+                loopConfig.loop_times = Math.min(...lengths);
+              }
+            }
+          }
+          config = Object.assign({}, this.nodeConfig, {
+            name: nodeName,
+            stage_name: stageName,
+            labels: nodeLabel,
+            optional: selectable,
+            auto_retry: autoRetry,
+            timeout_config: timeoutConfig,
+            loop_config: loopConfig,
+            constants, // 保存输入参数到 activity.constants
+          });
+        } else if (this.isSubflow) {
           const {
             nodeName,
             stageName,
@@ -1846,9 +2213,17 @@
       syncActivity() {
         const config = this.getNodeFullConfig();
         this.nodeConfig = config;
-        this.setActivities({ type: 'edit', location: config });
+        // 如果节点在循环容器内，写入嵌套pipelineTree，否则写入外层activities
+        if (this.findLoopGroupParentId(config.id)) {
+          this.setInnerActivity({ nodeId: config.id, config });
+        } else {
+          this.setActivities({ type: 'edit', location: config });
+        }
       },
+      // 更新全局变量列表、全局变量输出列表、全局变量面板icon小红点
       handleVariableChange() {
+        // 循环流内部节点的变量变化不影响外层 constants/outputs
+        if (this.isInLoopGroup) return;
         // 如果变量已删除，需要删除变量是否输出的勾选状态
         this.$store.state.template.outputs.forEach((key) => {
           if (!(key in this.localConstants)) {
@@ -1912,7 +2287,9 @@
       // 打开全局变量编辑面板
       async openVariablePanel(variable = {}) {
         if (variable.key) {
-          const variableData = this.variableList.find(item => item.key === variable.key);
+          // 不使用variableList，避免混入外层全局变量
+          const sourceConstants = this.isInLoopGroup ? this.targetConstants : this.localConstants;
+          const variableData = sourceConstants[variable.key];
           const variableCited = await this.getVariableCitedData() || {};
           const { activities, conditions, constants } = variableCited[variable.key];
           const cited = activities.length + conditions.length + constants.length;
@@ -1922,11 +2299,12 @@
             sourceKey: variable.sourceKey, // 保存原始参数 key，用于判断是否为循环输出变量
           };
         } else {
+          const baseConstants = this.isInLoopGroup ? this.targetConstants : this.constants;
           this.variableData = {
             custom_type: 'input',
             desc: '',
             form_schema: {},
-            index: Object.keys(this.constants).length + 1,
+            index: Object.keys(baseConstants).length + 1,
             key: '',
             name: '',
             show_type: 'show',
@@ -1947,6 +2325,10 @@
           return true;
         }
         if (this.isSelectorPanelShow) { // 当前为插件/子流程选择面板，但没有选择时，支持自动关闭
+          if (this.isLoopGroupNode) {
+            this.onClosePanel();
+            return true;
+          }
           if (!(this.isSubflow ? this.basicInfo.tpl : this.basicInfo.plugin)) {
             this.onClosePanel();
             return true;
@@ -1981,9 +2363,12 @@
             const nodeData = { status: '', skippable, retryable, optional, auto_retry: autoRetry,
             timeout_config: timeoutConfig, isActived: false, loop_config: loopConfig };
             if (this.common) {
-              nodeData.executor_proxy = executor_proxy.join(',');
+              // eslint-disable-next-line camelcase
+              nodeData.executor_proxy = executor_proxy ? executor_proxy.join(',') : '';
             }
-            if (!this.isSubflow) {
+            if (this.isLoopGroupNode) {
+              // 循环流节点不需要子流程更新逻辑
+            } else if (!this.isSubflow) {
               const phase = this.getAtomPhase();
               nodeData.phase = phase;
             } else {
@@ -2014,6 +2399,22 @@
               });
             }
             this.syncActivity();
+            // 循环流内部节点：将 localConstants 同步回 parentLoopNode.pipeline.constants
+            if (this.isInLoopGroup && this.parentLoopNode) {
+              this.setLoopInnerConstants({
+                loopNodeId: this.parentLoopNode.id,
+                constants: tools.deepClone(this.localConstants),
+              });
+              // 保存时统一更新 pipeline.outputs 中的 key 变更
+              this.loopVarKeyChanges.forEach(({ oldKey, newKey }) => {
+                this.editLoopInnerVariableOutputKey({
+                  loopNodeId: this.parentLoopNode.id,
+                  oldKey,
+                  newKey,
+                });
+              });
+              this.loopVarKeyChanges = [];
+            }
             // 将第三方插件信息传给父级存起来
             if (this.isThirdParty) {
               const params = {
@@ -2024,7 +2425,10 @@
               };
               this.$parent.thirdPartyList[this.nodeId] = params;
             }
-            this.handleVariableChange(); // 更新全局变量列表、全局变量输出列表、全局变量面板icon小红点
+            // 循环流内部节点的变量变化不影响外层constants
+            if (!this.isInLoopGroup) {
+              this.handleVariableChange();
+            }
             this.$emit('updateNodeInfo', this.nodeId, nodeData);
             this.$emit('templateDataChanged');
             this.$emit('close');
@@ -2092,6 +2496,22 @@
             color: #313238;
             border-bottom: 1px solid #cacecb;
         }
+        .outputs-config-section {
+            display: flex;
+            align-items: center;
+            .outputs-tips{
+              display: inline-flex;
+              align-items: center;
+              color: #63656e;
+              margin-left: 8px;
+              font-size: 12px;
+              font-weight: normal;
+              .bk-icon{
+                margin-right: 2px;
+                margin-top: 1px;
+              }
+            }
+        }
         .citations-waivers-guide {
             position: absolute;
             right: 0;
@@ -2109,6 +2529,13 @@
         .inputs-wrapper,
         .outputs-wrapper {
             min-height: 80px;
+        }
+        .loop-output-example {
+            margin-top: 16px;
+            font-size: 12px;
+            .example-text {
+                color: #3a84ff;
+            }
         }
         .section-tips {
             font-size: 16px;
