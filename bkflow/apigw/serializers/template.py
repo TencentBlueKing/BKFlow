@@ -135,6 +135,20 @@ class DeleteTemplateSerializer(serializers.Serializer):
         return space_id
 
 
+class BatchDeleteTemplateSerializer(serializers.Serializer):
+    template_ids = serializers.ListField(
+        help_text=_("模板ID列表"),
+        required=True,
+        child=serializers.IntegerField(),
+        min_length=1,
+        max_length=200,
+        error_messages={
+            "min_length": _("template_ids 不能为空，至少需要包含一个模板ID"),
+            "max_length": _("template_ids 不能超过200个长度"),
+        },
+    )
+
+
 class UpdateTemplateSerializer(serializers.Serializer):
     operator = serializers.CharField(help_text=_("更新人"), max_length=USER_NAME_MAX_LENGTH, required=False)
     name = serializers.CharField(help_text=_("模版名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=False)
@@ -186,6 +200,7 @@ class UpdateTemplateLabelsSerializer(serializers.Serializer):
 
 
 class TemplateListFilterSerializer(serializers.Serializer):
+    id = serializers.CharField(help_text=_("模板ID，多个以逗号分割"), required=False)
     name = serializers.CharField(help_text=_("模板名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=False)
     creator = serializers.CharField(help_text=_("创建人"), max_length=USER_NAME_MAX_LENGTH, required=False)
     updated_by = serializers.CharField(help_text=_("更新人"), required=False)
@@ -194,6 +209,7 @@ class TemplateListFilterSerializer(serializers.Serializer):
     create_at_start = serializers.DateTimeField(help_text=_("开始时间小于等于"), required=False)
     create_at_end = serializers.DateTimeField(help_text=_("开始时间大于等于"), required=False)
     order_by = serializers.CharField(help_text=_("排序字段"), required=False, default="-create_at")
+    label = serializers.CharField(help_text=_("标签名称"), required=False)
 
 
 class TemplateDetailQuerySerializer(serializers.Serializer):

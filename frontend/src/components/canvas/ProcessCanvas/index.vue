@@ -28,7 +28,9 @@
       :instance="graph"
       :canvas-data="canvasData"
       @dragging="onNodeMoving"
-      @dragEnd="onNodeMoveStop" />
+      @dragEnd="onNodeMoveStop"
+      @onInnerNodeAdd="onInnerNodeAdd"
+      @onInnerLineAdd="onInnerLineAdd" />
     <div class="canvas-material-container" />
     <template v-if="graph">
       <NodeTipsPanel
@@ -46,7 +48,8 @@
         @onNodeRemove="onNodeRemove"
         @onLineChange="onLineChange"
         @onLocationChange="onLocationChange"
-        @updateShortcutPanel="updateShortcutPanel" />
+        @updateShortcutPanel="updateShortcutPanel"
+        @onFitCanvas="adjustLoopGroupSize" />
     </template>
   </div>
 </template>
@@ -63,7 +66,7 @@
   // svg path解析
   import parseSvgPath from 'parse-svg-path';
 
-  import { uuid } from '@/utils/uuid.js';
+  import { uuid, random4 } from '@/utils/uuid.js';
 
   // 快捷面板
   import ShortcutPanel from './components/shortcutPanel.vue';
@@ -75,11 +78,12 @@
   import { Clipboard } from '@antv/x6-plugin-clipboard';
 
   import dom from '@/utils/dom.js';
-  import { mapState } from 'vuex';
+  import { mapState, mapMutations } from 'vuex';
+  import Vue from 'vue';
   import utilsTools from '@/utils/tools.js';
   import validatePipeline from '@/utils/validatePipeline.js';
   import domtoimage from '@/utils/domToImage.js';
-
+  const gatewayTypes = ['branch-gateway', 'parallel-gateway', 'converge-gateway', 'conditional-parallel-gateway', 'branchgateway', 'parallelgateway', 'convergegateway', 'conditionalparallelgateway'];
   export default {
     name: 'ProcessCanvasComp',
     components: {
@@ -136,6 +140,8 @@
         nodeVariable: {},
         nodeTipsPanelPosition: {},
         isSelectionOpen: false,
+        shortcutPanelCloseTimer: null,
+        draggingNodeId: null, // 当前正在拖拽的节点ID
       };
     },
     computed: {
@@ -157,8 +163,18 @@
     },
     beforeDestroy() {
       document.removeEventListener('mousemove', this.onMouseMove);
+      if (this.shortcutPanelCloseTimer) {
+        clearTimeout(this.shortcutPanelCloseTimer);
+      }
     },
     methods: {
+      ...mapMutations('template/', [
+        'setActivities',
+        'setGateways',
+        'setLocation',
+        'setLocationXY',
+        'setLine',
+      ]),
       initCanvas() {
         this.graph = new Graph({
           container: this.$refs.processCanvasComp.querySelector('.canvas-material-container'),
@@ -214,15 +230,19 @@
                   },
                 },
                 data: {},
-                zIndex: 0,
               });
             },
             validateEdge: this.handleValidateEdge,
           },
           interacting: {
-            nodeMovable: this.editable,
-            edgeLabelMovable: this.editable,
-            arrowheadMovable: this.editable,
+            // 节点移动：resize 操作期间禁止拖拽移动，避免与 resize 手势冲突
+            nodeMovable: (cellView) => {
+              const node = cellView.cell || cellView;
+              if (node && node.prop && node.prop('resizeHandling')) return false;
+              return this.editable;
+            },
+            edgeLabelMovable: this.editable, // 边标签
+            arrowheadMovable: this.editable, // 箭头
           },
           highlighting: {
             // 连接桩可以被连接时在连接桩外围围渲染一个包围框
@@ -248,22 +268,53 @@
               },
             },
           },
-          // 设置节点嵌套，实现分组效果
-          embedding: {
-            enabled: false,
+          embedding: { // 嵌套交互
+            enabled: true,
+            validate: ({ child, parent }) => {
+              const childData = child.getData();
+              const parentData = parent.getData();
+              // 禁止子流程节点嵌入 SubCanvas 容器
+              if (childData?.type === 'subflow' && parentData?.type === 'SubCanvas') {
+                return false;
+              }
+              return true;
+            },
             findParent({ node }) {
-              if (node.shape === 'custom-group-node') {
+              // 排除容器节点自身（不允许分组嵌套分组）
+              if (node.shape === 'custom-group-node' || node.shape === 'custom-loop-group-node') {
                 return [];
+              }
+              // 禁止将分组外的开始节点和结束节点移入分组
+              const nodeData = node.getData();
+              if (nodeData && ['start', 'end'].includes(nodeData.type)) {
+                const parent = node.getParent();
+                if (!parent || !parent.isNode()) {
+                  return [];
+                }
               }
               const bbox = node.getBBox();
               return this.getNodes().filter((node) => {
                 const data = node.getData();
-                if (data && data.parent) {
+                // 只有 data.parent 为 true 的节点才是父节点
+                if (data && data.parent && typeof data.parent === 'boolean') {
                   const targetBBox = node.getBBox();
                   return bbox.isIntersectWithRect(targetBBox);
                 }
                 return false;
               });
+            },
+          },
+          translating: { // 限制节点移动位置
+            restrict(view) {
+              const { cell } = view;
+              if (cell.isNode()) {
+                const parent = cell.getParent();
+                // 只限制开始节点和结束，其他节点返回 null（不限制）
+                if (parent && parent.isNode() && ['start', 'end'].includes(cell.getData()?.type)) {
+                  return parent.getBBox();
+                }
+              }
+              return null;
             },
           },
           onEdgeLabelRendered: (args) => {
@@ -300,7 +351,11 @@
           pointerEvents: 'none', // 解决节点的事件无法响应
         }));
         registryNodes(this.onEventMap);
-        registryEvents(this.graph, this.editable);
+        registryEvents(this.graph, this.editable, {
+          onContainerSizeChange: (parentNode) => {
+            this.onLocationChange('edit', parentNode);
+          },
+        });
         // 节点移动
         this.graph.on('node:moving', this.onNodeMoving);
         // 节点停止移动
@@ -319,16 +374,76 @@
         });
         // 标签沿着连线拖拽
         this.graph.on('edge:change:labels', this.handleLabelDrag);
+        // 节点从分组中脱离时执行清理（删除连线、更新 store）
+        this.graph.on('node:change:parent', this.handleNodeChangeParent);
+        // 节点添加时自动设置 z-index
+        this.graph.on('node:added', ({ node }) => {
+          this.updateNodeZIndex(node);
+        });
       },
       initCanvasData() {
         if (!this.canvasData.length) return;
-        this.canvasData.forEach((cell) => {
-          if (cell.shape === 'edge') {
-            this.graph.addEdge({ ...cell });
-          } else {
-            this.graph.addNode({ ...cell });
+        const nodes = this.canvasData.filter(c => c.shape !== 'edge');
+        //  保证父节点在子节点之前添加,否则parent关联会失效
+        const sortedNodes = [
+          ...nodes.filter(n => !n.parent),   // 无父节点的（包括 group 父节点）
+          ...nodes.filter(n => n.parent),    // 有父节点的子节点
+        ];
+        // 1、先添加所有节点（不建立 embedding）
+        const addedNodes = {};
+        sortedNodes.forEach((node) => {
+          const nodeConfig = { ...node };
+          // 子节点确保使用绝对坐标（优先 position，其次 x/y）
+          if (node.parent && typeof node.parent === 'string') {
+            if (node.position) {
+              nodeConfig.x = node.position.x;
+              nodeConfig.y = node.position.y;
+            }
+            delete nodeConfig.position;
+          }
+          const addedNode = this.graph.addNode(nodeConfig);
+          addedNodes[node.id] = addedNode;
+        });
+        // 2、显式建立 embedding 关系，使子节点跟随父节点移动
+        sortedNodes.forEach((node) => {
+          if (node.parent && typeof node.parent === 'string') {
+            const parentNode = addedNodes[node.parent];
+            if (parentNode && parentNode.isNode()) {
+              parentNode.addChild(addedNodes[node.id]);
+            }
           }
         });
+        // 3、加载连线并建立 embedding 关系
+        const edges = this.canvasData.filter(c => c.shape === 'edge');
+        const addedEdges = {};
+        edges.forEach((edge) => {
+          const addedEdge = this.graph.addEdge({ ...edge });
+          addedEdges[edge.id] = addedEdge;
+        });
+        edges.forEach((edge) => {
+          if (edge.parent && typeof edge.parent === 'string') {
+            const parentNode = addedNodes[edge.parent];
+            if (parentNode && parentNode.isNode()) {
+              parentNode.addChild(addedEdges[edge.id]);
+            }
+          }
+        });
+      },
+      // 判断鼠标是否在当前激活的节点/边上
+      isMouseOverActiveCell(e) {
+        if (!this.activeCell) return false;
+        if (this.activeCell.shape === 'edge') {
+          return dom.parentClsContains('x6-edge', e.target);
+        }
+        if (this.activeCell.shape === 'custom-loop-group-node') {
+          return dom.parentClsContains('loop-container-node', e.target);
+        }
+        // 普通节点或分组子节点
+        const activeNodeDom = this.getNodeElement(`[data-cell-id="${this.activeCell.id}"] .custom-node`);
+        if (activeNodeDom && (activeNodeDom.contains(e.target) || e.target === activeNodeDom)) {
+          return true;
+        }
+        return false;
       },
       // 监听鼠标移动
       onMouseMove(e) {
@@ -341,9 +456,21 @@
         }
         // 监听鼠标是否hover到节点/连线上
         if (this.showShortcutPanel) {
-          const domClass = this.activeCell.shape === 'edge' ? 'x6-edge' : 'custom-node';
-          if (!dom.parentClsContains(`${domClass}`, e.target) && !dom.parentClsContains('shortcut-panel', e.target)) {
-            this.closeShortcutPanel();
+          const isOverActiveCell = this.isMouseOverActiveCell(e);
+          const isOverPanel = dom.parentClsContains('shortcut-panel', e.target);
+          if (!isOverActiveCell && !isOverPanel) {
+            // 鼠标离开节点且未进入面板，延迟关闭
+            if (!this.shortcutPanelCloseTimer) {
+              this.shortcutPanelCloseTimer = setTimeout(() => {
+                this.closeShortcutPanel();
+              }, 200);
+            }
+          } else {
+            // 鼠标在节点上或进入了面板，取消关闭定时器
+            if (this.shortcutPanelCloseTimer) {
+              clearTimeout(this.shortcutPanelCloseTimer);
+              this.shortcutPanelCloseTimer = null;
+            }
           }
         }
       },
@@ -359,7 +486,11 @@
           left = e.clientX - canvasLeft + 60 + 6; // 6-偏移宽度
           top = e.clientY - canvasTop + 6; // 6-偏移高度
         } else  {
-          const nodeDom = this.getNodeElement(`[data-cell-id=${cell.id}] .custom-node`);
+          // 循环流分组节点根元素是 .loop-container-node，普通节点是 .custom-node
+          const selector = cell.shape === 'custom-loop-group-node'
+            ? `[data-cell-id="${cell.id}"]`
+            : `[data-cell-id="${cell.id}"] .custom-node`;
+          const nodeDom = this.getNodeElement(selector);
           if (!nodeDom) return;
           const { height, width, top: nodeT, left: nodeL  } = nodeDom.getBoundingClientRect();
           left = nodeL - canvasLeft + width / 2 + 80;
@@ -371,6 +502,10 @@
       },
       // 隐藏快捷节点面板
       closeShortcutPanel() {
+        if (this.shortcutPanelCloseTimer) {
+          clearTimeout(this.shortcutPanelCloseTimer);
+          this.shortcutPanelCloseTimer = null;
+        }
         this.activeCell = null;
         this.showShortcutPanel = false;
         this.shortcutPanelPosition =  {};
@@ -391,6 +526,13 @@
       onNodeMoving({ node, type }) {
         if (type === 'add') {
           this.closeShortcutPanel();
+        }
+        // 拖拽时临时提高外部节点的 z-index，避免被循环流容器遮挡
+        if (this.draggingNodeId !== node.id) {
+          this.draggingNodeId = node.id;
+          if (!node.getParent() && node.shape !== 'custom-loop-group-node') {
+            node.setZIndex(20);
+          }
         }
         // 节点引用变量面板跟着节点移动
         if (this.isPerspectivePanelShow) {
@@ -433,6 +575,10 @@
       // 节点停止移动
       onNodeMoveStop({ node, type = 'edit' }) {
         this.edgesPosition = {};
+        // 恢复节点的 z-index（根据节点类型和父节点重新计算）
+        this.updateNodeZIndex(node);
+        // 清除拖拽标志位
+        this.draggingNodeId = null;
         if (Object.keys(this.matchLines).length === 1) {
           const location = {
             id: node.id,
@@ -448,6 +594,601 @@
           this.onLocationMoveDone(node);
         }
       },
+      // 节点父子关系发生变化（node:change:parent驱动）
+      handleNodeChangeParent({ node, current, previous }) {
+        if (this.graph && this.graph.isResetting) return;
+        const nodeData = node.getData();
+        if (!nodeData) return;
+        const nodeType = nodeData.type;
+        const isBusinessNode = ['task', 'subflow'].includes(nodeType) || gatewayTypes.includes(nodeType);
+        const nodeId = node.id;
+        const isNodeRegistered = this.locations && this.locations.some(loc => loc.id === nodeId);
+        // 检查节点是否在某个loop的嵌套pipeline中
+        const isInPipelineTree = !isNodeRegistered && this.findNodeInPipelineTree(nodeId, previous);
+        const shouldProcess = isNodeRegistered || isInPipelineTree;
+        // 情况1：节点从分组中脱离
+        if (!current && previous) {
+          if (typeof nodeData.parent !== 'string') return;
+          if (nodeData.parent !== previous) return;
+          node.removeProp('data/parent');
+          if (shouldProcess) {
+            // 断开跨分组连线
+            const connectedEdges = this.graph.getConnectedEdges(nodeId);
+            connectedEdges.forEach((edge) => {
+              const sourceId = edge.getSourceCellId();
+              const targetId = edge.getTargetCellId();
+              const otherNodeId = sourceId === nodeId ? targetId : sourceId;
+              const otherNode = this.getNodeInstance(otherNodeId);
+              if (otherNode && otherNode.getParent()?.id === previous) {
+                this.graph.removeEdge(edge.id);
+                this.onLineChange('delete', {
+                  id: edge.id,
+                  source: { cell: sourceId },
+                  target: { cell: targetId },
+                });
+              }
+            });
+            // 节点不再属于任何loop，从pipeline中移除并添加到外层 store
+            if (isBusinessNode) {
+              if (isInPipelineTree) {
+                this.moveNodeOutOfLoop(nodeId, previous);
+              } else {
+                this.removeFromPipelineTree(nodeId, previous);
+              }
+            }
+            const nodeInstance = this.getNodeInstance(nodeId);
+            this.onLocationChange('edit', nodeInstance);
+          }
+          // 更新节点和相连连线的z-index
+          this.updateNodeZIndex(node);
+          const connectedEdgesAfterLeave = this.graph.getConnectedEdges(node.id);
+          connectedEdgesAfterLeave.forEach((edge) => {
+            this.updateEdgeZIndex(edge);
+          });
+          return;
+        }
+        // 情况2：节点移入新分组
+        if (current && typeof current === 'string') {
+          node.setData({ ...nodeData, parent: current });
+          // 更新节点 z-index
+          this.updateNodeZIndex(node);
+          if (isNodeRegistered) {
+            // 断开跨分组连线
+            const connectedEdges = this.graph.getConnectedEdges(nodeId);
+            connectedEdges.forEach((edge) => {
+              const sourceId = edge.getSourceCellId();
+              const targetId = edge.getTargetCellId();
+              const otherNodeId = sourceId === nodeId ? targetId : sourceId;
+              const otherNode = this.getNodeInstance(otherNodeId);
+              const otherParent = otherNode?.getParent?.()?.id;
+              if (!otherParent || otherParent !== current) {
+                this.graph.removeEdge(edge.id);
+                this.onLineChange('delete', {
+                  id: edge.id,
+                  source: { cell: sourceId },
+                  target: { cell: targetId },
+                });
+              }
+            });
+            if (isBusinessNode) {
+              this.onInnerNodeAdd(nodeId, current);
+              this.cleanupOuterNodeFromStore(nodeId);
+            }
+            // 同步整个分组的节点和边数据到 pipelineTree（包含刚移入的节点）
+            this.syncLoopGroupInnerNodes(current);
+            const nodeInstance = this.getNodeInstance(nodeId);
+            this.onLocationChange('edit', nodeInstance);
+          }
+          // 更新相连连线的 z-index
+          const connectedEdgesAfterEnter = this.graph.getConnectedEdges(node.id);
+          connectedEdgesAfterEnter.forEach((edge) => {
+            this.updateEdgeZIndex(edge);
+          });
+        }
+      },
+      // 从 nested pipeline 中移除节点
+      removeFromPipelineTree(nodeId, parentLoopId) {
+        const loopActivity = this.activities[parentLoopId];
+        if (!loopActivity || !loopActivity.pipeline) return;
+        const pt = loopActivity.pipeline;
+        // 从 activities 中移除
+        if (pt.activities && pt.activities[nodeId]) {
+          delete pt.activities[nodeId];
+        }
+        // 从 gateways 中移除
+        if (pt.gateways && pt.gateways[nodeId]) {
+          const deletedGw = pt.gateways[nodeId];
+          // 如果删除的是汇聚网关，清除其他网关对该汇聚网关的 converge_gateway_id 引用
+          if (deletedGw.type === 'ConvergeGateway') {
+            Object.values(pt.gateways).forEach((gw) => {
+              if (gw.converge_gateway_id === nodeId) {
+                gw.converge_gateway_id = '';
+              }
+            });
+          }
+          delete pt.gateways[nodeId];
+        }
+        // 从location中移除
+        if (pt.location) {
+          pt.location = pt.location.filter(l => l.id !== nodeId);
+        }
+        // 清理相关的flows和line
+        if (pt.flows) {
+          const removedFlowIds = [];
+          Object.entries(pt.flows).forEach(([flowId, flow]) => {
+            if (flow.source === nodeId || flow.target === nodeId) {
+              removedFlowIds.push(flowId);
+            }
+          });
+          removedFlowIds.forEach(fid => delete pt.flows[fid]);
+        }
+        if (pt.line) {
+          pt.line = pt.line.filter(l => l.source.id !== nodeId && l.target.id !== nodeId);
+        }
+        this.recalcInnerPipelineInOut(pt);
+      },
+      // 检查节点是否在指定 loop 的嵌套 pipeline 中
+      findNodeInPipelineTree(nodeId, parentLoopId) {
+        const loopActivity = this.activities[parentLoopId];
+        if (!loopActivity || !loopActivity.pipeline) return false;
+        const pt = loopActivity.pipeline;
+        if (pt.activities && pt.activities[nodeId]) return true;
+        if (pt.gateways && pt.gateways[nodeId]) return true;
+        if (pt.start_event && pt.start_event.id === nodeId) return true;
+        if (pt.end_event && pt.end_event.id === nodeId) return true;
+        if (pt.location && pt.location.some(l => l.id === nodeId)) return true;
+        return false;
+      },
+      // 将节点从嵌套 pipeline 移到外层 store（节点从循环容器拖出时调用）
+      moveNodeOutOfLoop(nodeId, parentLoopId) {
+        const loopActivity = this.activities[parentLoopId];
+        if (!loopActivity || !loopActivity.pipeline) return;
+        const pt = loopActivity.pipeline;
+        // 1. 从 pipeline 中提取数据
+        const activityData = pt.activities?.[nodeId];
+        const gatewayData = pt.gateways?.[nodeId];
+        const locationData = pt.location?.find(l => l.id === nodeId);
+        // 2. 从 pipeline 中移除
+        this.removeFromPipelineTree(nodeId, parentLoopId);
+        // 3. 将数据写回外层store
+        if (activityData) {
+          const cleanActivity = { ...activityData };
+          delete cleanActivity.parent; // 移除parent字段
+          cleanActivity.incoming = [];
+          cleanActivity.outgoing = '';
+          this.setActivities({ type: 'edit', location: cleanActivity });
+        }
+        if (gatewayData) {
+          const cleanGateway = { ...gatewayData };
+          delete cleanGateway.parent;
+          cleanGateway.incoming = Array.isArray(cleanGateway.incoming) ? [] : [];
+          cleanGateway.outgoing = cleanGateway.type === 'ConvergeGateway' ? '' : [];
+          this.setGateways({ type: 'edit', location: cleanGateway });
+        }
+        if (locationData) {
+          const cleanLocation = { ...locationData };
+          delete cleanLocation.parent;
+          this.setLocation({ type: 'add', location: cleanLocation });
+        }
+        // 4. 重新计算内部 pipeline 的 incoming/outgoing
+        this.recalcInnerPipelineInOut(pt);
+      },
+      // 节点从外层画布移入分组后，清理外层中的残留数据
+      cleanupOuterNodeFromStore(nodeId) {
+        const state = this.$store.state.template;
+        if (!state) return;
+        const locIdx = state.location.findIndex(l => l.id === nodeId);
+        if (locIdx >= 0) {
+          this.setLocation({ type: 'delete', location: { id: nodeId } });
+        }
+        if (state.activities[nodeId]) {
+          this.setActivities({ type: 'delete', location: { id: nodeId } });
+        }
+        if (state.gateways && state.gateways[nodeId]) {
+          const gwInfo = state.gateways[nodeId];
+          this.setGateways({
+            type: 'delete',
+            location: {
+              id: nodeId,
+              type: gwInfo.type === 'ConvergeGateway' ? 'convergegateway' : '',
+            },
+          });
+        }
+        const flowIdsToDelete = [];
+        Object.entries(state.flows).forEach(([flowId, flow]) => {
+          if (flow.source === nodeId || flow.target === nodeId) {
+            flowIdsToDelete.push(flowId);
+          }
+        });
+        flowIdsToDelete.forEach((fid) => {
+          this.setLine({ type: 'delete', line: { id: fid } });
+        });
+      },
+      // 同步循环容器内部子节点到store的嵌套pipelineTree
+      syncLoopGroupInnerNodes(nodeId) {
+        const nodeInstance = this.getNodeInstance(nodeId);
+        if (!nodeInstance || nodeInstance.shape !== 'custom-loop-group-node') return;
+        let loopActivity = this.activities[nodeId];
+        if (!loopActivity) return;
+        if (!loopActivity.pipeline) {
+          this.setActivities({
+            type: 'edit',
+            location: {
+              ...loopActivity,
+              pipeline: {
+                activities: {},
+                constants: {},
+                flows: {},
+                gateways: {},
+                line: [],
+                location: [],
+                start_event: {},
+                end_event: {},
+                outputs: [],
+              },
+            },
+          });
+          // 重新获取更新后的activity
+          loopActivity = this.activities[nodeId];
+        }
+        const pt = loopActivity.pipeline;
+        // 遍历graph中所有节点，找出parent指向当前SubCanvas的子节点
+        const allNodes = this.graph.getNodes();
+        const childNodes = allNodes.filter((n) => {
+          const d = n.getData();
+          return d && d.parent === nodeId;
+        });
+        childNodes.forEach((child) => {
+          const childData = child.getData();
+          if (!childData) return;
+          // 同步子节点到 pipeline
+          this.onInnerNodeAdd(child.id, nodeId);
+        });
+        // 同步组内边数据到pipeline.flows和pipeline.line
+        const childNodeIds = childNodes.map(n => n.id);
+        const allEdges = this.graph.getEdges();
+        // 清理 pipeline 中已被X6删除的过期flows/lines
+        const x6EdgeIds = new Set(allEdges.map(e => e.id));
+        Object.keys(pt.flows).forEach((flowId) => {
+          if (!x6EdgeIds.has(flowId)) {
+            delete pt.flows[flowId];
+          }
+        });
+        if (pt.line) {
+          pt.line = pt.line.filter(l => x6EdgeIds.has(l.id));
+        }
+        allEdges.forEach((edge) => {
+          const sourceCell = edge.getSourceCellId();
+          const targetCell = edge.getTargetCellId();
+          const isInnerEdge = childNodeIds.includes(sourceCell) || sourceCell === nodeId;
+          const isInnerEdge2 = childNodeIds.includes(targetCell) || targetCell === nodeId;
+          if (isInnerEdge && isInnerEdge2) {
+            this.onInnerLineAdd({
+              id: edge.id,
+              source: edge.getSource(),
+              target: edge.getTarget(),
+            }, nodeId);
+          }
+        });
+        // 根据最新的pt.flows全量重建所有节点的 incoming/outgoing（覆盖增量同步可能遗留的脏数据）
+        this.recalcInnerPipelineInOut(pt);
+      },
+      // 处理组内节点数据同步（写入嵌套 pipelineTree）
+      onInnerNodeAdd(nodeId, parentLoopId = null) {
+        const nodeInstance = this.getNodeInstance(nodeId);
+        if (!nodeInstance) return;
+        // 查找父 SubCanvas
+        const parentNode = parentLoopId
+          ? this.activities[parentLoopId]
+          : this.getLoopParentByChildId(nodeId);
+        if (!parentNode || !parentNode.pipeline) {
+          // 如果父节点尚未初始化 pipeline，先通过 syncLoopGroupInnerNodes 初始化
+          this.onLocationChange('add', nodeInstance, true);
+          return;
+        }
+        const pt = parentNode.pipeline;
+        const childData = nodeInstance.getData();
+        const nodeType = childData ? childData.type : '';
+        const normalizedType = typeof nodeType === 'string' ? nodeType.toLowerCase() : '';
+        const typeMap = {
+          start: 'startpoint',
+          end: 'endpoint',
+          task: 'tasknode',
+          subflow: 'subflow',
+          'branch-gateway': 'branchgateway',
+          'parallel-gateway': 'parallelgateway',
+          'conditional-parallel-gateway': 'conditionalparallelgateway',
+          'converge-gateway': 'convergegateway',
+        };
+        const savedType = typeMap[normalizedType] ?? normalizedType.split('-').join('');
+        // 同步 location（使用绝对坐标，与 onLocationMoveDone 保持一致）
+        const pos = nodeInstance.getPosition({ relative: false });
+        const loc = {
+          id: nodeId,
+          type: savedType,
+          name: (childData && childData.name) || '',
+          x: pos.x,
+          y: pos.y,
+          parent: parentNode.id,
+        };
+        // 存入 pipeline.location
+        const existingLocIdx = pt.location.findIndex(l => l.id === nodeId);
+        if (existingLocIdx >= 0) {
+          pt.location[existingLocIdx] = loc;
+        } else {
+          pt.location.push(loc);
+        }
+        // 同步 activities/gateways/events 到 pipeline
+        if (['tasknode', 'subflow'].includes(savedType)) {
+          // 优先从外层 store 获取，若已清理则从 pipeline 中查找已有数据（避免覆盖已同步的完整数据）
+          const existingActivity = this.activities[nodeId] || (pt.activities && pt.activities[nodeId]);
+          if (existingActivity) {
+            pt.activities[nodeId] = { ...existingActivity, parent: parentNode.id };
+          } else {
+          // 初始子节点（如 initLoopContainerContent 创建的默认节点）尚未在顶层 store 中注册
+            const isSubflow = nodeType === 'subflow';
+            pt.activities[nodeId] = {
+              id: nodeId,
+              type: isSubflow ? 'SubProcess' : 'ServiceActivity',
+              name: childData.name || '',
+              incoming: [],
+              outgoing: '',
+              optional: true,
+              error_ignorable: false,
+              retryable: true,
+              skippable: true,
+              loop: null,
+              stage_name: '',
+              parent: parentNode.id,
+              ...(isSubflow ? {
+                constants: {},
+                hooked_constants: [],
+                template_id: childData.templateId || '',
+                version: childData.templateVersion || 'latest',
+                always_use_latest: false,
+                scheme_id_list: [],
+                template_source: childData.tplSource || 'business',
+              } : {
+                component: {
+                  code: childData.atomId || '',
+                  data: childData.atom_data || {},
+                  version: childData.version || 'legacy',
+                },
+              }),
+            };
+          }
+        } else if (savedType === 'startpoint') {
+          pt.start_event = {
+            id: nodeId,
+            type: 'EmptyStartEvent',
+            incoming: '',
+            outgoing: '',
+            name: childData ? childData.name || '' : '',
+          };
+        } else if (savedType === 'endpoint') {
+          pt.end_event = {
+            id: nodeId,
+            type: 'EmptyEndEvent',
+            incoming: '',
+            outgoing: '',
+            name: childData ? childData.name || '' : '',
+          };
+        } else if (['branchgateway', 'parallelgateway', 'convergegateway', 'conditionalparallelgateway'].includes(savedType)) {
+          const ATOM_TYPE_DICT = {
+            branchgateway: 'ExclusiveGateway',
+            parallelgateway: 'ParallelGateway',
+            convergegateway: 'ConvergeGateway',
+            conditionalparallelgateway: 'ConditionalParallelGateway',
+          };
+          const existingGateway = this.gateways[nodeId];
+          if (existingGateway) {
+            pt.gateways[nodeId] = { ...existingGateway, parent: parentNode.id };
+          } else {
+            // 回退创建：外层store尚未注册该网关时，
+            // 在 pipeline 中创建默认网关数据
+            const gatewayType = ATOM_TYPE_DICT[savedType];
+            const isConverge = gatewayType === 'ConvergeGateway';
+            const isBranch = gatewayType === 'ExclusiveGateway' || gatewayType === 'ConditionalParallelGateway';
+            pt.gateways[nodeId] = {
+              id: nodeId,
+              incoming: [],
+              name: childData ? childData.name || '' : '',
+              outgoing: isConverge ? '' : [],
+              type: gatewayType,
+              ...(isBranch ? { conditions: {} } : {}),
+              ...(!isConverge ? { converge_gateway_id: (childData && childData.convergeGatewayId) || '' } : {}),
+              parent: parentNode.id,
+            };
+          }
+        }
+        this.$emit('templateDataChanged');
+      },
+      // 查找某个child所属的SubCanvas
+      getLoopParentByChildId(childNodeId) {
+        return Object.values(this.activities).find((act) => {
+          if (act.type !== 'SubCanvas' || !act.pipeline) return false;
+          const pt = act.pipeline;
+          return !!(pt.activities && pt.activities[childNodeId])
+            || !!(pt.gateways && pt.gateways[childNodeId])
+            || (pt.start_event && pt.start_event.id === childNodeId)
+            || (pt.end_event && pt.end_event.id === childNodeId);
+        });
+      },
+      // 处理组内连线数据同步
+      onInnerLineAdd({ id, source, target }, parentLoopId = null) {
+        const sourceCellId = typeof source === 'string' ? source : source.cell;
+        const targetCellId = typeof target === 'string' ? target : target.cell;
+        // 查找父 SubCanvas
+        const parentNode = parentLoopId
+          ? this.activities[parentLoopId]
+          : (this.getLoopParentByChildId(sourceCellId) || this.getLoopParentByChildId(targetCellId));
+        if (!parentNode || !parentNode.pipeline) return;
+        const pt = parentNode.pipeline;
+        pt.flows[id] = {
+          id,
+          is_default: false,
+          source: sourceCellId,
+          target: targetCellId,
+        };
+        if (!pt.line.find(l => l.id === id)) {
+          pt.line.push({
+            id,
+            source: {
+              id: sourceCellId,
+              arrow: source.port ? source.port.split('_')[1].charAt(0).toUpperCase() + source.port.split('_')[1].slice(1) : 'Right',
+            },
+            target: {
+              id: targetCellId,
+              arrow: target.port ? target.port.split('_')[1].charAt(0).toUpperCase() + target.port.split('_')[1].slice(1) : 'Left',
+            },
+          });
+        }
+        // 更新 pipeline 中 start_event/end_event/activities/gateways 的 outgoing/incoming
+        if (pt.start_event && pt.start_event.id === sourceCellId) {
+          pt.start_event.outgoing = id;
+        }
+        if (pt.activities && pt.activities[sourceCellId]) {
+          pt.activities[sourceCellId].outgoing = id;
+        }
+        if (pt.gateways && pt.gateways[sourceCellId]) {
+          const gw = pt.gateways[sourceCellId];
+          if (Array.isArray(gw.outgoing)) {
+            if (!gw.outgoing.includes(id)) gw.outgoing.push(id);
+          } else {
+            gw.outgoing = id;
+          }
+          // 分支网关/条件并行网关：自动生成默认条件
+          if (gw.type === 'ExclusiveGateway' || gw.type === 'ConditionalParallelGateway') {
+            if (!gw.conditions) gw.conditions = {};
+            const { conditions } = gw;
+            // 已有该连线的条件则跳过（重连场景保留原条件）
+            if (conditions[id]) return;
+            const defaultName = this.$t('条件');
+            const regStr = `^${defaultName}[0-9]*$`;
+            const reg = new RegExp(regStr);
+            let maxCount = 0;
+            Object.values(conditions).forEach((item) => {
+              if (reg.test(item.name)) {
+                const count = Number(item.name.split(defaultName)[1]);
+                if (count > maxCount) maxCount = count;
+              }
+            });
+            const name = defaultName + (maxCount + 1);
+            const evaluate = Object.keys(conditions).length ? '1 == 0' : '1 == 1';
+            Vue.set(conditions, id, {
+              evaluate,
+              name,
+              tag: `branch_${sourceCellId}_${targetCellId}`,
+            });
+          }
+        }
+        if (pt.end_event && pt.end_event.id === targetCellId) {
+          pt.end_event.incoming = Array.isArray(pt.end_event.incoming)
+            ? [...pt.end_event.incoming, id]
+            : (pt.end_event.incoming ? [pt.end_event.incoming, id] : [id]);
+        }
+        if (pt.activities && pt.activities[targetCellId]) {
+          const { incoming } = pt.activities[targetCellId];
+          pt.activities[targetCellId].incoming = Array.isArray(incoming)
+            ? [...incoming, id]
+            : (incoming ? [incoming, id] : [id]);
+        }
+        if (pt.gateways && pt.gateways[targetCellId]) {
+          const gwIncoming = pt.gateways[targetCellId].incoming;
+          pt.gateways[targetCellId].incoming = Array.isArray(gwIncoming)
+            ? [...gwIncoming, id]
+            : (gwIncoming ? [gwIncoming, id] : [id]);
+        }
+      },
+      // 从 pipeline 中删除一条内部连线（用于内部连线重连场景）
+      deleteInnerLine(lineId, parentLoopId) {
+        const loopActivity = this.activities[parentLoopId];
+        if (!loopActivity || !loopActivity.pipeline) return;
+        const pt = loopActivity.pipeline;
+        // 删除 flows
+        delete pt.flows[lineId];
+        // 删除 line
+        const lineIndex = pt.line?.findIndex(l => l.id === lineId);
+        if (lineIndex !== -1) {
+          pt.line.splice(lineIndex, 1);
+        }
+        // 删除分支网关中对应的 condition
+        if (pt.gateways) {
+          Object.values(pt.gateways).forEach((gw) => {
+            if (gw.conditions && gw.conditions[lineId]) {
+              Vue.delete(gw.conditions, lineId);
+            }
+          });
+        }
+        // 重建incoming/outgoing
+        this.recalcInnerPipelineInOut(pt);
+      },
+      // 根据 pipelines_tree.flows 全量重建所有节点的 incoming/outgoing
+      // 在 syncLoopGroupInnerNodes 末尾调用，确保连线增/删后数据一致
+      recalcInnerPipelineInOut(pt) {
+        if (!pt || !pt.flows) return;
+        // 重置所有节点的 incoming/outgoing
+        if (pt.activities) {
+          Object.values(pt.activities).forEach((act) => {
+            act.incoming = [];
+            act.outgoing = '';
+          });
+        }
+        if (pt.gateways) {
+          Object.values(pt.gateways).forEach((gw) => {
+            gw.incoming = [];
+            gw.outgoing = gw.type === 'ConvergeGateway' ? '' : [];
+          });
+        }
+        if (pt.start_event) {
+          pt.start_event.outgoing = '';
+        }
+        if (pt.end_event) {
+          pt.end_event.incoming = [];
+        }
+        // 根据 flows 重新计算
+        const flowIds = new Set(Object.keys(pt.flows));
+        Object.values(pt.flows).forEach((flow) => {
+          const { id, source, target } = flow;
+          // 更新 source 的 outgoing
+          if (pt.start_event && pt.start_event.id === source) {
+            pt.start_event.outgoing = id;
+          } else if (pt.activities && pt.activities[source]) {
+            pt.activities[source].outgoing = id;
+          } else if (pt.gateways && pt.gateways[source]) {
+            const gw = pt.gateways[source];
+            if (gw.type === 'ConvergeGateway') {
+              gw.outgoing = id;
+            } else {
+              if (!Array.isArray(gw.outgoing)) gw.outgoing = [];
+              if (!gw.outgoing.includes(id)) gw.outgoing.push(id);
+            }
+          }
+          // 更新 target 的 incoming
+          if (pt.end_event && pt.end_event.id === target) {
+            if (!Array.isArray(pt.end_event.incoming)) pt.end_event.incoming = [];
+            if (!pt.end_event.incoming.includes(id)) pt.end_event.incoming.push(id);
+          } else if (pt.activities && pt.activities[target]) {
+            if (!Array.isArray(pt.activities[target].incoming)) pt.activities[target].incoming = [];
+            if (!pt.activities[target].incoming.includes(id)) pt.activities[target].incoming.push(id);
+          } else if (pt.gateways && pt.gateways[target]) {
+            if (!Array.isArray(pt.gateways[target].incoming)) pt.gateways[target].incoming = [];
+            if (!pt.gateways[target].incoming.includes(id)) pt.gateways[target].incoming.push(id);
+          }
+        });
+        // 清理分支网关中不再存在的 outgoing 连线对应的 condition
+        if (pt.gateways) {
+          Object.values(pt.gateways).forEach((gw) => {
+            if (gw.conditions && Object.keys(gw.conditions).length > 0) {
+              Object.keys(gw.conditions).forEach((condLineId) => {
+                if (!flowIds.has(condLineId)) {
+                  Vue.delete(gw.conditions, condLineId);
+                }
+              });
+            }
+          });
+        }
+      },
       // 获取节点坐标/尺寸
       getNodeLocation(node, type) {
         const location = {
@@ -461,23 +1202,30 @@
           let offsetLeft = 0;
           let offsetTop = 0;
           const x6ViewDom = this.getNodeElement('.x6-graph-svg-viewport');
-          const transform = x6ViewDom.getAttribute('transform');
-          if (transform) {
-            const offset = transform
-              .slice(7, -1)
-              .split(',')
-              .slice(-2);
-            offsetLeft = Number(offset[0]);
-            offsetTop = Number(offset[1]);
+          if (x6ViewDom) {
+            const transform = x6ViewDom.getAttribute('transform');
+            if (transform) {
+              const offset = transform
+                .slice(7, -1)
+                .split(',')
+                .slice(-2);
+              offsetLeft = Number(offset[0]);
+              offsetTop = Number(offset[1]);
+            }
           }
-          // 节点坐标
+          // 节点坐标（拖拽过程中 DOM 可能尚未渲染，需要安全检查）
           const nodeCellDom = this.getNodeElement(`g[data-cell-id="${node.id}"]`);
-          const { top, left } = nodeCellDom.querySelector('.custom-node').getBoundingClientRect();
           const canvasDom = this.getNodeElement();
-          const { left: canvasLeft, top: canvasTop } = canvasDom.getBoundingClientRect();
-          const ratio = this.graph.zoom();
-          location.x = (left - canvasLeft - offsetLeft) / ratio;
-          location.y = (top - canvasTop - offsetTop) / ratio;
+          if (nodeCellDom && canvasDom) {
+            const customNode = nodeCellDom.querySelector('.custom-node');
+            if (customNode) {
+              const { top, left } = customNode.getBoundingClientRect();
+              const { left: canvasLeft, top: canvasTop } = canvasDom.getBoundingClientRect();
+              const ratio = this.graph.zoom();
+              location.x = (left - canvasLeft - offsetLeft) / ratio;
+              location.y = (top - canvasTop - offsetTop) / ratio;
+            }
+          }
         }
         return location;
       },
@@ -518,11 +1266,13 @@
           });
           this.connectionHoverList = [];
           // 移除节点两边插入连线的端点
-          const pointDoms = parentDom.querySelectorAll('.node-inset-line-point');
-          if (pointDoms.length) {
-            Array.from(pointDoms).forEach((pointDomItem) => {
-              parentDom.removeChild(pointDomItem);
-            });
+          if (parentDom) {
+            const pointDoms = parentDom.querySelectorAll('.node-inset-line-point');
+            if (pointDoms.length) {
+              Array.from(pointDoms).forEach((pointDomItem) => {
+                parentDom.removeChild(pointDomItem);
+              });
+            }
           }
         }
       },
@@ -659,6 +1409,14 @@
           }
           return false;
         });
+        // 如果被断开的连线在分组内，将新节点也加入该分组
+        const targetNode = this.getNodeInstance(target.cell);
+        const sourceNode = this.getNodeInstance(source.cell);
+        const parentNode = targetNode?.getParent?.() || sourceNode?.getParent?.();
+        const isInnerLine = parentNode && this.activities[parentNode.id]?.type === 'SubCanvas';
+        if (parentNode && !nodeInstance.getParent()) {
+          parentNode.addChild(nodeInstance);
+        }
         // 删除旧的连线，创建新的连线
         const result = this.updateConnector({
           lineId,
@@ -670,19 +1428,30 @@
         });
         if (!result) return;
         const { startLine, endLine } = result;
-        this.onLineChange('delete', values);
+        if (isInnerLine) {
+          // 循环容器内部连线：直接清理 pipeline 中的旧边数据
+          this.deleteInnerLine(lineId, parentNode.id);
+        } else {
+          this.onLineChange('delete', values);
+        }
         this.$nextTick(() => {
-          this.createEdge(startLine);
-          this.createEdge(endLine);
+          // 循环容器内部连线：不触发onLineChange（避免污染外层store），通过syncLoopGroupInnerNodes同步到pipeline
+          this.createEdge(startLine, isInnerLine);
+          this.createEdge(endLine, isInnerLine);
+          if (isInnerLine) {
+            this.syncLoopGroupInnerNodes(parentNode.id);
+          }
         });
         this.matchLines = {};
         // 删除节点两端插入连线的端点
         const nodeDom = this.getNodeElement(`[data-cell-id=${location.id}] .custom-node`);
-        const pointDoms = nodeDom && nodeDom.querySelectorAll('.node-inset-line-point');
-        if (pointDoms.length) {
-          Array.from(pointDoms).forEach((pointDomItem) => {
-            nodeDom.removeChild(pointDomItem);
-          });
+        if (nodeDom) {
+          const pointDoms = nodeDom.querySelectorAll('.node-inset-line-point');
+          if (pointDoms.length) {
+            Array.from(pointDoms).forEach((pointDomItem) => {
+              nodeDom.removeChild(pointDomItem);
+            });
+          }
         }
       },
       updateConnector(data) {
@@ -736,7 +1505,7 @@
         return null;
       },
       // 创建边
-      createEdge({ source, target, data = {}, router = {} }) {
+      createEdge({ source, target, data = {}, router = {} }, skipSync = false) {
         const edgeId = `line${uuid()}`;
         this.graph.addEdge({
           shape: 'edge',
@@ -756,7 +1525,6 @@
             },
           },
           data,
-          zIndex: 0,
           router: Object.assign({
             name: 'manhattan',
             args: {
@@ -764,15 +1532,24 @@
             },
           }, router),
         });
-        this.onLineChange('add', {
-          id: edgeId,
-          source,
-          target,
-          data,
-        });
+        if (!skipSync) {
+          this.onLineChange('add', {
+            id: edgeId,
+            source,
+            target,
+            data,
+          });
+        }
       },
       // 节点删除
       onNodeRemove(node, remove = this) {
+        if (node.data && node.data.isProtected && remove) {
+          this.$bkMessage({
+            message: this.$t('循环节点的开始/结束节点不可删除'),
+            theme: 'warning',
+          });
+          return;
+        }
         // 拷贝数据更新前的数据
         const activities = utilsTools.deepClone(this.activities);
         let nodeConfig = activities[node.id] || {};
@@ -784,23 +1561,67 @@
         }
 
         if (remove) { // 删除节点, 解除节点时不删除节点
-          this.graph.removeNode(node.id);
-          this.onLocationChange('delete', node);
+        // 如果是分组节点，先删除所有子节点
+          if (node.shape === 'custom-loop-group-node') {
+            // 先获取并删除外层连线（顶层 flows/line），避免 removeNode 后 getConnectedEdges 取不到
+            const outerEdges = this.graph.getConnectedEdges(node);
+            outerEdges.forEach((edge) => {
+              const source = edge.getSource();
+              const target = edge.getTarget();
+              this.onLineChange('delete', {
+                id: edge.id,
+                source: { cell: source.cell },
+                target: { cell: target.cell },
+              });
+              this.graph.removeEdge(edge.id);
+            });
+            const children = node.getChildren() || [];
+            this.setActivities({ type: 'delete', location: { id: node.id } });
+            this.setLocation({ type: 'delete', location: { id: node.id } });
+            children.forEach((child) => {
+              node.removeChild(child);
+              this.graph.removeNode(child.id);
+            });
+            this.graph.removeNode(node.id);
+            this.onLocationChange('delete', node, false);
+          } else {
+            // 如果是组内子节点，先捕获父节点信息
+            const parent = node.getParent();
+            const parentId = parent ? parent.id : undefined;
+            const isGroupInner = !!parentId;
+            // 先获取并处理连线，避免 removeNode 后 getConnectedEdges 取不到（与循环容器分支同理）
+            const connectedEdgesBeforeRemove = this.graph.getConnectedEdges(node);
+            connectedEdgesBeforeRemove.forEach((edge) => {
+              const edgeId = edge.id;
+              const source = edge.getSource();
+              const target = edge.getTarget();
+              const isInnerLine = parentId && this.activities[parentId]?.type === 'SubCanvas';
+              if (isInnerLine) {
+                // 分组子节点的连线：从内嵌pipeline中删除
+                this.deleteInnerLine(edgeId, parentId);
+              } else {
+                // 外层节点的连线：从外层store中删除
+                this.onLineChange('delete', {
+                  id: edgeId,
+                  source: { cell: source.cell },
+                  target: { cell: target.cell },
+                });
+              }
+              this.graph.removeEdge(edgeId);
+            });
+            if (parentId && isGroupInner) {
+              this.removeFromPipelineTree(node.id, parentId);
+            }
+            if (parent && parent.isNode()) {
+              parent.removeChild(node);
+            }
+            this.graph.removeNode(node.id);
+            this.onLocationChange('delete', node, isGroupInner, parentId);
+          }
         } else { // 解除连线
           const nodeInstance = this.getNodeInstance(node.id);
           this.graph.select(nodeInstance);
         }
-        // 删除节点两端旧的连线
-        lines.forEach((line) => {
-          if ([line.source.id, line.target.id].includes(node.id)) {
-            this.onLineChange('delete', {
-              id: line.id,
-              source: { cell: line.source.id },
-              target: { cell: line.target.id },
-            });
-            this.graph.removeEdge(line.id);
-          }
-        });
         // 被删除的节点只存在一条输入连线和输出连线时才允许自动连线
         const { incoming = [], outgoing } = nodeConfig;
         if (
@@ -871,8 +1692,65 @@
           return true;
         });
         const { id, source, target } = edge;
-        const sourceArrow = source.port?.split('_')[1] || '';
-        const targetArrow = target.port?.split('_')[1] || '';
+        // 兼容 source/target 为字符串（cell ID）或对象的情况
+        const sourcePort = typeof source === 'string' ? '' : (source.port || '');
+        const targetPort = typeof target === 'string' ? '' : (target.port || '');
+        const sourceArrow = sourcePort.split('_')[1] || '';
+        const targetArrow = targetPort.split('_')[1] || '';
+        // 检测连线两端是否都在同一个循环容器内部
+        const sourceNodeInstance = this.getNodeInstance(source.cell);
+        const targetNodeInstance = this.getNodeInstance(target.cell);
+        const sourceParent = sourceNodeInstance?.getParent?.();
+        const targetParent = targetNodeInstance?.getParent?.();
+        const sameLoopParent = sourceParent?.id && targetParent?.id
+          && sourceParent.id === targetParent.id
+          && this.activities[sourceParent.id]?.type === 'SubCanvas';
+        // 分组内的节点禁止与分组外的节点互连
+        if (!sameLoopParent) {
+          const sourceInLoop = sourceParent?.id && this.activities[sourceParent.id]?.type === 'SubCanvas';
+          const targetInLoop = targetParent?.id && this.activities[targetParent.id]?.type === 'SubCanvas';
+          if (sourceInLoop || targetInLoop) {
+            // 检查是否是一端为 SubCanvas 自身的情况（loopGroupNode 可以和其子节点连线）
+            const sourceData = sourceNodeInstance?.getData?.();
+            const targetData = targetNodeInstance?.getData?.();
+            const sourceIsGroupSelf = sourceData?.type === 'SubCanvas' && sourceData?.parent === true;
+            const targetIsGroupSelf = targetData?.type === 'SubCanvas' && targetData?.parent === true;
+            const isGroupToChild = (sourceInLoop && targetIsGroupSelf && targetNodeInstance?.id === sourceParent.id)
+                                || (targetInLoop && sourceIsGroupSelf && sourceNodeInstance?.id === targetParent.id);
+            if (!isGroupToChild) {
+              this.$bkMessage({
+                message: this.$t('循环内的节点不能与循环外的节点连线'),
+                theme: 'warning',
+              });
+              return false;
+            }
+          }
+        }
+        // 循环容器内部连线时，使用内层 pipeline 的 location 和 line 数据，
+        // 并将内层类型名映射为 NODE_RULE 可识别的外层类型名
+        const innerToOuterTypeMap = {
+          start: 'startpoint',
+          end: 'endpoint',
+          task: 'tasknode',
+          subflow: 'subflow',
+          'branch-gateway': 'branchgateway',
+          'parallel-gateway': 'parallelgateway',
+          'conditional-parallel-gateway': 'conditionalparallelgateway',
+          'converge-gateway': 'convergegateway',
+          SubCanvas: 'SubCanvas',
+        };
+        let validateLines;
+        let validateLocations;
+        if (sameLoopParent) {
+          const pt = this.activities[sourceParent.id]?.['pipeline'];
+          validateLines = pt ? pt.line.filter(l => l.id !== edge.id) : [];
+          validateLocations = pt
+            ? pt.location.map(loc => ({ ...loc, type: innerToOuterTypeMap[loc.type] || loc.type }))
+            : [];
+        } else {
+          validateLines = lines;
+          validateLocations = this.locations;
+        }
         const validateMessage = validatePipeline.isLineValid({
           source: {
             id: source.cell,
@@ -883,8 +1761,8 @@
             arrow: `${targetArrow.charAt(0).toUpperCase()}${targetArrow.slice(1)}`,
           },
         }, {
-          lines,
-          locations: this.locations,
+          lines: validateLines,
+          locations: validateLocations,
         });
         if (validateMessage.result) {
           // 如果当前连线的id已存在，则代表是连线源端点拖动，需删除旧的生成新的
@@ -896,17 +1774,22 @@
               sourceId: source.cell,
               targetId: target.cell,
             });
-            this.onLineChange('delete', {
-              id,
-              source: {
-                cell: oldSource.id,
-                port: `port_${oldSource.arrow?.toLowerCase()}`,
-              },
-              target: {
-                cell: oldTarget.id,
-                port: `port_${oldTarget.arrow?.toLowerCase()}`,
-              },
-            });
+            // 内部连线重连：删除旧连线时需清理 pipeline 中的旧数据
+            if (sameLoopParent) {
+              this.deleteInnerLine(id, sourceParent.id);
+            } else {
+              this.onLineChange('delete', {
+                id,
+                source: {
+                  cell: oldSource.id,
+                  port: `port_${oldSource.arrow?.toLowerCase()}`,
+                },
+                target: {
+                  cell: oldTarget.id,
+                  port: `port_${oldTarget.arrow?.toLowerCase()}`,
+                },
+              });
+            }
             this.createEdge({
               source,
               target,
@@ -914,17 +1797,29 @@
                 ...edge.data,
                 conditionInfo,
               },
-            });
+            }, sameLoopParent);
+            // 内部连线重连后同步 pipeline
+            if (sameLoopParent) {
+              this.syncLoopGroupInnerNodes(sourceParent.id);
+            }
             // 更新节点activities输入输出
           } else {
-            const line = { id: edge.id, source, target };
-            this.$emit('onLineChange', 'add', line);
-            this.handleEdgeAdded({ cell: edge });
+            if (sameLoopParent) {
+              // 循环容器内部连线：只写入 pipeline，不写外层 store
+              this.onInnerLineAdd({ id: edge.id, source, target }, sourceParent.id);
+              this.handleEdgeAdded({ cell: edge });
+            } else {
+              const line = { id: edge.id, source, target };
+              this.$emit('onLineChange', 'add', line);
+              this.handleEdgeAdded({ cell: edge });
+            }
           }
         } else {
           this.$bkMessage({
             message: validateMessage.message,
             theme: 'warning',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
           });
         }
         return validateMessage.result;
@@ -935,7 +1830,8 @@
         if (this.editable && !this.isSelectionOpen) {
           const { data, shape } = cell;
           // 边/开始/结束节点不能被选中
-          const supportSelect = shape === 'custom-node' && !['start', 'end'].includes(data.type);
+          const supportSelect = (shape === 'custom-node' || shape === 'custom-loop-group-node')
+            && !['start', 'end'].includes(data.type);
           if (supportSelect && (e.ctrlKey || e.metaKey)) {
             this.graph.select(cell);
             return;
@@ -957,11 +1853,17 @@
 
         // 如果不是模版编辑页面，点击节点相当于打开配置面板（任务执行是打开执行信息面板）
         if (this.editable) {
-          // 避免双击时再次触发单击
-          if (this.showShortcutPanel) return;
+          // 避免双击同一节点时再次触发单击
+          if (this.showShortcutPanel && this.activeCell && this.activeCell.id === cell.id) {
+            return;
+          }
+          // 点击了不同节点，先关闭当前面板
+          if (this.showShortcutPanel && this.activeCell && this.activeCell.id !== cell.id) {
+            this.closeShortcutPanel();
+          }
           // 展开节点配置面板
           this.openShortcutPanel({ cell, e });
-        } else if (cell.shape === 'custom-node') {
+        } else if (cell.shape === 'custom-node' || cell.shape === 'custom-loop-group-node') {
           // 任务执行打开执行信息面板
           this.$emit('onNodeClick', cell.id, cell.data.type);
           // 模板页面打开配置面板
@@ -992,9 +1894,6 @@
       },
       // 鼠标移入
       handleCellMouseenter({ cell }) {
-        if (this.showShortcutPanel && cell.id !== this.activeCell.id) {
-          this.closeShortcutPanel();
-        }
         this.isPerspectivePanelShow = false;
         // 节点透视面板展开
         if (this.isPerspective && cell.shape === 'custom-node' && ['task', 'subflow'].includes(cell.data.type)) {
@@ -1008,8 +1907,40 @@
           this.judgeNodeTipsPanelPos(cell);
         }
       },
+      // 更新节点 z-index（根据节点类型和父节点）
+      updateNodeZIndex(node) {
+        if (node.shape === 'custom-loop-group-node') {
+          node.setZIndex(10); // 循环流容器
+        } else if (node.getParent()) {
+          // 节点在循环流内部（高于容器内连线，最高层）
+          const parent = node.getParent();
+          const parentZIndex = parent.getZIndex() || 10;
+          node.setZIndex(parentZIndex + 2); // 内部子节点 > 内部连线
+        } else {
+          node.setZIndex(5); // 外部节点
+        }
+      },
+      // 更新连线 z-index（根据连线两端的节点是否在循环流内）
+      updateEdgeZIndex(edge) {
+        const sourceNode = this.graph.getCellById(edge.getSourceCellId());
+        const targetNode = this.graph.getCellById(edge.getTargetCellId());
+        if (!sourceNode || !targetNode) return;
+        const sourceParent = sourceNode.getParent?.();
+        const targetParent = targetNode.getParent?.();
+
+        if (sourceParent && targetParent && sourceParent.id === targetParent.id) {
+          // 连线在循环流内部（高于容器，低于内部子节点）
+          const parentZIndex = sourceParent.getZIndex() || 10;
+          edge.setZIndex(parentZIndex + 1); // 内部连线 > 容器
+        } else {
+          // 外部连线
+          edge.setZIndex(2);
+        }
+      },
       // 监听画布添加连线
       handleEdgeAdded({ cell }) {
+        // 设置连线 z-index
+        this.updateEdgeZIndex(cell);
         this.$nextTick(() => {
           // 添加标签
           const branchInfo = this.getBranchConditions(cell.source.cell) || {};
@@ -1055,6 +1986,7 @@
       },
       getBranchConditions(gatewayId) {
         let branchConditions = {};
+        // 先从外层 store.gateways 查找
         Object.keys(this.gateways).some((gKey) => {
           const info = this.gateways[gKey];
           if (info.id === gatewayId) {
@@ -1072,14 +2004,58 @@
           }
           return false;
         });
+        // 外层未找到条件数据时，从 SubCanvas的pipeline.gateways中查找
+        if (!Object.keys(branchConditions).length) {
+          Object.values(this.activities).forEach((act) => {
+            const isSubCanvas = act.type === 'SubCanvas' || (act.component && act.component.code === 'subcanvas_plugin');
+            if (!isSubCanvas) return;
+            if (!act.pipeline || !act.pipeline.gateways) return;
+            const pipelineGateways = act.pipeline.gateways;
+            // 优先通过key匹配，回退通过gw.id遍历匹配
+            let gw = pipelineGateways[gatewayId];
+            if (!gw) {
+              Object.keys(pipelineGateways).some((pgKey) => {
+                if (pipelineGateways[pgKey].id === gatewayId) {
+                  gw = pipelineGateways[pgKey];
+                  return true;
+                }
+                return false;
+              });
+            }
+            if (gw) {
+              if (gw.conditions) {
+                branchConditions = Object.assign({}, gw.conditions);
+              }
+              if (gw.default_condition) {
+                const nodeId = gw.default_condition.flow_id;
+                branchConditions[nodeId] = {
+                  ...gw.default_condition,
+                  isDefault: true,
+                };
+              }
+            }
+          });
+        }
         return branchConditions;
       },
       // 标签拖拽
       handleLabelDrag({ edge, current, previous }) {
         if (!previous || !previous.length || !current.length) return;
-        // 边的长度
-        const svgPath = this.getNodeElement(`.${edge.id}`);
+        // 边的长度：通过data-cell-id 查找边的SVG容器，再取path元素
+        const edgeDom = this.getNodeElement(`g[data-cell-id="${edge.id}"]`);
+        const svgPath = edgeDom && edgeDom.querySelector('path');
+        if (!svgPath) return;
         const edgeLength = svgPath.getTotalLength();
+        // 检测是否属于循环流内部连线
+        let loopNodeId = '';
+        const sourceCellId = edge.source?.cell;
+        if (sourceCellId) {
+          const sourceNode = this.getNodeInstance(sourceCellId);
+          const parent = sourceNode?.getParent?.();
+          if (parent?.id && this.activities[parent.id]?.type === 'SubCanvas') {
+            loopNodeId = parent.id;
+          }
+        }
         current.forEach((item) => {
           const { width } = item.attrs.fo;
           item.position.offset = {
@@ -1105,6 +2081,9 @@
               loc: distance,
             };
           }
+          if (loopNodeId) {
+            condition.loopNodeId = loopNodeId;
+          }
           this.$emit('updateCondition', condition);
         });
       },
@@ -1116,13 +2095,391 @@
       },
       onLineChange(type, data) {
         this.$emit('templateDataChanged');
-        this.$emit('onLineChange', type, data);
+        // 检测是否为循环容器内部连线
+        let isInnerEdge = false;
+        let loopParentId = null;
+        if (data) {
+          const sourceCellId = data.source?.cell || data.source?.id;
+          const targetCellId = data.target?.cell || data.target?.id;
+          const sourceNode = this.getNodeInstance(sourceCellId);
+          const targetNode = targetCellId ? this.getNodeInstance(targetCellId) : null;
+          const parent = sourceNode?.getParent?.() || targetNode?.getParent?.();
+          if (parent?.id && this.activities[parent.id]?.type === 'SubCanvas') {
+            isInnerEdge = true;
+            loopParentId = parent.id;
+          }
+        }
+        if (!isInnerEdge) {
+          this.$emit('onLineChange', type, data);
+        }
+        if (isInnerEdge && loopParentId) {
+          this.syncLoopGroupInnerNodes(loopParentId);
+        }
       },
-      onLocationChange(type, data) {
+      onLocationChange(type, data, isGroupInner, groupParentId) {
         this.$emit('templateDataChanged');
-        this.$emit('onLocationChange', type, data);
+        this.$emit('onLocationChange', type, data, isGroupInner, groupParentId);
+        // 循环容器节点新增/复制时：父节点已入 store，统一处理子节点的 children 回填和事件数据同步
+        if ((type === 'add' || type === 'copy') && data && data.shape === 'custom-loop-group-node') {
+          // 如果是复制操作，先复制原始分组节点的 location 和 flows 数据
+          if (type === 'copy' && data.data && data.data.oldSouceId) {
+            this.copyLoopGroupLocationAndFlows(data.data.oldSouceId, data.id);
+          }
+          this.syncLoopGroupInnerNodes(data.id);
+        }
+        if (type === 'edit' && data && data.shape === 'custom-loop-group-node') {
+          this.syncLoopGroupInnerNodes(data.id);
+        }
+        // dnd拖入/快捷面板添加/复制操作同步写入pipeline
+        if ((type === 'add' || type === 'copy') && data) {
+          const parent = data.getParent ? data.getParent() : null;
+          const parentId = parent?.id;
+          if (parentId && this.activities[parentId]?.type === 'SubCanvas') {
+            this.syncLoopGroupInnerNodes(parentId);
+          }
+        }
+      },
+      // 复制SubCanvas的嵌套pipelineTree数据
+      copyLoopGroupLocationAndFlows(oldSourceId, newNodeId) {
+        const oldLoopActivity = this.activities[oldSourceId];
+        if (!oldLoopActivity || oldLoopActivity.type !== 'SubCanvas') return;
+
+        const newLoopActivity = this.activities[newNodeId];
+        if (!newLoopActivity) return;
+
+        const newGroupNode = this.getNodeInstance(newNodeId);
+        if (!newGroupNode) return;
+
+        // 尺寸同步
+        const oldGroupNode = this.getNodeInstance(oldSourceId);
+        let syncedWidth;
+        let syncedHeight;
+        if (oldGroupNode) {
+          const { width, height } = oldGroupNode.size();
+          newGroupNode.resize(width, height);
+          syncedWidth = width;
+          syncedHeight = height;
+        }
+
+        // 获取旧的 nested pipelineTree
+        const oldPT = oldLoopActivity.pipeline;
+        if (!oldPT) {
+          // 如果没有pipeline直接让initLoopContainerContent创建默认内容
+          return;
+        }
+        // 清理新分组已有的子节点
+        this.clearExistingLoopChildren(newNodeId);
+        // 如果旧 pipelineTree 没有 activities/子节点，直接返回（由dnd初始化默认内容）
+        if (!oldPT.activities || Object.keys(oldPT.activities).length === 0) return;
+        if (!oldPT.start_event || !oldPT.end_event) return;
+        // 获取新旧分组节点位置
+        const oldGroupPos = this.graph.getCellById(oldSourceId).position();
+        const newGroupPos = newGroupNode.position();
+        // ID 重映射
+        const oldToNewIdMap = {};
+        const createNewId = () => `node${uuid()}`;
+        // 映射 start_event / end_event
+        const oldStartId = oldPT.start_event.id;
+        const oldEndId = oldPT.end_event.id;
+        oldToNewIdMap[oldStartId] = createNewId();
+        oldToNewIdMap[oldEndId] = createNewId();
+        // 映射 activities 和 gateways
+        Object.keys(oldPT.activities || {}).forEach((id) => {
+          oldToNewIdMap[id] = createNewId();
+        });
+        Object.keys(oldPT.gateways || {}).forEach((id) => {
+          oldToNewIdMap[id] = createNewId();
+        });
+
+        // 在 X6 图上创建子节点副本
+        const oldChildNodes = this.graph.getNodes().filter((n) => {
+          const d = n.getData();
+          return d && d.parent === oldSourceId;
+        });
+        oldChildNodes.forEach((oldChild) => {
+          const oldChildData = oldChild.getData();
+          const newChildId = oldToNewIdMap[oldChild.id];
+          if (!newChildId) return;
+          const { width, height } = oldChild.size();
+          const oldChildAbsPos = oldChild.position();
+          const relX = oldChildAbsPos.x - oldGroupPos.x;
+          const relY = oldChildAbsPos.y - oldGroupPos.y;
+          const newChild = this.graph.addNode({
+            id: newChildId,
+            shape: oldChild.shape,
+            x: newGroupPos.x + relX,
+            y: newGroupPos.y + relY,
+            width,
+            height,
+            data: { ...oldChildData, parent: newNodeId },
+            zIndex: oldChild.getZIndex(),
+          });
+          newGroupNode.addChild(newChild);
+        });
+
+        // 复制内部连线到 X6 图
+        const oldChildNodeIds = oldChildNodes.map(n => n.id);
+        const allEdges = this.graph.getEdges();
+        allEdges.filter((edge) => {
+          const sId = edge.getSourceCellId();
+          const tId = edge.getTargetCellId();
+          return oldChildNodeIds.includes(sId) && oldChildNodeIds.includes(tId);
+        }).forEach((oldEdge) => {
+          const oldSource = oldEdge.getSource();
+          const oldTarget = oldEdge.getTarget();
+          const newSourceId = oldToNewIdMap[oldSource.cell];
+          const newTargetId = oldToNewIdMap[oldTarget.cell];
+          if (!newSourceId || !newTargetId) return;
+          this.graph.addEdge({
+            shape: 'edge',
+            id: `line${uuid()}`,
+            source: { cell: newSourceId, port: oldSource.port },
+            target: { cell: newTargetId, port: oldTarget.port },
+            attrs: { line: { stroke: '#a9adb6', strokeWidth: 2, targetMarker: { name: 'block', width: 6, height: 8 } } },
+            data: {},
+            zIndex: oldEdge.getZIndex(),
+            router: { name: 'manhattan', args: { padding: 1 } },
+          });
+        });
+
+        // 构建新的 pipelineTree 数据（ID 重映射后的深拷贝）
+        const newPT = utilsTools.deepClone(oldPT);
+        // 重映射 activities
+        Object.keys(newPT.activities || {}).forEach((oldId) => {
+          const newId = oldToNewIdMap[oldId];
+          if (newId) {
+            newPT.activities[newId] = { ...newPT.activities[oldId], id: newId };
+            delete newPT.activities[oldId];
+          }
+        });
+        // 重映射 gateways
+        Object.keys(newPT.gateways || {}).forEach((oldId) => {
+          const newId = oldToNewIdMap[oldId];
+          if (newId) {
+            newPT.gateways[newId] = { ...newPT.gateways[oldId], id: newId };
+            delete newPT.gateways[oldId];
+          }
+        });
+        // 重映射 start_event / end_event 的 ID
+        if (newPT.start_event) {
+          newPT.start_event.id = oldToNewIdMap[oldStartId] || newPT.start_event.id;
+        }
+        if (newPT.end_event) {
+          newPT.end_event.id = oldToNewIdMap[oldEndId] || newPT.end_event.id;
+        }
+        // 重映射 location（ID + 宽高从旧节点同步）
+        (newPT.location || []).forEach((loc) => {
+          const oldLocId = loc.id;
+          const newId = oldToNewIdMap[loc.id];
+          if (newId) loc.id = newId;
+          // 同步旧节点的宽高
+          const oldCell = this.graph.getCellById(oldLocId);
+          if (oldCell && oldCell.isNode()) {
+            const { width, height } = oldCell.size();
+            loc.width = width;
+            loc.height = height;
+          }
+        });
+        // 重映射 flows：flowId 生成新 ID，source/target 重映射节点 ID
+        const flowIdMap = {};
+        Object.keys(newPT.flows || {}).forEach((flowId) => {
+          const flow = newPT.flows[flowId];
+          if (oldToNewIdMap[flow.source]) flow.source = oldToNewIdMap[flow.source];
+          if (oldToNewIdMap[flow.target]) flow.target = oldToNewIdMap[flow.target];
+          const newFlowId = `line${uuid()}`;
+          flow.id = newFlowId;
+          flowIdMap[flowId] = newFlowId;
+          delete newPT.flows[flowId];
+          newPT.flows[newFlowId] = flow;
+        });
+        // 重映射 line：lineId 生成新 ID（与对应 flow 保持一致），source/target 重映射节点 ID
+        (newPT.line || []).forEach((line) => {
+          if (oldToNewIdMap[line.source.id]) line.source.id = oldToNewIdMap[line.source.id];
+          if (oldToNewIdMap[line.target.id]) line.target.id = oldToNewIdMap[line.target.id];
+          const newLineId = flowIdMap[line.id] || `line${uuid()}`;
+          line.id = newLineId;
+        });
+        // 重映射 activities 中的 incoming/outgoing 引用的 flowId
+        Object.keys(newPT.activities || {}).forEach((actId) => {
+          const act = newPT.activities[actId];
+          if (act.incoming) {
+            act.incoming = Array.isArray(act.incoming)
+              ? act.incoming.map(id => flowIdMap[id] || id)
+              : (flowIdMap[act.incoming] || act.incoming);
+          }
+          if (act.outgoing) {
+            act.outgoing = Array.isArray(act.outgoing)
+              ? act.outgoing.map(id => flowIdMap[id] || id)
+              : (flowIdMap[act.outgoing] || act.outgoing);
+          }
+        });
+        // 重映射 gateways 中的 incoming/outgoing 和 conditions 引用的 flowId
+        Object.keys(newPT.gateways || {}).forEach((gwId) => {
+          const gw = newPT.gateways[gwId];
+          if (gw.incoming) {
+            gw.incoming = Array.isArray(gw.incoming)
+              ? gw.incoming.map(id => flowIdMap[id] || id)
+              : (flowIdMap[gw.incoming] || gw.incoming);
+          }
+          if (gw.outgoing) {
+            gw.outgoing = Array.isArray(gw.outgoing)
+              ? gw.outgoing.map(id => flowIdMap[id] || id)
+              : (flowIdMap[gw.outgoing] || gw.outgoing);
+          }
+          if (gw.conditions) {
+            const newConditions = {};
+            Object.keys(gw.conditions).forEach((condFlowId) => {
+              const newCondFlowId = flowIdMap[condFlowId] || condFlowId;
+              newConditions[newCondFlowId] = gw.conditions[condFlowId];
+            });
+            gw.conditions = newConditions;
+          }
+        });
+        // 重映射 start_event / end_event 中的 incoming/outgoing
+        if (newPT.start_event && newPT.start_event.outgoing) {
+          newPT.start_event.outgoing = flowIdMap[newPT.start_event.outgoing] || newPT.start_event.outgoing;
+        }
+        if (newPT.end_event && newPT.end_event.incoming) {
+          newPT.end_event.incoming = Array.isArray(newPT.end_event.incoming)
+            ? newPT.end_event.incoming.map(id => flowIdMap[id] || id)
+            : (flowIdMap[newPT.end_event.incoming] || newPT.end_event.incoming);
+        }
+
+        // 重映射 pipeline.constants：更新 source_info 中的旧节点 ID
+        // 对 component_outputs 类型变量生成新 key（避免与原节点冲突），并收集 oldKey→newKey 映射
+        // 用于后续更新所有引用该变量的地方（SubProcess 子节点的 constants.value、component.data.value 等）
+        const constKeyMap = {};
+        if (newPT.constants) {
+          const newConstants = {};
+          Object.keys(newPT.constants).forEach((oldKey) => {
+            const c = newPT.constants[oldKey];
+            // 重映射 source_info 中的节点 ID
+            if (c.source_info) {
+              const newSourceInfo = {};
+              Object.keys(c.source_info).forEach((nodeId) => {
+                const mappedId = oldToNewIdMap[nodeId] || nodeId;
+                newSourceInfo[mappedId] = c.source_info[nodeId];
+              });
+              c.source_info = newSourceInfo;
+            }
+            // 输出变量
+            if (c.source_type === 'component_outputs') {
+              const sourceInfoValues = Object.values(c.source_info || {})[0] || [];
+              const rawKey = sourceInfoValues[0] || oldKey;
+              const baseName = rawKey.replace(/^\$\{|\}$/g, '');
+              const newKey = `\${${baseName}_${random4()}}`;
+              c.key = newKey;
+              constKeyMap[oldKey] = newKey;
+              newConstants[newKey] = c;
+            } else {
+              newConstants[oldKey] = c;
+            }
+          });
+          newPT.constants = newConstants;
+        }
+
+        // 重映射 loop_config.loop_params
+        if (newLoopActivity.loop_config && newLoopActivity.loop_config.loop_params) {
+          const oldLoopParams = newLoopActivity.loop_config.loop_params;
+          const newLoopParams = {};
+          Object.keys(oldLoopParams).forEach((paramKey) => {
+            const baseName = paramKey.replace(/^\$\{|\}$/g, '');
+            const newKey = `\${${baseName}_${random4()}}`;
+            constKeyMap[paramKey] = newKey;
+            newLoopParams[newKey] = oldLoopParams[paramKey];
+          });
+          newLoopActivity.loop_config.loop_params = newLoopParams;
+        }
+
+        // 更新所有引用 pipeline.constants / loop_params 变量的地方
+        // 1) SubProcess 子节点的 constants.value
+        // 2) 各 activity 的 component.data.*.value
+        // 3) SubProcess 子节点的 constants 中的source_info是子流程模板内部节点ID,不在 oldToNewIdMap 中，不重映射
+        const replaceVarRefs = (val) => {
+          if (typeof val !== 'string') return val;
+          let result = val;
+          Object.keys(constKeyMap).forEach((oldKey) => {
+            result = result.split(oldKey).join(constKeyMap[oldKey]);
+          });
+          return result;
+        };
+        const remapVarRefsInData = (dataObj) => {
+          if (!dataObj || typeof dataObj !== 'object') return;
+          Object.keys(dataObj).forEach((fieldKey) => {
+            const field = dataObj[fieldKey];
+            if (field && typeof field === 'object' && 'value' in field) {
+              if (typeof field.value === 'string') {
+                field.value = replaceVarRefs(field.value);
+              }
+            }
+          });
+        };
+        Object.keys(newPT.activities || {}).forEach((actId) => {
+          const act = newPT.activities[actId];
+          // SubProcess 内部 constants.value 中可能引用 pipeline.constants 的输出变量
+          if (act.constants) {
+            Object.keys(act.constants).forEach((ck) => {
+              const c = act.constants[ck];
+              if (typeof c.value === 'string') {
+                c.value = replaceVarRefs(c.value);
+              }
+            });
+          }
+          // component.data 字段中可能引用变量
+          if (act.component && act.component.data) {
+            remapVarRefsInData(act.component.data);
+          }
+        });
+        // 重映射 pipeline.outputs 中的变量 key 引用
+        if (Array.isArray(newPT.outputs)) {
+          newPT.outputs = newPT.outputs.map(key => constKeyMap[key] || key);
+        }
+        // 同步activity.constants：与pipeline.constants保持一致
+        if (newPT.constants) {
+          newLoopActivity.constants = utilsTools.deepClone(newPT.constants);
+        }
+
+        // 更新到 store
+        this.setActivities({
+          type: 'edit',
+          location: { ...newLoopActivity, pipeline: newPT },
+        });
+        // 同步分组节点坐标和宽高到顶层 store 的 location（在 setActivities edit 之后，确保 location 已存在）
+        if (syncedWidth && syncedHeight) {
+          const { x, y } = newGroupNode.position();
+          this.setLocationXY({
+            id: newNodeId,
+            x,
+            y,
+            width: syncedWidth,
+            height: syncedHeight,
+          });
+        }
+      },
+      // 清理新分组节点已有的子节点
+      clearExistingLoopChildren(loopNodeId) {
+        const newNode = this.getNodeInstance(loopNodeId);
+        if (!newNode) return;
+        const existingChildren = this.graph.getNodes().filter((n) => {
+          const d = n.getData();
+          return d && d.parent === loopNodeId;
+        });
+        existingChildren.forEach((child) => {
+          const connectedEdges = this.graph.getConnectedEdges(child);
+          connectedEdges.forEach(edge => this.graph.removeEdge(edge));
+          this.graph.removeNode(child);
+        });
       },
       onLocationMoveDone(data) {
+        if (data && data.shape === 'custom-loop-group-node') {
+          // events.js的自动resize链在最后一步不触发onContainerSizeChange，导致之前 syncLoopGroupInnerNodes 保存的是倒数第二步的坐标而非最终坐标
+          this.syncLoopGroupInnerNodes(data.id);
+        }
+        // 同步整个分组(resize会影响所有子节点位置)
+        const parent = data && data.getParent ? data.getParent() : null;
+        if (parent && parent.isNode() && parent.shape === 'custom-loop-group-node') {
+          this.syncLoopGroupInnerNodes(parent.id);
+        }
         this.$emit('templateDataChanged');
         this.$emit('onLocationMoveDone', data);
       },
@@ -1163,14 +2520,23 @@
           onGatewaySelectionClick(id) {
             self.$emit('onGatewaySelectionClick', id);
           },
+          onShowLoopVariables(loopNodeId) {
+            self.$emit('onShowLoopVariables', loopNodeId);
+          },
+          onResizeEnd(node) {
+            self.$emit('onLoopGroupResizeEnd', node);
+          },
         };
       },
       // 重置画布
       resetCells() {
+        // 标记正在重建画布，阻止 DND 组件的 node:added 监听器为循环节点初始化默认子节点
+        this.graph.isResetting = true;
         this.graph.clearCells(true);
         this.initCanvasData();
         const cells = this.graph.getCells();
         this.graph.resetCells(cells, true);
+        this.graph.isResetting = false;
       },
       onTogglePerspective() {
         this.isPerspective = !this.isPerspective;
@@ -1221,6 +2587,22 @@
       setCanvasPosition(id, pos = 'center') {
         const nodeInstance = this.getNodeInstance(id);
         this.graph.positionCell(nodeInstance, pos);
+      },
+      adjustLoopGroupSize(parentNodeId) {
+        const parentNode = this.getNodeInstance(parentNodeId);
+        if (!parentNode || parentNode.shape !== 'custom-loop-group-node') return;
+        // 取任意子节点微调位置触发分组节点大小自适应
+        const children = parentNode.getChildren();
+        if (children && children.length) {
+          const child = children.find(c => c.isNode()) || children[0];
+          if (child && child.isNode()) {
+            const pos = child.getPosition();
+            child.setPosition(pos.x + 1, pos.y + 1);
+            this.$nextTick(() => {
+              child.setPosition(pos.x, pos.y);
+            });
+          }
+        }
       },
       onDownloadCanvas() {
         this.onGenerateCanvas().then((res) => {

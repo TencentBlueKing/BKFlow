@@ -102,8 +102,8 @@ export class Dnd extends View {
     });
     // 初始化拖拽节点的位置为(0, 0)
     draggingNode.position(0, 0);
-    // 设置默认的边距值
-    let padding = 5;
+    // 设置默认的边距值，改为 20px 以容纳节点内 absolute 溢出内容（如 .node-config-flags top: -20px）
+    let padding = 20;
     // 如果启用了对齐线功能，增加对齐线的容差值到边距中
     if (this.isSnaplineEnabled()) {
       padding += this.snapline.options.tolerance || 0;
@@ -135,6 +135,10 @@ export class Dnd extends View {
       allowNewOrigin: 'any',
       useCellGeometry: false,
     });
+    // 确保拖拽容器的 SVG 允许内容溢出，防止节点内 absolute 溢出内容被裁剪
+    draggingGraph.container.style.overflow = 'visible';
+    const svg = draggingGraph.container.querySelector('svg');
+    if (svg) svg.style.overflow = 'visible';
     // 获取视图的边界框
     const bbox = delegateView.getBBox();
     // 获取基于单元格几何的边界框
