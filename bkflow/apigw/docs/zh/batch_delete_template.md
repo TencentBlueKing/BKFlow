@@ -37,11 +37,19 @@
 {
     "result": false,
     "data": {
-        "sub_root_map": {
+        "root_template_info": {
             "1": [
                 {
                     "root_template_id": "20",
                     "root_template_name": "测试流程"
+                }
+            ]
+        },
+        "decision_info": {
+            "1": [
+                {
+                    "id": 5,
+                    "name": "决策表A"
                 }
             ]
         }
@@ -59,4 +67,13 @@
 | result  | bool   | 返回结果，true为成功，false为失败 |
 | code    | int    | 返回码，0表示成功，其他值表示失败 |
 | message | string | 错误信息              |
-| data    | dict  | 返回数据（删除失败时返回引用信息） |
+| data    | dict  | 返回数据（删除失败时返回引用信息，结构见下方） |
+
+#### data 失败结构说明
+
+删除失败时，`data` 可能包含以下字段：
+
+| 字段      | 类型     | 描述                |
+| ------- | ------ |-------------------|
+| root_template_info | dict  | 子流程被父流程引用信息，key 为子流程模板ID，value 为引用它的父流程列表（含 `root_template_id` 与 `root_template_name`） |
+| decision_info | dict  | 模板关联的决策表信息，key 为模板ID，value 为关联决策表列表（含 `id` 与 `name`）；仅当存在关联决策表时返回 |

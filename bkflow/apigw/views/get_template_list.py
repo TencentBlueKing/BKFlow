@@ -59,8 +59,9 @@ def get_template_list(request, space_id):
             filter_kwargs[filter_map[key]] = value
             continue
         if key == "id":
-            value = value.split(",")
-            filter_kwargs["id__in"] = value
+            value = [int(item) for item in value.split(",") if item.strip()]
+            if value:
+                filter_kwargs["id__in"] = value
             continue
         if key == "label":
             label_ids = Label.get_label_ids_by_names(value, space_id)
