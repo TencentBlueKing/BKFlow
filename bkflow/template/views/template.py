@@ -138,14 +138,14 @@ class TemplateFilterSet(FilterSet):
         根据逗号/加号/换行分隔的 label 字符串过滤任务。
         URL Query Param 示例: ?label=tag1,tag2+tag3\ntag4
         """
+        space_id = self.request.GET.get("space_id", -1)
         # 支持逗号、加号或换行分隔，并去除空项与两端空白
-        label_ids = Label.get_label_ids_by_names(value)
+        label_ids = Label.get_label_ids_by_names(value, space_id=space_id)
         if not label_ids:
-            return queryset
+            return queryset.filter(id__in=[])
 
-        ttemplate_ids_subquery = TemplateLabelRelation.objects.filter(label_id__in=label_ids).values("template_id")
-
-        return queryset.filter(id__in=Subquery(ttemplate_ids_subquery))
+        template_ids_subquery = TemplateLabelRelation.objects.filter(label_id__in=label_ids).values("template_id")
+        return queryset.filter(id__in=Subquery(template_ids_subquery))
 
 
 class TemplateSnapshotFilterSet(FilterSet):
