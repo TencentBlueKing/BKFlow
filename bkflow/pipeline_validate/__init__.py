@@ -16,17 +16,3 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-
-
-from pipeline.parser.pipeline_parser import PipelineParser
-
-from bkflow.constants import ValidateType
-from bkflow.pipeline_validate.handler import ValidatorHandler
-from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
-
-
-class WebPipelineAdapter(PipelineParser):
-    def __init__(self, web_pipeline_tree):
-        ValidatorHandler.validate(web_pipeline_tree, validate_type=ValidateType.TEMPLATE)
-        pipeline_tree = format_web_data_to_pipeline(web_pipeline_tree)
-        super().__init__(pipeline_tree, cycle_tolerate=True)

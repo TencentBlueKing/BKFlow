@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,6 +20,9 @@ to the current version of the project delivered to anyone in the future.
 
 import unittest
 
+from pipeline.component_framework.component import Component
+from pipeline.component_framework.library import ComponentLibrary
+from pipeline.core.flow.activity import Service
 from pipeline.core.pipeline import Pipeline
 
 from bkflow.pipeline_web.parser import WebPipelineAdapter
@@ -33,7 +35,42 @@ from .data import (
 )
 
 
+class MockTestService(Service):
+    """Mock test service"""
+
+    def execute(self, data, parent_data):
+        return True
+
+    def outputs_format(self):
+        return []
+
+
+class MockTestComponent(Component):
+    """Mock test component"""
+
+    name = "test component"
+    code = "test"
+    bound_service = MockTestService
+
+    def inputs_format(self):
+        return []
+
+    def outputs_format(self):
+        return []
+
+
 class TestPipelineParser(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        """注册 mock test 组件"""
+        ComponentLibrary.components["test"] = {"legacy": MockTestComponent}
+
+    @classmethod
+    def tearDownClass(cls):
+        """清理 mock test 组件"""
+        if "test" in ComponentLibrary.components:
+            ComponentLibrary.components.pop("test")
+
     def test_web_pipeline_parser(self):
         parser_obj = WebPipelineAdapter(WEB_PIPELINE_DATA)
         self.assertIsInstance(parser_obj.parse(), Pipeline)
