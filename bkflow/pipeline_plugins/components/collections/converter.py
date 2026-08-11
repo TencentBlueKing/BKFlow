@@ -31,6 +31,7 @@ class PipelineTreeSubprocessConverter:
         "auto_retry",
         "template_node_id",
         "loop_config",
+        "pipeline",
     }
     DEFAULT_VALUES = {
         "error_ignorable": False,
@@ -67,9 +68,11 @@ class PipelineTreeSubprocessConverter:
 
                 # 替换父任务变量
                 if self.constants:
-                    for key, constant in self.pipeline_tree["constants"]:
+                    for key, constant in self.pipeline_tree["constants"].items():
                         if key in self.constants:
                             constant["value"] = self.constants[key]
+            if act["type"] == "SubCanvas":
+                self.pipeline_tree["activities"][act_id] = self.get_converted_subcanvas(act)
 
         for location in self.pipeline_tree["location"]:
             if location["type"] == "subflow":
@@ -94,4 +97,17 @@ class PipelineTreeSubprocessConverter:
 
         component_data["subprocess_name"] = original_data["name"]
 
+        return converted_data
+
+    def get_converted_subcanvas(self, original_data):
+        converted_data = copy.deepcopy(self.DEFAULT_VALUES)
+        for field, value in original_data.items():
+            if field in self.REMAIN_FIELDS:
+                converted_data[field] = value
+
+        converted_data["component"] = {
+            "code": "subcanvas_plugin",
+            "data": {"subprocess_name": {"hook": False, "need_render": True, "value": original_data["name"]}},
+            "version": "1.0.0",
+        }
         return converted_data
