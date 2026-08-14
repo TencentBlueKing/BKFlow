@@ -37,8 +37,8 @@ BK_PLUGIN_SYNC_TENANTS = getattr(settings, "BK_PLUGIN_SYNC_TENANTS", ["system"])
 def sync_bk_plugins():
     try:
         for tenant_id in BK_PLUGIN_SYNC_TENANTS:
-            plugins_dict = fetch_newest_plugins_dict(tenant_id=tenant_id)
-            BKPlugin.objects.sync_bk_plugins(plugins_dict=plugins_dict)
+            plugins_dict = fetch_newest_plugins_dict(tenant_id)
+            BKPlugin.objects.sync_bk_plugins(plugins_dict)
     except APIException as e:
         logger.exception(f"同步蓝鲸插件列表时失败: {e}")
 
