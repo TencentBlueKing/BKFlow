@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from celery.app import shared_task
+from django.conf import settings
 from rest_framework.exceptions import APIException
 
 from bkflow.bk_plugin.models import BKPlugin
@@ -28,6 +29,7 @@ from plugin_service.conf import PLUGIN_DISTRIBUTOR_NAME
 from plugin_service.plugin_client import PluginServiceApiClient
 
 logger = logging.getLogger("celery")
+BK_PLUGIN_SYNC_TENANTS = getattr(settings, "BK_PLUGIN_SYNC_TENANTS", ["system"])
 
 
 # 每十分钟执行一次增量同步
@@ -35,13 +37,14 @@ logger = logging.getLogger("celery")
 def sync_bk_plugins():
     plugins_dict = {}
     try:
-        plugins_dict = fetch_newest_plugins_dict()
+        for tenant_id in BK_PLUGIN_SYNC_TENANTS:
+            plugins_dict.update(fetch_newest_plugins_dict(tenant_id))
     except APIException as e:
         logger.exception(f"同步蓝鲸插件列表时失败: {e}")
     BKPlugin.objects.sync_bk_plugins(plugins_dict)
 
 
-def fetch_newest_plugins_dict():
+def fetch_newest_plugins_dict(tenant_id):
     """通过部署环境和授权app_code过滤蓝鲸插件，获取授权给bkflow的插件列表"""
     plugins_dict = {}
     offset = 0
@@ -53,7 +56,7 @@ def fetch_newest_plugins_dict():
             distributor_code_name=PLUGIN_DISTRIBUTOR_NAME,
             limit=limit,
             offset=offset,
-            tenant_id="system",
+            tenant_id=tenant_id,
         )
         if not result["result"]:
             logger.exception(result.get("message", "拉取蓝鲸插件列表失败"))

@@ -224,3 +224,4 @@ BKPAAS_IAM_URL = os.getenv("BKPAAS_IAM_URL")
 ENABLE_MULTI_TENANT_MODE = (
     os.getenv("BKPAAS_MULTI_TENANT_MODE", os.getenv("ENABLE_MULTI_TENANT_MODE", "false")).lower() == "true"
 )
+BK_PLUGIN_SYNC_TENANTS = os.getenv("BK_PLUGIN_SYNC_TENANTS", "").split(",")
