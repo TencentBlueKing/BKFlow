@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -46,7 +45,7 @@ class BKPluginManager(models.Manager):
             code=remote_plugin["plugin"]["code"],
             name=remote_plugin["plugin"]["name"],
             logo_url=remote_plugin["plugin"]["logo_url"],
-            tag=remote_plugin["profile"]["tag"],
+            tag=remote_plugin["profile"]["tag"] or 0,
             created_time=remote_plugin["plugin"]["created"],
             updated_time=remote_plugin["plugin"]["updated"],
             introduction=remote_plugin["profile"]["introduction"],
