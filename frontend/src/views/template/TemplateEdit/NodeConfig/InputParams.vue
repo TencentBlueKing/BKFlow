@@ -10,7 +10,7 @@
 */
 <template>
   <div class="input-params">
-    <template v-if="!isJsonSchema && scheme.length > 0">
+    <template v-if="!formError && Array.isArray(scheme) && scheme.length > 0">
       <render-form
         ref="inputParamsForm"
         :scheme="formsScheme"
@@ -43,7 +43,7 @@
       </bk-collapse>
     </template>
     <jsonschema-input-params
-      v-else-if="scheme && scheme.properties && Object.keys(scheme.properties).length > 0"
+      v-else-if="!formError && isJsonSchema && scheme.properties && Object.keys(scheme.properties).length > 0"
       ref="inputParamsForm"
       :key="randomKey"
       :form-data="formData"
@@ -52,6 +52,9 @@
       :is-api-plugin="isApiPlugin"
       @onHookForm="onHookForm"
       @update="$emit('update', $event)" />
+    <no-data
+      v-else-if="formError"
+      :message="formError" />
     <no-data
       v-else
       :message="$t('暂无参数')" />
@@ -119,6 +122,10 @@
       },
       isViewMode: Boolean,
       isApiPlugin: Boolean,
+      apiInputs: {
+        type: Array,
+        default: () => ([]),
+      },
       basicInfo: {
         type: Object,
         default: () => ({}),
@@ -131,6 +138,10 @@
         type: [String, Number],
         default: '',
       },
+      formError: {
+        type: String,
+        default: '',
+      },
       loopNodeLoopVars: {
         type: Object,
         default: () => ({}),
@@ -141,7 +152,7 @@
       },
     },
     data() {
-      const defaultScheme = Array.isArray(this.scheme) ? [] : {};
+      const defaultScheme = Array.isArray(this.scheme) ? [] : (this.scheme || {});
       return {
         formData: tools.deepClone(this.value),
         hooked: {},
@@ -174,7 +185,7 @@
         scopeInfo: state => state.template.scopeInfo,
       }),
       isJsonSchema() { // 是否为jsonSchemaForm表单
-        return !Array.isArray(this.scheme);
+        return Boolean(this.scheme && !Array.isArray(this.scheme));
       },
       hasLoopVars() {
         return Object.keys(this.loopNodeLoopVars).length > 0;
@@ -272,6 +283,7 @@
         return hooked;
       },
       getFormScheme(type = 'referred') {
+        if (!Array.isArray(this.scheme)) return [];
         if (this.isSubflow && Object.keys(this.formsNotReferred).length > 0) {
           const has = Object.prototype.hasOwnProperty;
           return this.scheme.filter((item) => {
@@ -287,7 +299,7 @@
       */
       setFormsSchema() {
         const keys = Object.keys(this.constants);
-        const formSchema = tools.deepClone(this.scheme);
+        const formSchema = tools.deepClone(this.scheme || {});
         const { properties = {} } = formSchema;
         Object.keys(properties).forEach((form) => {
           // 已勾选到全局变量中, 判断勾选的输入参数生成的变量及自定义全局变量source_info是否包含该节点对应表单tag_code
@@ -417,19 +429,22 @@
 
         if (reuseList.length > 0) { // 存在类型相同的全局变量
           let isSame = true;
-          if (this.isJsonSchema) {
+          if (this.isApiPlugin) {
             // 存在类型相同的全局变量(复用变量)
-            const { metaUrl } = this.$parent.$parent.basicInfo;
+            const { metaUrl, meta_url_template, version, sourceKey } = this.$parent.$parent.basicInfo;
             // api插件配置
             const resp = await this.loadUniformApiMeta({
               templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: metaUrl,
               ...this.scopeInfo,
+              meta_url_template,
+              version,
+              source_key: sourceKey,
             });
             if (!resp.result) return;
-            const sourceSchema = resp.data.inputs.find(item => item.key === form);
-            const crtSchema = this.$parent.$parent.apiInputs.find(item => item.key === form);
+            const sourceSchema = (resp.data.inputs || []).find(item => item.key === form);
+            const crtSchema = this.apiInputs.find(item => item.key === form);
             isSame = tools.isDataEqual(sourceSchema, crtSchema);
           }
           if (isSame) {
@@ -496,7 +511,9 @@
           key: variableKey,
           source_info: { [this.nodeId]: [this.hookingVarForm] },
           value: tools.deepClone(this.formData[this.hookingVarForm]) || '',
-          form_schema: this.isJsonSchema ? {} : formSchema.getSchema(this.hookingVarForm, this.scheme),
+          form_schema: this.isJsonSchema || this.isApiPlugin
+            ? {}
+            : formSchema.getSchema(this.hookingVarForm, this.scheme),
           plugin_code: pluginCode,
         };
         if (this.isSubflow) {
@@ -521,7 +538,7 @@
             version,
           });
           // jsonSchema表单
-          if (this.isJsonSchema) {
+          if (this.isJsonSchema || this.isApiPlugin) {
             config.form_schema = {};
             config.plugin_code = '';
             config.version = 'v2.0.0';
@@ -551,17 +568,19 @@
         // api插件json格式勾选需透传meta_desc、type、form_type、required
         if (this.isApiPlugin) {
           const form = config.source_tag.split('.')[1];
-          const schema = this.formsScheme.properties[form];
+          const schema = this.apiInputs.find(item => item.key === form) || {};
           const extraInfo = {
-            type: schema.type,
+            type: schema.sourceType || schema.type || 'string',
           };
-          if (schema.metaDesc) {
-            extraInfo.meta_desc = schema.metaDesc;
+          const metaDesc = schema.metaDesc || schema.meta_desc;
+          if (metaDesc) {
+            extraInfo.meta_desc = metaDesc;
           }
-          if (schema.formType) {
-            extraInfo.form_type = schema.formType;
+          const formType = schema.formType || schema.form_type;
+          if (formType) {
+            extraInfo.form_type = formType;
           }
-          if (schema['ui:rules']) {
+          if (schema.required || schema['ui:rules']) {
             extraInfo.required = true;
           }
           defaultOpts.extra_info = extraInfo;

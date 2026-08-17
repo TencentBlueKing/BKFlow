@@ -92,6 +92,12 @@
   import tools from '@/utils/tools.js';
   import atomFilter from '@/utils/atomFilter.js';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import {
+    buildV4PluginDetailRequest,
+    isPluginFormStale,
+    isV4OpenPlugin,
+  } from '@/utils/uniformApi.js';
+  import { hasPluginFormFields } from '@/utils/pluginFormLoader.js';
   import { mapState, mapActions } from 'vuex';
   import MockConfig from './components/MockConfig.vue';
   import PluginConfig from './components/PluginConfig.vue';
@@ -134,6 +140,9 @@
         taskNodeLoading: false,
         subFlowLoading: false,
         constantsLoading: false,
+        formGeneration: 0,
+        pluginFormRequestId: 0,
+        isDestroyed: false,
       };
     },
     computed: {
@@ -215,6 +224,9 @@
       this.initData();
     },
     beforeDestroy() {
+      this.isDestroyed = true;
+      this.formGeneration += 1;
+      this.pluginFormRequestId += 1;
       $.context.exec_env = '';
     },
     methods: {
@@ -229,9 +241,17 @@
       ...mapActions('atomForm/', [
         'loadAtomConfig',
         'loadPluginServiceDetail',
+        'loadV4OpenPluginForm',
       ]),
       // 初始化节点数据
       async initData() {
+        this.formGeneration += 1;
+        const generation = this.formGeneration;
+        const isCurrent = () => !this.isDestroyed && generation === this.formGeneration;
+        this.inputs = [];
+        this.outputs = [];
+        this.inputsFormData = {};
+        this.inputsRenderConfig = {};
         try {
           if (this.isSubFlow || this.isSubCanvas) {
             const forms = {};
@@ -246,6 +266,7 @@
             });
             if (this.isSubFlow) {
               await this.getSubFlowDetail(this.compVersion);
+              if (!isCurrent()) return;
             } else {
               const { pipeline } = this.nodeConfig || {};
               this.subFlowForms = pipeline.constants;
@@ -265,6 +286,7 @@
               });
             }
             this.inputs = await this.getSubFlowInputsConfig();
+            if (!isCurrent()) return;
             this.inputsFormData = this.getSubFlowInputsValue(forms);
             this.inputsRenderConfig = renderConfig;
           } else {
@@ -278,15 +300,26 @@
               renderConfig[key] = 'need_render' in component.data[key] ? component.data[key].need_render : true;
             });
             this.inputsRenderConfig = renderConfig;
+            this.inputsFormData = paramsVal;
             await this.getPluginDetail();
+            if (!isCurrent()) return;
             // api插件json字段展示解析优化
             this.handleJsonValueParse(false, paramsVal);
             this.inputsFormData = paramsVal;
           }
           // 获取输入参数的勾选状态
-          this.hooked = this.isApiPlugin ? {} : this.getFormsHookState();
+          if (Array.isArray(this.inputs)) {
+            this.hooked = this.getFormsHookState();
+          }
         } catch (error) {
-          console.warn(error);
+          if (isV4OpenPlugin(this.nodeConfig.component) && isCurrent()) {
+            this.$bkMessage({
+              message: error.message || this.$t('原生表单加载失败'),
+              theme: 'error',
+            });
+          } else {
+            console.warn(error);
+          }
         }
       },
       // 获取输入参数勾选状态
@@ -433,10 +466,8 @@
           keys.some((item) => {
             let result = false;
             const varItem = this.constants[item];
-            if (
-              ['component_inputs', 'custom'].includes(varItem.source_type)
-            ) {
-              const sourceInfo                = varItem.source_info[this.nodeConfig.id];
+            if (['component_inputs', 'custom'].includes(varItem.source_type)) {
+              const sourceInfo = varItem.source_info[this.nodeConfig.id];
               if (sourceInfo && sourceInfo.includes(form)) {
                 const schema = properties[form];
                 this.inputsFormData[form] = `\${${form}}`;
@@ -466,7 +497,12 @@
        */
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
+        const component = this.nodeConfig.component || {};
+        const isV4 = !this.isSubFlow && this.isApiPlugin && isV4OpenPlugin(component);
         try {
+          if (isV4) {
+            return await this.getV4PluginForm(component);
+          }
           // 先取标准节点缓存的数据
           const pluginGroup = this.pluginConfigs[plugin];
           if (pluginGroup && pluginGroup[version]) {
@@ -485,6 +521,9 @@
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,
+              meta_url_template: apiMeta.meta_url_template,
+              source_key: apiMeta.source_key,
+              version,
             });
             if (!resp.result) return;
             // 输出参数
@@ -508,14 +547,47 @@
               name,
               space_id: this.spaceId,
             });
-            if (!this.isSubFlow) {
+            if (!this.isSubFlow && !isV4OpenPlugin(this.nodeConfig.component)) {
               this.outputs = this.pluginOutput[plugin][version];
             }
           }
           const config = $.atoms[plugin];
           return config;
         } catch (e) {
+          if (isV4) throw e;
           console.log(e);
+        }
+      },
+      async getV4PluginForm(component) {
+        this.pluginFormRequestId += 1;
+        const generation = this.formGeneration;
+        const requestId = this.pluginFormRequestId;
+        const isCurrent = () => !this.isDestroyed
+          && generation === this.formGeneration
+          && requestId === this.pluginFormRequestId;
+        try {
+          const result = await this.loadV4OpenPluginForm({
+            request: buildV4PluginDetailRequest({
+              component,
+              spaceId: this.spaceId,
+              templateId: this.templateId,
+              scopeType: this.scopeInfo.scope_type,
+              scopeValue: this.scopeInfo.scope_value,
+            }),
+            readOnly: true,
+            isCurrent,
+            runtimeContext: {
+              inputs: this.inputsFormData,
+              outputs: this.outputs,
+              state: 'MOCK',
+            },
+          });
+          if (!isCurrent()) return null;
+          this.outputs = Array.isArray(result.detail.outputs) ? result.detail.outputs : [];
+          return hasPluginFormFields(result.input) ? result.input : [];
+        } catch (error) {
+          if (isPluginFormStale(error, isCurrent)) return null;
+          throw error;
         }
       },
       // 第三方插件输入输出配置
@@ -606,14 +678,21 @@
       async getPluginDetail() {
         const plugin = this.isThirdPartyNode ? this.thirdPartyNodeCode : this.nodeConfig.component.code;
         const version = this.compVersion;
+        const generation = this.formGeneration;
+        const isV4 = !this.isSubFlow && isV4OpenPlugin(this.nodeConfig.component);
+        const isCurrent = () => !this.isDestroyed && generation === this.formGeneration;
         this.taskNodeLoading = true;
         try {
           // 获取输入输出参数
           this.inputs = await this.getAtomConfig({ plugin, version, isThird: this.isThirdPartyNode }) || [];
-          if (!this.isThirdPartyNode) {
+          if (!this.isThirdPartyNode && !isV4OpenPlugin(this.nodeConfig.component)) {
             this.outputs = this.pluginOutput[plugin][version];
           }
         } catch (e) {
+          if (isV4) {
+            if (!isPluginFormStale(e, isCurrent)) throw e;
+            return;
+          }
           console.log(e);
         } finally {
           this.taskNodeLoading = false;

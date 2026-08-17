@@ -17,6 +17,7 @@ import validatePipeline from '@/utils/validatePipeline.js';
 import axios from 'axios';
 import i18n from '@/config/i18n/index.js';
 import { stage } from '@/components/canvas/StageCanvas/data.js';
+import { buildUniformApiMetaParams } from '@/utils/uniformApi.js';
 const ATOM_TYPE_DICT = {
   startpoint: 'EmptyStartEvent',
   endpoint: 'EmptyEndEvent',
@@ -1400,12 +1401,8 @@ const template = {
     },
     // api插件请求详情
     loadUniformApiMeta({ state }, data) {
-      const {  spaceId, meta_url, scope_type, scope_value, taskId, templateId } = data;
-      const paramsData = {
-        meta_url,
-        scope_type,
-        scope_value,
-      };
+      const { spaceId, taskId, templateId } = data;
+      const paramsData = buildUniformApiMetaParams(data);
       if (taskId) {
         paramsData.task_id = taskId;
       } else {

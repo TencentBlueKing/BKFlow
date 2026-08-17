@@ -11,7 +11,15 @@
 */
 import Vue from 'vue';
 import axios from 'axios';
+import { applyPluginFormContext } from '@/config/setting.js';
+import { loadPluginForms } from '@/utils/pluginFormLoader.js';
 import transAtom from '@/utils/transAtom.js';
+
+const createPluginFormStaleError = () => {
+  const error = new Error('stale plugin form request');
+  error.code = 'FORM_LOAD_STALE';
+  return error;
+};
 
 /**
  * 获取全局 jQuery 实例上的 $.atoms 对象
@@ -211,6 +219,23 @@ const atomForm = {
      */
     loadPluginServiceMeta({}, params) {
       return axios.get('/api/plugin_service/meta/', { params }).then(response => response.data);
+    },
+    /**
+     * V4 原生表单编排入口：先获取标准化详情，再注入服务端许可的表单上下文，
+     * 最后交给 PluginFormLoader 分发表单类型。每个异步边界都检查 isCurrent，
+     * 旧请求只能结束，不能覆盖用户随后选择的插件或版本。
+     */
+    async loadV4OpenPluginForm({}, payload) {
+      const isCurrent = typeof payload.isCurrent === 'function' ? payload.isCurrent : () => true;
+      const response = await axios.post('/api/plugin/detail/', payload.request);
+      if (!isCurrent()) throw createPluginFormStaleError();
+      if (!response.data.result) {
+        throw new Error(response.data.message || 'load plugin detail failed');
+      }
+      const detail = response.data.data;
+      if (!isCurrent()) throw createPluginFormStaleError();
+      applyPluginFormContext(detail.form_context, payload.runtimeContext);
+      return loadPluginForms(detail, { readOnly: payload.readOnly, isCurrent });
     },
     /**
      * 加载第三方插件
