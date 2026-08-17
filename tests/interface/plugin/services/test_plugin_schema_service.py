@@ -21,6 +21,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
 
 
@@ -208,6 +210,47 @@ class TestRemotePlugins:
         mock_cache.set.assert_called_once()
 
 
+class TestUniformApiSourceSelection:
+    """测试多来源开放插件的详情目录选择。"""
+
+    @patch.object(PluginSchemaService, "_list_uniform_api_plugins")
+    def test_get_single_uniform_api_selects_exact_source_and_version(self, list_plugins):
+        """同一空间同一插件 ID 存在多个来源时，详情选择必须锁定来源和版本。"""
+        list_plugins.return_value = [
+            {
+                "code": "shared_open_plugin",
+                "source_key": "first-source",
+                "plugin_code": "first-code",
+                "versions": ["first-v1", "first-v2"],
+                "default_version": "first-v1",
+                "latest_version": "first-v2",
+                "_meta_url_template": "https://first.example/{version}",
+            },
+            {
+                "code": "shared_open_plugin",
+                "source_key": "second-source",
+                "plugin_code": "second-code",
+                "versions": ["second-v1", "second-v2"],
+                "default_version": "second-v1",
+                "latest_version": "second-v2",
+                "_meta_url_template": "https://second.example/{version}",
+            },
+        ]
+
+        selected = PluginSchemaService(space_id=1)._get_single_by_type(
+            "shared_open_plugin",
+            "uniform_api",
+            version="second-v2",
+            source_key="second-source",
+        )
+
+        assert selected["source_key"] == "second-source"
+        assert selected["plugin_code"] == "second-code"
+        assert selected["version"] == "second-v2"
+        assert selected["_meta_url"] == "https://second.example/second-v2"
+
+
+@pytest.mark.django_db
 class TestUniformApiPlugins:
     """测试 API 插件查询"""
 
@@ -301,6 +344,222 @@ class TestUniformApiPlugins:
         assert schema["inputs"][0]["key"] == "biz_id"
         assert schema["description"] == "执行标准运维流程"
         mock_cache.set.assert_called()
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_list_uniform_api_plugins_prefers_local_catalog_index(self, mock_sc, mock_cache):
+        """测试开放插件优先从本地目录索引读取"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = None
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=True,
+        )
+        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+
+        service = PluginSchemaService(space_id=1)
+        results = service._list_uniform_api_plugins()
+
+        assert len(results) == 1
+        assert results[0]["code"] == "open_plugin_001"
+        assert results[0]["plugin_type"] == "uniform_api"
+        assert results[0]["version"] == "1.3.0"
+        assert results[0]["plugin_source"] == "builtin"
+        assert results[0]["plugin_code"] == "job_execute_task"
+        assert results[0]["wrapper_version"] == ""
+        assert results[0]["source_key"] == "sops"
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_list_uniform_api_plugins_filters_ungranted_catalog_entry(self, mock_sc, mock_cache):
+        """测试开放插件来源未准入时不出现在查询结果中"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = None
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=True,
+        )
+
+        service = PluginSchemaService(space_id=1)
+
+        assert service._list_uniform_api_plugins() == []
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_list_uniform_api_plugins_filters_disabled_catalog_entry(self, mock_sc, mock_cache):
+        """测试开放插件未开启时不出现在查询结果中"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = None
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=False,
+        )
+
+        service = PluginSchemaService(space_id=1)
+
+        assert service._list_uniform_api_plugins() == []
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_get_uniform_api_schema_with_explicit_plugin_version(self, mock_sc, mock_client_cls, mock_cred, mock_cache):
+        """测试开放插件支持显式版本查询并返回来源字段"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = "test_cred"
+
+        mock_cred_obj = MagicMock()
+        mock_cred_obj.content = {"bk_app_code": "app", "bk_app_secret": "secret"}
+        mock_cred.objects.filter.return_value.first.return_value = mock_cred_obj
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            wrapper_version="v4.0.0",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=True,
+        )
+        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+
+        mock_client = MagicMock()
+        meta_resp = MagicMock()
+        meta_resp.json_resp = {
+            "data": {
+                "id": "open_plugin_001",
+                "name": "JOB 执行作业",
+                "plugin_version": "1.2.0",
+                "desc": "执行标准运维作业",
+                "inputs": [
+                    {"key": "biz_id", "name": "业务ID", "type": "int", "required": True},
+                ],
+                "outputs": [],
+            }
+        }
+        mock_client.request.return_value = meta_resp
+        mock_client_cls.return_value = mock_client
+
+        service = PluginSchemaService(space_id=1, username="admin")
+        schema = service.get_plugin_schema(code="open_plugin_001", version="1.2.0", plugin_type="uniform_api")
+
+        assert schema["plugin_source"] == "builtin"
+        assert schema["plugin_code"] == "job_execute_task"
+        assert schema["version"] == "1.2.0"
+        assert schema["wrapper_version"] == "v4.0.0"
+        mock_client.request.assert_called_once()
+        assert mock_client.request.call_args.kwargs["url"].endswith("version=1.2.0")
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_get_uniform_api_schema_rejects_plugin_version_not_in_catalog_versions(
+        self, mock_sc, mock_client_cls, mock_cred, mock_cache
+    ):
+        """测试 schema 显式版本查询会拒绝已从目录版本列表移除的业务版本"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = "test_cred"
+        mock_cred.objects.filter.return_value.first.return_value = MagicMock(
+            content={"bk_app_code": "app", "bk_app_secret": "secret"}
+        )
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            wrapper_version="v4.0.0",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=True,
+        )
+        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+
+        service = PluginSchemaService(space_id=1, username="admin")
+        with pytest.raises(ValueError, match="版本"):
+            service.get_plugin_schema(code="open_plugin_001", version="9.9.9", plugin_type="uniform_api")
+
+        mock_client_cls.assert_not_called()
 
 
 class TestGetPluginSchema:

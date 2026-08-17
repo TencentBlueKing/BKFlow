@@ -16,21 +16,26 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.utils import timezone
 
 from bkflow.constants import TaskTriggerMethod, WebhookEventType
 from bkflow.task.celery.tasks import (
     auto_retry_node,
     bkflow_periodic_task_start,
+    cancel_open_plugin_runs,
     dispatch_timeout_nodes,
     execute_node_timeout_strategy,
     send_task_message,
 )
 from bkflow.task.models import (
     AutoRetryNodeStrategy,
+    OpenPluginRunCallbackRef,
     PeriodicTask,
     TaskInstance,
     TimeoutNodeConfig,
@@ -39,6 +44,65 @@ from bkflow.task.models import (
 from bkflow.task.operations import OperationResult
 from bkflow.task.utils import ATOM_FAILED
 from bkflow.utils.pipeline import build_default_pipeline_tree
+
+
+@pytest.mark.django_db(transaction=True)
+class TestCancelOpenPluginRuns:
+    @staticmethod
+    def _create_callback_ref(task_id, node_id, suffix, consumed_at=None):
+        return OpenPluginRunCallbackRef.objects.create(
+            task_id=task_id,
+            node_id=node_id,
+            node_version="v4.0.0",
+            client_request_id="request-{}".format(suffix),
+            open_plugin_run_id="run-{}".format(suffix),
+            callback_token_digest="digest",
+            callback_expire_at=timezone.now() + timedelta(hours=1),
+            plugin_source="builtin",
+            source_key="sops",
+            plugin_id="plugin-{}".format(suffix),
+            plugin_version="1.0.0",
+            cancel_url="https://example.com/runs/{}/cancel".format(suffix),
+            consumed_at=consumed_at,
+        )
+
+    @patch("bkflow.task.celery.tasks._cancel_open_plugin_run")
+    @patch("bkflow.task.celery.tasks._get_open_plugin_space_configs", return_value={"uniform_api": {}})
+    def test_cancel_task_filters_consumed_refs_and_continues_after_one_failure(self, mock_configs, mock_cancel):
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        first_ref = self._create_callback_ref(task_instance.id, "node-1", "first")
+        second_ref = self._create_callback_ref(task_instance.id, "node-2", "second")
+        self._create_callback_ref(task_instance.id, "node-3", "consumed", consumed_at=timezone.now())
+        mock_cancel.side_effect = [RuntimeError("cancel failed"), None]
+
+        cancel_open_plugin_runs(task_id=task_instance.id, operator="test_operator")
+
+        mock_configs.assert_called_once_with(task_instance)
+        assert [call.kwargs["callback_ref"] for call in mock_cancel.call_args_list] == [first_ref, second_ref]
+        assert all(call.kwargs["space_configs"] == {"uniform_api": {}} for call in mock_cancel.call_args_list)
+
+    @patch("bkflow.task.celery.tasks._cancel_open_plugin_run")
+    @patch("bkflow.task.celery.tasks._get_open_plugin_space_configs", return_value={"uniform_api": {}})
+    def test_cancel_node_filters_other_nodes(self, mock_configs, mock_cancel):
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        expected_ref = self._create_callback_ref(task_instance.id, "node-1", "node-1")
+        self._create_callback_ref(task_instance.id, "node-2", "node-2")
+
+        cancel_open_plugin_runs(task_id=task_instance.id, operator="test_operator", node_id="node-1")
+
+        mock_cancel.assert_called_once_with(
+            task_instance=task_instance,
+            callback_ref=expected_ref,
+            operator="test_operator",
+            space_configs={"uniform_api": {}},
+        )
+        mock_configs.assert_called_once_with(task_instance)
+
+    @patch("bkflow.task.celery.tasks._get_open_plugin_space_configs")
+    def test_missing_task_is_ignored(self, mock_configs):
+        cancel_open_plugin_runs(task_id=999999, operator="test_operator")
+
+        mock_configs.assert_not_called()
 
 
 @pytest.mark.django_db(transaction=True)
