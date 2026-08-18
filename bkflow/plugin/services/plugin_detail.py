@@ -27,6 +27,10 @@ from bkflow.exceptions import APIResponseError
 from bkflow.pipeline_plugins.query.uniform_api.uniform_api import _get_api_credential
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
+from bkflow.plugin.services.uniform_api_meta import (
+    UniformAPIMetaError,
+    extract_uniform_api_meta_data,
+)
 from plugin_service.exceptions import PluginServiceException
 from plugin_service.plugin_client import PluginServiceApiClient
 
@@ -325,32 +329,14 @@ class PluginDetailService:
             headers=headers,
             username=self.operator,
         )
-        if not result.result:
-            raise APIResponseError("请求统一API元数据失败: {}".format(result.message))
-        if not isinstance(result.json_resp, dict) or result.json_resp.get("result") is not True:
-            message = result.json_resp.get("message", "") if isinstance(result.json_resp, dict) else ""
-            raise APIResponseError("请求统一API元数据失败: {}".format(message or "provider 返回失败"))
-
-        data = result.json_resp.get("data")
-        if not isinstance(data, dict):
-            raise APIResponseError("请求统一API元数据失败: 响应体缺少 data 对象")
-
-        provider_version = data.get("plugin_version")
-        is_v4_provider = any(
-            str(wrapper_version or "").lower().lstrip("v").split(".", 1)[0] == "4"
-            for wrapper_version in (api_item.get("wrapper_version"), data.get("wrapper_version"))
-        )
-        if is_v4_provider and not provider_version:
-            raise APIResponseError("V4 统一API响应缺少 plugin_version，无法校验请求版本 [{}]".format(plugin_version))
-        if provider_version is not None and str(provider_version) != str(plugin_version):
-            raise APIResponseError(
-                "统一API响应插件版本与请求版本不一致: 请求版本 [{}], 响应版本 [{}]".format(
-                    plugin_version,
-                    provider_version,
-                )
+        try:
+            data = extract_uniform_api_meta_data(
+                result,
+                requested_version=plugin_version,
+                catalog_wrapper_version=api_item.get("wrapper_version"),
             )
-
-        client.validate_response_data(data, client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+        except UniformAPIMetaError as exc:
+            raise APIResponseError(str(exc)) from exc
 
         return build_detail(
             plugin_type="uniform_api",

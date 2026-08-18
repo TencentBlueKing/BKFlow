@@ -464,3 +464,86 @@ def test_task_param_edit_recovers_v4_component_from_pipeline_activities():
     assert "disablePluginFormFields" in task_param_edit
     assert "paramEditComp.disableFields" in modify_params
     assert "paramEditComp.renderConfig.find" not in modify_params
+
+
+def _output_params_block(source):
+    start = source.index("<OutputParams")
+    end = source.index("/>", start)
+    return source[start:end]
+
+
+def test_execute_record_passes_native_output_form_into_output_params():
+    """任务详情执行记录必须把原生输出 scheme/values/flag 交给 OutputParams。"""
+    main_record = read("frontend/src/views/task/TaskExecute/ExecuteInfo/ExecuteRecord.vue")
+    drawer_record = read("frontend/src/views/task/TaskExecute/ExecuteInfoCompoment/ExecuteRecord.vue")
+
+    main_output = _output_params_block(main_record)
+    drawer_output = _output_params_block(drawer_record)
+
+    assert "executeInfo.outputRenderConfig" in main_output
+    assert "executeInfo.outputRenderData" in main_output
+    assert "executeInfo.isRenderOutputForm" in main_output
+    assert "executeRecord.outputRenderConfig" in drawer_output
+    assert "executeRecord.outputRenderData" in drawer_output
+    assert "executeRecord.isRenderOutputForm" in drawer_output
+
+
+def test_output_params_renders_array_and_object_native_forms():
+    """OutputParams 在 isRenderOutputForm 时走 RenderForm / JSON Schema，而不是只渲染 KV 表格。"""
+    for path in (
+        "frontend/src/views/task/TaskExecute/ExecuteInfo/OutputParams.vue",
+        "frontend/src/views/task/TaskExecute/ExecuteInfoCompoment/OutputParams.vue",
+    ):
+        source = read(path)
+        assert "hasPluginFormFields" in source
+        assert "isRenderOutputForm" in source
+        assert "RenderForm" in source
+        assert "jsonschema-form" in source
+        assert 'v-if="shouldRenderNativeForm && !isShowOutputOrigin"' in source
+
+
+def test_task_detail_copies_output_form_onto_execute_record():
+    """setFillRecordField 必须把 outputRenderConfig / Data / flag 写到执行记录上。"""
+    for path in TASK_V4_SOURCES[:2]:
+        source = read(path)
+        set_fill_record_start = source.index("async setFillRecordField")
+        set_fill_record = source[set_fill_record_start : source.index("async getTaskNodeDetail", set_fill_record_start)]
+        assert "buildOutputRenderData" in source
+        assert "outputRenderConfig" in set_fill_record
+        assert "outputRenderData" in set_fill_record
+        assert "isRenderOutputForm" in set_fill_record
+
+
+def test_variable_edit_rebuilds_runtime_inputs_from_pipeline_activities():
+    """变量编辑给 getInput() 的上下文必须包含源节点全部字段，不能只传当前变量。"""
+    source = read("frontend/src/views/template/TemplateEdit/TemplateSetting/TabGlobalVariables/VariableEdit.vue")
+    start = source.index("if (isV4OpenPlugin(component)) {")
+    v4_branch = source[start : source.index("const { api_meta: apiMeta = {} }", start)]
+
+    assert "buildVariablePluginRuntimeInputs" in v4_branch
+    assert "inputs: this.renderData" not in v4_branch
+
+
+def test_variable_edit_v2_does_not_index_missing_source_activity():
+    """源节点被删除时，V2/V3 变量编辑不得再直接索引 activities[sourceNodeId]。"""
+    source = read("frontend/src/views/template/TemplateEdit/TemplateSetting/TabGlobalVariables/VariableEdit.vue")
+    start = source.index("const { api_meta: apiMeta = {} }")
+    v2_branch = source[start : source.index("this.isApiPlugin = false")]
+
+    assert "this.activities[sourceNodeId].component.version" not in v2_branch
+    assert "sourceActivity" in v2_branch
+    assert "sourceActivity?.component?.version" in v2_branch
+    assert "|| version" in v2_branch
+
+
+def test_retry_node_reads_outputs_and_state_from_node_payload():
+    """重试页必须从 nodeInfo.data 读取 outputs/state，而不是从 {result, data} 信封根上读。"""
+    source = read("frontend/src/views/task/TaskExecute/RetryNode.vue")
+    start = source.index("async getNodeConfig")
+    v4_branch = source[start : source.index("if (atomFilter.isConfigExists", start)]
+
+    assert "resolveNodeExecutionPayload" in source
+    assert "outputs: this.nodeInfo.outputs" not in v4_branch
+    assert "state: this.nodeInfo.state" not in v4_branch
+    assert "execution.outputs" in v4_branch
+    assert "execution.state" in v4_branch

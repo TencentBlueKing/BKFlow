@@ -23,7 +23,7 @@ from django.utils.translation import ugettext_lazy as _
 from pipeline.exceptions import ComponentNotExistException
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied
 
-from bkflow.exceptions import APIResponseError, ValidationError
+from bkflow.exceptions import APIResponseError
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.plugin.serializers.plugin_detail import PluginDetailRequestSerializer
 from bkflow.plugin.services.plugin_detail import PluginDetailService
@@ -125,8 +125,6 @@ def uniform_detail_data(**overrides):
         "url": "https://bksops.example.com/runs/",
         "methods": ["POST"],
         "response_data_path": "data.outputs",
-        "polling": {},
-        "callback": {},
         "credential_key": "sops",
     }
     data.update(overrides)
@@ -755,10 +753,6 @@ class TestUniformApiDetailAdapter:
             "scope_type": "biz",
             "scope_value": "100605",
         }
-        client_cls.return_value.validate_response_data.assert_called_once_with(
-            uniform_detail_data(),
-            client_cls.return_value.UNIFORM_API_META_RESPONSE_DATA_SCHEMA,
-        )
 
     @patch("bkflow.plugin.services.plugin_detail._get_api_credential", create=True)
     @patch("bkflow.plugin.services.plugin_detail.UniformAPIClient", create=True)
@@ -954,9 +948,8 @@ class TestUniformApiDetailAdapter:
         data = uniform_detail_data(methods=["DELETE"])
         get_credential.return_value = {"bk_app_code": "bkflow", "bk_app_secret": "secret"}
         client_cls.return_value.request.return_value = uniform_result(data=data)
-        client_cls.return_value.validate_response_data.side_effect = ValidationError("detail schema invalid")
 
-        with pytest.raises(ValidationError, match="detail schema invalid"):
+        with pytest.raises(APIResponseError, match="validate response data error"):
             service.get_detail("uniform_api", available_open_plugin.plugin_id, "v2.0", "sops")
 
     @patch("bkflow.plugin.services.plugin_detail._get_api_credential", create=True)

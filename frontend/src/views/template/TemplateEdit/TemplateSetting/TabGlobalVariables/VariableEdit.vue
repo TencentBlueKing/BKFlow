@@ -276,7 +276,12 @@
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import renderFormSchema from '@/utils/renderFormSchema.js';
-  import { buildV4PluginDetailRequest, isV4OpenPlugin, resolveVariableSourceComponent } from '@/utils/uniformApi.js';
+  import {
+    buildV4PluginDetailRequest,
+    buildVariablePluginRuntimeInputs,
+    isV4OpenPlugin,
+    resolveVariableSourceComponent,
+  } from '@/utils/uniformApi.js';
   import { hasPluginFormFields, selectPluginFormField } from '@/utils/pluginFormLoader.js';
 
   export default {
@@ -633,7 +638,11 @@
                 readOnly: this.isViewMode,
                 isCurrent,
                 runtimeContext: {
-                  inputs: this.renderData,
+                  inputs: buildVariablePluginRuntimeInputs({
+                    variable: this.theEditingData,
+                    activities: this.activities,
+                    constants: this.constants,
+                  }),
                   outputs: this.outputs,
                   state: '',
                 },
@@ -649,6 +658,7 @@
             const { api_meta: apiMeta = {} } = component;
             const { meta_url: metaUrl } = apiMeta;
             if (!metaUrl) return;
+            const sourceActivity = sourceNodeId && this.activities[sourceNodeId];
             // api插件配置
             const resp = await this.loadUniformApiMeta({
               templateId: this.templateId,
@@ -657,7 +667,7 @@
               ...this.scopeInfo,
               meta_url_template: apiMeta.meta_url_template,
               source_key: apiMeta.source_key,
-              version: this.activities[sourceNodeId].component.version,
+              version: sourceActivity?.component?.version || component.version || version,
             });
             if (!resp.result) return;
             const tag = sourceTag.split('.')[1];

@@ -567,6 +567,73 @@ class TestBkflowPeriodicTaskStart:
         assert periodic_task.last_run_at is not None
 
     @patch("bkflow.task.celery.tasks.InterfaceModuleClient")
+    @patch("bkflow.task.celery.tasks.TaskOperation")
+    @patch("bkflow.task.celery.tasks.prepare_engine_task_extra_info")
+    def test_bkflow_periodic_task_start_writes_open_plugin_snapshots(
+        self, mock_prepare, mock_task_operation, mock_client_class
+    ):
+        """V4 定时任务创建后同时包含引用快照和 schema 快照。"""
+        periodic_task = PeriodicTask.objects.create(
+            name="test_periodic_task",
+            creator="test_user",
+            template_id=1,
+            trigger_id=1,
+            cron={"minute": "0", "hour": "*", "day_of_week": "*", "day_of_month": "*", "month_of_year": "*"},
+            config={"space_id": 1, "pipeline_tree": self.pipeline_tree},
+            extra_info={
+                "notify_config": {
+                    "notify_type": {"fail": [], "success": []},
+                    "notify_receivers": {"more_receiver": "", "receiver_group": []},
+                }
+            },
+        )
+        mock_prepare.return_value = {
+            "notify_config": {
+                "notify_type": {"fail": [], "success": []},
+                "notify_receivers": {"more_receiver": "", "receiver_group": []},
+            },
+            "plugin_reference_snapshot": [{"node_id": "node1", "plugin_id": "open_plugin_001"}],
+            "plugin_schema_snapshot": {"node1": {"plugin_id": "open_plugin_001"}},
+        }
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.get_template_data.return_value = {"data": {"pipeline_tree": self.pipeline_tree}}
+        mock_operation = MagicMock()
+        mock_operation.start.return_value = OperationResult(result=True, message="success")
+        mock_task_operation.return_value = mock_operation
+
+        bkflow_periodic_task_start(periodic_task_id=periodic_task.id)
+
+        task = TaskInstance.objects.filter(trigger_method=TaskTriggerMethod.timing.name).last()
+        assert task.extra_info["plugin_reference_snapshot"][0]["plugin_id"] == "open_plugin_001"
+        assert task.extra_info["plugin_schema_snapshot"]["node1"]["plugin_id"] == "open_plugin_001"
+        mock_prepare.assert_called_once()
+
+    @patch("bkflow.task.celery.tasks.InterfaceModuleClient")
+    @patch("bkflow.task.celery.tasks.prepare_engine_task_extra_info")
+    def test_bkflow_periodic_task_start_does_not_create_when_snapshot_fails(self, mock_prepare, mock_client_class):
+        """Interface 快照接口失败时，不产生半成品 TaskInstance。"""
+        from bkflow.exceptions import ValidationError
+
+        periodic_task = PeriodicTask.objects.create(
+            name="test_periodic_task",
+            creator="test_user",
+            template_id=1,
+            trigger_id=1,
+            cron={"minute": "0", "hour": "*", "day_of_week": "*", "day_of_month": "*", "month_of_year": "*"},
+            config={"space_id": 1, "pipeline_tree": self.pipeline_tree},
+            extra_info={},
+        )
+        mock_prepare.side_effect = ValidationError("开放插件快照构建失败")
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.get_template_data.return_value = {"data": {"pipeline_tree": self.pipeline_tree}}
+
+        bkflow_periodic_task_start(periodic_task_id=periodic_task.id)
+
+        assert TaskInstance.objects.filter(trigger_method=TaskTriggerMethod.timing.name).count() == 0
+
+    @patch("bkflow.task.celery.tasks.InterfaceModuleClient")
     def test_bkflow_periodic_task_start_not_found(self, mock_client_class):
         """测试周期任务启动（任务不存在）"""
         fake_task_id = 999999

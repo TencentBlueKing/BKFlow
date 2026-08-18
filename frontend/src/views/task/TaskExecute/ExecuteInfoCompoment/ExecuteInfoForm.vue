@@ -721,6 +721,9 @@
                 scopeValue: this.scopeInfo.scope_value,
               }),
               readOnly: true,
+              taskId: this.nodeDetailConfig.instance_id,
+              nodeId: this.nodeDetailConfig.node_id,
+              templateNodeId: this.nodeActivity && this.nodeActivity.template_node_id,
               isCurrent: () => !this.isDestroyed && requestId === this.pluginFormRequestId,
               runtimeContext: {
                 inputs: this.executeInfo.inputs || {},

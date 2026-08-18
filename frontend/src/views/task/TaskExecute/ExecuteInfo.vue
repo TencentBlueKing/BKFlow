@@ -257,6 +257,7 @@
   import { graphToJson } from '@/utils/graphJson.js';
   import {
     buildV4PluginDetailRequest,
+    buildOutputRenderData,
     canApplyPluginDetailResult,
     isV4OpenPlugin,
     resolveUniformApiPluginVersion,
@@ -1049,6 +1050,9 @@
         if (!isCurrentRecord()) return null;
         this.$set(record, 'renderData', renderData);
         this.$set(record, 'renderConfig', this.renderConfig);
+        this.$set(record, 'outputRenderConfig', this.outputRenderConfig);
+        this.$set(record, 'outputRenderData', buildOutputRenderData(outputs));
+        this.$set(record, 'isRenderOutputForm', this.isRenderOutputForm);
         this.$set(record, 'constants', constants);
         this.$set(record, 'outputsInfo', outputsInfo);
         this.$set(record, 'outputs', outputs);
@@ -1106,6 +1110,9 @@
                 scopeValue: this.scopeInfo.scope_value,
               }),
               readOnly: true,
+              taskId: this.nodeDetailConfig.instance_id,
+              nodeId: this.nodeDetailConfig.node_id,
+              templateNodeId: this.nodeActivity && this.nodeActivity.template_node_id,
               isCurrent: canApply,
               runtimeContext: {
                 inputs: runtimeContext.inputs || {},

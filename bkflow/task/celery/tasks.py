@@ -40,6 +40,7 @@ from bkflow.task.models import (
     TimeoutNodesRecord,
 )
 from bkflow.task.node_timeout import node_timeout_handler
+from bkflow.task.open_plugin_snapshots import prepare_engine_task_extra_info
 from bkflow.task.operations import (
     TaskNodeOperation,
     TaskOperation,
@@ -294,7 +295,16 @@ def bkflow_periodic_task_start(*args, **kwargs):
         }
         serializer = CreateTaskInstanceSerializer(data=task_data)
         serializer.is_valid(raise_exception=True)
-        task_instance = TaskInstance.objects.create_instance(**serializer.validated_data)
+        validated_data = serializer.validated_data
+        validated_data["extra_info"] = prepare_engine_task_extra_info(
+            space_id=validated_data["space_id"],
+            pipeline_tree=validated_data["pipeline_tree"],
+            extra_info=validated_data.get("extra_info"),
+            username=validated_data.get("creator") or periodic_task.creator,
+            scope_type=validated_data.get("scope_type"),
+            scope_id=validated_data.get("scope_value"),
+        )
+        task_instance = TaskInstance.objects.create_instance(**validated_data)
         logger.info(f"[bkflow_periodic_task_start] task {task_instance.id} created")
 
         constants = task_instance.pipeline_tree["constants"]

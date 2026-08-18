@@ -14,6 +14,7 @@ import axios from 'axios';
 import { applyPluginFormContext } from '@/config/setting.js';
 import { loadPluginForms } from '@/utils/pluginFormLoader.js';
 import transAtom from '@/utils/transAtom.js';
+import { buildV4DetailFromSchemaSnapshot, getOpenPluginSchemaSnapshot } from '@/utils/uniformApi.js';
 
 const createPluginFormStaleError = () => {
   const error = new Error('stale plugin form request');
@@ -225,8 +226,23 @@ const atomForm = {
      * 最后交给 PluginFormLoader 分发表单类型。每个异步边界都检查 isCurrent，
      * 旧请求只能结束，不能覆盖用户随后选择的插件或版本。
      */
-    async loadV4OpenPluginForm({}, payload) {
+    async loadV4OpenPluginForm({ rootState }, payload) {
       const isCurrent = typeof payload.isCurrent === 'function' ? payload.isCurrent : () => true;
+      let snapshot = payload.snapshot;
+      if (!snapshot && payload.readOnly && payload.taskId && payload.nodeId) {
+        const extraInfoById = (rootState && rootState.task && rootState.task.taskExtraInfoById) || {};
+        snapshot = getOpenPluginSchemaSnapshot(
+          extraInfoById[payload.taskId] || extraInfoById[String(payload.taskId)],
+          payload.nodeId,
+          payload.templateNodeId,
+        );
+      }
+      if (payload.readOnly && snapshot) {
+        const detail = buildV4DetailFromSchemaSnapshot(snapshot);
+        if (!isCurrent()) throw createPluginFormStaleError();
+        applyPluginFormContext(detail.form_context, payload.runtimeContext);
+        return loadPluginForms(detail, { readOnly: payload.readOnly, isCurrent });
+      }
       const response = await axios.post('/api/plugin/detail/', payload.request);
       if (!isCurrent()) throw createPluginFormStaleError();
       if (!response.data.result) {

@@ -72,6 +72,9 @@
           :is-ready-status="isReadyStatus"
           :admin-view="adminView"
           :outputs="executeInfo.outputsInfo"
+          :render-config="executeInfo.outputRenderConfig"
+          :render-data="executeInfo.outputRenderData"
+          :is-render-output-form="executeInfo.isRenderOutputForm"
           :node-detail-config="nodeDetailConfig" />
       </template>
     </template>

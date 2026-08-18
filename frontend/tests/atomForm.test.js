@@ -4,13 +4,26 @@ const path = require('path');
 
 const babel = require('@babel/core');
 
+function loadUniformApi() {
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/utils/uniformApi.js'), 'utf8');
+  const transformed = babel.transformSync(source, {
+    plugins: ['@babel/plugin-transform-modules-commonjs'],
+  });
+  const module = { exports: {} };
+  // eslint-disable-next-line no-new-func
+  new Function('require', 'module', 'exports', transformed.code)(require, module, module.exports);
+  return module.exports;
+}
+
 function loadAtomForm({ response, postError } = {}) {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/store/modules/atomForm.js'), 'utf8');
   const transformed = babel.transformSync(source, {
     plugins: ['@babel/plugin-transform-modules-commonjs'],
   });
+  const postCalls = [];
   const axios = {
-    post() {
+    post(...args) {
+      postCalls.push(args);
       if (postError) return Promise.reject(postError);
       return Promise.resolve(response);
     },
@@ -34,12 +47,13 @@ function loadAtomForm({ response, postError } = {}) {
       },
     },
     '@/utils/transAtom.js': { __esModule: true, default() {} },
+    '@/utils/uniformApi.js': { __esModule: true, ...loadUniformApi() },
   };
   const localRequire = id => mocks[id] || require(id);
   const module = { exports: {} };
   // eslint-disable-next-line no-new-func
   new Function('require', 'module', 'exports', transformed.code)(localRequire, module, module.exports);
-  return { actions: module.exports.default.actions, axios, contextCalls, formCalls };
+  return { actions: module.exports.default.actions, axios, contextCalls, formCalls, postCalls };
 }
 
 async function testLoadsNativeFormFromSuccessEnvelope() {
@@ -98,11 +112,78 @@ async function testStaleDetailDoesNotApplyContextOrLoadForms() {
   assert.deepStrictEqual(loaded.formCalls, []);
 }
 
+async function testReadOnlySnapshotSkipsDetailRequest() {
+  const loaded = loadAtomForm({ response: { data: { result: false, message: 'should not be called' } } });
+  const snapshot = {
+    schema_protocol_version: 'open_plugin_snapshot.v1',
+    plugin_code: 'job_execute_task',
+    plugin_version: '1.2.0',
+    plugin_source: 'builtin',
+    inputs: [{ name: 'bk_biz_id' }],
+    outputs: [],
+    description: 'job',
+  };
+  const result = await loaded.actions.loadV4OpenPluginForm({}, {
+    request: { plugin_code: 'demo' },
+    readOnly: true,
+    snapshot,
+    runtimeContext: { inputs: {} },
+  });
+  assert.deepStrictEqual(result, { input: [{ tag_code: 'native' }] });
+  assert.strictEqual(loaded.postCalls.length, 0);
+  assert.strictEqual(loaded.formCalls[0][0].forms.input, null);
+  assert.strictEqual(loaded.formCalls[0][0].plugin_code, 'job_execute_task');
+}
+
+async function testUnknownProtocolVersionFails() {
+  const loaded = loadAtomForm({ response: { data: { result: true, data: {} } } });
+  await assert.rejects(
+    () => loaded.actions.loadV4OpenPluginForm({}, {
+      readOnly: true,
+      snapshot: { schema_protocol_version: 'unknown.v9', inputs: [] },
+    }),
+    error => /schema_protocol_version/.test(error.message),
+  );
+  assert.strictEqual(loaded.postCalls.length, 0);
+}
+
+async function testReadOnlyWithoutSnapshotFallsBackToLiveDetail() {
+  const detail = { forms: { input: null }, inputs: [] };
+  const loaded = loadAtomForm({ response: { data: { result: true, data: detail } } });
+  await loaded.actions.loadV4OpenPluginForm({}, {
+    request: { plugin_code: 'demo' },
+    readOnly: true,
+    runtimeContext: {},
+  });
+  assert.strictEqual(loaded.postCalls.length, 1);
+  assert.strictEqual(loaded.postCalls[0][0], '/api/plugin/detail/');
+}
+
+async function testEditableStillRequestsLiveDetailEvenWithSnapshot() {
+  const detail = { forms: { input: null } };
+  const loaded = loadAtomForm({ response: { data: { result: true, data: detail } } });
+  await loaded.actions.loadV4OpenPluginForm({}, {
+    request: { plugin_code: 'demo' },
+    readOnly: false,
+    snapshot: {
+      schema_protocol_version: 'open_plugin_snapshot.v1',
+      plugin_code: 'job_execute_task',
+      inputs: [],
+    },
+    runtimeContext: {},
+  });
+  assert.strictEqual(loaded.postCalls.length, 1);
+}
+
 Promise.resolve()
   .then(testLoadsNativeFormFromSuccessEnvelope)
   .then(testRejectsResultFalseEnvelope)
   .then(testPropagatesAxiosRejection)
   .then(testStaleDetailDoesNotApplyContextOrLoadForms)
+  .then(testReadOnlySnapshotSkipsDetailRequest)
+  .then(testUnknownProtocolVersionFails)
+  .then(testReadOnlyWithoutSnapshotFallsBackToLiveDetail)
+  .then(testEditableStillRequestsLiveDetailEvenWithSnapshot)
   .then(() => {
     console.log('atomForm tests passed');
   })

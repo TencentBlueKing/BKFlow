@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 from blueapps.account.decorators import login_exempt
 from django.utils.decorators import method_decorator
+from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -43,3 +44,80 @@ class PluginInternalViewSet(SimpleGenericViewSet):
             pipeline_tree=request.data.get("pipeline_tree"),
         )
         return Response({"validated": True})
+
+    @action(methods=["POST"], detail=False)
+    def build_open_plugin_snapshots(self, request):
+        """为 Engine 创建/回填任务构建开放插件引用快照和 schema 快照。"""
+        data = request.data or {}
+        if data.get("space_id") is None:
+            return Response(exception=True, data={"detail": "space_id is required"})
+        space_id = int(data["space_id"])
+        pipeline_tree = data.get("pipeline_tree") or {}
+        snapshot_extra = {
+            OpenPluginSnapshotService.REFERENCE_SNAPSHOT_KEY: data.get("plugin_reference_snapshot") or [],
+            OpenPluginSnapshotService.SCHEMA_SNAPSHOT_KEY: data.get("plugin_schema_snapshot") or {},
+        }
+        username = data.get("username")
+        scope_type = data.get("scope_type")
+        scope_id = data.get("scope_value")
+        mode = data.get("mode") or "prepare"
+        if mode not in ("prepare", "backfill"):
+            return Response(exception=True, data={"detail": "mode must be prepare or backfill"})
+
+        try:
+            if mode == "backfill":
+                existing_ref = OpenPluginSnapshotService.get_reference_snapshot(snapshot_extra)
+                existing_schema = OpenPluginSnapshotService.get_schema_snapshot(snapshot_extra)
+                if existing_ref and existing_schema:
+                    return Response(
+                        {
+                            "reference_snapshot": existing_ref,
+                            "schema_snapshot": existing_schema,
+                            "changed": False,
+                        }
+                    )
+                merged, changed = OpenPluginSnapshotService.backfill_extra_info(
+                    space_id=space_id,
+                    pipeline_tree=pipeline_tree,
+                    extra_info=snapshot_extra,
+                    username=username,
+                    scope_type=scope_type,
+                    scope_id=scope_id,
+                )
+            else:
+                merged = OpenPluginSnapshotService.prepare_task_extra_info(
+                    space_id=space_id,
+                    pipeline_tree=pipeline_tree,
+                    extra_info=snapshot_extra,
+                    username=username,
+                    scope_type=scope_type,
+                    scope_id=scope_id,
+                )
+                changed = merged != dict(snapshot_extra)
+        except ValueError as e:
+            return Response(exception=True, data={"detail": str(e)})
+        except serializers.ValidationError as e:
+            return Response(exception=True, data={"detail": _validation_error_message(e)})
+
+        return Response(
+            {
+                "reference_snapshot": OpenPluginSnapshotService.get_reference_snapshot(merged),
+                "schema_snapshot": OpenPluginSnapshotService.get_schema_snapshot(merged),
+                "changed": changed,
+            }
+        )
+
+
+def _validation_error_message(exc):
+    """把 DRF ValidationError 压成前端/Engine 可读的单行 message。"""
+    detail = getattr(exc, "detail", None)
+    if isinstance(detail, list) and detail:
+        return str(detail[0])
+    if isinstance(detail, dict) and detail:
+        first = next(iter(detail.values()))
+        if isinstance(first, list) and first:
+            return str(first[0])
+        return str(first)
+    if detail is not None:
+        return str(detail)
+    return str(exc)

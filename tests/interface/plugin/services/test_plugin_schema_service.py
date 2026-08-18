@@ -24,6 +24,21 @@ import pytest
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
+from bkflow.utils.api_client import HttpRequestResult
+
+
+def uniform_meta_result(data, result=True, response_result=True, message=""):
+    """构造通过统一 API meta schema 校验的 HttpRequestResult。"""
+    meta = {
+        "url": "https://bk-sops.example/run/",
+        "methods": ["POST"],
+    }
+    meta.update(data)
+    return HttpRequestResult(
+        result=result,
+        message=message,
+        json_resp={"result": response_result, "message": message, "data": meta},
+    )
 
 
 class TestListComponentPlugins:
@@ -324,9 +339,8 @@ class TestUniformApiPlugins:
                 "apis": [{"id": "sops_execute", "name": "标准运维执行", "meta_url": "http://example.com/meta/sops"}],
             }
         }
-        meta_resp = MagicMock()
-        meta_resp.json_resp = {
-            "data": {
+        meta_resp = uniform_meta_result(
+            {
                 "id": "sops_execute",
                 "name": "标准运维执行",
                 "desc": "执行标准运维流程",
@@ -334,7 +348,7 @@ class TestUniformApiPlugins:
                     {"key": "biz_id", "name": "业务ID", "type": "int", "required": True},
                 ],
             }
-        }
+        )
         mock_client.request.side_effect = [list_resp, meta_resp]
         mock_client_cls.return_value = mock_client
 
@@ -569,15 +583,14 @@ class TestUniformApiPlugins:
                 "apis": [{"id": "sops_execute", "name": "标准运维执行", "meta_url": "http://example.com/meta/sops"}],
             }
         }
-        meta_resp = MagicMock()
-        meta_resp.json_resp = {
-            "data": {
+        meta_resp = uniform_meta_result(
+            {
                 "id": "sops_execute",
                 "name": "标准运维执行",
                 "desc": "执行标准运维流程",
                 "inputs": [{"key": "biz_id", "name": "业务ID", "type": "int", "required": True}],
             }
-        }
+        )
         mock_client.request.side_effect = [list_resp, meta_resp]
         mock_client_cls.return_value = mock_client
 
@@ -677,9 +690,8 @@ class TestUniformApiPlugins:
         OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
         mock_client = MagicMock()
-        meta_resp = MagicMock()
-        meta_resp.json_resp = {
-            "data": {
+        mock_client.request.return_value = uniform_meta_result(
+            {
                 "id": "open_plugin_001",
                 "name": "JOB 执行作业",
                 "plugin_version": "1.2.0",
@@ -689,8 +701,7 @@ class TestUniformApiPlugins:
                 ],
                 "outputs": [],
             }
-        }
-        mock_client.request.return_value = meta_resp
+        )
         mock_client_cls.return_value = mock_client
 
         service = PluginSchemaService(space_id=1, username="admin")
@@ -860,28 +871,24 @@ class TestCaching:
 
         mock_client = MagicMock()
         mock_client.request.side_effect = [
-            MagicMock(
-                json_resp={
-                    "data": {
-                        "id": "open_plugin_001",
-                        "name": "from-a",
-                        "plugin_version": "1.2.0",
-                        "desc": "schema-a",
-                        "inputs": [{"key": "a", "name": "A", "type": "string", "required": True}],
-                        "outputs": [],
-                    }
+            uniform_meta_result(
+                {
+                    "id": "open_plugin_001",
+                    "name": "from-a",
+                    "plugin_version": "1.2.0",
+                    "desc": "schema-a",
+                    "inputs": [{"key": "a", "name": "A", "type": "string", "required": True}],
+                    "outputs": [],
                 }
             ),
-            MagicMock(
-                json_resp={
-                    "data": {
-                        "id": "open_plugin_001",
-                        "name": "from-b",
-                        "plugin_version": "1.2.0",
-                        "desc": "schema-b",
-                        "inputs": [{"key": "b", "name": "B", "type": "string", "required": True}],
-                        "outputs": [],
-                    }
+            uniform_meta_result(
+                {
+                    "id": "open_plugin_001",
+                    "name": "from-b",
+                    "plugin_version": "1.2.0",
+                    "desc": "schema-b",
+                    "inputs": [{"key": "b", "name": "B", "type": "string", "required": True}],
+                    "outputs": [],
                 }
             ),
         ]
@@ -910,3 +917,79 @@ class TestCaching:
         assert mock_client.request.call_count == 2
         assert mock_client.request.call_args_list[0].kwargs["url"].startswith("https://source-a.example/")
         assert mock_client.request.call_args_list[1].kwargs["url"].startswith("https://source-b.example/")
+
+
+@pytest.mark.parametrize(
+    "meta_result, match",
+    (
+        (
+            uniform_meta_result({"id": "open_plugin_001", "name": "JOB"}, result=False, message="network failed"),
+            "network failed",
+        ),
+        (
+            uniform_meta_result(
+                {"id": "open_plugin_001", "name": "JOB"},
+                response_result=False,
+                message="provider rejected",
+            ),
+            "provider rejected",
+        ),
+        (uniform_meta_result({"id": "open_plugin_001", "name": "JOB", "inputs": []}), "plugin_version"),
+        (
+            uniform_meta_result(
+                {
+                    "id": "open_plugin_001",
+                    "name": "JOB 执行作业",
+                    "plugin_version": "9.9.9",
+                    "inputs": [{"key": "biz_id", "name": "业务ID"}],
+                    "outputs": [],
+                }
+            ),
+            "1.2.0.*9.9.9",
+        ),
+    ),
+    ids=("http-false", "business-false", "missing-plugin-version", "version-mismatch"),
+)
+@pytest.mark.django_db
+@patch("bkflow.plugin.services.plugin_schema_service.cache")
+@patch("bkflow.plugin.services.plugin_schema_service.Credential")
+@patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+@patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+def test_get_uniform_api_schema_does_not_cache_invalid_provider_meta(
+    mock_sc, mock_client_cls, mock_cred, mock_cache, meta_result, match
+):
+    """provider 失败或版本不可核验时不得写入 schema 缓存。"""
+    mock_cache.get.return_value = None
+    mock_sc.get_config.return_value = "test_cred"
+    mock_cred.objects.filter.return_value.first.return_value = MagicMock(
+        content={"bk_app_code": "app", "bk_app_secret": "secret"}
+    )
+    OpenPluginCatalogIndex.objects.create(
+        space_id=1,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        plugin_code="job_execute_task",
+        plugin_name="JOB 执行作业",
+        plugin_source="builtin",
+        group_name="作业平台",
+        wrapper_version="v4.0.0",
+        default_version="1.2.0",
+        latest_version="1.3.0",
+        versions=["1.2.0", "1.3.0"],
+        meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+        status="available",
+    )
+    SpaceOpenPluginAvailability.objects.create(
+        space_id=1,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        enabled=True,
+    )
+    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+    mock_client_cls.return_value.request.return_value = meta_result
+
+    service = PluginSchemaService(space_id=1, username="admin")
+    with pytest.raises(ValueError, match=match):
+        service.get_plugin_schema(code="open_plugin_001", version="1.2.0", plugin_type="uniform_api")
+
+    mock_cache.set.assert_not_called()

@@ -487,7 +487,7 @@ def test_backfill_open_plugin_snapshots_fills_missing_fields_without_overwriting
         == "keep-schema"
     )
     assert "updated_templates=1" in execute_stdout.getvalue()
-    assert "updated_tasks=0" in execute_stdout.getvalue()
+    assert "updated_tasks" not in execute_stdout.getvalue()
 
 
 def create_catalog_plugin(

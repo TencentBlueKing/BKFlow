@@ -36,6 +36,10 @@ from bkflow.plugin.models import (
 )
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
+from bkflow.plugin.services.uniform_api_meta import (
+    UniformAPIMetaError,
+    extract_uniform_api_meta_data,
+)
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
@@ -461,7 +465,14 @@ class PluginSchemaService:
             headers=headers,
             username=self.username or "admin",
         )
-        meta = meta_result.json_resp.get("data", {})
+        try:
+            meta = extract_uniform_api_meta_data(
+                meta_result,
+                requested_version=version or api_item.get("plugin_version") or api_item.get("version"),
+                catalog_wrapper_version=api_item.get("wrapper_version"),
+            )
+        except UniformAPIMetaError as exc:
+            raise ValueError(str(exc)) from exc
 
         inputs = self._normalize_io_fields(meta.get("inputs", []))
         outputs = self._normalize_io_fields(meta.get("outputs", []), is_output=True)

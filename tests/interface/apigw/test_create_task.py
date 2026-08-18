@@ -358,3 +358,163 @@ class TestCreateTask(TestCase):
         self.assertIn("extra_info", call_args)
         self.assertIn("custom_context", call_args["extra_info"])
         self.assertEqual(call_args["extra_info"]["custom_context"]["custom_span_attributes"], custom_span_attributes)
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @mock.patch("bkflow.apigw.views.create_task_without_template.TaskComponentClient")
+    def test_create_task_without_template_rejects_ungranted_open_plugin(self, mock_client_class):
+        """无模板创建入口必须校验开放插件来源准入。"""
+        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        mock_client_class.return_value.create_task.return_value = {
+            "result": True,
+            "data": {"id": 1, "name": "测试任务", "parameters": {}},
+        }
+
+        url = "/apigw/space/{}/create_task_without_template/".format(self.space.id)
+        resp = self.client.post(
+            path=url,
+            data=json.dumps(
+                {
+                    "name": "测试任务",
+                    "creator": "test_user",
+                    "pipeline_tree": build_open_plugin_pipeline_tree(),
+                }
+            ),
+            content_type="application/json",
+        )
+
+        resp_data = json.loads(resp.content)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], False)
+        self.assertEqual(resp_data["code"], 400)
+        self.assertIn("来源", resp_data["message"])
+        mock_client_class.return_value.create_task.assert_not_called()
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @mock.patch("bkflow.plugin.services.open_plugin_snapshot.OpenPluginSnapshotService.build_schema_snapshot")
+    @mock.patch("bkflow.apigw.views.create_task_without_template.TaskComponentClient")
+    def test_create_task_without_template_adds_open_plugin_snapshots(
+        self, mock_client_class, mock_build_schema_snapshot
+    ):
+        """无模板创建入口写入开放插件引用与表单快照。"""
+        pipeline_tree = build_open_plugin_pipeline_tree()
+        activity_id = next(iter(pipeline_tree["activities"].keys()))
+        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
+        mock_build_schema_snapshot.return_value = {activity_id: {"plugin_id": "open_plugin_001"}}
+        mock_client = mock.Mock()
+        mock_client.create_task.return_value = {
+            "result": True,
+            "data": {"id": 1, "name": "测试任务", "parameters": {}},
+        }
+        mock_client_class.return_value = mock_client
+
+        url = "/apigw/space/{}/create_task_without_template/".format(self.space.id)
+        resp = self.client.post(
+            path=url,
+            data=json.dumps(
+                {
+                    "name": "测试任务",
+                    "creator": "test_user",
+                    "pipeline_tree": pipeline_tree,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        resp_data = json.loads(resp.content)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], True)
+        call_args = mock_client.create_task.call_args[0][0]
+        self.assertEqual(call_args["extra_info"]["plugin_reference_snapshot"][0]["plugin_id"], "open_plugin_001")
+        self.assertEqual(call_args["extra_info"]["plugin_reference_snapshot"][0]["node_id"], activity_id)
+        self.assertEqual(call_args["extra_info"]["plugin_schema_snapshot"], mock_build_schema_snapshot.return_value)
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @mock.patch("bkflow.apigw.views.create_mock_task.TaskComponentClient")
+    def test_create_mock_task_rejects_ungranted_open_plugin(self, mock_client_class):
+        """APIGW Mock 创建入口必须校验开放插件来源准入。"""
+        pipeline_tree = build_open_plugin_pipeline_tree()
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_user", version="1.0.0")
+        template = Template.objects.create(
+            name="开放插件流程", space_id=self.space.id, snapshot_id=snapshot.id, creator="test_user"
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        mock_client_class.return_value.create_task.return_value = {
+            "result": True,
+            "data": {"id": 1, "name": "Mock任务", "template_id": template.id, "parameters": {}},
+        }
+
+        url = "/apigw/space/{}/create_mock_task/".format(self.space.id)
+        resp = self.client.post(
+            path=url,
+            data=json.dumps(
+                {
+                    "template_id": template.id,
+                    "name": "Mock任务",
+                    "creator": "test_user",
+                    "mock_data": {"nodes": [], "outputs": {}, "mock_data_ids": {}},
+                }
+            ),
+            content_type="application/json",
+        )
+
+        resp_data = json.loads(resp.content)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], False)
+        self.assertEqual(resp_data["code"], 400)
+        self.assertIn("来源", resp_data["message"])
+        mock_client_class.return_value.create_task.assert_not_called()
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @mock.patch("bkflow.plugin.services.open_plugin_snapshot.OpenPluginSnapshotService.build_schema_snapshot")
+    @mock.patch("bkflow.apigw.views.create_mock_task.TaskComponentClient")
+    def test_create_mock_task_adds_open_plugin_snapshots(self, mock_client_class, mock_build_schema_snapshot):
+        """APIGW Mock 创建入口写入开放插件引用与表单快照。"""
+        pipeline_tree = build_open_plugin_pipeline_tree()
+        activity_id = next(iter(pipeline_tree["activities"].keys()))
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_user", version="1.0.0")
+        template = Template.objects.create(
+            name="开放插件流程", space_id=self.space.id, snapshot_id=snapshot.id, creator="test_user"
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
+        mock_build_schema_snapshot.return_value = {activity_id: {"plugin_id": "open_plugin_001"}}
+        mock_client = mock.Mock()
+        mock_client.create_task.return_value = {
+            "result": True,
+            "data": {"id": 1, "name": "Mock任务", "template_id": template.id, "parameters": {}},
+        }
+        mock_client_class.return_value = mock_client
+
+        url = "/apigw/space/{}/create_mock_task/".format(self.space.id)
+        resp = self.client.post(
+            path=url,
+            data=json.dumps(
+                {
+                    "template_id": template.id,
+                    "name": "Mock任务",
+                    "creator": "test_user",
+                    "mock_data": {"nodes": [], "outputs": {}, "mock_data_ids": {}},
+                }
+            ),
+            content_type="application/json",
+        )
+
+        resp_data = json.loads(resp.content)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp_data["result"], True)
+        call_args = mock_client.create_task.call_args[0][0]
+        self.assertEqual(call_args["extra_info"]["plugin_reference_snapshot"][0]["plugin_id"], "open_plugin_001")
+        self.assertEqual(call_args["extra_info"]["plugin_schema_snapshot"], mock_build_schema_snapshot.return_value)

@@ -676,6 +676,18 @@ class TemplateViewSet(UserModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
+        try:
+            create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+                space_id=int(template.space_id),
+                pipeline_tree=pipeline_tree,
+                extra_info=create_task_data.get("extra_info"),
+                username=request.user.username,
+                scope_type=template.scope_type,
+                scope_id=template.scope_value,
+            )
+        except drf_serializers.ValidationError as error:
+            detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
+            raise ValidationError(str(detail))
 
         client = TaskComponentClient(space_id=template.space_id)
         result = client.create_task(create_task_data)

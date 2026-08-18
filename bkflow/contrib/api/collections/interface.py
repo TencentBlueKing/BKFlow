@@ -75,3 +75,10 @@ class InterfaceModuleClient(BaseComponentClient):
             url=self._get_interface_url("api/plugin/internal/validate_open_plugins_for_start/"),
             data=data,
         )
+
+    def build_open_plugin_snapshots(self, data):
+        return self._request(
+            method="post",
+            url=self._get_interface_url("api/plugin/internal/build_open_plugin_snapshots/"),
+            data=data,
+        )

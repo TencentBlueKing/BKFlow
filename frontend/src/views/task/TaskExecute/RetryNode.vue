@@ -58,6 +58,7 @@
   import {
     buildV4PluginDetailRequest,
     isV4OpenPlugin,
+    resolveNodeExecutionPayload,
     resolveV4OpenPluginVersion,
   } from '@/utils/uniformApi.js';
   import { hasPluginFormFields } from '@/utils/pluginFormLoader.js';
@@ -177,6 +178,7 @@
         try {
           if (this.isV4OpenPlugin) {
             this.renderConfig = [];
+            const execution = resolveNodeExecutionPayload(this.nodeInfo);
             const result = await this.loadV4OpenPluginForm({
               request: buildV4PluginDetailRequest({
                 component: this.nodeComponent,
@@ -189,8 +191,8 @@
               isCurrent: canApply,
               runtimeContext: {
                 inputs: this.renderData,
-                outputs: this.nodeInfo.outputs || [],
-                state: this.nodeInfo.state,
+                outputs: execution.outputs,
+                state: execution.state,
               },
             });
             if (!canApply()) return;

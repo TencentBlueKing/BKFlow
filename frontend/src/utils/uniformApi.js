@@ -16,6 +16,34 @@ const getComponentDataValue = (data, key) => {
 
 const hasValue = value => value !== undefined && value !== null && value !== '';
 
+export const OPEN_PLUGIN_SCHEMA_PROTOCOL_VERSION = 'open_plugin_snapshot.v1';
+
+export const getOpenPluginSchemaSnapshot = (extraInfo, nodeId, templateNodeId) => {
+  const snapshots = (extraInfo && extraInfo.plugin_schema_snapshot) || {};
+  if (nodeId && snapshots[nodeId]) return snapshots[nodeId];
+  if (templateNodeId && snapshots[templateNodeId]) return snapshots[templateNodeId];
+  return null;
+};
+
+export const buildV4DetailFromSchemaSnapshot = (snapshot) => {
+  if (!snapshot || typeof snapshot !== 'object') {
+    throw new Error('invalid open plugin schema snapshot');
+  }
+  const protocol = snapshot.schema_protocol_version;
+  if (protocol !== OPEN_PLUGIN_SCHEMA_PROTOCOL_VERSION) {
+    throw new Error(`unsupported schema_protocol_version: ${protocol || ''}`);
+  }
+  return {
+    plugin_code: snapshot.plugin_code,
+    plugin_version: snapshot.plugin_version,
+    plugin_source: snapshot.plugin_source,
+    inputs: snapshot.inputs || [],
+    outputs: snapshot.outputs || [],
+    description: snapshot.description || '',
+    forms: { input: null, output: null },
+  };
+};
+
 export const normalizeUniformApiMethods = (methods) => {
   if (!Array.isArray(methods)) return [];
   return methods
@@ -379,6 +407,52 @@ export const buildVariablePluginRuntimeInputs = ({
   return inputs;
 };
 
+const HIDDEN_OUTPUT_RENDER_KEYS = new Set(['ex_data']);
+
+/**
+ * 把节点 outputs（Array 或 Object）转成原生输出表单的 v-model 值。
+ * ex_data 是执行异常信息，不进入输出表单。
+ */
+export const buildOutputRenderData = (outputs) => {
+  if (!outputs) return {};
+  if (Array.isArray(outputs)) {
+    return outputs.reduce((acc, item) => {
+      if (item && item.key && !HIDDEN_OUTPUT_RENDER_KEYS.has(item.key)) {
+        acc[item.key] = item.value;
+      }
+      return acc;
+    }, {});
+  }
+  if (typeof outputs === 'object') {
+    return Object.keys(outputs).reduce((acc, key) => {
+      if (!HIDDEN_OUTPUT_RENDER_KEYS.has(key)) {
+        acc[key] = outputs[key];
+      }
+      return acc;
+    }, {});
+  }
+  return {};
+};
+
+/**
+ * 从节点详情接口信封或已解包 payload 中读取 inputs / outputs / state。
+ * getNodeActInfo 返回 { result, data }，执行数据在 data 上。
+ */
+export const resolveNodeExecutionPayload = (nodeInfo = {}) => {
+  const isEnvelope = Boolean(nodeInfo)
+    && typeof nodeInfo === 'object'
+    && Object.prototype.hasOwnProperty.call(nodeInfo, 'result')
+    && nodeInfo.data
+    && typeof nodeInfo.data === 'object'
+    && !Array.isArray(nodeInfo.data);
+  const payload = isEnvelope ? nodeInfo.data : (nodeInfo || {});
+  return {
+    inputs: payload.inputs || {},
+    outputs: payload.outputs || [],
+    state: payload.state,
+  };
+};
+
 /**
  * 新选择且尚未保存的节点：优先使用目录 default_version，
  * latest_version 只作为异常数据兼容。
@@ -427,6 +501,9 @@ export const disablePluginFormFields = (sections = [], keys = [], attrs = {}) =>
           disabled: true,
         };
         property['ui:component'] = uiComponent;
+        if (hasValue(attrs.used_tip)) {
+          property['x-bkflow-used-tip'] = attrs.used_tip;
+        }
         properties[key] = property;
       });
       return {

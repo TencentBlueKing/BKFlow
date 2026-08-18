@@ -26,8 +26,12 @@ async function main() {
     resolveVariableSourceComponent,
     resolveNewOpenPluginVersion,
     disablePluginFormFields,
+    getOpenPluginSchemaSnapshot,
+    buildV4DetailFromSchemaSnapshot,
     mergeV4VariableObjectField,
     buildVariablePluginRuntimeInputs,
+    buildOutputRenderData,
+    resolveNodeExecutionPayload,
     shouldNotifyPluginFormError,
     withLoadingState,
   } = await import(moduleUrl);
@@ -744,6 +748,32 @@ async function main() {
     }), '1.1.0');
   });
 
+  test('getOpenPluginSchemaSnapshot prefers execution node id then template node id', () => {
+    const extraInfo = {
+      plugin_schema_snapshot: {
+        node1: { plugin_code: 'job_execute_task' },
+        tpl_node: { plugin_code: 'from_template' },
+      },
+    };
+    assert.equal(getOpenPluginSchemaSnapshot(extraInfo, 'node1', 'tpl_node').plugin_code, 'job_execute_task');
+    assert.equal(getOpenPluginSchemaSnapshot(extraInfo, 'missing', 'tpl_node').plugin_code, 'from_template');
+    assert.equal(getOpenPluginSchemaSnapshot({}, 'node1'), null);
+  });
+
+  test('buildV4DetailFromSchemaSnapshot rejects unknown protocol versions', () => {
+    assert.throws(
+      () => buildV4DetailFromSchemaSnapshot({ schema_protocol_version: 'unknown.v9' }),
+      error => /schema_protocol_version/.test(error.message),
+    );
+    const detail = buildV4DetailFromSchemaSnapshot({
+      schema_protocol_version: 'open_plugin_snapshot.v1',
+      plugin_code: 'job_execute_task',
+      inputs: [{ name: 'bk_biz_id' }],
+    });
+    assert.equal(detail.plugin_code, 'job_execute_task');
+    assert.equal(detail.forms.input, null);
+  });
+
   test('disablePluginFormFields updates array and object sections without throwing', () => {
     const sections = disablePluginFormFields([
       {
@@ -773,7 +803,12 @@ async function main() {
     assert.equal(arrayField.attrs.used_tip, '参数已被使用，不可修改');
     assert.equal(sections[0].scheme.find(item => item.tag_code === '${job_script}').attrs.disabled, undefined);
     assert.equal(sections[1].scheme.properties['${account}']['ui:component'].props.disabled, true);
+    assert.equal(
+      sections[1].scheme.properties['${account}']['x-bkflow-used-tip'],
+      '参数已被使用，不可修改',
+    );
     assert.equal(sections[1].scheme.properties['${other}']['ui:component'], undefined);
+    assert.equal(sections[1].scheme.properties['${other}']['x-bkflow-used-tip'], undefined);
   });
 
   test('mergeV4VariableObjectField only keeps the hooked field from a full plugin schema', () => {
@@ -830,6 +865,50 @@ async function main() {
     assert.equal(buildVariablePluginRuntimeInputs({
       variable: constants['${var_a}'],
     }).a, undefined);
+  });
+
+  test('buildOutputRenderData converts array and object outputs to form values', () => {
+    assert.deepEqual(buildOutputRenderData([
+      { key: 'job_inst_id', name: '作业实例 ID', value: 1001 },
+      { key: 'log', name: '日志', value: 'ok' },
+    ]), {
+      job_inst_id: 1001,
+      log: 'ok',
+    });
+    assert.deepEqual(buildOutputRenderData({
+      job_inst_id: 1001,
+      log: 'ok',
+      ex_data: 'hidden',
+    }), {
+      job_inst_id: 1001,
+      log: 'ok',
+    });
+    assert.deepEqual(buildOutputRenderData(), {});
+    assert.deepEqual(buildOutputRenderData(null), {});
+  });
+
+  test('resolveNodeExecutionPayload reads outputs and state from API envelope data', () => {
+    const envelope = {
+      result: true,
+      data: {
+        inputs: { cmd: 'ls' },
+        outputs: [{ key: 'job_inst_id', value: 1001 }],
+        state: 'FAILED',
+      },
+    };
+
+    assert.deepEqual(resolveNodeExecutionPayload(envelope), {
+      inputs: { cmd: 'ls' },
+      outputs: [{ key: 'job_inst_id', value: 1001 }],
+      state: 'FAILED',
+    });
+    assert.deepEqual(resolveNodeExecutionPayload(envelope.data), {
+      inputs: { cmd: 'ls' },
+      outputs: [{ key: 'job_inst_id', value: 1001 }],
+      state: 'FAILED',
+    });
+    assert.equal(resolveNodeExecutionPayload({ result: true, data: { inputs: {} } }).state, undefined);
+    assert.deepEqual(resolveNodeExecutionPayload({}).outputs, []);
   });
 }
 
