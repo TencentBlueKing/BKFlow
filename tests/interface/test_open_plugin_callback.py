@@ -67,17 +67,27 @@ class TestOpenPluginCallback(TestCase):
         mock_client_class.assert_not_called()
 
     @mock.patch("bkflow.interface.views.TaskComponentClient")
-    def test_callback_rejects_missing_token_before_forwarding(self, mock_client_class):
-        """开放插件回调缺少运行 token 时立即拒绝。"""
+    def test_callback_keeps_legacy_payload_when_business_field_collides(self, mock_client_class):
+        """普通回调即使携带 open_plugin_run_id 业务字段，没有专用 token 仍走原协议。"""
+
+        mock_client = mock.Mock()
+        mock_client.node_operate.return_value = {"result": True, "data": None, "message": "success"}
+        mock_client_class.return_value = mock_client
+        payload = {"open_plugin_run_id": "biz-001", "status": "success", "data": {"result": "done"}}
 
         response = self.client.post(
-            self._callback_path(),
-            data=json.dumps({"open_plugin_run_id": "run-001", "status": "SUCCEEDED"}),
+            self._callback_path(node_version="v3.0.0"),
+            data=json.dumps(payload),
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 400)
-        mock_client_class.assert_not_called()
+        self.assertEqual(response.status_code, 200)
+        mock_client.node_operate.assert_called_once_with(
+            task_id="123",
+            node_id="node_a",
+            operation="callback",
+            data={"version": "v3.0.0", "data": payload},
+        )
 
     @mock.patch("bkflow.interface.views.TaskComponentClient")
     def test_callback_propagates_engine_rejection_as_bad_request(self, mock_client_class):

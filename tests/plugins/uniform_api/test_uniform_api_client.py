@@ -106,6 +106,18 @@ class TestUniformAPIClient:
         }
         self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
 
+    def test_meta_response_allows_legacy_extra_plugin_code(self):
+        """旧协议允许附加字段；仅带 plugin_code 的 V3 响应不能被当成残缺 V4。"""
+        valid_instance = {
+            "id": "api1",
+            "name": "test",
+            "url": "http://www.example.com",
+            "methods": ["GET", "POST"],
+            "inputs": [{"name": "test", "key": "test", "required": True, "type": "string"}],
+            "plugin_code": "legacy_job",
+        }
+        self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
     def test_validate_v4_list_meta_contract(self):
         valid_instance = {
             "total": 1,

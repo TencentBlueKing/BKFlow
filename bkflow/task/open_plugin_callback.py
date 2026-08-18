@@ -32,6 +32,17 @@ DEFAULT_CALLBACK_TOKEN_TTL = timedelta(hours=2)
 OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY = "HTTP_X_CALLBACK_TOKEN"
 
 
+def get_open_plugin_callback_token_ttl():
+    """回调 token 有效期，默认对齐节点最长执行时间。"""
+    seconds = getattr(settings, "OPEN_PLUGIN_CALLBACK_TOKEN_TTL", None)
+    if seconds:
+        return timedelta(seconds=int(seconds))
+    max_timeout = getattr(settings, "MAX_NODE_EXECUTE_TIMEOUT", None)
+    if max_timeout:
+        return timedelta(seconds=int(max_timeout))
+    return DEFAULT_CALLBACK_TOKEN_TTL
+
+
 def _get_callback_fernet():
     callback_key = getattr(settings, "CALLBACK_KEY", None) or env.CALLBACK_KEY
     if callback_key:
@@ -52,7 +63,7 @@ def callback_token_digest(token):
 
 
 def issue_open_plugin_callback_token(task_id, node_id, client_request_id, node_version="", expire_at=None):
-    expire_at = expire_at or (timezone.now() + DEFAULT_CALLBACK_TOKEN_TTL)
+    expire_at = expire_at or (timezone.now() + get_open_plugin_callback_token_ttl())
     payload = {
         "task_id": task_id,
         "node_id": node_id,

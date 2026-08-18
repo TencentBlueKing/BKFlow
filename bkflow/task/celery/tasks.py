@@ -59,6 +59,14 @@ logger = logging.getLogger("celery")
 
 
 @current_app.task(ignore_result=True)
+def clean_expired_open_plugin_callback_refs():
+    """清理已过期的开放插件回调映射，避免长期堆积。"""
+    deleted, _ = OpenPluginRunCallbackRef.objects.filter(callback_expire_at__lte=timezone.now()).delete()
+    logger.info("[open_plugin callback] cleaned expired refs: %s", deleted)
+    return deleted
+
+
+@current_app.task(ignore_result=True)
 def cancel_open_plugin_runs(task_id, operator, node_id=None):
     try:
         task_instance = TaskInstance.objects.get(id=task_id)

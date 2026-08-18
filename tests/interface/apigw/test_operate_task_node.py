@@ -80,11 +80,13 @@ class TestOperateTaskNode(TestCase):
     )
     @mock.patch("bkflow.apigw.views.operate_task_node.TaskComponentClient")
     def test_callback_forwards_missing_open_plugin_token_to_engine(self, mock_client_class):
+        """没有 X-Callback-Token 时走普通节点回调，不因业务字段误判为开放插件协议。"""
         mock_client = mock.Mock()
-        mock_client.node_operate.return_value = {"result": False, "data": None, "message": "missing callback token"}
+        mock_client.node_operate.return_value = {"result": True, "data": None, "message": "success"}
         mock_client_class.return_value = mock_client
 
         body = {
+            "operator": "admin",
             "open_plugin_run_id": self.open_plugin_run_id,
             "status": "SUCCEEDED",
             "outputs": {"job_instance_id": 1001},
@@ -98,20 +100,12 @@ class TestOperateTaskNode(TestCase):
 
         resp_data = json.loads(resp.content)
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp_data["result"], False)
+        self.assertEqual(resp_data["result"], True)
         mock_client.node_operate.assert_called_once_with(
-            self.task_id,
+            str(self.task_id),
             self.node_id,
             "callback",
-            {
-                "operator": "system",
-                "data": {
-                    "open_plugin_run_id": self.open_plugin_run_id,
-                    "status": "SUCCEEDED",
-                    "outputs": {"job_instance_id": 1001},
-                    "_callback_token": "",
-                },
-            },
+            body,
         )
 
     @override_settings(

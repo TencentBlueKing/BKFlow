@@ -44,8 +44,8 @@ def _build_open_plugin_callback_payload(data):
     return callback_payload
 
 
-def _is_open_plugin_callback_request(operation, data):
-    return operation == "callback" and isinstance(data, dict) and "open_plugin_run_id" in data
+def _is_open_plugin_callback_request(operation, request):
+    return operation == "callback" and bool(request.META.get("HTTP_X_CALLBACK_TOKEN"))
 
 
 @login_exempt
@@ -56,7 +56,7 @@ def _is_open_plugin_callback_request(operation, data):
 @return_json_response
 def operate_task_node(request, space_id, task_id, node_id, operation):
     data = json.loads(request.body)
-    is_open_plugin_callback = _is_open_plugin_callback_request(operation, data)
+    is_open_plugin_callback = _is_open_plugin_callback_request(operation, request)
     if is_open_plugin_callback:
         ser = OpenPluginCallbackSerializer(data=data)
         ser.is_valid(raise_exception=True)

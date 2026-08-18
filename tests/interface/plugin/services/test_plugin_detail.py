@@ -200,10 +200,16 @@ def available_open_plugin():
 
         def filter(self, **kwargs):
             items = self.items
+            if "source_key" in kwargs:
+                items = [item for item in items if item.source_key == kwargs["source_key"]]
             if "source_key__in" in kwargs:
                 items = [item for item in items if item.source_key in kwargs["source_key__in"]]
             if "status" in kwargs:
                 items = [item for item in items if item.status == kwargs["status"]]
+            if "wrapper_version" in kwargs:
+                items = [item for item in items if item.wrapper_version == kwargs["wrapper_version"]]
+            if "plugin_id" in kwargs:
+                items = [item for item in items if item.plugin_id == kwargs["plugin_id"]]
             return FakeQuerySet(items)
 
         def order_by(self, *args):
@@ -224,6 +230,14 @@ def available_open_plugin():
             matches = [item for item in matches if str(item.space_id) == str(kwargs["space_id"])]
         if "plugin_id" in kwargs:
             matches = [item for item in matches if item.plugin_id == kwargs["plugin_id"]]
+        if "source_key" in kwargs:
+            matches = [item for item in matches if item.source_key == kwargs["source_key"]]
+        if "source_key__in" in kwargs:
+            matches = [item for item in matches if item.source_key in kwargs["source_key__in"]]
+        if "status" in kwargs:
+            matches = [item for item in matches if item.status == kwargs["status"]]
+        if "wrapper_version" in kwargs:
+            matches = [item for item in matches if item.wrapper_version == kwargs["wrapper_version"]]
         return FakeQuerySet(matches)
 
     def filter_availability(**kwargs):
@@ -873,25 +887,31 @@ class TestUniformApiDetailAdapter:
             service.get_detail("uniform_api", available_open_plugin.plugin_id, "v2.0", "sops")
 
     @pytest.mark.parametrize("wrapper_version", ("v2.0.0", "v3.0.0"))
+    @patch("bkflow.plugin.services.plugin_detail.PluginSchemaService._get_single_by_type")
     @patch("bkflow.plugin.services.plugin_detail._get_api_credential", create=True)
     @patch("bkflow.plugin.services.plugin_detail.UniformAPIClient", create=True)
     def test_uniform_adapter_keeps_legacy_version_and_forms_optional(
         self,
         client_cls,
         get_credential,
+        get_single_by_type,
         wrapper_version,
-        available_open_plugin,
         service,
     ):
-        """V2/V3 provider 可继续省略 plugin_version 和原生 forms。"""
-        available_open_plugin.wrapper_version = wrapper_version
+        """V2/V3 走远端列表，provider 可继续省略 plugin_version 和原生 forms。"""
+        get_single_by_type.return_value = {
+            "code": "legacy_sops_execute",
+            "source_key": "sops",
+            "wrapper_version": wrapper_version,
+            "_meta_url": "https://bksops.example.com/meta/v2.0/",
+        }
         data = uniform_detail_data()
         for field in ("plugin_source", "plugin_code", "plugin_version", "wrapper_version", "forms"):
             data.pop(field)
         get_credential.return_value = {"bk_app_code": "bkflow", "bk_app_secret": "secret"}
         client_cls.return_value.request.return_value = uniform_result(data=data)
 
-        detail = service.get_detail("uniform_api", available_open_plugin.plugin_id, "v2.0", "sops")
+        detail = service.get_detail("uniform_api", "legacy_sops_execute", "v2.0", "sops")
 
         assert detail["wrapper_version"] == wrapper_version
         assert detail["forms"] == {"input": None, "output": None}

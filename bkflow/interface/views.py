@@ -121,9 +121,7 @@ def callback(request, token):
         return JsonResponse({"result": False, "message": message}, status=400)
 
     callback_token = request.META.get(OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY, "")
-    is_open_plugin_callback = callback_token or (
-        isinstance(callback_data, dict) and callback_data.get("open_plugin_run_id")
-    )
+    is_open_plugin_callback = bool(callback_token)
     if is_open_plugin_callback:
         if (
             not isinstance(callback_data, dict)

@@ -187,6 +187,10 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
             "task": "bkflow.contrib.expired_cleaner.tasks.clean_task",
             "schedule": crontab(env.CLEAN_TASK_CRONTAB),
         },
+        "clean_expired_open_plugin_callback_refs": {
+            "task": "bkflow.task.celery.tasks.clean_expired_open_plugin_callback_refs",
+            "schedule": _parse_crontab(env.OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB),
+        },
         "generate_daily_summary": {
             "task": "bkflow.statistics.tasks.summary_tasks.generate_daily_summary_task",
             "schedule": _parse_crontab(env.STATISTICS_DAILY_SUMMARY_CRONTAB),

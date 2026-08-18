@@ -23,7 +23,11 @@ from django.conf import settings
 
 from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
-from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.models import (
+    OPEN_PLUGIN_WRAPPER_VERSION,
+    OpenPluginCatalogIndex,
+    SpaceOpenPluginAvailability,
+)
 from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
@@ -229,6 +233,8 @@ class OpenPluginCatalogService:
     def _refresh_catalog_index(cls, space_id, source_key, api_list):
         current_ids = set()
         for api_item in api_list:
+            if api_item.get("wrapper_version") != OPEN_PLUGIN_WRAPPER_VERSION:
+                continue
             current_ids.add(api_item["id"])
             OpenPluginCatalogIndex.objects.update_or_create(
                 space_id=space_id,

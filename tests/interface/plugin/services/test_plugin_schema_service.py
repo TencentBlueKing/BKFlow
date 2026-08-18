@@ -361,6 +361,7 @@ class TestUniformApiPlugins:
             plugin_name="JOB 执行作业",
             plugin_source="builtin",
             group_name="作业平台",
+            wrapper_version="v4.0.0",
             default_version="1.2.0",
             latest_version="1.3.0",
             versions=["1.2.0", "1.3.0"],
@@ -384,7 +385,7 @@ class TestUniformApiPlugins:
         assert results[0]["version"] == "1.3.0"
         assert results[0]["plugin_source"] == "builtin"
         assert results[0]["plugin_code"] == "job_execute_task"
-        assert results[0]["wrapper_version"] == ""
+        assert results[0]["wrapper_version"] == "v4.0.0"
         assert results[0]["source_key"] == "sops"
 
     @pytest.mark.django_db
@@ -403,6 +404,7 @@ class TestUniformApiPlugins:
             plugin_name="JOB 执行作业",
             plugin_source="builtin",
             group_name="作业平台",
+            wrapper_version="v4.0.0",
             default_version="1.2.0",
             latest_version="1.3.0",
             versions=["1.2.0", "1.3.0"],
@@ -436,6 +438,7 @@ class TestUniformApiPlugins:
             plugin_name="JOB 执行作业",
             plugin_source="builtin",
             group_name="作业平台",
+            wrapper_version="v4.0.0",
             default_version="1.2.0",
             latest_version="1.3.0",
             versions=["1.2.0", "1.3.0"],
@@ -452,6 +455,189 @@ class TestUniformApiPlugins:
         service = PluginSchemaService(space_id=1)
 
         assert service._list_uniform_api_plugins() == []
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIConfigHandler")
+    def test_list_uniform_api_plugins_merges_v4_catalog_with_remote_v2(
+        self, mock_handler, mock_sc, mock_client_cls, mock_cred, mock_cache
+    ):
+        """目录同步后仍要回落远端，合并 V4 已开启项与存量 V2/V3。"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.side_effect = lambda space_id, config_name, scope=None: {
+            "uniform_api": {"api": {"default": {"meta_apis": "http://example.com/meta_apis"}}},
+            "api_gateway_credential_name": "test_cred",
+        }.get(config_name)
+        mock_handler.return_value.handle.return_value = MagicMock(
+            api={"default": MagicMock(meta_apis="http://example.com/meta_apis")}
+        )
+        mock_cred.objects.filter.return_value.first.return_value = MagicMock(
+            content={"bk_app_code": "app", "bk_app_secret": "secret"}
+        )
+        mock_client = MagicMock()
+        mock_client.request.return_value = MagicMock(
+            json_resp={
+                "data": {
+                    "total": 1,
+                    "apis": [
+                        {
+                            "id": "sops_execute",
+                            "name": "标准运维执行",
+                            "meta_url": "http://example.com/meta/sops",
+                        }
+                    ],
+                }
+            }
+        )
+        mock_client_cls.return_value = mock_client
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="sops_execute",
+            plugin_name="标准运维执行",
+            wrapper_version="",
+            meta_url_template="http://example.com/meta/sops",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="sops_execute",
+            enabled=False,
+        )
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            wrapper_version="v4.0.0",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=True,
+        )
+        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+
+        service = PluginSchemaService(space_id=1)
+        results = service._list_uniform_api_plugins()
+        codes = {item["code"] for item in results}
+
+        assert codes == {"sops_execute", "open_plugin_001"}
+        v2_item = next(item for item in results if item["code"] == "sops_execute")
+        assert v2_item["_meta_url"] == "http://example.com/meta/sops"
+        assert v2_item.get("wrapper_version") != "v4.0.0"
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIConfigHandler")
+    def test_get_uniform_api_schema_uses_remote_meta_url_after_v2_catalog_sync(
+        self, mock_handler, mock_sc, mock_client_cls, mock_cred, mock_cache
+    ):
+        """存量 V2 被写入目录且未开启时，schema 仍走原 meta_url。"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.side_effect = lambda space_id, config_name, scope=None: {
+            "uniform_api": {"api": {"default": {"meta_apis": "http://example.com/meta_apis"}}},
+            "api_gateway_credential_name": "test_cred",
+        }.get(config_name)
+        mock_handler.return_value.handle.return_value = MagicMock(
+            api={"default": MagicMock(meta_apis="http://example.com/meta_apis")}
+        )
+        mock_cred.objects.filter.return_value.first.return_value = MagicMock(
+            content={"bk_app_code": "app", "bk_app_secret": "secret"}
+        )
+        mock_client = MagicMock()
+        list_resp = MagicMock()
+        list_resp.json_resp = {
+            "data": {
+                "total": 1,
+                "apis": [{"id": "sops_execute", "name": "标准运维执行", "meta_url": "http://example.com/meta/sops"}],
+            }
+        }
+        meta_resp = MagicMock()
+        meta_resp.json_resp = {
+            "data": {
+                "id": "sops_execute",
+                "name": "标准运维执行",
+                "desc": "执行标准运维流程",
+                "inputs": [{"key": "biz_id", "name": "业务ID", "type": "int", "required": True}],
+            }
+        }
+        mock_client.request.side_effect = [list_resp, meta_resp]
+        mock_client_cls.return_value = mock_client
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="sops_execute",
+            plugin_name="标准运维执行",
+            wrapper_version="",
+            meta_url_template="http://example.com/meta/sops",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1,
+            source_key="sops",
+            plugin_id="sops_execute",
+            enabled=False,
+        )
+        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+
+        service = PluginSchemaService(space_id=1)
+        schema = service._get_uniform_api_schema("sops_execute")
+
+        assert schema["inputs"][0]["key"] == "biz_id"
+        assert mock_client.request.call_args_list[-1].kwargs["url"] == "http://example.com/meta/sops"
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_list_uniform_api_plugins_filters_plugin_source(self, mock_sc, mock_cache):
+        """plugin_source 只返回匹配的 V4 开放插件。"""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.return_value = None
+        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+        for plugin_id, plugin_source in (("open_builtin", "builtin"), ("open_third", "third_party")):
+            OpenPluginCatalogIndex.objects.create(
+                space_id=1,
+                source_key="sops",
+                plugin_id=plugin_id,
+                plugin_code=plugin_id,
+                plugin_name=plugin_id,
+                plugin_source=plugin_source,
+                wrapper_version="v4.0.0",
+                default_version="1.0.0",
+                latest_version="1.0.0",
+                versions=["1.0.0"],
+                meta_url_template="https://example.com/{}/{{version}}".format(plugin_id),
+                status="available",
+            )
+            SpaceOpenPluginAvailability.objects.create(
+                space_id=1,
+                source_key="sops",
+                plugin_id=plugin_id,
+                enabled=True,
+            )
+
+        service = PluginSchemaService(space_id=1)
+        results = service._list_uniform_api_plugins(plugin_source="builtin")
+
+        assert [item["code"] for item in results] == ["open_builtin"]
 
     @pytest.mark.django_db
     @patch("bkflow.plugin.services.plugin_schema_service.cache")

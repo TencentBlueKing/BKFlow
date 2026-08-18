@@ -29,6 +29,7 @@ from bkflow.task.celery.tasks import (
     auto_retry_node,
     bkflow_periodic_task_start,
     cancel_open_plugin_runs,
+    clean_expired_open_plugin_callback_refs,
     dispatch_timeout_nodes,
     execute_node_timeout_strategy,
     send_task_message,
@@ -44,6 +45,38 @@ from bkflow.task.models import (
 from bkflow.task.operations import OperationResult
 from bkflow.task.utils import ATOM_FAILED
 from bkflow.utils.pipeline import build_default_pipeline_tree
+
+
+@pytest.mark.django_db(transaction=True)
+class TestCleanExpiredOpenPluginCallbackRefs:
+    def test_clean_expired_open_plugin_callback_refs_keeps_active_tokens(self):
+        """过期回调映射应被清理，未过期记录保留。"""
+        expired = OpenPluginRunCallbackRef.objects.create(
+            task_id=1,
+            node_id="node-expired",
+            node_version="v4.0.0",
+            client_request_id="request-expired",
+            open_plugin_run_id="run-expired",
+            callback_token_digest="digest-expired",
+            callback_expire_at=timezone.now() - timedelta(minutes=1),
+            plugin_id="open_plugin_001",
+        )
+        active = OpenPluginRunCallbackRef.objects.create(
+            task_id=1,
+            node_id="node-active",
+            node_version="v4.0.0",
+            client_request_id="request-active",
+            open_plugin_run_id="run-active",
+            callback_token_digest="digest-active",
+            callback_expire_at=timezone.now() + timedelta(hours=1),
+            plugin_id="open_plugin_001",
+        )
+
+        deleted = clean_expired_open_plugin_callback_refs()
+
+        assert deleted == 1
+        assert not OpenPluginRunCallbackRef.objects.filter(id=expired.id).exists()
+        assert OpenPluginRunCallbackRef.objects.filter(id=active.id).exists()
 
 
 @pytest.mark.django_db(transaction=True)

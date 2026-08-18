@@ -334,6 +334,58 @@ class TestOpenPluginCatalogService:
     @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIClient")
     @patch("bkflow.plugin.services.open_plugin_catalog.SpaceConfig")
     @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIConfigHandler")
+    def test_sync_space_plugins_skips_non_v4_items(self, mock_handler, mock_sc, mock_client_cls, mock_cred):
+        """目录同步只落 V4 开放插件，避免存量 V2/V3 污染本地索引。"""
+        mock_sc.get_config.side_effect = lambda space_id, config_name, scope=None: {
+            "uniform_api": {"api": {"sops": {"meta_apis": "http://example.com/meta_apis"}}},
+            "api_gateway_credential_name": "test_cred",
+        }.get(config_name)
+        mock_handler.return_value.handle.return_value = MagicMock(
+            api={"sops": MagicMock(meta_apis="http://example.com/meta_apis")}
+        )
+        mock_cred.objects.filter.return_value.first.return_value = MagicMock(
+            content={"bk_app_code": "app", "bk_app_secret": "secret"}
+        )
+        mock_client = MagicMock()
+        mock_client.request.return_value = MagicMock(
+            result=True,
+            json_resp={
+                "data": {
+                    "apis": [
+                        {
+                            "id": "sops_execute",
+                            "name": "标准运维执行",
+                            "meta_url": "http://example.com/meta/sops",
+                        },
+                        {
+                            "id": "open_plugin_001",
+                            "name": "JOB 执行作业",
+                            "plugin_source": "builtin",
+                            "plugin_code": "job_execute_task",
+                            "wrapper_version": "v4.0.0",
+                            "default_version": "1.2.0",
+                            "latest_version": "1.3.0",
+                            "versions": ["1.2.0", "1.3.0"],
+                            "meta_url_template": (
+                                "https://bk-sops.example/open-plugins/open_plugin_001?version={version}"
+                            ),
+                        },
+                    ]
+                }
+            },
+        )
+        mock_client_cls.return_value = mock_client
+
+        OpenPluginCatalogService.sync_space_plugins(space_id=1)
+
+        assert list(OpenPluginCatalogIndex.objects.filter(space_id=1).values_list("plugin_id", flat=True)) == [
+            "open_plugin_001"
+        ]
+
+    @patch("bkflow.plugin.services.open_plugin_catalog.Credential")
+    @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIClient")
+    @patch("bkflow.plugin.services.open_plugin_catalog.SpaceConfig")
+    @patch("bkflow.plugin.services.open_plugin_catalog.UniformAPIConfigHandler")
     def test_sync_space_plugins_marks_missing_plugin_as_unavailable(
         self, mock_handler, mock_sc, mock_client_cls, mock_cred
     ):

@@ -4,7 +4,7 @@
 
 查询指定空间下可用的插件列表，支持按类型过滤、关键词搜索和分页。
 
-当 `plugin_type=uniform_api` 时，列表只返回已对当前空间准入的开放插件来源，且插件需已在当前空间开启。
+当 `plugin_type=uniform_api` 时：`wrapper_version=v4.0.0` 的开放插件只返回已对当前空间准入且已开启的目录项；存量 V2/V3 API 插件仍按原远端 `meta_url` 列表返回，不受目录开启状态影响。
 
 #### 请求方法
 
@@ -16,6 +16,7 @@ GET
 |------|------|------|------|
 | keyword | string | 否 | 模糊搜索 code 或 name |
 | plugin_type | string | 否 | 按类型过滤，可选值: component, remote_plugin, uniform_api |
+| plugin_source | string | 否 | 开放插件来源类型，仅过滤 `uniform_api v4.0.0` 目录项 |
 | with_detail | bool | 否 | 默认 false，只返回摘要信息；true 返回完整 schema |
 | scope_type | string | 否 | scope 类型 |
 | scope_id | string | 否 | scope ID |
@@ -39,7 +40,7 @@ GET
 | data[].inputs | array | 输入参数列表（with_detail=true 时返回） |
 | data[].outputs | array | 输出参数列表（with_detail=true 时返回） |
 
-开放插件（`plugin_type=uniform_api`）额外受两层准入控制：来源必须已对当前空间准入，插件必须已在当前空间开启；未准入或未开启的开放插件不会出现在列表中。
+`uniform_api v4.0.0` 开放插件额外受两层准入控制：来源必须已对当前空间准入，插件必须已在当前空间开启；未准入或未开启的 V4 插件不会出现在列表中。存量 V2/V3 不走这套开关。
 
 #### 请求示例
 

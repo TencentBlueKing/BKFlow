@@ -1633,8 +1633,8 @@ paths:
         name: code
         schema:
           type: string
-        required: true
-        description: 插件 code
+        required: false
+        description: 插件 code，与 plugin_id 至少传一个
       - in: query
         name: plugin_id
         schema:

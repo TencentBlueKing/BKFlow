@@ -4,7 +4,7 @@
 
 查询指定插件的完整参数 schema（inputs 和 outputs）。
 
-查询开放插件（`plugin_type=uniform_api`）时，插件来源必须已对当前空间准入，且插件必须已在当前空间开启。
+查询 `uniform_api v4.0.0` 开放插件时，插件来源必须已对当前空间准入，且插件必须已在当前空间开启。存量 V2/V3 仍按原远端 `meta_url` 查询。
 
 #### 请求方法
 
@@ -14,10 +14,11 @@ GET
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| code | string | 是 | 插件 code |
+| code | string | 否 | 插件 code，与 `plugin_id` 至少传一个 |
 | plugin_id | string | 否 | 开放插件 ID，传入后优先作为 `code` 使用，便于查询 `uniform_api v4.0.0` 开放插件 |
 | version | string | 否 | 插件版本，不传取最新 |
 | plugin_version | string | 否 | 开放插件业务版本，传入后优先作为 `version` 使用 |
+| plugin_source | string | 否 | 开放插件来源类型，查询 V4 开放插件时可消歧 |
 | plugin_type | string | 否 | 消歧用，可选值: component, remote_plugin, uniform_api |
 | scope_type | string | 否 | scope 类型 |
 | scope_id | string | 否 | scope ID |
@@ -45,7 +46,7 @@ GET
 | data.inputs[].description | string | 参数描述 |
 | data.outputs | array | 输出参数列表 |
 
-开放插件（`plugin_type=uniform_api`）若来源未准入、插件不可用或插件未开启，将返回失败信息，不返回 schema。
+`uniform_api v4.0.0` 开放插件若来源未准入、插件不可用或插件未开启，将返回失败信息，不返回 schema。存量 V2/V3 不套用这套校验。
 
 #### 请求示例
 

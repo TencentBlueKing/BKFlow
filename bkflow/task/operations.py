@@ -156,7 +156,7 @@ def _get_open_plugin_callback_ref_model():
 
 
 def _is_open_plugin_callback_data(data):
-    return isinstance(data, dict) and "open_plugin_run_id" in data
+    return isinstance(data, dict) and bool(data.get("_callback_token"))
 
 
 def _build_open_plugin_callback_payload(data):

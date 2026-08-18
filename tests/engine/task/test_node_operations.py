@@ -178,6 +178,32 @@ class TestTaskNodeOperation:
         assert isinstance(result, OperationResult)
         assert result.result is True
 
+    def test_callback_keeps_legacy_path_when_business_field_collides(self, mocker):
+        """普通回调即使携带 open_plugin_run_id，没有 _callback_token 仍走 bamboo callback。"""
+        task_instance, node_id = self._create_task_instance_with_node()
+        node_operation = TaskNodeOperation(task_instance, node_id)
+        mock_state = type("State", (), {"version": 1})()
+        mocker.patch("pipeline.eri.runtime.BambooDjangoRuntime.get_state", return_value=mock_state)
+        callback_api = mocker.patch(
+            "bamboo_engine.api.callback", return_value=EngineAPIResult(result=True, message="success")
+        )
+        payload = {"open_plugin_run_id": "biz-001", "status": "success", "data": {"result": "done"}}
+
+        result = node_operation.callback(operator="test_operator", data=payload)
+
+        assert result.result is True
+        callback_api.assert_called_once_with(runtime=mock.ANY, node_id=node_id, version=1, data=payload)
+
+    def test_open_plugin_callback_token_ttl_covers_max_node_timeout(self, settings):
+        """回调 token 默认有效期对齐节点最长执行时间，避免纯回调插件中途过期。"""
+        settings.MAX_NODE_EXECUTE_TIMEOUT = 60 * 60 * 24
+        settings.OPEN_PLUGIN_CALLBACK_TOKEN_TTL = settings.MAX_NODE_EXECUTE_TIMEOUT
+        issued_at = timezone.now()
+
+        _, expire_at = issue_open_plugin_callback_token(task_id=1, node_id="node_a", client_request_id="cid-1")
+
+        assert expire_at - issued_at >= timedelta(seconds=settings.MAX_NODE_EXECUTE_TIMEOUT - 5)
+
     def test_open_plugin_callback_accepts_valid_payload(self, mocker):
         """开放插件回调由 engine 校验 token/ref 后再回调 bamboo engine。"""
 

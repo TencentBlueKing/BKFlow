@@ -19,6 +19,8 @@ to the current version of the project delivered to anyone in the future.
 
 from django.db import models
 
+OPEN_PLUGIN_WRAPPER_VERSION = "v4.0.0"
+
 
 class SpacePluginConfigManager(models.Manager):
     def get_space_allow_list(self, space_id):

@@ -141,23 +141,20 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
         "required": ["id", "name", "url", "methods", "inputs"],
         "anyOf": [
             {
-                "not": {
-                    "anyOf": [
-                        {"required": ["plugin_source"]},
-                        {"required": ["plugin_code"]},
-                        {"required": ["plugin_version"]},
-                        {"required": ["wrapper_version"]},
-                    ]
-                }
-            },
-            {
+                "properties": {"wrapper_version": {"const": "v4.0.0"}},
                 "required": [
+                    "wrapper_version",
                     "plugin_source",
                     "plugin_code",
                     "plugin_version",
-                    "wrapper_version",
                     "outputs",
-                ]
+                ],
+            },
+            {
+                "not": {
+                    "properties": {"wrapper_version": {"const": "v4.0.0"}},
+                    "required": ["wrapper_version"],
+                }
             },
         ],
         "properties": {
