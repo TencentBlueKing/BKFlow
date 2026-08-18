@@ -817,3 +817,96 @@ class TestCaching:
 
         assert schema["version"] == "1.0.0"
         mock_client_cls.assert_not_called()
+
+    @pytest.mark.django_db
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    def test_uniform_api_schema_cache_is_scoped_by_source_key(self, mock_sc, mock_client_cls, mock_cred, mock_cache):
+        """同 ID 不同来源的 schema 不能共用缓存。"""
+        store = {}
+        mock_cache.get.side_effect = lambda key: store.get(key)
+        mock_cache.set.side_effect = lambda key, value, ttl=None: store.__setitem__(key, value)
+        mock_sc.get_config.return_value = "test_cred"
+        mock_cred.objects.filter.return_value.first.return_value = MagicMock(
+            content={"bk_app_code": "app", "bk_app_secret": "secret"}
+        )
+
+        for source_key, plugin_code in (("source-a", "code_from_a"), ("source-b", "code_from_b")):
+            OpenPluginCatalogIndex.objects.create(
+                space_id=1,
+                source_key=source_key,
+                plugin_id="open_plugin_001",
+                plugin_code=plugin_code,
+                plugin_name=plugin_code,
+                plugin_source="builtin",
+                wrapper_version="v4.0.0",
+                default_version="1.2.0",
+                latest_version="1.2.0",
+                versions=["1.2.0"],
+                meta_url_template="https://{}.example/open-plugins/open_plugin_001?version={{version}}".format(
+                    source_key
+                ),
+                status="available",
+            )
+            SpaceOpenPluginAvailability.objects.create(
+                space_id=1,
+                source_key=source_key,
+                plugin_id="open_plugin_001",
+                enabled=True,
+            )
+            OpenPluginGrantService.grant(space_id=1, source_key=source_key, operator="admin")
+
+        mock_client = MagicMock()
+        mock_client.request.side_effect = [
+            MagicMock(
+                json_resp={
+                    "data": {
+                        "id": "open_plugin_001",
+                        "name": "from-a",
+                        "plugin_version": "1.2.0",
+                        "desc": "schema-a",
+                        "inputs": [{"key": "a", "name": "A", "type": "string", "required": True}],
+                        "outputs": [],
+                    }
+                }
+            ),
+            MagicMock(
+                json_resp={
+                    "data": {
+                        "id": "open_plugin_001",
+                        "name": "from-b",
+                        "plugin_version": "1.2.0",
+                        "desc": "schema-b",
+                        "inputs": [{"key": "b", "name": "B", "type": "string", "required": True}],
+                        "outputs": [],
+                    }
+                }
+            ),
+        ]
+        mock_client_cls.return_value = mock_client
+        service = PluginSchemaService(space_id=1, username="admin")
+
+        schema_a = service.get_plugin_schema(
+            code="open_plugin_001",
+            version="1.2.0",
+            plugin_type="uniform_api",
+            source_key="source-a",
+        )
+        schema_b = service.get_plugin_schema(
+            code="open_plugin_001",
+            version="1.2.0",
+            plugin_type="uniform_api",
+            source_key="source-b",
+        )
+
+        assert schema_a["plugin_code"] == "code_from_a"
+        assert schema_a["description"] == "schema-a"
+        assert schema_a["inputs"][0]["key"] == "a"
+        assert schema_b["plugin_code"] == "code_from_b"
+        assert schema_b["description"] == "schema-b"
+        assert schema_b["inputs"][0]["key"] == "b"
+        assert mock_client.request.call_count == 2
+        assert mock_client.request.call_args_list[0].kwargs["url"].startswith("https://source-a.example/")
+        assert mock_client.request.call_args_list[1].kwargs["url"].startswith("https://source-b.example/")

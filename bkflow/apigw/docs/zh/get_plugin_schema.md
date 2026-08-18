@@ -19,6 +19,7 @@ GET
 | version | string | 否 | 插件版本，不传取最新 |
 | plugin_version | string | 否 | 开放插件业务版本，传入后优先作为 `version` 使用 |
 | plugin_source | string | 否 | 开放插件来源类型，查询 V4 开放插件时可消歧 |
+| source_key | string | 否 | 开放插件来源标识，同 `plugin_id` 存在多个来源时用于消歧 |
 | plugin_type | string | 否 | 消歧用，可选值: component, remote_plugin, uniform_api |
 | scope_type | string | 否 | scope 类型 |
 | scope_id | string | 否 | scope ID |
@@ -57,7 +58,7 @@ curl -X GET 'http://{host}/space/1/get_plugin_schema/?code=job_fast_execute_scri
 开放插件示例：
 
 ```bash
-curl -X GET 'http://{host}/space/1/get_plugin_schema/?plugin_id=open_plugin_001&plugin_version=1.2.0&plugin_type=uniform_api'
+curl -X GET 'http://{host}/space/1/get_plugin_schema/?plugin_id=open_plugin_001&plugin_version=1.2.0&plugin_type=uniform_api&source_key=source-b'
 ```
 
 #### 响应示例

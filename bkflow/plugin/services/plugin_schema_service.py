@@ -118,7 +118,7 @@ class PluginSchemaService:
         paginated = all_plugins[offset : offset + limit]
         return paginated, total_count
 
-    def get_plugin_schema(self, code, version=None, plugin_type=None, plugin_source=None):
+    def get_plugin_schema(self, code, version=None, plugin_type=None, plugin_source=None, source_key=None):
         """
         查询单个插件的完整 schema。
 
@@ -126,13 +126,18 @@ class PluginSchemaService:
         :param version: 指定版本（仅 component 生效）
         :param plugin_type: 消歧用
         :param plugin_source: 开放插件来源类型
+        :param source_key: 开放插件来源，同 plugin_id 多来源时消歧
         :return: 统一格式的插件信息 dict
         :raises: ValueError
         """
         if plugin_type:
-            plugin_info = self._get_single_by_type(code, plugin_type, version=version, plugin_source=plugin_source)
+            plugin_info = self._get_single_by_type(
+                code, plugin_type, version=version, source_key=source_key, plugin_source=plugin_source
+            )
         else:
-            plugin_info = self._get_single_auto_resolve(code, version=version, plugin_source=plugin_source)
+            plugin_info = self._get_single_auto_resolve(
+                code, version=version, plugin_source=plugin_source, source_key=source_key
+            )
 
         self._fill_schema_single(plugin_info, strict=True)
         return plugin_info
@@ -405,16 +410,27 @@ class PluginSchemaService:
             results.append(info)
         return results
 
-    def _get_uniform_api_schema(self, code, version=None, api_item=None):
+    def _get_uniform_api_schema(self, code, version=None, api_item=None, source_key=None):
         """从 meta_url 提取 schema，带缓存"""
-        cache_key = "plugin_schema:uniform_api:{}:{}:{}".format(self.space_id, code, version or "latest")
+        resolved_source_key = source_key or (api_item or {}).get("source_key") or ""
+        cache_key = "plugin_schema:uniform_api:{}:{}:{}:{}".format(
+            self.space_id, resolved_source_key or "-", code, version or "latest"
+        )
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
         if api_item is None:
             api_list = self._list_uniform_api_plugins()
-            api_item = next((a for a in api_list if a["code"] == code), None)
+            api_item = next(
+                (
+                    item
+                    for item in api_list
+                    if item["code"] == code
+                    and (not resolved_source_key or item.get("source_key") == resolved_source_key)
+                ),
+                None,
+            )
         else:
             api_item = dict(api_item)
 
@@ -425,7 +441,7 @@ class PluginSchemaService:
             api_item["_meta_url"] = self._build_uniform_api_meta_url(api_item, version)
 
         if not api_item or not api_item.get("_meta_url"):
-            self._raise_uniform_api_catalog_access_error(code)
+            self._raise_uniform_api_catalog_access_error(code, source_key=resolved_source_key or None)
             raise ValueError("未找到 API 插件 '{}'".format(code))
 
         credential = self._get_apigw_credential()
@@ -523,7 +539,7 @@ class PluginSchemaService:
         else:
             raise ValueError("不支持的 plugin_type: {}".format(plugin_type))
 
-    def _get_single_auto_resolve(self, code, version=None, plugin_source=None):
+    def _get_single_auto_resolve(self, code, version=None, plugin_source=None, source_key=None):
         is_component = ComponentModel.objects.filter(code=code, status=True).exists()
         is_bk_plugin = BKPlugin.objects.filter(code=code).exists()
 
@@ -531,7 +547,14 @@ class PluginSchemaService:
         api_item = None
         try:
             api_list = self._list_uniform_api_plugins(plugin_source=plugin_source)
-            api_item = next((a for a in api_list if a["code"] == code), None)
+            api_item = next(
+                (
+                    item
+                    for item in api_list
+                    if item["code"] == code and (source_key is None or item.get("source_key") == source_key)
+                ),
+                None,
+            )
             is_uniform_api = api_item is not None
         except Exception:
             pass

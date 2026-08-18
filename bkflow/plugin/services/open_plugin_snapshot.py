@@ -22,15 +22,23 @@ from copy import deepcopy
 from rest_framework import serializers
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.services.open_plugin_detect import (
+    OPEN_PLUGIN_WRAPPER_VERSION,
+    REFERENCE_SNAPSHOT_KEY,
+    extract_data_value,
+    has_open_plugin_nodes,
+    is_open_plugin_component,
+    needs_start_validation,
+)
 from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
 
 
 class OpenPluginSnapshotService:
-    REFERENCE_SNAPSHOT_KEY = "plugin_reference_snapshot"
+    REFERENCE_SNAPSHOT_KEY = REFERENCE_SNAPSHOT_KEY
     SCHEMA_SNAPSHOT_KEY = "plugin_schema_snapshot"
     SCHEMA_PROTOCOL_VERSION = "open_plugin_snapshot.v1"
-    OPEN_PLUGIN_WRAPPER_VERSION = "v4.0.0"
+    OPEN_PLUGIN_WRAPPER_VERSION = OPEN_PLUGIN_WRAPPER_VERSION
 
     @classmethod
     def get_reference_snapshot(cls, extra_info):
@@ -65,24 +73,75 @@ class OpenPluginSnapshotService:
         return statuses
 
     @classmethod
+    def has_open_plugin_nodes(cls, pipeline_tree):
+        """仅根据 pipeline 结构判断是否包含开放插件节点，不访问 Interface 目录库。"""
+        return has_open_plugin_nodes(pipeline_tree)
+
+    @classmethod
+    def needs_start_validation(cls, extra_info=None, pipeline_tree=None):
+        """启动时是否需要做开放插件准入预检。"""
+        return needs_start_validation(extra_info=extra_info, pipeline_tree=pipeline_tree)
+
+    @classmethod
+    def validate_for_start(cls, space_id, snapshot=None, extra_info=None, pipeline_tree=None):
+        """启动预检：优先使用已有快照，否则回退到扫描 pipeline_tree。"""
+        refs = snapshot if snapshot is not None else cls.get_reference_snapshot(extra_info)
+        if refs:
+            cls.validate_reference_snapshot(space_id, refs)
+            return
+        if pipeline_tree:
+            cls.validate_pipeline_tree(space_id, pipeline_tree)
+
+    @classmethod
+    def validate_reference_snapshot(cls, space_id, snapshot):
+        """按任务 extra_info 中的开放插件快照做准入/可用性校验。"""
+        for ref in snapshot or []:
+            plugin_id = ref.get("plugin_id")
+            plugin_version = ref.get("plugin_version")
+            catalog = cls._get_catalog_entry(space_id=space_id, plugin_id=plugin_id, source_key=ref.get("source_key"))
+            enabled = False
+            if catalog is not None:
+                enabled = SpaceOpenPluginAvailability.objects.filter(
+                    space_id=space_id,
+                    source_key=catalog.source_key,
+                    plugin_id=catalog.plugin_id,
+                    enabled=True,
+                ).exists()
+            cls._validate_resolved_reference(
+                space_id=space_id,
+                plugin_id=plugin_id,
+                plugin_version=plugin_version,
+                catalog=catalog,
+                enabled=enabled,
+            )
+
+    @classmethod
     def validate_pipeline_tree(cls, space_id, pipeline_tree):
         for ref in cls.collect_plugin_references(
             space_id=space_id, pipeline_tree=pipeline_tree, include_unmatched=True
         ):
-            if ref["catalog"] is None:
-                raise serializers.ValidationError("开放插件 [{}] 不存在或已下线".format(ref["plugin_id"]))
-            if not OpenPluginGrantService.is_granted(space_id, ref["catalog"].source_key):
-                raise serializers.ValidationError("开放插件来源 [{}] 未对当前空间准入".format(ref["catalog"].source_key))
-            if ref["catalog"].status != OpenPluginCatalogIndex.Status.AVAILABLE:
-                raise serializers.ValidationError("开放插件 [{}] 当前不可用".format(ref["plugin_id"]))
-            if not ref["plugin_version"]:
-                raise serializers.ValidationError("开放插件 [{}] 未指定精确版本".format(ref["plugin_id"]))
-            if not ref["catalog"].is_plugin_version_available(ref["plugin_version"]):
-                raise serializers.ValidationError(
-                    "开放插件 [{}] 版本 [{}] 当前不可用".format(ref["plugin_id"], ref["plugin_version"] or "")
-                )
-            if not ref["enabled"]:
-                raise serializers.ValidationError("开放插件 [{}] 在当前空间未开放".format(ref["plugin_id"]))
+            cls._validate_resolved_reference(
+                space_id=space_id,
+                plugin_id=ref["plugin_id"],
+                plugin_version=ref["plugin_version"],
+                catalog=ref["catalog"],
+                enabled=ref["enabled"],
+            )
+
+    @staticmethod
+    def _validate_resolved_reference(space_id, plugin_id, plugin_version, catalog, enabled):
+        if catalog is None:
+            raise serializers.ValidationError("开放插件 [{}] 不存在或已下线".format(plugin_id))
+        if not OpenPluginGrantService.is_granted(space_id, catalog.source_key):
+            raise serializers.ValidationError("开放插件来源 [{}] 未对当前空间准入".format(catalog.source_key))
+        if catalog.status != OpenPluginCatalogIndex.Status.AVAILABLE:
+            raise serializers.ValidationError("开放插件 [{}] 当前不可用".format(plugin_id))
+        if not plugin_version:
+            raise serializers.ValidationError("开放插件 [{}] 未指定精确版本".format(plugin_id))
+        if not catalog.is_plugin_version_available(plugin_version):
+            raise serializers.ValidationError("开放插件 [{}] 版本 [{}] 当前不可用".format(plugin_id, plugin_version or ""))
+        if not enabled:
+            raise serializers.ValidationError("开放插件 [{}] 在当前空间未开放".format(plugin_id))
 
     @classmethod
     def build_reference_snapshot(cls, space_id, pipeline_tree):
@@ -116,6 +175,7 @@ class OpenPluginSnapshotService:
                 code=ref["plugin_id"],
                 version=ref["plugin_version"],
                 plugin_type="uniform_api",
+                source_key=ref.get("source_key") or None,
             )
             snapshots[ref["node_id"]] = {
                 "schema_protocol_version": cls.SCHEMA_PROTOCOL_VERSION,
@@ -271,25 +331,11 @@ class OpenPluginSnapshotService:
     @classmethod
     def _is_open_plugin_component(cls, component):
         """判断 uniform_api 节点是否使用开放插件 v4 协议。"""
-
-        data = component.get("data", {})
-        api_meta = component.get("api_meta", {})
-        if cls._extract_data_value(data, "uniform_api_plugin_id"):
-            return True
-
-        wrapper_version = api_meta.get("wrapper_version") or component.get("version")
-        if wrapper_version == cls.OPEN_PLUGIN_WRAPPER_VERSION:
-            return True
-
-        # 兼容早期页面曾将业务版本写入 component.version 的开放插件节点。
-        return bool(api_meta.get("versions") and api_meta.get("meta_url_template"))
+        return is_open_plugin_component(component)
 
     @staticmethod
     def _extract_data_value(data, key):
-        value = data.get(key)
-        if isinstance(value, dict):
-            return value.get("value")
-        return value
+        return extract_data_value(data, key)
 
     @staticmethod
     def _get_catalog_entry(space_id, plugin_id, source_key=None):

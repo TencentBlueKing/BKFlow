@@ -23,7 +23,6 @@ from unittest.mock import MagicMock
 import pytest
 from blueapps.account.models import User
 from django.utils import timezone
-from rest_framework import serializers
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from bkflow.exceptions import APIRequestError
@@ -613,10 +612,6 @@ class TestTaskInterfaceViewSet:
         )
 
         mock_client = mock.Mock()
-        mock_client.get_task_detail.return_value = {
-            "result": True,
-            "data": {"pipeline_tree": {"activities": {}}},
-        }
         mock_client.operate_task.return_value = {"result": True, "data": {"status": "success"}}
         mock_client_class.return_value = mock_client
 
@@ -636,6 +631,7 @@ class TestTaskInterfaceViewSet:
         response = view(request, task_id="123", operation="start")
 
         assert response.status_code == 200
+        mock_client.get_task_detail.assert_not_called()
         mock_client.operate_task.assert_called_once()
         # operator is added in the view, check it was called with operator
         call_args = mock_client.operate_task.call_args
@@ -644,13 +640,10 @@ class TestTaskInterfaceViewSet:
         assert len(call_args[0]) >= 3  # positional args: task_id, operation, data
         assert call_args[0][2].get("operator") == "normaluser"
 
-    @mock.patch("bkflow.interface.task.view.OpenPluginSnapshotService", create=True)
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     @mock.patch("bkflow.interface.task.view.start_trace")
-    def test_start_task_rejects_open_plugin_preflight_error(
-        self, mock_start_trace, mock_client_class, mock_snapshot_service
-    ):
-        """普通 Web 启动入口必须在调用 engine 前执行开放插件预检。"""
+    def test_start_task_does_not_prefetch_task_detail(self, mock_start_trace, mock_client_class):
+        """Web 启动入口不再无条件拉取完整任务详情。"""
         Token.objects.create(
             token="test_token_open_plugin_start",
             space_id=self.space.id,
@@ -660,11 +653,8 @@ class TestTaskInterfaceViewSet:
             permission_type=PermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
-        pipeline_tree = {"activities": {}}
         mock_client = mock_client_class.return_value
-        mock_client.get_task_detail.return_value = {"result": True, "data": {"pipeline_tree": pipeline_tree}}
         mock_client.operate_task.return_value = {"result": True, "data": {"status": "success"}}
-        mock_snapshot_service.validate_pipeline_tree.side_effect = serializers.ValidationError("开放插件来源未准入")
         mock_start_trace.return_value.__enter__ = MagicMock()
         mock_start_trace.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -679,9 +669,9 @@ class TestTaskInterfaceViewSet:
 
         response = view(request, task_id="123", operation="start")
 
-        assert response.status_code == 400
-        assert "来源" in str(response.data)
-        mock_client.operate_task.assert_not_called()
+        assert response.status_code == 200
+        mock_client.get_task_detail.assert_not_called()
+        mock_client.operate_task.assert_called_once()
 
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_node_detail(self, mock_client_class):

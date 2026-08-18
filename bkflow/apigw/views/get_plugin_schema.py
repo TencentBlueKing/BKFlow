@@ -57,6 +57,7 @@ def get_plugin_schema(request, space_id):
             version=params.get("plugin_version") or params.get("version"),
             plugin_type=params.get("plugin_type"),
             plugin_source=params.get("plugin_source"),
+            source_key=params.get("source_key"),
         )
     except ValueError as e:
         return {

@@ -127,6 +127,7 @@ class TestGetPluginSchemaView(SimpleTestCase):
             version="1.2.0",
             plugin_type="uniform_api",
             plugin_source=None,
+            source_key=None,
         )
 
     @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
@@ -157,6 +158,7 @@ class TestGetPluginSchemaView(SimpleTestCase):
             version="1.2.0",
             plugin_type="uniform_api",
             plugin_source=None,
+            source_key=None,
         )
 
     @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
@@ -191,6 +193,43 @@ class TestGetPluginSchemaView(SimpleTestCase):
             version=None,
             plugin_type="uniform_api",
             plugin_source="builtin",
+            source_key=None,
+        )
+
+    @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
+    @patch("bkflow.apigw.views.get_plugin_schema.PluginSchemaService")
+    def test_get_schema_forwards_source_key(self, mock_service_cls):
+        """公开合同必须把 source_key 转到服务层，避免跨来源同 plugin_id 串 schema。"""
+        mock_service = MagicMock()
+        mock_service.get_plugin_schema.return_value = {
+            "code": "open_plugin_001",
+            "plugin_type": "uniform_api",
+            "version": "1.2.0",
+            "source_key": "source-b",
+            "inputs": [],
+            "outputs": [],
+        }
+        mock_service_cls.return_value = mock_service
+
+        request = self.factory.get(
+            "/space/1/get_plugin_schema/",
+            {
+                "plugin_id": "open_plugin_001",
+                "plugin_type": "uniform_api",
+                "source_key": "source-b",
+            },
+        )
+        request.user = MagicMock(username="admin")
+        response = get_plugin_schema(request, space_id="1")
+
+        data = json.loads(response.content)
+        assert data["result"] is True
+        mock_service.get_plugin_schema.assert_called_once_with(
+            code="open_plugin_001",
+            version=None,
+            plugin_type="uniform_api",
+            plugin_source=None,
+            source_key="source-b",
         )
 
 

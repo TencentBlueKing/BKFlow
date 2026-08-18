@@ -61,6 +61,10 @@ from bkflow.pipeline_plugins.components.collections.uniform_api.credential_handl
 )
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
+from bkflow.plugin.services.open_plugin_detect import (
+    get_reference_snapshot,
+    needs_start_validation,
+)
 from bkflow.task.context import SystemObject
 from bkflow.task.models import OpenPluginRunCallbackRef, TaskInstance
 from bkflow.task.open_plugin_callback import (
@@ -321,10 +325,27 @@ class TaskOperation:
         self.task_instance = task_instance
         self.queue = queue
 
+    def _ensure_open_plugins_ready_for_start(self):
+        """仅对包含开放插件快照或 V4 节点的任务请求 Interface 做启动预检。"""
+        extra_info = self.task_instance.extra_info or {}
+        pipeline_tree = self.task_instance.execution_data or {}
+        if not needs_start_validation(extra_info=extra_info, pipeline_tree=pipeline_tree):
+            return
+        snapshot = get_reference_snapshot(extra_info)
+        payload = {"space_id": self.task_instance.space_id}
+        if snapshot:
+            payload["snapshot"] = snapshot
+        else:
+            payload["pipeline_tree"] = pipeline_tree
+        result = InterfaceModuleClient().validate_open_plugins_for_start(payload)
+        if not result.get("result"):
+            raise ValidationError(result.get("message") or "开放插件启动预检失败")
+
     @trace_task_operation("start")
     @record_operation(RecordType.task.name, TaskOperationType.start.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def start(self, operator: str, *args, **kwargs) -> OperationResult:
+        self._ensure_open_plugins_ready_for_start()
         # CAS
         update_success = TaskInstance.objects.filter(id=self.task_instance.id, is_started=False).update(
             start_time=timezone.now(), is_started=True, executor=operator

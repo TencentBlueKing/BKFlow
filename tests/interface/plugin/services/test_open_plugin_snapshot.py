@@ -191,6 +191,80 @@ def test_validate_rejects_missing_exact_version_even_when_catalog_has_no_version
         OpenPluginSnapshotService.validate_pipeline_tree(space_id=1, pipeline_tree={})
 
 
+def test_needs_start_validation_skips_plain_and_legacy_uniform_api():
+    """普通任务和存量 V2/V3 节点启动时不做开放插件预检。"""
+
+    plain_tree = {"activities": {"node1": {"type": "ServiceActivity", "component": {"code": "bk_display"}}}}
+    assert OpenPluginSnapshotService.needs_start_validation(extra_info={}, pipeline_tree=plain_tree) is False
+
+    pipeline_tree = build_open_plugin_pipeline_tree()
+    component = pipeline_tree["activities"]["node1"]["component"]
+    component["version"] = "v2.0.0"
+    component["api_meta"] = {
+        "id": "34097",
+        "name": "Tlog_玩家状态快照",
+        "source_key": "default",
+        "meta_url": "https://example.com/meta/?function_id=34097",
+    }
+    component["data"] = {
+        "uniform_api_plugin_url": {"value": "https://example.com/execute/"},
+        "uniform_api_plugin_method": {"value": "POST"},
+        "uniform_api_plugin_version": {"value": "v2.0.0"},
+    }
+    assert OpenPluginSnapshotService.needs_start_validation(extra_info={}, pipeline_tree=pipeline_tree) is False
+
+
+def test_needs_start_validation_true_for_snapshot_or_v4_nodes():
+    """有快照或 V4 节点的任务启动时需要预检。"""
+
+    snapshot_extra_info = {
+        OpenPluginSnapshotService.REFERENCE_SNAPSHOT_KEY: [
+            {"node_id": "node1", "plugin_id": "open_plugin_001", "source_key": "sops"}
+        ]
+    }
+    assert OpenPluginSnapshotService.needs_start_validation(extra_info=snapshot_extra_info, pipeline_tree={}) is True
+    assert (
+        OpenPluginSnapshotService.needs_start_validation(extra_info={}, pipeline_tree=build_open_plugin_pipeline_tree())
+        is True
+    )
+
+
+@pytest.mark.django_db
+def test_validate_for_start_uses_snapshot_without_pipeline_tree():
+    """启动预检优先使用已有快照，不必再拉完整 pipeline_tree。"""
+
+    create_available_open_plugin(space_id=1, enabled=True)
+    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
+    snapshot = [
+        {
+            "node_id": "node1",
+            "plugin_id": "open_plugin_001",
+            "plugin_version": "1.2.0",
+            "source_key": "sops",
+        }
+    ]
+
+    OpenPluginSnapshotService.validate_for_start(space_id=1, snapshot=snapshot, pipeline_tree=None)
+
+
+@pytest.mark.django_db
+def test_validate_for_start_rejects_ungranted_snapshot():
+    """快照预检同样要求来源已准入。"""
+
+    create_available_open_plugin(space_id=1, enabled=True)
+    snapshot = [
+        {
+            "node_id": "node1",
+            "plugin_id": "open_plugin_001",
+            "plugin_version": "1.2.0",
+            "source_key": "sops",
+        }
+    ]
+
+    with pytest.raises(serializers.ValidationError, match="来源"):
+        OpenPluginSnapshotService.validate_for_start(space_id=1, snapshot=snapshot, pipeline_tree=None)
+
+
 def test_validate_pipeline_tree_ignores_legacy_uniform_api_with_source_key():
     """旧版 API 插件即使携带入口 source_key，也不应进入开放插件目录校验。"""
 
@@ -414,3 +488,66 @@ def test_backfill_open_plugin_snapshots_fills_missing_fields_without_overwriting
     )
     assert "updated_templates=1" in execute_stdout.getvalue()
     assert "updated_tasks=0" in execute_stdout.getvalue()
+
+
+def create_catalog_plugin(
+    space_id,
+    source_key,
+    plugin_id="open_plugin_001",
+    plugin_code="job_execute_task",
+    plugin_name="JOB 执行作业",
+    plugin_source="builtin",
+    meta_host=None,
+):
+    OpenPluginCatalogIndex.objects.create(
+        space_id=space_id,
+        source_key=source_key,
+        plugin_id=plugin_id,
+        plugin_code=plugin_code,
+        plugin_name=plugin_name,
+        plugin_source=plugin_source,
+        group_name="作业平台",
+        wrapper_version="v4.0.0",
+        default_version="1.2.0",
+        latest_version="1.2.0",
+        versions=["1.2.0"],
+        meta_url_template="https://{}/open-plugins/{}?version={{version}}".format(
+            meta_host or "{}.example".format(source_key), plugin_id
+        ),
+        status=OpenPluginCatalogIndex.Status.AVAILABLE,
+    )
+    SpaceOpenPluginAvailability.objects.create(
+        space_id=space_id,
+        source_key=source_key,
+        plugin_id=plugin_id,
+        enabled=True,
+    )
+    OpenPluginGrantService.grant(space_id=space_id, source_key=source_key, operator="admin")
+
+
+@pytest.mark.django_db
+@patch("bkflow.plugin.services.open_plugin_snapshot.PluginSchemaService.get_plugin_schema")
+def test_build_schema_snapshot_passes_source_key_to_schema_query(mock_get_schema):
+    """同 ID 多来源时，schema 快照必须按节点 source_key 查询，不能取列表第一项。"""
+    create_catalog_plugin(space_id=1, source_key="source-a", plugin_code="code_from_a")
+    create_catalog_plugin(space_id=1, source_key="source-b", plugin_code="code_from_b")
+    mock_get_schema.return_value = {
+        "plugin_code": "code_from_b",
+        "plugin_source": "builtin",
+        "version": "1.2.0",
+        "wrapper_version": "v4.0.0",
+        "inputs": [],
+        "outputs": [],
+        "description": "from-b",
+    }
+
+    OpenPluginSnapshotService.build_schema_snapshot(
+        space_id=1,
+        pipeline_tree=build_open_plugin_pipeline_tree(source_key="source-b"),
+    )
+
+    mock_get_schema.assert_called_once()
+    assert mock_get_schema.call_args.kwargs["code"] == "open_plugin_001"
+    assert mock_get_schema.call_args.kwargs["version"] == "1.2.0"
+    assert mock_get_schema.call_args.kwargs["plugin_type"] == "uniform_api"
+    assert mock_get_schema.call_args.kwargs["source_key"] == "source-b"

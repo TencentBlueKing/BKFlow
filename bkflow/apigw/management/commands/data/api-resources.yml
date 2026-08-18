@@ -1660,6 +1660,12 @@ paths:
         required: false
         description: 开放插件来源类型
       - in: query
+        name: source_key
+        schema:
+          type: string
+        required: false
+        description: 开放插件来源标识，同 plugin_id 多来源时消歧
+      - in: query
         name: plugin_type
         schema:
           type: string

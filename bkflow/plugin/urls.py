@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 from django.conf.urls import include, url
 from rest_framework.routers import DefaultRouter
 
+from bkflow.plugin.views.internal import PluginInternalViewSet
 from bkflow.plugin.views.plugin import (
     ComponentModelSetViewSet,
     PluginDetailView,
@@ -27,6 +28,7 @@ from bkflow.plugin.views.plugin import (
 )
 
 router = DefaultRouter()
+router.register(r"internal", PluginInternalViewSet, basename="plugin_internal")
 router.register(r"", ComponentModelSetViewSet, basename="component")
 router.register(r"uniform_plugin_query", UniformPluginViewSet, basename="uniform_plugin_query")
 
