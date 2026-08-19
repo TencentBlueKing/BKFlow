@@ -1222,6 +1222,28 @@ class TestTaskInstanceViewSet:
             assert response.data["data"]["x"] == 1
             assert response.data["data"]["y"] == 2
 
+    @patch("bkflow.task.views.TaskOperation")
+    def test_get_states_forwards_optional_debug_details(self, mock_task_operation):
+        task_instance = TaskInstance.objects.create(name="debug task", space_id=1, instance_id="root", is_started=True)
+        mock_task_operation.return_value.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "RUNNING"},
+            "message": "",
+        }
+        view = TaskInstanceViewSet.as_view({"get": "get_states"})
+        request = self._create_request_with_auth(
+            "get",
+            f"/task/{task_instance.id}/get_states/",
+            {"with_ex_data": "true", "include_schedule": "true"},
+        )
+
+        response = view(request, pk=task_instance.id)
+
+        assert response.status_code == status.HTTP_200_OK
+        mock_task_operation.return_value.get_task_states.assert_called_once_with(
+            with_ex_data=True, include_schedule=True
+        )
+
     def test_get_node_detail_get_node_data_fail(self):
         """测试 get_node_detail include_data=True 但 get_node_data 失败会提前返回"""
 

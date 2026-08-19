@@ -29,6 +29,7 @@ from bkflow.apigw.serializers.task import CreateMockTaskWithTemplateIdSerializer
 from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.template.models import Template, TemplateSnapshot
 
 
@@ -112,6 +113,15 @@ def create_mock_task(request, space_id):
         create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
             "custom_span_attributes"
         ] = custom_span_attributes
+
+    create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+        space_id=int(space_id),
+        pipeline_tree=pipeline_tree,
+        extra_info=create_task_data.get("extra_info"),
+        username=request.user.username,
+        scope_type=template.scope_type,
+        scope_id=template.scope_value,
+    )
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)

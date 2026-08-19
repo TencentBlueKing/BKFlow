@@ -99,6 +99,7 @@ class BaseStatisticsCollector(ABC):
         version = component.get("version", "legacy")
         name = ""
         plugin_type = PluginType.COMPONENT
+        plugin_source = ""
 
         if code == "remote_plugin":
             params = component.get("data") or component.get("inputs") or {}
@@ -112,11 +113,18 @@ class BaseStatisticsCollector(ABC):
             if api_meta:
                 code = api_meta.get("id", code)
                 name = api_meta.get("name", "")
+                plugin_source = api_meta.get("plugin_source", "")
                 category = api_meta.get("category") or {}
                 if category.get("name") and name:
                     name = f"{category['name']}-{name}"
 
-        return ComponentInfo(code=code, name=name, version=version, plugin_type=plugin_type)
+        return ComponentInfo(
+            code=code,
+            name=name,
+            version=version,
+            plugin_type=plugin_type,
+            plugin_source=plugin_source,
+        )
 
 
 @dataclass
@@ -125,3 +133,4 @@ class ComponentInfo:
     name: str
     version: str
     plugin_type: str
+    plugin_source: str = ""

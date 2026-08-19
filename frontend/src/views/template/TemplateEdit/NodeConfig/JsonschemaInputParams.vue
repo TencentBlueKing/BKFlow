@@ -9,25 +9,31 @@
       :schema="formSchema"
       :layout="{ group: [], container: { gap: '14px' } }"
       @change="$emit('update', $event)">
-      <template
-        v-if="isApiPlugin"
-        #suffix="{ path, schema: fieldSchema }">
-        <div
-          v-if="fieldSchema.extend && fieldSchema.extend.can_hook"
-          class="rf-tag-hook">
-          <i
-            v-bk-tooltips="{
-              content: fieldSchema.extend.hook ? $t('取消变量引用') : $t('设置为变量'),
-              placement: 'top',
-              zIndex: 3000
-            }"
-            :class="[
-              'common-icon-variable-hook hook-icon',
-              {
-                active: fieldSchema.extend.hook, disabled: isViewMode
-              }
-            ]"
-            @click="$emit('onHookForm', path, fieldSchema)" />
+      <template #suffix="{ path, schema: fieldSchema }">
+        <div class="rf-tag-suffix">
+          <span
+            v-if="fieldSchema['x-bkflow-used-tip']"
+            class="used-tip">
+            <i class="common-icon-dark-circle-warning" />
+            {{ fieldSchema['x-bkflow-used-tip'] }}
+          </span>
+          <div
+            v-if="isApiPlugin && fieldSchema.extend && fieldSchema.extend.can_hook"
+            class="rf-tag-hook">
+            <i
+              v-bk-tooltips="{
+                content: fieldSchema.extend.hook ? $t('取消变量引用') : $t('设置为变量'),
+                placement: 'top',
+                zIndex: 3000
+              }"
+              :class="[
+                'common-icon-variable-hook hook-icon',
+                {
+                  active: fieldSchema.extend.hook, disabled: isViewMode
+                }
+              ]"
+              @click="$emit('onHookForm', path, fieldSchema)" />
+          </div>
         </div>
       </template>
     </bkui-form>
@@ -126,6 +132,17 @@
         }
       }
     }
+    ::v-deep .used-tip {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 8px;
+      color: #ff9c01;
+      font-size: 12px;
+      line-height: 20px;
+      i {
+        margin-right: 4px;
+      }
+    }
     ::v-deep .bk-schema-form-group {
       .bk-schema-form-group-delete {
         display: none;
@@ -158,6 +175,17 @@
   .api-ui-form {
     ::v-deep .bk-form-content {
       width: calc(100% - 180px);
+      .used-tip {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 8px;
+        color: #ff9c01;
+        font-size: 12px;
+        line-height: 20px;
+        i {
+          margin-right: 4px;
+        }
+      }
       .rf-tag-hook {
         position: absolute;
         top: 0;
@@ -193,6 +221,17 @@
           border: none;
           color: #fff;
         }
+      }
+    }
+    ::v-deep .used-tip {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 8px;
+      color: #ff9c01;
+      font-size: 12px;
+      line-height: 20px;
+      i {
+        margin-right: 4px;
       }
     }
     ::v-deep .bk-date-picker {

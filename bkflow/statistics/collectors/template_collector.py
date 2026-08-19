@@ -126,6 +126,7 @@ class TemplateStatisticsCollector(BaseStatisticsCollector):
                     TemplateNodeStatistics(
                         component_code=info.code,
                         component_name=info.name,
+                        plugin_source=info.plugin_source,
                         version=info.version,
                         plugin_type=info.plugin_type,
                         template_id=self.template_id,

@@ -6,6 +6,7 @@
       { 'fail-skip': node.status === 'FINISHED' && (node.skip || node.error_ignored) },
       { 'ready': node.ready },
       { 'active': node.isActived },
+      { 'active': node.isActived },
       { 'unchecked ': node.mode === 'select' && node.optional && !node.checked }
     ]">
     <div class="node-status-block">

@@ -4,7 +4,6 @@
     type="unborder-card"
     @tab-change="onTabChange">
     <bk-input
-      v-if="['builtIn', 'thirdParty'].includes(curTab)"
       v-model.trim="searchStr"
       class="search-input"
       right-icon="bk-icon icon-search"
@@ -141,6 +140,7 @@
     </bk-tab-panel>
     <ApiPlugin
       v-if="apiTabList.length"
+      ref="apiPlugin"
       :api-tab-list="apiTabList"
       :current-tab="curTab"
       :search-str="searchStr"
@@ -148,6 +148,7 @@
       :crt-group="crtGroup"
       :scope-info="scopeInfo"
       :space-id="spaceId"
+      @handleSearch="handleSearch"
       @select="$emit('select', $event)" />
   </bk-tab>
 </template>
@@ -254,6 +255,7 @@
           acc.push({
             key,
             name: value.display_name || key,
+            sourceKey: value.source_key || key,
           });
           return acc;
         }, []);
@@ -367,7 +369,9 @@
       async onTabChange(val) {
         this.curTab = val;
         // 切换tab时需要重新搜索
-        this.handleSearch(this.searchStr);
+        if (['builtIn', 'thirdParty'].includes(val)) {
+          this.handleSearch(this.searchStr);
+        }
       },
       // 搜索框字符为空
       handleSearchEmpty(val) {
@@ -394,6 +398,11 @@
           this.thirdPartyPlugin = [];
           this.pagination.current = 1;
           this.setThirdParScrollLoading();
+        } else {
+          this.$nextTick(() => {
+            const { apiPlugin } = this.$refs;
+            if (apiPlugin) apiPlugin.handleSearch();
+          });
         }
       },
       // 内置插件本地搜索

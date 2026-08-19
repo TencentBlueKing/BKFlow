@@ -95,6 +95,11 @@ class TaskComponentClient(BaseComponentClient):
             method="get", url=self._get_task_url("task/{}/get_task_mock_data/".format(task_id)), data=data
         )
 
+    def get_node_id_map(self, task_id):
+        return self._request(
+            method="get", url=self._get_task_url("task/{}/get_node_id_map/".format(task_id)), data=None
+        )
+
     def operate_task(self, task_id, operate, data=None):
         return self._request(
             method="post", url=self._get_task_url("task/{}/operate/{}/".format(task_id, operate)), data=data

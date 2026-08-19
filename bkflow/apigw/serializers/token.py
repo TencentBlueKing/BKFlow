@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from django.utils.translation import ugettext_lazy as _
@@ -39,15 +40,22 @@ class TokenResourceValidator:
         client = TaskComponentClient(space_id=self.space_id)
         query_data = {"id": task_id, "space_id": self.space_id, "limit": 1, "offset": 0}
         resp = client.task_list(data=query_data)
-        if not resp["result"]:
-            logger.info("[TokenResourceValidator] query task error , resp = {}".format(resp))
+        if not resp.get("result"):
+            logger.info(
+                "[TokenResourceValidator] query task list error, code=%s, message=%s",
+                resp.get("code"),
+                resp.get("message"),
+            )
             return False
 
-        logger.info("[TokenResourceValidator] query task success, resp = {}".format(resp))
-        if resp.get("data", {}).get("count", []) == 1:
-            return True
-
-        return False
+        count = (resp.get("data") or {}).get("count", 0)
+        logger.info(
+            "[TokenResourceValidator] query task list success, task_id=%s, space_id=%s, count=%s",
+            task_id,
+            self.space_id,
+            count,
+        )
+        return count == 1
 
     def template_exists(self, template_id):
         return Template.exists(template_id, self.space_id)

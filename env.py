@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import os
 
@@ -81,6 +82,15 @@ BKAPP_DEFAULT_ENGINE_MODULE_ENTRY = os.getenv("BKAPP_DEFAULT_ENGINE_MODULE_ENTRY
 
 # 默认引擎插件超时时间
 BKAPP_API_PLUGIN_REQUEST_TIMEOUT = int(os.getenv("BKAPP_API_PLUGIN_REQUEST_TIMEOUT", 30))
+
+# 开放插件目录同步请求超时和同步周期
+OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT = int(os.getenv("BKAPP_OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT", 120))
+OPEN_PLUGIN_CATALOG_SYNC_CRONTAB = os.getenv("BKAPP_OPEN_PLUGIN_CATALOG_SYNC_CRONTAB", "*/30 * * * *")
+
+# 开放插件回调 token 有效期（秒）；未配置时对齐节点最长执行时间
+_OPEN_PLUGIN_CALLBACK_TOKEN_TTL = os.getenv("BKAPP_OPEN_PLUGIN_CALLBACK_TOKEN_TTL")
+OPEN_PLUGIN_CALLBACK_TOKEN_TTL = int(_OPEN_PLUGIN_CALLBACK_TOKEN_TTL) if _OPEN_PLUGIN_CALLBACK_TOKEN_TTL else None
+OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB = os.getenv("BKAPP_OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB", "0 * * * *")
 
 CALLBACK_KEY = os.getenv("BKFLOW_DEFAULT_CALLBACK_KEY", "").encode("utf-8")
 

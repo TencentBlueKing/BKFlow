@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -28,6 +29,7 @@ from bkflow.apigw.decorators import check_template_bk_app_code, return_json_resp
 from bkflow.apigw.serializers.task import CreateTaskByAppSerializer
 from bkflow.constants import TaskTriggerMethod, WebhookEventType, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.utils.trace import CallFrom, trace_view
 
 
@@ -83,6 +85,15 @@ def create_task_by_app(request, template_id):
         create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
             "custom_span_attributes"
         ] = custom_span_attributes
+
+    create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+        space_id=int(space_id),
+        pipeline_tree=template.pipeline_tree,
+        extra_info=create_task_data.get("extra_info"),
+        username=request.user.username,
+        scope_type=template.scope_type,
+        scope_id=template.scope_value,
+    )
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)

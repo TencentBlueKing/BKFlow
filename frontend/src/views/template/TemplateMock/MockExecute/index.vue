@@ -280,7 +280,7 @@
           const { taskParamEdit: paramEditComp, mockForm } = this.$refs;
           let validate = true;
           if (paramEditComp) {
-            validate = paramEditComp.validate();
+            validate = await paramEditComp.validate();
           }
           if (!validate) return;
           if (mockForm) {
@@ -289,7 +289,7 @@
           this.createLoading = true;
           const pipelineTree = tools.deepClone(this.pipelineTree);
           if (paramEditComp) {
-            pipelineTree.constants = paramEditComp.getVariableData();
+            pipelineTree.constants = await paramEditComp.getVariableData();
           }
           const mockData = Object.keys(this.mockFormData).reduce((acc, cur) => {
             const value = this.mockFormData[cur];
@@ -341,9 +341,9 @@
           this.createLoading = false;
         }
       },
-      judgeDataEqual() {
+      async judgeDataEqual() {
         const { taskParamEdit: paramEditComp } = this.$refs;
-        let isEqual = paramEditComp ? paramEditComp.judgeDataEqual() : true;
+        let isEqual = paramEditComp ? await paramEditComp.judgeDataEqual() : true;
         if (isEqual) {
           isEqual = tools.isDataEqual(this.initMockData, this.mockFormData);
         }

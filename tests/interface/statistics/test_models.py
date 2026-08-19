@@ -103,12 +103,14 @@ class TestTemplateNodeStatistics(TestCase):
     def test_create_node_statistics(self):
         stat = TemplateNodeStatistics.objects.create(
             component_code="bk_http",
+            plugin_source="builtin",
             template_id=1,
             space_id=100,
             node_id="node_abc",
         )
         assert stat.component_code == "bk_http"
         assert stat.is_sub is False
+        assert stat.plugin_source == "builtin"
 
 
 class TestPluginExecutionSummary(TestCase):
@@ -120,11 +122,13 @@ class TestPluginExecutionSummary(TestCase):
             period_start=date(2026, 1, 1),
             space_id=100,
             component_code="bk_http",
+            plugin_source="builtin",
             execution_count=100,
             success_count=95,
             failed_count=5,
         )
         assert stat.execution_count == 100
+        assert stat.plugin_source == "builtin"
 
 
 class TestTaskflowExecutedNodeStatistics(TestCase):
@@ -133,6 +137,7 @@ class TestTaskflowExecutedNodeStatistics(TestCase):
             task_id=1,
             space_id=100,
             component_code="bk_http",
+            plugin_source="builtin",
             node_id="node_1",
             started_time=timezone.now(),
             status=True,
@@ -140,3 +145,4 @@ class TestTaskflowExecutedNodeStatistics(TestCase):
         )
         assert stat.status is True
         assert stat.is_retry is False
+        assert stat.plugin_source == "builtin"

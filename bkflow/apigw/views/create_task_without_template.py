@@ -27,6 +27,7 @@ from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import CreateTaskWithoutTemplateSerializer
 from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 
 
 @login_exempt
@@ -63,6 +64,15 @@ def create_task_without_template(request, space_id):
         create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
             "custom_span_attributes"
         ] = custom_span_attributes
+
+    create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+        space_id=int(space_id),
+        pipeline_tree=create_task_data["pipeline_tree"],
+        extra_info=create_task_data.get("extra_info"),
+        username=request.user.username,
+        scope_type=create_task_data.get("scope_type"),
+        scope_id=create_task_data.get("scope_value"),
+    )
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)

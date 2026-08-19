@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
@@ -52,6 +53,7 @@ def list_plugins(request, space_id):
         with_detail=params.get("with_detail", False),
         limit=params.get("limit", 100),
         offset=params.get("offset", 0),
+        plugin_source=params.get("plugin_source"),
     )
 
     return {"result": True, "data": plugins, "count": count, "code": err_code.SUCCESS.code}

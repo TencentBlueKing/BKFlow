@@ -24,6 +24,16 @@ from django.db import models
 from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 
+LABEL_SCOPE_MAX_ITEMS = 3
+
+
+def build_label_scope_filter(*scopes):
+    scope_filter = Q()
+    for scope in scopes:
+        for index in range(LABEL_SCOPE_MAX_ITEMS):
+            scope_filter |= Q(**{f"label_scope__{index}": scope})
+    return scope_filter
+
 
 class LabelManager(models.Manager):
     """自定义管理器，添加层级相关查询方法"""
@@ -38,9 +48,10 @@ class LabelManager(models.Manager):
         filters = {"parent_id__isnull": True, "space_id": space_id}
         # 兼容可能的-1存储（如果根标签存-1，需调整过滤条件为 parent_id=-1）
         # filters = Q(parent_id__isnull=True) | Q(parent_id=-1)
+        queryset = self.filter(**filters)
         if label_scope:
-            filters["label_scope__contains"] = label_scope
-        return self.filter(**filters).order_by("name")
+            queryset = queryset.filter(build_label_scope_filter(label_scope))
+        return queryset.order_by("name")
 
     def get_sub_labels(self, parent_id, recursive=False):
         """

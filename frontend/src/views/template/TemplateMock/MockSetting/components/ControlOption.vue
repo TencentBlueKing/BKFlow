@@ -14,7 +14,7 @@
           @change="onSelectableChange" />
       </bk-form-item>
       <bk-form-item
-        v-if="!isSubFlow && !isSubCanvas"
+        v-if="!isSubFlow"
         :label="$t('超时控制')">
         <div class="timeout-setting-wrap">
           <bk-switcher
@@ -64,9 +64,7 @@
           {{ $t('该功能仅对V2引擎生效') }}
         </p>
       </bk-form-item>
-      <bk-form-item
-        v-if="!isSubCanvas"
-        :label="$t('失败处理')">
+      <bk-form-item :label="$t('失败处理')">
         <div class="error-handle">
           <bk-checkbox
             :value="formData.retryable"
@@ -170,10 +168,6 @@
         default: () => ({}),
       },
       isSubFlow: {
-        type: Boolean,
-        default: false,
-      },
-      isSubCanvas: {
         type: Boolean,
         default: false,
       },

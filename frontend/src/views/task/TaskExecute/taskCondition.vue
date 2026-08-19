@@ -88,8 +88,7 @@
       },
     },
     data() {
-      const conditionData = this.conditionData || {};
-      const { name, value, id, nodeId } = conditionData;
+      const { name, value, id, nodeId } = this.conditionData;
       const gwConfig = this.gateways[nodeId];
       const defaultCondition = gwConfig && gwConfig.default_condition; // 默认分支配置
       const isDefaultBranch = defaultCondition && defaultCondition.flow_id === id; // 当前分支是否为默认分支
@@ -122,7 +121,6 @@
     },
     watch: {
       conditionData(val) {
-        if (!val || !val.nodeId) return;
         const { name, value } = val;
         this.conditionName = name;
         this.expression = this.toggleExpressionFormat(value);
@@ -145,9 +143,7 @@
         this.expression = val;
       },
       toggleExpressionFormat(str, slice = true) {
-        const conditionData = this.conditionData || {};
-        const gwConfig = this.gateways[conditionData.nodeId];
-        if (!gwConfig) return str;
+        const gwConfig = this.gateways[this.conditionData.nodeId];
         const { parse_lang: parseLang } = gwConfig.extra_info || {};
         if (parseLang !== 'MAKO') {
           return str;

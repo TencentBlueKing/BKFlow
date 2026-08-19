@@ -99,6 +99,15 @@ class TestTaskStatisticsCollector(TestCase):
         assert not TaskflowStatistics.objects.filter(task_id=1).exists()
 
     @patch("bkflow.statistics.collectors.task_collector.TaskStatisticsCollector.task", new_callable=PropertyMock)
+    def test_collect_on_create_skips_debug(self, mock_task_prop):
+        """DEBUG 任务为临时调试产物，绝不应被采集进生产统计"""
+        mock_task_prop.return_value = self._make_mock_task(create_method="DEBUG")
+        collector = TaskStatisticsCollector(task_id=1)
+        result = collector.collect_on_create()
+        assert result is False
+        assert not TaskflowStatistics.objects.filter(task_id=1).exists()
+
+    @patch("bkflow.statistics.collectors.task_collector.TaskStatisticsCollector.task", new_callable=PropertyMock)
     def test_collect_on_create_returns_false_no_task(self, mock_task_prop):
         mock_task_prop.return_value = None
         collector = TaskStatisticsCollector(task_id=999)
@@ -281,6 +290,7 @@ class TestTaskStatisticsCollector(TestCase):
                     "name": "流程执行",
                     "api_key": "sops_key",
                     "meta_url": "http://example.com/meta",
+                    "plugin_source": "builtin",
                     "category": {"id": "cat_1", "name": "标准运维"},
                 },
             },
@@ -298,3 +308,4 @@ class TestTaskStatisticsCollector(TestCase):
         assert node.component_code == "sops_execute"
         assert node.component_name == "标准运维-流程执行"
         assert node.plugin_type == "uniform_api"
+        assert node.plugin_source == "builtin"

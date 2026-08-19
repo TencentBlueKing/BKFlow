@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>标准运维开放插件主流程 - BKFlow 原型</title>
+  <link rel="stylesheet" href="../assets/bkflow-prototype.css">
+  <style>
+    .flow-hero {
+      background: linear-gradient(135deg, #edf4ff 0%, #f7f9fc 100%);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+    }
+    .flow-hero-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--bk-text-primary);
+      margin-bottom: 8px;
+    }
+    .flow-hero-desc {
+      font-size: 14px;
+      color: var(--bk-text-secondary);
+      max-width: 920px;
+      line-height: 1.6;
+    }
+    .step-line {
+      display: grid;
+      grid-template-columns: 1fr 72px 1fr 72px 1fr;
+      gap: 0;
+      align-items: stretch;
+      margin: 20px 0 28px;
+    }
+    .step-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(31, 35, 41, 0.05);
+    }
+    .step-index {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--bk-primary);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .step-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin-bottom: 6px;
+    }
+    .step-desc {
+      font-size: 13px;
+      color: var(--bk-text-secondary);
+      line-height: 1.6;
+      min-height: 62px;
+    }
+    .step-action {
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .step-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #a3adc2;
+      font-size: 30px;
+      font-weight: 300;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin: 26px 0 14px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .summary-card {
+      background: var(--bk-bg-default);
+      border: 1px solid var(--bk-border-light);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .summary-label {
+      font-size: 12px;
+      color: var(--bk-text-tertiary);
+      margin-bottom: 8px;
+    }
+    .summary-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--bk-text-primary);
+    }
+    .summary-note {
+      font-size: 13px;
+      color: var(--bk-text-secondary);
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+    .lane-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 16px;
+    }
+    .mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    .mini-table th,
+    .mini-table td {
+      border-bottom: 1px solid var(--bk-border-light);
+      padding: 10px 8px;
+      text-align: left;
+      font-size: 12px;
+      color: var(--bk-text-secondary);
+    }
+    .mini-table th {
+      color: var(--bk-text-tertiary);
+      font-weight: 500;
+      background: #fafbfd;
+    }
+    .state-panel {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+    .state-card {
+      border-radius: 14px;
+      padding: 18px;
+      border: 1px solid var(--bk-border-light);
+      background: var(--bk-bg-default);
+    }
+    .state-card.is-danger {
+      border-color: rgba(255, 87, 87, 0.3);
+      background: rgba(255, 87, 87, 0.04);
+    }
+    .state-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--bk-text-primary);
+      margin-bottom: 8px;
+    }
+    .state-bullet {
+      font-size: 13px;
+      color: var(--bk-text-secondary);
+      line-height: 1.7;
+    }
+    .footer-tip {
+      margin-top: 20px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: #fff8e6;
+      border: 1px solid rgba(248, 181, 63, 0.35);
+      color: #8c6a00;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="bk-navigation">
+    <header class="bk-navigation-header">
+      <div class="bk-navigation-header-title">
+        <span style="font-size:18px;font-weight:600;color:#fff;">BKFlow</span>
+      </div>
+      <div class="bk-navigation-header-right">
+        <ul class="bk-navigation-header-nav">
+          <li class="bk-navigation-header-nav-item active">空间管理</li>
+          <li class="bk-navigation-header-nav-item">系统管理</li>
+          <li class="bk-navigation-header-nav-item">我的插件</li>
+        </ul>
+        <div class="bk-navigation-header-user">
+          <div class="bk-navigation-header-user-avatar">U</div>
+          <span>space_admin</span>
+        </div>
+      </div>
+    </header>
+    <div class="bk-navigation-wrapper">
+      <nav class="bk-navigation-sidebar" aria-label="侧边导航">
+        <div class="bk-navigation-space">
+          <div class="bk-navigation-space-select">
+            <span class="bk-navigation-space-icon">B</span>
+            <span>bkflow-plugin-hub (612)</span>
+          </div>
+        </div>
+        <ul class="bk-navigation-menu">
+          <li class="bk-navigation-menu-item active"><span class="bk-navigation-menu-icon">⇌</span>流程</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">▤</span>任务</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⚙</span>空间配置</li>
+          <li class="bk-navigation-menu-item"><span class="bk-navigation-menu-icon">⬡</span>开放插件</li>
+        </ul>
+        <div class="bk-navigation-footer">
+          <button class="bk-navigation-collapse" title="收起导航">⟨</button>
+        </div>
+      </nav>
+
+      <main class="bk-content">
+        <div class="bk-breadcrumb">
+          <span class="bk-breadcrumb-item">首页</span>
+          <span class="bk-breadcrumb-item">标准运维开放插件接入</span>
+          <span class="bk-breadcrumb-item">主流程</span>
+        </div>
+
+        <div class="flow-hero">
+          <div class="flow-hero-title">标准运维开放插件在 BKFlow 的主流程</div>
+          <div class="flow-hero-desc">
+            这组原型把治理、配置和任务异常解释串成一条完整路径。主目标不是新增一种插件类型，而是让用户继续以 API 插件心智使用标准运维开放出来的内置插件和第三方插件，同时把空间级治理和版本可用性说清楚。
+          </div>
+
+          <div class="step-line">
+            <div class="step-card">
+              <div class="step-index">1</div>
+              <div class="step-title">空间管理员开放插件</div>
+              <div class="step-desc">在“开放插件管理”里查看来源、搜索插件、对当前已发现插件进行逐个开启或批量开启。</div>
+              <div class="step-action">
+                <button class="bk-button bk-button-primary" data-href="sops-open-plugin-space-open-plugin-management.html">查看管理页</button>
+              </div>
+            </div>
+            <div class="step-arrow">→</div>
+            <div class="step-card">
+              <div class="step-index">2</div>
+              <div class="step-title">模板作者选择插件与版本</div>
+              <div class="step-desc">在模板节点配置里按普通 API 插件方式选择来源、插件和显式版本字段，并感知当前版本是否仍可新用。</div>
+              <div class="step-action">
+                <button class="bk-button bk-button-primary" data-href="sops-open-plugin-template-plugin-selection.html">查看模板页</button>
+              </div>
+            </div>
+            <div class="step-arrow">→</div>
+            <div class="step-card">
+              <div class="step-index">3</div>
+              <div class="step-title">任务页展示执行结果或异常</div>
+              <div class="step-desc">启动任务后统一进入任务页。如果插件未开放、版本失效或来源不可达，任务页通过结构化错误卡片解释原因并给出建议动作。</div>
+              <div class="step-action">
+                <button class="bk-button bk-button-primary" data-href="sops-open-plugin-task-plugin-error-state.html">查看任务页</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-label">当前空间已接入来源</div>
+            <div class="summary-value">1 个</div>
+            <div class="summary-note">标准运维开放插件来源已完成同步，当前已发现 24 个开放插件，其中 9 个已开启。</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">模板侧新增心智</div>
+            <div class="summary-value">1 个字段</div>
+            <div class="summary-note">模板编辑只新增显式 `plugin_version` 字段，其余仍维持普通 API 插件配置方式。</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">任务异常承载位置</div>
+            <div class="summary-value">任务页</div>
+            <div class="summary-note">启动前不做复杂拦截，所有插件不可用类问题统一沉淀到任务页解释。</div>
+          </div>
+        </div>
+
+        <div class="section-title">治理摘要</div>
+        <div class="lane-grid">
+          <div class="summary-card">
+            <div class="summary-label">开放来源摘要</div>
+            <table class="mini-table">
+              <thead>
+                <tr>
+                  <th>来源</th>
+                  <th>状态</th>
+                  <th>插件数</th>
+                  <th>最近同步</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>标准运维开放插件</td>
+                  <td><span class="bk-tag bk-tag-success">可用</span></td>
+                  <td>24</td>
+                  <td>2026-04-20 11:48</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">开放规则</div>
+            <div class="summary-note">
+              1. 新同步进来的插件默认关闭。<br>
+              2. “一键全开”只作用于当前已发现插件。<br>
+              3. 已下线插件保留历史记录，但不可继续新用。<br>
+              4. 来源级紧急停用属于增强态预留。
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">主线与异常线</div>
+        <div class="state-panel">
+          <div class="state-card">
+            <div class="state-title">
+              <span class="bk-tag bk-tag-success">主线</span>
+              标准接入流程
+            </div>
+            <div class="state-bullet">
+              空间管理员开启“云作业执行脚本”插件 → 模板作者选择版本 `1.4.2` → 用户启动任务 → 任务页展示成功状态与插件版本快照。
+            </div>
+          </div>
+          <div class="state-card is-danger">
+            <div class="state-title">
+              <span class="bk-tag bk-tag-danger">异常线</span>
+              版本失效流程
+            </div>
+            <div class="state-bullet">
+              历史模板仍引用 `1.2.0` → 来源目录已不再提供该版本 → 用户启动任务 → 任务页展示“版本不可用”错误卡片，并引导返回模板切换版本。
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-tip">
+          这份主流程原型只负责把整体路径讲清楚；更细的治理、配置和错误说明分别在独立页面原型里展开。
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="../assets/bkflow-prototype.js"></script>
+</body>
+</html>
