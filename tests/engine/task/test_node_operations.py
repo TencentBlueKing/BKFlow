@@ -405,7 +405,9 @@ class TestTaskNodeOperation:
         """测试强制失败"""
         space_id = 1
         task_instance = TaskInstance.objects.create_instance(
-            space_id=space_id, pipeline_tree=build_default_pipeline_tree()
+            space_id=space_id,
+            pipeline_tree=build_default_pipeline_tree(),
+            create_method="DEBUG",
         )
         task_instance.calculate_tree_info()
         node_ids = list(task_instance.node_id_set)
@@ -414,15 +416,64 @@ class TestTaskNodeOperation:
 
         node_id = node_ids[0]
         node_operation = TaskNodeOperation(task_instance, node_id)
+        suppress_failure_side_effects = mocker.patch(
+            "bkflow.task.operations.suppress_node_failure_side_effects", create=True
+        )
+        cancel_open_plugin_runs = mocker.patch("bkflow.task.celery.tasks.cancel_open_plugin_runs.delay")
+        forced_fail_activity = mocker.patch(
+            "bamboo_engine.api.forced_fail_activity",
+            return_value=EngineAPIResult(result=True, message="success"),
+        )
+
+        result = node_operation.forced_fail(
+            operator="test_operator",
+            ex_data="test error",
+            suppress_failure_side_effects=True,
+        )
+        assert isinstance(result, OperationResult)
+        assert result.result is True
+        suppress_failure_side_effects.assert_called_once_with(task_instance.instance_id, node_id)
+        forced_fail_activity.assert_called_once_with(
+            runtime=node_operation.runtime,
+            node_id=node_id,
+            ex_data="test error",
+            send_post_set_state_signal=True,
+        )
+        cancel_open_plugin_runs.assert_called_once_with(
+            task_id=task_instance.id, node_id=node_id, operator="test_operator"
+        )
+
+    def test_forced_fail_on_mock_task_does_not_suppress_side_effects(self, mocker):
+        """存量 MOCK 任务 forced_fail 不屏蔽失败副作用，但仍取消开放插件。"""
+        task_instance = TaskInstance.objects.create_instance(
+            space_id=1,
+            pipeline_tree=build_default_pipeline_tree(),
+            create_method="MOCK",
+        )
+        task_instance.calculate_tree_info()
+        node_ids = list(task_instance.node_id_set)
+        if not node_ids:
+            pytest.skip("No nodes in pipeline tree")
+
+        node_id = node_ids[0]
+        node_operation = TaskNodeOperation(task_instance, node_id)
+        suppress_failure_side_effects = mocker.patch(
+            "bkflow.task.operations.suppress_node_failure_side_effects", create=True
+        )
         cancel_open_plugin_runs = mocker.patch("bkflow.task.celery.tasks.cancel_open_plugin_runs.delay")
         mocker.patch(
             "bamboo_engine.api.forced_fail_activity",
             return_value=EngineAPIResult(result=True, message="success"),
         )
 
-        result = node_operation.forced_fail(operator="test_operator", ex_data="test error")
-        assert isinstance(result, OperationResult)
+        result = node_operation.forced_fail(
+            operator="test_operator",
+            ex_data="test error",
+            suppress_failure_side_effects=True,
+        )
+
         assert result.result is True
+        suppress_failure_side_effects.assert_not_called()
         cancel_open_plugin_runs.assert_called_once_with(
             task_id=task_instance.id, node_id=node_id, operator="test_operator"
         )

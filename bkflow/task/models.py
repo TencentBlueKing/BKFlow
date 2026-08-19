@@ -97,8 +97,9 @@ class TaskInstanceManager(models.Manager):
         """
         pipeline 注入原始模板节点 ID
         """
-        for act_id, act in pipeline_tree[PE.activities].items():
-            act["template_node_id"] = act["template_node_id"] = act.get("template_node_id") or act_id
+        for node_type in (PE.activities, PE.gateways):
+            for node_id, node in pipeline_tree.get(node_type, {}).items():
+                node["template_node_id"] = node.get("template_node_id") or node_id
 
     def create_instance(self, *args, **kwargs):
         """
@@ -124,13 +125,17 @@ class TaskInstanceManager(models.Manager):
                 **kwargs,
             )
             # create task mock data
-            if kwargs.get("create_method") == "MOCK":
+            if kwargs.get("create_method") in ("MOCK", "DEBUG"):
                 new_mock_data = {}
                 act_mappings = node_mappings[PE.activities]
                 new_mock_data["nodes"] = [act_mappings[node_id] for node_id in mock_data.get("nodes", [])]
                 new_mock_data["outputs"] = {
                     act_mappings[node_id]: outputs for node_id, outputs in mock_data.get("outputs", {}).items()
                 }
+                if mock_data.get("fail_nodes"):
+                    new_mock_data["fail_nodes"] = [act_mappings[nid] for nid in mock_data["fail_nodes"]]
+                if mock_data.get("errors"):
+                    new_mock_data["errors"] = {act_mappings[nid]: msg for nid, msg in mock_data["errors"].items()}
                 TaskMockData.objects.create(
                     taskflow_id=instance.id, data=new_mock_data, mock_data_ids=mock_data.get("mock_data_ids", {})
                 )
@@ -152,7 +157,7 @@ class TaskInstance(models.Model):
     任务实例
     """
 
-    CREATE_METHODS = (("API", "API"), ("MOCK", "MOCK"))
+    CREATE_METHODS = (("API", "API"), ("MOCK", "MOCK"), ("DEBUG", "DEBUG"))
 
     id = models.BigAutoField(primary_key=True)
     space_id = models.IntegerField("空间ID", db_index=True)

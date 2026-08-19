@@ -5748,6 +5748,487 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
+  /sdk/template/debug/context/:
+    get:
+      operationId: sdk_debug_context
+      summary: 获取流程调试上下文
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: query
+        name: space_id
+        schema:
+          type: integer
+        required: true
+        description: 空间ID
+      - in: query
+        name: template_id
+        schema:
+          type: integer
+        required: true
+        description: 流程模板ID
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/template/debug/context/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/debug/input_schema/:
+    get:
+      operationId: sdk_debug_input_schema
+      summary: 获取流程调试输入 schema
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: query
+        name: space_id
+        schema:
+          type: integer
+        required: true
+        description: 空间ID
+      - in: query
+        name: template_id
+        schema:
+          type: integer
+        required: true
+        description: 流程模板ID
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/template/debug/input_schema/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/debug/history/:
+    get:
+      operationId: sdk_debug_history
+      summary: 获取流程调试历史
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: query
+        name: space_id
+        schema:
+          type: integer
+        required: true
+        description: 空间ID
+      - in: query
+        name: template_id
+        schema:
+          type: integer
+        required: true
+        description: 流程模板ID
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/template/debug/history/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/debug/global_run/:
+    post:
+      operationId: sdk_debug_global_run
+      summary: 执行流程全局调试
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id:
+                  type: integer
+                  description: 空间ID
+                template_id:
+                  type: integer
+                  description: 流程模板ID
+                inputs:
+                  type: object
+                  description: 调试输入参数
+                  additionalProperties: true
+              required:
+              - space_id
+              - template_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/debug/global_run/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/debug/reset/:
+    post:
+      operationId: sdk_debug_reset
+      summary: 重置流程调试上下文
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id:
+                  type: integer
+                  description: 空间ID
+                template_id:
+                  type: integer
+                  description: 流程模板ID
+                node_ids:
+                  type: array
+                  description: 节点ID列表
+                  items:
+                    type: string
+              required:
+              - space_id
+              - template_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/debug/reset/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/debug/terminate/:
+    post:
+      operationId: sdk_debug_terminate
+      summary: 终止流程调试运行
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id:
+                  type: integer
+                  description: 空间ID
+                template_id:
+                  type: integer
+                  description: 流程模板ID
+                node_id:
+                  type: string
+                  description: 节点ID；传入时终止单节点并恢复为未调试，不传时终止全局调试任务
+              required:
+              - space_id
+              - template_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/debug/terminate/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/debug/reset_impact/:
+    post:
+      operationId: sdk_debug_reset_impact
+      summary: 获取流程调试重置影响
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id:
+                  type: integer
+                  description: 空间ID
+                template_id:
+                  type: integer
+                  description: 流程模板ID
+              required:
+              - space_id
+              - template_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/debug/reset_impact/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/debug/step_run/:
+    post:
+      operationId: sdk_debug_step_run
+      summary: 执行流程单步调试
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id:
+                  type: integer
+                  description: 空间ID
+                template_id:
+                  type: integer
+                  description: 流程模板ID
+                node_id:
+                  type: string
+                  description: 节点ID
+                mode:
+                  type: string
+                  description: 执行模式，real 或 mock
+                input_overrides:
+                  type: object
+                  description: 输入覆盖参数
+                  additionalProperties: true
+                mock_result:
+                  type: string
+                  description: mock 结果，success 或 fail
+                mock_outputs:
+                  type: object
+                  description: mock 输出
+                  additionalProperties: true
+                mock_error:
+                  type: string
+                  description: mock 失败信息
+              required:
+              - space_id
+              - template_id
+              - node_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/debug/step_run/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/debug/node_mock/:
+    post:
+      operationId: sdk_debug_node_mock
+      summary: 配置流程调试节点 mock
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id:
+                  type: integer
+                  description: 空间ID
+                template_id:
+                  type: integer
+                  description: 流程模板ID
+                node_id:
+                  type: string
+                  description: 节点ID
+                enable:
+                  type: boolean
+                  description: 是否开启 mock
+                mock_result:
+                  type: string
+                  description: mock 结果，success 或 fail
+                mock_outputs:
+                  type: object
+                  description: mock 输出
+                  additionalProperties: true
+                mock_error:
+                  type: string
+                  description: mock 失败信息
+              required:
+              - space_id
+              - template_id
+              - node_id
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/debug/node_mock/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/template/debug/context_var/:
+    post:
+      operationId: sdk_debug_context_var
+      summary: 设置流程调试上下文变量
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id:
+                  type: integer
+                  description: 空间ID
+                template_id:
+                  type: integer
+                  description: 流程模板ID
+                key:
+                  type: string
+                  description: 变量 key
+                value:
+                  description: 变量值
+              required:
+              - space_id
+              - template_id
+              - key
+              - value
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/debug/context_var/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin_service/logs/:
     post:
       operationId: sdk_get_plugin_service_logs
