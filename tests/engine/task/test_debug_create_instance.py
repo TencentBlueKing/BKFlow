@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -94,6 +95,17 @@ class TestTaskInstanceViewSetGetQueryset:
 
         task_ids = set(viewset.get_queryset().values_list("id", flat=True))
         assert debug_task.id in task_ids
+
+    def test_list_shows_debug_when_filtered_by_id(self):
+        """按任务 id 精确查询时不过滤 DEBUG，供 Token 校验复用列表接口。"""
+        debug_task, api_task = self._create_tasks()
+        viewset = TaskInstanceViewSet()
+        viewset.action = "list"
+        viewset.request = MagicMock(query_params={"id": str(debug_task.id)})
+
+        task_ids = set(viewset.get_queryset().values_list("id", flat=True))
+        assert debug_task.id in task_ids
+        assert api_task.id in task_ids
 
     def test_non_list_action_keeps_debug(self):
         debug_task, _ = self._create_tasks()

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from functools import wraps
 
 from blueapps.account.decorators import login_exempt
@@ -176,8 +177,9 @@ class TaskInstanceViewSet(
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # 调试任务（DEBUG）默认不在列表中展示，仅当显式按 create_method 过滤时才返回
-        if self.action == "list" and "create_method" not in self.request.query_params:
+        # 调试任务默认不在列表中展示；按 create_method 或按 id 精确查询时保留，供 Token 校验复用
+        query_params = self.request.query_params
+        if self.action == "list" and "create_method" not in query_params and "id" not in query_params:
             queryset = queryset.exclude(create_method="DEBUG")
         return queryset
 
