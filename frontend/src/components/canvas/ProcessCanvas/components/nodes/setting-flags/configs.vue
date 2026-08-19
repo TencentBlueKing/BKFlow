@@ -1,7 +1,7 @@
 
 <template>
   <div class="node-config-flags">
-    <template>
+    <template v-if="node.optional">
       <span
         v-if="!['execute', 'select'].includes(node.mode)"
         class="dark-circle common-icon-dark-circle-checkbox" />
@@ -11,7 +11,7 @@
         :disabled="node.checkDisable"
         @change="onNodeCheckClick" />
     </template>
-    <template v-if="!['execute', 'select'].includes(node.mode) && node.type !== 'SubCanvas'">
+    <template v-if="!['execute', 'select'].includes(node.mode)">
       <span
         v-if="node.error_ignorable"
         class="error-handle-icon"><span class="text">AS</span></span>

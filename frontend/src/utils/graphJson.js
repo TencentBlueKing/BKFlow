@@ -3,57 +3,6 @@ import { formatLayout } from './formatLayout';
 import tools from '@/utils/tools.js';
 import store from '@/store';
 
-/**
- * 展平嵌套 pipelineTree：将 SubCanvas 的 pipeline 中 location/line 递归展开到顶层数组
- * @param {Array} locations - 顶层 location 数组
- * @param {Array} lines - 顶层 line 数组
- * @param {Object} activities - 顶层 activities（可能含嵌套 pipelineTree 的 loopGroupNode）
- * @returns {{ locations: Array, lines: Array }}
- */
-function flattenNestedPipelineTreeData(locations, lines, activities, isExecuteMode = null) {
-  const flatLocations = [...locations];
-  const flatLines = [...lines];
-  if (isExecuteMode === null) {
-    isExecuteMode = locations.some(loc => loc.mode === 'execute');
-  }
-  Object.values(activities || {}).forEach((act) => {
-    const isSubCanvas = act.type === 'SubCanvas' || (act.component && act.component.code === 'subcanvas_plugin');
-    if (!isSubCanvas || !act.pipeline) return;
-    const pt = act.pipeline;
-    // 递归添加子节点的location
-    (pt.location || []).forEach((loc) => {
-      const code = loc.type === 'tasknode' ? (pt.activities?.[loc.id]?.component?.code || '') : '';
-      const childLoc = {
-        ...loc,
-        parent: act.id,
-        checked: true,
-        code,
-      };
-      // 只有在任务执行页才设置 mode: 'execute'，编辑页不设置
-      if (isExecuteMode) {
-        childLoc.ready = true;
-        childLoc.mode = 'execute';
-      }
-      flatLocations.push(childLoc);
-    });
-    // 添加子节点的 line（带 parent 标记）
-    (pt.line || []).forEach((l) => {
-      flatLines.push({
-        ...l,
-        parent: act.id,
-      });
-    });
-    // 递归处理子 pipeline 中可能嵌套的 SubCanvas（保持 isExecuteMode 上下文）
-    if (pt.activities) {
-      const nested = flattenNestedPipelineTreeData([], [], pt.activities, isExecuteMode);
-      flatLocations.push(...nested.locations);
-      flatLines.push(...nested.lines);
-    }
-  });
-
-  return { locations: flatLocations, lines: flatLines };
-}
-
 function getNodeTargetMaps(lines) {
   return lines.reduce((acc, cur) => {
     const { source, target } = cur;
@@ -124,17 +73,7 @@ function getGroupInfo(params = {}) {
 };
 
 export const graphToJson = (canvasData) => {
-  // 展平循环流节点的嵌套 pipelineTree 数据（location + line）
-  // 优先使用传入的activities（如子流程执行画布），否则回退到全局模板activities
-  const activities = canvasData.activities || store.state.template?.activities || {};
-  const { locations: flatLocations, lines: flatLines } = flattenNestedPipelineTreeData(
-    canvasData.locations,
-    canvasData.lines,
-    activities,
-  );
-  const locations = flatLocations;
-  const lines = flatLines;
-  const { canvasMode } = canvasData;
+  const { locations, lines, canvasMode } = canvasData;
   const nodeCompMap = {
     startpoint: 'start',
     endpoint: 'end',
@@ -175,46 +114,30 @@ export const graphToJson = (canvasData) => {
   }, []) || [];
 
   const nodeCell = locations.reduce((acc, cur) => {
-    const { id, x, y, type, width: locWidth, height: locHeight, ...curData } = cur;
+    const { id, x, y, type } = cur;
     const isTaskNode = ['tasknode', 'subflow'].includes(type);
-    const isLoopGroup = type === 'SubCanvas';
-    const shape = isLoopGroup ? 'custom-loop-group-node' : 'custom-node';
-    // 直接从 location 中读取持久化的 width/height，无则使用默认值
-    let nodeWidth = 34;
-    let nodeHeight = 34;
-    if (isTaskNode) {
-      nodeWidth = 154;
-      nodeHeight = 54;
-    } else if (isLoopGroup) {
-      nodeWidth = locWidth || 415;
-      nodeHeight = locHeight || 158;
-    }
     const cell = {
       id,
-      shape,
+      shape: 'custom-node',
       position: { x, y },
       size: {
-        height: nodeHeight,
-        width: nodeWidth,
+        height: isTaskNode ? 54 : 34,
+        width: isTaskNode ? 154 : 34,
       },
       parent: cur.parent || undefined,
       data: {
-        id,
-        ...curData,
-        type: isLoopGroup ? 'SubCanvas' : nodeCompMap[type],
-        // 循环容器节点需要标记 parent: true
-        ...(isLoopGroup ? { parent: true } : {}),
+        ...cur,
+        type: nodeCompMap[type],
       },
     };
     acc.push(cell);
     return acc;
-  }, []);
+  }, []) || [];
   const edgeCell = lines.reduce((acc, cur) => {
     const { id, source, target } = cur;
     acc.push({
       shape: 'edge',
       id,
-      parent: cur.parent || undefined,
       source: {
         cell: source.id,
         port: `port_${source.arrow.toLowerCase()}`,
@@ -235,6 +158,7 @@ export const graphToJson = (canvasData) => {
           class: id,
         },
       },
+      zIndex: 0,
       router: {
         name: 'manhattan',
         args: {
@@ -275,10 +199,7 @@ export const generateGraphData = (pipelineTree) => {
       line: graphData.lines,
     });
 
-    return graphToJson({
-      ...graphData,
-      canvasMode: pipelineTree.canvas_mode,
-    });
+    return graphToJson(graphData);
   } catch (error) {
     console.warn(error);
     return [];

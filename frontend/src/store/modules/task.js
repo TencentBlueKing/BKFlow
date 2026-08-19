@@ -524,18 +524,6 @@ const task = {
     createMockTask({}, data) {
       return axios.post(`api/template/${data.id}/create_mock_task/`, data.params).then(response => response.data);
     },
-    // 批量节点输出参数
-    getBatchNodeOutput({}, params) {
-      return axios.post('task/get_node_outputs/', params).then(response => response.data);
-    },
-    // 批量获取任务执行实例pipeline
-    getBatchTaskPipeline({}, params) {
-      return axios.get('task/get_tasks_pipeline/', {params}).then(response => response.data);
-    },
-    // 批量获取任务实例状态
-    getBatchTaskStates({}, params) {
-      return axios.get('task/batch_get_task_states/', {params}).then(response => response.data);
-    },
   },
   mutations: {
     setSubActivities(state, data) {

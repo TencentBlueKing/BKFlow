@@ -12,7 +12,7 @@ let ctrlPressed = false;
 // 分组节点padding
 const embedPadding = 20;
 
-export const registryEvents = (graph, editable, callbacks = {}) => {
+export const registryEvents = (graph, editable) => {
   // 控制连接桩显示/隐藏
   graph.on('node:mouseenter', ({ cell }) => {
     if (!editable) return;
@@ -79,13 +79,12 @@ export const registryEvents = (graph, editable, callbacks = {}) => {
     cell.removeTools();
   });
 
-  // 节点拖动过程中，悬停在候选父节点上时触发（持续触发）
+  /** --- start 分组节点内子节点拖动时自动调整尺寸 --- */
   graph.on('node:embedding', ({ e }) => {
     ctrlPressed = e.metaKey || e.ctrlKey;
   });
 
   graph.on('node:embedded', () => {
-    //  { node, currentParent, previousParent }
     ctrlPressed = false;
   });
 
@@ -113,13 +112,13 @@ export const registryEvents = (graph, editable, callbacks = {}) => {
     const parent = node.getParent();
     if (parent && parent.isNode()) {
       let originSize = parent.prop('originSize');
-      if (!originSize) {
+      if (originSize === null) {
         originSize = parent.getSize();
         parent.prop('originSize', originSize);
       }
 
       let originPosition = parent.prop('originPosition');
-      if (!originPosition) {
+      if (originPosition === null) {
         originPosition = parent.getPosition();
         parent.prop('originPosition', originPosition);
       }
@@ -133,8 +132,6 @@ export const registryEvents = (graph, editable, callbacks = {}) => {
       const children = parent.getChildren();
       if (children) {
         children.forEach((child) => {
-          // 边(edge)不参与容器大小计算，只计算节点(node)的 BBox
-          if (!child.isNode()) return;
           const bbox = child.getBBox().inflate(embedPadding);
           const corner = bbox.getCorner();
 
@@ -166,13 +163,12 @@ export const registryEvents = (graph, editable, callbacks = {}) => {
             position: { x, y },
             size: { width: cornerX - x, height: cornerY - y },
           },
+          // Note that we also pass a flag so that we know we shouldn't
+          // adjust the `originPosition` and `originSize` in our handlers.
           { skipParentHandler: true },
         );
-        // 更新location中的宽高
-        if (callbacks.onContainerSizeChange) {
-          callbacks.onContainerSizeChange(parent);
-        }
       }
     }
   });
+  /** --- end 分组节点内子节点拖动时自动调整尺寸 --- */
 };

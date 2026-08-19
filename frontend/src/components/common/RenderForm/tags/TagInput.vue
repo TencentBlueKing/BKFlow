@@ -89,10 +89,6 @@
         type: Object,
         default: () => ({}),
       },
-      outerConstants: {
-        type: Object,
-        default: () => ({}),
-      },
     },
     data() {
       return {
@@ -106,7 +102,7 @@
       }),
       constantArr: {
         get() {
-          return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow, this.subflowLoopVars, this.outerConstants);
+          return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow, this.subflowLoopVars);
         },
         set(val) {
           this.varList = val;

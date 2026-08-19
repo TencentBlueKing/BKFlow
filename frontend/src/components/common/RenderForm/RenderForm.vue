@@ -23,7 +23,6 @@
       :constants="constants"
       :is-subflow="isSubflow"
       :subflow-loop-vars="subflowLoopVars"
-      :outer-constants="outerConstants"
       @change="updateForm"
       @onHook="updateHook"
       @onRenderChange="updateRender" />
@@ -113,10 +112,6 @@
         default: false,
       },
       subflowLoopVars: {
-        type: Object,
-        default: () => ({}),
-      },
-      outerConstants: {
         type: Object,
         default: () => ({}),
       },
