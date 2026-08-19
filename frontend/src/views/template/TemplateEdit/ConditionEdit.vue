@@ -145,11 +145,6 @@
         type: Boolean,
         default: false,
       },
-      // 循环流节点ID
-      loopNodeId: {
-        type: String,
-        default: '',
-      },
     },
     data() {
       const { name, value, id, nodeId } = this.conditionData;
@@ -268,7 +263,6 @@
               loc,
               value: this.branchType === 'default' ? undefined : expression,
               name: this.conditionName,
-              loopNodeId: this.loopNodeId || undefined,
             };
             if (this.branchType === 'default') {
               data.default_condition = {

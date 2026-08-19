@@ -29,8 +29,7 @@
         :canvas-mode="canvasMode"
         :instance-actions="instanceActions"
         :trigger-method="triggerMethod"
-        :parent-task-info="parentTaskInfo"
-        :is-enable-version-manage="isEnableVersionManage" />
+        :parent-task-info="parentTaskInfo" />
     </template>
   </div>
 </template>
@@ -75,14 +74,12 @@
         createMethod: '',
         canvasMode: '',
         triggerMethod: '',
-        isEnableVersionManage: false,
         parentTaskInfo: {},
       };
     },
-    async created() {
+    created() {
       const { spaceId } = this.$route.params;
       this.setSpaceId(Number(spaceId));
-      await this.checkoutSpace(Number(spaceId));
       this.getTaskData();
     },
     methods: {
@@ -95,27 +92,7 @@
       ...mapActions('task/', [
         'getTaskInstanceData',
         'loadSubflowConfig',
-        'getNodeActDetail',
       ]),
-      ...mapActions('spaceConfig/', [
-        'getNotAuthSpaceConfig',
-        'checkSpaceConfig',
-      ]),
-      // 判断是否开启版本管理
-      async checkoutSpace(spaceId) {
-        try {
-          const res = await this.getNotAuthSpaceConfig();
-          if (!res.data.flow_versioning || !spaceId) {
-            this.isEnableVersionManage = false;
-            return;
-          }
-          const { name } = res.data.flow_versioning;
-          const result = await this.checkSpaceConfig({ id: spaceId, name });
-          this.isEnableVersionManage = result.data.value === 'true';
-        } catch (error) {
-          this.isEnableVersionManage = false;
-        }
-      },
       async getTaskData() {
         try {
           this.taskDataLoading = true;
@@ -150,35 +127,9 @@
               const params = {
                 templateId: template_id,
                 is_all_nodes: true,
-                ...(this.isEnableVersionManage ? { version: currentItem.component?.version } : {}),
               };
               const res = await this.loadSubflowConfig(params);
               currentItem.pipeline = res.data.pipeline_tree;
-            }
-            if (currentItem.component.code === 'subcanvas_plugin') {
-              try {
-                const detailRes = await this.getNodeActDetail({
-                  instance_id: this.instanceId,
-                  node_id: currentItem.id,
-                  component_code: 'subcanvas_plugin',
-                });
-                if (detailRes.result && detailRes.data) {
-                  const taskInfo = (detailRes.data.outputs || []).find(item => item.key === 'task_id') || {};
-                  const taskId = taskInfo.value;
-                  if (taskId) {
-                    currentItem.subcanvasTaskId = taskId; // 便于后续loadTaskStatus复用
-                    // 节点已执行，用执行后的pipeline_tree替换模板数据
-                    const instanceResp = await this.getTaskInstanceData(taskId);
-                    // eslint-disable-next-line camelcase
-                    if (instanceResp?.pipeline_tree) {
-                      // eslint-disable-next-line camelcase
-                      currentItem.pipeline = instanceResp.pipeline_tree;
-                    }
-                  }
-                }
-              } catch (e) {
-                console.warn(e);
-              }
             }
           }
           this.instanceFlow = pipelineTree;

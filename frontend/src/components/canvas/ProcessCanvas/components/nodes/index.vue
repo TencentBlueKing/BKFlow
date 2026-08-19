@@ -41,7 +41,6 @@
   import ParallelGateway from './parallel-gateway.vue';
   import ConditionalParallelGateway from './conditional-parallel-gateway.vue';
   import ConvergeGateway from './converge-gateway.vue';
-  import LoopNode from './loop.vue';
   import Configs from './setting-flags/configs.vue';
   import ExecuteStatus from './setting-flags/execute-status.vue';
   import Actions from './setting-flags/actions.vue';
@@ -56,7 +55,6 @@
     'parallel-gateway': ParallelGateway,
     'conditional-parallel-gateway': ConditionalParallelGateway,
     'converge-gateway': ConvergeGateway,
-    SubCanvas: LoopNode,
   };
 
   export default {

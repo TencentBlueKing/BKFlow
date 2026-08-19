@@ -385,9 +385,6 @@
       },
       // 打开节点mock面板
       onShowNodeConfig(id) {
-        if (!this.activities[id]) {
-          return;
-        }
         this.isShowMockSetting = true;
         this.curSelectedNodeId = id;
       },

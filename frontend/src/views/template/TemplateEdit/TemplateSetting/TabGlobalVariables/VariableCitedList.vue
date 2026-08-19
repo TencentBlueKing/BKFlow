@@ -36,20 +36,13 @@
   </div>
 </template>
 <script>
+  import { mapState } from 'vuex';
   export default {
     name: 'VariableCitedList',
     props: {
       citedList: {
         type: Object,
         default: () => ({}),
-      },
-      isLoopNode: {
-        type: Boolean,
-        default: false,
-      },
-      pipelineTreeData: {
-        type: Object,
-        default: null,
       },
     },
     data() {
@@ -71,48 +64,29 @@
       };
     },
     computed: {
-      activities() {
-        return this.isLoopNode ? this.pipelineTreeData?.activities : this.$store.state.template.activities;
-      },
-      gateways() {
-        return this.isLoopNode ? this.pipelineTreeData?.gateways : this.$store.state.template.gateways;
-      },
-      lines() {
-        return this.isLoopNode ? this.pipelineTreeData?.line : this.$store.state.template.line;
-      },
-      constants() {
-        return this.isLoopNode ? this.pipelineTreeData?.constants : this.$store.state.template.constants;
-      },
-      internalVariable() {
-        return this.isLoopNode ? this.pipelineTreeData?.internalVariable : this.$store.state.template.internalVariable;
-      },
+      ...mapState({
+        activities: state => state.template.activities,
+        lines: state => state.template.line,
+        gateways: state => state.template.gateways,
+        constants: state => state.template.constants,
+        internalVariable: state => state.template.internalVariable,
+      }),
       variableList() {
         return { ...this.internalVariable, ...this.constants };
       },
       list() { // 变量被引用数据
         return this.groups.map((group) => {
           const key = group.id;
-          const citedItems = this.citedList[key] || [];
-          const data = citedItems.map((item) => {
+          const data = this.citedList[key].map((item) => {
             const id = item;
             let name = '';
             if (key === 'activities') {
-              const act = this.activities[item];
-              name = act ? act.name : item;
+              name = this.activities[item].name;
             } else if (key === 'conditions') {
-              const line = this.lines.find(l => l.id === item);
-              if (line) {
-                const nodeId = line.source.id;
-                const cond = this.gateways[nodeId] && this.gateways[nodeId].conditions
-                  ? this.gateways[nodeId].conditions[item]
-                  : null;
-                name = cond ? cond.name : item;
-              } else {
-                name = item;
-              }
+              const nodeId = this.lines.find(line => line.id === item).source.id;
+              name = this.gateways[nodeId].conditions[id].name;
             } else {
-              const varItem = this.variableList[item];
-              name = varItem ? varItem.name : item;
+              name = this.variableList[item].name;
             }
             return { id, name };
           });
