@@ -914,7 +914,7 @@ paths:
   /space/{space_id}/create_task/:
     post:
       operationId: create_task
-      description: 创建任务
+      description: 创建任务（包含开放插件治理校验与快照固化）
       tags: []
       responses:
         '200':
@@ -1408,6 +1408,12 @@ paths:
                         plugin_type:
                           type: string
                           description: '插件类型: component / remote_plugin / uniform_api'
+                        plugin_id:
+                          type: string
+                          description: 开放插件 ID，仅 uniform_api 类型返回
+                        plugin_source:
+                          type: string
+                          description: 开放插件来源类型，仅 uniform_api 类型返回
                         version:
                           type: string
                           description: 插件版本
@@ -1464,6 +1470,12 @@ paths:
           - uniform_api
         required: false
         description: 按类型过滤
+      - in: query
+        name: plugin_source
+        schema:
+          type: string
+        required: false
+        description: 开放插件来源类型
       - in: query
         name: with_detail
         schema:
@@ -1541,12 +1553,18 @@ paths:
                       code:
                         type: string
                         description: 插件 code
+                      plugin_id:
+                        type: string
+                        description: 开放插件 ID，仅 uniform_api 类型返回
                       name:
                         type: string
                         description: 插件名称
                       plugin_type:
                         type: string
                         description: 插件类型
+                      plugin_source:
+                        type: string
+                        description: 开放插件来源类型，仅 uniform_api 类型返回
                       version:
                         type: string
                         description: 插件版本
@@ -1615,14 +1633,38 @@ paths:
         name: code
         schema:
           type: string
-        required: true
-        description: 插件 code
+        required: false
+        description: 插件 code，与 plugin_id 至少传一个
+      - in: query
+        name: plugin_id
+        schema:
+          type: string
+        required: false
+        description: 开放插件 ID，查询开放插件时可替代 code
       - in: query
         name: version
         schema:
           type: string
         required: false
         description: 插件版本，不传取最新
+      - in: query
+        name: plugin_version
+        schema:
+          type: string
+        required: false
+        description: 开放插件业务版本，查询开放插件时优先使用
+      - in: query
+        name: plugin_source
+        schema:
+          type: string
+        required: false
+        description: 开放插件来源类型
+      - in: query
+        name: source_key
+        schema:
+          type: string
+        required: false
+        description: 开放插件来源标识，同 plugin_id 多来源时消歧
       - in: query
         name: plugin_type
         schema:
@@ -2871,7 +2913,7 @@ paths:
   /space/{space_id}/task/{task_id}/operate_task/{operation}/:
     post:
       operationId: operate_task
-      description: 操作任务
+      description: 操作任务（start 操作会在运行前再次校验开放插件是否仍可执行）
       tags: []
       responses:
         '200':
@@ -2950,7 +2992,7 @@ paths:
   /space/{space_id}/task/{task_id}/node/{node_id}/operate_node/{operation}/:
     post:
       operationId: operate_task_node
-      description: 操作任务节点
+      description: 操作任务节点（开放插件 callback 需携带 X-Callback-Token，并校验回调字段）
       tags: []
       responses:
         default:
@@ -2983,6 +3025,52 @@ paths:
           type: string
         required: true
         description: ''
+      - in: header
+        name: X-Callback-Token
+        schema:
+          type: string
+        required: false
+        description: 开放插件 callback 场景使用的回调鉴权 token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+                required:
+                - operator
+                properties:
+                  operator:
+                    type: string
+                    description: 操作人
+              - type: object
+                required:
+                - open_plugin_run_id
+                - status
+                properties:
+                  open_plugin_run_id:
+                    type: string
+                    description: 标准运维开放插件运行实例 ID
+                  status:
+                    type: string
+                    description: 开放插件运行状态
+                  outputs:
+                    type: object
+                    additionalProperties: true
+                    description: 插件输出数据
+                  error_message:
+                    type: string
+                    description: 失败原因
+                  truncated:
+                    type: boolean
+                    description: 输出是否被截断
+                  truncated_fields:
+                    type: array
+                    items:
+                      type: string
+                    description: 被截断的字段列表
+        required: true
+        description: 普通节点操作传 operator；开放插件 callback 传运行 ID、状态及可选结果字段
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -3832,6 +3920,112 @@ paths:
           resourcePermissionRequired: true
         disabledStages: []
         descriptionEn: grant apigw permissions of bkflow to other app
+        enableWebsocket: false
+        pluginConfigs: []
+  /api_plugin_demo/v4/:
+    get:
+      operationId: api_plugin_demo_v4_get
+      description: API 插件 Demo V4 GET 入口
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: query
+        name: limit
+        schema:
+          type: integer
+        required: false
+        description: list_meta 分页大小
+      - in: query
+        name: offset
+        schema:
+          type: integer
+        required: false
+        description: list_meta 分页偏移
+      - in: query
+        name: category
+        schema:
+          type: string
+        required: false
+        description: list_meta 插件分组
+      - in: query
+        name: api_id
+        schema:
+          type: string
+        required: false
+        description: detail_meta 插件 ID
+      - in: query
+        name: version
+        schema:
+          type: string
+        required: false
+        description: detail_meta 插件业务版本
+      - in: query
+        name: task_tag
+        schema:
+          type: string
+        required: false
+        description: status 查询的 open_plugin_run_id
+      - in: query
+        name: status
+        schema:
+          type: string
+        required: false
+        description: status 演示状态，可选 SUCCEEDED、FAILED、RUNNING
+      x-bk-apigateway-resource:
+        isPublic: false
+        allowApplyPermission: false
+        matchSubpath: true
+        backend:
+          method: get
+          path: /{env.api_sub_path}api/api_plugin_demo/v4/
+          matchSubpath: true
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: API plugin demo v4 get entry
+        enableWebsocket: false
+        pluginConfigs: []
+    post:
+      operationId: api_plugin_demo_v4_post
+      description: API 插件 Demo V4 POST 入口
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      x-bk-apigateway-resource:
+        isPublic: false
+        allowApplyPermission: false
+        matchSubpath: true
+        backend:
+          method: post
+          path: /{env.api_sub_path}api/api_plugin_demo/v4/
+          matchSubpath: true
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: API plugin demo v4 post entry
         enableWebsocket: false
         pluginConfigs: []
   /sdk/decision_table/user/:
@@ -5081,7 +5275,7 @@ paths:
   /template/{template_id}/create_task_by_app/:
     post:
       operationId: create_task_by_app
-      description: 通过 bk_app_code 权限校验创建任务
+      description: 通过 bk_app_code 权限校验创建任务（包含开放插件治理校验与快照固化）
       tags: []
       responses:
         '200':
@@ -5220,7 +5414,7 @@ paths:
   /task/{task_id}/operate_task_by_app/{operation}/:
     post:
       operationId: operate_task_by_app
-      description: 通过 bk_app_code 权限校验执行任务操作
+      description: 通过 bk_app_code 权限校验执行任务操作（start 时校验开放插件治理状态）
       tags: []
       responses:
         '200':

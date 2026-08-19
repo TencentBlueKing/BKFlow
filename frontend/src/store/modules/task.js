@@ -17,6 +17,7 @@ const task = {
   state: {
     subActivities: {},
     nodeDetailActivityPanel: 'record',
+    taskExtraInfoById: {},
   },
   actions: {
     /**
@@ -208,10 +209,17 @@ const task = {
      * 获取任务实例详细数据
      * @param {String} instanceId 实例id
      */
-    getTaskInstanceData({}, instanceId) {
+    getTaskInstanceData({ commit }, instanceId) {
       return axios.get(`task/get_task_detail/${instanceId}/`, {
         params: { space_id: store.state.spaceId },
-      }).then(response => response.data.data);
+      }).then((response) => {
+        const data = response.data.data;
+        commit('setTaskExtraInfo', {
+          taskId: instanceId,
+          extraInfo: (data && data.extra_info) || {},
+        });
+        return data;
+      });
     },
     /**
      * 职能化认领
@@ -531,6 +539,12 @@ const task = {
     },
     setNodeDetailActivityPanel(state, data) {
       state.nodeDetailActivityPanel = data;
+    },
+    setTaskExtraInfo(state, { taskId, extraInfo }) {
+      state.taskExtraInfoById = {
+        ...state.taskExtraInfoById,
+        [taskId]: extraInfo || {},
+      };
     },
   },
 };

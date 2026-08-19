@@ -255,6 +255,14 @@
   import { checkDataType, getDefaultValueFormat } from '@/utils/checkDataType.js';
   import permission from '@/mixins/permission.js';
   import { graphToJson } from '@/utils/graphJson.js';
+  import {
+    buildV4PluginDetailRequest,
+    buildOutputRenderData,
+    canApplyPluginDetailResult,
+    isV4OpenPlugin,
+    resolveUniformApiPluginVersion,
+    resolveV4OpenPluginVersion,
+  } from '@/utils/uniformApi.js';
   import axios from 'axios';
   import SubflowCanvas from '../../../components/canvas/ProcessCanvas/SubflowCanvas.vue';
 
@@ -416,6 +424,9 @@
         subflowState: '',
         currentNodeDisplayStatus: tools.deepClone(this.nodeDisplayStatus),
         currentIndependentSubFlowId: '',
+        pluginFormRequestId: 0,
+        nodeDetailRequestId: 0,
+        isDestroyed: false,
       };
     },
     computed: {
@@ -559,6 +570,9 @@
       this.loadNodeInfo();
     },
     beforeDestroy() {
+      this.isDestroyed = true;
+      this.pluginFormRequestId += 1;
+      this.nodeDetailRequestId += 1;
       if (source) {
           source.cancel('cancelled');
       }
@@ -578,6 +592,7 @@
         'loadAtomConfig',
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
+        'loadV4OpenPluginForm',
       ]),
       async loadSubprocessStatus() {
         try {
@@ -798,10 +813,12 @@
         this.$refs.subProcessCanvas && this.$refs.subProcessCanvas.onUpdateNodeInfo(id, data, true);
       },
       async loadNodeInfo() {
+        const requestId = this.startNodeDetailRequest();
         this.loading = true;
         try {
           this.renderConfig = [];
-          const respData = await this.getTaskNodeDetail();
+          const respData = await this.getTaskNodeDetail(requestId);
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           if (!respData) {
             this.isReadyStatus = false;
             this.executeInfo = {};
@@ -811,7 +828,8 @@
           }
           this.isReadyStatus = ['RUNNING', 'SUSPENDED', 'FINISHED', 'FAILED'].indexOf(respData.state) > -1;
 
-          await this.setFillRecordField(respData);
+          await this.setFillRecordField(respData, requestId);
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           if (this.theExecuteTime === undefined) {
             this.loop = respData.loop;
             this.theExecuteTime = respData.loop;
@@ -825,11 +843,13 @@
           this.theExecuteRecord = this.historyInfo.length;
           // 获取记录详情
           await this.onSelectExecuteRecord(this.theExecuteRecord);
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           this.executeInfo.name = this.location.name || NODE_DICT[this.location.type];
           const { component_code: componentCode, version } = this.nodeDetailConfig;
           this.executeInfo.plugin_version = this.isThirdPartyNode ? respData.inputs.plugin_version : version;
           if (this.isThirdPartyNode) {
             const resp = await this.loadPluginServiceAppDetail({ plugin_code: this.thirdPartyNodeCode });
+            if (!this.isCurrentNodeDetailRequest(requestId)) return;
             this.executeInfo.plugin_name = resp.data.name;
           } else if (atomFilter.isConfigExists(componentCode, version, this.atomFormInfo)) {
             const pluginInfo = this.atomFormInfo[componentCode][version];
@@ -845,13 +865,16 @@
             this.isShowRetryBtn = false;
           }
         } catch (e) {
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           this.theExecuteTime = undefined;
           this.executeInfo = {};
           this.historyInfo = [];
           console.log(e);
         } finally {
-          this.randomKey = new Date().getTime();
-          this.loading = false;
+          if (this.isCurrentNodeDetailRequest(requestId)) {
+            this.randomKey = new Date().getTime();
+            this.loading = false;
+          }
         }
       },
       // 获取画布中节点元素
@@ -905,7 +928,9 @@
         window.open(href, '_blank');
       },
       // 补充记录缺少的字段
-      async setFillRecordField(record) {
+      async setFillRecordField(record, recordRequestId = this.startNodeDetailRequest()) {
+        const isCurrentRecord = () => this.isCurrentNodeDetailRequest(recordRequestId);
+        if (!isCurrentRecord()) return null;
         const { version, component_code: componentCode, componentData = {} } = this.nodeDetailConfig;
         const { inputs, state } = record;
         let { outputs } = record;
@@ -944,8 +969,9 @@
           this.renderConfig = await this.getSubflowInputsConfig(constants);
         } else if (componentCode) { // 任务节点需要加载标准插件
           const pluginVersion = componentData.plugin_version?.value;
-          await this.getNodeConfig(componentCode, version, pluginVersion);
+          await this.getNodeConfig(componentCode, version, pluginVersion, { inputs, outputs, state });
         }
+        if (!isCurrentRecord()) return null;
         inputsInfo = Object.keys(inputs).reduce((acc, cur) => {
           const scheme = Array.isArray(this.renderConfig)
             ? this.renderConfig.find(item => item.tag_code === cur)
@@ -1021,8 +1047,12 @@
         } else {
           failInfo = this.transformFailInfo(record.ex_data);
         }
+        if (!isCurrentRecord()) return null;
         this.$set(record, 'renderData', renderData);
         this.$set(record, 'renderConfig', this.renderConfig);
+        this.$set(record, 'outputRenderConfig', this.outputRenderConfig);
+        this.$set(record, 'outputRenderData', buildOutputRenderData(outputs));
+        this.$set(record, 'isRenderOutputForm', this.isRenderOutputForm);
         this.$set(record, 'constants', constants);
         this.$set(record, 'outputsInfo', outputsInfo);
         this.$set(record, 'outputs', outputs);
@@ -1030,8 +1060,16 @@
         this.$set(record, 'failInfo', failInfo);
         this.$set(record, 'last_time', tools.timeTransform(record.elapsed_time));
         this.$set(record, 'isExpand', true);
+        return record;
       },
-      async getTaskNodeDetail() {
+      startNodeDetailRequest() {
+        this.nodeDetailRequestId += 1;
+        return this.nodeDetailRequestId;
+      },
+      isCurrentNodeDetailRequest(requestId) {
+        return !this.isDestroyed && canApplyPluginDetailResult(requestId, this.nodeDetailRequestId);
+      },
+      async getTaskNodeDetail(requestId = this.nodeDetailRequestId) {
         try {
           if (this.nodeDetailConfig.root_node) return;
           const query = Object.assign({}, this.nodeDetailConfig, { loop: this.theExecuteTime });
@@ -1042,6 +1080,7 @@
           }
 
           const res = await this.getNodeActDetail(query);
+          if (!this.isCurrentNodeDetailRequest(requestId)) return;
           if (res.result) {
             return res.data;
           }
@@ -1049,11 +1088,59 @@
           console.log(e);
         }
       },
-      async getNodeConfig(type, version, pluginVersion) {
+      async getNodeConfig(type, version, pluginVersion, runtimeContext = {}) {
+        this.pluginFormRequestId += 1;
+        const requestId = this.pluginFormRequestId;
+        const canApply = () => !this.isDestroyed
+          && canApplyPluginDetailResult(requestId, this.pluginFormRequestId);
+        const component = this.nodeActivity && this.nodeActivity.component;
+        const isV4 = this.pluginCode === 'uniform_api' && isV4OpenPlugin(component);
+        if (isV4) {
+          this.renderConfig = [];
+          this.outputRenderConfig = [];
+          this.outputs = [];
+          this.isRenderOutputForm = false;
+          try {
+            const result = await this.loadV4OpenPluginForm({
+              request: buildV4PluginDetailRequest({
+                component,
+                spaceId: this.spaceId,
+                templateId: this.templateId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+              }),
+              readOnly: true,
+              taskId: this.nodeDetailConfig.instance_id,
+              nodeId: this.nodeDetailConfig.node_id,
+              templateNodeId: this.nodeActivity && this.nodeActivity.template_node_id,
+              isCurrent: canApply,
+              runtimeContext: {
+                inputs: runtimeContext.inputs || {},
+                outputs: runtimeContext.outputs || [],
+                state: runtimeContext.state,
+              },
+            });
+            if (!canApply()) return;
+            this.renderConfig = result.input;
+            this.outputRenderConfig = result.output || [];
+            this.outputs = result.detail.outputs || [];
+            this.isRenderOutputForm = result.isRenderOutputForm;
+          } catch (error) {
+            if (!canApply()) return;
+            const errorCode = error && error.code ? error.code : 'FORM_LOAD_FAILED';
+            const loadedVersion = resolveV4OpenPluginVersion(component) || pluginVersion || '--';
+            this.$bkMessage({
+              message: `${errorCode}: ${loadedVersion}`,
+              theme: 'error',
+            });
+          }
+          return;
+        }
         if (
           atomFilter.isConfigExists(type, version, this.atomFormConfig)
           && atomFilter.isConfigExists(type, version, this.atomOutputConfig)
         ) {
+          if (!canApply()) return;
           this.renderConfig = this.atomFormConfig[type][version];
           this.outputRenderConfig = this.atomOutputConfig[type][version];
           this.isRenderOutputForm = true;
@@ -1069,12 +1156,17 @@
                 spaceId: this.spaceId,
                 meta_url: apiMeta.meta_url,
                 ...this.scopeInfo,
+                meta_url_template: apiMeta.meta_url_template,
+                source_key: apiMeta.source_key,
+                version: resolveUniformApiPluginVersion(this.nodeActivity.component),
               });
+              if (!canApply()) return;
               if (!resp.result) return;
               // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
               const apiVersion = resp.data.version || 'v2.0.0';
               // 使用meta API返回的version加载统一api基础配置
               await this.loadAtomConfig({ atom: type, version: apiVersion, space_id: this.spaceId });
+              if (!canApply()) return;
               // 输出参数
               const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
               const outputs = resp.data.outputs || [];
@@ -1083,6 +1175,7 @@
               return;
             }
             const res = await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
+            if (!canApply()) return;
             // 第三方插件节点拼接输出参数
             if (this.isThirdPartyNode) {
               const resp = await this.loadPluginServiceDetail({
@@ -1090,6 +1183,7 @@
                 plugin_version: pluginVersion,
                 with_app_detail: true,
               });
+              if (!canApply()) return;
               if (!resp.result) return;
               const { outputs: respsOutputs, forms, inputs } = resp.data;
               // 输出参数
@@ -1129,8 +1223,10 @@
             }
             this.isRenderOutputForm = res.isRenderOutputForm;
           } catch (e) {
+            if (!canApply()) return;
+            const errorCode = e && e.code ? e.code : 'FORM_LOAD_FAILED';
             this.$bkMessage({
-              message: e,
+              message: errorCode,
               theme: 'error',
               delay: 10000,
             });
@@ -1238,7 +1334,9 @@
         const record = this.historyInfo[time - 1];
         if (record) {
           if (!('isExpand' in record)) {
-            await this.setFillRecordField(record);
+            const requestId = this.startNodeDetailRequest();
+            const filledRecord = await this.setFillRecordField(record, requestId);
+            if (!filledRecord || !this.isCurrentNodeDetailRequest(requestId)) return;
           }
           this.executeRecord = record;
         } else {

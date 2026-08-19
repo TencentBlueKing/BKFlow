@@ -11,14 +11,26 @@
 */
 <template>
   <div class="task-param-wrapper">
-    <RenderForm
-      v-if="!isConfigLoading"
-      ref="renderForm"
-      :key="randomKey"
-      v-model="renderData"
-      :scheme="renderConfig"
-      :constants="variables"
-      :form-option="renderOption" />
+    <template v-if="!isConfigLoading">
+      <template v-for="section in formSections">
+        <RenderForm
+          v-if="section.type === 'array'"
+          :key="`${randomKey}-${section.type}`"
+          ref="renderForm-array"
+          v-model="renderData"
+          :scheme="section.scheme"
+          :constants="variables"
+          :form-option="renderOption" />
+        <JsonschemaInputParams
+          v-else
+          :key="`${randomKey}-${section.type}`"
+          ref="renderForm-object"
+          :form-data="renderData"
+          :schema="section.scheme"
+          :is-view-mode="!editable"
+          @update="updateRenderData" />
+      </template>
+    </template>
     <NoData
       v-if="isNoData && !isConfigLoading"
       :message="$t('暂无参数')" />
@@ -30,11 +42,22 @@
   import atomFilter from '@/utils/atomFilter.js';
   import tools from '@/utils/tools.js';
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
+  import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
+  import {
+    buildV4PluginDetailRequest,
+    buildVariablePluginRuntimeInputs,
+    disablePluginFormFields,
+    isV4OpenPlugin,
+    mergeV4VariableObjectField,
+    resolveVariableSourceComponent,
+    validatePluginFormSections,
+  } from '@/utils/uniformApi.js';
   export default {
     name: 'TaskParamEdit',
     components: {
       RenderForm,
+      JsonschemaInputParams,
       NoData,
     },
     props: {
@@ -64,6 +87,16 @@
         type: Array,
         default: () => ([]),
       },
+      templateId: {
+        type: [Number, String],
+        default: '',
+      },
+      activities: {
+        type: Object,
+        default() {
+          return {};
+        },
+      },
     },
     data() {
       return {
@@ -77,12 +110,16 @@
           showDesc: true,
           formEdit: this.editable,
         },
-        renderConfig: [],
+        formSections: [],
         metaConfig: {},
         renderData: {},
         initalRenderData: {},
         isConfigLoading: true,
         isNoData: false,
+        pluginFormRequestId: 0,
+        formGeneration: 0,
+        formLoadError: null,
+        isDestroyed: false,
       };
     },
     computed: {
@@ -114,12 +151,16 @@
       }
     },
     beforeDestroy() {
+      this.isDestroyed = true;
+      this.pluginFormRequestId += 1;
+      this.formGeneration += 1;
       this.clearAtomForm();
     },
     methods: {
       ...mapActions('atomForm/', [
         'loadAtomConfig',
         'loadPluginServiceDetail',
+        'loadV4OpenPluginForm',
       ]),
       ...mapMutations('atomForm/', [
         'clearAtomForm',
@@ -130,10 +171,104 @@
       /**
        * 加载表单元素的标准插件配置文件
        */
+      getV4Component(variable, atom, version) {
+        return resolveVariableSourceComponent(variable, {
+          activities: this.activities,
+          atom,
+          version,
+        });
+      },
+      disableFields(keys, tip) {
+        this.formSections = disablePluginFormFields(this.formSections, keys, {
+          disabled: true,
+          used_tip: tip,
+        });
+        this.randomKey = new Date().getTime();
+      },
+      resolveTemplateId() {
+        if (this.templateId !== '' && this.templateId !== null && this.templateId !== undefined) {
+          return this.templateId;
+        }
+        const route = this.$route || {};
+        const params = route.params || {};
+        const query = route.query || {};
+        return params.templateId || query.template_id || '';
+      },
+      async loadV4VariableForm(variable, atom, version, generation) {
+        const component = this.getV4Component(variable, atom, version);
+        if (!isV4OpenPlugin(component)) return null;
+        this.pluginFormRequestId += 1;
+        const requestId = this.pluginFormRequestId;
+        const isCurrent = () => !this.isDestroyed
+          && generation === this.formGeneration
+          && requestId === this.pluginFormRequestId;
+        try {
+          const result = await this.loadV4OpenPluginForm({
+            request: buildV4PluginDetailRequest({
+              component,
+              spaceId: this.spaceId,
+              templateId: this.resolveTemplateId(),
+              scopeType: variable.scope_type,
+              scopeValue: variable.scope_value,
+            }),
+            readOnly: !this.editable,
+            isCurrent: () => isCurrent(),
+            runtimeContext: {
+              inputs: buildVariablePluginRuntimeInputs({
+                variable,
+                activities: this.activities,
+                constants: this.variables,
+              }),
+              outputs: [],
+              state: '',
+            },
+          });
+          if (!isCurrent()) return { isV4: true, stale: true };
+          return { isV4: true, ...result, component };
+        } catch (error) {
+          if (!isCurrent() || error?.code === 'FORM_LOAD_STALE') return { isV4: true, stale: true };
+          const errorCode = error && error.code ? error.code : 'FORM_LOAD_FAILED';
+          const pluginVersion = component.api_meta?.['plugin_version']
+            || component.data?.['uniform_api_plugin_version']?.value
+            || version
+            || '--';
+          this.$bkMessage({
+            message: `${errorCode}: ${pluginVersion}`,
+            theme: 'error',
+          });
+          return { isV4: true };
+        }
+      },
+      appendJsonSchemaField(schema, formSchema, variable, tagCode) {
+        const mergedSchema = mergeV4VariableObjectField(schema, formSchema, variable, tagCode);
+        schema.properties = mergedSchema.properties;
+        schema.required = mergedSchema.required;
+      },
+      appendArrayField(formConfig, formSchema, variable, tagCode) {
+        if (!Array.isArray(formSchema)) return;
+        const field = atomFilter.formFilter(tagCode, formSchema);
+        if (field) {
+          const item = tools.deepClone(field);
+          item.tag_code = variable.key;
+          item.name = variable.name;
+          item.attrs = { ...(item.attrs || {}), desc: variable.desc };
+          formConfig.push(item);
+        }
+      },
+      updateRenderData(value) {
+        this.renderData = { ...this.renderData, ...value };
+      },
       async getFormData() {
+        this.formGeneration += 1;
+        const generation = this.formGeneration;
+        const isCurrentGeneration = () => !this.isDestroyed && generation === this.formGeneration;
+        try {
         let variableArray = [];
-        this.renderConfig = [];
-        this.renderData = {};
+        const nextFormSections = [];
+        const nextRenderData = {};
+        const nextMetaConfig = {};
+        const arrayFormConfig = [];
+        const jsonSchema = { type: 'object', properties: {}, required: [] };
         Object.keys(this.variables).forEach((cKey) => {
           const variable = tools.deepClone(this.variables[cKey]);
           // 输入参数只展示显示类型全局变量
@@ -142,28 +277,43 @@
           }
         });
 
-        this.isNoData = variableArray.length === 0;
-
         variableArray = variableArray.sort((a, b) => a.index - b.index);
 
         if (variableArray.length > 0) {
-          this.isConfigLoading = true;
-          this.$emit('onChangeConfigLoading', true);
+          if (isCurrentGeneration()) {
+            this.formLoadError = null;
+            this.isConfigLoading = true;
+            this.$emit('onChangeConfigLoading', true);
+          }
         }
 
         // 任务参数重用
         let pipelineTree = null;
         if (this.reuseTaskId) {
           const instanceData = await this.getTaskInstanceData(this.reuseTaskId);
+          if (!isCurrentGeneration()) return;
           pipelineTree = JSON.parse(instanceData.pipeline_tree);
         }
 
         for (const variable of variableArray) {
+          if (!isCurrentGeneration()) return;
           const { key } = variable;
           const { plugin_code: pluginCode } = variable;
           const { name, atom, tagCode, classify } = atomFilter.getVariableArgs(variable);
           // custom_type 可以判断是手动新建节点还是组件勾选
           const version = variable.version || 'legacy';
+          const v4Result = await this.loadV4VariableForm(variable, atom, version, generation);
+          if (!isCurrentGeneration()) return;
+          if (v4Result && v4Result.isV4) {
+            if (v4Result.stale) return;
+            if (Array.isArray(v4Result.input)) {
+              this.appendArrayField(arrayFormConfig, v4Result.input, variable, tagCode);
+            } else {
+              this.appendJsonSchemaField(jsonSchema, v4Result.input, variable, tagCode);
+            }
+            nextRenderData[key] = tools.deepClone(variable.value);
+            continue;
+          }
           let atomConfig;
           if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 已加载过相同类型且相同版本的插件配置项，直接取缓存
             atomConfig = this.atomFormConfig[atom][version];
@@ -174,6 +324,7 @@
               await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
               atomConfig = tools.deepClone(this.atomFormConfig[atom][version]);
             }
+            if (!isCurrentGeneration()) return;
           }
 
           const isPreRenderMako = this.preMakoDisabled && variable.pre_render_mako; // 变量预渲染
@@ -230,7 +381,7 @@
               //     currentFormConfig.attrs['disabled'] = true
               //     currentFormConfig.attrs['used_tip'] = this.isUsedTipShow ? i18n.t('参数已被使用，不可修改') : ''
               // }
-              this.metaConfig[key] = tools.deepClone(variable);
+              nextMetaConfig[key] = tools.deepClone(variable);
               // 任务参数重用(元变量)
               const { remote_url: remoteUrl } = currentFormConfig.attrs;
               if (!remoteUrl && pipelineTree && pipelineTree.constants[key]) { // 重用(远程数据源不进行重用)
@@ -271,15 +422,44 @@
                 error_message: i18n.t('参数值不符合正则规则：') + variable.validation,
               });
             }
-            this.renderConfig.push(currentFormConfig);
+            arrayFormConfig.push(currentFormConfig);
           }
-          this.renderData[key] = tools.deepClone(variable.value);
+          nextRenderData[key] = tools.deepClone(variable.value);
         }
+        if (!isCurrentGeneration()) return;
+        if (arrayFormConfig.length > 0) {
+          nextFormSections.push({ type: 'array', scheme: arrayFormConfig });
+        }
+        if (Object.keys(jsonSchema.properties).length > 0) {
+          nextFormSections.push({
+            type: 'object',
+            scheme: {
+              ...jsonSchema,
+              required: [...new Set(jsonSchema.required)],
+            },
+          });
+        }
+        this.formSections = nextFormSections;
+        this.renderData = nextRenderData;
+        this.metaConfig = nextMetaConfig;
+        this.isNoData = nextFormSections.length === 0;
+        this.formLoadError = null;
         this.initalRenderData = this.renderData;
         this.$nextTick(() => {
+          if (!isCurrentGeneration()) return;
           this.isConfigLoading = false;
           this.$emit('onChangeConfigLoading', false);
         });
+        } catch (error) {
+          if (!isCurrentGeneration()) return;
+          this.formLoadError = error && error.code ? error.code : 'FORM_LOAD_FAILED';
+          this.formSections = [];
+          this.renderData = {};
+          this.metaConfig = {};
+          this.isNoData = true;
+          this.isConfigLoading = false;
+          this.$emit('onChangeConfigLoading', false);
+        }
       },
       setAtomDisable(atomList, disabled = false) {
         atomList.forEach((item) => {
@@ -315,8 +495,20 @@
           console.warn(error);
         }
       },
+      getFormRefs() {
+        return ['array', 'object'].reduce((refs, type) => {
+          const formRef = this.$refs[`renderForm-${type}`];
+          if (Array.isArray(formRef)) {
+            refs.push(...formRef);
+          } else if (formRef) {
+            refs.push(formRef);
+          }
+          return refs;
+        }, []);
+      },
       async validate() {
-        return this.isConfigLoading ? false : await this.$refs.renderForm.validate();
+        if (this.isConfigLoading) return false;
+        return validatePluginFormSections(this.getFormRefs());
       },
       judgeDataEqual() {
         const formvalid = this.validate();
@@ -335,7 +527,7 @@
       },
       async getVariableData() {
         // renderform表单校验
-        const formValid = this.validate();
+        const formValid = await this.validate();
         if (!formValid) {
           return;
         }

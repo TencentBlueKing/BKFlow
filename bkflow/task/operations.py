@@ -21,6 +21,8 @@ import functools
 import logging
 import traceback
 from copy import deepcopy
+from datetime import datetime
+from types import SimpleNamespace
 from typing import Any, List, Optional
 
 from bamboo_engine import api as bamboo_engine_api
@@ -32,6 +34,7 @@ from bamboo_engine.context import Context
 from bamboo_engine.eri import ContextValue, ContextValueType
 from bamboo_engine.template import Template
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 from pipeline.component_framework.library import ComponentLibrary
 from pipeline.engine.utils import calculate_elapsed_time
@@ -51,9 +54,23 @@ from bkflow.constants import (
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
+from bkflow.pipeline_plugins.components.collections.uniform_api.credential_handlers import (
+    CredentialKeySpaceConfigHandler,
+    DefaultCredentialHandler,
+    SpaceCredentialHandler,
+)
+from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
+from bkflow.plugin.services.open_plugin_detect import (
+    get_reference_snapshot,
+    needs_start_validation,
+)
 from bkflow.task.context import SystemObject
-from bkflow.task.models import TaskInstance
+from bkflow.task.models import OpenPluginRunCallbackRef, TaskInstance
+from bkflow.task.open_plugin_callback import (
+    callback_token_digest,
+    parse_open_plugin_callback_token,
+)
 from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.canvas import get_variable_mapping
@@ -138,6 +155,161 @@ def trace_task_operation(operation_name: str, operation_type: str = "task"):
     return decorator
 
 
+def _get_open_plugin_callback_ref_model():
+    return OpenPluginRunCallbackRef
+
+
+def _is_open_plugin_callback_data(data):
+    return isinstance(data, dict) and bool(data.get("_callback_token"))
+
+
+def _build_open_plugin_callback_payload(data):
+    callback_payload = {
+        "open_plugin_run_id": data["open_plugin_run_id"],
+        "status": data["status"],
+    }
+    for key in ("outputs", "error_message", "truncated", "truncated_fields"):
+        if key in data:
+            callback_payload[key] = data[key]
+    return callback_payload
+
+
+def _parse_open_plugin_callback_expire_at(token_payload):
+    expire_at = datetime.fromisoformat(token_payload["expire_at"])
+    if timezone.is_naive(expire_at):
+        expire_at = timezone.make_aware(expire_at, timezone.get_current_timezone())
+    return expire_at
+
+
+def _get_open_plugin_space_configs(task_instance: TaskInstance):
+    interface_client = InterfaceModuleClient()
+    params = {
+        "space_id": task_instance.space_id,
+        "config_names": "uniform_api,credential,api_gateway_credential_name",
+    }
+    if task_instance.scope_type and task_instance.scope_value:
+        params["scope"] = f"{task_instance.scope_type}_{task_instance.scope_value}"
+    space_infos_result = interface_client.get_space_infos(params)
+    if not space_infos_result.get("result"):
+        logger.warning(
+            "[open_plugin cancel] get_space_infos failed for task(%s): %s",
+            task_instance.id,
+            space_infos_result.get("message"),
+        )
+        return None
+    return space_infos_result.get("data", {}).get("configs", {})
+
+
+def _get_open_plugin_cancel_credential(task_instance: TaskInstance, space_configs: dict, credential_key: str = ""):
+    handlers = [
+        CredentialKeySpaceConfigHandler(
+            logger=logger,
+            scope_type=task_instance.scope_type,
+            scope_id=task_instance.scope_value,
+            parent_data=SimpleNamespace(inputs={}),
+            space_configs=space_configs,
+        ),
+        SpaceCredentialHandler(
+            logger=logger,
+            scope_type=task_instance.scope_type,
+            scope_id=task_instance.scope_value,
+            parent_data=SimpleNamespace(inputs={}),
+            space_configs=space_configs,
+        ),
+        DefaultCredentialHandler(
+            logger=logger,
+            scope_type=task_instance.scope_type,
+            scope_id=task_instance.scope_value,
+            parent_data=SimpleNamespace(inputs={}),
+            space_configs=space_configs,
+        ),
+    ]
+
+    for handler in handlers:
+        try:
+            if handler.can_handle(credential_key):
+                app_code, app_secret = handler.get_credential(credential_key)
+                if app_code and app_secret:
+                    return app_code, app_secret
+        except Exception as e:
+            logger.warning("[open_plugin cancel] credential handler(%s) failed: %s", handler.get_name(), e)
+
+    return None, None
+
+
+def _cancel_open_plugin_run(task_instance: TaskInstance, callback_ref, operator: str, space_configs: dict):
+    if not callback_ref.cancel_url:
+        logger.warning(
+            "[open_plugin cancel] missing cancel_url for task(%s) node(%s) run(%s)",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+        )
+        return
+
+    app_code, app_secret = _get_open_plugin_cancel_credential(
+        task_instance=task_instance,
+        space_configs=space_configs,
+        credential_key=getattr(callback_ref, "credential_key", ""),
+    )
+    if not app_code or not app_secret:
+        logger.warning(
+            "[open_plugin cancel] no credential for task(%s) node(%s) run(%s)",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+        )
+        return
+
+    client = UniformAPIClient()
+    headers = client.gen_default_apigw_header(app_code=app_code, app_secret=app_secret, username=operator)
+
+    try:
+        request_result = client.request(
+            url=callback_ref.cancel_url,
+            method="POST",
+            data={},
+            headers=headers,
+            timeout=settings.BKAPP_API_PLUGIN_REQUEST_TIMEOUT,
+        )
+    except Exception as e:
+        logger.warning(
+            "[open_plugin cancel] request failed for task(%s) node(%s) run(%s): %s",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+            e,
+        )
+        return
+
+    json_resp = request_result.json_resp or {}
+    if request_result.resp.status_code >= 400 or (isinstance(json_resp, dict) and json_resp.get("result") is False):
+        logger.warning(
+            "[open_plugin cancel] cancel failed for task(%s) node(%s) run(%s): status=%s, message=%s",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+            request_result.resp.status_code,
+            json_resp.get("message") or request_result.message,
+        )
+
+
+def _dispatch_open_plugin_cancellation(task_id: int, operator: str, node_id: str = None):
+    try:
+        from bkflow.task.celery.tasks import cancel_open_plugin_runs
+
+        kwargs = {"task_id": task_id, "operator": operator}
+        if node_id:
+            kwargs["node_id"] = node_id
+        cancel_open_plugin_runs.delay(**kwargs)
+    except Exception:
+        logger.exception(
+            "[open_plugin cancel] dispatch failed for task(%s) node(%s)",
+            task_id,
+            node_id or "all",
+        )
+
+
 class TaskOperation:
     CREATED_STATUS = {
         "start_time": None,
@@ -153,10 +325,27 @@ class TaskOperation:
         self.task_instance = task_instance
         self.queue = queue
 
+    def _ensure_open_plugins_ready_for_start(self):
+        """仅对包含开放插件快照或 V4 节点的任务请求 Interface 做启动预检。"""
+        extra_info = self.task_instance.extra_info or {}
+        pipeline_tree = self.task_instance.execution_data or {}
+        if not needs_start_validation(extra_info=extra_info, pipeline_tree=pipeline_tree):
+            return
+        snapshot = get_reference_snapshot(extra_info)
+        payload = {"space_id": self.task_instance.space_id}
+        if snapshot:
+            payload["snapshot"] = snapshot
+        else:
+            payload["pipeline_tree"] = pipeline_tree
+        result = InterfaceModuleClient().validate_open_plugins_for_start(payload)
+        if not result.get("result"):
+            raise ValidationError(result.get("message") or "开放插件启动预检失败")
+
     @trace_task_operation("start")
     @record_operation(RecordType.task.name, TaskOperationType.start.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def start(self, operator: str, *args, **kwargs) -> OperationResult:
+        self._ensure_open_plugins_ready_for_start()
         # CAS
         update_success = TaskInstance.objects.filter(id=self.task_instance.id, is_started=False).update(
             start_time=timezone.now(), is_started=True, executor=operator
@@ -258,9 +447,12 @@ class TaskOperation:
     @record_operation(RecordType.task.name, TaskOperationType.revoke.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def revoke(self, operator: str, *args, **kwargs) -> OperationResult:
-        return bamboo_engine_api.revoke_pipeline(
+        result = bamboo_engine_api.revoke_pipeline(
             runtime=BambooDjangoRuntime(), pipeline_id=self.task_instance.instance_id
         )
+        if result.result:
+            _dispatch_open_plugin_cancellation(task_id=self.task_instance.id, operator=operator)
+        return result
 
     @uniform_task_operation_result
     def get_task_states(
@@ -469,10 +661,77 @@ class TaskNodeOperation:
         loop_skip = kwargs.get("loop", False)
         return bamboo_engine_api.skip_node(runtime=self.runtime, node_id=self.node_id, loop_skip=loop_skip)
 
+    def _handle_open_plugin_callback(self, data) -> OperationResult:
+        callback_data = deepcopy(data)
+        callback_token = callback_data.pop("_callback_token", "")
+        if not callback_token:
+            return OperationResult(result=False, message="missing callback token")
+
+        try:
+            token_payload = parse_open_plugin_callback_token(callback_token)
+            expire_at = _parse_open_plugin_callback_expire_at(token_payload)
+        except Exception:
+            return OperationResult(result=False, message="invalid callback token")
+
+        if expire_at <= timezone.now():
+            return OperationResult(result=False, message="callback token expired")
+
+        with transaction.atomic():
+            callback_ref = (
+                OpenPluginRunCallbackRef.objects.select_for_update()
+                .filter(
+                    task_id=self.task_instance.id,
+                    node_id=self.node_id,
+                    open_plugin_run_id=callback_data["open_plugin_run_id"],
+                )
+                .first()
+            )
+            if callback_ref is None:
+                return OperationResult(result=False, message="callback token does not match open plugin run")
+
+            if callback_ref.callback_token_digest != callback_token_digest(callback_token):
+                return OperationResult(result=False, message="callback token verification failed")
+            if callback_ref.callback_expire_at <= timezone.now():
+                return OperationResult(result=False, message="callback token expired")
+            if int(token_payload["task_id"]) != int(self.task_instance.id) or token_payload["node_id"] != self.node_id:
+                return OperationResult(result=False, message="callback token does not match task node")
+            if token_payload["client_request_id"] != callback_ref.client_request_id:
+                return OperationResult(result=False, message="callback token does not match client request")
+            if token_payload.get("node_version", "") != callback_ref.node_version:
+                return OperationResult(result=False, message="callback token does not match node version")
+            if callback_ref.consumed_at:
+                return OperationResult(result=True, message="open plugin callback already consumed")
+
+            runtime = BambooDjangoRuntime()
+            node_state = runtime.get_state(self.node_id)
+            if node_state.name not in [bamboo_engine_states.RUNNING, bamboo_engine_states.FAILED]:
+                callback_ref.consumed_at = timezone.now()
+                callback_ref.save(update_fields=["consumed_at", "update_time"])
+                return OperationResult(result=True, message="node already in terminal state")
+            if node_state.version != callback_ref.node_version:
+                callback_ref.consumed_at = timezone.now()
+                callback_ref.save(update_fields=["consumed_at", "update_time"])
+                return OperationResult(result=True, message="node version already changed")
+
+            result = bamboo_engine_api.callback(
+                runtime=runtime,
+                node_id=self.node_id,
+                version=callback_ref.node_version,
+                data=_build_open_plugin_callback_payload(callback_data),
+            )
+            if result.result:
+                callback_ref.consumed_at = timezone.now()
+                callback_ref.save(update_fields=["consumed_at", "update_time"])
+            return result
+
     @trace_task_operation("callback", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.callback.name, TaskOperationSource.api.name)
     @uniform_task_operation_result
     def callback(self, operator: str, *args, **kwargs) -> OperationResult:
+        callback_data = kwargs["data"]
+        if _is_open_plugin_callback_data(callback_data):
+            return self._handle_open_plugin_callback(callback_data)
+
         runtime = BambooDjangoRuntime()
         version = kwargs.get("version")
         if not version:
@@ -502,12 +761,19 @@ class TaskNodeOperation:
     @record_operation(RecordType.task_node.name, TaskOperationType.forced_fail.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def forced_fail(self, operator: str, *args, **kwargs) -> OperationResult:
-        return bamboo_engine_api.forced_fail_activity(
+        result = bamboo_engine_api.forced_fail_activity(
             runtime=self.runtime,
             node_id=self.node_id,
             ex_data=kwargs.get("ex_data", f"forced fail by {operator}"),
             send_post_set_state_signal=kwargs.get("send_post_set_state_signal", True),
         )
+        if result.result:
+            _dispatch_open_plugin_cancellation(
+                task_id=self.task_instance.id,
+                node_id=self.node_id,
+                operator=operator,
+            )
+        return result
 
     @trace_task_operation("get_node_detail", operation_type="task_node")
     @uniform_task_operation_result

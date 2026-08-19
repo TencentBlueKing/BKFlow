@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from copy import deepcopy
 from unittest import mock
 
@@ -24,7 +25,10 @@ from blueapps.account.models import User
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from bkflow.decision_table.models import DecisionTable
+from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
+from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
@@ -35,6 +39,7 @@ from bkflow.template.models import (
     TemplateSnapshot,
     Trigger,
 )
+from bkflow.template.serializers.template import TemplateSerializer
 from bkflow.template.views.template import (
     AdminTemplateViewSet,
     TemplateInternalViewSet,
@@ -85,6 +90,161 @@ def build_pipeline_tree():
         "constants": {},
         "outputs": [],
     }
+
+
+def build_open_plugin_pipeline_tree():
+    pipeline_tree = deepcopy(build_pipeline_tree())
+    activity = next(iter(pipeline_tree["activities"].values()))
+    activity["component"]["code"] = "uniform_api"
+    activity["component"]["version"] = "v4.0.0"
+    activity["component"]["data"] = {
+        "uniform_api_plugin_id": {"value": "open_plugin_001"},
+        "uniform_api_plugin_version": {"value": "1.2.0"},
+    }
+    activity["component"]["api_meta"] = {"source_key": "sops"}
+    return pipeline_tree
+
+
+def create_open_plugin_catalog(space_id, enabled=True):
+    OpenPluginCatalogIndex.objects.create(
+        space_id=space_id,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        plugin_code="job_execute_task",
+        plugin_name="JOB 执行作业",
+        plugin_source="builtin",
+        group_name="作业平台",
+        wrapper_version="v4.0.0",
+        default_version="1.2.0",
+        latest_version="1.2.0",
+        versions=["1.2.0"],
+        meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+        status=OpenPluginCatalogIndex.Status.AVAILABLE,
+    )
+    SpaceOpenPluginAvailability.objects.create(
+        space_id=space_id,
+        source_key="sops",
+        plugin_id="open_plugin_001",
+        enabled=enabled,
+    )
+
+
+@pytest.mark.django_db
+@mock.patch("bkflow.template.serializers.template.PipelineTemplateWebPreviewer.is_circular_reference")
+def test_template_serializer_rejects_ungranted_open_plugin(mock_is_circular_reference):
+    mock_is_circular_reference.return_value = {"has_cycle": False}
+    factory = APIRequestFactory()
+    user, _ = User.objects.get_or_create(username="admin")
+    space = Space.objects.create(name="Open Plugin Space", app_code="test_app")
+    create_open_plugin_catalog(space_id=space.id, enabled=True)
+
+    request = factory.post("/templates/", {})
+    request.user = user
+    serializer = TemplateSerializer(
+        data={
+            "name": "Open Plugin Template",
+            "creator": "admin",
+            "updated_by": "admin",
+            "space_id": space.id,
+            "pipeline_tree": build_open_plugin_pipeline_tree(),
+            "triggers": [],
+        },
+        context={"request": request},
+    )
+
+    assert serializer.is_valid() is False
+    assert "来源" in str(serializer.errors)
+
+
+@pytest.mark.django_db
+@mock.patch("bkflow.plugin.services.open_plugin_snapshot.OpenPluginSnapshotService.build_schema_snapshot")
+@mock.patch("bkflow.template.serializers.template.PipelineTemplateWebPreviewer.is_circular_reference")
+def test_template_serializer_writes_schema_snapshot(mock_is_circular_reference, mock_build_schema_snapshot):
+    """模板新建时同时写入引用快照和 schema 快照。"""
+    mock_is_circular_reference.return_value = {"has_cycle": False}
+    mock_build_schema_snapshot.return_value = {"node1": {"plugin_id": "open_plugin_001", "plugin_version": "1.2.0"}}
+    factory = APIRequestFactory()
+    user, _ = User.objects.get_or_create(username="admin")
+    space = Space.objects.create(name="Open Plugin Space", app_code="test_app")
+    create_open_plugin_catalog(space_id=space.id, enabled=True)
+    OpenPluginGrantService.grant(space_id=space.id, source_key="sops", operator="admin")
+
+    request = factory.post("/templates/", {})
+    request.user = user
+    serializer = TemplateSerializer(
+        data={
+            "name": "Open Plugin Template",
+            "creator": "admin",
+            "updated_by": "admin",
+            "space_id": space.id,
+            "pipeline_tree": build_open_plugin_pipeline_tree(),
+            "triggers": [],
+        },
+        context={"request": request},
+    )
+
+    with mock.patch(
+        "bkflow.template.serializers.template.PipelineTemplateWebPreviewer.validate_loop_variables",
+        return_value={"has_loop": True},
+    ), mock.patch("bkflow.template.serializers.template.SpaceConfig.get_config", return_value="false"), mock.patch(
+        "bkflow.template.serializers.template.event_broadcast_signal.send"
+    ):
+        assert serializer.is_valid(), serializer.errors
+        template = serializer.save()
+
+    assert template.extra_info["plugin_reference_snapshot"][0]["plugin_id"] == "open_plugin_001"
+    assert template.extra_info["plugin_schema_snapshot"] == mock_build_schema_snapshot.return_value
+
+
+@pytest.mark.django_db
+def test_template_serializer_clears_open_plugin_snapshots_after_switching_to_normal_component():
+    """开放插件节点被替换后清除引用/schema 快照，同时保留其他扩展信息。"""
+
+    factory = APIRequestFactory()
+    user, _ = User.objects.get_or_create(username="admin")
+    space = Space.objects.create(name="Open Plugin Space", app_code="test_app")
+    snapshot = TemplateSnapshot.create_snapshot(build_pipeline_tree(), "admin", "1.0.0")
+    template = Template.objects.create(
+        name="Open Plugin Template",
+        creator="admin",
+        updated_by="admin",
+        space_id=space.id,
+        snapshot_id=snapshot.id,
+        extra_info={
+            "plugin_reference_snapshot": [{"node_id": "node1", "plugin_id": "open_plugin_001"}],
+            "plugin_schema_snapshot": {"node1": {"plugin_id": "open_plugin_001"}},
+            "custom_metadata": {"keep": True},
+        },
+    )
+    snapshot.template_id = template.id
+    snapshot.save(update_fields=["template_id"])
+    request = factory.put("/templates/{}/".format(template.id), {})
+    request.user = user
+    serializer = TemplateSerializer(
+        instance=template,
+        data={"pipeline_tree": build_pipeline_tree(), "triggers": []},
+        partial=True,
+        context={"request": request},
+    )
+
+    with mock.patch.object(TemplateSerializer, "_sync_template_labels"), mock.patch(
+        "bkflow.template.serializers.template.PipelineTemplateWebPreviewer.is_circular_reference",
+        return_value={"has_cycle": False},
+    ), mock.patch(
+        "bkflow.template.serializers.template.PipelineTemplateWebPreviewer.validate_loop_variables",
+        return_value={"has_loop": True},
+    ), mock.patch(
+        "bkflow.template.serializers.template.SpaceConfig.get_config",
+        return_value="false",
+    ), mock.patch(
+        "bkflow.template.serializers.template.send_callback"
+    ), mock.patch(
+        "bkflow.template.serializers.template.event_broadcast_signal.send"
+    ):
+        assert serializer.is_valid(), serializer.errors
+        updated_template = serializer.save()
+
+    assert updated_template.extra_info == {"custom_metadata": {"keep": True}}
 
 
 @pytest.mark.django_db
@@ -205,6 +365,92 @@ class TestAdminTemplateViewSet:
         response = view(request, space_id=self.space.id)
 
         assert response.status_code == 200
+
+    @mock.patch("bkflow.template.views.template.TaskComponentClient")
+    @mock.patch("bkflow.template.views.template.PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes")
+    def test_create_task_rejects_ungranted_open_plugin(self, mock_previewer, mock_client_class):
+        """普通 Web 建任务入口必须重新校验开放插件来源准入。"""
+        pipeline_tree = build_open_plugin_pipeline_tree()
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, "admin", "1.0.0")
+        template = Template.objects.create(
+            name="Open Plugin Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="admin",
+            updated_by="admin",
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+
+        mock_client_class.return_value.create_task.return_value = {
+            "result": True,
+            "data": {"id": 1, "name": "Open Plugin Task", "template_id": template.id, "parameters": {}},
+        }
+        view = AdminTemplateViewSet.as_view({"post": "create_task"})
+        request = self.factory.post(
+            f"/admin/templates/create_task/{self.space.id}/",
+            {"template_id": template.id, "name": "Open Plugin Task", "creator": "admin"},
+            format="json",
+        )
+        force_authenticate(request, user=self.admin_user)
+
+        with pytest.raises(ValidationError, match="来源"):
+            view(request, space_id=self.space.id)
+
+        mock_previewer.assert_called_once()
+        mock_client_class.return_value.create_task.assert_not_called()
+
+    @mock.patch("bkflow.plugin.services.open_plugin_snapshot.OpenPluginSnapshotService.build_schema_snapshot")
+    @mock.patch("bkflow.template.views.template.TaskComponentClient")
+    @mock.patch("bkflow.template.views.template.PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes")
+    def test_create_task_adds_open_plugin_snapshots(
+        self, mock_previewer, mock_client_class, mock_build_schema_snapshot
+    ):
+        """普通 Web 建任务入口写入开放插件引用与表单快照。"""
+        pipeline_tree = build_open_plugin_pipeline_tree()
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, "admin", "1.0.0")
+        template = Template.objects.create(
+            name="Open Plugin Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="admin",
+            updated_by="admin",
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
+        mock_build_schema_snapshot.return_value = {"node1": {"plugin_id": "open_plugin_001", "plugin_version": "1.2.0"}}
+        mock_client_class.return_value.create_task.return_value = {
+            "result": True,
+            "data": {"id": 1, "name": "Open Plugin Task", "template_id": template.id, "parameters": {}},
+        }
+        view = AdminTemplateViewSet.as_view({"post": "create_task"})
+        request = self.factory.post(
+            f"/admin/templates/create_task/{self.space.id}/",
+            {"template_id": template.id, "name": "Open Plugin Task", "creator": "admin"},
+            format="json",
+        )
+        force_authenticate(request, user=self.admin_user)
+
+        response = view(request, space_id=self.space.id)
+
+        assert response.status_code == 200
+        create_task_data = mock_client_class.return_value.create_task.call_args.args[0]
+        assert create_task_data["extra_info"]["plugin_reference_snapshot"] == [
+            {
+                "node_id": "node1",
+                "plugin_id": "open_plugin_001",
+                "plugin_code": "job_execute_task",
+                "plugin_name": "JOB 执行作业",
+                "plugin_source": "builtin",
+                "source_key": "sops",
+                "plugin_version": "1.2.0",
+                "wrapper_version": "v4.0.0",
+            }
+        ]
+        assert create_task_data["extra_info"]["plugin_schema_snapshot"] == mock_build_schema_snapshot.return_value
 
     @mock.patch("bkflow.template.views.template.TaskComponentClient.batch_delete_periodic_task")
     def test_batch_delete(self, mock_batch_delete):
@@ -757,6 +1003,88 @@ class TestTemplateViewSet:
         resp_data = response.data.get("data", response.data)
         assert "id" in resp_data or response.status_code == 200
 
+    @mock.patch("bkflow.template.views.template.TaskComponentClient")
+    def test_create_mock_task_rejects_ungranted_open_plugin(self, mock_client_class):
+        """Web Mock 创建入口必须校验开放插件来源准入。"""
+        pipeline_tree = build_open_plugin_pipeline_tree()
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, "test_user", "1.0.0")
+        template = Template.objects.create(
+            name="Open Plugin Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        mock_client_class.return_value.create_task.return_value = {
+            "result": True,
+            "data": {"id": 1, "name": "Mock Task"},
+        }
+
+        view = TemplateViewSet.as_view({"post": "create_mock_task"})
+        request = self.factory.post(
+            f"/templates/{template.id}/create_mock_task/",
+            {
+                "name": "Mock Task",
+                "creator": "test_user",
+                "pipeline_tree": pipeline_tree,
+                "mock_data": {"nodes": [], "outputs": {}, "mock_data_ids": {}},
+            },
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+
+        with pytest.raises(ValidationError, match="来源"):
+            view(request, pk=template.id)
+
+        mock_client_class.return_value.create_task.assert_not_called()
+
+    @mock.patch("bkflow.plugin.services.open_plugin_snapshot.OpenPluginSnapshotService.build_schema_snapshot")
+    @mock.patch("bkflow.template.views.template.TaskComponentClient")
+    def test_create_mock_task_adds_open_plugin_snapshots(self, mock_client_class, mock_build_schema_snapshot):
+        """Web Mock 创建入口写入开放插件引用与表单快照。"""
+        pipeline_tree = build_open_plugin_pipeline_tree()
+        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, "test_user", "1.0.0")
+        template = Template.objects.create(
+            name="Open Plugin Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+            scope_type="project",
+            scope_value="123",
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
+        mock_build_schema_snapshot.return_value = {"node1": {"plugin_id": "open_plugin_001"}}
+        mock_client_class.return_value.create_task.return_value = {
+            "result": True,
+            "data": {"id": 1, "name": "Mock Task"},
+        }
+
+        view = TemplateViewSet.as_view({"post": "create_mock_task"})
+        request = self.factory.post(
+            f"/templates/{template.id}/create_mock_task/",
+            {
+                "name": "Mock Task",
+                "creator": "test_user",
+                "pipeline_tree": pipeline_tree,
+                "mock_data": {"nodes": [], "outputs": {}, "mock_data_ids": {}},
+            },
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=template.id)
+
+        assert response.status_code == 200
+        create_task_data = mock_client_class.return_value.create_task.call_args.args[0]
+        assert create_task_data["extra_info"]["plugin_reference_snapshot"][0]["plugin_id"] == "open_plugin_001"
+        assert create_task_data["extra_info"]["plugin_schema_snapshot"] == mock_build_schema_snapshot.return_value
+
     def test_get_draft_template(self):
         """测试获取草稿模板"""
         # 启用版本管理（已在setup_method中设置）
@@ -1182,7 +1510,11 @@ class TestExceptionBranches:
         from bkflow.exceptions import ValidationError
 
         view = AdminTemplateViewSet.as_view({"post": "create_task"})
-        data = {"template_id": 99999, "name": "Test Task", "creator": "test_user"}  # 不存在的模板ID  # 添加必需的creator字段
+        data = {
+            "template_id": 99999,
+            "name": "Test Task",
+            "creator": "test_user",
+        }  # 不存在的模板ID  # 添加必需的creator字段
         request = self.factory.post(f"/admin/templates/create_task/{self.space.id}/", data, format="json")
         force_authenticate(request, user=self.user)
 
