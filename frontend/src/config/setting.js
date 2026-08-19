@@ -52,7 +52,8 @@ export const setConfigContext = (siteUrl, project) => {
       return null;
     },
     getInput(key) { // 获取输入表单对应值
-      if ($.context.input_form.inputs && $.context.input_form.inputs[key]) {
+      if ($.context.input_form.inputs
+        && Object.prototype.hasOwnProperty.call($.context.input_form.inputs, key)) {
         return $.context.input_form.inputs[key];
       }
       return null;
@@ -67,11 +68,60 @@ export const setConfigContext = (siteUrl, project) => {
   };
 };
 
+const pluginFormCredentialOrigins = new Set();
+
+const addCredentialOrigin = (url) => {
+  if (!url) return;
+  try {
+    pluginFormCredentialOrigins.add(new URL(url, window.location.href).origin);
+  } catch (error) {
+    // Ignore malformed optional plugin host values.
+  }
+};
+
+const registerPluginFormCredentialOrigins = (formContext = {}) => {
+  addCredentialOrigin(formContext.site_url);
+  const hosts = formContext.bk_plugin_api_host;
+  if (hosts && typeof hosts === 'object') {
+    Object.values(hosts).forEach(addCredentialOrigin);
+  } else {
+    addCredentialOrigin(hosts);
+  }
+};
+
+export const applyPluginFormContext = (formContext = {}, runtime = {}) => {
+  setConfigContext(formContext.site_url || window.SITE_URL, formContext.project);
+  [
+    'biz_cc_id',
+    'component',
+    'variable',
+    'template',
+    'instance',
+    'bk_plugin_api_host',
+  ].forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(formContext, key)) {
+      $.context[key] = formContext[key];
+    }
+  });
+  $.context.input_form.inputs = runtime.inputs;
+  $.context.output_form.outputs = runtime.outputs;
+  $.context.output_form.state = runtime.state;
+  $.context.getBkBizId = () => $.context.biz_cc_id;
+  $.context.getProjectId = () => $.context.project && $.context.project.id;
+  registerPluginFormCredentialOrigins(formContext);
+  setJqueryAjaxConfig();
+};
+
+let jqueryAjaxConfigRegistered = false;
+
 /**
  * ajax全局设置
  */
 // 在这里对ajax请求做一些统一公用处理
 export function setJqueryAjaxConfig() {
+  if (jqueryAjaxConfigRegistered) return;
+  jqueryAjaxConfigRegistered = true;
+
   $(document).ajaxSuccess((event, xhr) => {
     if (xhr.responseJSON && xhr.responseJSON.result === false) {
       bus.$emit('showErrMessage', { traceId: xhr.getResponseHeader('bkflow-engine-trace-id'), message: xhr.responseJSON.message, errorSource: 'result' });
@@ -103,6 +153,16 @@ export function setJqueryAjaxConfig() {
       case 500:
         bus.$emit('showErrorModal', '500', xhr.responseText);
         break;
+    }
+  });
+
+  $.ajaxPrefilter((options) => {
+    const { origin } = new URL(options.url, window.location.href);
+    if (pluginFormCredentialOrigins.has(origin)) {
+      options.xhrFields = {
+        ...(options.xhrFields || {}),
+        withCredentials: true,
+      };
     }
   });
 }

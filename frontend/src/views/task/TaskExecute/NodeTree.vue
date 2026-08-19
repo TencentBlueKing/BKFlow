@@ -153,9 +153,7 @@
         handler(value) {
           const nodeNavLength = this.nodeNav.length;
           if (nodeNavLength === 1) {
-            const savedStates = this.saveNodeInteractionStates(this.treeData);
             this.treeData = tools.deepClone(value[0].children);
-            this.restoreNodeInteractionStates(this.treeData, savedStates);
           }
           this.$nextTick(() => {
             this.nodeAddStatus(this.treeData, this.nodeDisplayStatus.children);
@@ -167,9 +165,7 @@
       },
       nodeDisplayStatus: {
         handler(val) {
-          const savedStates = this.saveNodeInteractionStates(this.treeData);
           this.nodeAddStatus(this.treeData, val.children);
-          this.restoreNodeInteractionStates(this.treeData, savedStates);
         },
         deep: true,
         immediate: true,
@@ -184,17 +180,12 @@
             // 如果导航值长度为1且与旧值长度不同（例如从子流程返回根节点）
             if (val.length === 1 && old && val.length !== old.length) {
               const treeData = this.data[0].children;
-              const savedStates = this.saveNodeInteractionStates(this.treeData);
               // 更新树数据
               this.treeData = tools.deepClone(treeData);
-              // 恢复交互状态
-              this.restoreNodeInteractionStates(this.treeData, savedStates);
               this.curSelectId = '';
             } else {
-              const savedStates = this.saveNodeInteractionStates(this.treeData);
               // 更新节点显示状态
               this.nodeAddStatus(this.data[0].children, this.nodeDisplayStatus.children);
-              this.restoreNodeInteractionStates(this.treeData, savedStates);
             }
           }
         },
@@ -210,11 +201,11 @@
         deep: true,
         immediate: true,
       },
-      subCanvasActiveId: { // 点击节点详情子画布中的节点
+      subCanvasActiveId: {
         handler(val) {
           if (val) {
             const node = this.findSubNode(this.treeData, val);
-            const isSubProcess = ['subprocess_plugin', 'subcanvas_plugin'].includes(node?.component?.code) || node.type === 'SubProcess' || node.type === 'SubCanvas';
+            const isSubProcess = node?.component?.code === 'subprocess_plugin' || node.type === 'SubProcess';
             this.onSelectNode(null, node, isSubProcess ? 'subflow' : 'node');
           }
         },
@@ -244,33 +235,6 @@
         }
         return null;
       },
-      // 保存节点交互状态,防止data更新导致bk-tree重建时状态丢失
-      saveNodeInteractionStates(nodes) {
-        const states = {};
-        if (!nodes || !Array.isArray(nodes)) return states;
-        nodes.forEach((node) => {
-          if (node.id && (node.expanded || node.selected)) {
-            states[node.id] = { expanded: node.expanded, selected: node.selected };
-          }
-          if (node.children) {
-            Object.assign(states, this.saveNodeInteractionStates(node.children));
-          }
-        });
-        return states;
-      },
-      // 恢复节点交互状态
-      restoreNodeInteractionStates(nodes, states) {
-        if (!nodes || !Array.isArray(nodes) || !states) return;
-        nodes.forEach((node) => {
-          if (node.id && states[node.id]) {
-            this.$set(node, 'expanded', states[node.id].expanded);
-            this.$set(node, 'selected', states[node.id].selected);
-          }
-          if (node.children) {
-            this.restoreNodeInteractionStates(node.children, states);
-          }
-        });
-      },
       // 非网关和子流程节点点击
       onClickNode(node) {
         this.setDefaultGateway = false;
@@ -281,7 +245,7 @@
         this.$emit('onSelectNode', node.id, 'tasknode', node);
       },
       expandedSubflowNode(node, expanded) {
-        if (expanded && (node?.component?.code === 'subprocess_plugin' || node?.component?.code === 'subcanvas_plugin' || node.type === 'SubProcess' || node.type === 'SubCanvas')) {
+        if (expanded && node?.component?.code === 'subprocess_plugin') {
             this.$emit('dynamicLoad', node, expanded);
         }
         node.expanded = expanded;
@@ -301,11 +265,7 @@
             if (item?.component?.code === 'subprocess_plugin' && item.children) {
               this.nodeAddStatus(item.children, states);
             }
-            // 循环流节点添加任务状态
-            if ((item?.component?.code === 'subcanvas_plugin' || item.type === 'SubCanvas') && item.children) {
-              this.nodeAddStatus(item.children, states);
-            }
-            if (item.children && item.children.length !== 0 && item.type !== 'SubProcess' && item.type !== 'SubCanvas' && item?.component?.code !== 'subprocess_plugin' && item?.component?.code !== 'subcanvas_plugin') {
+            if (item.children && item.children.length !== 0 && item.type !== 'SubProcess' && item?.component?.code !== 'subprocess_plugin') {
               this.nodeAddStatus(item.children, states);
             }
           });
@@ -318,7 +278,7 @@
         }
         // 退回节点
         const callbackTip = node.isLoop ? this.$t('退回节点：') + node.callbackName : '';
-        const iconClass = this.gatewayType[node.component?.code === 'subprocess_plugin' || node.component?.code === 'subcanvas_plugin' || node.type === 'SubProcess' || node.type === 'SubCanvas' ? 'SubProcess' : node.type];
+        const iconClass = this.gatewayType[node.component?.code === 'subprocess_plugin' || node.type === 'SubProcess' ? 'SubProcess' : node.type];
         // 并行、条件分支样式
         let conditionClass = node.title !== this.$t('默认') ? 'condition' : 'default-conditon';
 
@@ -349,7 +309,7 @@
           );
         }
         // 处理子流程的渲染
-        if (node.component?.code === 'subprocess_plugin' || node.component?.code === 'subcanvas_plugin' || node.type === 'SubProcess' || node.type === 'SubCanvas') {
+        if (node.component?.code === 'subprocess_plugin' || node.type === 'SubProcess') {
            return (
             <span style={'font-size: 16px'}>
               <span class={iconClass} style={this.stateColor[node.state]}></span>
@@ -373,7 +333,7 @@
               if (this.setDefaultGateway) {
                 this.$set(node, 'expanded', true);
               }
-              if (node.parent && typeof node.parent !== 'string') {
+              if (node.parent) {
                 node.parent.expanded = true;
                 this.setExpand(node.parent);
               }
@@ -402,7 +362,7 @@
       getNodeType(node, type) {
         if (type === 'callback') return 'callback';
         if (node.type === 'ServiceActivity') return 'tasknode';
-        if (node.component?.code === 'subprocess_plugin' || node.component?.code === 'subcanvas_plugin' || node.type === 'SubProcess' || node.type === 'SubCanvas') return 'subflow';
+        if (node.component?.code === 'subprocess_plugin') return 'subflow';
         return 'controlNode';
       },
       onSelectNode(e, node, type) {
@@ -423,10 +383,9 @@
           return;
         }
         // this.$emit('onOpenGatewayInfo', node.callbackData, false);
+
         // 分支网关/条件分支网关的条件
-        if (type === 'gatewayCondition' && node.isGateway) {
-          e?.stopPropagation(); // 阻止事件冒泡，避免 bk-tree 默认展开行为
-          this.setDefaultGateway = true;
+        if (type === 'gatewayCondition' && node.state === 'Gateway') {
           this.curSelectId = node.id || node.name;
           this.$emit('onOpenGatewayInfo', { ...node.callbackData, outgoing: node.outgoing, taskId: node.taskId }, true);
           return;

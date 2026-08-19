@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import datetime
 import logging
 
@@ -33,6 +34,7 @@ from bkflow.task.models import (
     TaskInstance,
     TimeoutNodeConfig,
 )
+from bkflow.task.signals.context import is_node_failure_side_effects_suppressed
 from bkflow.task.utils import ATOM_FAILED, TASK_FINISHED, redis_inst_check
 
 logger = logging.getLogger("root")
@@ -87,19 +89,20 @@ def _node_timeout_info_update(redis_inst, to_state, node_id, version):
 @receiver(post_set_state)
 def bamboo_engine_eri_post_set_state_handler(sender, node_id, to_state, version, root_id, parent_id, loop, **kwargs):
     if to_state == bamboo_engine_states.FAILED:
-        retry_result = _dispatch_auto_retry_node_task(root_id, node_id)
-        if retry_result:
-            return
-        _check_and_callback(root_id, task_success=False)
-        send_task_message.apply_async(
-            kwargs={
-                "task_id": root_id,
-                "node_id": node_id,
-                "msg_type": ATOM_FAILED,
-            },
-            queue=f"task_common_{settings.BKFLOW_MODULE.code}",
-            routing_key=f"task_common_{settings.BKFLOW_MODULE.code}",
-        )
+        if not is_node_failure_side_effects_suppressed(root_id, node_id):
+            retry_result = _dispatch_auto_retry_node_task(root_id, node_id)
+            if retry_result:
+                return
+            _check_and_callback(root_id, task_success=False)
+            send_task_message.apply_async(
+                kwargs={
+                    "task_id": root_id,
+                    "node_id": node_id,
+                    "msg_type": ATOM_FAILED,
+                },
+                queue=f"task_common_{settings.BKFLOW_MODULE.code}",
+                routing_key=f"task_common_{settings.BKFLOW_MODULE.code}",
+            )
     elif to_state == bamboo_engine_states.REVOKED and node_id == root_id:
         try:
             TaskInstance.objects.set_revoked(root_id)

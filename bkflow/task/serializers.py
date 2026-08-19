@@ -65,10 +65,18 @@ NOTIFY_CONFIG_SCHEMA = {
 }
 
 
+class CreateTaskMockDataSerializer(serializers.Serializer):
+    nodes = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    outputs = serializers.JSONField(required=False, default=dict)
+    mock_data_ids = serializers.JSONField(required=False, default=dict)
+    fail_nodes = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    errors = serializers.JSONField(required=False, default=dict)
+
+
 class CreateTaskInstanceSerializer(serializers.ModelSerializer):
     pipeline_tree = serializers.JSONField(required=True)
     constants = serializers.JSONField(required=False, default={})
-    mock_data = serializers.JSONField(required=False, default={})
+    mock_data = CreateTaskMockDataSerializer(required=False, default=dict)
     label_ids = serializers.ListField(required=False, child=serializers.IntegerField())
 
     def validate(self, value):

@@ -26,8 +26,11 @@
 	}
 }
 
-.common-icon-export:before {
-	content: "\e24e";
+// NOTICE:
+// 插件开发页面，插件的默认icon
+// 规则与 common-icon-tag-default 相同，icon 更新后需要同步修改这里的 content
+.tag-default-icon:before {
+	content: "\e176";
 }
 .common-icon-check-circle-fill:before {
 	content: "\e242";
@@ -389,9 +392,6 @@
 .common-icon-square-code:before {
 	content: "\e18d";
 }
-.common-icon-swither-small:before {
-	content: "\e250";
-}
 .common-icon-sys-gcloud:before {
 	content: "\e18e";
 }
@@ -430,9 +430,6 @@
 }
 .common-icon-play:before {
 	content: "\e1a4";
-}
-.common-icon-authority:before {
-	content: "\e24d";
 }
 .common-icon-file-setting:before {
 	content: "\e1a5";
@@ -769,13 +766,4 @@
 }
 .common-icon-zanting:before {
 	content: "\e24c";
-}
-.common-icon-elliptic-cycle:before {
-	content: "\e268";
-}
-.common-icon-node-subcanvas:before {
-	content: "\e27e";
-}
-.common-icon-node-subcanvas-shortcut:before {
-	content: "\e27d";
 }

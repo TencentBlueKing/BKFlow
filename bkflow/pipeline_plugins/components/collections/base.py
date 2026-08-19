@@ -53,8 +53,16 @@ class BKFlowBaseService(Service):
         mock_data = self.get_taskflow_mock_data(taskflow_id)
         return mock_data.get("outputs", {})
 
+    def _get_mock_fail_info(self, taskflow_id):
+        mock_data = self.get_taskflow_mock_data(taskflow_id)
+        return mock_data.get("fail_nodes", []), mock_data.get("errors", {})
+
     def mock_schedule(self, data, parent_data, callback_data=None):
         taskflow_id = parent_data.get_one_of_inputs("task_id")
+        fail_nodes, errors = self._get_mock_fail_info(taskflow_id)
+        if self.id in fail_nodes:
+            data.set_outputs("ex_data", errors.get(self.id, "mock failed"))
+            return False
         taskflow_outputs = self.get_mock_outputs(taskflow_id)
         mock_outputs = taskflow_outputs.get(self.id, {})
         for k, value in mock_outputs.items():
@@ -63,11 +71,15 @@ class BKFlowBaseService(Service):
         return True
 
     def mock_execute(self, data, parent_data):
+        taskflow_id = parent_data.get_one_of_inputs("task_id")
+        fail_nodes, errors = self._get_mock_fail_info(taskflow_id)
+        if self.id in fail_nodes:
+            data.set_outputs("ex_data", errors.get(self.id, "mock failed"))
+            return False
         if self.need_schedule():
             # 如果需要 schedule，一律改成 2s 轮询
             self.interval = StaticIntervalGenerator(2)
             return True
-        taskflow_id = parent_data.get_one_of_inputs("task_id")
         taskflow_outputs = self.get_mock_outputs(taskflow_id)
         mock_outputs = taskflow_outputs.get(self.id, {})
         for k, value in mock_outputs.items():

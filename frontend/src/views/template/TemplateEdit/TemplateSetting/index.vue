@@ -29,7 +29,7 @@
       :is-view-mode="isViewMode"
       :project-info-loading="projectInfoLoading"
       :template-label-loading="templateLabelLoading"
-      @templateDataChanged="$emit('templateDataChanged', 'tabTemplateConfig')"
+      @templateDataChanged="$emit('templateDataChanged')"
       @updateTemplateLabelList="$emit('updateTemplateLabelList')"
       @closeTab="closeTab" />
     <TabTemplateSnapshoot

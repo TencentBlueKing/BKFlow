@@ -89,7 +89,7 @@
           this.$bkMessage({
             theme: 'error',
             ellipsisLine: 0,
-            message: error.message || String(error),
+            message: error,
             delay: 10000,
           });
           return;

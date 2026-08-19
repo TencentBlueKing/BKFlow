@@ -80,6 +80,7 @@
             "meta_apis": "{meta_apis url}",
             "api_categories": "{api_categories url}",
             "display_name": "{display_name}",
+            "source_key": "{open plugin execution source key}"
         }
     }
 }
@@ -91,6 +92,9 @@
 | meta_apis url      | 	string	 | 获取API接口元数据列表的url |
 | api_categories url | 	string	 | 获取API接口分类列表的url  |
 | display_name	      | string	  | API插件的展示名称       |
+| source_key         | string    | 可选，开放插件的准入与执行来源；不配置时使用 api_key |
+
+每个 `api_key` 会生成一个独立的顶层 API 插件入口。多个入口可以使用不同的目录 URL（包括固定查询参数），同时配置相同的 `source_key`，从而共享同一套来源准入、插件开关与执行配置。
 **说明：** API插件具体开发可参考：[API插件开发](api_plugin.md)
 
 **功能表现：** 
@@ -100,7 +104,8 @@
     "api_key": {
       "meta_apis": "https://xxx.com/xxx/uniform_api_list/",
       "display_name": "API插件",
-      "api_categories": "https://xxx.com/xxx/uniform_api_category_list/"
+      "api_categories": "https://xxx.com/xxx/uniform_api_category_list/",
+      "source_key": "api_key"
     }
   }
 }
@@ -206,5 +211,4 @@ vertical:
 }
 ```
 ![hide display plugin](../pics/only_show_display.png)
-
 
