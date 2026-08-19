@@ -406,69 +406,6 @@ const locationItem = {
   required: ['id', 'type', 'x', 'y'],
 };
 
-// 循环流内部子流程 pipelineTree schema（嵌套版）
-const subPipelineTreeSchema = {
-  $id: '/SubPipelineTreeSchema',
-  title: '循环流子流程 pipeline 字段',
-  type: 'object',
-  properties: {
-    activities: {
-      $ref: '/ActivitiesFieldSchema',
-    },
-    constants: {
-      $ref: '/ConstantsFieldSchema',
-    },
-    flows: {
-      $ref: '/FlowsFieldSchema',
-    },
-    gateways: {
-      $ref: '/GatewayFieldSchema',
-    },
-    line: {
-      $ref: '/LinesFieldSchema',
-    },
-    location: {
-      $ref: '/LocationFieldSchema',
-    },
-    end_event: {
-      $ref: '/EndEventSchema',
-    },
-    start_event: {
-      $ref: '/StartEventSchema',
-    },
-    outputs: {
-      $ref: '/OutputsFieldSchema',
-    },
-  },
-  required: ['activities', 'constants', 'flows', 'gateways', 'line', 'location', 'end_event', 'start_event', 'outputs'],
-};
-
-const loopNode = {
-  $id: '/LoopNode',
-  title: '循环节点字段',
-  allOf: [
-    { $ref: '/FlowNode' },
-    {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          minLength: 1,
-          maxLength: STRING_LENGTH.TEMPLATE_NODE_NAME_MAX_LENGTH,
-        },
-        type: {
-          type: 'string',
-          const: 'SubCanvas',
-        },
-        pipeline: {
-          $ref: '/SubPipelineTreeSchema',
-        },
-      },
-      required: ['name', 'type', 'pipeline'],
-    },
-  ],
-};
-
 const activitiesFieldSchema = {
   $id: '/ActivitiesFieldSchema',
   type: 'object',
@@ -478,7 +415,7 @@ const activitiesFieldSchema = {
       properties: {
         type: {
           type: 'string',
-          enum: ['ServiceActivity', 'SubProcess', 'SubCanvas'],
+          enum: ['ServiceActivity', 'SubProcess'],
         },
       },
       allOf: [
@@ -492,12 +429,6 @@ const activitiesFieldSchema = {
           if: { properties: { type: { const: 'SubProcess' } } },
           then: {
             $ref: '/SubProcess',
-          },
-        },
-        {
-          if: { properties: { type: { const: 'SubCanvas' } } },
-          then: {
-            $ref: '/LoopNode',
           },
         },
       ],
@@ -643,7 +574,7 @@ const outputsFieldSchema = {
 
 export const pipelineTreeSchema = {
   $id: '/pipelineSchema',
-  title: 'pipeline字段',
+  title: 'pipeline_tree字段',
   properties: {
     activities: {
       $ref: '/ActivitiesFieldSchema',
@@ -681,8 +612,6 @@ const ajv = new Ajv();
 ajv.addSchema(flowNode, '/FlowNode');
 ajv.addSchema(serviceActivity, '/ServiceActivity');
 ajv.addSchema(subProcess, '/SubProcess');
-ajv.addSchema(subPipelineTreeSchema, '/SubPipelineTreeSchema');
-ajv.addSchema(loopNode, '/LoopNode');
 ajv.addSchema(constantItem, '/ConstantItem');
 ajv.addSchema(flowItem, '/FlowItem');
 ajv.addSchema(parallelGateway, '/ParallelGateway');

@@ -15,13 +15,12 @@
         ref="inputParamsForm"
         :scheme="formsScheme"
         :hooked="hooked"
-        :constants="isSubflow ? subflowForms : filteredConstants"
+        :constants="isSubflow ? subflowForms : constants"
         :form-option="option"
         :form-data="formData"
-        :is-subflow="isSubflow || hasLoopVars"
+        :is-subflow="isSubflow"
         :render-config="renderConfig"
-        :subflow-loop-vars="mergedLoopVars"
-        :outer-constants="outerConstants"
+        :subflow-loop-vars="subflowLoopVars"
         @change="onInputsValChange"
         @onRenderChange="$emit('renderConfigChange', arguments)"
         @onHookChange="onInputHookChange" />
@@ -142,14 +141,6 @@
         type: String,
         default: '',
       },
-      loopNodeLoopVars: {
-        type: Object,
-        default: () => ({}),
-      },
-      outerConstants: {
-        type: Object,
-        default: () => ({}),
-      },
     },
     data() {
       const defaultScheme = Array.isArray(this.scheme) ? [] : (this.scheme || {});
@@ -186,26 +177,6 @@
       }),
       isJsonSchema() { // 是否为jsonSchemaForm表单
         return Boolean(this.scheme && !Array.isArray(this.scheme));
-      },
-      hasLoopVars() {
-        return Object.keys(this.loopNodeLoopVars).length > 0;
-      },
-      mergedLoopVars() {
-        // 当前子画布内的子流程节点禁止配置循环
-        return this.hasLoopVars ? this.loopNodeLoopVars : this.subflowLoopVars;
-      },
-      // 过滤掉当前节点自身的输出变量（节点输入不能引用自身的输出）
-      filteredConstants() {
-        const result = {};
-        Object.keys(this.constants).forEach((key) => {
-          const item = this.constants[key];
-          // 排除属于当前节点的输出变量
-          if (item.source_type === 'component_outputs' && item.source_info?.[this.nodeId]) {
-            return;
-          }
-          result[key] = item;
-        });
-        return result;
       },
     },
     watch: {

@@ -23,11 +23,11 @@
         </span>
       </li>
       <template v-else>
-        <li v-if="!isSubCanvasNode">
+        <li>
           <span class="th">{{ $t('标准插件') }}</span>
           <span class="td">{{ currentExecuteInfo.plugin_name || '--' }}</span>
         </li>
-        <li v-if="!isSubCanvasNode">
+        <li>
           <span class="th">{{ $t('插件版本') }}</span>
           <span class="td">{{ currentExecuteInfo.plugin_version || '--' }}</span>
         </li>
@@ -44,7 +44,7 @@
         <span class="th">{{ $t('是否可选') }}</span>
         <span class="td">{{ templateConfig.optional ? $t('是') : $t('否') }}</span>
       </li>
-      <li v-if="!isSubCanvasNode">
+      <li>
         <span class="th">{{ $t('失败处理') }}</span>
         <span
           v-if="isAutoOperate"
@@ -148,7 +148,7 @@
               ref="renderForm"
               :scheme="inputs"
               :hooked="hooked"
-              :constants="isTemSubflowNode ? subflowForms : currentConstants"
+              :constants="isSubProcessNode || isTemSubflowNode ? subflowForms : constants"
               :form-option="option"
               :form-data="inputsFormData"
               :render-config="inputsRenderConfig" />
@@ -267,10 +267,6 @@
         type: Object,
         default: () => ({}),
       },
-      pipelineData: {
-        type: Object,
-        default: () => ({}),
-      },
       nodeDetailConfig: {
         type: Object,
         default: () => ({}),
@@ -283,6 +279,10 @@
         type: String,
         default: '',
       },
+      // isSubProcessNode: {
+      //   type: Boolean,
+      //   default: false,
+      // },
       spaceId: {
         type: Number,
         default: 0,
@@ -363,11 +363,14 @@
       outputList() {
         return this.getOutputsList();
       },
+
+      // inputAndOutputWrapShow() {
+      //   const { original_template_id: originTplId } = this.nodeActivity;
+      //   // 普通任务节点展示/该功能上线后的独立子流程任务展示
+      //   return originTplId && !this.templateConfig.isOldData;
+      // },
       isSubProcessNode() {
         return this.nodeActivity?.component?.code === 'subprocess_plugin' || this.nodeActivity.type === 'SubProcess';
-      },
-      isSubCanvasNode() {
-        return this.nodeActivity?.component?.code === 'subcanvas_plugin';
       },
       isAutoOperate() {
         const { ignorable, skippable, retryable, auto_retry: autoRetry } = this.templateConfig;
@@ -380,20 +383,16 @@
       isSpecialPlugin() {
         return ['dmn_plugin', 'value_assign'].includes(this.pluginCode);
       },
-      currentConstants() {
-        if (this.isSubProcessNode) return this.subflowForms;
-        if (this.isSubCanvasNode) return this.pipelineData.constants;
-        return this.constants;
-      },
       variableList() {
-        return [...Object.values(this.currentConstants)];
+        const constants = this.isSubProcessNode ? this.subflowForms : this.constants;
+        return [...Object.values(constants)];
       },
       loopConfig() {
         const { loop_config: loopConfig } = this.nodeActivity || {};
         return loopConfig || null;
       },
       loopTypeText() {
-        if (this.loopConfig?.enable || this.isSubCanvasNode) {
+        if (this.loopConfig?.enable) {
           return i18n.t('循环执行');
         }
         return i18n.t('单次执行');
@@ -423,21 +422,13 @@
         deep: true,
         immediate: true,
       },
-      atomFormInfo: {
-        handler(val) {
-          if (val && Object.keys(val).length && this.currentNodeDetailConfig.component_code) {
-            this.getThirdpluginNameAndVersion();
-          }
-        },
-        deep: true,
-      },
     },
     mounted() {
       $.context.exec_env = 'NODE_EXEC_DETAIL';
+      this.initData();
       if (this.nodeActivity.type === 'SubProcess') {
         this.isTemSubflowNode = true;
       }
-      this.initData();
     },
     beforeDestroy() {
       this.isDestroyed = true;
@@ -885,32 +876,32 @@
       },
       // 获取输出变量列表
       getOutputsList() {
-        const nodeId = this.nodeActivity.id;
-        const constKeys = Object.keys(this.constants);
-
-        let list = this.outputs.map(param => {
-          // 找出引用当前输出变量的常量 key
-          const hookedKey = constKeys.find(key => {
-            const item = this.constants[key];
-            if (item.source_type !== 'component_outputs') return false;
-            const sourceInfo = item.source_info[nodeId];
-            return sourceInfo && sourceInfo.includes(param.key);
+        const list = [];
+        const varKeys = Object.keys(this.constants);
+        this.outputs.forEach((param) => {
+          let { key: varKey } = param;
+          const isHooked = varKeys.some((item) => {
+            let result = false;
+            const varItem = this.constants[item];
+            if (varItem.source_type === 'component_outputs') {
+              const sourceInfo = varItem.source_info[this.nodeActivity.id];
+              if (sourceInfo && sourceInfo.includes(param.key)) {
+                varKey = item;
+                result = true;
+              }
+            }
+            return result;
           });
-
-          return {
+          list.push({
             key: param.key,
-            varKey: hookedKey || param.key,
+            varKey,
             name: param.name,
             description: param.schema ? param.schema.description : '--',
             version: param.version,
             status: param.status,
-            hooked: !!hookedKey,
-          };
+            hooked: isHooked,
+          });
         });
-
-        if (this.isSubCanvasNode) {
-          list = list.filter(item => item.key === 'task_id' || item.key === 'outputs');
-        }
         return list;
       },
       getRowClassName({ row }) {

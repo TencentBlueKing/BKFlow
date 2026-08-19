@@ -13,10 +13,10 @@
     </bk-tab>
     <div class="scroll-area">
       <task-condition
-        v-if="!currentNodeDetailConfig.nodeType && conditionData && conditionData.nodeId"
+        v-if="!currentNodeDetailConfig.nodeType"
         ref="conditionEdit"
         :is-readonly="true"
-        :gateways="mergedGateways"
+        :gateways="gateways"
         :condition-data="conditionData" />
       <template v-else>
         <!-- 执行次数-初始化默认显示最新执行信息 -->
@@ -81,14 +81,14 @@
           :execute-info="currentExecuteInfo"
           :node-detail-config="currentNodeDetailConfig"
           :constants="pipelineData.constants"
-          :pipeline-data="pipelineData"
           :is-third-party-node="isThirdPartyNode"
           :third-party-node-code="thirdPartyNodeCode"
           :space-id="spaceId"
           :plugin-code="pluginCode"
           :template-id="templateId"
           :task_id="taskId"
-          :scope-info="scopeInfo" />
+          :scope-info="scopeInfo"
+          :is-sub-process-node="isSubProcessNode" />
         <!-- 操作历史 -->
         <section
           v-else-if="curActiveTab === 'history'"
@@ -249,9 +249,6 @@
       isSubProcessNode() {
         return this.pluginCode === 'subprocess_plugin';
       },
-      isSubCanvasNode() {
-        return this.pluginCode === 'subcanvas_plugin';
-      },
       // 并行网关、汇聚网关、并行条件、分支网关没有配置快照 条件只有配置快照
       isNeedShowConfig() {
         const { nodeType } = this.currentNodeDetailConfig;
@@ -262,8 +259,10 @@
       },
       isCondition() {
         const { nodeType } = this.currentNodeDetailConfig;
-        const nonConditionTypes = [...this.gatewayStartEndType, 'task', 'tasknode', 'SubCanvas', 'subflow'];
-        return !nonConditionTypes.includes(nodeType);
+        if (this.gatewayStartEndType.includes(nodeType) || nodeType === 'task' || nodeType === 'tasknode') {
+          return false;
+        }
+        return true;
       },
       tabPanel() {
         const baseTabs = [
@@ -279,20 +278,6 @@
          return [baseTabs[0], configTab, ...baseTabs.slice(1)];
         }
         return baseTabs;
-      },
-      // 外层网关+SubCanvas内嵌网关
-      mergedGateways() {
-        const result = { ...this.gateways };
-        if (this.pipelineData && this.pipelineData.activities) {
-          Object.values(this.pipelineData.activities).forEach((activity) => {
-            const isSubCanvas = activity.type === 'SubCanvas'
-              || (activity.component && activity.component.code === 'subcanvas_plugin');
-            if (isSubCanvas && activity.pipeline && activity.pipeline.gateways) {
-              Object.assign(result, activity.pipeline.gateways);
-            }
-          });
-        }
-        return result;
       },
     },
     watch: {
@@ -335,6 +320,7 @@
     methods: {
       ...mapActions('task/', [
         'getNodeActDetail',
+        'loadSubflowConfig',
         'getInstanceStatus',
         'getTaskInstanceData',
       ]),
@@ -342,6 +328,7 @@
         'loadUniformApiMeta',
       ]),
       ...mapActions('atomForm/', [
+        'loadAtomConfig',
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
       ]),

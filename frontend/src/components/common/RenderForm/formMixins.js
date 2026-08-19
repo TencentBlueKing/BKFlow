@@ -123,11 +123,8 @@ export function filterVariableList(inputValue, constantArr, varRegex = /\$.*$/) 
  * @param {Object} subflowLoopVars - 子流程循环变量
  * @returns {Array} 返回分组的变量列表
  */
-export function buildConstantArray(constants, internalVariable, isSubflow = false, subflowLoopVars = {}, outerConstants = {}) {
-  const mergedConstants = Object.keys(outerConstants).length > 0
-    ? { ...outerConstants, ...constants }
-    : constants;
-  const constantArr = [...Object.values(mergedConstants)];
+export function buildConstantArray(constants, internalVariable, isSubflow = false, subflowLoopVars = {}) {
+  const constantArr = [...Object.values(constants)];
   const subflowLoopVarArr = [];
   Object.keys(subflowLoopVars).forEach((key) => {
     const normalized = !/^\$\{\w+\}$/.test(key) ? `\${${key}}` : key;

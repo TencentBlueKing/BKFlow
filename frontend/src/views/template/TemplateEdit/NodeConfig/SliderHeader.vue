@@ -22,7 +22,7 @@
       </span>
       <!-- 全局变量popover -->
       <VariablePopover
-        v-if="!isInLoopGroupOrLoopNode && !isSelectorPanelShow"
+        v-if="!isSelectorPanelShow"
         :is-view-mode="isViewMode"
         :variable-list="variableList"
         @openVariablePanel="$emit('openVariablePanel', $event)" />
@@ -61,10 +61,6 @@
       variableList: {
         type: Array,
         default: () => ([]),
-      },
-      isInLoopGroupOrLoopNode: {
-        type: Boolean,
-        default: false,
       },
     },
   };

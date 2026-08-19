@@ -1,7 +1,6 @@
 import { register } from '@antv/x6-vue-shape';
 import CustomNode from '../components/nodes/index.vue';
 import CustomGroupNode from '../components/nodes/group.vue';
-import LoopNode from '../components/nodes/loop.vue';
 
 const ports = {
   groups: {
@@ -100,14 +99,5 @@ export const registryNodes = (eventMap) => {
   register({
     shape: 'custom-group-node',
     component: CustomGroupNode,
-  });
-  register({
-    shape: 'custom-loop-group-node',
-    ports: { ...ports },  // 继承与普通节点相同的四个连接桩
-    component: {
-      render: h => h(LoopNode, {
-        on: eventMap(),
-      }),
-    },
   });
 };
