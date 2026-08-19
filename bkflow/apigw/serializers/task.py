@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import base64
 import binascii
 import json
@@ -134,7 +135,8 @@ class TaskMockDataSerializer(serializers.Serializer):
     nodes = serializers.ListSerializer(help_text=_("要 Mock 执行的节点 ID 列表"), child=serializers.CharField(), default=[])
     outputs = serializers.JSONField(help_text=_('节点 Mock 输出, 形如{"node_id": {"output1": "output_value1"}}'), default={})
     mock_data_ids = serializers.JSONField(
-        help_text=_("节点 Mock 数据，当 outputs 为空时会提取对应 mock_data_ids 设置 outputs，否则仅记录作用"), default={}
+        help_text=_("节点 Mock 数据，当 outputs 为空时会提取对应 mock_data_ids 设置 outputs，否则仅记录作用"),
+        default={},
     )
 
 
@@ -227,6 +229,7 @@ class GetTaskListSerializer(serializers.Serializer):
     )
     executor = serializers.CharField(help_text=_("执行者"), max_length=USER_NAME_MAX_LENGTH, required=False)
     template_id = serializers.IntegerField(help_text=_("流程ID"), required=False)
+    label = serializers.CharField(help_text=_("标签名称"), required=False)
 
     def validate_task_id_list(self, value):
         return ",".join(str(i) for i in value)
@@ -242,6 +245,19 @@ class OperateTaskSerializer(serializers.Serializer):
 
 class OperateTaskNodeSerializer(serializers.Serializer):
     operator = serializers.CharField(help_text=_("操作人"), max_length=USER_NAME_MAX_LENGTH, required=True)
+
+
+class OpenPluginCallbackSerializer(serializers.Serializer):
+    open_plugin_run_id = serializers.CharField(help_text=_("开放插件运行实例 ID"), required=True)
+    status = serializers.CharField(help_text=_("开放插件运行状态"), required=True)
+    outputs = serializers.DictField(help_text=_("开放插件输出"), required=False)
+    error_message = serializers.CharField(help_text=_("失败原因"), required=False, allow_blank=True)
+    truncated = serializers.BooleanField(help_text=_("输出是否被截断"), required=False)
+    truncated_fields = serializers.ListField(
+        help_text=_("被截断的字段列表"),
+        child=serializers.CharField(),
+        required=False,
+    )
 
 
 class GetTaskNodeDetailSerializer(serializers.Serializer):

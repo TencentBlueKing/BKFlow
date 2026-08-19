@@ -6,6 +6,13 @@ API 插件可以帮助接入系统开发者在 BKFlow 上实现自己的业务�
 
 ## API 统一协议
 
+BKFlow 当前支持两类 API 插件协议：
+
+- `uniform_api v2.0.0 / v3.0.0`：使用本文说明的单版本 API 元数据协议。
+- `uniform_api v4.0.0`：面向开放插件的多业务版本协议，增加版本目录、原生表单、统一运行态、回调和取消能力。接入方式请参见 [API 插件 V4.0.0 开放协议](api_plugin_v4.md)。
+
+`v4.0.0` 是 BKFlow `uniform_api` 包装协议版本，不是开放插件自身的业务版本。V4 接入方必须同时维护 `wrapper_version` 和 `plugin_version`，不能复用本文 V2/V3 的 `version` 字段表达业务版本。
+
 在 BKFlow 中，统一 API 的调用逻辑被统一封装到同一个插件【API插件】中，插件通过从遵循协议的接口中拉取元数据，可以动态地将接口调用所需的参数渲染为表单，供接入系统的用户更加直观方便地填写，效果如下：
 
 ![uniform_api_selection](../pics/uniform_api_selection.png)
@@ -79,6 +86,7 @@ sequenceDiagram
   - 默认值为 `"v2.0.0"`，如果不指定version字段，系统会使用v2.0.0版本
   - 如需使用新特性（如 `enable_standard_response` 配置和 `headers` 配置），需要指定 `"v3.0.0"`
   - 支持的版本值：`"v2.0.0"`、`"v3.0.0"`
+  - V4 不使用该字段表达业务版本；V4 列表项应改用 `wrapper_version`、`default_version`、`latest_version`、`versions` 和 `meta_url_template`，详见 [V4 协议文档](api_plugin_v4.md)
 ``` json
 {
     "result": true,
@@ -126,6 +134,24 @@ sequenceDiagram
         "default": "abc"  // 可选
       }
     ],
+    "form_schema": { // 可选，完整 JSON 表单 schema；存在 properties 时优先于 inputs 渲染
+      "type": "object",
+      "properties": {
+        "xxx": {
+          "type": "string",
+          "title": "xxx",
+          "ui:component": {
+            "name": "select",
+            "props": {
+              "datasource": [
+                {"label": "A", "value": "a"},
+                {"label": "B", "value": "b"}
+              ]
+            }
+          }
+        }
+      }
+    },
     "outputs": [
       {
         "key": "xxx",
@@ -181,6 +207,10 @@ sequenceDiagram
 - `credential_key` 字段仅在使用 `uniform_api` 插件版本 `v3.0.0` 时生效
 - 用户创建任务时，可以通过 `credentials` 参数传入对应的凭证，格式参考 [create_task API 文档](../apigw/docs/zh/create_task.md)
 - 基于inputs和outputs字段，动态进行表单生成
+	- 当响应包含带 `properties` 的 `form_schema` 时，BKFlow 优先按完整 schema 渲染，并保留其中的 `ui:component`、`ui:rules`、`ui:reactions` 等配置
+	- `inputs` 仍为必填兼容字段；未提供 `form_schema` 时继续按 `inputs` 生成表单
+	- 标准控件名支持 `input`、`textarea`、`password`、`codeEditor`、`select`、`radio`、`checkbox`、`switcher` 和 `table`；`code_editor` 会兼容转换为 `codeEditor`
+	- `codeEditor` 使用 BKFlow 内置 Monaco 编辑器，可通过 `props.language`、`props.height` 和 `props.showMiniMap` 配置；未知控件名会按字段类型降级，不会加载提供方 JavaScript
 	- 字段类型(type)与表单类型映射关系：
 		- string -> 输入框
 		- list -> checkbox，需要提供options字段
@@ -649,4 +679,3 @@ sequenceDiagram
    - `data_key` 和 `msg_key` 都支持 jmespath 语法，可以提取嵌套字段
    - 例如：`"data.result"` 可以提取 `{"data": {"result": "value"}}` 中的 `"value"`
    - 例如：`"items[0].name"` 可以提取数组第一个元素的 name 字段
-

@@ -129,11 +129,17 @@ BKAPP_DEFAULT_ENGINE_MODULE_ENTRY = env.BKAPP_DEFAULT_ENGINE_MODULE_ENTRY or BK_
 # 节点超时最长配置时间
 MAX_NODE_EXECUTE_TIMEOUT = 60 * 60 * 24
 
+# 开放插件回调 token 有效期，默认与节点最长执行时间一致
+OPEN_PLUGIN_CALLBACK_TOKEN_TTL = env.OPEN_PLUGIN_CALLBACK_TOKEN_TTL or MAX_NODE_EXECUTE_TIMEOUT
+
 # 人员选择起拉取数据的host
 MEMBER_SELECTOR_DATA_HOST = env.MEMBER_SELECTOR_DATA_HOST
 
 # 蓝鲸插件授权过滤 APP
 PLUGIN_DISTRIBUTOR_NAME = env.PLUGIN_DISTRIBUTOR_NAME or APP_CODE
+
+# 开放插件目录同步请求超时
+OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT = env.OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT
 
 # 默认数据库AUTO字段类型
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
@@ -340,20 +346,20 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
         "propagate": True,
     }
 
-    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": True}
+    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": False}
 
     logging_dict["loggers"]["pipeline.eri.log"] = {"handlers": ["pipeline_eri"], "level": "INFO", "propagate": True}
 
     logging_dict["loggers"]["bamboo_engine"] = {
         "handlers": ["root", "bamboo_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["pipeline_engine"] = {
         "handlers": ["root", "pipeline_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["bk-monitor-report"] = {
@@ -370,8 +376,6 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
                 for handler in logger_config["handlers"]
                 if handler not in ["pipeline_engine_context", "bamboo_engine_context", "pipeline_eri"]
             ]
-            if not logger_config["handlers"]:
-                logger_config["handlers"] = ["root"]
 
     def handler_filter_injection(filters: list):
         for _, handler in logging_dict["handlers"].items():

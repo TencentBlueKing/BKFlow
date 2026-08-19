@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import logging
 from collections import defaultdict
@@ -58,6 +59,7 @@ class TaskTreeInfo(models.Model):
     data = CompressJSONField(null=True, blank=True)
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务流程树信息"
         verbose_name_plural = "任务流程树信息"
         ordering = ["-id"]
@@ -67,6 +69,7 @@ class TaskSnapshot(CommonSnapshot):
     objects = CommonSnapshotManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "模板快照"
         verbose_name_plural = "模板快照"
         ordering = ["-id"]
@@ -76,6 +79,7 @@ class TaskExecutionSnapshot(CommonSnapshot):
     objects = CommonSnapshotManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务执行快照"
         verbose_name_plural = "任务执行快照"
         ordering = ["-id"]
@@ -183,6 +187,7 @@ class TaskInstance(models.Model):
     objects = TaskInstanceManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务实例"
         verbose_name_plural = "任务实例"
         index_together = [("space_id", "scope_type", "scope_value")]
@@ -341,6 +346,37 @@ class TaskInstance(models.Model):
             parent_task.change_parent_task_node_state_to_running()
 
 
+class OpenPluginRunCallbackRef(models.Model):
+    task_id = models.BigIntegerField(verbose_name="任务ID", db_index=True)
+    node_id = models.CharField(verbose_name="节点ID", max_length=64, db_index=True)
+    node_version = models.CharField(verbose_name="节点版本", max_length=64, blank=True, default="")
+    client_request_id = models.CharField(verbose_name="客户端请求ID", max_length=128, unique=True)
+    open_plugin_run_id = models.CharField(verbose_name="开放插件运行ID", max_length=64, unique=True, db_index=True)
+    callback_token_digest = models.CharField(verbose_name="回调令牌摘要", max_length=128)
+    callback_expire_at = models.DateTimeField(verbose_name="回调令牌过期时间")
+    plugin_source = models.CharField(verbose_name="插件来源类型", max_length=64, blank=True, default="")
+    source_key = models.CharField(verbose_name="开放插件来源", max_length=64, blank=True, default="")
+    plugin_id = models.CharField(verbose_name="开放插件ID", max_length=128)
+    plugin_version = models.CharField(verbose_name="开放插件版本", max_length=64, blank=True, default="")
+    cancel_url = models.CharField(verbose_name="开放插件取消URL", max_length=1024, blank=True, default="")
+    credential_key = models.CharField(verbose_name="取消调用使用的凭证key", max_length=128, blank=True, default="")
+    consumed_at = models.DateTimeField(verbose_name="回调消费时间", null=True, blank=True)
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    update_time = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    class Meta:
+        app_label = "task"
+        verbose_name = "开放插件回调映射"
+        verbose_name_plural = "开放插件回调映射"
+        indexes = [
+            models.Index(fields=["task_id", "node_id"]),
+            models.Index(fields=["callback_expire_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.task_id}:{self.node_id}:{self.open_plugin_run_id}"
+
+
 class AutoRetryNodeStrategy(models.Model):
     taskflow_id = models.BigIntegerField(verbose_name="taskflow id")
     root_pipeline_id = models.CharField(verbose_name="root pipeline id", max_length=64)
@@ -350,6 +386,7 @@ class AutoRetryNodeStrategy(models.Model):
     interval = models.IntegerField(verbose_name="retry interval", default=0)
 
     class Meta:
+        app_label = "task"
         verbose_name = "节点自动重试策略 AutoRetryNodeStrategy"
         verbose_name_plural = "节点自动重试策略 AutoRetryNodeStrategy"
         index_together = [("root_pipeline_id", "node_id")]
@@ -393,6 +430,7 @@ class TimeoutNodeConfig(models.Model):
     objects = TimeoutNodeConfigManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "节点超时配置 TimeoutNodeConfig"
         verbose_name_plural = "节点超时配置 TimeoutNodeConfig"
         index_together = [("root_pipeline_id", "node_id")]
@@ -403,6 +441,7 @@ class TimeoutNodesRecord(models.Model):
     timeout_nodes = models.TextField(verbose_name="超时节点信息")
 
     class Meta:
+        app_label = "task"
         verbose_name = "超时节点数据记录 TimeoutNodesRecord"
         verbose_name_plural = "超时节点数据记录 TimeoutNodesRecord"
 
@@ -419,6 +458,7 @@ class TaskOperationRecord(BaseOperateRecord):
     )
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务操作记录 TaskOperationRecord"
         verbose_name_plural = "任务操作记录 TaskOperationRecord"
         indexes = [models.Index(fields=["instance_id", "node_id"])]
@@ -433,6 +473,7 @@ class TaskMockData(models.Model):
     create_time = models.DateTimeField("创建时间", auto_now_add=True, db_index=True)
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务Mock数据 TaskMockData"
         verbose_name_plural = "任务Mock数据 TaskMockData"
 
@@ -485,6 +526,9 @@ class EngineSpaceConfig(models.Model):
             return {}
         instance = qs.first()
         return instance.json_value
+
+    class Meta:
+        app_label = "task"
 
 
 def default_cron():
@@ -552,6 +596,7 @@ class PeriodicTask(models.Model):
     objects = PeriodicTaskManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = _("周期任务")
         verbose_name_plural = _("周期任务")
 
@@ -605,6 +650,7 @@ class TaskFlowRelation(models.Model):
     extra_info = models.JSONField(verbose_name=_("额外信息"), null=True)
 
     class Meta:
+        app_label = "task"
         verbose_name = verbose_name_plural = _("任务关系")
 
 

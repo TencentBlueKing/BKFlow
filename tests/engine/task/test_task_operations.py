@@ -49,9 +49,11 @@ class TestTaskOperationComplete:
         assert result.result is True
 
         # Revoke
+        cancel_open_plugin_runs = mocker.patch("bkflow.task.celery.tasks.cancel_open_plugin_runs.delay")
         mocker.patch("bamboo_engine.api.revoke_pipeline", return_value=EngineAPIResult(result=True, message="success"))
         result = task_operation.revoke(operator="test_operator")
         assert result.result is True
+        cancel_open_plugin_runs.assert_called_once_with(task_id=task_instance.id, operator="test_operator")
 
         # Get states - not started
         task_instance = TaskInstance.objects.create(

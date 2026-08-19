@@ -1391,14 +1391,22 @@
           // api插件是否存在
           const { code, api_meta, version } = nodeConfig.component || {};
           if (code === 'uniform_api' && !this.apiExistMap[id]) {
+            // eslint-disable-next-line camelcase
+            const { uniform_api_plugin_version: savedPluginVersion } = nodeConfig.component.data || {};
+            const pluginVersion = savedPluginVersion?.value
+              || api_meta.plugin_version
+              || version;
             const resp = await this.loadUniformApiMeta({
               templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: api_meta.meta_url,
               ...this.scopeInfo,
+              meta_url_template: api_meta.meta_url_template,
+              source_key: api_meta.source_key,
+              version: pluginVersion,
             });
             if (resp.result) {
-              this.apiExistMap[id] = { code, version };
+              this.apiExistMap[id] = { code, version: pluginVersion };
             }
             this.isNotExistAtomOrVersion = !resp.result;
           }
@@ -1509,6 +1517,9 @@
                     spaceId: this.spaceId,
                     meta_url: apiMeta.meta_url,
                     ...this.scopeInfo,
+                    meta_url_template: apiMeta.meta_url_template,
+                    source_key: apiMeta.source_key,
+                    version: apiMeta.version,
                   });
                   const { url, methods, version, credential_key: credentialKey } = resp.data;
                   const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中

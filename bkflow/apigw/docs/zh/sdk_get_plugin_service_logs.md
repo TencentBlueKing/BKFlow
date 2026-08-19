@@ -57,5 +57,3 @@
 | total              | int      | 日志总数              |
 | dsl                | string   | 	DSL查询语句          |
 | scroll_id          | string   | 翻页标识字段，获取下一页时传入该值 |
-
-

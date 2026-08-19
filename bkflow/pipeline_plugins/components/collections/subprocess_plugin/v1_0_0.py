@@ -9,6 +9,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 """
+
 import copy
 import datetime
 
@@ -33,6 +34,7 @@ from bkflow.constants import (
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
+from bkflow.task.open_plugin_snapshots import prepare_engine_task_extra_info
 from bkflow.utils.handlers import mask_sensitive_data_for_display
 
 
@@ -190,7 +192,7 @@ class SubprocessPluginService(BKFlowBaseService):
             f'subprocess parsed constants: {mask_sensitive_data_for_display(pipeline_tree.get("constants", {}))}'
         )
 
-    def _create_subprocess_task_instance(self, subprocess, template, pipeline_tree, parent_task):
+    def _create_subprocess_task_instance(self, subprocess, template, pipeline_tree, parent_task, extra_info=None):
         """创建子任务实例和关系记录"""
         from bkflow.task.models import (
             TaskFlowRelation,
@@ -217,9 +219,9 @@ class SubprocessPluginService(BKFlowBaseService):
                 "notify_type": {"fail": [], "success": []},
                 "notify_receivers": {"more_receiver": "", "receiver_group": []},
             }
-            create_task_data.setdefault("extra_info", {}).update(
-                {"notify_config": template["data"]["notify_config"] or DEFAULT_NOTIFY_CONFIG}
-            )
+            create_task_data["extra_info"] = extra_info or {
+                "notify_config": template["data"]["notify_config"] or DEFAULT_NOTIFY_CONFIG
+            }
 
             task_instance = TaskInstance.objects.create_instance(**create_task_data)
 
@@ -291,8 +293,27 @@ class SubprocessPluginService(BKFlowBaseService):
             data.set_outputs("ex_data", str(e))
             return False
 
+        default_notify_config = {
+            "notify_type": {"fail": [], "success": []},
+            "notify_receivers": {"more_receiver": "", "receiver_group": []},
+        }
+        try:
+            extra_info = prepare_engine_task_extra_info(
+                space_id=template["data"].get("space_id"),
+                pipeline_tree=pipeline_tree,
+                extra_info={"notify_config": template["data"].get("notify_config") or default_notify_config},
+                username=parent_task.creator,
+                scope_type=template["data"].get("scope_type"),
+                scope_id=template["data"].get("scope_value"),
+            )
+        except ValidationError as e:
+            data.set_outputs("ex_data", str(e))
+            return False
+
         # 创建子任务实例
-        task_instance = self._create_subprocess_task_instance(subprocess, template, pipeline_tree, parent_task)
+        task_instance = self._create_subprocess_task_instance(
+            subprocess, template, pipeline_tree, parent_task, extra_info=extra_info
+        )
 
         # 设置输出并启动任务
         data.set_outputs("task_id", task_instance.id)
@@ -300,7 +321,13 @@ class SubprocessPluginService(BKFlowBaseService):
         operation_method = getattr(task_operation, "start", None)
         if operation_method is None:
             raise ValidationError("task operation not found")
-        operation_method(operator=parent_task.creator)
+        start_result = operation_method(operator=parent_task.creator)
+        if not getattr(start_result, "result", False):
+            data.set_outputs(
+                "ex_data",
+                getattr(start_result, "message", None) or str(_("子流程启动失败")),
+            )
+            return False
 
         return True
 
