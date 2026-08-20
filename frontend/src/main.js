@@ -12,6 +12,7 @@ import filterXSS from 'xss';
 
 import bkMagicVue, { locale, lang } from 'bk-magic-vue';
 import 'bk-magic-vue/dist/bk-magic-vue.min.css';
+import '@blueking/bkflow-canvas-editor-vue2/style';
 
 import './api/ajax.js';
 import i18n from './config/i18n/index.js';

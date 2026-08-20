@@ -2271,6 +2271,8 @@
 }
 .node-info-panel {
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
     .operation-flow, .wehhook-callback{
         padding: 20px 30px;
     }
