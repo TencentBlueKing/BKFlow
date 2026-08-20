@@ -14,7 +14,6 @@ limitations under the License.
 """
 
 import json
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -164,7 +163,7 @@ def service():
 
 @pytest.fixture
 def available_open_plugin():
-    """创建已准入、已开放且目录可用的 V4 插件。"""
+    """创建已开放且目录可用的 V4 插件。"""
     catalog = OpenPluginCatalogIndex(
         space_id=245,
         source_key="sops",
@@ -187,7 +186,6 @@ def available_open_plugin():
         plugin_id=catalog.plugin_id,
         enabled=True,
     )
-    grant = SimpleNamespace(space_id=245, source_key="sops", enabled=True)
 
     class FakeQuerySet:
         def __init__(self, items):
@@ -253,19 +251,12 @@ def available_open_plugin():
         return FakeQuerySet(matches)
 
     catalog._test_availability = availability
-    catalog._test_grant = grant
     with patch(
         "bkflow.plugin.services.plugin_schema_service.OpenPluginCatalogIndex.objects.filter",
         side_effect=filter_catalog,
     ), patch(
         "bkflow.plugin.services.plugin_schema_service.SpaceOpenPluginAvailability.objects.filter",
         side_effect=filter_availability,
-    ), patch(
-        "bkflow.plugin.services.plugin_schema_service.OpenPluginGrantService.granted_source_keys",
-        side_effect=lambda space_id: [grant.source_key] if grant.enabled else [],
-    ), patch(
-        "bkflow.plugin.services.plugin_schema_service.OpenPluginGrantService.is_granted",
-        side_effect=lambda space_id, source_key: grant.enabled and source_key == grant.source_key,
     ):
         yield catalog
 
@@ -665,7 +656,7 @@ def test_remote_adapter_rejects_malformed_detail_data(client_cls, data, authoriz
 
 
 class TestUniformApiDetailAdapter:
-    """验证 V4 adapter 的准入、精确版本与 provider 契约。"""
+    """验证 V4 adapter 的可用性、精确版本与 provider 契约。"""
 
     @patch("bkflow.plugin.services.plugin_detail.PluginSchemaService._get_single_by_type")
     @patch("bkflow.plugin.services.plugin_detail._get_api_credential", create=True)
@@ -796,16 +787,6 @@ class TestUniformApiDetailAdapter:
 
         assert detail["forms"] == {"input": None, "output": None}
         assert detail["form_schema"] == form_schema
-
-    @patch("bkflow.plugin.services.plugin_detail.UniformAPIClient", create=True)
-    def test_uniform_adapter_rejects_source_without_grant(self, client_cls, available_open_plugin, service):
-        """来源 grant 被撤销后不得查询 provider。"""
-        available_open_plugin._test_grant.enabled = False
-
-        with pytest.raises(PermissionDenied, match="未准入"):
-            service.get_detail("uniform_api", available_open_plugin.plugin_id, "v2.0", "sops")
-
-        client_cls.assert_not_called()
 
     @patch("bkflow.plugin.services.plugin_detail.UniformAPIClient", create=True)
     def test_uniform_adapter_rejects_disabled_availability(self, client_cls, available_open_plugin, service):

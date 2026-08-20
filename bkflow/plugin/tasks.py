@@ -21,7 +21,6 @@ import logging
 from celery import shared_task
 from django.conf import settings
 
-from bkflow.plugin.models import OpenPluginSpaceGrant
 from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
 
 logger = logging.getLogger("celery")
@@ -51,10 +50,8 @@ def sync_open_plugin_catalog_source(space_id, source_key):
 
 @shared_task(ignore_result=True)
 def dispatch_open_plugin_catalog_sync():
-    """为已配置且已准入的开放插件来源分别投递同步任务。"""
-    configured_sources = set(OpenPluginCatalogService.iter_configured_sources())
-    granted_sources = set(OpenPluginSpaceGrant.objects.filter(enabled=True).values_list("space_id", "source_key"))
-    sync_sources = sorted(configured_sources & granted_sources)
+    """为已配置的开放插件来源分别投递同步任务。"""
+    sync_sources = sorted(set(OpenPluginCatalogService.iter_configured_sources()))
 
     for space_id, source_key in sync_sources:
         sync_open_plugin_catalog_source.delay(space_id=space_id, source_key=source_key)

@@ -30,7 +30,6 @@ from bkflow.plugin.services.open_plugin_detect import (
     is_open_plugin_component,
     needs_start_validation,
 )
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
 
 
@@ -79,7 +78,7 @@ class OpenPluginSnapshotService:
 
     @classmethod
     def needs_start_validation(cls, extra_info=None, pipeline_tree=None):
-        """启动时是否需要做开放插件准入预检。"""
+        """启动时是否需要做开放插件可用性预检。"""
         return needs_start_validation(extra_info=extra_info, pipeline_tree=pipeline_tree)
 
     @classmethod
@@ -94,7 +93,7 @@ class OpenPluginSnapshotService:
 
     @classmethod
     def validate_reference_snapshot(cls, space_id, snapshot):
-        """按任务 extra_info 中的开放插件快照做准入/可用性校验。"""
+        """按任务 extra_info 中的开放插件快照做可用性校验。"""
         for ref in snapshot or []:
             plugin_id = ref.get("plugin_id")
             plugin_version = ref.get("plugin_version")
@@ -108,7 +107,6 @@ class OpenPluginSnapshotService:
                     enabled=True,
                 ).exists()
             cls._validate_resolved_reference(
-                space_id=space_id,
                 plugin_id=plugin_id,
                 plugin_version=plugin_version,
                 catalog=catalog,
@@ -121,7 +119,6 @@ class OpenPluginSnapshotService:
             space_id=space_id, pipeline_tree=pipeline_tree, include_unmatched=True
         ):
             cls._validate_resolved_reference(
-                space_id=space_id,
                 plugin_id=ref["plugin_id"],
                 plugin_version=ref["plugin_version"],
                 catalog=ref["catalog"],
@@ -129,11 +126,9 @@ class OpenPluginSnapshotService:
             )
 
     @staticmethod
-    def _validate_resolved_reference(space_id, plugin_id, plugin_version, catalog, enabled):
+    def _validate_resolved_reference(plugin_id, plugin_version, catalog, enabled):
         if catalog is None:
             raise serializers.ValidationError("开放插件 [{}] 不存在或已下线".format(plugin_id))
-        if not OpenPluginGrantService.is_granted(space_id, catalog.source_key):
-            raise serializers.ValidationError("开放插件来源 [{}] 未对当前空间准入".format(catalog.source_key))
         if catalog.status != OpenPluginCatalogIndex.Status.AVAILABLE:
             raise serializers.ValidationError("开放插件 [{}] 当前不可用".format(plugin_id))
         if not plugin_version:

@@ -18,7 +18,11 @@ to the current version of the project delivered to anyone in the future.
 """
 from django.contrib import admin
 
-from bkflow.plugin.models import OpenPluginSpaceGrant, SpacePluginConfig
+from bkflow.plugin.models import (
+    OpenPluginCatalogIndex,
+    SpaceOpenPluginAvailability,
+    SpacePluginConfig,
+)
 
 
 class SpacePluginConfigAdmin(admin.ModelAdmin):
@@ -27,12 +31,31 @@ class SpacePluginConfigAdmin(admin.ModelAdmin):
     ordering = ("-update_time",)
 
 
-class OpenPluginSpaceGrantAdmin(admin.ModelAdmin):
-    list_display = ("space_id", "source_key", "enabled", "operator", "create_time", "update_time")
+class OpenPluginCatalogIndexAdmin(admin.ModelAdmin):
+    list_display = (
+        "space_id",
+        "source_key",
+        "plugin_id",
+        "plugin_name",
+        "plugin_source",
+        "wrapper_version",
+        "latest_version",
+        "status",
+        "update_time",
+    )
+    list_filter = ("status", "source_key", "plugin_source", "wrapper_version")
+    search_fields = ("space_id", "source_key", "plugin_id", "plugin_code", "plugin_name")
+    ordering = ("-update_time",)
+
+
+class SpaceOpenPluginAvailabilityAdmin(admin.ModelAdmin):
+    list_display = ("space_id", "source_key", "plugin_id", "enabled", "create_time", "update_time")
+    list_editable = ("enabled",)
     list_filter = ("enabled", "source_key")
-    search_fields = ("space_id", "source_key", "operator")
+    search_fields = ("space_id", "source_key", "plugin_id")
     ordering = ("-update_time",)
 
 
 admin.site.register(SpacePluginConfig, SpacePluginConfigAdmin)
-admin.site.register(OpenPluginSpaceGrant, OpenPluginSpaceGrantAdmin)
+admin.site.register(OpenPluginCatalogIndex, OpenPluginCatalogIndexAdmin)
+admin.site.register(SpaceOpenPluginAvailability, SpaceOpenPluginAvailabilityAdmin)

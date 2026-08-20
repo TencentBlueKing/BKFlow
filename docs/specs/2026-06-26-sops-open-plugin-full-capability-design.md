@@ -76,6 +76,8 @@ URL 中的存量 token 用于定位 `space/task/node/version`；入口收到开�
 
 ## 4. 两层空间准入
 
+> **本章第 1 层已于 2026-08-20 移除**，`OpenPluginSpaceGrant` 及其全部校验点、管理命令、迁移均已删除，V4 开放插件只保留第 2 层 `SpaceOpenPluginAvailability` 空间开关，且该开关的默认值同时由「新来源默认关」翻转为**默认开**（opt-out）。原因与移除后的完整管控链路见 [2026-08-20-open-plugin-remove-space-grant-design.md](./2026-08-20-open-plugin-remove-space-grant-design.md)。本章以下内容保留为历史设计记录。
+
 ### 4.1 第 1 层（平台级，新增）：来源准入
 
 平台管理员授权「哪些空间可接入标准运维开放来源」。新增轻量存储与管理 API：
