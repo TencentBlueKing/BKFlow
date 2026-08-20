@@ -235,11 +235,12 @@ class OpenPluginCatalogService:
                     "status": OpenPluginCatalogIndex.Status.AVAILABLE,
                 },
             )
+            # 只对首次入目录的插件生效，管理员手动关闭过的记录不会被同步覆盖。
             SpaceOpenPluginAvailability.objects.get_or_create(
                 space_id=space_id,
                 source_key=source_key,
                 plugin_id=api_item["id"],
-                defaults={"enabled": False},
+                defaults={"enabled": True},
             )
 
         OpenPluginCatalogIndex.objects.filter(space_id=space_id, source_key=source_key).exclude(
