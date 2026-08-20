@@ -381,7 +381,7 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     @swagger_auto_schema(method="get", operation_summary="获取所有空间配置元信息", query_serializer=SpaceConfigBaseQuerySerializer)
     @action(detail=False, methods=["GET"])
     def config_meta(self, request, *args, **kwargs):
-        configs = SpaceConfigHandler.get_all_configs()
+        configs = SpaceConfigHandler.get_all_configs(only_public=True)
         return Response({name: self.process_config(config.to_dict()) for name, config in configs.items()})
 
     @swagger_auto_schema(
