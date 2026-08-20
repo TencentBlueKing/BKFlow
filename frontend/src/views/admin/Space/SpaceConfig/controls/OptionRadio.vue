@@ -125,7 +125,7 @@
         examples: [
           { scene: '字符串比较', expr: '"${status}" == "success"' },
           { scene: '数值比较', expr: '${int(retry)} >= 3' },
-          { scene: '包含判断', expr: '"${env}"" in ("prod", "stage")' },
+          { scene: '包含判断', expr: '"${env}" in ("prod", "stage")' },
         ],
         tip: '前提：status / retry / env 为流程全局变量。',
         docText: 'Boolrule 表达式文档',
