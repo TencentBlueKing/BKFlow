@@ -18,7 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 from django.contrib import admin
 
-from bkflow.plugin.models import OpenPluginSpaceGrant, SpacePluginConfig
+from bkflow.plugin.models import SpacePluginConfig
 
 
 class SpacePluginConfigAdmin(admin.ModelAdmin):
@@ -27,12 +27,4 @@ class SpacePluginConfigAdmin(admin.ModelAdmin):
     ordering = ("-update_time",)
 
 
-class OpenPluginSpaceGrantAdmin(admin.ModelAdmin):
-    list_display = ("space_id", "source_key", "enabled", "operator", "create_time", "update_time")
-    list_filter = ("enabled", "source_key")
-    search_fields = ("space_id", "source_key", "operator")
-    ordering = ("-update_time",)
-
-
 admin.site.register(SpacePluginConfig, SpacePluginConfigAdmin)
-admin.site.register(OpenPluginSpaceGrant, OpenPluginSpaceGrantAdmin)

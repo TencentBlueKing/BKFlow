@@ -29,7 +29,6 @@ from bamboo_engine.builder import (
 from django.test import TestCase, override_settings
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.space.models import Space
 from bkflow.template.models import Template, TemplateSnapshot
 
@@ -141,36 +140,6 @@ class TestCreateTask(TestCase):
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
     @mock.patch("bkflow.apigw.views.create_task.TaskComponentClient")
-    def test_create_task_rejects_ungranted_open_plugin(self, mock_client_class):
-        """开放插件来源未准入时，不允许继续创建任务"""
-        pipeline_tree = build_open_plugin_pipeline_tree()
-        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_user", version="1.0.0")
-        template = Template.objects.create(
-            name="开放插件流程",
-            space_id=self.space.id,
-            snapshot_id=snapshot.id,
-            creator="test_user",
-        )
-        snapshot.template_id = template.id
-        snapshot.save()
-
-        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
-
-        data = {"template_id": template.id, "name": "测试任务", "creator": "test_user"}
-        url = "/apigw/space/{}/create_task/".format(self.space.id)
-        resp = self.client.post(path=url, data=json.dumps(data), content_type="application/json")
-
-        resp_data = json.loads(resp.content)
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp_data["result"], False)
-        self.assertEqual(resp_data["code"], 400)
-        self.assertIn("来源", resp_data["message"])
-        mock_client_class.return_value.create_task.assert_not_called()
-
-    @override_settings(
-        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
-    )
-    @mock.patch("bkflow.apigw.views.create_task.TaskComponentClient")
     def test_create_task_rejects_disabled_open_plugin(self, mock_client_class):
         """开放插件在空间未开启时，不允许继续创建任务"""
         pipeline_tree = build_open_plugin_pipeline_tree()
@@ -185,7 +154,6 @@ class TestCreateTask(TestCase):
         snapshot.save()
 
         create_open_plugin_catalog(space_id=self.space.id, enabled=False)
-        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
 
         data = {"template_id": template.id, "name": "测试任务", "creator": "test_user"}
         url = "/apigw/space/{}/create_task/".format(self.space.id)
@@ -247,8 +215,8 @@ class TestCreateTask(TestCase):
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
     @mock.patch("bkflow.apigw.views.create_task_by_app.TaskComponentClient")
-    def test_create_task_by_app_rejects_ungranted_open_plugin(self, mock_client_class):
-        """按应用建任务入口必须重新校验开放插件来源准入。"""
+    def test_create_task_by_app_rejects_disabled_open_plugin(self, mock_client_class):
+        """按应用建任务入口必须重新校验开放插件可用性。"""
         pipeline_tree = build_open_plugin_pipeline_tree()
         snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_user", version="1.0.0")
         template = Template.objects.create(
@@ -260,7 +228,7 @@ class TestCreateTask(TestCase):
         )
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
-        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        create_open_plugin_catalog(space_id=self.space.id, enabled=False)
         mock_client_class.return_value.create_task.return_value = {
             "result": True,
             "data": {"id": 1, "name": "测试任务", "template_id": template.id, "parameters": {}},
@@ -277,7 +245,7 @@ class TestCreateTask(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response_data["result"], False)
         self.assertEqual(response_data["code"], 400)
-        self.assertIn("来源", response_data["message"])
+        self.assertIn("未开放", response_data["message"])
         mock_client_class.return_value.create_task.assert_not_called()
 
     @override_settings(
@@ -363,9 +331,9 @@ class TestCreateTask(TestCase):
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
     @mock.patch("bkflow.apigw.views.create_task_without_template.TaskComponentClient")
-    def test_create_task_without_template_rejects_ungranted_open_plugin(self, mock_client_class):
-        """无模板创建入口必须校验开放插件来源准入。"""
-        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+    def test_create_task_without_template_rejects_disabled_open_plugin(self, mock_client_class):
+        """无模板创建入口必须校验开放插件可用性。"""
+        create_open_plugin_catalog(space_id=self.space.id, enabled=False)
         mock_client_class.return_value.create_task.return_value = {
             "result": True,
             "data": {"id": 1, "name": "测试任务", "parameters": {}},
@@ -388,7 +356,7 @@ class TestCreateTask(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp_data["result"], False)
         self.assertEqual(resp_data["code"], 400)
-        self.assertIn("来源", resp_data["message"])
+        self.assertIn("未开放", resp_data["message"])
         mock_client_class.return_value.create_task.assert_not_called()
 
     @override_settings(
@@ -403,7 +371,6 @@ class TestCreateTask(TestCase):
         pipeline_tree = build_open_plugin_pipeline_tree()
         activity_id = next(iter(pipeline_tree["activities"].keys()))
         create_open_plugin_catalog(space_id=self.space.id, enabled=True)
-        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
         mock_build_schema_snapshot.return_value = {activity_id: {"plugin_id": "open_plugin_001"}}
         mock_client = mock.Mock()
         mock_client.create_task.return_value = {
@@ -437,8 +404,8 @@ class TestCreateTask(TestCase):
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
     @mock.patch("bkflow.apigw.views.create_mock_task.TaskComponentClient")
-    def test_create_mock_task_rejects_ungranted_open_plugin(self, mock_client_class):
-        """APIGW Mock 创建入口必须校验开放插件来源准入。"""
+    def test_create_mock_task_rejects_disabled_open_plugin(self, mock_client_class):
+        """APIGW Mock 创建入口必须校验开放插件可用性。"""
         pipeline_tree = build_open_plugin_pipeline_tree()
         snapshot = TemplateSnapshot.create_snapshot(pipeline_tree=pipeline_tree, username="test_user", version="1.0.0")
         template = Template.objects.create(
@@ -446,7 +413,7 @@ class TestCreateTask(TestCase):
         )
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
-        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        create_open_plugin_catalog(space_id=self.space.id, enabled=False)
         mock_client_class.return_value.create_task.return_value = {
             "result": True,
             "data": {"id": 1, "name": "Mock任务", "template_id": template.id, "parameters": {}},
@@ -470,7 +437,7 @@ class TestCreateTask(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp_data["result"], False)
         self.assertEqual(resp_data["code"], 400)
-        self.assertIn("来源", resp_data["message"])
+        self.assertIn("未开放", resp_data["message"])
         mock_client_class.return_value.create_task.assert_not_called()
 
     @override_settings(
@@ -489,7 +456,6 @@ class TestCreateTask(TestCase):
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
         create_open_plugin_catalog(space_id=self.space.id, enabled=True)
-        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
         mock_build_schema_snapshot.return_value = {activity_id: {"plugin_id": "open_plugin_001"}}
         mock_client = mock.Mock()
         mock_client.create_task.return_value = {

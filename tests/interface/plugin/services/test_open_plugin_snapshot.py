@@ -8,7 +8,6 @@ from django.core.management import call_command
 from rest_framework import serializers
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.models import Space
 from bkflow.template.models import Template, TemplateSnapshot
@@ -112,17 +111,8 @@ def test_get_snapshot_node_statuses_marks_missing_catalog_as_unavailable():
 
 
 @pytest.mark.django_db
-def test_validate_rejects_when_source_not_granted():
+def test_validate_passes_for_enabled_available_plugin():
     create_available_open_plugin(space_id=1, enabled=True)
-
-    with pytest.raises(serializers.ValidationError, match="来源"):
-        OpenPluginSnapshotService.validate_pipeline_tree(space_id=1, pipeline_tree=build_open_plugin_pipeline_tree())
-
-
-@pytest.mark.django_db
-def test_validate_passes_when_source_granted():
-    create_available_open_plugin(space_id=1, enabled=True)
-    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
     OpenPluginSnapshotService.validate_pipeline_tree(space_id=1, pipeline_tree=build_open_plugin_pipeline_tree())
 
@@ -185,7 +175,6 @@ def test_validate_rejects_missing_exact_version_even_when_catalog_has_no_version
             }
         ],
     )
-    monkeypatch.setattr(OpenPluginGrantService, "is_granted", lambda *args, **kwargs: True)
 
     with pytest.raises(serializers.ValidationError, match="未指定精确版本"):
         OpenPluginSnapshotService.validate_pipeline_tree(space_id=1, pipeline_tree={})
@@ -234,7 +223,6 @@ def test_validate_for_start_uses_snapshot_without_pipeline_tree():
     """启动预检优先使用已有快照，不必再拉完整 pipeline_tree。"""
 
     create_available_open_plugin(space_id=1, enabled=True)
-    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
     snapshot = [
         {
             "node_id": "node1",
@@ -248,10 +236,10 @@ def test_validate_for_start_uses_snapshot_without_pipeline_tree():
 
 
 @pytest.mark.django_db
-def test_validate_for_start_rejects_ungranted_snapshot():
-    """快照预检同样要求来源已准入。"""
+def test_validate_for_start_rejects_disabled_snapshot():
+    """快照预检要求插件在当前空间已开放。"""
 
-    create_available_open_plugin(space_id=1, enabled=True)
+    create_available_open_plugin(space_id=1, enabled=False)
     snapshot = [
         {
             "node_id": "node1",
@@ -261,7 +249,7 @@ def test_validate_for_start_rejects_ungranted_snapshot():
         }
     ]
 
-    with pytest.raises(serializers.ValidationError, match="来源"):
+    with pytest.raises(serializers.ValidationError, match="未开放"):
         OpenPluginSnapshotService.validate_for_start(space_id=1, snapshot=snapshot, pipeline_tree=None)
 
 
@@ -315,10 +303,9 @@ def test_collect_plugin_references_recognizes_legacy_saved_open_plugin_metadata(
 
 @pytest.mark.django_db
 def test_validate_rejects_when_plugin_version_not_in_catalog_versions():
-    """开放插件已准入且已开启时，仍要拒绝已从目录版本列表移除的业务版本。"""
+    """开放插件已开启时，仍要拒绝已从目录版本列表移除的业务版本。"""
 
     create_available_open_plugin(space_id=1, enabled=True)
-    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
     with pytest.raises(serializers.ValidationError, match="版本"):
         OpenPluginSnapshotService.validate_pipeline_tree(
@@ -332,7 +319,6 @@ def test_validate_rejects_when_saved_open_plugin_has_no_exact_version():
     """已保存的 V4 节点缺少业务版本时，不应静默回退目录默认版本。"""
 
     create_available_open_plugin(space_id=1, enabled=True)
-    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
     with pytest.raises(serializers.ValidationError, match="未指定精确版本"):
         OpenPluginSnapshotService.validate_pipeline_tree(
@@ -522,7 +508,6 @@ def create_catalog_plugin(
         plugin_id=plugin_id,
         enabled=True,
     )
-    OpenPluginGrantService.grant(space_id=space_id, source_key=source_key, operator="admin")
 
 
 @pytest.mark.django_db

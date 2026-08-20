@@ -33,7 +33,6 @@ from bkflow.pipeline_plugins.query.uniform_api.utils import (
 from bkflow.pipeline_plugins.query.utils import query_response_handler
 from bkflow.plugin.models import OpenPluginCatalogIndex
 from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
     UniformAPICatalogMode,
@@ -154,12 +153,6 @@ def _get_api_credential(
 def _extract_plugin_source(url):
     plugin_sources = parse_qs(urlsplit(url).query).get("plugin_source", [])
     return plugin_sources[-1] if plugin_sources else None
-
-
-def _empty_catalog_data(config_key):
-    if config_key == UniformApiConfig.Keys.API_CATEGORIES.value:
-        return []
-    return {"total": 0, "apis": []}
 
 
 def _attach_source_key(response_data, config_key, source_key):
@@ -310,8 +303,6 @@ def _get_space_uniform_api_list_info(
         raise ValidationError("对应API未配置, 请联系对应接入平台管理员")
 
     source_key = api_entry.source_key or api_name
-    if not OpenPluginGrantService.is_granted(space_id=space_id, source_key=source_key):
-        return _empty_catalog_data(config_key)
 
     if api_entry.catalog_mode == UniformAPICatalogMode.REMOTE:
         response_data = _request_remote_uniform_api_data(
@@ -358,13 +349,6 @@ def _get_space_uniform_api_list_info(
     )
     _dispatch_catalog_sync(space_id=space_id, source_key=source_key)
     return _attach_source_key(response_data, config_key, source_key)
-
-
-def _validate_open_plugin_meta_source(space_id, source_key, meta_url_template):
-    if not meta_url_template:
-        return
-    if not OpenPluginGrantService.is_granted(space_id=space_id, source_key=source_key):
-        raise ValidationError("开放插件来源 [{}] 未准入当前空间".format(source_key))
 
 
 @swagger_auto_schema(methods=["GET"], query_serializer=UniformAPICategorySerializer)
@@ -425,12 +409,7 @@ def get_space_uniform_api_meta(requests, space_id):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
     meta_url_template = data.pop("meta_url_template", "")
-    source_key = data.pop("source_key", "")
-    _validate_open_plugin_meta_source(
-        space_id=space_id,
-        source_key=source_key,
-        meta_url_template=meta_url_template,
-    )
+    data.pop("source_key", "")
     meta_url = resolve_meta_url(
         meta_url=data.pop("meta_url", ""),
         meta_url_template=meta_url_template,

@@ -99,8 +99,8 @@ def test_prepare_engine_task_extra_info_raises_when_interface_fails(mocker):
     mock_client = mocker.patch("bkflow.task.open_plugin_snapshots.InterfaceModuleClient")
     mock_client.return_value.build_open_plugin_snapshots.return_value = {
         "result": False,
-        "message": "开放插件来源 [sops] 未对当前空间准入",
+        "message": "开放插件 [open_plugin_001] 在当前空间未开放",
     }
 
-    with pytest.raises(ValidationError, match="未对当前空间准入"):
+    with pytest.raises(ValidationError, match="在当前空间未开放"):
         prepare_engine_task_extra_info(space_id=1, pipeline_tree=build_v4_pipeline_tree(), extra_info={})
