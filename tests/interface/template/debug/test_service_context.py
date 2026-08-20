@@ -128,7 +128,8 @@ class TestDebugServiceContext:
 
         assert DebugNodeState.objects.get(debug_context=ctx, node_id="EG").node_type == "ExclusiveGateway"
 
-    def test_sync_node_states_includes_only_debuggable_gateways(self):
+    def test_sync_node_states_includes_all_gateway_types(self):
+        """全局调试上下文应保留所有网关节点的状态。"""
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=GATEWAY_PIPELINE)
         ctx = svc.sync_node_states()
 
@@ -139,7 +140,13 @@ class TestDebugServiceContext:
             )
         }
 
-        assert states == {"A": "ServiceActivity", "EG": "ExclusiveGateway", "CPG": "ConditionalParallelGateway"}
+        assert states == {
+            "A": "ServiceActivity",
+            "EG": "ExclusiveGateway",
+            "CPG": "ConditionalParallelGateway",
+            "PG": "ParallelGateway",
+            "CG": "ConvergeGateway",
+        }
 
     def test_input_schema_excludes_hidden(self):
         tree = {
@@ -159,6 +166,7 @@ class TestDebugServiceContext:
         assert [n["node_id"] for n in view["nodes"]] == ["A", "B"]  # 按 node_id 排序
         node_a = view["nodes"][0]
         assert node_a["execution_mode"] == "real"
+        assert node_a["supports_step"] is True
         assert node_a["supports_mock"] is True
         assert node_a["mock_result"] is None  # real 模式不返回 mock_result
         assert node_a["mock_outputs"] is None
@@ -193,13 +201,23 @@ class TestDebugServiceContext:
             },
         )
 
-        gateway = next(node for node in svc.build_context_view()["nodes"] if node["node_id"] == "EG")
+        nodes = {node["node_id"]: node for node in svc.build_context_view()["nodes"]}
+        gateway = nodes["EG"]
 
         assert gateway["execution_mode"] == "real"
+        assert gateway["supports_step"] is True
         assert gateway["supports_mock"] is False
         assert gateway["mock_result"] is None
         assert gateway["selected_flow_ids"] == ["flow_positive"]
         assert gateway["condition_results"][0]["matched"] is True
+        assert nodes["CPG"]["supports_step"] is True
+        assert nodes["CPG"]["supports_mock"] is False
+        assert nodes["PG"]["supports_step"] is False
+        assert nodes["PG"]["supports_mock"] is False
+        assert nodes["PG"]["can_step"] is False
+        assert nodes["CG"]["supports_step"] is False
+        assert nodes["CG"]["supports_mock"] is False
+        assert nodes["CG"]["can_step"] is False
 
     def test_build_context_view_returns_mock_outputs_for_success_preset(self):
         """mock 成功预设刷新后应能回填保存的输出"""

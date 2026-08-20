@@ -69,6 +69,26 @@ PIPELINE_GATEWAY = {
     },
 }
 
+PIPELINE_ADDITIONAL_GATEWAYS = {
+    "activities": {},
+    "flows": {
+        "flow_conditional": {"id": "flow_conditional", "source": "CPG", "target": "PG"},
+        "flow_default": {"id": "flow_default", "source": "CPG", "target": "PG"},
+    },
+    "gateways": {
+        "CPG": {
+            "id": "CPG",
+            "type": "ConditionalParallelGateway",
+            "conditions": {"flow_conditional": {"name": "matched", "evaluate": "1 == 1"}},
+            "default_condition": {"flow_id": "flow_default"},
+            "extra_info": {"parse_lang": "boolrule"},
+        },
+        "PG": {"id": "PG", "type": "ParallelGateway"},
+        "CG": {"id": "CG", "type": "ConvergeGateway"},
+    },
+    "constants": {},
+}
+
 
 @pytest.mark.django_db
 class TestSyncFromDebugTask:
@@ -388,6 +408,121 @@ class TestSyncFromDebugTask:
         assert gateway.outputs["selected_flow_ids"] == ["flow_positive"]
         assert gateway.outputs["condition_results"][0]["matched"] is True
         assert gateway.log_ref == {"instance_id": 456, "node_id": "rt_gateway", "version": "v1"}
+
+    def test_sync_global_run_persists_additional_gateway_states(self, mocker):
+        """全局调试应回写条件并行、并行、汇聚网关的状态、耗时和日志引用。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE_ADDITIONAL_GATEWAYS)
+        ctx = svc.sync_node_states()
+        ctx.status = "running"
+        ctx.active_task_id = 456
+        ctx.active_run_type = "global"
+        ctx.last_run_status = "running"
+        ctx.save()
+
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {
+                "state": "FINISHED",
+                "children": {
+                    "rt_conditional": {"state": "FINISHED", "elapsed_time": 0.1},
+                    "rt_parallel": {"state": "FINISHED", "elapsed_time": 0.2},
+                    "rt_converge": {"state": "FINISHED", "elapsed_time": 0.3},
+                },
+            },
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {
+            "result": True,
+            "data": {"CPG": "rt_conditional", "PG": "rt_parallel", "CG": "rt_converge"},
+            "message": "",
+        }
+        client.get_task_node_detail.return_value = {
+            "result": True,
+            "data": {"outputs": [], "version": "v1"},
+            "message": "",
+        }
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+
+        states = {
+            state.node_id: state
+            for state in DebugNodeState.objects.filter(debug_context=ctx, node_id__in=("CPG", "PG", "CG"))
+        }
+        assert states["CPG"].status == "finished"
+        assert states["CPG"].duration_ms == 100
+        assert states["CPG"].outputs["selected_flow_ids"] == ["flow_conditional"]
+        assert states["CPG"].log_ref == {"instance_id": 456, "node_id": "rt_conditional", "version": "v1"}
+        assert states["PG"].status == "finished"
+        assert states["PG"].duration_ms == 200
+        assert states["PG"].log_ref == {"instance_id": 456, "node_id": "rt_parallel", "version": "v1"}
+        assert states["CG"].status == "finished"
+        assert states["CG"].duration_ms == 300
+        assert states["CG"].log_ref == {"instance_id": 456, "node_id": "rt_converge", "version": "v1"}
+
+    @pytest.mark.parametrize(
+        ("active_child", "expected_status"),
+        [
+            ({"state": "RUNNING", "elapsed_time": 0.5}, "running"),
+            ({"state": "RUNNING", "elapsed_time": 0.5, "schedule_type": "POLL"}, "waiting"),
+            ({"state": "SUSPENDED", "elapsed_time": 0.5}, "paused"),
+        ],
+        ids=["running", "waiting", "paused"],
+    )
+    def test_sync_global_run_persists_control_gateway_failed_and_active_states(
+        self, mocker, active_child, expected_status
+    ):
+        """控制网关失败时仍有活动分支，应保留调试上下文和节点状态。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE_ADDITIONAL_GATEWAYS)
+        ctx = svc.sync_node_states()
+        ctx.status = "running"
+        ctx.active_task_id = 456
+        ctx.active_run_type = "global"
+        ctx.last_run_status = "running"
+        ctx.save()
+
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {
+                "state": "FAILED",
+                "children": {
+                    "rt_parallel": {"state": "FAILED", "elapsed_time": 0.4},
+                    "rt_converge": active_child,
+                },
+                "ex_data": {},
+            },
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {
+            "result": True,
+            "data": {"PG": "rt_parallel", "CG": "rt_converge"},
+            "message": "",
+        }
+        client.get_task_node_detail.return_value = {
+            "result": True,
+            "data": {"ex_data": "parallel gateway failed", "outputs": [], "version": "v2"},
+            "message": "",
+        }
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+
+        parallel = DebugNodeState.objects.get(debug_context=ctx, node_id="PG")
+        converge = DebugNodeState.objects.get(debug_context=ctx, node_id="CG")
+        assert parallel.status == "failed"
+        assert parallel.duration_ms == 400
+        assert parallel.error_detail == {"type": "runtime", "message": "parallel gateway failed"}
+        assert parallel.log_ref == {"instance_id": 456, "node_id": "rt_parallel", "version": "v2"}
+        assert converge.status == expected_status
+        assert converge.duration_ms == 500
+        assert converge.error_detail == {}
+        assert converge.log_ref == {}
+        ctx.refresh_from_db()
+        assert ctx.status == "running"
+        assert ctx.active_task_id == 456
+        assert ctx.last_run_status == expected_status
 
     def test_sync_returns_early_when_node_id_map_fails(self, mocker):
         """id_map 调用失败：不回写、不释放锁，结束结果可在下次重试"""

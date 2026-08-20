@@ -105,11 +105,7 @@ class DebugService:
         """按当前 pipeline_tree 增删 DebugNodeState；保留已存在节点的配置与运行态。"""
         ctx = self.get_or_create_context()
         activities = self.pipeline_tree.get("activities", {})
-        gateways = {
-            node_id: gateway
-            for node_id, gateway in self.pipeline_tree.get("gateways", {}).items()
-            if gateway.get("type") in DEBUGGABLE_GATEWAY_TYPES
-        }
+        gateways = self.pipeline_tree.get("gateways", {})
         debug_nodes = {**activities, **gateways}
         existing = {ns.node_id: ns for ns in DebugNodeState.objects.filter(debug_context=ctx)}
         tree_node_ids = set(debug_nodes)
@@ -187,6 +183,9 @@ class DebugService:
         gateway = self.pipeline_tree.get("gateways", {}).get(node_id) or {}
         return gateway.get("type") in DEBUGGABLE_GATEWAY_TYPES
 
+    def _is_gateway(self, node_id):
+        return node_id in self.pipeline_tree.get("gateways", {})
+
     def build_context_view(self) -> dict:
         ctx = self.sync_node_states()
         self.sync_from_debug_task(ctx)
@@ -194,13 +193,15 @@ class DebugService:
         node_views = []
         for ns in DebugNodeState.objects.filter(debug_context=ctx).order_by("node_id"):
             can_step, missing = self.compute_can_step(ctx, ns.node_id)
-            is_gateway = self._is_debuggable_gateway(ns.node_id)
+            is_gateway = self._is_gateway(ns.node_id)
+            supports_step = not is_gateway or self._is_debuggable_gateway(ns.node_id)
             gateway_result = (ns.outputs or {}) if is_gateway else {}
             node_views.append(
                 {
                     "node_id": ns.node_id,
                     "node_type": ns.node_type,
                     "execution_mode": "real" if is_gateway else ns.execution_mode,
+                    "supports_step": supports_step,
                     "supports_mock": not is_gateway,
                     "mock_result": ns.mock_result if not is_gateway and ns.execution_mode == "mock" else None,
                     "mock_outputs": (
@@ -648,6 +649,13 @@ class DebugService:
             ns.save()
 
         engine_state = data.get("state")
+        active_child_statuses = []
+        for child in children.values():
+            child_status, _ = self._debug_node_status(child)
+            if child_status in ("running", "waiting", "paused"):
+                active_child_statuses.append(child_status)
+        # 任务状态接口会在任一子节点失败时把仍在运行的根任务投影为 FAILED；此时任务尚未真正静止。
+        failed_with_active_children = engine_state == "FAILED" and bool(active_child_statuses)
         if engine_state == "REVOKED":
             active_node_ids = DebugNodeState.objects.filter(
                 debug_context=ctx,
@@ -665,7 +673,14 @@ class DebugService:
                     runtime_errors[runtime_id] = ddata["ex_data"]
         ctx.last_task_id = task_id
         ctx.last_run_type = ctx.active_run_type or ctx.last_run_type or "global"
-        if engine_state in ENGINE_RUN_STATE_MAP:
+        if failed_with_active_children:
+            if "paused" in active_child_statuses:
+                ctx.last_run_status = "paused"
+            elif "waiting" in active_child_statuses:
+                ctx.last_run_status = "waiting"
+            else:
+                ctx.last_run_status = "running"
+        elif engine_state in ENGINE_RUN_STATE_MAP:
             ctx.last_run_status = ENGINE_RUN_STATE_MAP[engine_state]
         elif engine_state in ("NODE_SUSPENDED", "SUSPENDED") or "paused" in observed_statuses:
             ctx.last_run_status = "paused"
@@ -688,7 +703,7 @@ class DebugService:
                 "last_error_detail",
             ]
         )
-        if engine_state in ENGINE_FINISHED_STATES:
+        if engine_state in ENGINE_FINISHED_STATES and not failed_with_active_children:
             self._release_lock(ctx, status="idle")
 
     # ---- 重置 / 终止 / 历史 ----
@@ -872,8 +887,9 @@ class DebugService:
             ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
         except DebugNodeState.DoesNotExist:
             raise DebugStateError({"detail": "节点不存在", "node_id": node_id})
-        if self._is_debuggable_gateway(node_id):
-            raise DebugStateError("条件网关不支持 Mock")
+        if self._is_gateway(node_id):
+            message = "条件网关不支持 Mock" if self._is_debuggable_gateway(node_id) else "网关节点不支持 Mock"
+            raise DebugStateError(message)
         if enable:
             ns.execution_mode = "mock"
             ns.mock_result = mock_result
@@ -914,6 +930,8 @@ class DebugService:
             raise DebugStateError({"detail": "节点不存在", "node_id": node_id})
         effective_mode = mode or ns.execution_mode
 
+        if self._is_gateway(node_id) and not self._is_debuggable_gateway(node_id):
+            raise DebugStateError("网关节点不支持单步调试")
         if self._is_debuggable_gateway(node_id):
             if effective_mode == "mock":
                 raise DebugStateError("条件网关不支持 Mock")
