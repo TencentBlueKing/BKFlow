@@ -284,7 +284,7 @@ class PluginDetailService:
         )
 
     def _get_uniform_api_detail(self, plugin_code, plugin_version, source_key):
-        """构建通过本地目录准入校验的 uniform_api 详情。"""
+        """构建通过本地目录可用性校验的 uniform_api 详情。"""
         schema_service = PluginSchemaService(
             space_id=self.space_id,
             username=self.operator,
@@ -300,7 +300,7 @@ class PluginDetailService:
             )
         except ValueError as exc:
             message = str(exc)
-            if "未准入" in message or "未开放" in message:
+            if "未开放" in message:
                 raise PermissionDenied(message) from exc
             raise NotFound(message) from exc
 

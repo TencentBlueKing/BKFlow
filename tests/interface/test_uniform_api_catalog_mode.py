@@ -52,7 +52,7 @@ def build_cached_plugin(
     }
 
 
-def configure_query(catalog_mode, client, catalog_service, grant_service):
+def configure_query(catalog_mode, client, catalog_service):
     return (
         patch(
             "bkflow.space.models.SpaceConfig.get_config",
@@ -60,7 +60,6 @@ def configure_query(catalog_mode, client, catalog_service, grant_service):
         ),
         patch.object(uniform_api_query, "UniformAPIClient", return_value=client),
         patch.object(uniform_api_query, "OpenPluginCatalogService", catalog_service, create=True),
-        patch.object(uniform_api_query, "OpenPluginGrantService", grant_service, create=True),
     )
 
 
@@ -124,11 +123,9 @@ def test_remote_mode_preserves_remote_query():
     remote_data = {"total": 1, "apis": [{"id": "builtin__job_execute_task"}]}
     client.request.return_value = MagicMock(result=True, json_resp={"data": remote_data})
     catalog_service = MagicMock()
-    grant_service = MagicMock()
-    grant_service.is_granted.return_value = True
-    patches = configure_query("remote", client, catalog_service, grant_service)
+    patches = configure_query("remote", client, catalog_service)
 
-    with patches[0], patches[1], patches[2], patches[3], patch.object(
+    with patches[0], patches[1], patches[2], patch.object(
         uniform_api_query,
         "_get_api_credential",
         return_value={"bk_app_code": "app", "bk_app_secret": "secret"},
@@ -149,17 +146,19 @@ def test_remote_mode_preserves_remote_query():
     catalog_service.is_catalog_initialized.assert_not_called()
 
 
-def test_default_remote_mode_hides_ungranted_source_without_remote_request():
-    """默认 remote 模式也必须先执行平台来源准入校验。"""
+def test_default_mode_queries_remote_without_extra_admission():
+    """未显式配置 catalog_mode 的存量空间必须照常直连远端取列表。"""
     client = MagicMock()
+    remote_data = {"total": 1, "apis": [{"id": "builtin__job_execute_task"}]}
+    client.request.return_value = MagicMock(result=True, json_resp={"data": remote_data})
     catalog_service = MagicMock()
-    grant_service = MagicMock()
-    grant_service.is_granted.return_value = False
-    patches = configure_query(None, client, catalog_service, grant_service)
+    patches = configure_query(None, client, catalog_service)
 
-    with patches[0], patches[1], patches[2], patches[3], patch.object(
-        uniform_api_query, "_get_api_credential"
-    ) as mock_get_credential:
+    with patches[0], patches[1], patches[2], patch.object(
+        uniform_api_query,
+        "_get_api_credential",
+        return_value={"bk_app_code": "app", "bk_app_secret": "secret"},
+    ):
         result = uniform_api_query._get_space_uniform_api_list_info(
             space_id=1,
             request_data={"api_name": "sops_builtin", "limit": 50, "offset": 0},
@@ -168,11 +167,12 @@ def test_default_remote_mode_hides_ungranted_source_without_remote_request():
             template_id=1,
         )
 
-    assert result == {"total": 0, "apis": []}
-    grant_service.is_granted.assert_called_once_with(space_id=1, source_key="sops")
-    mock_get_credential.assert_not_called()
+    assert result == {
+        "total": 1,
+        "apis": [{"id": "builtin__job_execute_task", "source_key": "sops"}],
+    }
+    client.request.assert_called_once()
     catalog_service.is_catalog_initialized.assert_not_called()
-    client.request.assert_not_called()
 
 
 def test_open_plugin_meta_requires_source_key():
@@ -189,30 +189,14 @@ def test_open_plugin_meta_requires_source_key():
     assert "source_key" in str(serializer.errors)
 
 
-def test_open_plugin_meta_rejects_ungranted_source_without_remote_request():
-    """开放插件详情入口必须在远端请求前校验来源准入。"""
-    with patch.object(
-        uniform_api_query.OpenPluginGrantService, "is_granted", return_value=False
-    ) as mock_is_granted, pytest.raises(ValidationError, match="未准入"):
-        uniform_api_query._validate_open_plugin_meta_source(
-            space_id=1,
-            source_key="sops",
-            meta_url_template="https://bk-sops.example/plugins/{version}/",
-        )
-
-    mock_is_granted.assert_called_once_with(space_id=1, source_key="sops")
-
-
 def test_cache_first_uses_initialized_cache_without_remote_request():
     client = MagicMock()
     catalog_service = MagicMock()
     catalog_service.is_catalog_initialized.return_value = True
     catalog_service.list_space_plugins.return_value = [build_cached_plugin()]
-    grant_service = MagicMock()
-    grant_service.is_granted.return_value = True
-    patches = configure_query("cache_first", client, catalog_service, grant_service)
+    patches = configure_query("cache_first", client, catalog_service)
 
-    with patches[0], patches[1], patches[2], patches[3], patch.object(
+    with patches[0], patches[1], patches[2], patch.object(
         uniform_api_query, "_get_request_scope", create=True
     ) as mock_get_scope, patch.object(uniform_api_query, "_get_api_credential") as mock_get_credential:
         result = uniform_api_query._get_space_uniform_api_list_info(
@@ -241,13 +225,9 @@ def test_cache_first_does_not_fallback_for_filtered_empty_result():
     catalog_service = MagicMock()
     catalog_service.is_catalog_initialized.return_value = True
     catalog_service.list_space_plugins.return_value = [build_cached_plugin(category="JOB")]
-    grant_service = MagicMock()
-    grant_service.is_granted.return_value = True
-    patches = configure_query("cache_first", client, catalog_service, grant_service)
+    patches = configure_query("cache_first", client, catalog_service)
 
-    with patches[0], patches[1], patches[2], patches[3], patch.object(
-        uniform_api_query, "_get_request_scope", create=True
-    ):
+    with patches[0], patches[1], patches[2], patch.object(uniform_api_query, "_get_request_scope", create=True):
         result = uniform_api_query._get_space_uniform_api_list_info(
             space_id=1,
             request_data={"api_name": "sops_builtin", "category": "CC", "limit": 50, "offset": 0},
@@ -266,11 +246,9 @@ def test_cache_first_falls_back_to_remote_and_requests_sync_when_uninitialized()
     client.request.return_value = MagicMock(result=True, json_resp={"data": remote_data})
     catalog_service = MagicMock()
     catalog_service.is_catalog_initialized.return_value = False
-    grant_service = MagicMock()
-    grant_service.is_granted.return_value = True
-    patches = configure_query("cache_first", client, catalog_service, grant_service)
+    patches = configure_query("cache_first", client, catalog_service)
 
-    with patches[0], patches[1], patches[2], patches[3], patch.object(
+    with patches[0], patches[1], patches[2], patch.object(
         uniform_api_query,
         "_get_api_credential",
         return_value={"bk_app_code": "app", "bk_app_secret": "secret"},
@@ -294,11 +272,9 @@ def test_cache_only_rejects_uninitialized_catalog_without_remote_request():
     client = MagicMock()
     catalog_service = MagicMock()
     catalog_service.is_catalog_initialized.return_value = False
-    grant_service = MagicMock()
-    grant_service.is_granted.return_value = True
-    patches = configure_query("cache_only", client, catalog_service, grant_service)
+    patches = configure_query("cache_only", client, catalog_service)
 
-    with patches[0], patches[1], patches[2], patches[3], patch.object(
+    with patches[0], patches[1], patches[2], patch.object(
         uniform_api_query, "_get_request_scope", create=True
     ), pytest.raises(ValidationError, match="目录缓存未初始化"):
         uniform_api_query._get_space_uniform_api_list_info(
@@ -309,29 +285,6 @@ def test_cache_only_rejects_uninitialized_catalog_without_remote_request():
             template_id=1,
         )
 
-    client.request.assert_not_called()
-
-
-def test_cache_first_ungranted_source_does_not_fallback_to_remote():
-    client = MagicMock()
-    catalog_service = MagicMock()
-    grant_service = MagicMock()
-    grant_service.is_granted.return_value = False
-    patches = configure_query("cache_first", client, catalog_service, grant_service)
-
-    with patches[0], patches[1], patches[2], patches[3], patch.object(
-        uniform_api_query, "_get_request_scope", create=True
-    ):
-        result = uniform_api_query._get_space_uniform_api_list_info(
-            space_id=1,
-            request_data={"api_name": "sops_builtin", "limit": 50, "offset": 0},
-            config_key=LIST_KEY,
-            username="dannydeng",
-            template_id=1,
-        )
-
-    assert result == {"total": 0, "apis": []}
-    catalog_service.is_catalog_initialized.assert_not_called()
     client.request.assert_not_called()
 
 

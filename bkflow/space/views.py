@@ -43,7 +43,6 @@ from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
 from bkflow.exceptions import APIRequestError
 from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
     SpaceConfigHandler,
@@ -370,7 +369,6 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     queryset = SpaceConfig.objects.all()
     serializer_class = SpaceConfigSerializer
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
-    EXEMPT_STATUS_CODES = SimpleGenericViewSet.EXEMPT_STATUS_CODES | {status.HTTP_400_BAD_REQUEST}
 
     def list(self, request, *args, **kwargs):
         if not request.user.is_superuser:
@@ -382,11 +380,6 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         if not config_dict.get("default_value"):
             config_dict["default_value"] = None
         return config_dict
-
-    def _reject_ungranted_open_plugin_source(self, space_id, source_key):
-        if OpenPluginGrantService.is_granted(space_id=space_id, source_key=source_key):
-            return None
-        return Response({"detail": "开放插件来源未准入: {}".format(source_key)}, status=status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(method="get", operation_summary="获取所有空间配置元信息", query_serializer=SpaceConfigBaseQuerySerializer)
     @action(detail=False, methods=["GET"])
@@ -423,21 +416,13 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     def list_open_plugins(self, request, *args, **kwargs):
         ser = SpaceOpenPluginListQuerySerializer(data=request.query_params)
         ser.is_valid(raise_exception=True)
-        plugins = OpenPluginCatalogService.list_space_plugins(**ser.validated_data)
-        for plugin in plugins:
-            plugin["granted"] = True
-        return Response(plugins)
+        return Response(OpenPluginCatalogService.list_space_plugins(**ser.validated_data))
 
     @swagger_auto_schema(method="post", operation_summary="切换空间开放插件状态", request_body=SpaceOpenPluginToggleSerializer)
     @action(detail=False, methods=["POST"], url_path="open_plugins/toggle")
     def toggle_open_plugin(self, request, *args, **kwargs):
         ser = SpaceOpenPluginToggleSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        ungranted_response = self._reject_ungranted_open_plugin_source(
-            space_id=ser.validated_data["space_id"], source_key=ser.validated_data["source_key"]
-        )
-        if ungranted_response:
-            return ungranted_response
         availability = OpenPluginCatalogService.toggle_plugin(**ser.validated_data)
         return Response(
             {
@@ -457,12 +442,6 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     def enable_all_open_plugins(self, request, *args, **kwargs):
         ser = SpaceOpenPluginBulkActionSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        if ser.validated_data.get("source_key"):
-            ungranted_response = self._reject_ungranted_open_plugin_source(
-                space_id=ser.validated_data["space_id"], source_key=ser.validated_data["source_key"]
-            )
-            if ungranted_response:
-                return ungranted_response
         updated = OpenPluginCatalogService.enable_all_visible_plugins(**ser.validated_data)
         return Response({"updated_count": len(updated)})
 
@@ -475,11 +454,6 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     def disable_source_open_plugins(self, request, *args, **kwargs):
         ser = SpaceOpenPluginDisableSourceSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        ungranted_response = self._reject_ungranted_open_plugin_source(
-            space_id=ser.validated_data["space_id"], source_key=ser.validated_data["source_key"]
-        )
-        if ungranted_response:
-            return ungranted_response
         OpenPluginCatalogService.disable_source_plugins(**ser.validated_data)
         return Response({"source_key": ser.validated_data["source_key"], "enabled": False})
 

@@ -22,7 +22,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
 from bkflow.utils.api_client import HttpRequestResult
 
@@ -388,7 +387,6 @@ class TestUniformApiPlugins:
             plugin_id="open_plugin_001",
             enabled=True,
         )
-        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
         service = PluginSchemaService(space_id=1)
         results = service._list_uniform_api_plugins()
@@ -401,40 +399,6 @@ class TestUniformApiPlugins:
         assert results[0]["plugin_code"] == "job_execute_task"
         assert results[0]["wrapper_version"] == "v4.0.0"
         assert results[0]["source_key"] == "sops"
-
-    @pytest.mark.django_db
-    @patch("bkflow.plugin.services.plugin_schema_service.cache")
-    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
-    def test_list_uniform_api_plugins_filters_ungranted_catalog_entry(self, mock_sc, mock_cache):
-        """测试开放插件来源未准入时不出现在查询结果中"""
-        mock_cache.get.return_value = None
-        mock_sc.get_config.return_value = None
-
-        OpenPluginCatalogIndex.objects.create(
-            space_id=1,
-            source_key="sops",
-            plugin_id="open_plugin_001",
-            plugin_code="job_execute_task",
-            plugin_name="JOB 执行作业",
-            plugin_source="builtin",
-            group_name="作业平台",
-            wrapper_version="v4.0.0",
-            default_version="1.2.0",
-            latest_version="1.3.0",
-            versions=["1.2.0", "1.3.0"],
-            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
-            status="available",
-        )
-        SpaceOpenPluginAvailability.objects.create(
-            space_id=1,
-            source_key="sops",
-            plugin_id="open_plugin_001",
-            enabled=True,
-        )
-
-        service = PluginSchemaService(space_id=1)
-
-        assert service._list_uniform_api_plugins() == []
 
     @pytest.mark.django_db
     @patch("bkflow.plugin.services.plugin_schema_service.cache")
@@ -543,7 +507,6 @@ class TestUniformApiPlugins:
             plugin_id="open_plugin_001",
             enabled=True,
         )
-        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
         service = PluginSchemaService(space_id=1)
         results = service._list_uniform_api_plugins()
@@ -609,7 +572,6 @@ class TestUniformApiPlugins:
             plugin_id="sops_execute",
             enabled=False,
         )
-        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
         service = PluginSchemaService(space_id=1)
         schema = service._get_uniform_api_schema("sops_execute")
@@ -624,7 +586,6 @@ class TestUniformApiPlugins:
         """plugin_source 只返回匹配的 V4 开放插件。"""
         mock_cache.get.return_value = None
         mock_sc.get_config.return_value = None
-        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
         for plugin_id, plugin_source in (("open_builtin", "builtin"), ("open_third", "third_party")):
             OpenPluginCatalogIndex.objects.create(
                 space_id=1,
@@ -687,7 +648,6 @@ class TestUniformApiPlugins:
             plugin_id="open_plugin_001",
             enabled=True,
         )
-        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
         mock_client = MagicMock()
         mock_client.request.return_value = uniform_meta_result(
@@ -750,7 +710,6 @@ class TestUniformApiPlugins:
             plugin_id="open_plugin_001",
             enabled=True,
         )
-        OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
         service = PluginSchemaService(space_id=1, username="admin")
         with pytest.raises(ValueError, match="版本"):
@@ -867,7 +826,6 @@ class TestCaching:
                 plugin_id="open_plugin_001",
                 enabled=True,
             )
-            OpenPluginGrantService.grant(space_id=1, source_key=source_key, operator="admin")
 
         mock_client = MagicMock()
         mock_client.request.side_effect = [
@@ -985,7 +943,6 @@ def test_get_uniform_api_schema_does_not_cache_invalid_provider_meta(
         plugin_id="open_plugin_001",
         enabled=True,
     )
-    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
     mock_client_cls.return_value.request.return_value = meta_result
 
     service = PluginSchemaService(space_id=1, username="admin")

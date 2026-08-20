@@ -235,8 +235,9 @@ class TestGetPluginSchemaView(SimpleTestCase):
 
 @pytest.mark.django_db
 @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
-def test_get_plugin_schema_rejects_ungranted_uniform_api_source():
+def test_get_plugin_schema_rejects_disabled_uniform_api_source():
     create_open_plugin_catalog(space_id=1, source_key="sops")
+    SpaceOpenPluginAvailability.objects.filter(space_id=1, source_key="sops").update(enabled=False)
 
     factory = RequestFactory()
     request = factory.get("/space/1/get_plugin_schema/", {"code": "open_plugin_001", "plugin_type": "uniform_api"})
@@ -245,4 +246,4 @@ def test_get_plugin_schema_rejects_ungranted_uniform_api_source():
 
     data = json.loads(response.content)
     assert data["result"] is False
-    assert "来源未准入" in data["message"]
+    assert "未开放" in data["message"]
