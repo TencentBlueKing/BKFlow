@@ -505,7 +505,7 @@
         if (this.isIframe) {
             return this.$route.query.useCanvasEditor === 'true';
         }
-        return false;
+        return true;
       },
       canvasData() {
         const { line, location, activities } = { ... tools.deepClone(this.instanceFlow) };
@@ -2271,6 +2271,8 @@
 }
 .node-info-panel {
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
     .operation-flow, .wehhook-callback{
         padding: 20px 30px;
     }
