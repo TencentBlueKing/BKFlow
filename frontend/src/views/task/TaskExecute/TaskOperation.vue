@@ -505,7 +505,7 @@
         if (this.isIframe) {
             return this.$route.query.useCanvasEditor === 'true';
         }
-        return true;
+        return false;
       },
       canvasData() {
         const { line, location, activities } = { ... tools.deepClone(this.instanceFlow) };
