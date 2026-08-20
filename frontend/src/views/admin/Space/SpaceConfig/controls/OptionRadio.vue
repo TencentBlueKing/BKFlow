@@ -79,7 +79,7 @@
                   {{ ex.scene }}
                 </td>
                 <td>
-                  <code>{{ ex.expr }}</code>
+                  {{ ex.expr }}
                 </td>
               </tr>
             </tbody>
@@ -125,11 +125,11 @@
         examples: [
           { scene: '字符串比较', expr: '"${status}" == "success"' },
           { scene: '数值比较', expr: '${int(retry)} >= 3' },
-          { scene: '包含判断', expr: '${env} in ("prod", "stage")' },
+          { scene: '包含判断', expr: '"${env}"" in ("prod", "stage")' },
         ],
         tip: '前提：status / retry / env 为流程全局变量。',
         docText: 'Boolrule 表达式文档',
-        docLink: 'https://boolrule.readthedocs.io/en/latest/expressions.html#basic-comparison-operators ',
+        docLink: 'https://boolrule.readthedocs.io/en/latest/expressions.html#basic-comparison-operators',
       },
       FEEL: {
         title: 'FEEL',
@@ -139,13 +139,13 @@
           { label: '变量引用', tokens: ['${key}', '${int(key)}', '支持 list contains'] },
         ],
         examples: [
-          { scene: '字符串比较', expr: '${env} = "prod"' },
+          { scene: '字符串比较', expr: '"${env}" = "prod"' },
           { scene: '数值比较', expr: '${int(retry)} >= 3' },
           { scene: '包含判断', expr: 'list contains([1, 2, 3], ${int(retry)})' },
         ],
         tip: '前提：字符串比较用 =, 不要写成 ==。',
         docText: 'bkflow-feel 语法文档',
-        docLink: 'https://github.com/TencentBlueKing/bkflow-feel/blob/main/docs/grammer.md ',
+        docLink: 'https://github.com/TencentBlueKing/bkflow-feel/blob/main/docs/grammer.md',
       },
       MAKO: {
         title: 'MAKO',
@@ -156,9 +156,9 @@
         ],
         warning: '因 MAKO 语法限制：请勿在表达式中使用 $、{、} 字符。误用会导致分支条件解析失败。',
         examples: [
-          { scene: '字符串比较', expr: '"key" == "3"' },
-          { scene: '数值比较', expr: 'int(key) >= 3}' },
-          { scene: '包含判断', expr: 'int(key) in (1,2,3)}' },
+          { scene: '字符串比较', expr: 'key == "3"' },
+          { scene: '数值比较', expr: 'int(key) >= 3' },
+          { scene: '包含判断', expr: 'int(key) in (1,2,3)' },
         ],
         docText: 'MAKO 无独立语法站点，以本页与分支条件侧滑说明为准。',
       },
@@ -255,7 +255,7 @@
         .guide-syntax-label {
           width: 80px;
           flex-shrink: 0;
-          color: #63656e;
+          color: #4d4f56;
         }
         .guide-syntax-values {
           display: flex;
@@ -271,8 +271,7 @@
           background: #ffffff;
           border: 1px solid #dcdee5;
           border-radius: 2px;
-          font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
-          color: #313238;
+          color: #4d4f56;
         }
         .guide-syntax-text {
           color: #4d4f56;
@@ -324,7 +323,7 @@
           padding: 8px 12px;
           text-align: left;
           vertical-align: middle;
-          color: #313238;
+          color: #4d4f56;
           user-select: text;
         }
         th {
@@ -334,12 +333,6 @@
         }
         .col-scene {
           width: 160px;
-        }
-        code {
-          font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
-          background: transparent;
-          padding: 0;
-          color: #313238;
         }
       }
       .guide-examples-tip {

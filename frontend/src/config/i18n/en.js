@@ -1290,6 +1290,7 @@ const en = {
   '屏蔽名单:屏蔽所列插件，其余可用': 'Deny List: Block listed plugins, others available',
   '恢复默认配置后，当前配置的内容将会被清空并重置': 'After restoring the default configuration, the current configuration will be cleared and reset',
   '确认恢复默认配置？': 'Confirm to restore default configuration?',
+  所有插件可用: 'All plugins available',
 };
 
 export default en;

@@ -5,6 +5,11 @@
       class="ps-mode"
       @change="emitValue">
       <bk-radio
+        value="allow_all"
+        class="ps-radio">
+        {{ $t('所有插件可用') }}
+      </bk-radio>
+      <bk-radio
         value="allow_list"
         class="ps-radio">
         {{ $t('允许名单:仅所列插件可用') }}
@@ -16,6 +21,7 @@
       </bk-radio>
     </bk-radio-group>
     <bk-select
+      v-show="mode !== 'allow_all'"
       v-model="pluginCodes"
       multiple
       searchable
@@ -58,7 +64,7 @@
     },
     data() {
       return {
-        mode: 'allow_list',
+        mode: 'allow_all',
         pluginCodes: [],
         candidates: [],
         loading: false,
@@ -81,8 +87,13 @@
     methods: {
       ...mapActions('atomForm', ['loadSingleAtomList']),
       parseValue(newValue) {
-        const defaultConfig = (newValue && typeof newValue === 'object' && newValue.default) || {};
-        this.mode = defaultConfig.mode || 'allow_list';
+        // 未配置时默认为所有插件可用
+        const hasConfig = newValue
+          && typeof newValue === 'object'
+          && newValue.default
+          && typeof newValue.default === 'object';
+        const defaultConfig = hasConfig ? newValue.default : {};
+        this.mode = defaultConfig.mode || 'allow_all';
         this.pluginCodes = Array.isArray(defaultConfig.plugin_codes)
           ? [...defaultConfig.plugin_codes]
           : [];
@@ -91,7 +102,7 @@
         if (!this.spaceId) return;
         try {
           this.loading = true;
-          const pluginList = await this.loadSingleAtomList({ space_id: this.spaceId });
+          const pluginList = await this.loadSingleAtomList({ space_id: this.spaceId, skip_space_config: true });
           const excludedCodes = ['subcanvs_plugin', 'subprocess_plugin'];
           this.candidates = (pluginList || [])
             .filter(plugin => !excludedCodes.includes(plugin.code))

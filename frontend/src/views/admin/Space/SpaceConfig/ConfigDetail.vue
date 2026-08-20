@@ -317,6 +317,16 @@
         } else {
           payload.json_value = formVal;
         }
+        // plugin_scope 控件：allow_all场景下plugin_codes传空
+        if (this.currentControl === 'plugin_scope'
+          && payload.json_value
+          && payload.json_value.default
+          && payload.json_value.default.mode === 'allow_all') {
+          payload.json_value = {
+            ...payload.json_value,
+            default: { ...payload.json_value.default, plugin_codes: [] },
+          };
+        }
         return payload;
       },
       async handleSave() {
