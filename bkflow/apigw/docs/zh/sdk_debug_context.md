@@ -53,6 +53,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
       "node_id": "node1",
       "node_type": "ServiceActivity",
       "execution_mode": "real",
+      "supports_step": true,
       "supports_mock": true,
       "status": "waiting",
       "waiting_reason": "callback",
@@ -63,6 +64,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
       "node_id": "gateway1",
       "node_type": "ExclusiveGateway",
       "execution_mode": "real",
+      "supports_step": true,
       "supports_mock": false,
       "status": "finished",
       "waiting_reason": null,
@@ -76,6 +78,17 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
           "matched": true
         }
       ]
+    },
+    {
+      "node_id": "parallel_gateway1",
+      "node_type": "ParallelGateway",
+      "execution_mode": "real",
+      "supports_step": false,
+      "supports_mock": false,
+      "status": "finished",
+      "waiting_reason": null,
+      "selected_flow_ids": [],
+      "condition_results": []
     }
   ]
 }
@@ -85,6 +98,8 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
 
 `active_task_id` 仅在任务运行期间有值，任务结束后清空；`last_task_id` 会保留最近一次真实引擎任务 ID。节点 `status` 取值为 `not_run | running | waiting | paused | finished | failed`。全局调试终止时，仍活跃的节点会恢复为 `not_run`，已完成或自然失败节点保留原状态。存在引擎调度记录时，`waiting_reason` 为 `callback | multiple_callback | poll`。
 
-`nodes` 只包含活动节点、分支网关（`ExclusiveGateway`）和条件并行网关（`ConditionalParallelGateway`）。开始、结束、并行网关和汇聚网关不需要调试，因此不会出现在该数组中。
+`nodes` 包含活动节点和流程中的全部网关节点：分支网关（`ExclusiveGateway`）、条件并行网关（`ConditionalParallelGateway`）、并行网关（`ParallelGateway`）和汇聚网关（`ConvergeGateway`）。开始、结束节点不在该数组中。
 
-条件网关固定为 `execution_mode=real` 且 `supports_mock=false`。网关调试完成后，前端直接使用 `selected_flow_ids` 将命中的连线标记为绿色；`condition_results` 可用于展示每个分支的原始表达式、求值后的表达式和命中结果。活动节点的这两个字段均为空数组。
+`supports_step` 表示节点是否支持单步调试，`supports_mock` 表示是否支持 Mock。活动节点两者均为 `true`；分支网关和条件并行网关为 `supports_step=true`、`supports_mock=false`；并行网关和汇聚网关两者均为 `false`，仅用于展示全局调试状态。前端调试控制面板应过滤 `supports_step=false` 且 `supports_mock=false` 的节点。
+
+所有网关固定为 `execution_mode=real`。条件网关调试完成后，前端直接使用 `selected_flow_ids` 将命中的连线标记为绿色；`condition_results` 可用于展示每个分支的原始表达式、求值后的表达式和命中结果。并行网关、汇聚网关和活动节点的这两个字段均为空数组。

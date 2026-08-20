@@ -108,6 +108,16 @@ TREE_GATEWAY = {
     },
 }
 
+TREE_CONTROL_GATEWAYS = {
+    "activities": {},
+    "flows": {},
+    "gateways": {
+        "PG": {"id": "PG", "type": "ParallelGateway"},
+        "CG": {"id": "CG", "type": "ConvergeGateway"},
+    },
+    "constants": {},
+}
+
 
 @pytest.mark.django_db
 class TestStepRunAndMock:
@@ -148,6 +158,24 @@ class TestStepRunAndMock:
 
         with pytest.raises(DebugStateError, match="条件网关不支持 Mock"):
             svc.node_mock(node_id="G", enable=True)
+
+    @pytest.mark.parametrize("node_id", ["PG", "CG"])
+    def test_control_gateway_rejects_mock(self, node_id):
+        """并行、汇聚网关只记录全局调试状态，不支持 Mock。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_CONTROL_GATEWAYS)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError, match="网关节点不支持 Mock"):
+            svc.node_mock(node_id=node_id, enable=True)
+
+    @pytest.mark.parametrize("node_id", ["PG", "CG"])
+    def test_control_gateway_rejects_step_run(self, node_id):
+        """并行、汇聚网关只记录全局调试状态，不支持单步调试。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_CONTROL_GATEWAYS)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError, match="网关节点不支持单步调试"):
+            svc.step_run(node_id=node_id, operator="admin", mode="real")
 
     def test_step_run_gateway_is_blocked_when_output_dependency_is_missing(self, mocker):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_GATEWAY)
