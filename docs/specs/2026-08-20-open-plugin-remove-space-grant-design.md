@@ -117,7 +117,7 @@ WHERE app = 'plugin'
 以下两点在移除 grant 之前就存在，但此前被第 1 层闸门遮挡，现在会更容易被触发，需要后续处理：
 
 1. **默认 `remote` 模式下 V4 插件「看得见但用不了」**。`catalog_mode` 默认为 `remote`，此时列表直接透传远端返回，不经过 `SpaceOpenPluginAvailability` 过滤；而保存模板/建任务时的预检会要求 `enabled=True`。因此远端返回的 V4 插件会出现在画布面板里，选中后保存报「开放插件 [x] 在当前空间未开放」。`cache_first` / `cache_only` 模式没有这个问题。
-2. **没有前端开关页面**。`open_plugins` 系列管理接口只有后端实现，前端未接入，当前只能直接调 admin API 或用 Django admin 操作 `SpaceOpenPluginAvailability`。在页面补齐之前，V4 插件的开启是一个纯后台动作。
+2. **没有前端开关页面**。`open_plugins` 系列管理接口只有后端实现，前端未接入。本次一并把 `OpenPluginCatalogIndex` 和 `SpaceOpenPluginAvailability` 注册进 Django admin（后者的 `enabled` 支持列表页直接勾选），作为页面补齐前的运维兜底；此前这两张表在 admin 里都不可见，开放插件那批模型中唯一注册过的恰恰是本次删除的 `OpenPluginSpaceGrant`。在前端页面补齐之前，V4 插件的开启仍是一个纯后台动作。
 
 ## 8. 关联
 
