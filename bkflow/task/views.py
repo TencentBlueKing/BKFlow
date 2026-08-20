@@ -175,11 +175,32 @@ class TaskInstanceViewSet(
             return RetrieveTaskInstanceSerializer
         return super().get_serializer_class()
 
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        # 调试任务默认不在列表中展示；按 create_method 或按 id 精确查询时保留，供 Token 校验复用
-        query_params = self.request.query_params
-        if self.action == "list" and "create_method" not in query_params and "id" not in query_params:
+    def _should_keep_debug_tasks(self):
+        """列表默认隐藏 DEBUG；显式按 create_method 或按主键查询时保留。
+
+        apply_token / get_task_list?id= 都走 list + id 精确过滤，必须先应用 FilterSet
+        再决定是否隐藏，避免只在 get_queryset 里看 query_params 漏掉 DEBUG。
+        """
+        if self.action != "list":
+            return True
+
+        params = self.request.query_params
+        if "create_method" in params:
+            return True
+
+        for key in ("id", "id__in", "pk"):
+            if hasattr(params, "getlist"):
+                values = params.getlist(key)
+            else:
+                value = params.get(key)
+                values = [value] if value is not None else []
+            if any(str(value) for value in values if value is not None):
+                return True
+        return False
+
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+        if self.action == "list" and not self._should_keep_debug_tasks():
             queryset = queryset.exclude(create_method="DEBUG")
         return queryset
 
