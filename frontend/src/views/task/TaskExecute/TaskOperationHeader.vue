@@ -435,8 +435,11 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 0 12px;
-        min-width: 72px;
+        box-sizing: border-box;
+        padding: 0 8px;
+        width: 80px;
+        min-width: 80px;
+        flex-shrink: 0;
         height: 100%;
         color: #313238;
         cursor: pointer;
@@ -467,6 +470,7 @@
                 .operate-btn-item-text {
                     font-size: 12px;
                     line-height: 20px;
+                    white-space: nowrap;
                 }
             }
         }
@@ -476,7 +480,6 @@
             height: 100%;
             border-left: 1px solid #dde4eb;
             .view-node-details-btn {
-                width: 72px;
                 cursor: pointer;
                 i {
                     margin: 2px 0;

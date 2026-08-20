@@ -1839,6 +1839,8 @@
 @import '../../../scss/config.scss';
 .parameter-details {
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     .nodeTree {
@@ -1847,13 +1849,12 @@
     .details-wrapper {
         display: flex;
         flex: 1;
-        height: calc(100% - 48px);
+        min-height: 0;
+        height: 100%;
         border-bottom: 1px solid $commonBorderColor;
     }
     .action-wrapper {
-        // position: absolute;
-        // bottom: 0;
-        // width: 100%;
+        flex-shrink: 0;
         padding-left: 20px;
         height: 48px;
         line-height: 48px;
@@ -1868,11 +1869,14 @@
 }
 .execute-info {
     flex: 1;
+    min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     padding-bottom: 0;
     width: 500px;
     height: 100%;
+    overflow: hidden;
     color: #313238;
     &.loading {
         overflow: hidden;
@@ -1891,6 +1895,7 @@
     }
     .execute-head {
         display: flex;
+        flex-shrink: 0;
         align-items: center;
         justify-content: space-between;
         line-height: 20px;
@@ -1972,9 +1977,10 @@
       }
     }
     .execute-body {
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
       @include scrollbar;
-      height: 100%;
     }
     ::v-deep .execute-info-tab .bk-tab-section {
         padding: 0;
