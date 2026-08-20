@@ -30,7 +30,13 @@ from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
-from bkflow.template.models import Template, TemplateMockData, TemplateMockScheme
+from bkflow.template.models import (
+    Template,
+    TemplateMockData,
+    TemplateMockScheme,
+    Trigger,
+)
+from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.utils import err_code
 from bkflow.utils.pipeline import replace_subprocess_version
 
@@ -116,5 +122,7 @@ def get_template_detail(request, space_id, template_id):
     flow_version_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
     copy_pipeline_tree = replace_subprocess_version(copy_pipeline_tree, flow_version_config)
 
+    triggers = Trigger.objects.filter(template_id=template.id, is_deleted=False)
+    response["data"]["triggers"] = TriggerSerializer(triggers, many=True).data
     response["data"]["pipeline_tree"] = copy_pipeline_tree
     return response

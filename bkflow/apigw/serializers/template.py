@@ -25,8 +25,10 @@ from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TEMPLATE_NAME, USER_NAME_MAX_LENGTH
 from bkflow.label.models import Label
-from bkflow.space.models import Space
-from bkflow.template.models import Template
+from bkflow.space.configs import TemplateTriggerConfig
+from bkflow.space.models import Space, SpaceConfig
+from bkflow.template.models import Template, Trigger
+from bkflow.template.serializers.trigger import TriggerSerializer
 
 logger = logging.getLogger("root")
 
@@ -164,6 +166,18 @@ class UpdateTemplateSerializer(serializers.Serializer):
     label_ids = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
     webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
     enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
+    triggers = TriggerSerializer(many=True, required=False, allow_null=True, default=[])
+
+    def validate_triggers(self, triggers):
+        request = self.context.get("request")
+        if request.method == "POST":
+            space_id = self.initial_data.get("space_id")
+        else:
+            space_id = self.instance.space_id
+        periodic_triggers = [trigger for trigger in triggers if trigger.get("type") == Trigger.TYPE_PERIODIC]
+        if len(periodic_triggers) > 1 and SpaceConfig.get_config(space_id, TemplateTriggerConfig.name) == "false":
+            raise serializers.ValidationError(_("参数校验失败，该流程只允许有一个定时触发器！"))
+        return triggers
 
     def validate(self, attrs):
         operator = attrs.get("operator")
