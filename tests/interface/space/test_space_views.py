@@ -11,7 +11,6 @@ from webhook.base_models import Scope
 
 from bkflow.constants import WebhookScopeType
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.space.configs import ApiGatewayCredentialConfig, SuperusersConfig
 from bkflow.space.models import (
     Credential,
@@ -793,7 +792,6 @@ class TestSpaceOpenPluginAdminActions:
             plugin_id="open_plugin_001",
             enabled=False,
         )
-        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
 
     def test_list_open_plugins(self):
         """测试空间管理员获取开放插件列表"""
@@ -808,20 +806,6 @@ class TestSpaceOpenPluginAdminActions:
         assert len(data) == 1
         assert data[0]["plugin_id"] == "open_plugin_001"
         assert data[0]["enabled"] is False
-        assert data[0]["granted"] is True
-
-    def test_list_open_plugins_hides_ungranted_source(self):
-        """测试未准入来源不会出现在空间开放插件列表"""
-        OpenPluginGrantService.revoke(space_id=self.space.id, source_key="sops", operator="admin")
-
-        view = SpaceConfigAdminViewSet.as_view({"get": "list_open_plugins"})
-        request = self.factory.get("/spaces/admin/space_config/open_plugins/", {"space_id": self.space.id})
-        force_authenticate(request, user=self.superuser)
-
-        response = view(request)
-
-        assert response.status_code == 200
-        assert response.data.get("data") == []
 
     def test_toggle_open_plugin(self):
         """测试空间管理员切换单个开放插件状态"""
@@ -840,26 +824,6 @@ class TestSpaceOpenPluginAdminActions:
             space_id=self.space.id, source_key="sops", plugin_id="open_plugin_001"
         )
         assert availability.enabled is True
-
-    def test_toggle_open_plugin_rejects_ungranted_source(self):
-        """测试未准入来源不能切换开放插件状态"""
-        OpenPluginGrantService.revoke(space_id=self.space.id, source_key="sops", operator="admin")
-
-        view = SpaceConfigAdminViewSet.as_view({"post": "toggle_open_plugin"})
-        request = self.factory.post(
-            "/spaces/admin/space_config/open_plugins/toggle/",
-            {"space_id": self.space.id, "source_key": "sops", "plugin_id": "open_plugin_001", "enabled": True},
-            format="json",
-        )
-        force_authenticate(request, user=self.superuser)
-
-        response = view(request)
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        availability = SpaceOpenPluginAvailability.objects.get(
-            space_id=self.space.id, source_key="sops", plugin_id="open_plugin_001"
-        )
-        assert availability.enabled is False
 
     def test_enable_all_open_plugins_only_affects_current_visible_plugins(self):
         """测试一键全开只作用于当前可见插件，后续新增插件仍默认关闭"""
@@ -920,26 +884,6 @@ class TestSpaceOpenPluginAdminActions:
         enabled_map = {item["plugin_id"]: item["enabled"] for item in list_response.data.get("data", [])}
         assert enabled_map["open_plugin_003"] is False
 
-    def test_enable_all_open_plugins_rejects_ungranted_source(self):
-        """测试未准入来源不能一键开启开放插件"""
-        OpenPluginGrantService.revoke(space_id=self.space.id, source_key="sops", operator="admin")
-
-        view = SpaceConfigAdminViewSet.as_view({"post": "enable_all_open_plugins"})
-        request = self.factory.post(
-            "/spaces/admin/space_config/open_plugins/enable_all/",
-            {"space_id": self.space.id, "source_key": "sops"},
-            format="json",
-        )
-        force_authenticate(request, user=self.superuser)
-
-        response = view(request)
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        availability = SpaceOpenPluginAvailability.objects.get(
-            space_id=self.space.id, source_key="sops", plugin_id="open_plugin_001"
-        )
-        assert availability.enabled is False
-
     def test_disable_source_open_plugins(self):
         """测试按来源一键关闭开放插件"""
         SpaceOpenPluginAvailability.objects.create(
@@ -983,26 +927,3 @@ class TestSpaceOpenPluginAdminActions:
         }
         assert availability_map["open_plugin_001"] is False
         assert availability_map["open_plugin_002"] is False
-
-    def test_disable_source_open_plugins_rejects_ungranted_source(self):
-        """测试未准入来源不能按来源关闭开放插件"""
-        OpenPluginGrantService.revoke(space_id=self.space.id, source_key="sops", operator="admin")
-        SpaceOpenPluginAvailability.objects.filter(
-            space_id=self.space.id, source_key="sops", plugin_id="open_plugin_001"
-        ).update(enabled=True)
-
-        view = SpaceConfigAdminViewSet.as_view({"post": "disable_source_open_plugins"})
-        request = self.factory.post(
-            "/spaces/admin/space_config/open_plugins/disable_source/",
-            {"space_id": self.space.id, "source_key": "sops"},
-            format="json",
-        )
-        force_authenticate(request, user=self.superuser)
-
-        response = view(request)
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        availability = SpaceOpenPluginAvailability.objects.get(
-            space_id=self.space.id, source_key="sops", plugin_id="open_plugin_001"
-        )
-        assert availability.enabled is True

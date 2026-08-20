@@ -24,7 +24,6 @@ from blueapps.account.models import User
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.plugin.views.internal import PluginInternalViewSet
 from bkflow.space.models import Space
@@ -89,7 +88,6 @@ def test_build_open_plugin_snapshots_prepare_returns_both_snapshots(mock_build_s
     user, _ = User.objects.get_or_create(username="admin", defaults={"is_superuser": True})
     space = Space.objects.create(name="snap-space", app_code="test")
     create_catalog(space.id, enabled=True)
-    OpenPluginGrantService.grant(space_id=space.id, source_key="sops", operator="admin")
     mock_build_schema.return_value = {
         "node1": {
             "schema_protocol_version": OpenPluginSnapshotService.SCHEMA_PROTOCOL_VERSION,
@@ -122,11 +120,11 @@ def test_build_open_plugin_snapshots_prepare_returns_both_snapshots(mock_build_s
 
 
 @pytest.mark.django_db
-def test_build_open_plugin_snapshots_prepare_rejects_ungranted():
-    """prepare 模式必须拦截未准入来源，不能只扫 tree。"""
+def test_build_open_plugin_snapshots_prepare_rejects_disabled_plugin():
+    """prepare 模式必须拦截空间未开放的插件，不能只扫 tree。"""
     user, _ = User.objects.get_or_create(username="admin", defaults={"is_superuser": True})
     space = Space.objects.create(name="snap-space", app_code="test")
-    create_catalog(space.id, enabled=True)
+    create_catalog(space.id, enabled=False)
 
     response = call_build_snapshots(
         user,
@@ -138,7 +136,7 @@ def test_build_open_plugin_snapshots_prepare_rejects_ungranted():
     )
 
     assert response.data["result"] is False
-    assert "来源" in response.data["message"]
+    assert "未开放" in response.data["message"]
 
 
 @pytest.mark.django_db
@@ -148,7 +146,6 @@ def test_build_open_plugin_snapshots_backfill_keeps_existing_schema(mock_build_s
     user, _ = User.objects.get_or_create(username="admin", defaults={"is_superuser": True})
     space = Space.objects.create(name="snap-space", app_code="test")
     create_catalog(space.id, enabled=True)
-    OpenPluginGrantService.grant(space_id=space.id, source_key="sops", operator="admin")
     extra_info = {
         "plugin_reference_snapshot": [
             {
@@ -196,7 +193,6 @@ def test_build_open_plugin_snapshots_backfill_fails_when_exact_version_missing(m
     user, _ = User.objects.get_or_create(username="admin", defaults={"is_superuser": True})
     space = Space.objects.create(name="snap-space", app_code="test")
     create_catalog(space.id, enabled=True, versions=["9.9.9"])
-    OpenPluginGrantService.grant(space_id=space.id, source_key="sops", operator="admin")
     mock_build_schema.side_effect = ValueError("开放插件 [open_plugin_001] 版本 [1.2.0] 当前不可用")
 
     response = call_build_snapshots(
@@ -221,7 +217,6 @@ def test_build_open_plugin_snapshots_ignores_request_extra_info(mock_build_schem
     user, _ = User.objects.get_or_create(username="admin", defaults={"is_superuser": True})
     space = Space.objects.create(name="snap-space", app_code="test")
     create_catalog(space.id, enabled=True)
-    OpenPluginGrantService.grant(space_id=space.id, source_key="sops", operator="admin")
     mock_build_schema.return_value = {
         "node1": {
             "schema_protocol_version": OpenPluginSnapshotService.SCHEMA_PROTOCOL_VERSION,

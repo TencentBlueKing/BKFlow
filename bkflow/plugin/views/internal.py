@@ -36,7 +36,7 @@ class PluginInternalViewSet(SimpleGenericViewSet):
 
     @action(methods=["POST"], detail=False)
     def validate_open_plugins_for_start(self, request):
-        """按快照或 pipeline_tree 做启动前准入预检。"""
+        """按快照或 pipeline_tree 做启动前可用性预检。"""
         space_id = int(request.data["space_id"])
         OpenPluginSnapshotService.validate_for_start(
             space_id=space_id,

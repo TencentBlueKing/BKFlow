@@ -35,7 +35,6 @@ from bkflow.plugin.models import (
     SpaceOpenPluginAvailability,
 )
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.plugin.services.uniform_api_meta import (
     UniformAPIMetaError,
     extract_uniform_api_meta_data,
@@ -289,7 +288,7 @@ class PluginSchemaService:
         return schema_result
 
     def _list_uniform_api_plugins(self, keyword=None, plugin_source=None):
-        """V4 走本地目录（准入+开启），V2/V3 始终回落远端列表后合并。"""
+        """V4 走本地目录（可用+开启），V2/V3 始终回落远端列表后合并。"""
         v4_plugins = self._list_uniform_api_plugins_from_catalog(keyword=keyword, plugin_source=plugin_source)
         if plugin_source:
             return v4_plugins
@@ -364,13 +363,8 @@ class PluginSchemaService:
         return results
 
     def _list_uniform_api_plugins_from_catalog(self, keyword=None, plugin_source=None):
-        granted_source_keys = set(OpenPluginGrantService.granted_source_keys(self.space_id))
-        if not granted_source_keys:
-            return []
-
         catalog_qs = OpenPluginCatalogIndex.objects.filter(
             space_id=self.space_id,
-            source_key__in=granted_source_keys,
             wrapper_version=OPEN_PLUGIN_WRAPPER_VERSION,
             status=OpenPluginCatalogIndex.Status.AVAILABLE,
         )
@@ -378,9 +372,9 @@ class PluginSchemaService:
             catalog_qs = catalog_qs.filter(plugin_source=plugin_source)
 
         enabled_pairs = set(
-            SpaceOpenPluginAvailability.objects.filter(
-                space_id=self.space_id, source_key__in=granted_source_keys, enabled=True
-            ).values_list("source_key", "plugin_id")
+            SpaceOpenPluginAvailability.objects.filter(space_id=self.space_id, enabled=True).values_list(
+                "source_key", "plugin_id"
+            )
         )
         results = []
         for item in catalog_qs:
@@ -595,8 +589,6 @@ class PluginSchemaService:
         catalog = OpenPluginCatalogIndex.objects.filter(**filters).order_by("-update_time", "-id").first()
         if not catalog or catalog.wrapper_version != OPEN_PLUGIN_WRAPPER_VERSION:
             return
-        if not OpenPluginGrantService.is_granted(self.space_id, catalog.source_key):
-            raise ValueError("开放插件来源未准入: {}".format(catalog.source_key))
         if catalog.status != OpenPluginCatalogIndex.Status.AVAILABLE:
             raise ValueError("开放插件 [{}] 当前不可用".format(code))
         if not SpaceOpenPluginAvailability.objects.filter(

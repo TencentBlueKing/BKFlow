@@ -29,7 +29,6 @@ from bkflow.apigw.serializers.plugin import (
 )
 from bkflow.apigw.views.list_plugins import list_plugins
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 
 
 def create_open_plugin_catalog(space_id=1, source_key="sops"):
@@ -155,25 +154,8 @@ class TestListPluginsView(SimpleTestCase):
 
 @pytest.mark.django_db
 @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
-def test_list_plugins_hides_ungranted_uniform_api_source():
+def test_list_plugins_returns_enabled_uniform_api_source():
     create_open_plugin_catalog(space_id=1, source_key="sops")
-
-    factory = RequestFactory()
-    request = factory.get("/space/1/list_plugins/", {"plugin_type": "uniform_api"})
-    request.user = MagicMock(username="admin")
-    response = list_plugins(request, space_id="1")
-
-    data = json.loads(response.content)
-    assert data["result"] is True
-    assert data["count"] == 0
-    assert data["data"] == []
-
-
-@pytest.mark.django_db
-@override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
-def test_list_plugins_returns_granted_uniform_api_source():
-    create_open_plugin_catalog(space_id=1, source_key="sops")
-    OpenPluginGrantService.grant(space_id=1, source_key="sops", operator="admin")
 
     factory = RequestFactory()
     request = factory.get("/space/1/list_plugins/", {"plugin_type": "uniform_api"})

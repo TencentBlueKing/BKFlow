@@ -201,13 +201,13 @@ class TestTaskOperation:
         mock_client = mocker.patch("bkflow.task.operations.InterfaceModuleClient")
         mock_client.return_value.validate_open_plugins_for_start.return_value = {
             "result": False,
-            "message": "开放插件来源 [sops] 未对当前空间准入",
+            "message": "开放插件 [open_plugin_001] 在当前空间未开放",
         }
 
         result = TaskOperation(task_instance).start(operator="test_executor")
 
         assert result.result is False
-        assert "未对当前空间准入" in result.message
+        assert "在当前空间未开放" in result.message
         mock_run.assert_not_called()
         task_instance.refresh_from_db()
         assert task_instance.is_started is False

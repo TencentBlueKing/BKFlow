@@ -68,7 +68,7 @@ def get_reference_snapshot(extra_info):
 
 
 def needs_start_validation(extra_info=None, pipeline_tree=None):
-    """启动时是否需要做开放插件准入预检。"""
+    """启动时是否需要做开放插件可用性预检。"""
     if get_reference_snapshot(extra_info):
         return True
     return has_open_plugin_nodes(pipeline_tree)

@@ -49,12 +49,12 @@ class TestSubprocessPluginExecuteStartResult:
     def test_plugin_execute_fails_when_start_returns_false(self, mocker):
         """子流程启动预检失败时，节点应立即失败并写出预检信息。"""
         result, data, mock_operation = self._execute_with_start_result(
-            mocker, OperationResult(result=False, message="开放插件来源 [sops] 未准入当前空间")
+            mocker, OperationResult(result=False, message="开放插件 [open_plugin_001] 在当前空间未开放")
         )
 
         assert result is False
         assert data.get_one_of_outputs("task_id") == 99
-        assert "未准入" in data.get_one_of_outputs("ex_data")
+        assert "未开放" in data.get_one_of_outputs("ex_data")
         mock_operation.start.assert_called_once_with(operator="alice")
 
     def test_plugin_execute_succeeds_when_start_returns_true(self, mocker):

@@ -28,7 +28,6 @@ from bkflow.decision_table.models import DecisionTable
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
@@ -131,12 +130,12 @@ def create_open_plugin_catalog(space_id, enabled=True):
 
 @pytest.mark.django_db
 @mock.patch("bkflow.template.serializers.template.PipelineTemplateWebPreviewer.is_circular_reference")
-def test_template_serializer_rejects_ungranted_open_plugin(mock_is_circular_reference):
+def test_template_serializer_rejects_disabled_open_plugin(mock_is_circular_reference):
     mock_is_circular_reference.return_value = {"has_cycle": False}
     factory = APIRequestFactory()
     user, _ = User.objects.get_or_create(username="admin")
     space = Space.objects.create(name="Open Plugin Space", app_code="test_app")
-    create_open_plugin_catalog(space_id=space.id, enabled=True)
+    create_open_plugin_catalog(space_id=space.id, enabled=False)
 
     request = factory.post("/templates/", {})
     request.user = user
@@ -153,7 +152,7 @@ def test_template_serializer_rejects_ungranted_open_plugin(mock_is_circular_refe
     )
 
     assert serializer.is_valid() is False
-    assert "来源" in str(serializer.errors)
+    assert "未开放" in str(serializer.errors)
 
 
 @pytest.mark.django_db
@@ -167,7 +166,6 @@ def test_template_serializer_writes_schema_snapshot(mock_is_circular_reference, 
     user, _ = User.objects.get_or_create(username="admin")
     space = Space.objects.create(name="Open Plugin Space", app_code="test_app")
     create_open_plugin_catalog(space_id=space.id, enabled=True)
-    OpenPluginGrantService.grant(space_id=space.id, source_key="sops", operator="admin")
 
     request = factory.post("/templates/", {})
     request.user = user
@@ -368,8 +366,8 @@ class TestAdminTemplateViewSet:
 
     @mock.patch("bkflow.template.views.template.TaskComponentClient")
     @mock.patch("bkflow.template.views.template.PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes")
-    def test_create_task_rejects_ungranted_open_plugin(self, mock_previewer, mock_client_class):
-        """普通 Web 建任务入口必须重新校验开放插件来源准入。"""
+    def test_create_task_rejects_disabled_open_plugin(self, mock_previewer, mock_client_class):
+        """普通 Web 建任务入口必须重新校验开放插件可用性。"""
         pipeline_tree = build_open_plugin_pipeline_tree()
         snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, "admin", "1.0.0")
         template = Template.objects.create(
@@ -381,7 +379,7 @@ class TestAdminTemplateViewSet:
         )
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
-        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        create_open_plugin_catalog(space_id=self.space.id, enabled=False)
 
         mock_client_class.return_value.create_task.return_value = {
             "result": True,
@@ -395,7 +393,7 @@ class TestAdminTemplateViewSet:
         )
         force_authenticate(request, user=self.admin_user)
 
-        with pytest.raises(ValidationError, match="来源"):
+        with pytest.raises(ValidationError, match="未开放"):
             view(request, space_id=self.space.id)
 
         mock_previewer.assert_called_once()
@@ -420,7 +418,6 @@ class TestAdminTemplateViewSet:
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
         create_open_plugin_catalog(space_id=self.space.id, enabled=True)
-        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
         mock_build_schema_snapshot.return_value = {"node1": {"plugin_id": "open_plugin_001", "plugin_version": "1.2.0"}}
         mock_client_class.return_value.create_task.return_value = {
             "result": True,
@@ -1004,8 +1001,8 @@ class TestTemplateViewSet:
         assert "id" in resp_data or response.status_code == 200
 
     @mock.patch("bkflow.template.views.template.TaskComponentClient")
-    def test_create_mock_task_rejects_ungranted_open_plugin(self, mock_client_class):
-        """Web Mock 创建入口必须校验开放插件来源准入。"""
+    def test_create_mock_task_rejects_disabled_open_plugin(self, mock_client_class):
+        """Web Mock 创建入口必须校验开放插件可用性。"""
         pipeline_tree = build_open_plugin_pipeline_tree()
         snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, "test_user", "1.0.0")
         template = Template.objects.create(
@@ -1017,7 +1014,7 @@ class TestTemplateViewSet:
         )
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
-        create_open_plugin_catalog(space_id=self.space.id, enabled=True)
+        create_open_plugin_catalog(space_id=self.space.id, enabled=False)
         mock_client_class.return_value.create_task.return_value = {
             "result": True,
             "data": {"id": 1, "name": "Mock Task"},
@@ -1036,7 +1033,7 @@ class TestTemplateViewSet:
         )
         force_authenticate(request, user=self.user)
 
-        with pytest.raises(ValidationError, match="来源"):
+        with pytest.raises(ValidationError, match="未开放"):
             view(request, pk=template.id)
 
         mock_client_class.return_value.create_task.assert_not_called()
@@ -1059,7 +1056,6 @@ class TestTemplateViewSet:
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
         create_open_plugin_catalog(space_id=self.space.id, enabled=True)
-        OpenPluginGrantService.grant(space_id=self.space.id, source_key="sops", operator="admin")
         mock_build_schema_snapshot.return_value = {"node1": {"plugin_id": "open_plugin_001"}}
         mock_client_class.return_value.create_task.return_value = {
             "result": True,
