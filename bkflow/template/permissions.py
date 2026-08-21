@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from bkflow.permission.permissions import BaseMockTokenPermission, BaseTokenPermission
 from bkflow.template.serializers.template import TemplateRelatedResourceSerializer
 
@@ -91,9 +92,12 @@ class TemplateRelatedResourcePermission(BaseMockTokenPermission):
         ser = TemplateRelatedResourceSerializer(data=data)
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
-        action_perm = self.get_action_perm(view)
-        template_permission = getattr(self, f"has_{action_perm}_permission")(
-            request.user.username, space_id, template_id, request.token
+        action_perms = self.get_action_perm(view)
+        if isinstance(action_perms, str):
+            action_perms = (action_perms,)
+        template_permission = any(
+            getattr(self, f"has_{action_perm}_permission")(request.user.username, space_id, template_id, request.token)
+            for action_perm in action_perms
         )
         if not template_permission:
             return self.has_scope_mock_permission(request.user.username, space_id, template_id, request.token)
