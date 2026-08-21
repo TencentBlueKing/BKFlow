@@ -299,6 +299,7 @@ class SpaceEngineConfig(BaseSpaceConfig):
         },
         "additionalProperties": False,
     }
+    is_public = False
 
     @classmethod
     def validate(cls, value: dict):
@@ -313,7 +314,7 @@ class CallbackHooksConfig(BaseSpaceConfig):
     name = "callback_hooks"
     desc = _("回调配置")
     value_type = SpaceConfigValueType.JSON.value
-    is_public = False
+    is_public = True
     example = {"url": "{callback_url}", "callback_types": ["template"]}
 
     SCHEMA = {

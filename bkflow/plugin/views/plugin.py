@@ -69,21 +69,27 @@ class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
 
+        # 通过 serializer 统一解析入参，复用 BooleanField 校验逻辑
+        params_ser = ComponentListQuerySerializer(data=self.request.query_params)
+        params_ser.is_valid(raise_exception=True)
+        validated = params_ser.validated_data
+
         # 过滤系统配置插件
-        space_id = self.request.query_params.get("space_id")
+        space_id = validated["space_id"]
         system_allow_list = SpacePluginConfigModel.objects.get_space_allow_list(space_id)
         space_plugins = set(settings.SPACE_PLUGIN_LIST) - set(system_allow_list)
         if space_plugins:
             queryset = queryset.exclude(code__in=list(space_plugins))
 
-        # 过滤空间配置插件
-        scope_type = self.request.query_params.get("scope_type")
-        scope_id = self.request.query_params.get("scope_id")
-        scope_code = f"{scope_type}_{scope_id}"
-        space_plugin_config = SpaceConfig.get_config(space_id=space_id, config_name=SpacePluginConfig.name)
-        if space_plugin_config:
-            parser = SpacePluginConfigParser(space_plugin_config)
-            queryset = parser.get_filtered_plugin_qs(scope_code, queryset)
+        if not validated.get("skip_space_config", False):
+            # 过滤空间配置插件
+            scope_type = validated.get("scope_type")
+            scope_id = validated.get("scope_id")
+            scope_code = f"{scope_type}_{scope_id}"
+            space_plugin_config = SpaceConfig.get_config(space_id=space_id, config_name=SpacePluginConfig.name)
+            if space_plugin_config:
+                parser = SpacePluginConfigParser(space_plugin_config)
+                queryset = parser.get_filtered_plugin_qs(scope_code, queryset)
         return queryset
 
     @swagger_auto_schema(query_serializer=ComponentListQuerySerializer)
