@@ -11,22 +11,23 @@
 
 #### 接口参数
 
-| 字段                        | 类型     | 必选  | 描述               |
-|---------------------------|--------|-----|------------------|
-| name                      | string | 否   | 模板名称             |
-| operator                  | string | 否   | 更新人              |
-| notify_config             | json   | 否   | 模板描述             |
-| desc                      | string | 否   | 空间描述             |
-| scope_type                | string | 否   | 模板范围类型           |
-| scope_value               | string | 否   | 模板范围值            |
-| source                    | string | 否   | 模板来源(空间接入方自定义字段) |
-| version                   | string | 否   | 模板版本(空间接入方自定义字段) |
-| extra_info                | string | 否   | 模板额外信息           |
-| pipeline_tree             | json   | 否   | 模板信息             |
-| auto_release              | bool   | 否   | 是否自动发布           |
-| label_ids                 | list   | 否   | 标签ID列表           |
-| enable_webhook            | bool   | 否   | webhook开关        |
-| webhook_configs           | json   | 否   | webhook配置        |
+| 字段                | 类型        | 必选 | 描述               |
+|-------------------|-----------|----|------------------|
+| name              | string    | 否  | 模板名称             |
+| operator          | string    | 否  | 更新人              |
+| notify_config     | json      | 否  | 模板描述             |
+| desc              | string    | 否  | 空间描述             |
+| scope_type        | string    | 否  | 模板范围类型           |
+| scope_value       | string    | 否  | 模板范围值            |
+| source            | string    | 否  | 模板来源(空间接入方自定义字段) |
+| version           | string    | 否  | 模板版本(空间接入方自定义字段) |
+| extra_info        | string    | 否  | 模板额外信息           |
+| pipeline_tree     | json      | 否  | 模板信息             |
+| auto_release      | bool      | 否  | 是否自动发布           |
+| label_ids         | list      | 否  | 标签ID列表           |
+| enable_webhook    | bool      | 否  | webhook开关        |
+| webhook_configs   | json      | 否  | webhook配置        |
+| triggers          | list      | 否  | 触发器配置            |
 
 
 ### notify_config 示例:
@@ -71,6 +72,34 @@
   }
 }
 ```
+
+
+### triggers 示例:
+```json
+[
+  {
+    "id": null,  
+    "config": {
+      "mode": "form",
+      "constants": {},
+      "cron": {
+        "minute": "*",
+        "hour": "*",
+        "day_of_month": "*",
+        "month_of_year": "*",
+        "day_of_week": "*"
+      }
+    },
+    "is_deleted": false,
+    "space_id": 1,
+    "template_id": 10,
+    "is_enabled": false,
+    "name": "定时触发",
+    "type": "periodic"
+  }
+]
+```
+第一次创建是id为null，后续在更新时需要传递具体的id
 
 ### 请求参数示例
 
