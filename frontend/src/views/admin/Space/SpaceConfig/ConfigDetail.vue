@@ -70,8 +70,7 @@
           :key="index"
           class="config-canvas-example-gif-wrap">
           <img
-            v-if="item.src"
-            :src="item.src">
+            :src="item.src || defaultCanvasImage">
           <div class="caption">
             {{ item.caption }}
           </div>
@@ -154,6 +153,7 @@
   import { getControlComponent } from './controls/index.js';
   import tools from '@/utils/tools.js';
   import JsonEditorControl from './controls/JsonEditorControl.vue';
+  import defaultCanvasImage from '@/assets/images/horizontal-vs-vertical-canvas.png';
   // 结构化复合控件（可切换 JSON 源码；is_mix_type 之外的对象型存储）
   const COMPOSITE_CONTROLS = ['credential_map', 'api_plugin_config', 'plugin_scope', 'engine_kv'];
   const KNOWN_CONTROLS = [
@@ -198,6 +198,7 @@
         localVerifying: false,
         localVerifyResult: null,
         localSaveError: false,
+        defaultCanvasImage,
       };
     },
     computed: {
@@ -270,6 +271,14 @@
             && config.default_value !== undefined;
           return hasDefault ? config.default_value : '';
         }
+        // json_value非空时完整映射
+        if (config.is_mix_type) {
+          const jsonValue = config.json_value;
+          if (jsonValue && typeof jsonValue === 'object' && Object.keys(jsonValue).length > 0) {
+            return jsonValue;
+          }
+          return config.value || '';
+        }
         return config.value_type === 'TEXT'
           ? config.value
           : config.json_value;
@@ -307,6 +316,16 @@
           payload.text_value = formVal;
         } else {
           payload.json_value = formVal;
+        }
+        // plugin_scope 控件：allow_all场景下plugin_codes传空
+        if (this.currentControl === 'plugin_scope'
+          && payload.json_value
+          && payload.json_value.default
+          && payload.json_value.default.mode === 'allow_all') {
+          payload.json_value = {
+            ...payload.json_value,
+            default: { ...payload.json_value.default, plugin_codes: [] },
+          };
         }
         return payload;
       },
@@ -364,7 +383,6 @@
               this.formValue = {};
             } else if (!tools.checkIsJSON(this.formValue)) {
               this.$bkMessage({ message: this.$t('数据格式不正确，应为JSON格式'), theme: 'error' });
-              return;
             } else {
               this.formValue = JSON.parse(this.formValue);
             }
@@ -372,8 +390,16 @@
           this.formModeRandomKey = new Date().getTime();
         } else if (val === 'json_value') {
           // 结构化 -> JSON：把对象序列化为字符串
-          if (typeof this.formValue === 'object') {
+          if (typeof this.formValue === 'object' && this.formValue !== null) {
             this.formValue = JSON.stringify(this.formValue, null, 2);
+          } else if (
+            typeof this.formValue === 'string'
+            && this.formValue.trim() !== ''
+          ) {
+            // 网关凭证配置存在默认凭证且未配置作用域是value_type为TEXT
+            if (this.currentControl === 'credential_map') {
+              this.formValue = JSON.stringify({ default: this.formValue }, null, 2);
+            }
           }
         }
         this.isSourceMode = val === 'json_value';
@@ -469,6 +495,12 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        img {
+          max-width: 640px;
+          width: 100%;
+          height: auto;
+          margin-bottom: 12px;
+        }
       }
       .caption {
         font-size: 14px;
