@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -46,9 +47,12 @@ def _err(exc, code):
 
 class DebugViewSet(SimpleGenericViewSet):
     permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
-    # 读操作（context/input_schema/history）按 view 级；写操作（运行/重置/终止）需 mock 及以上权限，
-    # 因为它们会创建/启动/撤销真实的引擎 TaskInstance
-    DEFAULT_PERMISSION = TemplateRelatedResourcePermission.VIEW_PERMISSION
+    # 只读操作既是查看能力，也是调试链路的一部分；写操作需 mock 权限，
+    # 因为它们会创建/启动/撤销真实的引擎 TaskInstance。
+    DEFAULT_PERMISSION = (
+        TemplateRelatedResourcePermission.VIEW_PERMISSION,
+        TemplateRelatedResourcePermission.MOCK_PERMISSION,
+    )
     PERM_MAPPINGS = {
         "global_run": TemplateRelatedResourcePermission.MOCK_PERMISSION,
         "reset": TemplateRelatedResourcePermission.MOCK_PERMISSION,
