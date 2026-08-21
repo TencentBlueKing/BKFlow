@@ -69,6 +69,7 @@ def update_template(request, space_id, template_id):
 
     auto_release = validated_data_dict.pop("auto_release", False)
     version = validated_data_dict.pop("version", None)
+    triggers = validated_data_dict.pop("triggers") or []
 
     pipeline_tree = validated_data_dict.pop("pipeline_tree", None)
     if pipeline_tree:
@@ -154,12 +155,10 @@ def update_template(request, space_id, template_id):
         try:
             Trigger.objects.compare_constants(
                 template.pipeline_tree.get("constants", {}),
-                pipeline_tree.get("constants", {}),
-                validated_data_dict.get("triggers"),
+                (pipeline_tree or template.pipeline_tree).get("constants", {}),
+                triggers,
             )
-            Trigger.objects.batch_modify_triggers(
-                template, validated_data_dict.get("triggers"), validated_data_dict["updated_by"]
-            )
+            Trigger.objects.batch_modify_triggers(template, triggers, validated_data_dict["updated_by"])
         except Exception as e:
             raise UpdateTemplateException(_(f"更新失败，错误: {str(e)}"))
 
@@ -179,8 +178,8 @@ def update_template(request, space_id, template_id):
     template = Template.objects.get(id=template_id)
 
     resp_data = template.to_json()
-    triggers = Trigger.objects.filter(template_id=template.id, is_deleted=False)
-    resp_data["triggers"] = TriggerSerializer(triggers, many=True).data
+    template_triggers = Trigger.objects.filter(template_id=template.id, is_deleted=False)
+    resp_data["triggers"] = TriggerSerializer(template_triggers, many=True).data
 
     current_label_ids = list(
         TemplateLabelRelation.objects.filter(template_id=template.id).values_list("label_id", flat=True)
