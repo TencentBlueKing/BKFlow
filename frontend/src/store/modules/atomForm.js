@@ -222,13 +222,12 @@ const atomForm = {
       return axios.get('/api/plugin_service/meta/', { params }).then(response => response.data);
     },
     /**
-     * V4 原生表单编排入口：先获取标准化详情，再注入服务端许可的表单上下文，
-     * 最后交给 PluginFormLoader 分发表单类型。每个异步边界都检查 isCurrent，
-     * 旧请求只能结束，不能覆盖用户随后选择的插件或版本。
+     * V4 原生表单编排入口：优先获取标准化详情，任务只读场景加载失败时再回退到 schema 快照。
+     * 每个异步边界都检查 isCurrent，旧请求只能结束，不能覆盖用户随后选择的插件或版本。
      */
     async loadV4OpenPluginForm({ rootState }, payload) {
       const isCurrent = typeof payload.isCurrent === 'function' ? payload.isCurrent : () => true;
-      let snapshot = payload.snapshot;
+      let { snapshot } = payload;
       if (!snapshot && payload.readOnly && payload.taskId && payload.nodeId) {
         const extraInfoById = (rootState && rootState.task && rootState.task.taskExtraInfoById) || {};
         snapshot = getOpenPluginSchemaSnapshot(
@@ -237,21 +236,26 @@ const atomForm = {
           payload.templateNodeId,
         );
       }
-      if (payload.readOnly && snapshot) {
-        const detail = buildV4DetailFromSchemaSnapshot(snapshot);
+
+      const loadForm = async (detail) => {
         if (!isCurrent()) throw createPluginFormStaleError();
         applyPluginFormContext(detail.form_context, payload.runtimeContext);
         return loadPluginForms(detail, { readOnly: payload.readOnly, isCurrent });
+      };
+
+      try {
+        const response = await axios.post('/api/plugin/detail/', payload.request);
+        if (!isCurrent()) throw createPluginFormStaleError();
+        if (!response.data.result) {
+          throw new Error(response.data.message || 'load plugin detail failed');
+        }
+        const form = await loadForm(response.data.data);
+        return form;
+      } catch (error) {
+        if (!isCurrent()) throw createPluginFormStaleError();
+        if (!payload.readOnly || !snapshot || (error && error.code === 'FORM_LOAD_STALE')) throw error;
+        return loadForm(buildV4DetailFromSchemaSnapshot(snapshot));
       }
-      const response = await axios.post('/api/plugin/detail/', payload.request);
-      if (!isCurrent()) throw createPluginFormStaleError();
-      if (!response.data.result) {
-        throw new Error(response.data.message || 'load plugin detail failed');
-      }
-      const detail = response.data.data;
-      if (!isCurrent()) throw createPluginFormStaleError();
-      applyPluginFormContext(detail.form_context, payload.runtimeContext);
-      return loadPluginForms(detail, { readOnly: payload.readOnly, isCurrent });
     },
     /**
      * 加载第三方插件
