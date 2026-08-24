@@ -627,7 +627,7 @@ class TriggerManager(models.Manager):
         """批量更新、创建和删除单个流程下的多个触发器"""
 
         input_trigger_ids = [trigger.get("id") for trigger in triggers if trigger.get("id")]
-        exist_triggers = self.filter(template_id=template.id)
+        exist_triggers = self.filter(template_id=template.id, is_deleted=False)
 
         # 根据入参中触发器的id集合和数据库中存在的触发器id集合，筛选出待更新、待创建和待删除的触发器id列表
         exist_triggers_dict = {trigger.id: trigger for trigger in exist_triggers}
@@ -635,7 +635,7 @@ class TriggerManager(models.Manager):
 
         invalid_ids = set(input_trigger_ids) - exist_trigger_ids
         if invalid_ids:
-            raise ValidationError(f"触发器 id {sorted(invalid_ids)} 不属于当前模板(template_id={template.id})，不允许更新")
+            raise ValidationError(f"触发器 id {sorted(invalid_ids)} 不属于当前模板(template_id={template.id})或已删除，不允许更新")
 
         to_update_trigger_ids = list(set(input_trigger_ids) & set(exist_trigger_ids))
         to_delete_trigger_ids = list(set(exist_trigger_ids) - set(input_trigger_ids))
