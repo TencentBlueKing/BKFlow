@@ -339,9 +339,8 @@ export default {
             'getTaskHasSubTaskList',
             'getTaskHasSubTasks',
         ]),
-        ...mapActions(
-'task/',
-            ['getTaskStatus']
+        ...mapActions('task/', [
+            'getTaskStatus']
         ),
         ...mapMutations('taskList/', [
             'setTaskListData',
