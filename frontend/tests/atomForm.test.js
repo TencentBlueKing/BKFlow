@@ -15,7 +15,7 @@ function loadUniformApi() {
   return module.exports;
 }
 
-function loadAtomForm({ response, postError } = {}) {
+function loadAtomForm({ response, postError, formError } = {}) {
   const source = fs.readFileSync(path.resolve(__dirname, '../src/store/modules/atomForm.js'), 'utf8');
   const transformed = babel.transformSync(source, {
     plugins: ['@babel/plugin-transform-modules-commonjs'],
@@ -43,6 +43,7 @@ function loadAtomForm({ response, postError } = {}) {
       __esModule: true,
       loadPluginForms(...args) {
         formCalls.push(args);
+        if (formError && formCalls.length === 1) return Promise.reject(formError);
         return Promise.resolve({ input: [{ tag_code: 'native' }] });
       },
     },
@@ -105,6 +106,12 @@ async function testStaleDetailDoesNotApplyContextOrLoadForms() {
       request: { plugin_code: 'stale' },
       runtimeContext: {},
       isCurrent: () => false,
+      readOnly: true,
+      snapshot: {
+        schema_protocol_version: 'open_plugin_snapshot.v1',
+        plugin_code: 'job_execute_task',
+        inputs: [],
+      },
     }),
     error => error.code === 'FORM_LOAD_STALE',
   );
@@ -112,8 +119,12 @@ async function testStaleDetailDoesNotApplyContextOrLoadForms() {
   assert.deepStrictEqual(loaded.formCalls, []);
 }
 
-async function testReadOnlySnapshotSkipsDetailRequest() {
-  const loaded = loadAtomForm({ response: { data: { result: false, message: 'should not be called' } } });
+async function testReadOnlySnapshotPrefersLiveDetail() {
+  const detail = {
+    form_context: { site_url: 'https://bksops.example.com/' },
+    forms: { input: { type: 'component_js', url: 'https://bksops.example.com/job.js' } },
+  };
+  const loaded = loadAtomForm({ response: { data: { result: true, data: detail } } });
   const snapshot = {
     schema_protocol_version: 'open_plugin_snapshot.v1',
     plugin_code: 'job_execute_task',
@@ -123,6 +134,39 @@ async function testReadOnlySnapshotSkipsDetailRequest() {
     outputs: [],
     description: 'job',
   };
+  const rootState = {
+    task: {
+      taskExtraInfoById: {
+        85414: {
+          plugin_schema_snapshot: { node_1: snapshot },
+        },
+      },
+    },
+  };
+  const result = await loaded.actions.loadV4OpenPluginForm({ rootState }, {
+    request: { plugin_code: 'demo' },
+    readOnly: true,
+    taskId: 85414,
+    nodeId: 'node_1',
+    runtimeContext: { inputs: {} },
+  });
+  assert.deepStrictEqual(result, { input: [{ tag_code: 'native' }] });
+  assert.strictEqual(loaded.postCalls.length, 1);
+  assert.strictEqual(loaded.postCalls[0][0], '/api/plugin/detail/');
+  assert.strictEqual(loaded.formCalls[0][0], detail);
+}
+
+async function testReadOnlySnapshotFallsBackWhenDetailRequestFails() {
+  const requestError = new Error('network failed');
+  const loaded = loadAtomForm({ postError: requestError });
+  const snapshot = {
+    schema_protocol_version: 'open_plugin_snapshot.v1',
+    plugin_code: 'job_execute_task',
+    plugin_version: '1.2.0',
+    plugin_source: 'builtin',
+    inputs: [{ name: 'bk_biz_id' }],
+    outputs: [],
+  };
   const result = await loaded.actions.loadV4OpenPluginForm({}, {
     request: { plugin_code: 'demo' },
     readOnly: true,
@@ -130,21 +174,53 @@ async function testReadOnlySnapshotSkipsDetailRequest() {
     runtimeContext: { inputs: {} },
   });
   assert.deepStrictEqual(result, { input: [{ tag_code: 'native' }] });
-  assert.strictEqual(loaded.postCalls.length, 0);
+  assert.strictEqual(loaded.postCalls.length, 1);
   assert.strictEqual(loaded.formCalls[0][0].forms.input, null);
   assert.strictEqual(loaded.formCalls[0][0].plugin_code, 'job_execute_task');
 }
 
+async function testReadOnlySnapshotFallsBackWhenNativeFormFails() {
+  const nativeFormError = new Error('native form asset failed');
+  const detail = {
+    form_context: { site_url: 'https://bksops.example.com/' },
+    forms: { input: { type: 'component_js', url: 'https://bksops.example.com/job.js' } },
+  };
+  const loaded = loadAtomForm({
+    response: { data: { result: true, data: detail } },
+    formError: nativeFormError,
+  });
+  const snapshot = {
+    schema_protocol_version: 'open_plugin_snapshot.v1',
+    plugin_code: 'job_execute_task',
+    plugin_version: '1.2.0',
+    plugin_source: 'builtin',
+    inputs: [{ name: 'bk_biz_id' }],
+    outputs: [],
+  };
+  const result = await loaded.actions.loadV4OpenPluginForm({}, {
+    request: { plugin_code: 'demo' },
+    readOnly: true,
+    snapshot,
+    runtimeContext: { inputs: {} },
+  });
+  assert.deepStrictEqual(result, { input: [{ tag_code: 'native' }] });
+  assert.strictEqual(loaded.postCalls.length, 1);
+  assert.strictEqual(loaded.formCalls.length, 2);
+  assert.strictEqual(loaded.formCalls[0][0], detail);
+  assert.strictEqual(loaded.formCalls[1][0].forms.input, null);
+}
+
 async function testUnknownProtocolVersionFails() {
-  const loaded = loadAtomForm({ response: { data: { result: true, data: {} } } });
+  const loaded = loadAtomForm({ postError: new Error('network failed') });
   await assert.rejects(
     () => loaded.actions.loadV4OpenPluginForm({}, {
+      request: { plugin_code: 'demo' },
       readOnly: true,
       snapshot: { schema_protocol_version: 'unknown.v9', inputs: [] },
     }),
     error => /schema_protocol_version/.test(error.message),
   );
-  assert.strictEqual(loaded.postCalls.length, 0);
+  assert.strictEqual(loaded.postCalls.length, 1);
 }
 
 async function testReadOnlyWithoutSnapshotFallsBackToLiveDetail() {
@@ -180,7 +256,9 @@ Promise.resolve()
   .then(testRejectsResultFalseEnvelope)
   .then(testPropagatesAxiosRejection)
   .then(testStaleDetailDoesNotApplyContextOrLoadForms)
-  .then(testReadOnlySnapshotSkipsDetailRequest)
+  .then(testReadOnlySnapshotPrefersLiveDetail)
+  .then(testReadOnlySnapshotFallsBackWhenDetailRequestFails)
+  .then(testReadOnlySnapshotFallsBackWhenNativeFormFails)
   .then(testUnknownProtocolVersionFails)
   .then(testReadOnlyWithoutSnapshotFallsBackToLiveDetail)
   .then(testEditableStillRequestsLiveDetailEvenWithSnapshot)
