@@ -69,7 +69,7 @@ def update_template(request, space_id, template_id):
 
     auto_release = validated_data_dict.pop("auto_release", False)
     version = validated_data_dict.pop("version", None)
-    triggers = validated_data_dict.pop("triggers") or []
+    triggers = validated_data_dict.pop("triggers", None)
 
     pipeline_tree = validated_data_dict.pop("pipeline_tree", None)
     if pipeline_tree:
@@ -153,12 +153,13 @@ def update_template(request, space_id, template_id):
 
         # 批量修改流程绑定的触发器:
         try:
-            Trigger.objects.compare_constants(
-                template.pipeline_tree.get("constants", {}),
-                (pipeline_tree or template.pipeline_tree).get("constants", {}),
-                triggers,
-            )
-            Trigger.objects.batch_modify_triggers(template, triggers, validated_data_dict["updated_by"])
+            if triggers is not None:
+                Trigger.objects.compare_constants(
+                    template.pipeline_tree.get("constants", {}),
+                    (pipeline_tree or template.pipeline_tree).get("constants", {}),
+                    triggers,
+                )
+                Trigger.objects.batch_modify_triggers(template, triggers, validated_data_dict["updated_by"])
         except Exception as e:
             raise UpdateTemplateException(_(f"更新失败，错误: {str(e)}"))
 

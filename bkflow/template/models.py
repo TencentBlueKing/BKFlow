@@ -555,6 +555,8 @@ class TriggerManager(models.Manager):
         }
         data["config"] = {**data["config"], **config}
         data["creator"] = username
+        data["space_id"] = template.space_id
+        data["template_id"] = template.id
         with transaction.atomic():
             trigger = Trigger.objects.create(**data)
             handler = self._get_handler(trigger.type)
@@ -569,6 +571,8 @@ class TriggerManager(models.Manager):
         }
         data["config"] = {**data["config"], **config}
         data["updated_by"] = username
+        data["space_id"] = template.space_id
+        data["template_id"] = template.id
         with transaction.atomic():
             for field, value in data.items():
                 setattr(trigger, field, value)
@@ -628,6 +632,11 @@ class TriggerManager(models.Manager):
         # 根据入参中触发器的id集合和数据库中存在的触发器id集合，筛选出待更新、待创建和待删除的触发器id列表
         exist_triggers_dict = {trigger.id: trigger for trigger in exist_triggers}
         exist_trigger_ids = exist_triggers_dict.keys()
+
+        invalid_ids = set(input_trigger_ids) - exist_trigger_ids
+        if invalid_ids:
+            raise ValidationError(f"触发器 id {sorted(invalid_ids)} 不属于当前模板(template_id={template.id})，不允许更新")
+
         to_update_trigger_ids = list(set(input_trigger_ids) & set(exist_trigger_ids))
         to_delete_trigger_ids = list(set(exist_trigger_ids) - set(input_trigger_ids))
         to_update_triggers = [
