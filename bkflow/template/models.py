@@ -548,7 +548,7 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
 class TriggerManager(models.Manager):
     def create_trigger(self, data, template, username):
         config = {
-            "space_id": data.get("space_id"),
+            "space_id": template.space_id,
             "pipeline_tree": template.pipeline_tree,
             "scope_type": template.scope_type,
             "scope_value": template.scope_value,
