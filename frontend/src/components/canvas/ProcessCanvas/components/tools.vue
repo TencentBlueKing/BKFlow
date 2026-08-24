@@ -522,7 +522,7 @@
             class: edgeId,
           },
           data,
-          zIndex: 0,
+          zIndex: 10, // 边显示在分组节点（zIndex=1）和子节点（zIndex=10）上面
           router: {
             name: 'manhattan',
             args: {

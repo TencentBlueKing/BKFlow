@@ -664,6 +664,8 @@
           this.$bkMessage({
             message: validateMessage.message,
             theme: 'warning',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
           });
           return false;
         }
@@ -732,6 +734,8 @@
           this.$bkMessage({
             message: validateMessage.message,
             theme: 'warning',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
           });
         }
       },
@@ -880,6 +884,8 @@
         this.$bkMessage({
           message: validateMessage.message,
           theme: 'warning',
+          ellipsisLine: 2,
+          ellipsisCopy: true,
         });
       },
       onConnection(line) {
@@ -1614,6 +1620,8 @@
         this.$bkMessage({
           message: validateMessage.message,
           theme: 'warning',
+          ellipsisLine: 2,
+          ellipsisCopy: true,
         });
         return false;
       },

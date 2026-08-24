@@ -333,7 +333,7 @@
           this.branchConditionEditHandler(e);
           return;
         }
-        if (cell.shape === 'custom-node') {
+        if (cell.shape === 'custom-node' || cell.shape === 'custom-loop-group-node') {
           this.$emit('onSubflowNodeClick', cell.id, cell.data.type, cell.data);
         }
       },
