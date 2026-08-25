@@ -151,6 +151,8 @@ class A2FlowPipeline(BaseModel):
 
         valid_codes = {item.code for item in VariableModel.objects.all().only("code")}
         for var in variables:
+            if var.custom_type == "":
+                continue
             if var.custom_type not in valid_codes:
                 raise ValueError(
                     "custom_type 必须是有效的变量类型，收到: {}，可用的变量类型: {}".format(var.custom_type, sorted(valid_codes))

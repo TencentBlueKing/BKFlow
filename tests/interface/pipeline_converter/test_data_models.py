@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock, patch
+
 from django.test import TestCase
 from pydantic import ValidationError
 
@@ -128,32 +130,68 @@ class TestA2FlowPipeline(TestCase):
         pipeline = A2FlowPipeline(name="测试", nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}])
         self.assertEqual(pipeline.version, "2.0")
 
+    def _mock_variable_model(self, valid_codes):
+        """mock VariableModel.objects.all().only('code') 返回内存假集合，
+        使基于 VariableModel 的 custom_type 校验在单测空库下可稳定运行（保留原始校验语义）。"""
+        fake_rows = [MagicMock(code=code) for code in valid_codes]
+        mock_qs = MagicMock()
+        mock_qs.only.return_value = fake_rows
+        mock_objects = MagicMock()
+        mock_objects.all.return_value = mock_qs
+        return patch(
+            "bkflow.pipeline_converter.converters.a2flow_v2.data_models.VariableModel.objects",
+            mock_objects,
+        )
+
     def test_pipeline_with_variables(self):
         _, A2FlowPipeline, _, _ = _get_models()
-        pipeline = A2FlowPipeline(
-            name="带变量",
-            nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
-            variables=[{"key": "${ip}", "name": "IP地址"}],
-        )
+        with self._mock_variable_model(["input", "textarea", "datetime"]):
+            pipeline = A2FlowPipeline(
+                name="带变量",
+                nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
+                variables=[{"key": "${ip}", "name": "IP地址"}],
+            )
         self.assertEqual(len(pipeline.variables), 1)
         self.assertEqual(pipeline.variables[0].key, "${ip}")
 
     def test_pipeline_rejects_invalid_variable_custom_type(self):
         """非法 custom_type 应在 Pipeline 级别被一次性校验拒绝"""
         _, A2FlowPipeline, _, _ = _get_models()
-        with self.assertRaises(ValidationError):
-            A2FlowPipeline(
-                name="非法变量类型",
-                nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
-                variables=[{"key": "${ip}", "custom_type": "not_exist_type"}],
-            )
+        with self._mock_variable_model(["input", "textarea", "datetime"]):
+            with self.assertRaises(ValidationError):
+                A2FlowPipeline(
+                    name="非法变量类型",
+                    nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
+                    variables=[{"key": "${ip}", "custom_type": "not_exist_type"}],
+                )
 
     def test_pipeline_accepts_valid_variable_custom_type(self):
         """合法的 custom_type 应通过校验"""
         _, A2FlowPipeline, _, _ = _get_models()
-        pipeline = A2FlowPipeline(
-            name="合法变量类型",
-            nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
-            variables=[{"key": "${ip}", "custom_type": "input"}],
-        )
+        with self._mock_variable_model(["input", "textarea", "datetime"]):
+            pipeline = A2FlowPipeline(
+                name="合法变量类型",
+                nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
+                variables=[{"key": "${ip}", "custom_type": "input"}],
+            )
         self.assertEqual(pipeline.variables[0].custom_type, "input")
+
+    def test_pipeline_variable_custom_type_non_string_rejected(self):
+        """custom_type 为非字符串类型（如数字）时应被校验拒绝"""
+        _, A2FlowPipeline, _, _ = _get_models()
+        with self.assertRaises(ValidationError):
+            A2FlowPipeline(
+                name="非法变量类型",
+                nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
+                variables=[{"key": "${ip}", "custom_type": 123}],
+            )
+
+    def test_pipeline_variable_custom_type_empty_string_allowed(self):
+        """custom_type 为空串时合法（下游 classify_constants 对空串有特殊处理）"""
+        _, A2FlowPipeline, _, _ = _get_models()
+        pipeline = A2FlowPipeline(
+            name="空串变量类型",
+            nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
+            variables=[{"key": "${ip}", "custom_type": ""}],
+        )
+        self.assertEqual(pipeline.variables[0].custom_type, "")
