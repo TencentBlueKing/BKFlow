@@ -15,11 +15,18 @@
     class="retry-node-container">
     <div class="edit-wrapper">
       <RenderForm
-        v-if="!isEmptyParams && !loading"
+        v-if="Array.isArray(renderConfig) && !isEmptyParams && !loading"
         ref="renderForm"
         v-model="renderData"
         :scheme="renderConfig"
         :form-option="renderOption" />
+      <JsonschemaInputParams
+        v-else-if="!Array.isArray(renderConfig) && !isEmptyParams && !loading"
+        ref="renderForm"
+        :form-data="renderData"
+        :schema="renderConfig"
+        :is-view-mode="false"
+        @update="renderData = $event" />
       <NoData v-else />
     </div>
     <div class="action-wrapper">
@@ -46,15 +53,36 @@
   import tools from '@/utils/tools.js';
   import NoData from '@/components/common/base/NoData.vue';
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
+  import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import atomFilter from '@/utils/atomFilter.js';
+  import {
+    buildV4PluginDetailRequest,
+    isV4OpenPlugin,
+    resolveNodeExecutionPayload,
+    resolveV4OpenPluginVersion,
+  } from '@/utils/uniformApi.js';
+  import { hasPluginFormFields } from '@/utils/pluginFormLoader.js';
   export default {
     name: 'RetryNode',
     components: {
       RenderForm,
+      JsonschemaInputParams,
       NoData,
     },
     props: {
       nodeDetailConfig: {
+        type: Object,
+        default: () => ({}),
+      },
+      spaceId: {
+        type: [Number, String],
+        default: 0,
+      },
+      templateId: {
+        type: [Number, String],
+        default: '',
+      },
+      scopeInfo: {
         type: Object,
         default: () => ({}),
       },
@@ -80,18 +108,32 @@
         renderConfig: [],
         renderData: {},
         initalRenderData: {},
+        pluginFormRequestId: 0,
+        isDestroyed: false,
       };
     },
     computed: {
       ...mapState({
-        spaceId: state => state.template.spaceId,
         atomFormConfig: state => state.atomForm.config,
       }),
       ...mapState('project', {
         project_id: state => state.project_id,
       }),
       isEmptyParams() {
-        return this.renderConfig.length === 0;
+        return !hasPluginFormFields(this.renderConfig);
+      },
+      nodeComponent() {
+        return this.nodeDetailConfig.component
+          || this.nodeInfo.component
+          || {
+            code: this.nodeDetailConfig.component_code,
+            version: this.nodeDetailConfig.version,
+            data: this.nodeDetailConfig.componentData || {},
+            api_meta: this.nodeDetailConfig.api_meta || {},
+          };
+      },
+      isV4OpenPlugin() {
+        return isV4OpenPlugin(this.nodeComponent);
       },
       componentValue() {
         const { componentData, component_code: componentCode } = this.nodeDetailConfig;
@@ -118,53 +160,102 @@
       }
     },
     beforeDestroy() {
+      this.isDestroyed = true;
+      this.pluginFormRequestId += 1;
       $.context.exec_env = '';
     },
     methods: {
       ...mapActions('atomForm/', [
         'loadAtomConfig',
         'loadPluginServiceDetail',
+        'loadV4OpenPluginForm',
       ]),
       async getNodeConfig(type, version) {
-        if (atomFilter.isConfigExists(type, version, this.atomFormConfig)) {
-          this.renderConfig = this.atomFormConfig[type][version];
-        } else {
-          try {
-            this.loading = true;
-            // 第三方插件节点拼接输出参数
-            if (this.nodeDetailConfig.component_code === 'remote_plugin') {
-              const { inputs } = this.nodeInfo.data;
-              const pluginVersion = inputs && inputs.plugin_version;
-              const pluginCode = inputs && inputs.plugin_code;
-              const resp = await this.loadPluginServiceDetail({
-                plugin_code: pluginCode,
-                plugin_version: pluginVersion,
-                with_app_detail: true,
-              });
-              if (!resp.result) return;
-
-              // 设置host
-              const { origin } = window.location;
-              const hostUrl = `${origin + window.SITE_URL}plugin_service/data_api/${pluginCode}/`;
-              $.context.bk_plugin_api_host[pluginCode] = hostUrl;
-              // 输入参数
-              const renderFrom = resp.data.forms.renderform;
-              /* eslint-disable-next-line */
-                            eval(renderFrom)
-              const config = $.atoms[pluginCode];
-              this.renderConfig = config || [];
-            } else if (type === 'subprocess_plugin') {
-              const { constants } = this.componentValue.pipeline;
-              this.renderConfig = await this.getSubflowInputsConfig(constants);
-            } else {
-              await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
-              this.renderConfig = this.atomFormConfig[type][version];
-            }
-          } catch (e) {
-            console.log(e);
-          } finally {
-            this.loading = false;
+        this.pluginFormRequestId += 1;
+        const requestId = this.pluginFormRequestId;
+        const canApply = () => !this.isDestroyed && requestId === this.pluginFormRequestId;
+        this.loading = true;
+        try {
+          if (this.isV4OpenPlugin) {
+            this.renderConfig = [];
+            const execution = resolveNodeExecutionPayload(this.nodeInfo);
+            const result = await this.loadV4OpenPluginForm({
+              request: buildV4PluginDetailRequest({
+                component: this.nodeComponent,
+                spaceId: this.spaceId,
+                templateId: this.templateId,
+                scopeType: this.scopeInfo.scope_type || '',
+                scopeValue: this.scopeInfo.scope_value ?? '',
+              }),
+              readOnly: false,
+              isCurrent: canApply,
+              runtimeContext: {
+                inputs: this.renderData,
+                outputs: execution.outputs,
+                state: execution.state,
+              },
+            });
+            if (!canApply()) return;
+            this.renderConfig = result.input;
+            return;
           }
+          if (atomFilter.isConfigExists(type, version, this.atomFormConfig)) {
+            if (!canApply()) return;
+            this.renderConfig = this.atomFormConfig[type][version];
+            return;
+          }
+          // 第三方插件节点拼接输出参数
+          if (this.nodeDetailConfig.component_code === 'remote_plugin') {
+            const { inputs } = this.nodeInfo.data;
+            const pluginVersion = inputs && inputs.plugin_version;
+            const pluginCode = inputs && inputs.plugin_code;
+            const resp = await this.loadPluginServiceDetail({
+              plugin_code: pluginCode,
+              plugin_version: pluginVersion,
+              with_app_detail: true,
+            });
+            if (!canApply()) return;
+            if (!resp.result) return;
+
+            // 设置host
+            const { origin } = window.location;
+            const hostUrl = `${origin + window.SITE_URL}plugin_service/data_api/${pluginCode}/`;
+            $.context.bk_plugin_api_host[pluginCode] = hostUrl;
+            if (!canApply()) return;
+            // 输入参数
+            const renderFrom = resp.data.forms.renderform;
+            /* eslint-disable-next-line */
+                          eval(renderFrom)
+            if (!canApply()) return;
+            const config = $.atoms[pluginCode];
+            this.renderConfig = config || [];
+            return;
+          }
+          if (type === 'subprocess_plugin') {
+            const { constants } = this.componentValue.pipeline;
+            const config = await this.getSubflowInputsConfig(constants, canApply);
+            if (!canApply()) return;
+            this.renderConfig = config || [];
+            return;
+          }
+          await this.loadAtomConfig({ atom: type, version, space_id: this.spaceId });
+          if (!canApply()) return;
+          this.renderConfig = this.atomFormConfig[type][version];
+        } catch (error) {
+          if (!canApply()) return;
+          if (error && error.code === 'FORM_LOAD_STALE') return;
+          if (!this.isV4OpenPlugin) {
+            console.log(error);
+            return;
+          }
+          const errorCode = error && error.code ? error.code : 'FORM_LOAD_FAILED';
+          const pluginVersion = resolveV4OpenPluginVersion(this.nodeComponent) || version || '--';
+          this.$bkMessage({
+            message: `${errorCode}: ${pluginVersion}`,
+            theme: 'error',
+          });
+        } finally {
+          if (canApply()) this.loading = false;
         }
       },
       /**
@@ -174,7 +265,7 @@
        *
        * @return {Array} 每个非隐藏全局变量对应表单配置项组成的数组
        */
-      async getSubflowInputsConfig(subflowForms) {
+      async getSubflowInputsConfig(subflowForms, isCurrent = () => true) {
         const inputs = [];
         const variables = Object.keys(subflowForms)
           .map(key => subflowForms[key])
@@ -188,6 +279,7 @@
           const version = variable.version || 'legacy';
           const isThird = Boolean(variable.plugin_code);
           const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
+          if (!isCurrent()) return;
           let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
           if (variable.is_meta || formItemConfig.meta_transform) {
             formItemConfig = formItemConfig.meta_transform(variable.meta || variable);
@@ -221,6 +313,7 @@
           }
           inputs.push(formItemConfig);
         }));
+        if (!isCurrent()) return null;
         return inputs;
       },
       /**

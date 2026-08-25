@@ -36,7 +36,13 @@ from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.label.serializers import LabelSerializer
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
-from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
+from bkflow.template.models import (
+    Template,
+    TemplateOperationRecord,
+    TemplateSnapshot,
+    Trigger,
+)
+from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
@@ -63,6 +69,7 @@ def update_template(request, space_id, template_id):
 
     auto_release = validated_data_dict.pop("auto_release", False)
     version = validated_data_dict.pop("version", None)
+    triggers = validated_data_dict.pop("triggers", None)
 
     pipeline_tree = validated_data_dict.pop("pipeline_tree", None)
     if pipeline_tree:
@@ -144,6 +151,18 @@ def update_template(request, space_id, template_id):
         except Exception as e:
             raise UpdateTemplateException(_(f"保存模板失败，错误: {str(e)}"))
 
+        # 批量修改流程绑定的触发器:
+        try:
+            if triggers is not None:
+                Trigger.objects.compare_constants(
+                    template.pipeline_tree.get("constants", {}),
+                    (pipeline_tree or template.pipeline_tree).get("constants", {}),
+                    triggers,
+                )
+                Trigger.objects.batch_modify_triggers(template, triggers, validated_data_dict["updated_by"])
+        except Exception as e:
+            raise UpdateTemplateException(_(f"更新失败，错误: {str(e)}"))
+
         enable_webhook = validated_data_dict.pop("enable_webhook", None)
         webhook_configs = validated_data_dict.pop("webhook_configs", [])
         if enable_webhook is True and webhook_configs:
@@ -160,6 +179,9 @@ def update_template(request, space_id, template_id):
     template = Template.objects.get(id=template_id)
 
     resp_data = template.to_json()
+    template_triggers = Trigger.objects.filter(template_id=template.id, is_deleted=False)
+    resp_data["triggers"] = TriggerSerializer(template_triggers, many=True).data
+
     current_label_ids = list(
         TemplateLabelRelation.objects.filter(template_id=template.id).values_list("label_id", flat=True)
     )

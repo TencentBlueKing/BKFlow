@@ -184,6 +184,8 @@ class TestTaskInstance:
         assert mapped_node_id in task_instance.execution_data[PE.activities]
         assert list(task_mock_data.data["outputs"].keys()) == [mapped_node_id]
         assert task_mock_data.mock_data_ids == {"foo": "bar"}
+        assert "fail_nodes" not in task_mock_data.data
+        assert "errors" not in task_mock_data.data
 
     def test_change_parent_task_node_state_to_running_without_relation(self):
         """Cover TaskInstance.change_parent_task_node_state_to_running no relation branch"""

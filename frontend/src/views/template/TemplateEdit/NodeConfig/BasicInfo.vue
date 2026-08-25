@@ -60,7 +60,7 @@
         </bk-select>
       </bk-form-item>
       <bk-form-item
-        v-else
+        v-if="showPluginVersion"
         :label="$t('插件版本')"
         data-test-id="templateEdit_form_pluginVersion"
         :required="true"
@@ -827,6 +827,9 @@
       ...mapState({
         subprocessInfo: state => state.template.subprocess_info,
       }),
+      showPluginVersion() {
+        return !this.isApiPlugin || Boolean(this.basicInfo.isOpenPlugin);
+      },
       subflowHasUpdate() {
         if (!this.formData.alwaysUseLatest) {
           return this.version !== this.basicInfo.version || this.subprocessInfo.some((subflow) => {

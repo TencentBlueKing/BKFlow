@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 from functools import wraps
 
@@ -29,6 +30,18 @@ from bkflow.utils.api_client import (
 )
 
 logger = logging.getLogger("root")
+
+
+def resolve_meta_url(meta_url: str = "", meta_url_template: str = "", version: str = "") -> str:
+    if meta_url:
+        return meta_url
+
+    if meta_url_template:
+        if not version:
+            raise ValidationError("meta_url_template 存在时 version 不能为空")
+        return meta_url_template.format(version=version)
+
+    raise ValidationError("meta_url 和 meta_url_template 至少有一个")
 
 
 def check_resource_token(func: callable) -> callable:
@@ -86,12 +99,38 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "required": ["id", "meta_url", "name"],
                     "properties": {
                         "id": {"type": "string"},
                         "meta_url": {"type": "string"},
+                        "meta_url_template": {"type": "string"},
                         "name": {"type": "string"},
+                        "plugin_source": {"type": "string"},
+                        "plugin_code": {"type": "string"},
+                        "wrapper_version": {"type": "string"},
+                        "default_version": {"type": "string"},
+                        "latest_version": {"type": "string"},
+                        "versions": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 1,
+                        },
                     },
+                    "anyOf": [
+                        {"required": ["id", "meta_url", "name"]},
+                        {
+                            "required": [
+                                "id",
+                                "name",
+                                "plugin_source",
+                                "plugin_code",
+                                "wrapper_version",
+                                "default_version",
+                                "latest_version",
+                                "versions",
+                                "meta_url_template",
+                            ]
+                        },
+                    ],
                 },
             },
         },
@@ -100,11 +139,33 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
     UNIFORM_API_META_RESPONSE_DATA_SCHEMA = {
         "type": "object",
         "required": ["id", "name", "url", "methods", "inputs"],
+        "anyOf": [
+            {
+                "properties": {"wrapper_version": {"const": "v4.0.0"}},
+                "required": [
+                    "wrapper_version",
+                    "plugin_source",
+                    "plugin_code",
+                    "plugin_version",
+                    "outputs",
+                ],
+            },
+            {
+                "not": {
+                    "properties": {"wrapper_version": {"const": "v4.0.0"}},
+                    "required": ["wrapper_version"],
+                }
+            },
+        ],
         "properties": {
             "id": {"type": "string"},
             "name": {"type": "string"},
             "desc": {"type": "string"},
             "version": {"type": "string"},  # 可选：指定使用的uniform_api插件版本，如 "v2.0.0", "v3.0.0"
+            "wrapper_version": {"type": "string"},
+            "plugin_version": {"type": "string"},
+            "plugin_source": {"type": "string"},
+            "plugin_code": {"type": "string"},
             "url": {"type": "string"},
             "methods": {
                 "type": "array",
@@ -124,6 +185,68 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
                         "desc": {"type": "string"},
                         "options": {"type": "array"},
                         "form_type": {"type": "string"},
+                    },
+                },
+            },
+            "form_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string"},
+                    "properties": {"type": "object"},
+                    "required": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+            "forms": {
+                "type": "object",
+                "required": ["input", "output"],
+                "properties": {
+                    "input": {"type": ["object", "null"]},
+                    "output": {"type": ["object", "null"]},
+                },
+            },
+            "form_context": {"type": "object"},
+            "outputs": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["name", "key"],
+                },
+            },
+            "polling": {
+                "type": "object",
+                "required": ["url", "task_tag_key", "success_tag", "fail_tag", "running_tag"],
+                "properties": {
+                    "url": {"type": "string"},
+                    "task_tag_key": {"type": "string"},
+                    "success_tag": {
+                        "type": "object",
+                        "required": ["key", "value"],
+                        "properties": {
+                            "key": {"type": "string"},
+                            "value": {"type": ["string", "integer"]},
+                            "data_key": {"type": "string"},
+                            "msg_key": {"type": "string"},
+                        },
+                    },
+                    "fail_tag": {
+                        "type": "object",
+                        "required": ["key", "value"],
+                        "properties": {
+                            "key": {"type": "string"},
+                            "value": {"type": ["string", "integer"]},
+                            "data_key": {"type": "string"},
+                            "msg_key": {"type": "string"},
+                        },
+                    },
+                    "running_tag": {
+                        "type": "object",
+                        "required": ["key", "value"],
+                        "properties": {
+                            "key": {"type": "string"},
+                            "value": {"type": ["string", "integer"]},
+                            "data_key": {"type": "string"},
+                            "msg_key": {"type": "string"},
+                        },
                     },
                 },
             },

@@ -358,6 +358,8 @@ class UniformApiConfig(BaseSpaceConfig):
                 "meta_apis": "{meta_apis url}",
                 "api_categories": "{api_categories url}",
                 "display_name": "{display_name}",
+                "source_key": "{open plugin execution source key}",
+                "catalog_mode": "remote/cache_first/cache_only",
                 "headers": {"X-Custom-Header": "${_system.operator}"},
             }
         }
@@ -387,6 +389,7 @@ class UniformApiConfig(BaseSpaceConfig):
         META_APIS = "meta_apis"
         API_CATEGORIES = "api_categories"
         DISPLAY_NAME = "display_name"
+        CATALOG_MODE = "catalog_mode"
         DEFAULT_DISPLAY_NAME = "API插件"
         DEFAULT_API_KEY = "default"
 
@@ -753,11 +756,19 @@ class SchemaV1Model(BaseModel):
     api_categories: Optional[str] = None
 
 
+class UniformAPICatalogMode(str, Enum):
+    REMOTE = "remote"
+    CACHE_FIRST = "cache_first"
+    CACHE_ONLY = "cache_only"
+
+
 # 定义 SCHEMA 对应的模型
 class ApiModel(BaseModel):
     meta_apis: str
     api_categories: str
     display_name: str
+    source_key: Optional[str] = None
+    catalog_mode: UniformAPICatalogMode = UniformAPICatalogMode.REMOTE
     headers: Optional[dict] = None
 
     def get(self, field_name, default=None):

@@ -166,6 +166,8 @@
                     :is-view-mode="isViewMode"
                     :constants="localConstants"
                     :is-api-plugin="isApiPlugin"
+                    :api-inputs="apiInputs"
+                    :form-error="formLoadError"
                     :basic-info="basicInfo"
                     :is-third-party="isThirdParty"
                     @hookChange="onHookChange"
@@ -238,6 +240,18 @@
   import permission from '@/mixins/permission.js';
   import formSchema from '@/utils/formSchema.js';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import {
+    buildUniformApiComponent,
+    buildUniformApiDetailState,
+    buildUniformApiIdentityData,
+    buildUniformApiPluginPipelineComponent,
+    buildV4PluginDetailRequest,
+    canApplyPluginDetailResult,
+    isV4OpenPlugin,
+    resolveNewOpenPluginVersion,
+    resolveUniformApiIdentity,
+    withLoadingState,
+  } from '@/utils/uniformApi.js';
   import copy from '@/mixins/copy.js';
   import AccessCredential from './AccessCredential.vue';
 
@@ -333,6 +347,9 @@
         isDataChange: false, // 数据是否改变
         isApiPlugin: false, // 是否为Api插件
         apiInputs: [], // api数据
+        formLoadError: '', // 插件表单加载错误
+        atomConfigRequestId: 0,
+        isDestroyed: false,
         isInitDecision: true,
         credentialLoading: false,
       };
@@ -455,9 +472,14 @@
       });
       this.localConstants = tools.deepClone(this.constants);
     },
+    beforeDestroy() {
+      this.isDestroyed = true;
+      this.atomConfigRequestId += 1;
+    },
     async mounted() {
       try {
         const defaultData = await this.initDefaultData();
+        if (this.isDestroyed) return;
         for (const [key, val] of Object.entries(defaultData)) {
           this[key] = val;
         }
@@ -467,12 +489,13 @@
       } catch (error) {
         console.warn(error);
       } finally {
-        this.initLoading = false;
+        if (!this.isDestroyed) this.initLoading = false;
       }
     },
     methods: {
       ...mapActions('atomForm/', [
         'loadAtomConfig',
+        'loadV4OpenPluginForm',
         'loadPluginServiceMeta',
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
@@ -499,20 +522,28 @@
         const nodeConfig = tools.deepClone(this.activities[this.nodeId]);
         const isThirdParty = nodeConfig.component && nodeConfig.component.code === 'remote_plugin';
         const isApiPlugin = nodeConfig.component && nodeConfig.component.code === 'uniform_api';
-        if (nodeConfig.type === 'ServiceActivity') {
-          this.basicInfo = await this.getNodeBasic(nodeConfig);
-        } else {
+        if (nodeConfig.type !== 'ServiceActivity') {
           this.isSelectorPanelShow = !nodeConfig.template_id;
-          this.basicInfo = await this.getNodeBasic(nodeConfig);
         }
+        const basicInfo = await this.getNodeBasic(nodeConfig);
+        if (this.isDestroyed) return;
+        this.basicInfo = basicInfo;
         this.$nextTick(() => {
-          this.isBaseInfoLoading = false;
+          if (!this.isDestroyed) {
+            this.isBaseInfoLoading = false;
+          }
         });
-        const { basicInfo } = this;
         let versionList = [];
         if (nodeConfig.type === 'ServiceActivity') {
           const code = isThirdParty ? nodeConfig.name : nodeConfig.component.code;
-          versionList = isApiPlugin ? [] : this.getAtomVersions(code, isThirdParty);
+          if (isApiPlugin && basicInfo.versions && basicInfo.versions.length > 0) {
+            versionList = basicInfo.versions.map(v => ({ version: v }));
+          } else if (isApiPlugin) {
+            // 旧数据兼容：没有版本信息时使用框架版本作为唯一选项
+            versionList = [{ version: basicInfo.version || 'v2.0.0' }];
+          } else if (!isApiPlugin) {
+            versionList = this.getAtomVersions(code, isThirdParty);
+          }
         }
         const isSelectorPanelShow = nodeConfig.type === 'ServiceActivity' ? !basicInfo.plugin : !basicInfo.tpl;
         return {
@@ -563,8 +594,10 @@
             paramsVal[key] = val;
             renderConfig[key] = 'need_render' in this.nodeConfig.component.data[key] ? this.nodeConfig.component.data[key].need_render : true;
           });
+          this.inputsParamValue = paramsVal;
           this.inputsRenderConfig = renderConfig;
           await this.getPluginDetail();
+          if (this.isDestroyed) return;
           if (this.nodeConfig.component.credentials) {
             const backfillData = this.basicInfo.processCredentials.map((item) => {
               if (this.nodeConfig.component.credentials[item.key]) {
@@ -577,6 +610,7 @@
           // api插件json字段展示解析优化
           this.handleJsonValueParse(false, paramsVal);
           this.inputsParamValue = paramsVal;
+          this.inputsRenderConfig = renderConfig;
         } else {
           const { tpl, version } = this.basicInfo;
           const forms = {};
@@ -607,88 +641,180 @@
        * 加载标准插件节点输入参数表单配置项，获取输出参数列表
        */
       async getPluginDetail() {
+        if (this.isDestroyed) return;
         const { plugin, version } = this.basicInfo;
+        const requestBasicInfo = { ...this.basicInfo };
+        const requestInputs = tools.deepClone(this.inputsParamValue);
+        const requestOutputs = tools.deepClone(this.outputs);
+        this.atomConfigRequestId += 1;
+        const requestId = this.atomConfigRequestId;
+        this.credentialLoading = false;
+        const component = buildUniformApiComponent(this.basicInfo);
         this.taskNodeLoading = true;
+        this.formLoadError = '';
+        this.inputs = [];
+        this.outputs = [];
+        this.uniformOutputs = [];
+        this.apiInputs = [];
+        this.inputsRenderConfig = {};
         try {
           // 获取输入输出参数
-          this.inputs = await this.getAtomConfig({ plugin, version, isThird: this.isThirdParty });
+          const inputs = await this.getAtomConfig({
+            plugin,
+            version,
+            isThird: this.isThirdParty,
+            isApiPlugin: this.isApiPlugin,
+            requestId,
+            component,
+            requestBasicInfo,
+            requestInputs,
+            requestOutputs,
+          });
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
+          this.inputs = inputs || [];
           if (!this.isThirdParty && !this.isApiPlugin) {
             this.outputs = this.atomGroup.list.find(item => item.version === version)?.output || [];
           }
         } catch (e) {
-          console.log(e);
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
+          if (this.isApiPlugin && isV4OpenPlugin(component)) {
+            this.formLoadError = e.message || this.$t('插件表单加载失败');
+          }
+          console.warn(e);
         } finally {
-          this.taskNodeLoading = false;
+          if (this.isCurrentPluginDetailRequest(requestId)) {
+            this.taskNodeLoading = false;
+          }
         }
       },
+      isCurrentPluginDetailRequest(requestId) {
+        return canApplyPluginDetailResult(requestId, this.atomConfigRequestId, this.isDestroyed);
+      },
       /**
-       * 加载标准插件表单配置项文件
-       * 优先取 store 里的缓存
+       * 插件表单分流入口。
+       * V4 开放插件通过 /api/plugin/detail/ 加载原生表单；V2/V3 API 插件继续使用
+       * loadUniformApiMeta + jsonFormSchema，标准插件和第三方插件沿用原缓存/脚本链路。
+       * requestId 贯穿整个异步过程，保证切换插件或版本后旧响应不会写回当前面板。
        */
       async getAtomConfig(config) {
-        const { plugin, version, classify, name, isThird } = config;
+        if (this.isDestroyed) return;
+        const {
+          plugin,
+          version,
+          classify,
+          name,
+          isThird,
+          isApiPlugin,
+          requestId,
+          component,
+          requestBasicInfo,
+          requestInputs,
+          requestOutputs,
+        } = config;
+        const currentBasicInfo = requestBasicInfo || this.basicInfo;
+        const currentComponent = component || buildUniformApiComponent(currentBasicInfo);
+        const isV4 = isApiPlugin && isV4OpenPlugin(currentComponent);
         try {
           // 先取标准节点缓存的数据
           const pluginGroup = this.pluginConfigs[plugin];
-          if (pluginGroup && pluginGroup[version]) {
+          if (!isV4 && pluginGroup && pluginGroup[version]) {
             return pluginGroup[version];
           }
+          if (isV4) {
+            const result = await this.loadV4OpenPluginForm({
+              request: buildV4PluginDetailRequest({
+                component: currentComponent,
+                selectedVersion: currentBasicInfo.version,
+                spaceId: this.spaceId,
+                templateId: this.$route.params.templateId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+              }),
+              readOnly: this.isViewMode,
+              isCurrent: () => this.isCurrentPluginDetailRequest(requestId),
+              runtimeContext: {
+                inputs: requestInputs || {},
+                outputs: requestOutputs || [],
+              },
+            });
+            if (!this.isCurrentPluginDetailRequest(requestId)) return;
+            const detailState = buildUniformApiDetailState(result.detail, currentBasicInfo);
+            this.apiInputs = Array.isArray(result.detail.inputs) ? result.detail.inputs : [];
+            this.uniformOutputs = Array.isArray(result.detail.outputs) ? result.detail.outputs : [];
+            this.outputs = [...this.uniformOutputs];
+            this.updateBasicInfo(detailState);
+            return result.input;
+          }
           // api插件输入输出
-          if (this.isApiPlugin && this.basicInfo.metaUrl) {
+          if (isApiPlugin && (currentBasicInfo.metaUrl || currentBasicInfo.meta_url_template)) {
             // 先获取api插件配置，以获取正确的version
             const resp = await this.loadUniformApiMeta({
               templateId: this.$route.params.templateId,
               spaceId: this.spaceId,
-              meta_url: this.basicInfo.metaUrl,
+              meta_url: currentBasicInfo.metaUrl,
               ...this.scopeInfo,
+              meta_url_template: currentBasicInfo.meta_url_template,
+              version: currentBasicInfo.version,
+              source_key: currentBasicInfo.sourceKey,
             });
             if (!resp.result) return;
-            // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
-            const apiVersion = resp.data.version || 'v2.0.0';
-            // 使用meta API返回的version加载统一api基础配置
-            await this.loadAtomConfig({ atom: plugin, version: apiVersion, space_id: this.spaceId });
+            // component.version 保存 uniform_api 包装器版本，业务版本独立保存在隐藏字段中。
+            const wrapperVersion = resp.data.wrapper_version || resp.data.version || 'v2.0.0';
+            if (!this.isCurrentPluginDetailRequest(requestId)) return;
+            await this.loadAtomConfig({ atom: plugin, version: wrapperVersion, space_id: this.spaceId });
+            if (!this.isCurrentPluginDetailRequest(requestId)) return;
             // 输出参数
-            const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
+            const storeOutputs = this.pluginOutput.uniform_api[wrapperVersion] || [];
             this.uniformOutputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs];
-            const { url, methods, response_data_path: respDataPath, polling, callback, credential_key } = resp.data;
-            const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中
-            this.updateBasicInfo({
-              method,
-              methodList: methods,
-              realMetaUrl: url,
-              methodList: resp.data.methods,
-              respDataPath,
-              polling,
-              callback,
-              credentialKey: credential_key, // 保存credential_key到basicInfo
-              version: apiVersion, // 更新version到basicInfo
-            });
-            this.apiInputs = resp.data.inputs;
+            const detailState = buildUniformApiDetailState(resp.data, currentBasicInfo);
+            detailState.method = detailState.methodList.length === 1 ? detailState.methodList[0] : '';
+            const updateData = {
+              ...detailState,
+              wrapperVersion: detailState.wrapperVersion || wrapperVersion,
+              pluginSource: resp.data.plugin_source || currentBasicInfo.pluginSource,
+              pluginCode: resp.data.plugin_code || currentBasicInfo.pluginCode,
+            };
+            // 有 meta_url_template 时已有业务版本，不覆盖为框架版本
+            // 无 meta_url_template 时（旧数据）用框架版本作为 version
+            if (!currentBasicInfo.meta_url_template) {
+              updateData.version = updateData.wrapperVersion;
+              updateData.uniform_api_plugin_version = updateData.wrapperVersion;
+            }
+            this.updateBasicInfo(updateData);
+            this.apiInputs = Array.isArray(resp.data.inputs) ? resp.data.inputs : [];
             return jsonFormSchema(resp.data, { disabled: this.isViewMode });
           }
           // 第三方插件
           if (isThird) {
-            await this.getThirdConfig(plugin, version);
+          await this.getThirdConfig(plugin, version, requestId);
           } else {
             await this.loadAtomConfig({ atom: plugin, version, classify, name, space_id: this.spaceId });
           }
           const config = $.atoms[plugin];
           return config;
         } catch (e) {
-          console.log(e);
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
+          if (isV4) throw e;
+          console.warn(e);
         }
       },
       // 第三方插件输入输出配置
-      async getThirdConfig(plugin, version) {
+      async getThirdConfig(plugin, version, requestId) {
         try {
-          this.credentialLoading = true;
-          const resp = await this.loadPluginServiceDetail({
-            plugin_code: plugin,
-            plugin_version: version,
-            with_app_detail: true,
-          });
+          const resp = await withLoadingState(
+            (loading) => {
+              this.credentialLoading = loading;
+            },
+            () => this.loadPluginServiceDetail({
+              plugin_code: plugin,
+              plugin_version: version,
+              with_app_detail: true,
+            }),
+            () => this.isCurrentPluginDetailRequest(requestId),
+          );
           if (!resp.result) return;
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
           // 获取参数
           const { outputs: respOutputs, forms, inputs } = resp.data;
           // 获取不同版本的描述
@@ -712,7 +838,6 @@
           } else {
             this.updateBasicInfo({ desc });
           }
-          this.credentialLoading = false;
           // 获取host
           const { origin } = window.location;
           const hostUrl = `${origin + window.SITE_URL}plugin_service/data_api/${plugin}/`;
@@ -733,6 +858,7 @@
           if (!this.pluginOutput.remote_plugin) {
             await this.loadAtomConfig({ atom: 'remote_plugin', version: '1.0.0', space_id: this.spaceId });
           }
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
           const storeOutputs = this.pluginOutput.remote_plugin['1.0.0'];
           for (const [key, val] of Object.entries(respOutputs.properties)) {
             outputs.push({
@@ -900,6 +1026,7 @@
             } else if (component.code === 'uniform_api') {
               code = component.code;
               version = component.version;
+              desc = component.api_meta?.desc || '';
             } else {
               const atom = this.atomList.find(item => item.code === component.code);
               code = component.code;
@@ -935,22 +1062,62 @@
             credentials,
           };
           if (component.code === 'uniform_api' &&  component.api_meta) { // 新版api插件中component包含api_meta字段
-            const { id, name, api_key: apiKey, meta_url, category = {} } = component.api_meta;
+            const {
+              id,
+              name,
+              api_key: apiKey,
+              meta_url,
+              category = {},
+              plugin_source: pluginSource,
+              plugin_code: pluginCode,
+              wrapper_version: savedWrapperVersion,
+            } = component.api_meta;
+            const savedIdentity = resolveUniformApiIdentity(component);
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
             // 从节点数据中读取uniform_api_plugin_credential_key（如果存在）
             const credentialKey = component.data.uniform_api_plugin_credential_key?.value;
+            const versions = component.api_meta.versions || [];
+            const latestVersion = component.api_meta.latest_version || '';
+            const defaultVersion = component.api_meta.default_version || '';
+            const metaUrlTemplate = component.api_meta.meta_url_template || '';
+            const savedPluginVersion = savedIdentity.pluginVersion;
+            const isOpenPlugin = versions.length > 0;
+            const isSavedV4 = isV4OpenPlugin(component);
+            let uniformApiPluginVersion = component.version || 'v2.0.0';
+            if (isOpenPlugin) {
+              uniformApiPluginVersion = savedPluginVersion;
+              if (!isSavedV4 && !uniformApiPluginVersion) {
+                uniformApiPluginVersion = latestVersion || defaultVersion;
+              }
+            }
+            // 兼容旧版页面曾把业务版本误存到 component.version 的节点。
+            const wrapperVersion = savedWrapperVersion || (isOpenPlugin ? 'v4.0.0' : component.version || 'v2.0.0');
+            const sourceKey = savedIdentity.sourceKey === undefined ? '' : savedIdentity.sourceKey;
             Object.assign(data, {
               plugin: 'uniform_api',
               name: `${category.name}-${name}`,
-              pluginId: id,
-              method: method.value,
+              apiPluginName: name,
+              pluginId: savedIdentity.pluginId === undefined ? id : savedIdentity.pluginId,
+              method: method?.value || '',
               groupId: category.id,
               groupName: category.name,
               apiKey,
+              sourceKey,
+              pluginSource,
+              pluginCode,
+              wrapperVersion,
+              isOpenPlugin,
               metaUrl: meta_url,
-              realMetaUrl,
+              realMetaUrl: realMetaUrl?.value || realMetaUrl,
               credentialKey, // 保存credential_key到basicInfo，以便后续使用
               methodList: [],
+              desc,
+              versions, // V4 API插件版本列表
+              latest_version: latestVersion,
+              default_version: defaultVersion,
+              meta_url_template: metaUrlTemplate,
+              uniform_api_plugin_version: uniformApiPluginVersion,
+              version: uniformApiPluginVersion, // 已保存节点回显已选择的版本
             });
           }
           return data;
@@ -1148,11 +1315,25 @@
           group_id: groupId,
           metaUrl,
           apiKey,
+          sourceKey,
+          pluginSource,
+          pluginCode,
+          wrapperVersion,
         } = val;
         let versionList = [];
         if (this.isThirdParty) {
           versionList = list;
-        } else if (!this.isApiPlugin) {
+        } else if (this.isApiPlugin) {
+          // API插件版本列表：val.list 是字符串数组，转换为 [{version}] 格式
+          versionList = Array.isArray(list)
+            ? list.map((item) => {
+              if (typeof item === 'string') {
+                return { version: item };
+              }
+              return item;
+            })
+            : [];
+        } else {
           versionList = this.getAtomVersions(code);
         }
         this.versionList = versionList;
@@ -1161,6 +1342,8 @@
         if (!this.isThirdParty && !this.isApiPlugin) {
           const atom = this.atomList.find(item => item.code === code);
           desc = atom.list.find(item => item.version === list[list.length - 1].version).desc;
+        }  else if (this.isApiPlugin) {
+          desc = val.desc || '';
         } else {
           desc = '';
         }
@@ -1169,13 +1352,18 @@
           desc = descList.join('<br>');
         }
         // 对于API插件，优先使用basicInfo中已存储的version（可能来自meta API返回），否则使用默认值
+        // 新节点默认使用 default_version，latest_version 仅作异常数据兼容
         let apiPluginVersion = null;
         if (this.isApiPlugin) {
-          apiPluginVersion = this.basicInfo.version || 'V2.0.0';
+          apiPluginVersion = resolveNewOpenPluginVersion({
+            defaultVersion: val.default_version,
+            latestVersion: val.latest_version,
+            versions: versionList,
+          }) || 'v2.0.0';
         }
         const config = {
           plugin: code,
-          version: apiPluginVersion || (this.isApiPlugin ? 'V2.0.0' : list[list.length - 1].version),
+          version: apiPluginVersion || (this.isApiPlugin ? 'v2.0.0' : list[list.length - 1].version),
           name: this.isThirdParty ? name : `${groupName}-${name}`,
           nodeName: name,
           stageName: '',
@@ -1187,13 +1375,27 @@
           selectable: true,
         };
         if (this.isApiPlugin) {
+          // 保存API插件版本信息到basicInfo
+          const versions = Array.isArray(list) ? list : [];
           Object.assign(config, {
             pluginId,
             groupId,
             groupName,
             metaUrl,
             apiKey,
+            sourceKey,
+            pluginSource,
+            pluginCode,
+            wrapperVersion: wrapperVersion || 'v2.0.0',
+            isOpenPlugin: Boolean(wrapperVersion && pluginSource && pluginCode && versions.length),
+            apiPluginName: name,
+            meta_url_template: val.meta_url_template,
+            versions,
+            latest_version: val.latest_version,
+            default_version: val.default_version,
+            uniform_api_plugin_version: apiPluginVersion,
           });
+          config.isOpenPlugin = isV4OpenPlugin(buildUniformApiComponent(config));
         }
         return config;
       },
@@ -1209,6 +1411,7 @@
         this.updateBasicInfo(config);
         this.inputsParamValue = {};
         await this.getPluginDetail();
+        if (this.isDestroyed) return;
         if (Array.isArray(this.inputs)) {
           this.inputsRenderConfig = this.inputs.reduce((acc, crt) => {
             acc[crt.tag_code] = true;
@@ -1223,18 +1426,28 @@
       async versionChange(val) {
         // 获取不同版本的描述
         let { desc } = this.basicInfo;
-        if (!this.isThirdParty) {
+        if (!this.isThirdParty && !this.isApiPlugin) {
           const atom = this.atomList.find(item => item.code === this.basicInfo.plugin);
-          desc = atom.list.find(item => item.version === val).desc;
+          desc = atom.list.find(item => item.version === val)?.desc || '';
         }
         if (desc && desc.includes('\n')) {
           const descList = desc.split('\n');
           desc = descList.join('<br>');
         }
-        this.updateBasicInfo({ version: val, desc });
+        const versionConfig = { version: val, desc };
+        if (this.isApiPlugin
+          && isV4OpenPlugin(buildUniformApiComponent({
+            ...this.basicInfo,
+            version: val,
+            uniform_api_plugin_version: val,
+          }))) {
+          versionConfig.uniform_api_plugin_version = val;
+        }
+        this.updateBasicInfo(versionConfig);
         await this.clearParamsSourceInfo();
         this.inputsParamValue = {};
         await this.getPluginDetail();
+        if (this.isDestroyed) return;
         if (Array.isArray(this.inputs)) {
           this.inputsRenderConfig = this.inputs.reduce((acc, crt) => {
             acc[crt.tag_code] = true;
@@ -1577,7 +1790,7 @@
         // api插件json字段展示解析优化
         if (this.isApiPlugin) {
           const jsonFields = [];
-          const { properties = {} } = this.inputs;
+          const properties = this.inputs?.properties || {};
           Object.keys(properties).forEach((key) => {
             if (properties[key].sourceType === 'json') {
               jsonFields.push(key);
@@ -1702,31 +1915,64 @@
           } else {
             data = this.getNodeComponentData(plugin, version);
           }
+          let componentVersion = version;
+          if (this.isThirdParty) {
+            componentVersion = '1.0.0';
+          } else if (this.isApiPlugin) {
+            componentVersion = this.basicInfo.wrapperVersion || 'v2.0.0';
+          }
           const component = {
             code: this.isThirdParty ? 'remote_plugin' : plugin,
             data,
-            version: this.isThirdParty ? '1.0.0' : version,
+            version: componentVersion,
           };
+          const isV4 = isV4OpenPlugin(buildUniformApiComponent(this.basicInfo));
           if (credentials) {
             component.credentials = credentials;
           }
           if (this.isApiPlugin && this.basicInfo.pluginId) { // 新版api插件中component包含pluginId字段
-            const { pluginId, name, metaUrl, groupId, groupName, apiKey } = this.basicInfo;
-            component.api_meta = {
-              id: pluginId,
-              name: name.split('-')[1],
-              meta_url: metaUrl,
-              api_key: apiKey,
-              category: {
-                id: groupId,
-                name: groupName,
-              },
-            };
-            // 使用basicInfo中的version（可能来自meta API返回），否则使用默认值
-            component.version = this.basicInfo.version || 'v2.0.0';
+            if (isV4) {
+              // eslint-disable-next-line camelcase
+              const { pluginId, name, apiPluginName, metaUrl, groupId, groupName, apiKey,
+                sourceKey, pluginSource, pluginCode, wrapperVersion,
+                meta_url_template, versions, latest_version, default_version,
+                uniform_api_plugin_version, desc } = this.basicInfo;
+              component.api_meta = {
+                id: pluginId,
+                name: apiPluginName || name.substring(name.indexOf('-') + 1),
+                meta_url: metaUrl,
+                api_key: apiKey,
+                plugin_source: pluginSource,
+                plugin_code: pluginCode,
+                plugin_version: uniform_api_plugin_version,
+                wrapper_version: wrapperVersion,
+                category: {
+                  id: groupId,
+                  name: groupName,
+                },
+                meta_url_template,
+                versions,
+                latest_version,
+                default_version,
+                desc,
+              };
+              component.api_meta.source_key = sourceKey;
+            } else {
+              const originalApiMeta = this.nodeConfig.component?.['api_meta']; // eslint-disable-line dot-notation
+              if (originalApiMeta) component.api_meta = tools.deepClone(originalApiMeta);
+            }
           }
+          const pipelineComponent = this.isApiPlugin
+            ? buildUniformApiPluginPipelineComponent({
+              originalComponent: this.nodeConfig.component,
+              component,
+              componentData: data,
+              basicInfo: this.basicInfo,
+              credentials,
+            })
+            : component;
           config = Object.assign({}, this.nodeConfig, {
-            component,
+            component: pipelineComponent,
             retryable,
             skippable,
             name: nodeName,
@@ -1745,9 +1991,16 @@
         }
         return config;
       },
-      // 设置标准插件节点在 activity 的 component.data 值
+      /**
+       * 将面板状态序列化回 activity.component.data。
+       * V2/V3 从原节点 data 开始增量更新以保留历史字段；V4 重新组装表单数据，
+       * 并仅在严格识别为 V4 开放插件时写入来源、插件 ID 和业务版本隐藏字段。
+       */
       getNodeComponentData(plugin, version) {
-        const data = {};
+        const isV4 = isV4OpenPlugin(buildUniformApiComponent(this.basicInfo));
+        const data = this.isApiPlugin && !isV4
+          ? tools.deepClone(this.nodeConfig.component?.data || {})
+          : {};
         Object.keys(this.inputsParamValue).forEach((key) => {
           const formVal = this.inputsParamValue[key];
           let hook = false;
@@ -1795,6 +2048,16 @@
               hook: false,
               value: this.basicInfo.credentialKey,
             };
+          }
+          if (isV4) {
+            // 保存 uniform_api_plugin_version 为隐藏字段
+            if (this.basicInfo.uniform_api_plugin_version) {
+              data.uniform_api_plugin_version = {
+                hook: false,
+                value: this.basicInfo.uniform_api_plugin_version,
+              };
+            }
+            Object.assign(data, buildUniformApiIdentityData(this.basicInfo));
           }
         }
         // 第三方插件需手动设置plugin_code和plugin_version

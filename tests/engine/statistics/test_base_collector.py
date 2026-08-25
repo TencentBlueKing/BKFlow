@@ -10,7 +10,13 @@ class TestResolveComponentInfo(TestCase):
     def test_regular_component(self):
         component = {"code": "bk_http_request", "version": "v1.0"}
         info = BaseStatisticsCollector.resolve_component_info(component)
-        assert info == ComponentInfo(code="bk_http_request", name="", version="v1.0", plugin_type=PluginType.COMPONENT)
+        assert info == ComponentInfo(
+            code="bk_http_request",
+            name="",
+            version="v1.0",
+            plugin_type=PluginType.COMPONENT,
+            plugin_source="",
+        )
 
     def test_remote_plugin_with_data(self):
         component = {
@@ -27,6 +33,7 @@ class TestResolveComponentInfo(TestCase):
         assert info.name == "标准运维插件"
         assert info.version == "2.0.0"
         assert info.plugin_type == PluginType.REMOTE_PLUGIN
+        assert info.plugin_source == ""
 
     def test_remote_plugin_without_name(self):
         component = {
@@ -40,6 +47,7 @@ class TestResolveComponentInfo(TestCase):
         assert info.code == "my-plugin"
         assert info.name == ""
         assert info.plugin_type == PluginType.REMOTE_PLUGIN
+        assert info.plugin_source == ""
 
     def test_remote_plugin_with_inputs_fallback(self):
         component = {
@@ -53,6 +61,7 @@ class TestResolveComponentInfo(TestCase):
         assert info.code == "legacy-plugin"
         assert info.version == "0.1"
         assert info.plugin_type == PluginType.REMOTE_PLUGIN
+        assert info.plugin_source == ""
 
     def test_uniform_api_with_api_meta(self):
         component = {
@@ -66,6 +75,7 @@ class TestResolveComponentInfo(TestCase):
                 "name": "流程执行",
                 "meta_url": "http://example.com/meta",
                 "api_key": "sops_execute",
+                "plugin_source": "builtin",
                 "category": {"id": "cat_1", "name": "标准运维"},
             },
         }
@@ -74,6 +84,7 @@ class TestResolveComponentInfo(TestCase):
         assert info.name == "标准运维-流程执行"
         assert info.version == "v2.0.0"
         assert info.plugin_type == PluginType.UNIFORM_API
+        assert info.plugin_source == "builtin"
 
     def test_uniform_api_without_api_meta(self):
         """旧版 uniform_api 没有 api_meta，保持原始 code"""
@@ -88,6 +99,7 @@ class TestResolveComponentInfo(TestCase):
         assert info.code == "uniform_api"
         assert info.name == ""
         assert info.plugin_type == PluginType.UNIFORM_API
+        assert info.plugin_source == ""
 
     def test_uniform_api_with_api_meta_no_category(self):
         component = {
@@ -98,6 +110,7 @@ class TestResolveComponentInfo(TestCase):
         info = BaseStatisticsCollector.resolve_component_info(component)
         assert info.code == "my_api"
         assert info.name == "我的API"
+        assert info.plugin_source == ""
 
     def test_empty_component(self):
         info = BaseStatisticsCollector.resolve_component_info({})
@@ -105,3 +118,4 @@ class TestResolveComponentInfo(TestCase):
         assert info.name == ""
         assert info.version == "legacy"
         assert info.plugin_type == PluginType.COMPONENT
+        assert info.plugin_source == ""
