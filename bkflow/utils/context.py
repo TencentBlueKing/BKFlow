@@ -38,7 +38,7 @@ class TaskContext:
         self.executor = taskflow.executor
         self.task_id = taskflow.id
         self.task_name = taskflow.name
-        self.is_mock = taskflow.create_method == "MOCK"
+        self.is_mock = taskflow.create_method in ("MOCK", "DEBUG")
         tz = timezone.pytz.timezone(settings.TIME_ZONE)
         self.task_start_time = datetime.datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
 

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -32,6 +33,7 @@ from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label
 from bkflow.label.serializers import LabelSerializer
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.template.models import Template
 from bkflow.utils.trace import CallFrom, trace_view
 
@@ -70,6 +72,14 @@ def create_task(request, space_id):
     create_task_data.setdefault("extra_info", {}).update(
         {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
     )
+    create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+        space_id=int(space_id),
+        pipeline_tree=template.pipeline_tree,
+        extra_info=create_task_data.get("extra_info"),
+        username=request.user.username,
+        scope_type=template.scope_type,
+        scope_id=template.scope_value,
+    )
 
     # 将credentials放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
     # custom_context用于统一管理自定义上下文数据
@@ -97,16 +107,16 @@ def create_task(request, space_id):
         else:
             result["data"]["labels"] = []
 
-    task_data = result["data"]
-    event_broadcast_signal.send(
-        sender=WebhookEventType.TASK_CREATE.value,
-        scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
-        extra_info={
-            "task_id": task_data["id"],
-            "task_name": task_data["name"],
-            "template_id": task_data["template_id"],
-            "parameters": task_data["parameters"],
-            "trigger_source": TaskTriggerMethod.api.name,
-        },
-    )
+        task_data = result["data"]
+        event_broadcast_signal.send(
+            sender=WebhookEventType.TASK_CREATE.value,
+            scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
+            extra_info={
+                "task_id": task_data["id"],
+                "task_name": task_data["name"],
+                "template_id": task_data["template_id"],
+                "parameters": task_data["parameters"],
+                "trigger_source": TaskTriggerMethod.api.name,
+            },
+        )
     return result

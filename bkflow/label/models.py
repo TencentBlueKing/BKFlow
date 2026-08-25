@@ -24,6 +24,16 @@ from django.db import models
 from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 
+LABEL_SCOPE_MAX_ITEMS = 3
+
+
+def build_label_scope_filter(*scopes):
+    scope_filter = Q()
+    for scope in scopes:
+        for index in range(LABEL_SCOPE_MAX_ITEMS):
+            scope_filter |= Q(**{f"label_scope__{index}": scope})
+    return scope_filter
+
 
 class LabelManager(models.Manager):
     """自定义管理器，添加层级相关查询方法"""
@@ -38,9 +48,10 @@ class LabelManager(models.Manager):
         filters = {"parent_id__isnull": True, "space_id": space_id}
         # 兼容可能的-1存储（如果根标签存-1，需调整过滤条件为 parent_id=-1）
         # filters = Q(parent_id__isnull=True) | Q(parent_id=-1)
+        queryset = self.filter(**filters)
         if label_scope:
-            filters["label_scope__contains"] = label_scope
-        return self.filter(**filters).order_by("name")
+            queryset = queryset.filter(build_label_scope_filter(label_scope))
+        return queryset.order_by("name")
 
     def get_sub_labels(self, parent_id, recursive=False):
         """
@@ -161,7 +172,7 @@ class Label(models.Model):
         super().save(*args, **kwargs)
 
     @staticmethod
-    def get_label_ids_by_names(names):
+    def get_label_ids_by_names(names, space_id):
         """通过标签名称列表获取对应的标签ID列表"""
         labels = [s.strip() for s in re.split(r"[,\s]+", names) if s.strip()]
 
@@ -170,7 +181,8 @@ class Label(models.Model):
             q_objects = Q()
             for keyword in labels:
                 q_objects |= Q(name__icontains=keyword)
-            label_ids = list(Label.objects.filter(q_objects).values_list("id", flat=True))
+            # 与标签列表查询语义对齐：默认标签(space_id=-1)对本空间也可见、可被筛选
+            label_ids = list(Label.objects.filter(q_objects, space_id__in=[-1, space_id]).values_list("id", flat=True))
 
         all_child_label_ids = list(Label.objects.filter(parent_id__in=label_ids).values_list("id", flat=True))
         label_ids = list(set(label_ids + all_child_label_ids))

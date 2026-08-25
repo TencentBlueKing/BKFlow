@@ -25,8 +25,10 @@ from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TEMPLATE_NAME, USER_NAME_MAX_LENGTH
 from bkflow.label.models import Label
-from bkflow.space.models import Space
-from bkflow.template.models import Template
+from bkflow.space.configs import TemplateTriggerConfig
+from bkflow.space.models import Space, SpaceConfig
+from bkflow.template.models import Template, Trigger
+from bkflow.template.serializers.trigger import TriggerSerializer
 
 logger = logging.getLogger("root")
 
@@ -135,6 +137,20 @@ class DeleteTemplateSerializer(serializers.Serializer):
         return space_id
 
 
+class BatchDeleteTemplateSerializer(serializers.Serializer):
+    template_ids = serializers.ListField(
+        help_text=_("模板ID列表"),
+        required=True,
+        child=serializers.IntegerField(),
+        min_length=1,
+        max_length=200,
+        error_messages={
+            "min_length": _("template_ids 不能为空，至少需要包含一个模板ID"),
+            "max_length": _("template_ids 不能超过200个长度"),
+        },
+    )
+
+
 class UpdateTemplateSerializer(serializers.Serializer):
     operator = serializers.CharField(help_text=_("更新人"), max_length=USER_NAME_MAX_LENGTH, required=False)
     name = serializers.CharField(help_text=_("模版名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=False)
@@ -150,6 +166,14 @@ class UpdateTemplateSerializer(serializers.Serializer):
     label_ids = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
     webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
     enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
+    triggers = TriggerSerializer(many=True, required=False, allow_null=True)
+
+    def validate_triggers(self, triggers):
+        space_id = self.context["space_id"]
+        periodic_triggers = [trigger for trigger in triggers if trigger.get("type") == Trigger.TYPE_PERIODIC]
+        if len(periodic_triggers) > 1 and SpaceConfig.get_config(space_id, TemplateTriggerConfig.name) == "false":
+            raise serializers.ValidationError(_("参数校验失败，该流程只允许有一个定时触发器！"))
+        return triggers
 
     def validate(self, attrs):
         operator = attrs.get("operator")
@@ -186,6 +210,7 @@ class UpdateTemplateLabelsSerializer(serializers.Serializer):
 
 
 class TemplateListFilterSerializer(serializers.Serializer):
+    id = serializers.CharField(help_text=_("模板ID，多个以逗号分割"), required=False)
     name = serializers.CharField(help_text=_("模板名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=False)
     creator = serializers.CharField(help_text=_("创建人"), max_length=USER_NAME_MAX_LENGTH, required=False)
     updated_by = serializers.CharField(help_text=_("更新人"), required=False)
@@ -194,6 +219,7 @@ class TemplateListFilterSerializer(serializers.Serializer):
     create_at_start = serializers.DateTimeField(help_text=_("开始时间小于等于"), required=False)
     create_at_end = serializers.DateTimeField(help_text=_("开始时间大于等于"), required=False)
     order_by = serializers.CharField(help_text=_("排序字段"), required=False, default="-create_at")
+    label = serializers.CharField(help_text=_("标签名称"), required=False)
 
 
 class TemplateDetailQuerySerializer(serializers.Serializer):

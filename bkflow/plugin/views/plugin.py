@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from django.conf import settings
@@ -24,11 +25,13 @@ from drf_yasg.utils import swagger_auto_schema
 from pipeline.component_framework.models import ComponentModel
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 
 from bkflow.plugin.handlers import PluginQueryDispatcher
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 from bkflow.plugin.permissions import (
+    PluginSpaceConsistencyPermission,
     PluginSpaceSuperuserPermission,
     PluginTokenPermissions,
 )
@@ -40,6 +43,8 @@ from bkflow.plugin.serializers.comonent import (
     PluginType,
     UniformPluginSerializer,
 )
+from bkflow.plugin.serializers.plugin_detail import PluginDetailRequestSerializer
+from bkflow.plugin.services.plugin_detail import PluginDetailService
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.space.configs import SpacePluginConfig
 from bkflow.space.models import SpaceConfig
@@ -48,6 +53,35 @@ from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import ReadOnlyViewSet
 
 logger = logging.getLogger("root")
+
+
+class PluginDetailView(APIView):
+    """返回三类插件统一的原生表单详情。"""
+
+    permission_classes = [
+        PluginSpaceConsistencyPermission,
+        AdminPermission | PluginSpaceSuperuserPermission | PluginTokenPermissions,
+    ]
+
+    def post(self, request):
+        """按认证用户和请求上下文查询插件详情。"""
+        serializer = PluginDetailRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        service = PluginDetailService(
+            space_id=data["space_id"],
+            template_id=data["template_id"],
+            operator=request.user.username,
+            scope_type=data["scope_type"],
+            scope_value=data["scope_value"],
+        )
+        detail = service.get_detail(
+            plugin_type=data["plugin_type"],
+            plugin_code=data["plugin_code"],
+            plugin_version=data["plugin_version"],
+            source_key=data["source_key"],
+        )
+        return Response({"result": True, "message": "", "data": detail})
 
 
 class ComponentModelFilter(FilterSet):

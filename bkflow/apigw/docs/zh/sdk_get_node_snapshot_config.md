@@ -106,4 +106,3 @@
 | auto_retry      | dict   | 节点重试配置 |
 | timeout_config  | dict   | 节点超时配置 |
 | labels          | list   | 节点标签   |
-

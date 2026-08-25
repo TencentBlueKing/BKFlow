@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from functools import wraps
 
 from blueapps.account.decorators import login_exempt
@@ -174,6 +175,35 @@ class TaskInstanceViewSet(
             return RetrieveTaskInstanceSerializer
         return super().get_serializer_class()
 
+    def _should_keep_debug_tasks(self):
+        """列表默认隐藏 DEBUG；显式按 create_method 或按主键查询时保留。
+
+        apply_token / get_task_list?id= 都走 list + id 精确过滤，必须先应用 FilterSet
+        再决定是否隐藏，避免只在 get_queryset 里看 query_params 漏掉 DEBUG。
+        """
+        if self.action != "list":
+            return True
+
+        params = self.request.query_params
+        if "create_method" in params:
+            return True
+
+        for key in ("id", "id__in", "pk"):
+            if hasattr(params, "getlist"):
+                values = params.getlist(key)
+            else:
+                value = params.get(key)
+                values = [value] if value is not None else []
+            if any(str(value) for value in values if value is not None):
+                return True
+        return False
+
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+        if self.action == "list" and not self._should_keep_debug_tasks():
+            queryset = queryset.exclude(create_method="DEBUG")
+        return queryset
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
@@ -329,7 +359,11 @@ class TaskInstanceViewSet(
     def get_states(self, request, *args, **kwargs):
         task_instance = self.get_object()
         task_operation = TaskOperation(task_instance=task_instance, queue=settings.BKFLOW_MODULE.code)
-        states = task_operation.get_task_states()
+        truthy = {"1", "true", "yes"}
+        states = task_operation.get_task_states(
+            with_ex_data=str(request.query_params.get("with_ex_data", "")).lower() in truthy,
+            include_schedule=str(request.query_params.get("include_schedule", "")).lower() in truthy,
+        )
         return Response(dict(states))
 
     @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
@@ -363,6 +397,18 @@ class TaskInstanceViewSet(
         task_instance = self.get_object()
         task_mock_data = TaskMockData.objects.filter(taskflow_id=task_instance.id).first()
         return Response(task_mock_data.to_json() if task_mock_data else {})
+
+    @swagger_auto_schema(methods=["get"], operation_description="获取任务模板节点 id 到运行时节点 id 的映射")
+    @action(detail=True, methods=["get"], url_path="get_node_id_map")
+    @validate_task_info
+    def get_node_id_map(self, request, *args, **kwargs):
+        task_instance = self.get_object()
+        execution_data = task_instance.execution_data or {}
+        mapping = {}
+        for node_type in ("activities", "gateways"):
+            for node_id, node in execution_data.get(node_type, {}).items():
+                mapping[node.get("template_node_id", node_id)] = node_id
+        return Response(mapping)
 
     @swagger_auto_schema(methods=["get"], operation_description="任务全局变量查询")
     @action(detail=True, methods=["get"], url_path="render_current_constants")
