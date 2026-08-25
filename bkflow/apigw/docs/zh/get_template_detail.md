@@ -96,7 +96,8 @@
         "source": null,
         "version": "",
         "is_enabled": true,
-        "extra_info": {}
+        "extra_info": {},
+        "triggers": []
     },
     "code": 0,
     "trace_id": "xxxxxxxxx"
@@ -113,26 +114,44 @@
 
 ### data 包含字段说明
 
-| 字段               | 类型       | 描述                                                             |
-|------------------|----------|----------------------------------------------------------------|
-| id               | int      | 流程 ID                                                          |
-| space_id         | int      | 流程对应的空间 ID                                                     |
-| name             | string   | 流程名称                                                           |
-| desc             | string   | 流程描述                                                           |
-| notify_config    | dict     | 流程通知配置                                                         |
-| scope_type       | string   | 流程所属作用域类型                                                       |
-| scope_value      | string   | 流程所属作用域值                                                        |
-| pipeline_tree    | dict     | 流程树，当 with_mock_data 传参为 true 时，为精简后的流程树 ｜                     |
-| source           | string   | 流程来源，第三方系统对应的资源 ID ｜                                           |
-| version          | string   | 流程版本号，对应第三方系统对应的资源版本 ｜                                         |
-| is_enabled       | bool     | 是否启用                                                           |
-| extra_info       | dict     | 额外信息                                                           |
-| create           | string   | 流程创建人                                                          |
-| create_at        | datetime | 创建时间                                                           |
-| update_by        | string   | 流程更新人                                                          |
-| update_at        | datetime | 更新时间                                                           |
-| appoint_node_ids | list     | 当 with_mock_data 传参为 true 时返回，mock 执行时选中的节点 ID 列表              |
-| mock_data        | list     | 当 with_mock_data 传参为 true 时返回，每个元素包含 node_id，data 和 is_default |
+| 字段                | 类型       | 描述                                                             |
+|-------------------|----------|----------------------------------------------------------------|
+| id                | int      | 流程 ID                                                          |
+| space_id          | int      | 流程对应的空间 ID                                                     |
+| name              | string   | 流程名称                                                           |
+| desc              | string   | 流程描述                                                           |
+| notify_config     | dict     | 流程通知配置                                                         |
+| scope_type        | string   | 流程所属作用域类型                                                      |
+| scope_value       | string   | 流程所属作用域值                                                       |
+| pipeline_tree     | dict     | 流程树，当 with_mock_data 传参为 true 时，为精简后的流程树 ｜                     |
+| source            | string   | 流程来源，第三方系统对应的资源 ID ｜                                           |
+| version           | string   | 流程版本号，对应第三方系统对应的资源版本 ｜                                         |
+| is_enabled        | bool     | 是否启用                                                           |
+| extra_info        | dict     | 额外信息                                                           |
+| create            | string   | 流程创建人                                                          |
+| create_at         | datetime | 创建时间                                                           |
+| update_by         | string   | 流程更新人                                                          |
+| update_at         | datetime | 更新时间                                                           |
+| appoint_node_ids  | list     | 当 with_mock_data 传参为 true 时返回，mock 执行时选中的节点 ID 列表              |
+| mock_data         | list     | 当 with_mock_data 传参为 true 时返回，每个元素包含 node_id，data 和 is_default |
+| triggers          | list     | 触发器配置                                                          |
+
+### data[triggers] 字段说明
+
+| 字段          | 类型       | 描述     |
+|-------------|----------|--------|
+| id          | int      | 触发器 ID |
+| space_id    | int      | 空间 ID  |
+| create_at   | datetime | 创建时间   |
+| update_at   | datetime | 更新时间   |
+| config      | dict     | 时间配置   |
+| updated_by  | string   | 更新人    |
+| creator     | string   | 创建人    |
+| template_id | string   | 模板ID   |
+| is_deleted  | bool     | 是否删除   |
+| is_enabled  | bool     | 是否开启   |
+| name        | string   | 触发器名称  |
+| type        | string   | 触发器类型  |
 
 ### format=plugin 时的返回示例
 
