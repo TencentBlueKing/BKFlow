@@ -546,27 +546,33 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
 
 
 class TriggerManager(models.Manager):
-    def create_trigger(self, data, template):
+    def create_trigger(self, data, template, username):
         config = {
-            "space_id": data.get("space_id"),
+            "space_id": template.space_id,
             "pipeline_tree": template.pipeline_tree,
             "scope_type": template.scope_type,
             "scope_value": template.scope_value,
         }
         data["config"] = {**data["config"], **config}
+        data["creator"] = username
+        data["space_id"] = template.space_id
+        data["template_id"] = template.id
         with transaction.atomic():
             trigger = Trigger.objects.create(**data)
             handler = self._get_handler(trigger.type)
             handler.create(trigger, template)
         return trigger
 
-    def update_trigger(self, trigger, data, template):
+    def update_trigger(self, trigger, data, template, username):
         config = {
             "pipeline_tree": template.pipeline_tree,
             "scope_type": template.scope_type,
             "scope_value": template.scope_value,
         }
         data["config"] = {**data["config"], **config}
+        data["updated_by"] = username
+        data["space_id"] = template.space_id
+        data["template_id"] = template.id
         with transaction.atomic():
             for field, value in data.items():
                 setattr(trigger, field, value)
@@ -617,15 +623,20 @@ class TriggerManager(models.Manager):
                     f"该流程下的触发器 #{index}:{cron_config} 有以下新增参数未填写：{', '.join(new_constants - trigger_constants)}"
                 )
 
-    def batch_modify_triggers(self, template, triggers):
+    def batch_modify_triggers(self, template, triggers, username):
         """批量更新、创建和删除单个流程下的多个触发器"""
 
         input_trigger_ids = [trigger.get("id") for trigger in triggers if trigger.get("id")]
-        exist_triggers = self.filter(template_id=template.id)
+        exist_triggers = self.filter(template_id=template.id, is_deleted=False)
 
         # 根据入参中触发器的id集合和数据库中存在的触发器id集合，筛选出待更新、待创建和待删除的触发器id列表
         exist_triggers_dict = {trigger.id: trigger for trigger in exist_triggers}
         exist_trigger_ids = exist_triggers_dict.keys()
+
+        invalid_ids = set(input_trigger_ids) - exist_trigger_ids
+        if invalid_ids:
+            raise ValidationError(f"触发器 id {sorted(invalid_ids)} 不属于当前模板(template_id={template.id})或已删除，不允许更新")
+
         to_update_trigger_ids = list(set(input_trigger_ids) & set(exist_trigger_ids))
         to_delete_trigger_ids = list(set(exist_trigger_ids) - set(input_trigger_ids))
         to_update_triggers = [
@@ -636,10 +647,10 @@ class TriggerManager(models.Manager):
 
         for update_instance in to_update_triggers:
             trigger = exist_triggers_dict[update_instance.get("id")]
-            self.update_trigger(trigger, update_instance, template)
+            self.update_trigger(trigger, update_instance, template, username)
 
         for create_instance in to_create_triggers:
-            self.create_trigger(create_instance, template)
+            self.create_trigger(create_instance, template, username)
 
         # 批量删除触发器以及其对应的周期任务
         if to_delete_trigger_ids:

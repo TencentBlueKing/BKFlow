@@ -257,7 +257,7 @@ export default {
                 const isFormValid = await this.$refs.createTaskForm.validate();
                 const isParamsValid = this.taskFormData.mode === 'json'
                         ? this.isJsonConstantsValid
-                        : this.$refs.taskParamEdit.validate();
+                        : await this.$refs.taskParamEdit.validate();
 
                 if (!isFormValid || !isParamsValid) {
                     this.createLoading = false;
@@ -265,12 +265,13 @@ export default {
                 }
 
                 this.createLoading = true;
+                const constants = await this.getParameterConstants();
                 const resp = await this.createTask({
                     spaceId: this.spaceId,
                     params: {
                         ...this.taskFormData,
                         label_ids: this.taskFormData.labels.map(label => label.id),
-                        constants: this.getParameterConstants(),
+                        constants,
                     },
                 });
 
@@ -297,12 +298,12 @@ export default {
                 this.createLoading = false;
             }
         },
-        getParameterConstants() {
+        async getParameterConstants() {
             const { constants, mode } = this.taskFormData;
             if (mode === 'json') {
                 return JSON.parse(constants);
             }
-            const variableData = this.$refs.taskParamEdit.getVariableData();
+            const variableData = await this.$refs.taskParamEdit.getVariableData();
             return Object.values(variableData).reduce(
                 (acc, cur) => Object.assign(acc, { [cur.key]: cur.value }),
                 {}

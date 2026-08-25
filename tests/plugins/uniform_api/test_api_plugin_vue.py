@@ -437,7 +437,7 @@ def test_node_config_assigns_saved_inputs_before_loading_v4_form():
     )
 
 
-def test_new_open_plugin_node_prefers_default_version():
+def test_new_open_plugin_node_prefers_latest_version():
     source = read("frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue")
     helper = read("frontend/src/utils/uniformApi.js")
 
@@ -445,6 +445,7 @@ def test_new_open_plugin_node_prefers_default_version():
     assert "resolveNewOpenPluginVersion" in helper
     assert "defaultVersion: val.default_version" in source
     assert "latestVersion: val.latest_version" in source
+    assert helper.index("if (hasValue(latestVersion))") < helper.index("if (hasValue(defaultVersion))")
 
 
 def test_task_param_edit_recovers_v4_component_from_pipeline_activities():

@@ -895,7 +895,7 @@ class TestTriggerManager:
             "creator": "admin",
         }
 
-        trigger = Trigger.objects.create_trigger(trigger_data, template)
+        trigger = Trigger.objects.create_trigger(trigger_data, template, "admin")
 
         assert trigger.name == "Test Trigger"
         assert trigger.template_id == template.id
@@ -940,7 +940,7 @@ class TestTriggerManager:
             "is_enabled": False,
         }
 
-        updated_trigger = Trigger.objects.update_trigger(trigger, update_data, template)
+        updated_trigger = Trigger.objects.update_trigger(trigger, update_data, template, "admin")
 
         assert updated_trigger.name == "Updated Trigger"
         assert updated_trigger.is_enabled is False
@@ -1067,7 +1067,7 @@ class TestTriggerManager:
             },
         ]
 
-        Trigger.objects.batch_modify_triggers(template, triggers_data)
+        Trigger.objects.batch_modify_triggers(template, triggers_data, "admin")
 
         # 验证更新
         updated = Trigger.objects.get(id=existing_trigger.id)

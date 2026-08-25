@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -27,6 +26,7 @@ class TaskConfig(AppConfig):
     def ready(self):
         from bkflow.constants import RecordType  # noqa
         from bkflow.contrib.operation_record import OPERATION_RECORDER  # noqa
+        from bkflow.task.engine_patches import patch_service_activity_handler
         from bkflow.task.operation_record import (  # noqa
             TaskNodeOperationRecorder,
             TaskOperationRecorder,
@@ -35,5 +35,6 @@ class TaskConfig(AppConfig):
             bamboo_engine_eri_post_set_state_handler,
         )
 
+        patch_service_activity_handler()
         OPERATION_RECORDER.register(RecordType.task.name, TaskOperationRecorder)
         OPERATION_RECORDER.register(RecordType.task_node.name, TaskNodeOperationRecorder)

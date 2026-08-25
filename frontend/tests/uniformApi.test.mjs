@@ -733,12 +733,12 @@ async function main() {
     assert.equal(component.data.mark, 'explicit');
   });
 
-  test('resolveNewOpenPluginVersion prefers default_version over latest_version', () => {
+  test('resolveNewOpenPluginVersion prefers latest_version over default_version', () => {
     assert.equal(resolveNewOpenPluginVersion({
       defaultVersion: '1.0.0',
       latestVersion: '2.0.0',
       versions: ['1.0.0', '2.0.0'],
-    }), '1.0.0');
+    }), '2.0.0');
     assert.equal(resolveNewOpenPluginVersion({
       latestVersion: '2.0.0',
       versions: [{ version: '1.0.0' }, { version: '2.0.0' }],

@@ -279,7 +279,7 @@ class TemplateSerializer(serializers.ModelSerializer):
                 pipeline_tree.get("constants", {}),
                 validated_data.get("triggers"),
             )
-            Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"])
+            Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"], username)
         except Exception as e:
             logger.exception(f"Triggers update or create failed,{e}")
             raise serializers.ValidationError(detail={"msg": (f"更新失败,{e}")})
@@ -320,7 +320,7 @@ class TemplateSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        triggers = Trigger.objects.filter(template_id=instance.id)
+        triggers = Trigger.objects.filter(template_id=instance.id, is_deleted=False)
         data["triggers"] = TriggerSerializer(triggers, many=True).data
         data["auth"] = self.get_current_user_auth(instance)
         pre_pipeline_tree = instance.pipeline_tree

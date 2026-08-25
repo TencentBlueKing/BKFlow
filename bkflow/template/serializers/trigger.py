@@ -22,8 +22,8 @@ class TriggerSerializer(serializers.ModelSerializer):
     """定时触发器序列化器"""
 
     id = serializers.IntegerField(help_text="触发器ID", required=True, allow_null=True)
-    create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", required=False, allow_null=True)
-    update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", required=False, allow_null=True)
+    create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     config = ConfigSerializer(help_text="触发器配置", required=True)
     updated_by = serializers.CharField(help_text="更新人", required=False, allow_null=True)
 
