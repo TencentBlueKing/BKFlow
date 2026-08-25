@@ -1352,7 +1352,7 @@
           desc = descList.join('<br>');
         }
         // 对于API插件，优先使用basicInfo中已存储的version（可能来自meta API返回），否则使用默认值
-        // 新节点默认使用 default_version，latest_version 仅作异常数据兼容
+        // 新节点默认使用 latest_version，default_version 仅作异常数据兼容
         let apiPluginVersion = null;
         if (this.isApiPlugin) {
           apiPluginVersion = resolveNewOpenPluginVersion({

@@ -454,16 +454,16 @@ export const resolveNodeExecutionPayload = (nodeInfo = {}) => {
 };
 
 /**
- * 新选择且尚未保存的节点：优先使用目录 default_version，
- * latest_version 只作为异常数据兼容。
+ * 新选择且尚未保存的节点：优先使用目录 latest_version，
+ * default_version 只作为异常数据兼容。
  */
 export const resolveNewOpenPluginVersion = ({
   defaultVersion,
   latestVersion,
   versions = [],
 } = {}) => {
-  if (hasValue(defaultVersion)) return defaultVersion;
   if (hasValue(latestVersion)) return latestVersion;
+  if (hasValue(defaultVersion)) return defaultVersion;
   const last = versions[versions.length - 1];
   if (!last) return '';
   return typeof last === 'string' ? last : (last.version || '');
