@@ -137,3 +137,23 @@ class TestA2FlowPipeline(TestCase):
         )
         self.assertEqual(len(pipeline.variables), 1)
         self.assertEqual(pipeline.variables[0].key, "${ip}")
+
+    def test_pipeline_rejects_invalid_variable_custom_type(self):
+        """非法 custom_type 应在 Pipeline 级别被一次性校验拒绝"""
+        _, A2FlowPipeline, _, _ = _get_models()
+        with self.assertRaises(ValidationError):
+            A2FlowPipeline(
+                name="非法变量类型",
+                nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
+                variables=[{"key": "${ip}", "custom_type": "not_exist_type"}],
+            )
+
+    def test_pipeline_accepts_valid_variable_custom_type(self):
+        """合法的 custom_type 应通过校验"""
+        _, A2FlowPipeline, _, _ = _get_models()
+        pipeline = A2FlowPipeline(
+            name="合法变量类型",
+            nodes=[{"id": "n1", "name": "x", "code": "y", "next": "end"}],
+            variables=[{"key": "${ip}", "custom_type": "input"}],
+        )
+        self.assertEqual(pipeline.variables[0].custom_type, "input")
