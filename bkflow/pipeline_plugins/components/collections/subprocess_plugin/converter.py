@@ -71,7 +71,7 @@ class PipelineTreeSubprocessConverter:
                         if key in self.constants:
                             constant["value"] = self.constants[key]
 
-        for location in self.pipeline_tree["location"]:
+        for location in self.pipeline_tree.get("location") or []:
             if location["type"] == "subflow":
                 location["type"] = "tasknode"
 
