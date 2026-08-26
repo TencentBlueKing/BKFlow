@@ -85,7 +85,7 @@ class TestSpaceConfigHandler:
         assert config_cls == CallbackHooksConfig
         assert config_cls.default_value is None
         assert config_cls.value_type == SpaceConfigValueType.JSON.value
-        assert config_cls.is_public is False
+        assert config_cls.is_public is True
         assert config_cls.validate({"url": "example.com", "callback_types": ["template"]})
         assert SpaceConfigHandler.validate(
             name="callback_hooks", value={"url": "example.com", "callback_types": ["template"]}
@@ -188,7 +188,7 @@ class TestSpaceConfigHandler:
         config_cls = SpaceConfigHandler.get_config("engine_space_config")
         assert config_cls == SpaceEngineConfig
         assert config_cls.value_type == SpaceConfigValueType.REF.value
-        assert config_cls.is_public is True
+        assert config_cls.is_public is False
 
         # Valid cases
         valid_config = {
