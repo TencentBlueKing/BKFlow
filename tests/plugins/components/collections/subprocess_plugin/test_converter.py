@@ -213,3 +213,51 @@ class PipelineTreeSubprocessConverterTest(TestCase):
         converter.convert()
 
         self.assertEqual(converter.pipeline_tree["constants"], original_constants)
+
+    def test_convert_method_without_location_key(self):
+        """调试最小树没有 location 时，convert 不应抛 KeyError"""
+        pipeline_tree = {
+            "activities": {
+                "node1": {
+                    "id": "node1",
+                    "name": "普通节点",
+                    "type": "ServiceActivity",
+                },
+                "node2": {
+                    "id": "node2",
+                    "name": "子流程节点",
+                    "type": "SubProcess",
+                    "template_id": "template_123",
+                },
+            },
+            "constants": [],
+        }
+
+        converter = PipelineTreeSubprocessConverter(pipeline_tree)
+        converter.convert()
+
+        activities = converter.pipeline_tree["activities"]
+        self.assertEqual(activities["node1"]["type"], "ServiceActivity")
+        self.assertEqual(activities["node2"]["type"], "ServiceActivity")
+        self.assertEqual(activities["node2"]["component"]["code"], "subprocess_plugin")
+        self.assertNotIn("location", converter.pipeline_tree)
+
+    def test_convert_method_with_location_none(self):
+        """location 为 None 时，convert 应视为空列表，不抛异常"""
+        pipeline_tree = {
+            "activities": {
+                "node1": {
+                    "id": "node1",
+                    "name": "普通节点",
+                    "type": "ServiceActivity",
+                },
+            },
+            "constants": [],
+            "location": None,
+        }
+
+        converter = PipelineTreeSubprocessConverter(pipeline_tree)
+        converter.convert()
+
+        self.assertEqual(converter.pipeline_tree["activities"]["node1"]["type"], "ServiceActivity")
+        self.assertIsNone(converter.pipeline_tree["location"])
