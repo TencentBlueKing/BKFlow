@@ -269,7 +269,9 @@
         if (config.isDefault) {
           const hasDefault = config.default_value !== null
             && config.default_value !== undefined;
-          return hasDefault ? config.default_value : '';
+          if (hasDefault) return config.default_value;
+          // JSON 型配置默认返回空对象
+          return config.value_type === 'JSON' ? {} : '';
         }
         // json_value非空时完整映射
         if (config.is_mix_type) {
@@ -391,7 +393,12 @@
         } else if (val === 'json_value') {
           // 结构化 -> JSON：把对象序列化为字符串
           if (typeof this.formValue === 'object' && this.formValue !== null) {
-            this.formValue = JSON.stringify(this.formValue, null, 2);
+            if (this.currentControl === 'plugin_scope'
+              && Object.keys(this.formValue).length === 0) {
+              this.formValue = JSON.stringify({ default: { mode: 'allow_all', plugin_codes: [] } }, null, 2,);
+            } else {
+              this.formValue = JSON.stringify(this.formValue, null, 2);
+            }
           } else if (
             typeof this.formValue === 'string'
             && this.formValue.trim() !== ''
@@ -400,6 +407,8 @@
             if (this.currentControl === 'credential_map') {
               this.formValue = JSON.stringify({ default: this.formValue }, null, 2);
             }
+          } else if (this.currentControl === 'plugin_scope') {
+            this.formValue = JSON.stringify({ default: { mode: 'allow_all', plugin_codes: [] } }, null, 2,);
           }
         }
         this.isSourceMode = val === 'json_value';
