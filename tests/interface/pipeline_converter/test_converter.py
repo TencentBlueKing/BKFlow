@@ -44,6 +44,20 @@ def _mock_component_model(mock_cm, codes_versions=None):
     mock_cm.objects.filter.side_effect = filter_side_effect
 
 
+def _mock_variable_model(valid_codes):
+    """Helper: mock VariableModel.objects.all().only('code') 返回内存假集合，
+    使基于 VariableModel 的 custom_type 校验在单测空库下可稳定运行（保留原始校验语义）。"""
+    fake_rows = [MagicMock(code=code) for code in valid_codes]
+    mock_qs = MagicMock()
+    mock_qs.only.return_value = fake_rows
+    mock_objects = MagicMock()
+    mock_objects.all.return_value = mock_qs
+    return patch(
+        "bkflow.pipeline_converter.converters.a2flow_v2.data_models.VariableModel.objects",
+        mock_objects,
+    )
+
+
 def _get_converter_class():
     from bkflow.pipeline_converter.converters.a2flow_v2.converter import (
         A2FlowV2Converter,
@@ -134,7 +148,8 @@ class TestConverterLinearFlow(TestCase):
             "nodes": [{"id": "n1", "name": "x", "code": "sleep_timer", "next": "end"}],
             "variables": [{"key": "${ip}", "name": "IP", "value": "10.0.0.1"}],
         }
-        result = Converter(a2flow_data, space_id=1).convert()
+        with _mock_variable_model(["input", "textarea", "datetime"]):
+            result = Converter(a2flow_data, space_id=1).convert()
 
         self.assertIn("${ip}", result["constants"])
         self.assertEqual(result["constants"]["${ip}"]["value"], "10.0.0.1")
