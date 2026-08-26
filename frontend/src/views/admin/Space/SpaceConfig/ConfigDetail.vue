@@ -395,7 +395,7 @@
           if (typeof this.formValue === 'object' && this.formValue !== null) {
             if (this.currentControl === 'plugin_scope'
               && Object.keys(this.formValue).length === 0) {
-              this.formValue = JSON.stringify({ default: { mode: 'allow_all', plugin_codes: [] } }, null, 2,);
+              this.formValue = JSON.stringify({ default: { mode: 'allow_all', plugin_codes: [] } }, null, 2);
             } else {
               this.formValue = JSON.stringify(this.formValue, null, 2);
             }
@@ -408,7 +408,7 @@
               this.formValue = JSON.stringify({ default: this.formValue }, null, 2);
             }
           } else if (this.currentControl === 'plugin_scope') {
-            this.formValue = JSON.stringify({ default: { mode: 'allow_all', plugin_codes: [] } }, null, 2,);
+            this.formValue = JSON.stringify({ default: { mode: 'allow_all', plugin_codes: [] } }, null, 2);
           }
         }
         this.isSourceMode = val === 'json_value';
