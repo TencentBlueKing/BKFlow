@@ -695,6 +695,20 @@ class TemplateViewSet(UserModelViewSet):
             raise APIResponseError(result["message"])
         return Response(result["data"])
 
+    @swagger_auto_schema(method="GET", operation_description="批量获取模板版本")
+    @action(methods=["GET"], detail=False, url_path="batch_get_template_version")
+    def batch_get_template_version(self, request, *args, **kwargs):
+        template_ids = request.GET.get("template_ids")
+        if not template_ids:
+            return Response(exception=True, data={"message": "template_ids is required"})
+        template_ids = template_ids.split(",")
+        template_objs = Template.objects.filter(id__in=template_ids)
+        data = [
+            {"template_id": template_obj.id, "name": template_obj.name, "version": template_obj.version}
+            for template_obj in template_objs
+        ]
+        return Response(data=data)
+
     @action(methods=["GET"], detail=True, url_path="get_draft_template")
     def get_draft_template(self, request, *args, **kwargs):
         template_obj = self.get_object()

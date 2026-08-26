@@ -42,6 +42,7 @@ from bkflow.contrib.openapi.serializers import (
     EmptyBodySerializer,
     GetNodeDetailQuerySerializer,
     GetNodeLogDetailSerializer,
+    GetNodeOutputsSerializer,
     GetTasksStatesBodySerializer,
     TaskBatchDeleteSerializer,
 )
@@ -51,6 +52,8 @@ from bkflow.task.models import (
     EngineSpaceConfig,
     EngineSpaceConfigValueType,
     PeriodicTask,
+    TaskExecutionSnapshot,
+    TaskFlowRelation,
     TaskInstance,
     TaskLabelRelation,
     TaskMockData,
@@ -85,6 +88,7 @@ from bkflow.utils.views import SimpleGenericViewSet
 
 class TaskInstanceFilterSet(FilterSet):
     label = CharFilter(method="filter_by_labels")
+    is_child_taskflow = CharFilter(method="filter_by_child_taskflow")
 
     class Meta:
         model = TaskInstance
@@ -122,6 +126,15 @@ class TaskInstanceFilterSet(FilterSet):
         task_ids_subquery = TaskLabelRelation.objects.filter(label_id__in=label_ids).values("task_id")
 
         return queryset.filter(id__in=Subquery(task_ids_subquery))
+
+    def filter_by_child_taskflow(self, queryset, name, value):
+        """
+        过滤子任务流（子流程和子画布）
+        """
+        filter_task_trigger_method = [TaskTriggerMethod.subprocess.name, TaskTriggerMethod.sub_canvas.name]
+        if value == "false":
+            return queryset.exclude(trigger_method__in=filter_task_trigger_method)
+        return queryset
 
 
 def validate_task_info(func):
@@ -342,7 +355,10 @@ class TaskInstanceViewSet(
             template_id=task_instance.template_id,
             executor=task_instance.executor,
         ):
-            if task_instance.trigger_method == TaskTriggerMethod.subprocess.name and operation in ["skip", "retry"]:
+            if task_instance.trigger_method in [
+                TaskTriggerMethod.subprocess.name,
+                TaskTriggerMethod.sub_canvas.name,
+            ] and operation in ["skip", "retry"]:
                 task_instance.change_parent_task_node_state_to_running()
             node_operation = TaskNodeOperation(task_instance=task_instance, node_id=node_id)
             operation_method = getattr(node_operation, operation, None)
@@ -365,6 +381,26 @@ class TaskInstanceViewSet(
             include_schedule=str(request.query_params.get("include_schedule", "")).lower() in truthy,
         )
         return Response(dict(states))
+
+    @action(detail=False, methods=["get"], url_path="batch_get_task_states")
+    def batch_get_task_states(self, request, *args, **kwargs):
+        task_ids_str = request.query_params.get("task_ids", "")
+        space_id = request.query_params.get("space_id", "")
+        if not task_ids_str or not space_id:
+            return Response({"result": False, "message": "缺少必要参数task_ids或space_id", "data": {}}, status=400)
+
+        task_id_list = task_ids_str.split(",")
+        if not task_id_list:
+            return Response({"result": False, "message": "无合法的任务ID", "data": {}}, status=400)
+
+        tasks = TaskInstance.objects.filter(id__in=task_id_list, space_id=space_id)
+        states_result = {}
+        for task in tasks:
+            task_operation = TaskOperation(task_instance=task, queue=settings.BKFLOW_MODULE.code)
+            task_states = task_operation.get_task_states()
+            states_result[str(task.id)] = task_states.data if task_states else {}
+
+        return Response(states_result)
 
     @swagger_auto_schema(methods=["post"], operation_description="任务状态查询", request_body=GetTasksStatesBodySerializer)
     @action(detail=False, methods=["post"], url_path="get_tasks_states")
@@ -429,6 +465,103 @@ class TaskInstanceViewSet(
         to_render_constants_dict = {item: item for item in to_render_constants}
         constants = task_operation.render_context_with_node_outputs(node_ids, to_render_constants_dict)
         return Response(dict(constants))
+
+    @action(methods=["GET"], detail=False, url_path="list_children_taskflow")
+    def list_children_taskflow(self, request, *args, **kwargs):
+        """获取根任务下的所有子任务列表"""
+        root_task_id = request.query_params.get("task_id")
+        if not root_task_id:
+            return Response({"tasks": [], "relations": {}}, status=status.HTTP_200_OK)
+
+        children_task_info = TaskFlowRelation.objects.filter(root_task_id=root_task_id).values(
+            "task_id", "parent_task_id"
+        )
+        children_task_ids = [info["task_id"] for info in children_task_info]
+        if not children_task_ids:
+            return Response({"tasks": [], "relations": {}}, status=status.HTTP_200_OK)
+        queryset = TaskInstance.objects.filter(
+            id__in=children_task_ids, is_deleted=False, trigger_method=TaskTriggerMethod.subprocess.name
+        )
+        queryset = self.filter_queryset(queryset)
+        serializer = self.get_serializer(queryset, many=True)
+        task_ids = [task["id"] for task in serializer.data]
+        tasks_labels = TaskLabelRelation.objects.fetch_tasks_labels(task_ids)
+        for task in serializer.data:
+            task["labels"] = tasks_labels.get(task["id"], [])
+
+        # 仅保留实际返回给前端的子流程任务关系，排除子画布等非子流程记录
+        task_id_set = set(task_ids)
+        relations = {
+            info["task_id"]: info["parent_task_id"] for info in children_task_info if info["task_id"] in task_id_set
+        }
+        return Response({"tasks": serializer.data, "relations": relations}, status=status.HTTP_200_OK)
+
+    @action(methods=["GET"], detail=False, url_path="root_task_info")
+    def root_task_info(self, request, *args, **kwargs):
+        """批量查询任务是否包含子任务"""
+        task_ids_param = request.query_params.get("task_ids", "")
+        if not task_ids_param:
+            return Response({"has_children_taskflow": {}})
+
+        try:
+            task_ids = [int(task_id) for task_id in task_ids_param.split(",") if task_id]
+        except ValueError:
+            return Response(
+                {"result": False, "code": "400", "message": "task_ids参数格式错误，应为逗号分隔的数字"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tasks_with_children = set(
+            TaskFlowRelation.objects.filter(root_task_id__in=task_ids)
+            .exclude(extra_info__trigger_method=TaskTriggerMethod.sub_canvas.name)
+            .values_list("root_task_id", flat=True)
+            .distinct()
+        )
+        root_task_info = {task_id: task_id in tasks_with_children for task_id in task_ids}
+        return Response({"has_children_taskflow": root_task_info})
+
+    @action(methods=["GET"], detail=False)
+    def get_tasks_pipeline(self, request, *args, **kwargs):
+        task_ids = request.query_params.get("task_ids", "")
+        if not task_ids:
+            return Response({})
+        task_id_list = task_ids.split(",")
+        tasks = TaskInstance.objects.filter(id__in=task_id_list).values("id", "execution_snapshot_id")
+        snapshot_ids = [task["execution_snapshot_id"] for task in tasks if task["execution_snapshot_id"]]
+
+        snapshot_map = (
+            {snap.id: snap for snap in TaskExecutionSnapshot.objects.filter(id__in=snapshot_ids)}
+            if snapshot_ids
+            else {}
+        )
+
+        result = {}
+        for task in tasks:
+            task_id = str(task["id"])
+            pipeline_tree = None
+            snap_id = task["execution_snapshot_id"]
+
+            if snap_id and snap_id in snapshot_map:
+                snap = snapshot_map[snap_id]
+                pipeline_tree = snap.data
+
+            result[task_id] = pipeline_tree
+
+        return Response(result)
+
+    @action(methods=["POST"], detail=False)
+    def get_node_outputs(self, request, *args, **kwargs):
+        ser = GetNodeOutputsSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        task_id = ser.validated_data["task_id"]
+        space_id = ser.validated_data["space_id"]
+        node_ids = ser.validated_data["node_ids"]
+        task_instance = TaskInstance.objects.filter(id=task_id, space_id=space_id)
+        node_outputs = [
+            {node_id: TaskNodeOperation(task_instance=task_instance, node_id=node_id).get_node_outputs().data}
+            for node_id in node_ids
+        ]
+        return Response(node_outputs)
 
     @swagger_auto_schema(
         methods=["get"], operation_description="任务节点详情查询", query_serializer=GetNodeDetailQuerySerializer
