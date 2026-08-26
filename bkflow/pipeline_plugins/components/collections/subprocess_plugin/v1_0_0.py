@@ -18,6 +18,7 @@ from bkflow.constants import TaskTriggerMethod, WebhookEventType
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.components.collections.base import LoopBaseService
+from bkflow.task.operations import OperationResult
 
 
 class Subprocess(BaseModel):
@@ -97,14 +98,18 @@ class SubprocessPluginService(LoopBaseService):
             return False
 
         # 创建子任务实例
-        task_instance = self._create_subprocess_task_instance(
-            subprocess.subprocess_name,
-            pipeline_tree,
-            parent_task,
-            TaskTriggerMethod.subprocess.name,
-            template_id=subprocess.template_id,
-            notify_config=template["data"]["notify_config"],
-        )
+        try:
+            task_instance = self._create_subprocess_task_instance(
+                subprocess.subprocess_name,
+                pipeline_tree,
+                parent_task,
+                TaskTriggerMethod.subprocess.name,
+                template_id=subprocess.template_id,
+                notify_config=template["data"]["notify_config"],
+            )
+        except ValidationError as e:
+            data.set_outputs("ex_data", f"子任务任务创建失败: {e}")
+            return False
         constants = task_instance.pipeline_tree["constants"]
         parameters = {key: value["value"] for key, value in constants.items()}
 
@@ -130,7 +135,10 @@ class SubprocessPluginService(LoopBaseService):
         operation_method = getattr(task_operation, "start", None)
         if operation_method is None:
             raise ValidationError("task operation not found")
-        operation_method(operator=parent_task.creator)
+        operation_result = operation_method(operator=parent_task.creator)
+        if not isinstance(operation_result, OperationResult) or not operation_result.result:
+            data.set_outputs("ex_data", getattr(operation_result, "message", "子任务启动失败"))
+            return False
 
         return True
 

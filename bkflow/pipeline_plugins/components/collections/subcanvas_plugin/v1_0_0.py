@@ -17,6 +17,7 @@ from bkflow.constants import TaskTriggerMethod, WebhookEventType
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.components.collections.base import LoopBaseService
+from bkflow.task.operations import OperationResult
 
 
 class SubcanvasPluginService(LoopBaseService):
@@ -62,9 +63,17 @@ class SubcanvasPluginService(LoopBaseService):
 
         notify_config = parent_task.extra_info.get("notify_config")
         # 创建子任务实例
-        task_instance = self._create_subprocess_task_instance(
-            subprocess_name, pipeline_tree, parent_task, TaskTriggerMethod.sub_canvas.name, notify_config=notify_config
-        )
+        try:
+            task_instance = self._create_subprocess_task_instance(
+                subprocess_name,
+                pipeline_tree,
+                parent_task,
+                TaskTriggerMethod.sub_canvas.name,
+                notify_config=notify_config,
+            )
+        except ValidationError as e:
+            data.set_outputs("ex_data", f"子任务任务创建失败: {e}")
+            return False
         self.runtime.copy_context_values_to_new_pipeline(
             self.top_pipeline_id, task_instance.pipeline_tree["id"], {"${_system}", "${outputs}"}
         )
@@ -95,7 +104,10 @@ class SubcanvasPluginService(LoopBaseService):
         operation_method = getattr(task_operation, "start", None)
         if operation_method is None:
             raise ValidationError("task operation not found")
-        operation_method(operator=parent_task.creator)
+        operation_result = operation_method(operator=parent_task.creator)
+        if not isinstance(operation_result, OperationResult) or not operation_result.result:
+            data.set_outputs("ex_data", getattr(operation_result, "message", "子任务启动失败"))
+            return False
 
         return True
 
