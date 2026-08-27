@@ -141,9 +141,9 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
         "required": ["id", "name", "url", "methods", "inputs"],
         "anyOf": [
             {
-                # v4.0.0 协议：要求完整的插件元信息，且必须包含合法的 polling 完整配置
+                # v4.0.0 协议：要求完整的插件元信息；polling 为可选字段，仅当存在时校验其完整性
                 "properties": {
-                    "wrapper_version": {"enum": ["v4.0.0"]},
+                    "properties": {"wrapper_version": {"enum": ["v4.0.0"]}},
                     "polling": {
                         "type": "object",
                         "required": ["url", "task_tag_key", "success_tag", "fail_tag", "running_tag"],
@@ -189,7 +189,6 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
                     "plugin_code",
                     "plugin_version",
                     "outputs",
-                    "polling",
                 ],
             },
             {
