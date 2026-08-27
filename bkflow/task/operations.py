@@ -52,6 +52,7 @@ from bkflow.constants import (
     TaskOperationSource,
     TaskOperationType,
     TaskStates,
+    TaskTriggerMethod,
 )
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.contrib.operation_record.decorators import record_operation
@@ -362,12 +363,13 @@ class TaskOperation:
             self.task_instance.refresh_from_db()
             # convert web pipeline to pipeline
             pipeline = format_web_data_to_pipeline(self.task_instance.execution_data)
-
+            root_pipeline_context = {}
             root_pipeline_data = get_pipeline_context(
                 self.task_instance, obj_type=PipelineContextObjType.instance.value, username=operator
             )
-            system_obj = SystemObject(root_pipeline_data)
-            root_pipeline_context = {"${_system}": system_obj}
+            if self.task_instance.trigger_method != TaskTriggerMethod.sub_canvas.name:
+                system_obj = SystemObject(root_pipeline_data)
+                root_pipeline_context.update({"${_system}": system_obj})
             # 获取空间变量
             space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
             if not space_var.get("result"):

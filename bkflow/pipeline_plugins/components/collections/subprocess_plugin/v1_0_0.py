@@ -108,7 +108,7 @@ class SubprocessPluginService(LoopBaseService):
                 notify_config=template["data"]["notify_config"],
             )
         except ValidationError as e:
-            data.set_outputs("ex_data", f"子任务任务创建失败: {e}")
+            data.set_outputs("ex_data", f"子任务创建失败: {e}")
             return False
         constants = task_instance.pipeline_tree["constants"]
         parameters = {key: value["value"] for key, value in constants.items()}

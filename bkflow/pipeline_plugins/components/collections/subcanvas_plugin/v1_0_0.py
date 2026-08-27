@@ -17,7 +17,6 @@ from bkflow.constants import TaskTriggerMethod, WebhookEventType
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.components.collections.base import LoopBaseService
-from bkflow.task.operations import OperationResult
 
 
 class SubcanvasPluginService(LoopBaseService):
@@ -31,7 +30,7 @@ class SubcanvasPluginService(LoopBaseService):
 
     def plugin_execute(self, data, parent_data):
         from bkflow.task.models import TaskInstance
-        from bkflow.task.operations import TaskOperation
+        from bkflow.task.operations import OperationResult, TaskOperation
 
         parent_task_id = parent_data.get_one_of_inputs("task_id")
         subprocess_name = data.get_one_of_inputs("subprocess_name")
@@ -75,7 +74,7 @@ class SubcanvasPluginService(LoopBaseService):
             data.set_outputs("ex_data", f"子任务任务创建失败: {e}")
             return False
         self.runtime.copy_context_values_to_new_pipeline(
-            self.top_pipeline_id, task_instance.pipeline_tree["id"], {"${_system}", "${outputs}"}
+            self.top_pipeline_id, task_instance.pipeline_tree["id"], {"${outputs}"}
         )
         sub_data = {c.key: c for c in sub_constant}
         self.runtime.upsert_plain_context_values(task_instance.pipeline_tree["id"], sub_data)

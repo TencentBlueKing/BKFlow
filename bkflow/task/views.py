@@ -523,10 +523,13 @@ class TaskInstanceViewSet(
     @action(methods=["GET"], detail=False)
     def get_tasks_pipeline(self, request, *args, **kwargs):
         task_ids = request.query_params.get("task_ids", "")
+        space_id = request.query_params["space_id"]
         if not task_ids:
             return Response({})
         task_id_list = task_ids.split(",")
-        tasks = TaskInstance.objects.filter(id__in=task_id_list).values("id", "execution_snapshot_id")
+        tasks = TaskInstance.objects.filter(id__in=task_id_list, space_id=space_id).values(
+            "id", "execution_snapshot_id"
+        )
         snapshot_ids = [task["execution_snapshot_id"] for task in tasks if task["execution_snapshot_id"]]
 
         snapshot_map = (
@@ -556,7 +559,14 @@ class TaskInstanceViewSet(
         task_id = ser.validated_data["task_id"]
         space_id = ser.validated_data["space_id"]
         node_ids = ser.validated_data["node_ids"]
-        task_instance = TaskInstance.objects.filter(id=task_id, space_id=space_id)
+        try:
+            task_instance = TaskInstance.objects.get(id=task_id, space_id=space_id)
+        except TaskInstance.DoesNotExist:
+            return Response({"result": False, "data": None, "message": "task not found"})
+
+        for node_id in node_ids:
+            if not task_instance.has_node(node_id):
+                return Response({"result": False, "data": None, "message": "node_id should be in task"})
         node_outputs = [
             {node_id: TaskNodeOperation(task_instance=task_instance, node_id=node_id).get_node_outputs().data}
             for node_id in node_ids

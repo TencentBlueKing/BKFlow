@@ -100,6 +100,7 @@ from bkflow.template.serializers.template import (
     TemplateMockDataSerializer,
     TemplateMockSchemeSerializer,
     TemplateOperationRecordSerializer,
+    TemplatePrepareExtraInfoSerializer,
     TemplateRelatedResourceSerializer,
     TemplateReleaseSerializer,
     TemplateSerializer,
@@ -699,10 +700,11 @@ class TemplateViewSet(UserModelViewSet):
     @action(methods=["GET"], detail=False, url_path="batch_get_template_version")
     def batch_get_template_version(self, request, *args, **kwargs):
         template_ids = request.GET.get("template_ids")
+        space_id = request.GET.get("space_id")
         if not template_ids:
             return Response(exception=True, data={"message": "template_ids is required"})
         template_ids = template_ids.split(",")
-        template_objs = Template.objects.filter(id__in=template_ids)
+        template_objs = Template.objects.filter(id__in=template_ids, space_id=space_id)
         data = [
             {"template_id": template_obj.id, "name": template_obj.name, "version": template_obj.version}
             for template_obj in template_objs
@@ -878,6 +880,21 @@ class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, Simp
         pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
         subproc_data["pipeline_tree"] = pre_pipeline_tree
         return Response(subproc_data)
+
+    @action(methods=["POST"], detail=False)
+    def prepare_task_extra_info(self, request, *args, **kwargs):
+        ser = TemplatePrepareExtraInfoSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        validated = ser.validated_data
+        extra_info = OpenPluginSnapshotService.prepare_task_extra_info(
+            space_id=validated["space_id"],
+            pipeline_tree=validated["pipeline_tree"],
+            extra_info=validated.get("extra_info"),
+            username=validated.get("username"),
+            scope_type=validated.get("scope_type"),
+            scope_id=validated.get("scope_id"),
+        )
+        return Response({"extra_info": extra_info})
 
 
 class TemplateMockDataViewSet(

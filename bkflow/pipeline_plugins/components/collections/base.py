@@ -32,6 +32,7 @@ from pipeline.core.flow.io import ArrayItemSchema, IntItemSchema, ObjectItemSche
 from pipeline.eri.runtime import BambooDjangoRuntime
 
 from bkflow.constants import TaskOperationSource, TaskOperationType
+from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.utils.handlers import mask_sensitive_data_for_display
 from bkflow.utils.trace import (
@@ -411,6 +412,21 @@ class LoopBaseService(BKFlowBaseService):
             create_task_data.setdefault("extra_info", {}).update(
                 {"notify_config": notify_config or DEFAULT_NOTIFY_CONFIG}
             )
+
+            interface_client = InterfaceModuleClient()
+            prepare_result = interface_client.prepare_task_extra_info(
+                data={
+                    "space_id": parent_task.space_id,
+                    "pipeline_tree": pipeline_tree,
+                    "extra_info": create_task_data.get("extra_info"),
+                    "username": parent_task.creator,
+                    "scope_type": parent_task.scope_type,
+                    "scope_id": parent_task.scope_value,
+                }
+            )
+            if not prepare_result.get("result"):
+                raise ValidationError(f"生成开放插件快照失败: {prepare_result.get('message')}")
+            create_task_data["extra_info"] = prepare_result["data"]["extra_info"]
 
             task_instance = TaskInstance.objects.create_instance(**create_task_data)
 
