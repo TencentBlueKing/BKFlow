@@ -141,18 +141,61 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
         "required": ["id", "name", "url", "methods", "inputs"],
         "anyOf": [
             {
-                "properties": {"wrapper_version": {"const": "v4.0.0"}},
+                # v4.0.0 协议：要求完整的插件元信息，且必须包含合法的 polling 完整配置
+                "properties": {
+                    "wrapper_version": {"enum": ["v4.0.0"]},
+                    "polling": {
+                        "type": "object",
+                        "required": ["url", "task_tag_key", "success_tag", "fail_tag", "running_tag"],
+                        "properties": {
+                            "url": {"type": "string"},
+                            "task_tag_key": {"type": "string"},
+                            "success_tag": {
+                                "type": "object",
+                                "required": ["key", "value"],
+                                "properties": {
+                                    "key": {"type": "string"},
+                                    "value": {"type": ["string", "integer"]},
+                                    "data_key": {"type": "string"},
+                                    "msg_key": {"type": "string"},
+                                },
+                            },
+                            "fail_tag": {
+                                "type": "object",
+                                "required": ["key", "value"],
+                                "properties": {
+                                    "key": {"type": "string"},
+                                    "value": {"type": ["string", "integer"]},
+                                    "data_key": {"type": "string"},
+                                    "msg_key": {"type": "string"},
+                                },
+                            },
+                            "running_tag": {
+                                "type": "object",
+                                "required": ["key", "value"],
+                                "properties": {
+                                    "key": {"type": "string"},
+                                    "value": {"type": ["string", "integer"]},
+                                    "data_key": {"type": "string"},
+                                    "msg_key": {"type": "string"},
+                                },
+                            },
+                        },
+                    },
+                },
                 "required": [
                     "wrapper_version",
                     "plugin_source",
                     "plugin_code",
                     "plugin_version",
                     "outputs",
+                    "polling",
                 ],
             },
             {
+                # 非 v4.0.0 协议（或未携带 wrapper_version）：polling 字段不约束内容
                 "not": {
-                    "properties": {"wrapper_version": {"const": "v4.0.0"}},
+                    "properties": {"wrapper_version": {"enum": ["v4.0.0"]}},
                     "required": ["wrapper_version"],
                 }
             },
@@ -212,44 +255,7 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
                     "required": ["name", "key"],
                 },
             },
-            "polling": {
-                "type": "object",
-                "required": ["url", "task_tag_key", "success_tag", "fail_tag", "running_tag"],
-                "properties": {
-                    "url": {"type": "string"},
-                    "task_tag_key": {"type": "string"},
-                    "success_tag": {
-                        "type": "object",
-                        "required": ["key", "value"],
-                        "properties": {
-                            "key": {"type": "string"},
-                            "value": {"type": ["string", "integer"]},
-                            "data_key": {"type": "string"},
-                            "msg_key": {"type": "string"},
-                        },
-                    },
-                    "fail_tag": {
-                        "type": "object",
-                        "required": ["key", "value"],
-                        "properties": {
-                            "key": {"type": "string"},
-                            "value": {"type": ["string", "integer"]},
-                            "data_key": {"type": "string"},
-                            "msg_key": {"type": "string"},
-                        },
-                    },
-                    "running_tag": {
-                        "type": "object",
-                        "required": ["key", "value"],
-                        "properties": {
-                            "key": {"type": "string"},
-                            "value": {"type": ["string", "integer"]},
-                            "data_key": {"type": "string"},
-                            "msg_key": {"type": "string"},
-                        },
-                    },
-                },
-            },
+            "polling": {"type": "object"},
         },
     }
 

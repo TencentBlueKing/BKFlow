@@ -290,3 +290,133 @@ class TestUniformAPIClient:
 
         assert not serializer.is_valid()
         assert "non_field_errors" in serializer.errors
+
+    # ===== polling 字段按 wrapper_version 区分约束（story=137657966） =====
+
+    def test_v4_meta_requires_polling(self):
+        """v4.0.0 协议必须包含 polling 字段，缺失应被拒绝。"""
+        invalid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "1.2.0",
+            "wrapper_version": "v4.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+            "outputs": [],
+        }
+
+        with pytest.raises(ValidationError):
+            self.client.validate_response_data(invalid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_v4_meta_rejects_empty_polling(self):
+        """v4.0.0 协议的 polling 为空对象 {} 视为配置不完整，应被拒绝。"""
+        invalid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "1.2.0",
+            "wrapper_version": "v4.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+            "outputs": [],
+            "polling": {},
+        }
+
+        with pytest.raises(ValidationError):
+            self.client.validate_response_data(invalid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_v4_meta_rejects_polling_tag_value_wrong_type(self):
+        """v4.0.0 协议的 polling tag value 仅允许 string/integer，bool 等非允许类型应被拒绝。"""
+        invalid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "1.2.0",
+            "wrapper_version": "v4.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+            "outputs": [],
+            "polling": {
+                "url": "https://bk-sops.example/open-plugin-runs/status",
+                "task_tag_key": "open_plugin_run_id",
+                # value 为 bool，不符合 ["string", "integer"]
+                "success_tag": {"key": "status", "value": True},
+                "fail_tag": {"key": "status", "value": "FAILED"},
+                "running_tag": {"key": "status", "value": "RUNNING"},
+            },
+        }
+
+        with pytest.raises(ValidationError):
+            self.client.validate_response_data(invalid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_non_v4_meta_allows_missing_polling(self):
+        """非 v4.0.0 协议（如 v3.0.0）可以不返回 polling 字段，应通过。"""
+        valid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "1.2.0",
+            "wrapper_version": "v3.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+            "outputs": [],
+        }
+
+        self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_non_v4_meta_allows_empty_polling(self):
+        """非 v4.0.0 协议可返回空对象 polling: {}，应通过。"""
+        valid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "1.2.0",
+            "wrapper_version": "v3.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+            "outputs": [],
+            "polling": {},
+        }
+
+        self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_non_v4_meta_allows_incomplete_polling(self):
+        """非 v4.0.0 协议即使返回残缺的 polling（缺字段）也不约束，应通过。"""
+        valid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "plugin_source": "builtin",
+            "plugin_code": "job_execute_task",
+            "plugin_version": "1.2.0",
+            "wrapper_version": "v3.0.0",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+            "outputs": [],
+            "polling": {"url": "https://bk-sops.example/status"},
+        }
+
+        self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
+
+    def test_meta_without_wrapper_version_allows_missing_polling(self):
+        """未携带 wrapper_version 字段时走非 v4.0.0 分支，可不返回 polling，应通过。"""
+        valid_instance = {
+            "id": "open_plugin_001",
+            "name": "JOB 执行作业",
+            "url": "https://bk-sops.example/open-plugin-runs",
+            "methods": ["POST"],
+            "inputs": [],
+        }
+
+        self.client.validate_response_data(valid_instance, self.client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA)
