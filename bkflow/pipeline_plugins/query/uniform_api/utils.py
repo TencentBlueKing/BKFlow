@@ -143,7 +143,7 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
             {
                 # v4.0.0 协议：要求完整的插件元信息；polling 为可选字段，仅当存在时校验其完整性
                 "properties": {
-                    "properties": {"wrapper_version": {"enum": ["v4.0.0"]}},
+                    "wrapper_version": {"enum": ["v4.0.0"]},
                     "polling": {
                         "type": "object",
                         "required": ["url", "task_tag_key", "success_tag", "fail_tag", "running_tag"],
