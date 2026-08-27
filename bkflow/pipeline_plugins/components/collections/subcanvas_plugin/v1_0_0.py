@@ -71,7 +71,7 @@ class SubcanvasPluginService(LoopBaseService):
                 notify_config=notify_config,
             )
         except ValidationError as e:
-            data.set_outputs("ex_data", f"子任务任务创建失败: {e}")
+            data.set_outputs("ex_data", f"子任务创建失败: {e}")
             return False
         self.runtime.copy_context_values_to_new_pipeline(
             self.top_pipeline_id, task_instance.pipeline_tree["id"], {"${outputs}"}
