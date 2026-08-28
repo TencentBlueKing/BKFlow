@@ -280,7 +280,7 @@
     }
     .guide-warning {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       gap: 8px;
       background: #faf1e3;
       border: 1px solid #f7d8ac;
@@ -307,7 +307,7 @@
     .guide-examples {
       margin-bottom: 20px;
       .guide-examples-title {
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 700;
         color: #313238;
         margin-bottom: 8px;
@@ -344,7 +344,7 @@
     }
     .guide-doc {
       .guide-doc-title {
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 700;
         color: #313238;
         margin-bottom: 6px;

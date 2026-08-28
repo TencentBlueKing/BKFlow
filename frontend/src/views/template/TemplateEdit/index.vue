@@ -118,6 +118,7 @@
           @close="onCloseConfigPanel" />
         <template-setting
           :is-readonly="isViewMode || isNeedToProhibitEdit"
+          :is-view-mode="isViewMode"
           :project-info-loading="projectInfoLoading"
           :template-label-loading="templateLabelLoading"
           :template-labels="templateLabels"
