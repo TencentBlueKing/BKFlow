@@ -77,21 +77,13 @@ def bkflow_settings(request):
         "ENABLE_MULTI_TENANT_MODE": settings.ENABLE_MULTI_TENANT_MODE,
         "TIMEZONE": time_zone,
         "DEPLOYMENT_TIMEZONE": settings.TIME_ZONE,
-        # 密码变量加解密：向前端暴露公钥与密文前缀，供前端加密使用
-        "RSA_PUB_KEY": "",
-        "ASYMMETRIC_CIPHER_TYPE": "rsa",
-        "ASYMMETRIC_PUBLIC_KEY": "",
-        "ASYMMETRIC_PREFIX": "rsa_str:::",
     }
-    # 单独计算密钥相关变量，避免密钥未配置时影响其它
-    try:
+    # 密码变量加解密：开关开启时才向前端暴露公钥与密文前缀；密钥配置错误直接抛出，避免前端拿到空公钥
+    if settings.ENABLE_PASSWORD_VARIABLE:
         from bkflow.utils.crypto import get_default_asymmetric_key_config
 
         asymmetric_key_config = get_default_asymmetric_key_config(settings.BKCRYPTO_ASYMMETRIC_CIPHER_TYPE)
-        ctx["RSA_PUB_KEY"] = asymmetric_key_config.public_key_string
         ctx["ASYMMETRIC_CIPHER_TYPE"] = settings.BKCRYPTO_ASYMMETRIC_CIPHER_TYPE
         ctx["ASYMMETRIC_PUBLIC_KEY"] = json.dumps(asymmetric_key_config.public_key_string)[1:-1]
         ctx["ASYMMETRIC_PREFIX"] = f"{settings.BKCRYPTO_ASYMMETRIC_CIPHER_TYPE.lower()}_str:::"
-    except Exception:
-        pass
     return ctx

@@ -32,6 +32,7 @@ from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.models import Space
+from bkflow.utils.validate import validate_no_password_variable_in_apigw
 from bkflow.template.models import Template, TemplateSnapshot
 
 
@@ -125,6 +126,8 @@ def create_mock_task(request, space_id):
         scope_type=template.scope_type,
         scope_id=template.scope_value,
     )
+
+    validate_no_password_variable_in_apigw(create_task_data["pipeline_tree"])
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)

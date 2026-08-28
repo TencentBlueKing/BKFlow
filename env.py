@@ -285,5 +285,3 @@ RSA_PRIV_KEY = os.getenv("BKAPP_RSA_PRIV_KEY", None)
 RSA_PUB_KEY = os.getenv("BKAPP_RSA_PUB_KEY", None)
 SM2_PRIV_KEY = os.getenv("BKAPP_SM2_PRIV_KEY", None)
 SM2_PUB_KEY = os.getenv("BKAPP_SM2_PUB_KEY", None)
-# 加密算法类型：为空或 "RSA" 走 RSA，配置为 "SHANGMI" 走国密 SM2
-BKPAAS_BK_CRYPTO_TYPE = os.getenv("BKPAAS_BK_CRYPTO_TYPE", "")

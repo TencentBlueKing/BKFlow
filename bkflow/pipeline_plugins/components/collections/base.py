@@ -20,14 +20,12 @@ to the current version of the project delivered to anyone in the future.
 
 import copy
 import datetime
+import json
+import logging
 
 from bamboo_engine.context import Context
 from bamboo_engine.eri import ContextValue, ContextValueType
 from bamboo_engine.template import Template
-import copy
-import json
-import logging
-
 from django.apps import apps
 from django.conf import settings
 from django.db import transaction
@@ -36,15 +34,13 @@ from pipeline.core.flow import AbstractIntervalGenerator, StaticIntervalGenerato
 from pipeline.core.flow.activity import Service
 from pipeline.core.flow.io import ArrayItemSchema, IntItemSchema, ObjectItemSchema
 from pipeline.eri.runtime import BambooDjangoRuntime
-from pipeline.eri.runtime import BambooDjangoRuntime
 
-from bkflow.constants import TaskOperationSource, TaskOperationType
+from bkflow.constants import MASK_META_SYSTEM_MASK_INFO_KEY, TaskOperationSource, TaskOperationType
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
 from bkflow.plugin.services.open_plugin_detect import has_open_plugin_nodes
-from bkflow.utils.handlers import mask_sensitive_data_for_display
-from bamboo_engine.template import Template
 from bkflow.utils import crypto
+from bkflow.utils.handlers import mask_sensitive_data_for_display
 from bkflow.utils.trace import (
     PLUGIN_SCHEDULE_COUNT_KEY,
     PLUGIN_SPAN_ENDED_KEY,
@@ -58,6 +54,10 @@ from bkflow.utils.trace import (
 logger = logging.getLogger("root")
 PASSWORD_VALUE_TYPE = "password_value"
 PASSWORD_MASK_VALUE = "******"
+
+
+class PasswordDecryptFailed(Exception):
+    """密码变量解密失败。message 仅携带变量名/字段名"""
 
 
 class BKFlowBaseService(Service):
@@ -207,32 +207,55 @@ class BKFlowBaseService(Service):
 
         # 预检：检查是否需要密码解密逻辑
         try:
-            inputs_str = json.dumps(data.get_inputs(), default=str) + json.dumps(parent_data.get_inputs(), default=str)
+            inputs_str = json.dumps(data.get_inputs(), default=str)
             need_password_handle = PASSWORD_VALUE_TYPE in inputs_str
         except Exception:
             need_password_handle = True  # 检查失败保守处理，执行密码解密逻辑
 
-        input_password_refs = {}
+        # 兼容：子流程节点本身不消费密码明文，只负责把密文(密码结构体)透传给子任务，
+        # 因此不在此处解密，避免明文落库、也避免把明文透传给子任务内部节点
+        passthrough_password = self.plugin_name == "subprocess_plugin"
+
+        # parent_data 是根流程的 data inputs，仅含任务元数据（task_id/space_id/operator/is_mock 等，
+        # 见 bkflow.utils.context.TaskContext），不含密码变量；密码变量位于流程上下文、渲染进节点
+        # 自身的 data.inputs。因此下面密码解密/掩码只针对 data，不处理 parent_data
         copy_data = None
-        copy_parent_data = None
         copy_data_mask = None
-        copy_parent_data_mask = None
 
         if need_password_handle:
-            input_password_refs = self._get_raw_password_map()  # 获取密码变量key-对应的加密后的value
 
-            # 自动解密 inputs 中引用的全局密码变量，使所有插件都支持输入全局密码变量
-            copy_data = copy.deepcopy(data)
-            copy_parent_data = copy.deepcopy(parent_data)
-            self._auto_decrypt_password_inputs(data, input_password_refs=input_password_refs)
-            self._auto_decrypt_password_inputs(parent_data, input_password_refs=input_password_refs)
+            # 获取失败则直接返回，结束插件执行
+            get_raw_password_map_info = self._get_raw_password_map()  # 获取密码变量key-对应的加密后的value
+            if not get_raw_password_map_info[0]:
+                data.outputs.ex_data = get_raw_password_map_info[1]
+                self._end_plugin_span(data, success=False, error_message=self._get_error_message(data))
+                return False
 
-            # 另外拷贝一份出来做掩码处理
-            copy_data_mask = copy.deepcopy(copy_data)
-            copy_parent_data_mask = copy.deepcopy(copy_parent_data)
-            self._auto_decrypt_password_inputs(copy_data_mask, input_password_refs=input_password_refs, mask_flag=True)
-            self._auto_decrypt_password_inputs(copy_parent_data_mask, input_password_refs=input_password_refs,
-                                               mask_flag=True)
+            input_password_refs = get_raw_password_map_info[1]
+
+            if passthrough_password:
+                # 透传型：不解密，原样保留密文(结构体)向下传递；主要针对子流程这种情况
+                # 仅生成掩码副本用于对外展示，避免明文落库
+                copy_data = copy.deepcopy(data)
+                copy_data_mask = copy.deepcopy(data)
+                self._auto_decrypt_password_inputs(copy_data_mask, input_password_refs=input_password_refs,
+                                                   mask_flag=True)
+            else:
+
+                # 自动解密 inputs 中引用的全局密码变量，使所有插件都支持输入全局密码变量
+                copy_data = copy.deepcopy(data)
+                try:
+                    self._auto_decrypt_password_inputs(data, input_password_refs=input_password_refs)
+
+                    # 另外拷贝一份出来做掩码处理
+                    copy_data_mask = copy.deepcopy(copy_data)
+                    self._auto_decrypt_password_inputs(copy_data_mask, input_password_refs=input_password_refs,
+                                                       mask_flag=True)
+                except PasswordDecryptFailed as e:
+                    err_msg = "{}，密码变量解密失败，请检查密码变量配置或加密密钥是否已变更".format(e)
+                    data.outputs.ex_data = err_msg
+                    self._end_plugin_span(data, success=False, error_message=err_msg)
+                    return False
 
         result = False
         try:
@@ -251,23 +274,18 @@ class BKFlowBaseService(Service):
             else:
                 result = self.plugin_execute(data, parent_data)
         finally:
-            # 对 data 的 input 做掩码处理,同时 outputs 需要继承解密后的数据，方便后续调用
+            # 对 data 的 input 做掩码处理
             if need_password_handle:
                 self._sync_new_fields(copy_data.inputs, data.inputs)
                 self._sync_new_fields(copy_data_mask.inputs, data.inputs)
                 self._deep_update(data.inputs, copy_data_mask.inputs)
+                # 掩码前的原始 inputs 暂存到 outputs 的私有 key 中
+                # 不能放进 inputs：FancyDict 的 __setattr__ 会直接写成 inputs 的 key，
+                # 导致节点执行数据随 inputs 翻倍落库，且会通过 get_task_node_detail 等接口泄漏到对外契约
                 _mask_meta_system_mask_info = {
                     'decrypt_input_data': copy_data.inputs,
                 }
-                data.inputs._mask_meta_system_mask_info = _mask_meta_system_mask_info
-
-                self._sync_new_fields(copy_parent_data.inputs, parent_data.inputs)
-                self._sync_new_fields(copy_parent_data_mask.inputs, parent_data.inputs)
-                self._deep_update(parent_data.inputs, copy_parent_data_mask.inputs)
-                _mask_meta_system_parent_mask_info = {
-                    'decrypt_input_data': copy_parent_data.inputs,
-                }
-                parent_data.inputs._mask_meta_system_parent_mask_info = _mask_meta_system_parent_mask_info
+                data.outputs[MASK_META_SYSTEM_MASK_INFO_KEY] = _mask_meta_system_mask_info
 
         if not result:
             self._end_plugin_span(data, success=False, error_message=self._get_error_message(data))
@@ -286,43 +304,60 @@ class BKFlowBaseService(Service):
         trace_context = self._get_trace_context(data, parent_data)
         method_attrs = self._get_method_span_attributes(data, parent_data)
 
-        # schedule 里面每次判断是否有 is_mask ，来恢复 data 的输入数据
-        _mask_meta_system_mask_info = data.inputs.get("_mask_meta_system_mask_info")
+        # schedule 里面每轮从 outputs 的私有 key 中恢复 data 的输入数据
+        _mask_meta_system_mask_info = data.get_one_of_outputs(MASK_META_SYSTEM_MASK_INFO_KEY)
         if _mask_meta_system_mask_info:
             data.inputs = type(data.inputs)(_mask_meta_system_mask_info.get("decrypt_input_data"))
 
-        # 对于 parent_data 可能需要解密
-        _mask_meta_system_parent_mask_info = parent_data.inputs.get("_mask_meta_system_parent_mask_info")
-        if _mask_meta_system_parent_mask_info:
-            parent_data.inputs = type(parent_data.inputs)(_mask_meta_system_parent_mask_info.get("decrypt_input_data"))
-
         # 预检：检查是否需要密码解密逻辑
         try:
-            inputs_str = json.dumps(data.get_inputs(), default=str) + json.dumps(parent_data.get_inputs(), default=str)
+            inputs_str = json.dumps(data.get_inputs(), default=str)
             need_password_handle = PASSWORD_VALUE_TYPE in inputs_str
         except Exception:
             need_password_handle = True  # 如果检查失败，保守处理，执行密码解密逻辑
 
+        # 兼容：子流程节点本身不消费密码明文，只负责把密文(密码结构体)透传给子任务，
+        # 因此不在此处解密，避免明文落库、也避免把明文透传给子任务内部节点
+        passthrough_password = self.plugin_name == "subprocess_plugin"
+
+        # parent_data 是根流程的 data inputs，仅含任务元数据，不含密码变量；
+        # 下面密码解密/掩码只针对 data，不处理 parent_data
         input_password_refs = {}
         copy_data = None
-        copy_parent_data = None
         copy_data_mask = None
-        copy_parent_data_mask = None
 
         if need_password_handle:
-            input_password_refs = self._get_raw_password_map()  # 获取密码变量key-对应的加密后的value
 
-            # 对于 data 进行解密，同时生成一份掩码版本
-            copy_data = copy.deepcopy(data)
-            copy_data_mask = copy.deepcopy(data)  # 用于 schedule 执行完做掩码处理
-            self._auto_decrypt_password_inputs(data, input_password_refs=input_password_refs)
-            self._auto_decrypt_password_inputs(copy_data_mask, input_password_refs=input_password_refs, mask_flag=True)
+            # 获取失败则直接返回，结束插件执行
+            get_raw_password_map_info = self._get_raw_password_map()  # 获取密码变量key-对应的加密后的value
+            if not get_raw_password_map_info[0]:
+                data.outputs.ex_data = get_raw_password_map_info[1]
+                self._end_plugin_span(data, success=False, error_message=self._get_error_message(data))
+                return False
 
-            copy_parent_data = copy.deepcopy(parent_data)
-            copy_parent_data_mask = copy.deepcopy(parent_data)
-            self._auto_decrypt_password_inputs(parent_data, input_password_refs=input_password_refs)
-            self._auto_decrypt_password_inputs(copy_parent_data_mask, input_password_refs=input_password_refs,
-                                               mask_flag=True)
+            input_password_refs = get_raw_password_map_info[1]
+
+            if passthrough_password:
+                # 透传型：不解密，原样保留密文(结构体)向下传递；主要针对子流程这种情况
+                # 仅生成掩码副本用于对外展示，避免明文落库
+                copy_data = copy.deepcopy(data)
+                copy_data_mask = copy.deepcopy(data)
+                self._auto_decrypt_password_inputs(copy_data_mask, input_password_refs=input_password_refs,
+                                                   mask_flag=True)
+            else:
+
+                # 对于 data 进行解密，同时生成一份掩码版本
+                copy_data = copy.deepcopy(data)
+                copy_data_mask = copy.deepcopy(data)  # 用于 schedule 执行完做掩码处理
+                try:
+                    self._auto_decrypt_password_inputs(data, input_password_refs=input_password_refs)
+                    self._auto_decrypt_password_inputs(copy_data_mask, input_password_refs=input_password_refs,
+                                                       mask_flag=True)
+                except PasswordDecryptFailed as e:
+                    err_msg = "{}，密码变量解密失败，请检查密码变量配置或加密密钥是否已变更".format(e)
+                    data.outputs.ex_data = err_msg
+                    self._end_plugin_span(data, success=False, error_message=err_msg)
+                    return False
 
         result = False
         try:
@@ -345,24 +380,16 @@ class BKFlowBaseService(Service):
                 result = self.plugin_schedule(data, parent_data, callback_data)
         finally:
             if need_password_handle:
-                # 对 data 的 input 做掩码处理,同时 outputs 需要继承解密后的数据，方便后续调用
+                # 对 data 的 input 做掩码处理
                 self._sync_new_fields(copy_data.inputs, data.inputs)
                 self._sync_new_fields(copy_data_mask.inputs, data.inputs)
                 self._deep_update(data.inputs, copy_data_mask.inputs)
 
+                # 掩码前的原始 inputs 暂存到 outputs 的私有 key 中，供下一轮 schedule 恢复
                 _mask_meta_system_mask_info = {
                     'decrypt_input_data': copy_data.inputs,
                 }
-                data.inputs._mask_meta_system_mask_info = _mask_meta_system_mask_info
-
-                # 更新 parent 相关
-                self._sync_new_fields(copy_parent_data.inputs, parent_data.inputs)
-                self._sync_new_fields(copy_parent_data_mask.inputs, parent_data.inputs)
-                self._deep_update(parent_data.inputs, copy_parent_data_mask.inputs)
-                _mask_meta_system_parent_mask_info = {
-                    'decrypt_input_data': copy_parent_data.inputs,
-                }
-                parent_data.inputs._mask_meta_system_parent_mask_info = _mask_meta_system_parent_mask_info
+                data.outputs[MASK_META_SYSTEM_MASK_INFO_KEY] = _mask_meta_system_mask_info
 
         # 判断是否需要结束主 Span
         # _end_plugin_span 内部已有幂等保护，不会重复结束
@@ -376,7 +403,7 @@ class BKFlowBaseService(Service):
     def _get_raw_password_map(self):
         """
         从 BambooDjangoRuntime 获取当前节点原始输入，解析变量引用，
-        从全局上下文中查找加密密码值，返回 {var_name: cipher_struct} 映射。
+        从当前流程上下文中查找加密密码值，返回 {var_name: cipher_struct} 映射。
         用于获取所有需要引用密码变量的 key 和加密后的数据，方便后续做密码映射。
         """
         try:
@@ -387,13 +414,12 @@ class BKFlowBaseService(Service):
             raw_data = runtime.get_data(node_id)
             need_render_inputs = raw_data.need_render_inputs()
 
-            # 2. 获取当前节点所属的 top_pipeline_id（根流程 ID）
-            state = runtime.get_state(node_id)
-            current_node = node_id
-            while state.parent_id:
-                current_node = state.parent_id
-                state = runtime.get_state(current_node)
-            pipeline_id = current_node
+            # 2. 直接使用引擎注入的 top_pipeline_id（当前节点所在的那一层流程）。
+            #    引擎渲染节点输入时用的就是这个流程的上下文（见 ServiceActivityHandler
+            #    的 get_context_values(pipeline_id=top_pipeline_id, ...)），子流程的变量
+            #    挂在子流程 id 下，自己往根流程爬会导致子流程场景查不到密码变量，
+            #    str 拼接场景下密码将无法替换
+            pipeline_id = self.top_pipeline_id
 
             # 3. 获取所有变量引用（如 ${customerPassword}）
             refs = set(Template(need_render_inputs).get_reference())
@@ -401,9 +427,9 @@ class BKFlowBaseService(Service):
             inputs_refs = refs.union(additional_refs)
 
             if not inputs_refs:
-                return {}
+                return True, {}
 
-            # 4. 查询全局上下文中的这些变量
+            # 4. 查询当前流程上下文中的这些变量
             context_values = runtime.get_context_values(pipeline_id=pipeline_id, keys=inputs_refs)
 
             # 5. 只保留值是密码结构体的变量
@@ -416,10 +442,11 @@ class BKFlowBaseService(Service):
                     continue
                 password_map[cv.key] = val
 
-            return password_map
-        except Exception:
-            logger.warning("[%s] get raw password map failed, fallback to empty map", self.plugin_name)
-            return {}
+            return True, password_map
+        except Exception as e:
+            err_msg = f"plugin_name:{self.plugin_name} get_raw_password_map failed. {str(e)}"
+            logger.error(err_msg)
+            return False, err_msg
 
     def _auto_decrypt_password_inputs(self, data, input_password_refs=None, mask_flag=False):
         """
@@ -463,38 +490,38 @@ class BKFlowBaseService(Service):
         :param mask_flag: 本次是否是掩码处理，True 时替换为掩码值而不是明文
         """
 
-        def get_decrypt_value(_password_struct):
+        def get_decrypt_value(_password_struct, source):
             cipher = _password_struct.get("value")
             if not cipher or not isinstance(cipher, str):
                 return
             try:
-                plain = crypto.decrypt(cipher)
+                return crypto.decrypt(cipher)
             except Exception:
-                logger.warning("[%s] auto decrypt password input failed", self.plugin_name)
-                return
-            return plain
+                # 只记录来源（变量名/字段名），不透出 crypto 的原始异常消息（其内含密文片段）
+                logger.error("[%s] auto decrypt password input failed, source=%s", self.plugin_name, source)
+                raise PasswordDecryptFailed(source)
 
         if isinstance(password_struct, str):
             if not input_password_refs:
                 return
-            for encrypted_password in input_password_refs.values():
+            for ref_key, encrypted_password in input_password_refs.items():
                 str_password = json.dumps(encrypted_password).replace('"', "'")
-
-                plain = get_decrypt_value(encrypted_password)
-                if plain is None:
+                # 先判断本次字符串是否真的引用了该密码变量，避免无关变量的解密失败误判本节点
+                if str_password not in password_struct:
                     continue
-                replace_value = PASSWORD_MASK_VALUE if mask_flag else plain
-
-                # 使用 str.replace 直接替换加密后的字符串
-                if str_password in password_struct:
-                    password_struct = password_struct.replace(str_password, replace_value)
+                replace_value = (
+                    PASSWORD_MASK_VALUE
+                    if mask_flag
+                    else get_decrypt_value(encrypted_password, "密码变量 {}".format(ref_key))
+                )
+                password_struct = password_struct.replace(str_password, replace_value)
             container[key_or_index] = password_struct
         elif isinstance(password_struct, dict):
-            plain = get_decrypt_value(password_struct)
-            if plain is None:
-                return
-            # 替换为掩码值或明文
-            container[key_or_index] = PASSWORD_MASK_VALUE if mask_flag else plain
+            container[key_or_index] = (
+                PASSWORD_MASK_VALUE
+                if mask_flag
+                else get_decrypt_value(password_struct, "输入字段 {}".format(key_or_index))
+            )
 
     def _decrypt_nested_passwords(self, obj, input_password_refs=None, mask_flag=False):
         """递归遍历 obj（dict 或 list），找到所有密码结构体并解密"""

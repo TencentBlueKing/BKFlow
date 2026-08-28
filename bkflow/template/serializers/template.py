@@ -60,6 +60,7 @@ from bkflow.template.utils import (
     validate_pipeline_tree_gateway_expression,
 )
 from bkflow.utils.pipeline import replace_subprocess_version
+from bkflow.utils.validate import validate_password_variable_enabled
 from bkflow.utils.version import bump_custom
 from bkflow.utils.webhook import (
     apply_webhook_configs,
@@ -190,6 +191,8 @@ class TemplateSerializer(serializers.ModelSerializer):
         validate_data = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
         if not validate_data["has_loop"]:
             raise serializers.ValidationError(_(validate_data["error_message"]))
+
+        validate_password_variable_enabled(pipeline_tree)
 
         return pipeline_tree
 
