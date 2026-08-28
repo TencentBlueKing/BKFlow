@@ -154,7 +154,7 @@
         {{ $t('保存') }}
       </bk-button>
       <bk-button
-        v-show="config?.ui?.control != 'member_selector'"
+        v-show="config?.ui?.control !== 'member_selector'"
         :disabled="config.isDefault"
         @click="$emit('reset', config)">
         {{ $t('恢复默认') }}
