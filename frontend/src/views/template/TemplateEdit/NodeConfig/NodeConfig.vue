@@ -241,6 +241,7 @@
   import formSchema from '@/utils/formSchema.js';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
   import {
+    buildLegacyUniformApiMeta,
     buildUniformApiComponent,
     buildUniformApiDetailState,
     buildUniformApiIdentityData,
@@ -1958,8 +1959,11 @@
               };
               component.api_meta.source_key = sourceKey;
             } else {
-              const originalApiMeta = this.nodeConfig.component?.['api_meta']; // eslint-disable-line dot-notation
-              if (originalApiMeta) component.api_meta = tools.deepClone(originalApiMeta);
+              const legacyApiMeta = buildLegacyUniformApiMeta({
+                basicInfo: this.basicInfo,
+                originalApiMeta: this.nodeConfig.component?.['api_meta'], // eslint-disable-line dot-notation
+              });
+              if (legacyApiMeta) component.api_meta = legacyApiMeta;
             }
           }
           const pipelineComponent = this.isApiPlugin
