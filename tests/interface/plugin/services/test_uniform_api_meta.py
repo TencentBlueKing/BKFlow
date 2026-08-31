@@ -60,6 +60,25 @@ def test_extract_uniform_api_meta_data_returns_valid_v2_payload():
     assert data["inputs"][0]["key"] == "biz_id"
 
 
+@pytest.mark.parametrize("polling_fields", ({}, {"polling": {}}), ids=("omitted", "empty-object"))
+def test_extract_uniform_api_meta_data_returns_v4_without_polling(polling_fields):
+    """无轮询的 V4 插件详情应通过校验并原样返回。"""
+    meta = _meta_data(
+        wrapper_version="v4.0.0",
+        plugin_source="builtin",
+        plugin_code="job",
+        plugin_version="1.2.0",
+        outputs=[],
+        **polling_fields,
+    )
+
+    data = extract_uniform_api_meta_data(
+        _result(data=meta), requested_version="1.2.0", catalog_wrapper_version="v4.0.0"
+    )
+
+    assert data == meta
+
+
 def test_extract_uniform_api_meta_data_rejects_http_failure():
     """传输层失败不得当作成功 meta。"""
     with pytest.raises(UniformAPIMetaError, match="network failed"):

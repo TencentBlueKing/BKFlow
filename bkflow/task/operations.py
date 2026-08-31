@@ -52,6 +52,7 @@ from bkflow.constants import (
     TaskOperationSource,
     TaskOperationType,
     TaskStates,
+    TaskTriggerMethod,
 )
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.contrib.operation_record.decorators import record_operation
@@ -362,12 +363,13 @@ class TaskOperation:
             self.task_instance.refresh_from_db()
             # convert web pipeline to pipeline
             pipeline = format_web_data_to_pipeline(self.task_instance.execution_data)
-
+            root_pipeline_context = {}
             root_pipeline_data = get_pipeline_context(
                 self.task_instance, obj_type=PipelineContextObjType.instance.value, username=operator
             )
-            system_obj = SystemObject(root_pipeline_data)
-            root_pipeline_context = {"${_system}": system_obj}
+            if self.task_instance.trigger_method != TaskTriggerMethod.sub_canvas.name:
+                system_obj = SystemObject(root_pipeline_data)
+                root_pipeline_context.update({"${_system}": system_obj})
             # 获取空间变量
             space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
             if not space_var.get("result"):
@@ -945,6 +947,25 @@ class TaskNodeOperation:
         if not outputs_result.result:
             logger.error(f"get_outputs failed: {outputs_result.message}, exc: {outputs_result.exc}")
         return outputs_result
+
+    @uniform_task_operation_result
+    def get_node_outputs(self, *args, **kwargs):
+        runtime = BambooDjangoRuntime()
+        outputs_data = []
+        outputs_result = bamboo_engine_api.get_execution_data_outputs(runtime=runtime, node_id=self.node_id)
+        if not outputs_result.result:
+            logger.error(f"get_outputs failed: {outputs_result.message}, exc: {outputs_result.exc}")
+            return outputs_result
+        if settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_result.data:
+            outputs_result.data.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
+        outputs_data.append(outputs_result.data)
+        hist_result = bamboo_engine_api.get_node_histories(runtime=runtime, node_id=self.node_id)
+        for hist in hist_result.data:
+            his_outputs = hist["outputs"]
+            if settings.PLUGIN_LOOP_OUTPUTS_KEY in his_outputs:
+                his_outputs.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
+            outputs_data.append(his_outputs)
+        return outputs_data
 
     @uniform_task_operation_result
     def get_node_data(
