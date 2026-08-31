@@ -141,12 +141,15 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
         "required": ["id", "name", "url", "methods", "inputs"],
         "anyOf": [
             {
-                # v4.0.0 协议：要求完整的插件元信息；polling 为可选字段，仅当存在时校验其完整性
+                # v4.0.0 协议：要求完整的插件元信息；polling 缺省或空对象表示不轮询，非空时校验完整性
                 "properties": {
                     "wrapper_version": {"enum": ["v4.0.0"]},
                     "polling": {
                         "type": "object",
-                        "required": ["url", "task_tag_key", "success_tag", "fail_tag", "running_tag"],
+                        "anyOf": [
+                            {"maxProperties": 0},
+                            {"required": ["url", "task_tag_key", "success_tag", "fail_tag", "running_tag"]},
+                        ],
                         "properties": {
                             "url": {"type": "string"},
                             "task_tag_key": {"type": "string"},

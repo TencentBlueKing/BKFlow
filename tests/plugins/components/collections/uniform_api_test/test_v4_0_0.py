@@ -1,6 +1,9 @@
 import ast
+import logging
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0 import (
     UniformAPIService,
@@ -150,20 +153,62 @@ class FakeParentData:
         return self.inputs.get(key, default)
 
 
-def test_open_plugin_sync_success_finishes_without_polling():
+@pytest.mark.parametrize("polling", (None, {}, {"url": "https://bk-sops.example/runs/status/"}))
+def test_open_plugin_sync_success_finishes_without_polling(polling):
+    """同步成功不依赖轮询配置，也不启动轮询。"""
     service = UniformAPIService()
     data = FakeData({})
 
     result = service._handle_open_plugin_status(
         data=data,
         status_data={"status": "SUCCEEDED", "outputs": {"value": "done"}},
-        polling={"url": "https://bk-sops.example/runs/status/"},
+        polling=polling,
         log_prefix="[uniform_api]",
     )
 
     assert result is True
     assert service.is_schedule_finished() is True
     assert data.outputs.data == {"value": "done"}
+    assert data.outputs.get("need_polling", False) is False
+
+
+@pytest.mark.parametrize("polling", (None, {}), ids=("omitted", "empty-object"))
+def test_open_plugin_waiting_callback_without_polling(polling):
+    """缺省或空轮询配置均只等待回调，不启用轮询兜底。"""
+    service = UniformAPIService()
+    data = FakeData({})
+
+    result = service._handle_open_plugin_status(
+        data=data,
+        status_data={"status": "WAITING_CALLBACK"},
+        polling=polling,
+        log_prefix="[uniform_api]",
+    )
+
+    assert result is True
+    assert service.interval is None
+    assert service.is_schedule_finished() is False
+    assert data.outputs.need_callback is True
+    assert data.outputs.need_polling is False
+
+
+@pytest.mark.parametrize("polling", (None, {}), ids=("omitted", "empty-object"))
+@pytest.mark.parametrize("status", ("CREATED", "RUNNING"))
+def test_open_plugin_running_without_polling_is_rejected(polling, status):
+    """兼容空 polling 不允许需要轮询的运行状态无配置地继续执行。"""
+    service = UniformAPIService()
+    service.setup_runtime_attrs(logger=logging.getLogger(__name__))
+    data = FakeData({})
+
+    result = service._handle_open_plugin_status(
+        data=data,
+        status_data={"status": status},
+        polling=polling,
+        log_prefix="[uniform_api]",
+    )
+
+    assert result is False
+    assert status in data.outputs.ex_data
     assert data.outputs.get("need_polling", False) is False
 
 
