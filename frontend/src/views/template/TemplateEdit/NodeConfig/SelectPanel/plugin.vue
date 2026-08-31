@@ -79,6 +79,7 @@
     </bk-tab-panel>
     <!-- 第三方插件 -->
     <bk-tab-panel
+      v-if="!isPluginScopeHidden"
       ref="thirdPartyPanel"
       v-bkloading="{ isLoading: thirdPluginTagsLoading || thirdPluginLoading }"
       name="thirdParty"
@@ -139,7 +140,7 @@
       </div>
     </bk-tab-panel>
     <ApiPlugin
-      v-if="apiTabList.length"
+      v-if="apiTabList.length && !isPluginScopeHidden"
       ref="apiPlugin"
       :api-tab-list="apiTabList"
       :current-tab="curTab"
@@ -154,6 +155,7 @@
 </template>
 <script>
   import { SYSTEM_GROUP_ICON } from '@/constants/index.js';
+  import { mapActions } from 'vuex';
   import tools from '@/utils/tools.js';
   import NoData from '@/components/common/base/NoData.vue';
   import ApiPlugin from './apiPlugin.vue';
@@ -215,6 +217,7 @@
         searchStr: '',
         bkPluginDevelopUrl: window.BK_PLUGIN_DEVELOP_URL,
         apiTabList: [],
+        isPluginScopeHidden: false, // 空间插件配置白名单模式时隐藏第三方/API插件
       };
     },
     computed: {
@@ -228,6 +231,7 @@
     },
     created() {
       this.getApiTabList();
+      this.checkPluginScope();
       let curTab = this.isThirdParty ? 'thirdParty' : 'builtIn';
       curTab = this.isApiPlugin ? (this.apiKey || 'default') : curTab;
       this.curTab = curTab;
@@ -239,10 +243,34 @@
       }
     },
     beforeDestroy() {
-      const listWrapEl = this.$refs.thirdPartyPanel.$el.querySelector('.third-party-list');
-      listWrapEl.removeEventListener('scroll', this.handleThirdParPluginScroll, false);
+      if (this.$refs.thirdPartyPanel) {
+        const listWrapEl = this.$refs.thirdPartyPanel.$el.querySelector('.third-party-list');
+        if (listWrapEl) {
+          listWrapEl.removeEventListener('scroll', this.handleThirdParPluginScroll, false);
+        }
+      }
     },
     methods: {
+      ...mapActions('spaceConfig/', [
+        'getNotAuthSpaceConfig',
+        'checkSpaceConfig',
+      ]),
+      async checkPluginScope() {
+        try {
+          const res = await this.getNotAuthSpaceConfig();
+          if (!res.data.space_plugin_config || !this.spaceId) {
+            this.isPluginScopeHidden = false;
+            return;
+          }
+          const { name } = res.data.space_plugin_config;
+          const result = await this.checkSpaceConfig({ id: this.spaceId, name });
+          const config = result.data.value || {};
+          const scopeConfig = config.default || {};
+          this.isPluginScopeHidden = scopeConfig.mode === 'allow_list';
+        } catch (error) {
+          this.isPluginScopeHidden = false;
+        }
+      },
       getApiTabList() {
         const { uniform_api: uniformApi = {} } = this.spaceRelatedConfig;
 
@@ -341,8 +369,10 @@
       },
       // 设置第三方插件滚动加载事件
       setThirdParScrollLoading() {
+        if (!this.$refs.thirdPartyPanel) return;
         // 设置滚动加载
         const listWrapEl = this.$refs.thirdPartyPanel.$el.querySelector('.third-party-list');
+        if (!listWrapEl) return;
         listWrapEl.addEventListener('scroll', this.handleThirdParPluginScroll, false);
         const { height } = listWrapEl.getBoundingClientRect();
 

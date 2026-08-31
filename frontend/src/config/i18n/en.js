@@ -1312,6 +1312,7 @@ const en = {
   '建议：已有流程时优先用「隐藏名单」；用「仅显示」时请把本空间已用到的插件（含 API 插件）全部列入。': 'Recommendation: prefer "Hide List" when there are existing processes; when using "Show Only", include all plugins used in this space (including API plugins).',
   '已在运行的任务不会因此停止。': 'Running tasks will not stop because of this.',
   仍要保存: 'Save Anyway',
+  管理员至少保留一位: 'At least one administrator must be retained.',
 };
 
 export default en;
