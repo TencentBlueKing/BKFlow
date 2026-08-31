@@ -86,8 +86,8 @@ def get_template_list(request, space_id):
     data = []
 
     has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
-    template_ids = template_queryset.values_list("id", flat=True)
-    templates_labels = TemplateLabelRelation.objects.fetch_objects_labels(list(template_ids))
+    template_ids = [template.id for template in templates]
+    templates_labels = TemplateLabelRelation.objects.fetch_objects_labels(template_ids)
     for template in templates:
         json_data = template.to_json(with_pipeline_tree=False)
         if template.id in has_trigger_template_ids:
