@@ -30,7 +30,7 @@
         class="apc-card">
         <div class="apc-card-head">
           <div class="apc-card-head-left">
-            <span class="apc-key-label">api_key: </span>
+            <span class="apc-key-label">api_key:</span>
             <bk-form-item
               :property="`apiList.${index}.apiKey`"
               :rules="rules.apiKey"
@@ -80,7 +80,7 @@
               @change="emitValue" />
           </bk-form-item>
           <bk-form-item
-            :label="$t('分类接口 URL')"
+            :label="$t('分类接口 URL:')"
             :required="true"
             :property="`apiList.${index}.api_categories`"
             :rules="rules.api_categories">
@@ -484,6 +484,22 @@ import { mapActions } from 'vuex';
     font-weight: bold;
     font-size: 12px;
     line-height: 20px;
+    position: relative;
+    margin-right: 10px;
+    &:after {
+      height: 7px;
+      line-height: 1;
+      content: "*";
+      color: #ea3636;
+      font-size: 12px;
+      position: absolute;
+      display: inline-block;
+      vertical-align: middle;
+      top: 50%;
+      left: 100%;
+      -webkit-transform: translate(3px, -50%);
+      transform: translate(3px, -50%);
+    }
   }
   .apc-key-value {
     color: #4d4f56;

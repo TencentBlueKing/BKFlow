@@ -77,6 +77,44 @@
         </div>
       </div>
     </div>
+    <div v-if="config.name === 'space_plugin_config'">
+      <div
+        v-if="currentGuide"
+        class="detail-guide">
+        <div
+          v-if="currentGuide.purpose"
+          class="guide-block">
+          <div class="guide-title">
+            {{ $t('用途') }}
+          </div>
+          <div class="guide-body">
+            {{ currentGuide.purpose }}
+          </div>
+        </div>
+        <div
+          v-if="currentGuide.effects && currentGuide.effects.length"
+          class="guide-block">
+          <div class="guide-title">
+            {{ $t('影响') }}
+          </div>
+          <ul class="guide-effects">
+            <li
+              v-for="(item, idx) in currentGuide.effects"
+              :key="idx">
+              {{ item }}
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div
+        class="warning-info">
+        <i class="bk-icon icon-exclamation-circle-shape warning-info-icon" />
+        <span class="warning-info-text">
+          <span class="warning-info-label">{{ $t('风险提示') }}：</span>
+          {{ $t('此配置会影响已有流程编辑。保存前请确认名单覆盖本空间已在使用的插件（含 API 插件）。') }}
+        </span>
+      </div>
+    </div>
     <!-- 配置内容 -->
     <div
       class="detail-form">
@@ -116,6 +154,7 @@
         {{ $t('保存') }}
       </bk-button>
       <bk-button
+        v-show="config?.ui?.control !== 'member_selector'"
         :disabled="config.isDefault"
         @click="$emit('reset', config)">
         {{ $t('恢复默认') }}
@@ -146,6 +185,51 @@
         </div>
       </template> -->
     </div>
+    <!-- 空间插件配置保存确认弹窗 -->
+    <bk-dialog
+      v-model="pluginSaveConfirmVisible"
+      :title="null"
+      :width="520"
+      :mask-close="true"
+      :show-footer="false"
+      theme="primary">
+      <div class="plugin-save-confirm-dialog">
+        <div class="confirm-icon-wrap">
+          <i class="bk-icon icon-exclamation confirm-icon" />
+        </div>
+        <div class="confirm-title">
+          {{ $t('确认保存空间插件配置？') }}
+        </div>
+        <div class="confirm-suggest">
+          <div class="confirm-desc">
+            {{ $t('保存后立即生效，可能影响本空间已有流程：') }}
+          </div>
+          <ol class="confirm-list">
+            <li>{{ $t('画布插件面板将按名单过滤，未覆盖的标准插件不再显示') }}</li>
+            <li>{{ $t('已使用这些插件的流程，打开节点时可能提示「未找到」，无法继续编辑') }}</li>
+            <li>{{ $t('使用「仅显示」且未把 API 插件列入时，第三方 / API 插件入口也会消失，存量 API 节点同样可能无法打开') }}</li>
+          </ol>
+          <div class="suggest-text">
+            {{ $t('建议：已有流程时优先用「隐藏名单」；用「仅显示」时请把本空间已用到的插件（含 API 插件）全部列入。') }}
+          </div>
+          <div class="suggest-note">
+            {{ $t('已在运行的任务不会因此停止。') }}
+          </div>
+        </div>
+        <div class="confirm-actions">
+          <bk-button
+            theme="default"
+            @click="pluginSaveConfirmVisible = false">
+            {{ $t('取消') }}
+          </bk-button>
+          <bk-button
+            theme="danger"
+            @click="confirmPluginSave">
+            {{ $t('仍要保存') }}
+          </bk-button>
+        </div>
+      </div>
+    </bk-dialog>
   </div>
 </template>
 <script>
@@ -162,6 +246,17 @@
   ];
   // 控件自带验证 UI（不再显示 ConfigDetail 顶部统一"测试"按钮）
   const SELF_VERIFY_CONTROLS = ['api_plugin_config'];
+  const CONTROL_GUIDES = {
+    plugin_scope: {
+      purpose: '控制流程画布插件面板里标准插件的可见范围。按「仅显示」或「隐藏」过滤，保存后立即生效。',
+      effects: [
+        '被过滤的标准插件从画布面板消失，不能再拖入新节点。',
+        '已有流程若用了这些插件，打开节点配置时可能提示「未找到」，无法继续编辑。',
+        '「仅显示」按插件 code 白名单生效。名单里没有 API 插件 / 第三方插件时，它们的入口也会从面板消失，存量 API 节点同样可能无法打开。',
+        '已在运行的任务不会因此停掉；但编辑受阻后无法改这些节点再保存。',
+      ],
+    },
+  };
 
   export default {
     name: 'ConfigDetail',
@@ -199,6 +294,8 @@
         localVerifyResult: null,
         localSaveError: false,
         defaultCanvasImage,
+        // 空间插件配置保存二次确认弹窗
+        pluginSaveConfirmVisible: false,
       };
     },
     computed: {
@@ -222,6 +319,15 @@
       },
       controlOwnsVerify() {
         return SELF_VERIFY_CONTROLS.includes(this.currentControl);
+      },
+      // 部分控件需要在前端补充“用途 / 影响”说明（文案走 i18n）
+      currentGuide() {
+        const guide = CONTROL_GUIDES[this.currentControl];
+        if (!guide) return null;
+        return {
+          purpose: this.$t(guide.purpose),
+          effects: (guide.effects || []).map(item => this.$t(item)),
+        };
       },
       isJsonControl() {
         // 源码模式或未知/未声明控件都走 JSON 兜底
@@ -353,6 +459,16 @@
             return;
           }
         }
+        // 空间插件配置：保存前二次确认
+        if (this.config.name === 'space_plugin_config') {
+          this.pluginSaveConfirmVisible = true;
+          return;
+        }
+        this.$emit('save', this.buildPayload());
+      },
+      // 确认保存空间插件配置
+      confirmPluginSave() {
+        this.pluginSaveConfirmVisible = false;
         this.$emit('save', this.buildPayload());
       },
       // api插件配置测试
@@ -581,6 +697,139 @@
         font-size: 12px;
         color: #3a84ff;
         cursor: pointer;
+      }
+    }
+  }
+  .detail-guide {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: #f5f7fa;
+    border-radius: 2px;
+    .guide-block + .guide-block {
+      margin-top: 12px;
+    }
+    .guide-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #313238;
+      line-height: 22px;
+      margin-bottom: 6px;
+    }
+    .guide-body {
+      font-size: 12px;
+      line-height: 20px;
+      color: #4d4f56;
+      word-break: break-word;
+    }
+    .guide-effects {
+      margin: 0;
+      padding-left: 18px;
+      li {
+        // 直接命中 li 以覆盖全局 reset 的 list-style: none（写在 ul 上会被继承规则打败）
+        list-style: disc;
+        font-size: 12px;
+        line-height: 20px;
+        color: #4d4f56;
+        word-break: break-word;
+      }
+    }
+  }
+  .warning-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #faf1e3;
+    border: 1px solid #f7d8ac;
+    border-radius: 5px;
+    padding: 8px 12px;
+    color: #f08c10;
+    margin-bottom: 20px;
+    .warning-info-icon {
+      color: #ff9c01;
+      font-size: 14px;
+      line-height: 20px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .warning-info-text {
+      font-size: 12px;
+      line-height: 20px;
+      word-break: break-word;
+    }
+    .warning-info-label {
+      font-weight: 700;
+    }
+  }
+  // 空间插件配置保存确认弹窗样式
+  .plugin-save-confirm-dialog {
+    text-align: center;
+    padding: 0 8px;
+    .confirm-icon-wrap {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #fff3e0;
+      margin-bottom: 16px;
+    }
+    .confirm-icon {
+      font-size: 32px;
+      color: #ff9800;
+    }
+    .confirm-title {
+      font-size: 20px;
+      color: #313238;
+      line-height: 32px;
+      margin-bottom: 16px;
+    }
+    .confirm-suggest {
+      font-size: 12px;
+      line-height: 22px;
+      background: #f5f7fa;
+      padding: 12px 16px;
+      border-radius: 2px;
+      margin-bottom: 24px;
+      text-align: left;
+      .confirm-desc {
+        font-size: 14px;
+        color: #4d4f56;
+        margin-bottom: 8px;
+        word-break: break-word;
+      }
+      .confirm-list {
+        margin: 0 0 12px;
+        padding-left: 22px;
+        li {
+          // 直接命中 li 以覆盖全局 reset 的 list-style: none
+          list-style: decimal;
+          font-size: 12px;
+          line-height: 22px;
+          color: #4d4f56;
+          word-break: break-word;
+          margin-bottom: 4px;
+          &:last-child {
+            margin-bottom: 0;
+          }
+        }
+      }
+      .suggest-text {
+        color: #4d4f56;
+        word-break: break-word;
+        margin-bottom: 6px;
+      }
+      .suggest-note {
+        color: #979ba5;
+        word-break: break-word;
+      }
+    }
+    .confirm-actions {
+      display: flex;
+      justify-content: end;
+      gap: 8px;
+      .bk-button {
+        min-width: 96px;
       }
     }
   }

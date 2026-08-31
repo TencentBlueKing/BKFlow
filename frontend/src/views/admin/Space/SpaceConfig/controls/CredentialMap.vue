@@ -191,11 +191,6 @@
             space_id: this.spaceId,
           });
           this.credentialList = response.data.results.filter(item => item.type === 'BK_APP');
-          // 默认凭证为空时，自动回落到列表第一条
-          if (!this.formData.defaultCred && this.credentialList.length) {
-            this.formData.defaultCred = this.credentialList[0].name;
-            this.emitValue();
-          }
         } catch (e) {
           this.credentialList = [];
         } finally {
@@ -213,10 +208,6 @@
         } else {
           this.formData.defaultCred = newValue || '';
           this.formData.overrides = [];
-        }
-        // 默认凭证为空且列表已加载时，回落到凭证列表第一条
-        if (!this.formData.defaultCred && this.credentialList.length) {
-          this.formData.defaultCred = this.credentialList[0].name;
         }
       },
       addOverride() {

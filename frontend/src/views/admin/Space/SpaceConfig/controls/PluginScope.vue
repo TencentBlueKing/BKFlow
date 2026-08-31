@@ -7,28 +7,32 @@
       <bk-radio
         value="allow_all"
         class="ps-radio">
-        {{ $t('所有插件可用') }}
+        {{ $t('不过滤(默认)：画布展示空间内全部可用插件') }}
       </bk-radio>
       <bk-radio
         value="allow_list"
         class="ps-radio">
-        {{ $t('允许名单:仅所列插件可用') }}
+        {{ $t('仅显示名单中的插件：面板只留所选插件；未列入的标准插件、以及未列入的 API / 第三方入口都会消失') }}
       </bk-radio>
       <bk-radio
         value="deny_list"
         class="ps-radio">
-        {{ $t('屏蔽名单:屏蔽所列插件，其余可用') }}
+        {{ $t('隐藏名单中的插件：只从面板拿掉所选标准插件，其余（含 API 插件）仍可见。已有流程更安全') }}
       </bk-radio>
     </bk-radio-group>
+    <div
+      v-show="mode !== 'allow_all'"
+      class="ps-select-title">
+      {{ $t('插件') }}
+    </div>
     <bk-select
       v-show="mode !== 'allow_all'"
       v-model="pluginCodes"
       multiple
       searchable
       display-tag
-      allow-create
       :loading="loading"
-      :placeholder="$t('选择或输入插件 code')"
+      :placeholder="$t('请选择插件')"
       class="ps-select"
       @change="emitValue">
       <bk-option
@@ -122,15 +126,21 @@
 <style lang="scss" scoped>
   .ps-mode {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     flex-wrap: wrap;
     margin-bottom: 8px;
+  }
+  .ps-select-title{
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 700;
   }
   .ps-radio {
     margin-right: 24px;
     color: #4d4f56;
     font-size: 12px;
     line-height: 20px;
+    margin-bottom: 8px;
   }
   .ps-select {
     max-width: 480px;
