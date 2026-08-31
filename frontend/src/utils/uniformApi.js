@@ -627,3 +627,75 @@ export const buildUniformApiMetaParams = ({
   }
   return params;
 };
+
+/**
+ * V2/V3 目录插件保存时恢复旧版 api_meta，不写入 V4 身份字段。
+ * 原节点已有 api_meta 则原样保留，避免覆盖历史扩展字段。
+ */
+export const buildLegacyUniformApiMeta = ({
+  basicInfo = {},
+  originalApiMeta,
+} = {}) => {
+  if (originalApiMeta && typeof originalApiMeta === 'object' && Object.keys(originalApiMeta).length > 0) {
+    return cloneJsonValue(originalApiMeta);
+  }
+  if (!hasValue(basicInfo.pluginId)) return null;
+  let name = basicInfo.apiPluginName || basicInfo.name || '';
+  if (!hasValue(basicInfo.apiPluginName) && String(name).includes('-')) {
+    name = String(name).substring(String(name).indexOf('-') + 1);
+  }
+  return {
+    id: basicInfo.pluginId,
+    name,
+    meta_url: basicInfo.metaUrl || '',
+    api_key: basicInfo.apiKey || '',
+    category: {
+      id: basicInfo.groupId || '',
+      name: basicInfo.groupName || '',
+    },
+  };
+};
+
+const EXTRA_INFO_TYPE_TO_RENDER = {
+  bool: 'switch',
+  boolean: 'switch',
+  int: 'int',
+  integer: 'int',
+  json: 'textarea',
+  list: 'checkbox',
+  object: 'textarea',
+  string: 'input',
+};
+
+/**
+ * 已保存 V2 勾选变量没有 api_meta.meta_url 时，用 extra_info 生成 RenderForm 配置。
+ * tag_code 使用 source_tag 字段名，便于 formFilter 按 query 命中后再改写为变量 key。
+ */
+export const buildApiVariableFormFromExtraInfo = (variable = {}) => {
+  const extraInfo = variable.extra_info;
+  if (!extraInfo || typeof extraInfo !== 'object') return null;
+  const { type, form_type: formType, required, meta_desc: metaDesc } = extraInfo;
+  if (!type && !formType) return null;
+
+  let renderType = 'input';
+  if (formType && formType !== 'input') {
+    renderType = formType;
+  } else if (type) {
+    renderType = EXTRA_INFO_TYPE_TO_RENDER[type] || 'input';
+  }
+
+  const sourceTag = variable.source_tag || '';
+  const tagCode = sourceTag.includes('.') ? sourceTag.split('.')[1] : (variable.key || '');
+  const field = {
+    type: renderType,
+    tag_code: tagCode,
+    attrs: {
+      name: variable.name || tagCode,
+      desc: variable.desc || metaDesc || '',
+    },
+  };
+  if (required) {
+    field.attrs.validation = [{ type: 'required' }];
+  }
+  return [field];
+};

@@ -34,6 +34,8 @@ async function main() {
     resolveNodeExecutionPayload,
     shouldNotifyPluginFormError,
     withLoadingState,
+    buildLegacyUniformApiMeta,
+    buildApiVariableFormFromExtraInfo,
   } = await import(moduleUrl);
 
   const savedComponent = {
@@ -413,6 +415,25 @@ async function main() {
       'utf8',
     );
     assert.match(nodeConfigSource, /buildUniformApiPluginPipelineComponent\(/);
+    assert.match(nodeConfigSource, /buildLegacyUniformApiMeta\(/);
+  });
+
+  test('task param editors fall back to extra_info for V2 API variables', async () => {
+    const mockTaskParam = await readFile(
+      new URL('../src/views/template/TemplateMock/MockExecute/components/TaskParamEdit.vue', import.meta.url),
+      'utf8',
+    );
+    const taskParam = await readFile(
+      new URL('../src/views/task/TaskParamEdit.vue', import.meta.url),
+      'utf8',
+    );
+    const variableEdit = await readFile(
+      new URL('../src/views/template/TemplateEdit/TemplateSetting/TabGlobalVariables/VariableEdit.vue', import.meta.url),
+      'utf8',
+    );
+    assert.match(mockTaskParam, /buildApiVariableFormFromExtraInfo\(/);
+    assert.match(taskParam, /buildApiVariableFormFromExtraInfo\(/);
+    assert.match(variableEdit, /buildApiVariableFormFromExtraInfo\(/);
   });
 
   test('resolveV4OpenPluginVersion never treats the wrapper version as the plugin version', () => {
@@ -909,6 +930,73 @@ async function main() {
     });
     assert.equal(resolveNodeExecutionPayload({ result: true, data: { inputs: {} } }).state, undefined);
     assert.deepEqual(resolveNodeExecutionPayload({}).outputs, []);
+  });
+
+  test('buildLegacyUniformApiMeta writes pre-V4 api_meta when original is missing', () => {
+    const meta = buildLegacyUniformApiMeta({
+      basicInfo: {
+        pluginId: 'hy3',
+        name: 'AI-hy3',
+        apiPluginName: 'hy3',
+        metaUrl: 'https://plugins.example.com/meta/hy3',
+        apiKey: 'aidev',
+        groupId: 'llm',
+        groupName: 'LLM',
+      },
+    });
+
+    assert.deepEqual(meta, {
+      id: 'hy3',
+      name: 'hy3',
+      meta_url: 'https://plugins.example.com/meta/hy3',
+      api_key: 'aidev',
+      category: {
+        id: 'llm',
+        name: 'LLM',
+      },
+    });
+    assert.equal(meta.wrapper_version, undefined);
+    assert.equal(meta.source_key, undefined);
+    assert.equal(meta.versions, undefined);
+  });
+
+  test('buildLegacyUniformApiMeta keeps original api_meta and skips empty pluginId', () => {
+    const originalApiMeta = {
+      id: 'legacy-v2',
+      name: 'legacy',
+      meta_url: 'https://plugins.example.com/meta/legacy',
+      api_key: 'old',
+      category: { id: 'old-group', name: 'Old' },
+    };
+
+    assert.deepEqual(buildLegacyUniformApiMeta({
+      basicInfo: { pluginId: 'hy3', metaUrl: 'https://ignored.example' },
+      originalApiMeta,
+    }), originalApiMeta);
+    assert.equal(buildLegacyUniformApiMeta({ basicInfo: {} }), null);
+    assert.equal(buildLegacyUniformApiMeta({ basicInfo: { pluginId: '' } }), null);
+  });
+
+  test('buildApiVariableFormFromExtraInfo renders hooked V2 query from extra_info', () => {
+    const form = buildApiVariableFormFromExtraInfo({
+      name: '用户对话',
+      key: '${query}',
+      desc: '',
+      source_tag: 'uniform_api.query',
+      extra_info: {
+        type: 'string',
+        form_type: 'textarea',
+        required: true,
+      },
+    });
+
+    assert.equal(form.length, 1);
+    assert.equal(form[0].type, 'textarea');
+    assert.equal(form[0].tag_code, 'query');
+    assert.equal(form[0].attrs.name, '用户对话');
+    assert.deepEqual(form[0].attrs.validation, [{ type: 'required' }]);
+    assert.equal(buildApiVariableFormFromExtraInfo({ key: '${query}' }), null);
+    assert.equal(buildApiVariableFormFromExtraInfo({ extra_info: {} }), null);
   });
 }
 

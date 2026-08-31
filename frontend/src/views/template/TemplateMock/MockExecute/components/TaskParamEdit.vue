@@ -36,6 +36,7 @@
   import renderFormSchema from '@/utils/renderFormSchema.js';
   import NoData from '@/components/common/base/NoData.vue';
   import {
+    buildApiVariableFormFromExtraInfo,
     buildV4PluginDetailRequest,
     getPluginFormErrorKey,
     isV4OpenPlugin,
@@ -269,19 +270,16 @@
             throw error;
           }
           let atomConfig;
-          if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 已加载过相同类型且相同版本的插件配置项，直接取缓存
+          const codeType = (sourceTag || '').split('.')[0] || customType;
+          if (codeType === 'uniform_api') {
+            atomConfig = await this.getApiAtomConfig(sourceInfo, sourceTag, variable);
+          } else if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 已加载过相同类型且相同版本的插件配置项，直接取缓存
             atomConfig = this.atomFormConfig[atom][version];
+          } else if (pluginCode) {
+            atomConfig = await this.getThirdPartyAtomConfig(pluginCode, version);
           } else {
-            // api插件变量
-            const codeType = sourceTag.split('.')[0] || customType;
-            if (codeType === 'uniform_api') {
-              atomConfig = await this.getApiAtomConfig(sourceInfo, sourceTag);
-            } else if (pluginCode) {
-              atomConfig = await this.getThirdPartyAtomConfig(pluginCode, version);
-            } else {
-              await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
-              atomConfig = tools.deepClone(this.atomFormConfig[atom][version]);
-            }
+            await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
+            atomConfig = tools.deepClone(this.atomFormConfig[atom][version]);
           }
 
           const isPreRenderMako = this.preMakoDisabled && variable.pre_render_mako; // 变量预渲染
@@ -435,30 +433,32 @@
           }
         });
       },
-      async getApiAtomConfig(sourceInfo, sourceTag) {
+      async getApiAtomConfig(sourceInfo, sourceTag, variable) {
         try {
-          const sourceNodeId = Object.keys(sourceInfo)[0];
-          if (!sourceNodeId) return [];
-          const { api_meta: apiMeta = {} } = this.activities[sourceNodeId].component;
+          const sourceNodeId = Object.keys(sourceInfo || {})[0];
+          const component = sourceNodeId && this.activities[sourceNodeId] && this.activities[sourceNodeId].component;
+          const apiMeta = (component && component.api_meta) || {};
           const { meta_url: metaUrl } = apiMeta;
-          if (!metaUrl) return;
-          // api插件配置
-          const resp = await this.loadUniformApiMeta({
-            templateId: this.templateId,
-            spaceId: this.spaceId,
-            meta_url: metaUrl,
-            ...this.scopeInfo,
-            meta_url_template: apiMeta.meta_url_template,
-            source_key: apiMeta.source_key,
-            version: this.activities[sourceNodeId].component.version,
-          });
-          if (!resp.result) return;
-          const tag = sourceTag.split('.')[1];
-          const field = resp.data.inputs.find(item => item.key === tag);
-          return renderFormSchema([field]);
+          if (metaUrl) {
+            const resp = await this.loadUniformApiMeta({
+              templateId: this.templateId,
+              spaceId: this.spaceId,
+              meta_url: metaUrl,
+              ...this.scopeInfo,
+              meta_url_template: apiMeta.meta_url_template,
+              source_key: apiMeta.source_key,
+              version: component.version,
+            });
+            if (resp && resp.result) {
+              const tag = sourceTag.split('.')[1];
+              const field = (resp.data.inputs || []).find(item => item.key === tag);
+              if (field) return renderFormSchema([field]);
+            }
+          }
         } catch (error) {
           console.warn(error);
         }
+        return buildApiVariableFormFromExtraInfo(variable);
       },
       async getThirdPartyAtomConfig(code, version) {
         try {

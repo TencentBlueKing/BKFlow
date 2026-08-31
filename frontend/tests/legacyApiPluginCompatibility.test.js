@@ -62,6 +62,18 @@ function loadVueComponent(relativePath) {
       methodList: detail.methods || [],
       wrapperVersion: detail.version,
     }),
+    buildApiVariableFormFromExtraInfo(variable) {
+      const extra = variable && variable.extra_info;
+      if (!extra || (!extra.type && !extra.form_type)) return null;
+      return [{
+        type: extra.form_type || 'input',
+        tag_code: (variable.source_tag || '').split('.')[1],
+        attrs: {
+          name: variable.name,
+          validation: extra.required ? [{ type: 'required' }] : [],
+        },
+      }];
+    },
   }, {
     get(target, key) {
       if (key in target) return target[key];
@@ -324,6 +336,55 @@ async function testLegacyInputVariableKeepsApiFieldMetadata() {
   });
 }
 
+async function testCreateTaskFallsBackToExtraInfoWithoutApiMeta() {
+  const component = loadVueComponent('../src/views/template/TemplateMock/MockExecute/components/TaskParamEdit.vue');
+  const variable = {
+    name: '用户对话',
+    key: '${query}',
+    source_tag: 'uniform_api.query',
+    extra_info: {
+      type: 'string',
+      form_type: 'textarea',
+      required: true,
+    },
+  };
+  const context = {
+    activities: {
+      nodebcedb895ae3039b4c8b006e6e79f: {
+        component: {
+          code: 'uniform_api',
+          version: 'v2.0.0',
+        },
+      },
+    },
+    spaceId: 69,
+    templateId: 2397,
+    scopeInfo: {},
+    loadUniformApiMeta: async () => {
+      throw new Error('meta should not be requested without meta_url');
+    },
+  };
+
+  const form = await component.methods.getApiAtomConfig.call(
+    context,
+    { nodebcedb895ae3039b4c8b006e6e79f: ['query'] },
+    'uniform_api.query',
+    variable,
+  );
+
+  assert.strictEqual(form[0].type, 'textarea');
+  assert.strictEqual(form[0].tag_code, 'query');
+  assert.strictEqual(form[0].attrs.name, '用户对话');
+
+  const modifyParamsComponent = loadVueComponent('../src/views/task/TaskParamEdit.vue');
+  const modifyForm = await modifyParamsComponent.methods.getApiAtomConfig.call({
+    ...context,
+    resolveTemplateId: () => 2397,
+  }, variable);
+  assert.strictEqual(modifyForm[0].type, 'textarea');
+  assert.strictEqual(modifyForm[0].tag_code, 'query');
+}
+
 Promise.resolve()
   .then(testNodeConfigKeepsLegacySchema)
   .then(testLegacyApiPluginKeepsVersionSelectorHidden)
@@ -331,6 +392,7 @@ Promise.resolve()
   .then(testTaskDetailFormsKeepLegacySchemaAndHookState)
   .then(testMockSettingKeepsLegacySchemaAndHookState)
   .then(testLegacyInputVariableKeepsApiFieldMetadata)
+  .then(testCreateTaskFallsBackToExtraInfoWithoutApiMeta)
   .then(() => {
     console.log('legacy API plugin compatibility tests passed');
   })

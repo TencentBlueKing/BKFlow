@@ -277,6 +277,7 @@
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import renderFormSchema from '@/utils/renderFormSchema.js';
   import {
+    buildApiVariableFormFromExtraInfo,
     buildV4PluginDetailRequest,
     buildVariablePluginRuntimeInputs,
     isV4OpenPlugin,
@@ -652,22 +653,29 @@
             }
             const { api_meta: apiMeta = {} } = component;
             const { meta_url: metaUrl } = apiMeta;
-            if (!metaUrl) return;
-            const sourceActivity = sourceNodeId && this.activities[sourceNodeId];
-            // api插件配置
-            const resp = await this.loadUniformApiMeta({
-              templateId: this.templateId,
-              spaceId: this.spaceId,
-              meta_url: metaUrl,
-              ...this.scopeInfo,
-              meta_url_template: apiMeta.meta_url_template,
-              source_key: apiMeta.source_key,
-              version: sourceActivity?.component?.version || component.version || version,
-            });
-            if (!resp.result) return;
-            const tag = sourceTag.split('.')[1];
-            const field = resp.data.inputs.find(item => item.key === tag);
-            this.renderConfig = renderFormSchema([field]);
+            if (metaUrl) {
+              const sourceActivity = sourceNodeId && this.activities[sourceNodeId];
+              // api插件配置
+              const resp = await this.loadUniformApiMeta({
+                templateId: this.templateId,
+                spaceId: this.spaceId,
+                meta_url: metaUrl,
+                ...this.scopeInfo,
+                meta_url_template: apiMeta.meta_url_template,
+                source_key: apiMeta.source_key,
+                version: sourceActivity?.component?.version || component.version || version,
+              });
+              if (resp.result) {
+                const tag = sourceTag.split('.')[1];
+                const field = (resp.data.inputs || []).find(item => item.key === tag);
+                if (field) {
+                  this.renderConfig = renderFormSchema([field]);
+                  return;
+                }
+              }
+            }
+            const extraForm = buildApiVariableFormFromExtraInfo(this.theEditingData);
+            if (extraForm) this.renderConfig = extraForm;
             return;
           }
           this.isApiPlugin = false;
