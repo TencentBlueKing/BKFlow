@@ -21,6 +21,7 @@ from enum import Enum
 from typing import Dict, Optional, Type
 
 import jsonschema
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pydantic import BaseModel, constr
 from pytimeparse import parse
@@ -201,6 +202,23 @@ class TokenExpirationConfig(BaseSpaceConfig):
                     value
                 )
             )
+
+        max_expiration = settings.TOKEN_EXPIRATION_MAX_EXPIRATION
+        if max_expiration:
+            try:
+                max_seconds = int(max_expiration)
+            except (TypeError, ValueError):
+                raise ValidationError(
+                    "[validate token expiration config error]: invalid max expiration setting: {}".format(
+                        max_expiration
+                    )
+                )
+            if seconds > max_seconds:
+                raise ValidationError(
+                    "[validate token expiration config error]: time expiration must be less than {}s, value: {}".format(
+                        max_seconds, value
+                    )
+                )
 
         return True
 
@@ -491,8 +509,19 @@ class UniformApiConfig(BaseSpaceConfig):
         )
         if not cat_result.result:
             raise ValidationError(f"[uniform_api verify] categories 接口请求失败: {cat_result.message}")
-        categories = cat_result.json_resp.get('data') or []
-        category_length = len(categories)
+        categories_info = cat_result.json_resp.get('data') or []
+        category_length = len(categories_info)
+
+        # 先解析 categories 方便后续使用
+        categories = []
+        for category in categories_info:
+            try:
+                categories.append(category.get("id", "all"))
+            except Exception as e:
+                logger.error(
+                    f"[uniform_api verify] categories 接口获取数据失败: {str(e)},data: {str(category)}")
+                raise ValidationError(
+                    f"[uniform_api verify] categories 接口获取数据失败: {str(e)}，请检查接口地址或者接口内容是否符合规范.")
 
         # 2. 调用 list 接口 → 获取接口总数和列表（用第一个分类做 category 参数）
         list_request_data = {
@@ -503,7 +532,7 @@ class UniformApiConfig(BaseSpaceConfig):
         api_list = []
         api_length = 0
         for category in categories:
-            list_request_data["category"] = category.get("id", "all")
+            list_request_data["category"] = category
             list_result = client.request(
                 url=meta_url,
                 method="GET",
@@ -511,6 +540,7 @@ class UniformApiConfig(BaseSpaceConfig):
                 headers=headers,
                 username=operator
             )
+
             if not list_result.result:
                 logger.error(
                     f"[uniform_api verify] list 接口请求失败: {list_result.message},data: {str(list_request_data)}")
@@ -708,6 +738,12 @@ class SpacePluginConfig(BaseSpaceConfig):
     desc = _("空间插件配置")
     value_type = SpaceConfigValueType.JSON.value
     example = {"default": {"mode": "{allow_list/deny_list}", "plugin_codes": ["plugin_1", "plugin_2"]}}
+    default_value = {
+        "default": {
+            "mode": "allow_all",
+            "plugin_codes": []
+        }
+    }
 
     group = "api_integration"
     help = {
@@ -718,7 +754,7 @@ class SpacePluginConfig(BaseSpaceConfig):
     }
     ui = {
         "control": "plugin_scope",
-        "label": _("空间插件"),
+        "label": _("过滤方式"),
         "help": _("选择模式并配置插件 code 列表"),
     }
 
