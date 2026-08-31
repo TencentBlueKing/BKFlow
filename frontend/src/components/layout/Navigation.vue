@@ -26,6 +26,7 @@
 </template>
 
 <script>
+  import logoUrl from '../../assets/images/logo.png';
   import { mapState, mapActions, mapMutations } from 'vuex';
   import NavigatorHeadLeft from './NavigationHeadLeft.vue';
   import NavigatorHeadRight from './NavigationHeadRight.vue';
@@ -39,7 +40,7 @@
     },
     data() {
       return {
-        logo: require('../../assets/images/logo.png'),
+        logo: logoUrl,
         isExpand: false,
       };
     },

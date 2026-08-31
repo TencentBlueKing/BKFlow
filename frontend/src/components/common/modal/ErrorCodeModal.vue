@@ -40,6 +40,7 @@
   </bk-dialog>
 </template>
 <script>
+  import expre500Url from '@/assets/images/expre_500.png';
   import ErrorCode403 from './ErrorCode403.vue';
   import ErrorCode500 from './ErrorCode500.vue';
   export default {
@@ -54,7 +55,7 @@
         code: '',
         responseText: '',
         title: ' ',
-        expPic500: require('@/assets/images/expre_500.png'),
+        expPic500: expre500Url,
       };
     },
     methods: {

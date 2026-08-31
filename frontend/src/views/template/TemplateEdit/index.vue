@@ -209,6 +209,7 @@
   </div>
 </template>
 <script>
+  import nodeDoubleClickGuideUrl from '@/assets/images/node-double-click-guide.gif';
   import i18n from '@/config/i18n/index.js';
   import { mapState, mapGetters, mapActions, mapMutations } from 'vuex';
   // moment用于时区使用
@@ -326,7 +327,7 @@
           arrow: true,
           img: {
             height: 112,
-            url: require('@/assets/images/node-double-click-guide.gif'),
+            url: nodeDoubleClickGuideUrl,
           },
           text: [
             {
