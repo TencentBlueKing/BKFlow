@@ -143,6 +143,8 @@
   import i18n from '@/config/i18n/index.js';
   import { PERIODIC_REG } from '@/constants/index.js';
   import tools from '@/utils/tools.js';
+  import taskZhUrl from '@/assets/images/task-zh.png';
+  import taskEnUrl from '@/assets/images/task-en.png';
   const autoRuleList = [
     {
       key: 'min',
@@ -264,7 +266,7 @@
           regex: PERIODIC_REG,
         },
         expressionList: ['*', '*', '*', '*', '*'],
-        periodicCronImg: require(`@/assets/images/${i18n.t('task-zh')}.png`),
+        periodicCronImg: { 'task-zh': taskZhUrl, 'task-en': taskEnUrl }[i18n.t('task-zh')],
         // 规则列表
         autoRuleList: [],
         // 循环选择方式
