@@ -627,3 +627,31 @@ export const buildUniformApiMetaParams = ({
   }
   return params;
 };
+
+/**
+ * V2/V3 目录插件保存时恢复旧版 api_meta，不写入 V4 身份字段。
+ * 原节点已有 api_meta 则原样保留，避免覆盖历史扩展字段。
+ */
+export const buildLegacyUniformApiMeta = ({
+  basicInfo = {},
+  originalApiMeta,
+} = {}) => {
+  if (originalApiMeta && typeof originalApiMeta === 'object' && Object.keys(originalApiMeta).length > 0) {
+    return cloneJsonValue(originalApiMeta);
+  }
+  if (!hasValue(basicInfo.pluginId)) return null;
+  let name = basicInfo.apiPluginName || basicInfo.name || '';
+  if (!hasValue(basicInfo.apiPluginName) && String(name).includes('-')) {
+    name = String(name).substring(String(name).indexOf('-') + 1);
+  }
+  return {
+    id: basicInfo.pluginId,
+    name,
+    meta_url: basicInfo.metaUrl || '',
+    api_key: basicInfo.apiKey || '',
+    category: {
+      id: basicInfo.groupId || '',
+      name: basicInfo.groupName || '',
+    },
+  };
+};

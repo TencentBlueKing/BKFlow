@@ -77,6 +77,9 @@ const atomFilter = {
             case 'int':
               val = 0;
               break;
+            case 'switch':
+              val = false;
+              break;
             case 'ip_selector':
               val = {
                 selectors: [],

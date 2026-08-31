@@ -69,6 +69,7 @@
 <script>
   import tools from '@/utils/tools.js';
   import formSchema from '@/utils/formSchema.js';
+  import { buildApiVariableExtraInfo } from '@/utils/legacyApiVariableForm.js';
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import ReuseVarDialog from './ReuseVarDialog.vue';
   import JsonschemaInputParams from './JsonschemaInputParams.vue';
@@ -540,21 +541,7 @@
         if (this.isApiPlugin) {
           const form = config.source_tag.split('.')[1];
           const schema = this.apiInputs.find(item => item.key === form) || {};
-          const extraInfo = {
-            type: schema.sourceType || schema.type || 'string',
-          };
-          const metaDesc = schema.metaDesc || schema.meta_desc;
-          if (metaDesc) {
-            extraInfo.meta_desc = metaDesc;
-          }
-          const formType = schema.formType || schema.form_type;
-          if (formType) {
-            extraInfo.form_type = formType;
-          }
-          if (schema.required || schema['ui:rules']) {
-            extraInfo.required = true;
-          }
-          defaultOpts.extra_info = extraInfo;
+          defaultOpts.extra_info = buildApiVariableExtraInfo(schema);
         }
         const variable = Object.assign({}, defaultOpts, config);
         this.formData[this.hookingVarForm] = variable.key;
