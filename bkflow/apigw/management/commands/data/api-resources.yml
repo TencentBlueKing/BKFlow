@@ -3382,6 +3382,9 @@ paths:
                         has_interval_trigger:
                           type: boolean
                           description: 是否有定时触发器
+                        labels:
+                          type: array
+                          description: 标签列表
                   count:
                     type: integer
                     description: 总数
