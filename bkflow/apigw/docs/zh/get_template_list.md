@@ -47,7 +47,8 @@
             "creator": "",
             "create_at": "2024-07-30T06:27:52.642Z",
             "update_at": "2024-07-30T07:30:28.005Z",
-            "updated_by": ""
+            "updated_by": "",
+            "labels": []
         }
     ],
     "count": 10,
@@ -83,3 +84,4 @@
 | create_at     | string | 流程创建时间 |
 | update_at     | string | 流程更新时间 |
 | updated_by    | string | 流程更新者  |
+| labels        | list   | 标签信息   |
