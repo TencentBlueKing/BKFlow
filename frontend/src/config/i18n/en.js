@@ -473,6 +473,7 @@ const en = {
   总是使用最新版本: 'Always Use Latest Version',
   输入参数: 'Input Parameters',
   暂无参数: 'No Parameters',
+  'API 插件变量「{name}」的表单定义不完整，请重新选择插件并勾选参数后保存流程': 'The form definition for API plugin variable "{name}" is incomplete. Select the plugin again, hook the parameter, and save the flow.',
   输出参数: 'Output Parameters',
   强制终止后跳过: 'Skip After Force Termination',
   超时: 'Timeout',

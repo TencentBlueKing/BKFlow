@@ -11,6 +11,10 @@
 */
 <template>
   <div class="task-param-wrapper">
+    <bk-alert
+      v-if="formLoadErrorMessage"
+      type="error"
+      :title="formLoadErrorMessage" />
     <template v-if="!isConfigLoading">
       <template v-for="section in formSections">
         <RenderForm
@@ -32,7 +36,7 @@
       </template>
     </template>
     <NoData
-      v-if="isNoData && !isConfigLoading"
+      v-if="isNoData && !isConfigLoading && !formLoadError"
       :message="$t('暂无参数')" />
   </div>
 </template>
@@ -45,8 +49,8 @@
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
   import renderFormSchema from '@/utils/renderFormSchema.js';
+  import { buildApiVariableFormFromExtraInfo, getApiVariableFormErrorMessage } from '@/utils/legacyApiVariableForm.js';
   import {
-    buildApiVariableFormFromExtraInfo,
     buildV4PluginDetailRequest,
     buildVariablePluginRuntimeInputs,
     disablePluginFormFields,
@@ -121,6 +125,7 @@
         pluginFormRequestId: 0,
         formGeneration: 0,
         formLoadError: null,
+        formLoadErrorMessage: '',
         isDestroyed: false,
       };
     },
@@ -265,6 +270,7 @@
         this.renderData = { ...this.renderData, ...value };
       },
       async getFormData() {
+        this.formLoadErrorMessage = '';
         this.formGeneration += 1;
         const generation = this.formGeneration;
         const isCurrentGeneration = () => !this.isDestroyed && generation === this.formGeneration;
@@ -465,6 +471,7 @@
         } catch (error) {
           if (!isCurrentGeneration()) return;
           this.formLoadError = error && error.code ? error.code : 'FORM_LOAD_FAILED';
+          this.formLoadErrorMessage = getApiVariableFormErrorMessage(error, this.$t.bind(this));
           this.formSections = [];
           this.renderData = {};
           this.metaConfig = {};
@@ -547,7 +554,7 @@
         }, []);
       },
       async validate() {
-        if (this.isConfigLoading) return false;
+        if (this.isConfigLoading || this.formLoadError) return false;
         return validatePluginFormSections(this.getFormRefs());
       },
       judgeDataEqual() {

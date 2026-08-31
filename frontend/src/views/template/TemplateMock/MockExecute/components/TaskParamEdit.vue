@@ -1,5 +1,9 @@
 <template>
   <div class="task-param-wrapper">
+    <bk-alert
+      v-if="formLoadErrorMessage"
+      type="error"
+      :title="formLoadErrorMessage" />
     <template v-if="!isConfigLoading">
       <template v-for="section in formSections">
         <RenderForm
@@ -22,7 +26,7 @@
       </template>
     </template>
     <NoData
-      v-if="isNoData && !isConfigLoading"
+      v-if="isNoData && !isConfigLoading && !formLoadError"
       :message="$t('暂无参数')" />
   </div>
 </template>
@@ -34,9 +38,9 @@
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import renderFormSchema from '@/utils/renderFormSchema.js';
+  import { buildApiVariableFormFromExtraInfo, getApiVariableFormErrorMessage } from '@/utils/legacyApiVariableForm.js';
   import NoData from '@/components/common/base/NoData.vue';
   import {
-    buildApiVariableFormFromExtraInfo,
     buildV4PluginDetailRequest,
     getPluginFormErrorKey,
     isV4OpenPlugin,
@@ -117,6 +121,8 @@
         formGeneration: 0,
         isDestroyed: false,
         lastPluginFormErrorKey: '',
+        formLoadError: null,
+        formLoadErrorMessage: '',
       };
     },
     computed: {
@@ -176,9 +182,20 @@
         'loadV4OpenPluginForm',
       ]),
       async loadFormData() {
+        const generation = this.formGeneration + 1;
         try {
           await this.getFormData();
         } catch (error) {
+          if (this.isDestroyed || generation !== this.formGeneration) return;
+          const message = getApiVariableFormErrorMessage(error, this.$t.bind(this));
+          if (message) {
+            this.formLoadError = error.code;
+            this.formLoadErrorMessage = message;
+            this.formSections = [];
+            this.isConfigLoading = false;
+            this.$emit('onChangeConfigLoading', false);
+            return;
+          }
           if (error?.isV4PluginFormError) {
             if (shouldNotifyPluginFormError(error, () => !this.isDestroyed, this.lastPluginFormErrorKey)) {
               this.lastPluginFormErrorKey = getPluginFormErrorKey(error);
@@ -196,6 +213,8 @@
        * 加载表单元素的标准插件配置文件
        */
       async getFormData() {
+        this.formLoadError = null;
+        this.formLoadErrorMessage = '';
         this.formGeneration += 1;
         const generation = this.formGeneration;
         const isCurrentGeneration = () => !this.isDestroyed && generation === this.formGeneration;
@@ -484,7 +503,7 @@
         }
       },
       async validate() {
-        if (this.isConfigLoading) return false;
+        if (this.isConfigLoading || this.formLoadError) return false;
         const formRefs = normalizePluginFormRefs([
           this.$refs['renderForm-array'],
           this.$refs['renderForm-object'],

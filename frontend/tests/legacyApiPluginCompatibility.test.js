@@ -62,18 +62,6 @@ function loadVueComponent(relativePath) {
       methodList: detail.methods || [],
       wrapperVersion: detail.version,
     }),
-    buildApiVariableFormFromExtraInfo(variable) {
-      const extra = variable && variable.extra_info;
-      if (!extra || (!extra.type && !extra.form_type)) return null;
-      return [{
-        type: extra.form_type || 'input',
-        tag_code: (variable.source_tag || '').split('.')[1],
-        attrs: {
-          name: variable.name,
-          validation: extra.required ? [{ type: 'required' }] : [],
-        },
-      }];
-    },
   }, {
     get(target, key) {
       if (key in target) return target[key];
@@ -115,6 +103,7 @@ function loadVueComponent(relativePath) {
     '@/utils/jsonFormSchema.js': { __esModule: true, default: loadJsonFormSchema() },
     '@/utils/renderFormSchema.js': { __esModule: true, default: modernRenderFormSchema },
     '@/utils/uniformApi.js': uniformApi,
+    '@/utils/legacyApiVariableForm.js': require('./helpers/loadSourceModule')()('utils/legacyApiVariableForm.js'),
     '@/utils/pluginFormLoader.js': {
       __esModule: true,
       hasPluginFormFields: () => true,
@@ -333,6 +322,7 @@ async function testLegacyInputVariableKeepsApiFieldMetadata() {
     meta_desc: 'target metadata',
     form_type: 'select',
     required: true,
+    schema: context.apiInputs[0],
   });
 }
 

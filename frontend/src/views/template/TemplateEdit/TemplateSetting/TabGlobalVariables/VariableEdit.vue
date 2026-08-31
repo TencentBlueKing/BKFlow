@@ -224,6 +224,10 @@
           <div
             v-bkloading="{ isLoading: atomConfigLoading, opacity: 1, zIndex: 100 }"
             class="form-content">
+            <bk-alert
+              v-if="atomConfigErrorMessage"
+              type="error"
+              :title="atomConfigErrorMessage" />
             <template v-if="!atomConfigLoading && hasPluginFormFields(renderConfig)">
               <RenderForm
                 v-if="Array.isArray(renderConfig)"
@@ -248,7 +252,7 @@
         <bk-button
           v-if="!isViewMode"
           theme="primary"
-          :disabled="atomConfigLoading || varTypeListLoading"
+          :disabled="atomConfigLoading || varTypeListLoading || !!atomConfigErrorMessage"
           @click="onSaveVariable">
           {{ $t('确定') }}
         </bk-button>
@@ -276,8 +280,8 @@
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import renderFormSchema from '@/utils/renderFormSchema.js';
+  import { buildApiVariableFormFromExtraInfo, getApiVariableFormErrorMessage } from '@/utils/legacyApiVariableForm.js';
   import {
-    buildApiVariableFormFromExtraInfo,
     buildV4PluginDetailRequest,
     buildVariablePluginRuntimeInputs,
     isV4OpenPlugin,
@@ -349,6 +353,7 @@
         varTypeData: {},
         inputRegexp: '', // input，textarea类型正则
         atomConfigLoading: false,
+        atomConfigErrorMessage: '',
         atomTypeKey: '',
         // 变量名称校验规则
         variableNameRule: {
@@ -579,6 +584,7 @@
        * 加载表单标准插件配置文件
        */
       async getAtomConfig() {
+        this.atomConfigErrorMessage = '';
         const {
           source_tag: sourceTag,
           source_info: sourceInfo,
@@ -609,7 +615,7 @@
         this.atomConfigLoading = true;
         this.atomTypeKey = atom;
         this.renderConfig = [];
-        if (!isV4 && atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 判断配置文件是否已经获取过
+        if (!isV4 && atom !== 'uniform_api' && atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 判断配置文件是否已经获取过
           this.getRenderConfig();
           this.$nextTick(() => {
             this.atomConfigLoading = false;
@@ -664,8 +670,12 @@
                 meta_url_template: apiMeta.meta_url_template,
                 source_key: apiMeta.source_key,
                 version: sourceActivity?.component?.version || component.version || version,
+              }).catch((error) => {
+                console.warn(error);
+                return null;
               });
-              if (resp.result) {
+              if (!isCurrent()) return;
+              if (resp && resp.result) {
                 const tag = sourceTag.split('.')[1];
                 const field = (resp.data.inputs || []).find(item => item.key === tag);
                 if (field) {
@@ -710,9 +720,11 @@
           });
           this.getRenderConfig();
         } catch (e) {
-          console.log(e);
+          if (!isCurrent()) return;
+          this.atomConfigErrorMessage = getApiVariableFormErrorMessage(e, this.$t.bind(this));
+          if (!this.atomConfigErrorMessage) console.log(e);
         } finally {
-          this.atomConfigLoading = false;
+          if (isCurrent()) this.atomConfigLoading = false;
         }
       },
       hasPluginFormFields,
@@ -969,6 +981,7 @@
       },
       // 保存变量数据
       onSaveVariable() {
+        if (this.atomConfigLoading || this.atomConfigErrorMessage) return Promise.resolve(false);
         return this.$validator.validateAll().then(async (result) => {
           let formValid = true;
           const variable = this.theEditingData;

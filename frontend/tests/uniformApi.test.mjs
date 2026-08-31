@@ -35,7 +35,6 @@ async function main() {
     shouldNotifyPluginFormError,
     withLoadingState,
     buildLegacyUniformApiMeta,
-    buildApiVariableFormFromExtraInfo,
   } = await import(moduleUrl);
 
   const savedComponent = {
@@ -975,28 +974,6 @@ async function main() {
     }), originalApiMeta);
     assert.equal(buildLegacyUniformApiMeta({ basicInfo: {} }), null);
     assert.equal(buildLegacyUniformApiMeta({ basicInfo: { pluginId: '' } }), null);
-  });
-
-  test('buildApiVariableFormFromExtraInfo renders hooked V2 query from extra_info', () => {
-    const form = buildApiVariableFormFromExtraInfo({
-      name: '用户对话',
-      key: '${query}',
-      desc: '',
-      source_tag: 'uniform_api.query',
-      extra_info: {
-        type: 'string',
-        form_type: 'textarea',
-        required: true,
-      },
-    });
-
-    assert.equal(form.length, 1);
-    assert.equal(form[0].type, 'textarea');
-    assert.equal(form[0].tag_code, 'query');
-    assert.equal(form[0].attrs.name, '用户对话');
-    assert.deepEqual(form[0].attrs.validation, [{ type: 'required' }]);
-    assert.equal(buildApiVariableFormFromExtraInfo({ key: '${query}' }), null);
-    assert.equal(buildApiVariableFormFromExtraInfo({ extra_info: {} }), null);
   });
 }
 
