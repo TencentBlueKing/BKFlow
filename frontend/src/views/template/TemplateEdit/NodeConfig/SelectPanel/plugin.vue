@@ -155,7 +155,6 @@
 </template>
 <script>
   import { SYSTEM_GROUP_ICON } from '@/constants/index.js';
-  import { mapActions } from 'vuex';
   import tools from '@/utils/tools.js';
   import NoData from '@/components/common/base/NoData.vue';
   import ApiPlugin from './apiPlugin.vue';
@@ -197,6 +196,10 @@
         type: String,
         default: '',
       },
+      isPluginScopeHidden: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -217,7 +220,6 @@
         searchStr: '',
         bkPluginDevelopUrl: window.BK_PLUGIN_DEVELOP_URL,
         apiTabList: [],
-        isPluginScopeHidden: false, // 空间插件配置白名单模式时隐藏第三方/API插件
       };
     },
     computed: {
@@ -229,9 +231,16 @@
         return this.thirdPluginGroup && this.thirdPluginGroup.some(item => item.isShow);
       },
     },
+    watch: {
+      isPluginScopeHidden(val) {
+        if (val && this.curTab !== 'builtIn') {
+          this.curTab = 'builtIn';
+          this.handleSearch(this.searchStr);
+        }
+      },
+    },
     created() {
       this.getApiTabList();
-      this.checkPluginScope();
       let curTab = this.isThirdParty ? 'thirdParty' : 'builtIn';
       curTab = this.isApiPlugin ? (this.apiKey || 'default') : curTab;
       this.curTab = curTab;
@@ -251,26 +260,6 @@
       }
     },
     methods: {
-      ...mapActions('spaceConfig/', [
-        'getNotAuthSpaceConfig',
-        'checkSpaceConfig',
-      ]),
-      async checkPluginScope() {
-        try {
-          const res = await this.getNotAuthSpaceConfig();
-          if (!res.data.space_plugin_config || !this.spaceId) {
-            this.isPluginScopeHidden = false;
-            return;
-          }
-          const { name } = res.data.space_plugin_config;
-          const result = await this.checkSpaceConfig({ id: this.spaceId, name });
-          const config = result.data.value || {};
-          const scopeConfig = config.default || {};
-          this.isPluginScopeHidden = scopeConfig.mode === 'allow_list';
-        } catch (error) {
-          this.isPluginScopeHidden = false;
-        }
-      },
       getApiTabList() {
         const { uniform_api: uniformApi = {} } = this.spaceRelatedConfig;
 
