@@ -1,0 +1,388 @@
+version: p0-v1
+host_schema: &host_schema
+  inputs:
+    - key: host
+      type: string
+      required: true
+  outputs: []
+restart: &restart
+  plugin_type: component
+  source_key: null
+  code: demo_restart_service
+  version: "1.0.0"
+  name: 重启服务
+  aliases: [restart]
+  tags: [ops]
+  use_cases: [重启主机服务]
+  schema: *host_schema
+notify: &notify
+  plugin_type: component
+  source_key: null
+  code: demo_notify
+  version: "2.0.0"
+  name: 发送通知
+  aliases: [notify]
+  tags: [msg]
+  use_cases: [发送通知]
+  schema: *host_schema
+unversioned_copy: &unversioned_copy
+  plugin_type: component
+  source_key: null
+  code: demo_copy_file
+  version: null
+  name: 拷贝文件
+  aliases: [copy]
+  tags: [file]
+  use_cases: [拷贝文件]
+  schema: *host_schema
+forbidden: &forbidden
+  published_templates: 0
+  created_tasks: 0
+  real_executions: 0
+cases:
+  - id: PS-01
+    group: positive_selection
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, selected_version: "1.0.0", final_status: VALIDATING}
+    forbidden_side_effects: *forbidden
+  - id: PS-02
+    group: positive_selection
+    query: restart
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, selected_version: "1.0.0", final_status: VALIDATING}
+    forbidden_side_effects: *forbidden
+  - id: PS-03
+    group: positive_selection
+    query: demo_restart_service
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, selected_version: "1.0.0", final_status: VALIDATING}
+    forbidden_side_effects: *forbidden
+  - id: PS-04
+    group: positive_selection
+    query: 重启
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, selected_version: "1.0.0", final_status: VALIDATING}
+    forbidden_side_effects: *forbidden
+  - id: PS-05
+    group: positive_selection
+    query: 发送通知
+    registry_snapshot: [*restart, *notify]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_notify, selected_version: "2.0.0", final_status: VALIDATING}
+    forbidden_side_effects: *forbidden
+  - id: PS-06
+    group: positive_selection
+    query: 拷贝文件
+    registry_snapshot: [*unversioned_copy]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_copy_file, selected_version: unversioned, final_status: VALIDATING}
+    forbidden_side_effects: *forbidden
+  - id: PS-07
+    group: positive_selection
+    query: ops
+    registry_snapshot: [*restart, *notify]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, selected_version: "1.0.0", final_status: VALIDATING}
+    forbidden_side_effects: *forbidden
+  - id: PS-08
+    group: positive_selection
+    query: 发送通知
+    registry_snapshot:
+      - <<: *notify
+      - plugin_type: component
+        source_key: null
+        code: demo_notify_hint
+        version: "1.0.0"
+        name: 通知助手
+        aliases: []
+        tags: [msg]
+        use_cases: [发送]
+        schema: *host_schema
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_notify, selected_version: "2.0.0", final_status: VALIDATING}
+    forbidden_side_effects: *forbidden
+  - id: AM-01
+    group: ambiguous_requires_clarification
+    query: restart
+    registry_snapshot:
+      - <<: *restart
+        code: restart_a
+        name: 重启A
+      - <<: *restart
+        code: restart_b
+        name: 重启B
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {error_code: AMBIGUOUS_CAPABILITY, clarification: true}
+    forbidden_side_effects: *forbidden
+  - id: AM-02
+    group: ambiguous_requires_clarification
+    query: 备份
+    registry_snapshot:
+      - plugin_type: component
+        source_key: null
+        code: backup_a
+        version: "1.0.0"
+        name: 备份
+        aliases: []
+        tags: []
+        use_cases: [备份A]
+        schema: *host_schema
+      - plugin_type: component
+        source_key: null
+        code: backup_b
+        version: "1.0.0"
+        name: 备份
+        aliases: []
+        tags: []
+        use_cases: [备份B]
+        schema: *host_schema
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {error_code: AMBIGUOUS_CAPABILITY, clarification: true}
+    forbidden_side_effects: *forbidden
+  - id: AM-03
+    group: ambiguous_requires_clarification
+    query: deploy
+    registry_snapshot:
+      - plugin_type: component
+        source_key: null
+        code: deploy_a
+        version: "1.0.0"
+        name: 部署A
+        aliases: [deploy]
+        tags: []
+        use_cases: []
+        schema: *host_schema
+      - plugin_type: component
+        source_key: null
+        code: deploy_b
+        version: "1.0.0"
+        name: 部署B
+        aliases: [deploy]
+        tags: []
+        use_cases: []
+        schema: *host_schema
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {error_code: AMBIGUOUS_CAPABILITY, clarification: true}
+    forbidden_side_effects: *forbidden
+  - id: AM-04
+    group: ambiguous_requires_clarification
+    query: 同步配置
+    registry_snapshot:
+      - plugin_type: component
+        source_key: null
+        code: sync_a
+        version: "1.0.0"
+        name: 同步配置
+        aliases: []
+        tags: []
+        use_cases: []
+        schema: *host_schema
+      - plugin_type: component
+        source_key: null
+        code: sync_b
+        version: "1.0.0"
+        name: 同步配置
+        aliases: []
+        tags: []
+        use_cases: []
+        schema: *host_schema
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {error_code: AMBIGUOUS_CAPABILITY, clarification: true}
+    forbidden_side_effects: *forbidden
+  - id: AM-05
+    group: ambiguous_requires_clarification
+    query: scale
+    registry_snapshot:
+      - plugin_type: component
+        source_key: null
+        code: scale_a
+        version: "1.0.0"
+        name: 扩容A
+        aliases: [scale]
+        tags: []
+        use_cases: []
+        schema: *host_schema
+      - plugin_type: component
+        source_key: null
+        code: scale_b
+        version: "1.0.0"
+        name: 扩容B
+        aliases: [scale]
+        tags: []
+        use_cases: []
+        schema: *host_schema
+      - plugin_type: component
+        source_key: null
+        code: scale_c
+        version: "1.0.0"
+        name: 扩容C
+        aliases: [scale]
+        tags: []
+        use_cases: []
+        schema: *host_schema
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {error_code: AMBIGUOUS_CAPABILITY, clarification: true}
+    forbidden_side_effects: *forbidden
+  - id: AM-06
+    group: ambiguous_requires_clarification
+    query: 扩容
+    registry_snapshot:
+      - plugin_type: component
+        source_key: null
+        code: expand_a
+        version: "1.0.0"
+        name: 扩容
+        aliases: [扩容]
+        tags: []
+        use_cases: []
+        schema: *host_schema
+      - plugin_type: component
+        source_key: null
+        code: expand_b
+        version: "1.0.0"
+        name: 扩容
+        aliases: [扩容]
+        tags: []
+        use_cases: []
+        schema: *host_schema
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {error_code: AMBIGUOUS_CAPABILITY, clarification: true}
+    forbidden_side_effects: *forbidden
+  - id: ZC-01
+    group: zero_candidate
+    query: 不存在的能力
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {candidate_count: 0, next_action: revise_query}
+    forbidden_side_effects: *forbidden
+  - id: ZC-02
+    group: zero_candidate
+    query: 重启服务
+    registry_snapshot:
+      - <<: *restart
+        space_ids: [__other__]
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {candidate_count: 0, next_action: revise_query}
+    forbidden_side_effects: *forbidden
+  - id: ZC-03
+    group: zero_candidate
+    query: 重启服务
+    registry_snapshot: []
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {candidate_count: 0, next_action: revise_query}
+    forbidden_side_effects: *forbidden
+  - id: ZC-04
+    group: zero_candidate
+    query: 发送通知
+    registry_snapshot:
+      - <<: *notify
+        space_ids: [__other__]
+    expected_tool_sequence: [search_workflow_capabilities]
+    expected: {candidate_count: 0, next_action: revise_query}
+    forbidden_side_effects: *forbidden
+  - id: SV-01
+    group: schema_validation_error
+    variant: missing_required_input
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, error_code: SCHEMA_VALIDATION_ERROR, error_path: nodes.node_1.inputs.host}
+    forbidden_side_effects: *forbidden
+  - id: SV-02
+    group: schema_validation_error
+    variant: extra_binding
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, error_code: USER_INPUT, error_path: bindings}
+    forbidden_side_effects: *forbidden
+  - id: SV-03
+    group: schema_validation_error
+    variant: missing_bindings
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, error_code: USER_INPUT, error_path: bindings}
+    forbidden_side_effects: *forbidden
+  - id: SV-04
+    group: schema_validation_error
+    variant: duplicate_bindings
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, error_code: USER_INPUT, error_path: bindings}
+    forbidden_side_effects: *forbidden
+  - id: SD-01
+    group: schema_drift
+    variant: fetch_hash_mismatch
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, search_workflow_capabilities]
+    expected: {selected_code: demo_restart_service, error_code: SCHEMA_DRIFT}
+    forbidden_side_effects: *forbidden
+  - id: SD-02
+    group: schema_drift
+    variant: validate_hash_mismatch
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, error_code: SCHEMA_DRIFT}
+    forbidden_side_effects: *forbidden
+  - id: SD-03
+    group: schema_drift
+    variant: mutate_after_search
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow]
+    expected: {selected_code: demo_restart_service, error_code: SCHEMA_DRIFT}
+    forbidden_side_effects: *forbidden
+  - id: ID-01
+    group: idempotent_draft_retry
+    variant: retry_same_draft
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow, create_workflow_draft, create_workflow_draft]
+    expected: {selected_code: demo_restart_service, selected_version: "1.0.0", final_status: DRAFT_READY}
+    forbidden_side_effects: *forbidden
+  - id: ID-02
+    group: idempotent_draft_retry
+    variant: later_revision_same_template
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence:
+      - search_workflow_capabilities
+      - get_plugin_schema
+      - validate_workflow
+      - create_workflow_draft
+      - create_workflow_draft
+      - validate_workflow
+      - create_workflow_draft
+    expected: {selected_code: demo_restart_service, selected_version: "1.0.0", final_status: DRAFT_READY}
+    forbidden_side_effects: *forbidden
+  - id: ID-03
+    group: idempotent_draft_retry
+    variant: validate_and_draft_replay
+    query: 重启服务
+    registry_snapshot: [*restart]
+    expected_tool_sequence: [search_workflow_capabilities, get_plugin_schema, validate_workflow, create_workflow_draft, create_workflow_draft]
+    expected: {selected_code: demo_restart_service, selected_version: "1.0.0", final_status: DRAFT_READY}
+    forbidden_side_effects: *forbidden
+  - id: FI-01
+    group: forged_identity_rejected
+    variant: forged_body_ignored
+    registry_snapshot: []
+    expected_tool_sequence: [trusted_context]
+    expected: {trusted_actor: alice}
+    forbidden_side_effects: *forbidden
+  - id: FI-02
+    group: forged_identity_rejected
+    variant: unauthorized_user
+    registry_snapshot: []
+    expected_tool_sequence: [trusted_context]
+    expected: {error_code: HARNESS_USER_FORBIDDEN}
+    forbidden_side_effects: *forbidden

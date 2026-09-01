@@ -165,7 +165,8 @@ class HarnessFacade:
                 summary="found {} capabilities".format(len(result.candidates)),
                 artifact_refs=[{"type": "capability_card", "value": item} for item in result.candidates],
                 errors=[],
-                next_actions=[{"action": "get_plugin_schema"}] if result.candidates else [],
+                next_actions=result.next_actions
+                or ([{"action": "get_plugin_schema"}] if result.candidates else [{"action": "revise_query"}]),
                 correlation_id=context.correlation_id,
             )
         except AmbiguousCapability as exc:

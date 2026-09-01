@@ -185,4 +185,5 @@ def search_workflow_capabilities(
 
     limited = scored[:top_k]
     candidates = [_to_card(item, score, matched, manifest) for score, item, matched in limited]
-    return CapabilitySearchResult(ok=True, candidates=candidates)
+    next_actions = [{"action": "get_plugin_schema"}] if candidates else [{"action": "revise_query"}]
+    return CapabilitySearchResult(ok=True, candidates=candidates, next_actions=next_actions)
