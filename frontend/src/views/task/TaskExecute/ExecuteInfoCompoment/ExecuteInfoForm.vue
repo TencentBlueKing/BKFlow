@@ -571,7 +571,7 @@
           // 输出变量
           if (this.loopConfig?.enable) {
             try {
-              const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: '' });
+              const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: '', code: 'subprocess_plugin' });
               const loopOutput = res.data.output.find(item => item.key === 'outputs');
               if (loopOutput) {
                 this.outputs = [{
@@ -888,9 +888,9 @@
         const nodeId = this.nodeActivity.id;
         const constKeys = Object.keys(this.constants);
 
-        let list = this.outputs.map(param => {
+        let list = this.outputs.map((param) => {
           // 找出引用当前输出变量的常量 key
-          const hookedKey = constKeys.find(key => {
+          const hookedKey = constKeys.find((key) => {
             const item = this.constants[key];
             if (item.source_type !== 'component_outputs') return false;
             const sourceInfo = item.source_info[nodeId];

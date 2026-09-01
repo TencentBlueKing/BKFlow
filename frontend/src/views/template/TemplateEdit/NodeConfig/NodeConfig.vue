@@ -1103,7 +1103,7 @@
           // 从接口获取子流程标准输出参数
           const subprocessPlugin = this.atomList.find(item => item.code === 'subprocess_plugin');
           const subprocessPluginVersion = subprocessPlugin?.list?.[0]?.version || '';
-          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion });
+          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion, code: 'subprocess_plugin' });
           const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
             if (item.key === 'outputs') {
               acc[item.key] = item;
@@ -1134,9 +1134,9 @@
       async getLoopGroupOutputs() {
         try {
           const has = Object.prototype.hasOwnProperty;
-          const subprocessPlugin = this.atomList.find(item => item.code === 'subprocess_plugin');
+          const subprocessPlugin = this.atomList.find(item => item.code === 'subcanvas_plugin');
           const subprocessPluginVersion = subprocessPlugin?.list?.[0]?.version || '';
-          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion });
+          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion, code: 'subcanvas_plugin' });
           const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
             if (item.key === 'outputs') {
               acc[item.key] = item;
