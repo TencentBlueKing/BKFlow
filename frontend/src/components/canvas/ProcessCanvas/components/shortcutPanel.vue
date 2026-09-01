@@ -14,8 +14,13 @@
           delay: 500
         }"
         :data-test-id="`templateCanvas_panel_${item.key}`"
-        :class="['nodes-item', `common-icon-node-${item.key}-shortcut`]"
-        @click.stop="onAppendNode(item.id)" />
+        :class="['nodes-item', item.key === 'SubCanvas' ? 'subcanvas-node-item' : `common-icon-node-${item.key}-shortcut`]"
+        @click.stop="onAppendNode(item.id)">
+        <img
+          v-if="item.key === 'SubCanvas'"
+          class="node-subcanvas-icon"
+          :src="subcanvasIcon">
+      </li>
     </ul>
     <ul
       v-if="operate || nodeType === 'edge'"
@@ -71,6 +76,7 @@
   import { uuid } from '@/utils/uuid.js';
   import { mapState } from 'vuex';
   import utilsTools from '@/utils/tools.js';
+  import subcanvasIcon from '@/assets/images/subcanvas-node-icon.svg';
   export default {
     name: 'ShortcutPanel',
     props: {
@@ -90,6 +96,7 @@
       return {
         nodeType: '',
         operate: '',
+        subcanvasIcon,
       };
     },
     computed: {
@@ -101,6 +108,62 @@
         startNode: state => state.template.start_event,
         endNode: state => state.template.end_event,
       }),
+      // 当前活跃节点/边所属的循环容器父节点ID
+      loopGroupParentId() {
+        if (!this.activeCell) return null;
+        if (this.activeCell.shape === 'edge') {
+          // 边的情况：直接检查源/目标 X6 cell 的父节点
+          const sourceCell = this.activeCell.getSourceCell();
+          const targetCell = this.activeCell.getTargetCell();
+          const sourceParent = sourceCell?.getParent?.();
+          const targetParent = targetCell?.getParent?.();
+          if (sourceParent?.shape === 'custom-loop-group-node') return sourceParent.id;
+          if (targetParent?.shape === 'custom-loop-group-node') return targetParent.id;
+          return null;
+        }
+        const parent = this.activeCell.getParent();
+        return (parent?.shape === 'custom-loop-group-node') ? parent.id : null;
+      },
+      // 当前活跃节点/边是否在循环容器内部
+      isInLoopGroup() {
+        return !!this.loopGroupParentId;
+      },
+      innerPipelineTree() {
+        if (!this.loopGroupParentId) return null;
+        return this.activities[this.loopGroupParentId]?.pipeline || null; // eslint-disable-line camelcase
+      },
+      effectiveLines() {
+        if (this.isInLoopGroup && this.innerPipelineTree?.line) {
+          return this.innerPipelineTree.line;
+        }
+        return this.lines;
+      },
+      effectiveLocations() {
+        if (this.isInLoopGroup && this.innerPipelineTree?.location) {
+          const innerToOuterTypeMap = {
+            start: 'startpoint',
+            end: 'endpoint',
+            task: 'tasknode',
+            subflow: 'subflow',
+            'branch-gateway': 'branchgateway',
+            'parallel-gateway': 'parallelgateway',
+            'conditional-parallel-gateway': 'conditionalparallelgateway',
+            'converge-gateway': 'convergegateway',
+            SubCanvas: 'SubCanvas',
+          };
+          return this.innerPipelineTree.location.map(loc => ({
+            ...loc,
+            type: innerToOuterTypeMap[loc.type] || loc.type,
+          }));
+        }
+        return this.locations;
+      },
+      effectiveGateways() {
+        if (this.isInLoopGroup && this.innerPipelineTree?.gateways) {
+          return this.innerPipelineTree.gateways;
+        }
+        return this.gateways;
+      },
       nodeTypeList() {
         const list = [
           { key: 'tasknode', id: 'task', tips: this.$t('标准插件节点') },
@@ -109,16 +172,22 @@
           { key: 'parallelgateway', id: 'parallel-gateway', tips: this.$t('并行网关') },
           { key: 'conditionalparallelgateway', id: 'conditional-parallel-gateway', tips: this.$t('条件并行网关') },
           { key: 'convergegateway', id: 'converge-gateway', tips: this.$t('汇聚网关') },
+          { key: 'SubCanvas', id: 'SubCanvas', tips: this.$t('循环节点') },
         ];
+        // 循环流分组内部不允许添加循环流节点（禁止嵌套）
         if (this.activeCell.data.type === 'parallel-gateway') {
-          return list.filter(item => item.id !== 'converge-gateway');
+          return list.filter(item => item.id !== 'converge-gateway' && !(this.isInLoopGroup && item.id === 'SubCanvas'));
+        }
+        if (this.isInLoopGroup) {
+          return list.filter(item => !['subflow', 'SubCanvas'].includes(item.id));
         }
         return list;
       },
       branchConditions() {
         const branchConditions = {};
-        Object.keys(this.gateways).forEach((gKey) => {
-          const item = this.gateways[gKey];
+        const gateways = this.effectiveGateways;
+        Object.keys(gateways).forEach((gKey) => {
+          const item = gateways[gKey];
           if (item.conditions) {
             branchConditions[item.id] = Object.assign({}, item.conditions);
           }
@@ -150,7 +219,7 @@
         const { id, shape, data } = this.activeCell;
         if (shape === 'edge') {
           // 如果当前激活的是边，找到对应的边信息
-          lineInfo = this.lines.find(line => line.id === id);
+          lineInfo = this.effectiveLines.find(line => line.id === id);
           const sourceId = lineInfo.source.id;
           const nodeInstance = this.getNodeInstance(sourceId);
           currLoc = {
@@ -174,11 +243,38 @@
         // 判断当前节点和待添加节点是否为网关类型
         const isGatewayCurrNode = currLoc.type.indexOf('gateway') > -1;
         const isGatewayAppendNode = type.indexOf('gateway') > -1;
+        // 判断当前/待添加节点是否为循环流分组节点（SubCanvas）
+        const isLoopGroupCurrNode = currLoc.type === 'SubCanvas';
+        const isLoopGroupAppendNode = type === 'SubCanvas';
+        // 循环流节点宽度自适应，需根据实际宽度偏移
+        const xOffset = isLoopGroupCurrNode
+          ? this.getNodeInstance(currLoc.id).getSize().width + 200
+          : 200;
+        // 判断当前节点是否在分组内（子节点），需要将新节点也加入同一分组
+        let loopGroupParent = null;
+        if (!isLoopGroupCurrNode && !isLoopGroupAppendNode) {
+          if (shape === 'edge' && this.loopGroupParentId) {
+            // 边在循环容器内部时，使用 computed 属性获取父节点
+            loopGroupParent = this.getNodeInstance(this.loopGroupParentId);
+          } else if (shape !== 'edge') {
+            const parentNode = this.activeCell.getParent();
+            if (parentNode && parentNode.shape === 'custom-loop-group-node') {
+              loopGroupParent = parentNode;
+            }
+          }
+        }
+        let currNodeHeight = 54;
+        if (isGatewayCurrNode) currNodeHeight = 34;
+        else if (isLoopGroupCurrNode) currNodeHeight = 158;
+        let appendNodeHeight = 54;
+        if (isGatewayAppendNode) appendNodeHeight = 34;
+        else if (isLoopGroupAppendNode) appendNodeHeight = 158;
         // 计算新节点的位置
         const location = {
           id: nodeId,
-          y: currLoc.y + ((isGatewayCurrNode ? 34 : 54) / 2) - ((isGatewayAppendNode ? 34 : 54) / 2),
-          x: currLoc.x + 200,
+          y: currLoc.y + (currNodeHeight / 2) - (appendNodeHeight / 2),
+          x: currLoc.x + xOffset,
+          parent: loopGroupParent ? loopGroupParent.id : undefined,
         };
         // 初始化新节点的边信息
         let edges = [
@@ -197,13 +293,28 @@
         if (isFillParam && !insert) {
           // 调整新节点位置，避免与画布上已有节点重叠
           this.adjustNewNodePosition(location, type);
-          const nodeInstance = this.createNode(type, location, currLoc.data);
+          const copyData = type === 'SubCanvas' ? { ...currLoc.data, isCopy: true } : currLoc.data;
+          const nodeInstance = this.createNode(type, location, copyData);
           nodeInstance.setData({ oldSouceId: id, id: nodeInstance.id }, { silent: false });
+          // 如果当前节点在分组内，将新节点也加入同一分组
+          if (loopGroupParent) {
+            loopGroupParent.addChild(nodeInstance);
+            nodeInstance.setData({ parent: loopGroupParent.id });
+          }
+          // 避免创建默认子节点/连线，由 copyLoopGroupLocationAndFlows 统一处理
+          // 创建连接边（从当前节点到新复制节点）
+          // edges.forEach((item) => {
+          //   this.createEdge(item);
+          // });
           // 添加选中态
           this.instance.select(nodeInstance);
           // 更新快捷面板
           this.$emit('updateShortcutPanel', nodeId);
           this.$emit('onLocationChange', 'copy', nodeInstance);
+          // 分组容器自适应（如果新节点在分组内）
+          if (loopGroupParent) {
+            this.$emit('onFitCanvas', loopGroupParent.id);
+          }
           return;
         }
         /**
@@ -212,11 +323,11 @@
          * 其他节点类型：后面有节点为插入，没有为追加
          * 由边打开的面板，都是插入
          */
-        const isHaveNodeBehind = this.lines.find(line => line.source.id === (shape === 'edge' ? lineInfo.source.id : id));
+        const isHaveNodeBehind = this.effectiveLines.find(line => line.source.id === (shape === 'edge' ? lineInfo.source.id : id));
         // 并行/分支网关类型节点
         const specialType = ['parallel-gateway', 'branch-gateway', 'conditional-parallel-gateway'];
         // 其他节点类型
-        const otherType = ['task', 'subflow', 'converge-gateway', 'start'];
+        const otherType = ['task', 'subflow', 'converge-gateway', 'start', 'tasknode', 'SubCanvas'];
         // 插入逻辑
         if ((isHaveNodeBehind && otherType.indexOf(currLoc.type) > -1) || shape === 'edge') {
           if (shape === 'edge') {
@@ -230,7 +341,7 @@
               }
             }
           } else {
-            lineInfo = this.lines.find(line => line.source.id === id);
+            lineInfo = this.effectiveLines.find(line => line.source.id === id);
           }
           // 更新边信息
           edges = this.updateConnector({
@@ -248,13 +359,19 @@
         // 调整新节点位置，避免与画布上已有节点重叠
         this.adjustNewNodePosition(location, type);
         // 克隆节点
+        let nodeInstance;
         if (insert) {
-          const nodeInstance = this.createNode(type, location, currLoc.data);
+          nodeInstance = this.createNode(type, location, currLoc.data);
           nodeInstance.setData({ oldSouceId: id, id: nodeInstance.id }, { silent: false });
           this.$emit('onLocationChange', 'copy', nodeInstance);
         } else { // 新建节点
-          const nodeInstance = this.createNode(type, location);
+          nodeInstance = this.createNode(type, location);
           this.$emit('onLocationChange', 'add', nodeInstance);
+        }
+        // 如果当前节点在分组内，将新节点也加入同一分组
+        if (loopGroupParent) {
+          loopGroupParent.addChild(nodeInstance);
+          nodeInstance.setData({ parent: loopGroupParent.id });
         }
         // 新建边
         edges.forEach((item) => {
@@ -262,6 +379,10 @@
         });
         // 更新快捷面板
         this.$emit('updateShortcutPanel', nodeId);
+        // 分组容器自适应（如果新节点在分组内）
+        if (loopGroupParent) {
+          this.$emit('onFitCanvas', loopGroupParent.id);
+        }
       },
       /**
        * 调整新增节点的位置，避免与画布上已有节点重叠
@@ -308,12 +429,12 @@
        * @param {String} nodeId 并行网管/分支网管
        */
       getParallelNodeMinDistance(nodeId) {
-        const { x, y } = this.locations.find(m => m.id === nodeId);
-        const parallelNodes = this.lines.filter(m => m.source.id === nodeId).map(m => m.target.id);
+        const { x, y } = this.effectiveLocations.find(m => m.id === nodeId);
+        const parallelNodes = this.effectiveLines.filter(m => m.source.id === nodeId).map(m => m.target.id);
         let maxDistance = null;
         // 距离网管节点垂直距离最近的节点
         let needNodeLocation = { x: x + 200, y }; // 默认新增节点坐标
-        this.locations.forEach((m) => {
+        this.effectiveLocations.forEach((m) => {
           if (m.type === 'tasknode' && parallelNodes.indexOf(m.id) > -1) {
             if (maxDistance === null) {
               maxDistance = m.y - y;
@@ -353,7 +474,7 @@
           },
         ];
         // 拷贝插入节点前网关的配置
-        const gateways = utilsTools.deepClone(this.gateways);
+        const gateways = utilsTools.deepClone(this.effectiveGateways);
         // 如果通过线的面板插入节点，若起始节点为网关节点则保留分支表达式
         if (source.id in gateways) {
           const branchInfo = gateways[source.id];
@@ -380,12 +501,30 @@
         return edges;
       },
       createNode(type, location, data = {}) {
+        if (type === 'SubCanvas') {
+          return this.instance.addNode({
+            id: `node${uuid()}`,
+            ...location,
+            shape: 'custom-loop-group-node',
+            width: 415,
+            height: 158,
+            data: {
+              ...data,
+              type: 'SubCanvas',
+              parent: true,
+              name: '循环',
+            },
+            zIndex: 1,
+          });
+        }
+        const isTask = type === 'task' || type === 'tasknode';
+        const isSubflow = type === 'subflow' || type === 'SubProcess';
         return this.instance.addNode({
           id: `node${uuid()}`,
           ...location,
           shape: 'custom-node',
-           width: type === 'task' || type === 'subflow' ? 154 : 34,
-          height: type === 'task' || type === 'subflow' ? 54 : 34,
+          width: isTask || isSubflow ? 154 : 34,
+          height: isTask || isSubflow ? 54 : 34,
           data: {
             ...data,
             type,
@@ -414,7 +553,7 @@
             },
           },
           data,
-          zIndex: 0,
+          zIndex: 10, // 边显示在分组节点（zIndex=1）和子节点（zIndex=10）上面
           router: Object.assign({
             name: 'manhattan',
             args: {
@@ -436,13 +575,14 @@
       },
       // 通过快捷面板删除连线
       onDeleteLineClick() {
-        const info = this.lines.find(line => line.id === this.activeCell.id);
+        const info = this.effectiveLines.find(line => line.id === this.activeCell.id);
+        // 先移除边（从 X6 图中删除），再触发 onLineChange 同步数据
+        this.instance.removeEdge(info.id);
         this.$emit('onLineChange', 'delete', {
           id: info.id,
           source: { cell: info.source.id },
           target: { cell: info.target.id },
         });
-        this.instance.removeEdge(info.id);
         this.$emit('updateShortcutPanel');
       },
     },
@@ -482,6 +622,12 @@
       &.common-icon-node-tasknode-shortcut,
       &.common-icon-node-subflow-shortcut {
         font-size: 18px;
+      }
+      .node-subcanvas-icon {
+        display: block;
+        width: 24px;
+        height: 24px;
+        margin: 3px auto 0;
       }
     }
   }

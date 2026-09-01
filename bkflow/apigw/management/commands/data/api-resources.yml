@@ -3382,6 +3382,24 @@ paths:
                         has_interval_trigger:
                           type: boolean
                           description: 是否有定时触发器
+                        labels:
+                          type: array
+                          description: 标签列表
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                                description: 标签ID
+                              name:
+                                type: string
+                                description: 标签名称
+                              color:
+                                type: string
+                                description: 标签颜色
+                              full_path:
+                                type: string
+                                description: 标签完整路径
                   count:
                     type: integer
                     description: 总数
