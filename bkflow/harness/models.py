@@ -24,14 +24,12 @@ from django.utils.translation import ugettext_lazy as _
 
 from bkflow.harness.constants import (
     HarnessRunStatus,
+    IdempotencyStatus,
     ValidationCheckpoint,
     ValidationResult,
 )
+from bkflow.harness.exceptions import ImmutableRevisionError
 from bkflow.utils.models import CommonModel
-
-
-class ImmutableRevisionError(Exception):
-    """WorkflowPlanRevision 禁止原地修改。"""
 
 
 class WorkflowPlanRevisionQuerySet(models.QuerySet):
@@ -194,6 +192,12 @@ class HarnessIdempotencyRecord(CommonModel):
     request_hash = models.CharField(_("请求哈希"), max_length=64)
     response_snapshot = models.JSONField(_("响应快照"), default=dict)
     resource_ref = models.JSONField(_("资源引用"), default=dict)
+    status = models.CharField(
+        _("幂等状态"),
+        max_length=16,
+        choices=IdempotencyStatus.choices,
+        default=IdempotencyStatus.IN_FLIGHT.value,
+    )
 
     class Meta:
         verbose_name = _("Harness 幂等记录")

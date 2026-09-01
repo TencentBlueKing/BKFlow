@@ -53,3 +53,11 @@ class ValidationCheckpoint(models.TextChoices):
 
     VALIDATE_WORKFLOW = "validate_workflow", _("流程校验")
     CREATE_WORKFLOW_DRAFT = "create_workflow_draft", _("草稿创建")
+
+
+class IdempotencyStatus(models.TextChoices):
+    """幂等记录生命周期。"""
+
+    IN_FLIGHT = "IN_FLIGHT", _("进行中")
+    COMPLETED = "COMPLETED", _("已完成")
+    FAILED = "FAILED", _("失败")
