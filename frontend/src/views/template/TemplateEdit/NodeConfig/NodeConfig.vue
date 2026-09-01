@@ -1129,7 +1129,7 @@
       },
       /**
        * 加载循环流节点输出参数
-       * 从子流程标准插件(subprocess_plugin)获取内置输出参数
+       * 从子流程标准插件(subcanvas_plugin)获取内置输出参数
        */
       async getLoopGroupOutputs() {
         try {

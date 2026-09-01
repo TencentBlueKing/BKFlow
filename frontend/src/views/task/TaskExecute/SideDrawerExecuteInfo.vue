@@ -1983,7 +1983,6 @@
           this.historyInfo = [];
           console.log(e);
         } finally {
-          console.log('isCurrentNodeDetailRequest', this.isCurrentNodeDetailRequest(requestId), this.loading);
           if (this.isCurrentNodeDetailRequest(requestId)) {
             this.loading = false;
           }
