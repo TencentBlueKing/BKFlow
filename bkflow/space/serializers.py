@@ -103,3 +103,10 @@ class SpaceOpenPluginBulkActionSerializer(serializers.Serializer):
 class SpaceOpenPluginDisableSourceSerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
     source_key = serializers.CharField(help_text=_("开放插件来源标识"))
+
+
+class SpaceConfigVerifySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    name = serializers.CharField(help_text=_("配置项名称"))
+    value = serializers.JSONField(help_text=_("待验证的配置值"), required=False)
+    params = serializers.DictField(help_text=_("验证参数"), required=False, default=dict)

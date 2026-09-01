@@ -426,6 +426,149 @@ class TestSpaceConfigAdminViewSet:
         # Response is wrapped by SimpleGenericViewSet.finalize_response
         assert "superusers" in response.data.get("data", {})
 
+    def test_verify_not_supported_config(self):
+        """验证不支持验证的配置项：返回 ok=False 且 not_supported=True"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+        data = {"space_id": self.space.id, "name": "canvas_mode", "value": "horizontal"}
+        request = self.factory.post("/space_configs/verify/", data, format="json")
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload.get("ok") is False
+        assert payload.get("error", {}).get("not_supported") is True
+
+    def test_verify_unknown_config(self):
+        """验证不存在的配置项：返回 ok=False"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+        data = {"space_id": self.space.id, "name": "not_exist_config", "value": "x"}
+        request = self.factory.post("/space_configs/verify/", data, format="json")
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        assert response.data.get("data", {}).get("ok") is False
+
+    def _uniform_api_value(self):
+        """返回一个测试用的 uniform_api 配置值"""
+        return {
+            "api": {
+                "default": {
+                    "meta_apis": "http://bkapi.example.com/api/meta/",
+                    "api_categories": "http://bkapi.example.com/api/category/",
+                    "display_name": "演示 API",
+                }
+            }
+        }
+
+    def _make_request_result(self, result, json_resp):
+        fake = mock.MagicMock()
+        fake.result = result
+        fake.message = "" if result else "request failed"
+        fake.json_resp = json_resp
+        return fake
+
+    def test_uniform_api_verify_success(self):
+        """uniform_api verify 成功：依次调用 category_list/list/meta 三个接口，回显统计与样例。
+
+        新 verify 逻辑会发出三类请求：
+          1. category_list -> 返回分类列表（提供 list 的 category 入参）
+          2. list          -> 返回接口总数与列表（取 meta_url 用于第三类请求）
+          3. meta          -> 针对 list 返回的 api 逐个拉取详情，作为样例回显
+        这里用 side_effect 按 URL 区分，分别打 mock。
+        """
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+
+        value = self._uniform_api_value()
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+
+        # 1) category_list 返回的分类列表
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        # 2) list 返回的接口总数与列表
+        list_result = self._make_request_result(
+            True,
+            {
+                "data": {
+                    "total": 2,
+                    "apis": [
+                        {"id": "1", "meta_url": "http://bkapi.example.com/api/meta/1/", "name": "A"},
+                        {"id": "2", "meta_url": "http://bkapi.example.com/api/meta/2/", "name": "B"},
+                    ],
+                }
+            },
+        )
+        # 3) meta 针对每个 api 返回的详情
+        meta_results = {
+            "http://bkapi.example.com/api/meta/1/": self._make_request_result(
+                True, {"data": {"id": "1", "name": "A", "methods": ["GET"]}}
+            ),
+            "http://bkapi.example.com/api/meta/2/": self._make_request_result(
+                True, {"data": {"id": "2", "name": "B", "methods": ["POST"]}}
+            ),
+        }
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return meta_results.get(url)
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw", return_value=True
+        ):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is True
+        assert payload["data"]["category_length"] == 1
+        assert payload["data"]["api_length"] == 2
+        assert payload["data"]["samples"] == [
+            {"id": "1", "name": "A", "method": "GET"},
+            {"id": "2", "name": "B", "method": "POST"},
+        ]
+
+    def test_uniform_api_verify_missing_credential(self):
+        """uniform_api verify 凭证不存在：ok=False 且回显错误"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+        data = {
+            "space_id": self.space.id,
+            "name": "uniform_api",
+            "value": self._uniform_api_value(),
+            "params": {"api_key": "default", "credential_name": "not_exist"},
+        }
+        request = self.factory.post("/space_configs/verify/", data, format="json")
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "not_exist" in payload["error"]["message"]
+
     def test_batch_apply(self):
         """Test batch_apply action"""
         view = SpaceConfigAdminViewSet.as_view({"post": "batch_apply"})
