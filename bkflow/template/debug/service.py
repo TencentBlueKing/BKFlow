@@ -32,6 +32,7 @@ from bkflow.template.debug.dependency import (
     build_dependency_graph,
     closure,
     compute_tree_fingerprint,
+    get_activity_referenced_var_keys,
 )
 from bkflow.template.debug.gateway import (
     DEBUGGABLE_GATEWAY_TYPES,
@@ -257,18 +258,31 @@ class DebugService:
             for key, info in classified["data_inputs"].items()
             if info.get("type") == "splice" and info.get("source_act")
         }
-        component_data = act.get("component", {}).get("data", {})
+        referenced_vars = get_activity_referenced_var_keys(act)
         missing = []
-        for field in component_data.values():
-            value = field.get("value")
-            if not isinstance(value, str):
-                continue
-            for var_key, producer in produced.items():
-                if var_key in value and var_key not in (ctx.global_vars or {}):
-                    item = {"key": var_key, "source_node_id": producer}
-                    if item not in missing:
-                        missing.append(item)
+        for var_key, producer in produced.items():
+            if var_key in referenced_vars and var_key not in (ctx.global_vars or {}):
+                missing.append({"key": var_key, "source_node_id": producer})
         return (len(missing) == 0), missing
+
+    @staticmethod
+    def _pipeline_contains_debug_node(pipeline_tree, node_id):
+        if node_id in pipeline_tree.get("activities", {}) or node_id in pipeline_tree.get("gateways", {}):
+            return True
+        for activity in pipeline_tree.get("activities", {}).values():
+            if activity.get("type") != "SubCanvas" or not activity.get("pipeline"):
+                continue
+            if DebugService._pipeline_contains_debug_node(activity["pipeline"], node_id):
+                return True
+        return False
+
+    def _find_subcanvas_parent(self, node_id):
+        for subcanvas_id, activity in self.pipeline_tree.get("activities", {}).items():
+            if activity.get("type") != "SubCanvas" or not activity.get("pipeline"):
+                continue
+            if self._pipeline_contains_debug_node(activity["pipeline"], node_id):
+                return subcanvas_id
+        return None
 
     # ---- 内部工具 ----
     def _refresh_tree_fingerprint(self, ctx: DebugContext):
@@ -605,7 +619,11 @@ class DebugService:
             observed_statuses.append(ns.status)
             ns.duration_ms = int((child.get("elapsed_time") or 0) * 1000)
             if ns.status in ("finished", "failed"):
-                detail = client.get_task_node_detail(task_id, runtime_id, data={"include_data": True})
+                detail = client.get_task_node_detail(
+                    task_id,
+                    runtime_id,
+                    data={"include_data": True, "include_loop_outputs": True},
+                )
                 ddata = detail.get("data", {}) if detail.get("result") else {}
                 version = ddata.get("version") or ddata.get("history_id") or "v1"
                 ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version}
@@ -667,7 +685,11 @@ class DebugService:
             for runtime_id, child in children.items():
                 if child.get("state") != "FAILED" or runtime_errors.get(runtime_id) or state_errors.get(runtime_id):
                     continue
-                detail = client.get_task_node_detail(task_id, runtime_id, data={"include_data": True})
+                detail = client.get_task_node_detail(
+                    task_id,
+                    runtime_id,
+                    data={"include_data": True, "include_loop_outputs": True},
+                )
                 ddata = detail.get("data", {}) if detail.get("result") else {}
                 if ddata.get("ex_data"):
                     runtime_errors[runtime_id] = ddata["ex_data"]
@@ -927,6 +949,15 @@ class DebugService:
         try:
             ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
         except DebugNodeState.DoesNotExist:
+            subcanvas_node_id = self._find_subcanvas_parent(node_id)
+            if subcanvas_node_id:
+                raise DebugStateError(
+                    {
+                        "detail": "暂不支持子画布内部节点单步调试",
+                        "node_id": node_id,
+                        "subcanvas_node_id": subcanvas_node_id,
+                    }
+                )
             raise DebugStateError({"detail": "节点不存在", "node_id": node_id})
         effective_mode = mode or ns.execution_mode
 

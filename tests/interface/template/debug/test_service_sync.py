@@ -40,6 +40,31 @@ PIPELINE = {
     },
 }
 
+PIPELINE_SUBCANVAS = {
+    "activities": {
+        "S": {
+            "id": "S",
+            "type": "SubCanvas",
+            "loop_config": {"enable": True, "type": "time_loop", "loop_times": 2, "loop_params": {}},
+            "pipeline": {"activities": {}, "flows": {}, "gateways": {}, "constants": {}, "outputs": []},
+        }
+    },
+    "flows": {},
+    "gateways": {},
+    "constants": {
+        "${outputs}": {
+            "key": "${outputs}",
+            "name": "loop outputs",
+            "show_type": "hide",
+            "value": [],
+            "source_type": "component_outputs",
+            "custom_type": "array",
+            "source_tag": "",
+            "source_info": {"S": ["outputs"]},
+        }
+    },
+}
+
 PIPELINE_GATEWAY = {
     "activities": {},
     "flows": {
@@ -133,6 +158,41 @@ class TestSyncFromDebugTask:
         assert ctx.last_run_type == "global"
         assert ctx.last_run_status == "finished"
         assert ctx.last_error_detail == {}
+
+    def test_sync_subcanvas_preserves_aggregate_loop_outputs(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE_SUBCANVAS)
+        ctx = svc.sync_node_states()
+        ctx.status = "running"
+        ctx.active_task_id = 456
+        ctx.active_run_type = "step"
+        ctx.active_node_id = "S"
+        ctx.save()
+        aggregate = [{"result": "first"}, {"result": "second"}]
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "FINISHED", "children": {"rtS": {"state": "FINISHED", "elapsed_time": 1}}},
+            "message": "",
+        }
+        client.get_node_id_map.return_value = {"result": True, "data": {"S": "rtS"}, "message": ""}
+        client.get_task_node_detail.return_value = {
+            "result": True,
+            "data": {"outputs": [{"key": "outputs", "value": aggregate}], "version": "v1"},
+            "message": "",
+        }
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        svc.sync_from_debug_task(ctx)
+
+        node_state = DebugNodeState.objects.get(debug_context=ctx, node_id="S")
+        ctx.refresh_from_db()
+        assert node_state.outputs == {"outputs": aggregate}
+        assert ctx.global_vars["${outputs}"] == aggregate
+        client.get_task_node_detail.assert_called_once_with(
+            456,
+            "rtS",
+            data={"include_data": True, "include_loop_outputs": True},
+        )
 
     def test_sync_running_task_does_not_release_lock(self, mocker):
         """任务运行中：回写节点态与耗时，但不释放锁"""
@@ -372,7 +432,11 @@ class TestSyncFromDebugTask:
         gateway = DebugNodeState.objects.get(debug_context=ctx, node_id="G")
         assert gateway.status == "failed"
         assert gateway.error_detail == {"type": "runtime", "message": "multiple conditions meet"}
-        client.get_task_node_detail.assert_called_once_with(456, "rt_gateway", data={"include_data": True})
+        client.get_task_node_detail.assert_called_once_with(
+            456,
+            "rt_gateway",
+            data={"include_data": True, "include_loop_outputs": True},
+        )
 
     def test_sync_finished_gateway_persists_selected_flows(self, mocker):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE_GATEWAY)
