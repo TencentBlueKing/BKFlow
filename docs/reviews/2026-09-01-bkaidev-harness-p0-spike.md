@@ -115,6 +115,46 @@ run_creation = validate_workflow_implicit
 - Task 10 可以跑本地 Golden Cases，不能声称试点空间或线上 Agent 验证通过。
 - 最终状态最多写到 `LOCAL_IMPLEMENTATION_COMPLETE`，P0 Release Gate 保持阻断。
 
+## Task 9 BKAIDev 配置契约
+
+`SPIKE_EXTERNAL_EVIDENCE_BLOCKED`。以下是本地准备的配置契约，不是 BKAIDev 已真实配置的证据。不得据此声称试点 Agent 已发布。
+
+```text
+agent_kind = bkaidev_saas_native_single_agent
+mcp_connection_name = BKFlow Workflow Harness MCP
+mcp_adapter = bkaidev_managed
+mcp_contract_version = 1.0.0
+```
+
+MCP-visible Tool 到 APIGW operation 的映射：
+
+| MCP-visible Tool | APIGW operationId |
+|---|---|
+| search_workflow_capabilities | harness_search_workflow_capabilities |
+| get_plugin_schema | harness_get_plugin_schema |
+| validate_workflow | harness_validate_workflow |
+| create_workflow_draft | harness_create_workflow_draft |
+
+连接归属：每个平台连接绑定 APIGW endpoint、已认证应用身份，以及服务端 Harness 部署中的 space/scope/environment。模型不得改写这些绑定。
+
+P0 固定知识库存放在 BKAIDev 只读挂载中；BKFlow 在 P1 之前不实现联邦 Knowledge Router。Agent Release 应钉住 prompt 版本、模型版本、MCP contract `1.0.0`、四个 Tool allowlist 和固定知识快照。更高阶段 Tool 必须缺席，而不是仅靠 Prompt 隐藏。
+
+Agent Prompt 循环：
+
+```text
+clarify intent
+-> search capabilities
+-> select candidates
+-> fetch exact schemas
+-> generate and bind a2flow
+-> validate
+-> bounded repair as a new revision
+-> create draft
+-> report DRAFT and stop
+```
+
+Prompt 必须明确禁止：第二个 Agent、自主 MCP 循环、直接执行业务插件、调试、发布、创建任务和真实执行。`harness_enabled=true` 只应配置在试点空间；本环境没有完成该配置。
+
 ## 停止条件
 
 出现任一情况立即停止，不扩大方案：
