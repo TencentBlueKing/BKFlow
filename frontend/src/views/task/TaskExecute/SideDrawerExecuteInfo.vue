@@ -1884,7 +1884,7 @@
           } else {
             this.isReadyStatus = ['RUNNING', 'SUSPENDED', 'FINISHED', 'FAILED'].indexOf(respData.state) > -1;
 
-            respData = await this.setFillRecordField(respData);
+            respData = await this.setFillRecordField(respData, requestId);
             if (!respData || !this.isCurrentNodeDetailRequest(requestId)) return;
             if (!isChangeExecuteLoop) {
               this.loop = respData.loop;

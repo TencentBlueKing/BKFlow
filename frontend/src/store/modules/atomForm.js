@@ -279,7 +279,7 @@ const atomForm = {
      * 加载子流程输出参数
      */
     loadSubprocessOutput({}, params) {
-      return axios.get('/api/plugin/subprocess_plugin/', { params }).then(response => response.data);
+      return axios.get(`/api/plugin/${params.code}/`, { params }).then(response => response.data);
     },
   },
 };
