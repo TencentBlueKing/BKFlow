@@ -16,24 +16,25 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from rest_framework.permissions import BasePermission
+
+from bkflow.harness.exceptions import HarnessAuthorizationError
+from bkflow.harness.services.context import authorize_harness_request
 
 
-class ImmutableRevisionError(Exception):
-    """WorkflowPlanRevision 禁止原地修改。"""
+class HarnessPermission(BasePermission):
+    """
+    Harness 专用权限：在一个类中完成 AND 鉴权，不与其他 permission OR 组合。
+    """
+
+    def has_permission(self, request, view):
+        space_id = view.kwargs.get("space_id")
+        try:
+            authorize_harness_request(request, space_id)
+        except HarnessAuthorizationError as exc:
+            request.harness_auth_error = exc
+            return False
+        return True
 
 
-class InvalidStateTransition(Exception):
-    """HarnessRun 状态转移不合法。"""
-
-
-class IdempotencyConflict(Exception):
-    """相同幂等键对应了不同的请求哈希。"""
-
-
-class HarnessAuthorizationError(Exception):
-    """Harness AND 鉴权失败。"""
-
-    def __init__(self, code: str, message: str = ""):
-        self.code = code
-        self.message = message or code
-        super().__init__(self.message)
+__all__ = ["HarnessPermission", "authorize_harness_request"]

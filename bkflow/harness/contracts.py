@@ -16,24 +16,27 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from dataclasses import dataclass
+from typing import Any, Optional
 
 
-class ImmutableRevisionError(Exception):
-    """WorkflowPlanRevision 禁止原地修改。"""
+@dataclass(frozen=True)
+class TrustedHarnessContext:
+    """由网关身份和空间部署绑定推导的可信上下文。"""
 
+    platform_key: str
+    platform_app: str
+    actor: str
+    space_id: int
+    scope_type: Optional[str]
+    scope_value: Optional[str]
+    target_environment: str
+    policy_version: str
+    mcp_contract_version: str
+    correlation_id: str
 
-class InvalidStateTransition(Exception):
-    """HarnessRun 状态转移不合法。"""
+    @classmethod
+    def from_request(cls, request: Any, space_id: int) -> "TrustedHarnessContext":
+        from bkflow.harness.services.context import derive_trusted_context
 
-
-class IdempotencyConflict(Exception):
-    """相同幂等键对应了不同的请求哈希。"""
-
-
-class HarnessAuthorizationError(Exception):
-    """Harness AND 鉴权失败。"""
-
-    def __init__(self, code: str, message: str = ""):
-        self.code = code
-        self.message = message or code
-        super().__init__(self.message)
+        return derive_trusted_context(request, space_id)
