@@ -367,16 +367,16 @@ class TaskOperation:
             root_pipeline_data = get_pipeline_context(
                 self.task_instance, obj_type=PipelineContextObjType.instance.value, username=operator
             )
-            # 获取空间变量
-            space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
-            if not space_var.get("result"):
-                logger.error("get space variable failed: %s", space_var.get("message"))
-                space_var_data = {}
-            else:
-                space_var_data = space_var.get("data", {})
             if self.task_instance.trigger_method != TaskTriggerMethod.sub_canvas.name:
                 system_obj = SystemObject(root_pipeline_data)
                 root_pipeline_context.update({"${_system}": system_obj})
+                # 获取空间变量
+                space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
+                if not space_var.get("result"):
+                    logger.error("get space variable failed: %s", space_var.get("message"))
+                    space_var_data = {}
+                else:
+                    space_var_data = space_var.get("data", {})
                 root_pipeline_context.update(space_var_data)
 
             # 创建执行级根 Span，将 trace context 注入 pipeline data，
