@@ -593,6 +593,7 @@ class TaskInstanceViewSet(
                 subprocess_stack=query_ser.validated_data.get("subprocess_stack"),
                 component_code=query_ser.validated_data.get("component_code"),
                 loop=query_ser.validated_data.get("loop"),
+                include_loop_outputs=query_ser.validated_data["include_loop_outputs"],
             )
             if not node_data_result.result:
                 return Response(dict(node_data_result))

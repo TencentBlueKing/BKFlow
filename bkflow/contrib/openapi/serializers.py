@@ -33,6 +33,7 @@ class EmptyBodySerializer(serializers.Serializer):
 class GetNodeDetailQuerySerializer(serializers.Serializer):
     username = serializers.CharField(required=False, default="")
     include_data = serializers.BooleanField(required=False, default=True)
+    include_loop_outputs = serializers.BooleanField(required=False, default=False)
     component_code = serializers.CharField(required=False)
     subprocess_stack = serializers.CharField(required=False, default="[]")
     loop = serializers.IntegerField(required=False)

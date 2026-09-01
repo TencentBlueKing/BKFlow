@@ -67,6 +67,35 @@ class TestDebugCreateInstance:
         )
         assert TaskContext(instance).is_mock is True
 
+    def test_debug_subcanvas_mock_maps_container_node_and_aggregate_output(self):
+        pipeline_tree = build_default_pipeline_tree()
+        node_id = list(pipeline_tree[PE.activities].keys())[0]
+        original_node = pipeline_tree[PE.activities][node_id]
+        pipeline_tree[PE.activities][node_id] = {
+            "id": node_id,
+            "name": "loop canvas",
+            "type": "SubCanvas",
+            "incoming": original_node["incoming"],
+            "outgoing": original_node["outgoing"],
+            "optional": True,
+            "loop_config": {"enable": True, "type": "time_loop", "loop_times": 2, "loop_params": {}},
+            "pipeline": build_default_pipeline_tree(),
+        }
+        aggregate = [{"result": "first"}, {"result": "second"}]
+
+        instance = TaskInstance.objects.create_instance(
+            pipeline_tree=pipeline_tree,
+            space_id=10,
+            create_method="DEBUG",
+            creator="admin",
+            mock_data={"nodes": [node_id], "outputs": {node_id: {"outputs": aggregate}}},
+        )
+
+        mock = TaskMockData.objects.get(taskflow_id=instance.id)
+        assert len(mock.data["nodes"]) == 1
+        runtime_node_id = mock.data["nodes"][0]
+        assert mock.data["outputs"][runtime_node_id] == {"outputs": aggregate}
+
 
 class TestShouldKeepDebugTasks:
     """不打数据库，用真实 QueryDict 覆盖 apply_token 的查询串。"""

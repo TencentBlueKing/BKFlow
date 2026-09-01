@@ -33,12 +33,17 @@ def _hash_obj(obj) -> str:
 
 
 def compute_node_config_hash(activity: dict) -> str:
-    """节点配置指纹：仅取影响执行的字段（type/component/optional），忽略坐标/备注"""
+    """节点配置指纹：仅取影响执行的字段，忽略坐标/备注。"""
     payload = {
         "type": activity.get("type"),
         "component": activity.get("component", {}),
         "optional": activity.get("optional"),
     }
+    if activity.get("type") == "SubCanvas":
+        payload["loop_config"] = activity.get("loop_config", {})
+        pipeline = activity.get("pipeline") or {}
+        payload["pipeline"] = compute_tree_fingerprint(pipeline)
+        payload["pipeline_outputs"] = pipeline.get("outputs", [])
     return _hash_obj(payload)
 
 
@@ -55,6 +60,27 @@ def _extract_referenced_var_keys(value) -> Set[str]:
         return {"${%s}" % ref for ref in ConstantTemplate(safe_value).get_reference()}
     except Exception:
         return set()
+
+
+def get_activity_referenced_var_keys(activity: dict) -> Set[str]:
+    """提取节点执行时会消费的父画布变量。"""
+    referenced_vars: Set[str] = set()
+    component_data = activity.get("component", {}).get("data", {})
+    for field in component_data.values():
+        value = field.get("value") if isinstance(field, dict) else field
+        referenced_vars |= _extract_referenced_var_keys(value)
+
+    if activity.get("type") != "SubCanvas":
+        return referenced_vars
+
+    loop_params = activity.get("loop_config", {}).get("loop_params", {})
+    referenced_vars |= _extract_referenced_var_keys(loop_params)
+    inner_constants = (activity.get("pipeline") or {}).get("constants", {})
+    for constant in inner_constants.values():
+        if constant.get("show_type") != "show" or not constant.get("need_render", True):
+            continue
+        referenced_vars |= _extract_referenced_var_keys(constant.get("value"))
+    return referenced_vars
 
 
 def compute_tree_fingerprint(pipeline_tree: dict) -> dict:
@@ -99,10 +125,7 @@ def build_dependency_graph(pipeline_tree: dict) -> dict:
 
     data: Dict[str, Set[str]] = {nid: set() for nid in node_ids}
     for nid, act in activities.items():
-        component_data = act.get("component", {}).get("data", {})
-        referenced_vars: Set[str] = set()
-        for field in component_data.values():
-            referenced_vars |= _extract_referenced_var_keys(field.get("value"))
+        referenced_vars = get_activity_referenced_var_keys(act)
         producers = {var_producer[var_key] for var_key in referenced_vars if var_key in var_producer}
         for producer in producers:
             if producer in data and producer != nid:
