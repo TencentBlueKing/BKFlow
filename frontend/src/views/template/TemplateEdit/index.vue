@@ -100,6 +100,7 @@
           :is-not-exist-atom-or-version="isNotExistAtomOrVersion"
           :space-related-config="spaceRelatedConfig"
           :is-enable-version-manage="isEnableVersionManage"
+          :is-plugin-scope-hidden="isPluginScopeHidden"
           @globalVariableUpdate="globalVariableUpdate"
           @updateNodeInfo="onUpdateNodeInfo"
           @templateDataChanged="templateDataChanged"
@@ -384,6 +385,7 @@
         latestedVersion: '', // 最新版本
         isNeedToProhibitEdit: false,
         isEnableVersionManage: false,
+        isPluginScopeHidden: false, // 空间插件配置白名单模式时隐藏第三方/API插件
         tplInfoAndVarChange: false, // 全局变量和基础信息发生变化
         isAtPublish: false,
         draftInfo: {},
@@ -578,6 +580,7 @@
       ...mapActions('spaceConfig/', [
         'getNotAuthSpaceConfig',
         'checkSpaceConfig',
+        'getSpaceConfigData',
       ]),
       ...mapMutations('template/', [
         'initTemplateData',
@@ -644,7 +647,7 @@
           this.constructedSubprocessInfo = [];
           return;
         }
-        const activities = pipelineTree.activities;
+        const { activities } = pipelineTree;
         const subProcessNodes = Object.values(activities)
           .filter(act => act.type === 'SubProcess' && act.template_id);
         if (subProcessNodes.length === 0) {
@@ -688,7 +691,7 @@
        * 根据当前有效的 subprocess_info 更新画布上子流程节点的小红点 (hasUpdated)
        */
       syncCanvasSubflowHasUpdated() {
-        const processCanvas = this.$refs.processCanvas;
+        const { processCanvas } = this.$refs;
         if (!processCanvas) return;
         const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
           ? this.subprocess_info
@@ -711,6 +714,22 @@
           this.isEnableVersionManage = result.data.value === 'true';
         } catch (error) {
           this.isEnableVersionManage = false;
+        }
+      },
+      // 判断空间插件配置是否为白名单模式
+      async checkPluginScope(spaceId) {
+        try {
+          if (!spaceId) {
+            this.isPluginScopeHidden = false;
+            return;
+          }
+          const resp = await this.getSpaceConfigData({ space_id: spaceId });
+          const configs = (resp && resp.data) || [];
+          const pluginConfig = configs.find(item => item.name === 'space_plugin_config');
+          const scopeConfig = (pluginConfig && pluginConfig.json_value && pluginConfig.json_value.default) || {};
+          this.isPluginScopeHidden = scopeConfig.mode === 'allow_list';
+        } catch (error) {
+          this.isPluginScopeHidden = false;
         }
       },
       // 轮询更新token
@@ -816,6 +835,7 @@
           };
           const templateData = await this.loadTemplateData(data);
           await this.checkoutSpace(templateData.space_id);
+          this.checkPluginScope(templateData.space_id);
           this.lastedPipelineTree = tools.deepClone(templateData.pipeline_tree);
           // 保存最新版本的流程树数据
           this.tplActions = templateData.auth;
