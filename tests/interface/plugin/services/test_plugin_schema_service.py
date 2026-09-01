@@ -743,6 +743,7 @@ class TestGetPluginSchema:
         assert result["plugin_type"] == "component"
         assert "inputs" in result
         assert "outputs" in result
+        assert result["resolved_version"] == "v1.0.0"
 
     @patch("bkflow.plugin.services.plugin_schema_service.BKPlugin")
     @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")

@@ -37,3 +37,43 @@ class HarnessAuthorizationError(Exception):
         self.code = code
         self.message = message or code
         super().__init__(self.message)
+
+
+class CapabilityRefError(Exception):
+    """能力引用无法解码或字段不合法。"""
+
+
+class AmbiguousCapability(Exception):
+    """检索结果无法唯一确定能力。"""
+
+    def __init__(self, message, candidates=None):
+        self.code = "AMBIGUOUS_CAPABILITY"
+        self.candidates = candidates or []
+        super().__init__(message)
+
+
+class CapabilityNotFound(Exception):
+    """可信空间中不存在该能力。"""
+
+    code = "CAPABILITY_NOT_FOUND"
+
+
+class CapabilityForbidden(Exception):
+    """当前调用方无权访问该能力。"""
+
+    code = "CAPABILITY_FORBIDDEN"
+
+
+class SchemaDrift(Exception):
+    """精确版本或 Schema 哈希与当前 Registry 不一致。"""
+
+    code = "SCHEMA_DRIFT"
+
+
+class HarnessUserInputError(Exception):
+    """Harness 用户输入不合法。"""
+
+    def __init__(self, code: str, message: str = ""):
+        self.code = code
+        self.message = message or code
+        super().__init__(self.message)

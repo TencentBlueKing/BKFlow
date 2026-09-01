@@ -17,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 
 @dataclass(frozen=True)
@@ -40,3 +40,17 @@ class TrustedHarnessContext:
         from bkflow.harness.services.context import derive_trusted_context
 
         return derive_trusted_context(request, space_id)
+
+
+@dataclass(frozen=True)
+class ResolvedCapability:
+    """可信空间内解析出的精确能力。"""
+
+    capability_ref: str
+    plugin_type: str
+    code: str
+    source_key: Optional[str]
+    resolved_version: str
+    schema_hash: str
+    schema: Dict[str, Any]
+    risk_level: str

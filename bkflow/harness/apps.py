@@ -28,3 +28,8 @@ class HarnessConfig(AppConfig):
     name = "bkflow.harness"
     label = "harness"
     verbose_name = _("AI 流程生成 Harness")
+
+    def ready(self):
+        from bkflow.harness.services.projection import load_capability_manifest
+
+        load_capability_manifest()

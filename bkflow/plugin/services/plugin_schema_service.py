@@ -142,7 +142,20 @@ class PluginSchemaService:
                 code, version=version, plugin_source=plugin_source, source_key=source_key
             )
 
+        registry_version = (
+            plugin_info.get("version")
+            or plugin_info.get("_component_version")
+            or plugin_info.get("plugin_version")
+            or ""
+        )
         self._fill_schema_single(plugin_info, strict=True)
+        if version:
+            resolved_version = version
+        elif registry_version:
+            resolved_version = registry_version
+        else:
+            resolved_version = "unversioned"
+        plugin_info["resolved_version"] = resolved_version
         return plugin_info
 
     # === 列表查询 ===

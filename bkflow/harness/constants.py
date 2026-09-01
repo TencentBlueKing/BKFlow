@@ -20,6 +20,8 @@ to the current version of the project delivered to anyone in the future.
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
+UNVERSIONED = "unversioned"
+
 
 class HarnessRunStatus(models.TextChoices):
     """Harness 生成任务状态，不复用 Engine 执行状态。"""
