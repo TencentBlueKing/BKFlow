@@ -1329,6 +1329,7 @@ const en = {
   查看子任务: 'View Subtasks',
   禁用组件: 'Disable Component',
   '执行控制选择循环执行的状态下只保留 ${outputs} 输出参数': 'When the execution control is set to "Select Loop Execution," only the ${outputs} output parameters are retained.',
+  管理员至少保留一位: 'At least one administrator must be retained.',
 };
 
 export default en;

@@ -566,3 +566,12 @@ class SpaceConfigViewSet(ModelViewSet, SimpleGenericViewSet):
             err_msg = f"检查空间配置失败：space_id: {space_id}, name: {name}, error: {str(e)}"
             logger.error(err_msg)
             return Response(exception=True, data={"detail": err_msg})
+
+    @swagger_auto_schema(method="get", operation_summary="获取空间下所有配置", query_serializer=SpaceConfigBaseQuerySerializer)
+    @action(detail=False, methods=["GET"])
+    def get_space_configs(self, request, *args, **kwargs):
+        ser = SpaceConfigBaseQuerySerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        return Response(
+            SpaceConfig.objects.get_space_config_info(space_id=ser.validated_data["space_id"], simplified=False)
+        )

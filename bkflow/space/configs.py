@@ -329,10 +329,11 @@ class SpaceEngineConfig(BaseSpaceConfig):
 
 
 class CallbackHooksConfig(BaseSpaceConfig):
+    # 目前配置已废弃
     name = "callback_hooks"
     desc = _("回调配置")
     value_type = SpaceConfigValueType.JSON.value
-    is_public = True
+    is_public = False
     example = {"url": "{callback_url}", "callback_types": ["template"]}
 
     SCHEMA = {
@@ -605,6 +606,10 @@ class SuperusersConfig(BaseSpaceConfig):
     def validate(cls, value: list):
         if not isinstance(value, list):
             raise ValidationError("[validate superusers error]: superusers must be a list, value: {}".format(value))
+        if len(value) < 1:
+            raise ValidationError(
+                "[validate superusers error]: superusers must keep at least one, value: {}".format(value)
+            )
         return True
 
 
@@ -737,7 +742,7 @@ class SpacePluginConfig(BaseSpaceConfig):
     name = "space_plugin_config"
     desc = _("空间插件配置")
     value_type = SpaceConfigValueType.JSON.value
-    example = {"default": {"mode": "{allow_list/deny_list}", "plugin_codes": ["plugin_1", "plugin_2"]}}
+    example = {"default": {"mode": "{allow_list/deny_list/allow_all}", "plugin_codes": ["plugin_1", "plugin_2"]}}
     default_value = {
         "default": {
             "mode": "allow_all",
@@ -748,7 +753,7 @@ class SpacePluginConfig(BaseSpaceConfig):
     group = "api_integration"
     help = {
         "summary": _("控制本空间可用的插件范围"),
-        "effect": _("allow_list 仅允许所列插件，deny_list 屏蔽所列插件；影响流程编辑时可选插件"),
+        "effect": _("allow_list 仅允许所列插件，deny_list 屏蔽所列插件；影响流程编辑时可选插件，allow_all 允许所有插件"),
         "media": [],
         "doc_link": "",
     }
