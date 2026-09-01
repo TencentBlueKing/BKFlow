@@ -49,7 +49,7 @@ class TestSpaceConfigHandler:
         configs = SpaceConfigHandler.get_all_configs()
         assert len(configs) == 12
         configs = SpaceConfigHandler.get_all_configs(only_public=True)
-        assert len(configs) == 11
+        assert len(configs) == 10
 
     def test_get_config(self):
         # valid cases
@@ -85,7 +85,7 @@ class TestSpaceConfigHandler:
         assert config_cls == CallbackHooksConfig
         assert config_cls.default_value is None
         assert config_cls.value_type == SpaceConfigValueType.JSON.value
-        assert config_cls.is_public is True
+        assert config_cls.is_public is False
         assert config_cls.validate({"url": "example.com", "callback_types": ["template"]})
         assert SpaceConfigHandler.validate(
             name="callback_hooks", value={"url": "example.com", "callback_types": ["template"]}
