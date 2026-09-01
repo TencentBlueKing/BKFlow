@@ -232,11 +232,14 @@
       },
     },
     watch: {
-      isPluginScopeHidden(val) {
-        if (val && this.curTab !== 'builtIn') {
-          this.curTab = 'builtIn';
-          this.handleSearch(this.searchStr);
-        }
+      isPluginScopeHidden: {
+        handler(val) {
+          if (val && this.curTab !== 'builtIn') {
+            this.curTab = 'builtIn';
+            this.handleSearch(this.searchStr);
+          }
+        },
+        immediate: true,
       },
     },
     created() {
