@@ -532,3 +532,68 @@ class TestCreateTemplateWithA2FlowV2View(TestCase):
         self.assertFalse(result.get("result"))
         self.assertIn("errors", result)
         self.assertEqual(result["errors"][0]["type"], "UNSUPPORTED_VERSION")
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.BKPlugin")
+    @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.ComponentModel")
+    def test_v2_scope_and_space_app_binding(self, mock_cm, mock_bkp):
+        """表征：scope 写入模板，模板归属请求空间。"""
+        from bkflow.template.models import Template
+
+        self._mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"]})
+        mock_bkp.objects.filter.return_value.exists.return_value = False
+        space = self.create_space()
+        data = {
+            "a2flow": {
+                "version": "2.0",
+                "name": "scope流程",
+                "nodes": [{"id": "n1", "name": "等待", "code": "sleep_timer", "data": {"bk_timing": 5}, "next": "end"}],
+            },
+            "scope_type": "biz",
+            "scope_value": "100",
+        }
+        resp = self.client.post(
+            "/apigw/space/{}/create_template_with_a2flow/".format(space.id),
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+        result = resp.json()
+        self.assertTrue(result.get("result"), result)
+        template = Template.objects.get(id=result["data"]["id"])
+        self.assertEqual(template.space_id, space.id)
+        self.assertEqual(template.scope_type, "biz")
+        self.assertEqual(template.scope_value, "100")
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.BKPlugin")
+    @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.ComponentModel")
+    def test_v2_auto_release_false_without_versioning_creates_released_snapshot(self, mock_cm, mock_bkp):
+        """表征：未开启版本管理时，默认 auto_release=false 仍创建带版本快照。"""
+        from bkflow.template.models import TemplateSnapshot
+
+        self._mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"]})
+        mock_bkp.objects.filter.return_value.exists.return_value = False
+        space = self.create_space()
+        data = {
+            "a2flow": {
+                "version": "2.0",
+                "name": "默认发布策略",
+                "nodes": [{"id": "n1", "name": "等待", "code": "sleep_timer", "data": {"bk_timing": 5}, "next": "end"}],
+            },
+            "auto_release": False,
+        }
+        resp = self.client.post(
+            "/apigw/space/{}/create_template_with_a2flow/".format(space.id),
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+        result = resp.json()
+        self.assertTrue(result.get("result"), result)
+        snapshot = TemplateSnapshot.objects.filter(template_id=result["data"]["id"]).first()
+        self.assertIsNotNone(snapshot)
+        self.assertEqual(snapshot.version, "1.0.0")
+        self.assertFalse(snapshot.draft)
