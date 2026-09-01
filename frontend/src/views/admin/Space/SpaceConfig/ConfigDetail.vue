@@ -459,6 +459,17 @@
             return;
           }
         }
+        if (this.config.name === 'superusers') {
+          const userList = Array.isArray(this.formValue) ? this.formValue : [];
+          if (userList.length === 0) {
+            this.localSaveError = true;
+            this.$bkMessage({
+              message: this.$t('管理员至少保留一位'),
+              theme: 'error',
+            });
+            return;
+          }
+        }
         // 空间插件配置：保存前二次确认
         if (this.config.name === 'space_plugin_config') {
           this.pluginSaveConfirmVisible = true;

@@ -79,6 +79,7 @@
     </bk-tab-panel>
     <!-- 第三方插件 -->
     <bk-tab-panel
+      v-if="!isPluginScopeHidden"
       ref="thirdPartyPanel"
       v-bkloading="{ isLoading: thirdPluginTagsLoading || thirdPluginLoading }"
       name="thirdParty"
@@ -139,7 +140,7 @@
       </div>
     </bk-tab-panel>
     <ApiPlugin
-      v-if="apiTabList.length"
+      v-if="apiTabList.length && !isPluginScopeHidden"
       ref="apiPlugin"
       :api-tab-list="apiTabList"
       :current-tab="curTab"
@@ -195,6 +196,10 @@
         type: String,
         default: '',
       },
+      isPluginScopeHidden: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -226,6 +231,17 @@
         return this.thirdPluginGroup && this.thirdPluginGroup.some(item => item.isShow);
       },
     },
+    watch: {
+      isPluginScopeHidden: {
+        handler(val) {
+          if (val && this.curTab !== 'builtIn') {
+            this.curTab = 'builtIn';
+            this.handleSearch(this.searchStr);
+          }
+        },
+        immediate: true,
+      },
+    },
     created() {
       this.getApiTabList();
       let curTab = this.isThirdParty ? 'thirdParty' : 'builtIn';
@@ -239,8 +255,12 @@
       }
     },
     beforeDestroy() {
-      const listWrapEl = this.$refs.thirdPartyPanel.$el.querySelector('.third-party-list');
-      listWrapEl.removeEventListener('scroll', this.handleThirdParPluginScroll, false);
+      if (this.$refs.thirdPartyPanel) {
+        const listWrapEl = this.$refs.thirdPartyPanel.$el.querySelector('.third-party-list');
+        if (listWrapEl) {
+          listWrapEl.removeEventListener('scroll', this.handleThirdParPluginScroll, false);
+        }
+      }
     },
     methods: {
       getApiTabList() {
@@ -341,8 +361,10 @@
       },
       // 设置第三方插件滚动加载事件
       setThirdParScrollLoading() {
+        if (!this.$refs.thirdPartyPanel) return;
         // 设置滚动加载
         const listWrapEl = this.$refs.thirdPartyPanel.$el.querySelector('.third-party-list');
+        if (!listWrapEl) return;
         listWrapEl.addEventListener('scroll', this.handleThirdParPluginScroll, false);
         const { height } = listWrapEl.getBoundingClientRect();
 
