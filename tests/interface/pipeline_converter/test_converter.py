@@ -96,6 +96,38 @@ class TestConverterLinearFlow(TestCase):
 
     @patch(BKPLUGIN_PATCH)
     @patch(COMPONENT_PATCH)
+    def test_convert_with_metadata_keeps_legacy_convert_contract(self, mock_cm, mock_bkp):
+        """convert() 仍只返回 pipeline tree；convert_with_metadata 额外返回指纹和源映射。"""
+        from bkflow.pipeline_converter.converters.a2flow_v2.data_models import (
+            ConversionResult,
+        )
+
+        _mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"]})
+        mock_bkp.objects.filter.return_value.exists.return_value = False
+
+        Converter = _get_converter_class()
+        a2flow_data = {
+            "version": "2.0",
+            "name": "简单流程",
+            "nodes": [
+                {"id": "n1", "name": "等待", "code": "sleep_timer", "data": {"bk_timing": 5}, "next": "end"},
+            ],
+        }
+        converter = Converter(a2flow_data, space_id=1)
+        tree = converter.convert()
+        self.assertIsInstance(tree, dict)
+        self.assertIn("activities", tree)
+
+        metadata = Converter(a2flow_data, space_id=1).convert_with_metadata()
+        self.assertIsInstance(metadata, ConversionResult)
+        self.assertIn("activities", metadata.pipeline_tree)
+        self.assertTrue(metadata.converter_fingerprint)
+        self.assertIn("n1", metadata.source_map)
+        self.assertIn("start", metadata.source_map)
+        self.assertIn("end", metadata.source_map)
+
+    @patch(BKPLUGIN_PATCH)
+    @patch(COMPONENT_PATCH)
     def test_two_activities_linear(self, mock_cm, mock_bkp):
         """2 个 Activity 串行"""
         _mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"], "bk_notify": ["v1.0.0"]})

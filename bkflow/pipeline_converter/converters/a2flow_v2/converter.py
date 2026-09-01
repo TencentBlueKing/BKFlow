@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import hashlib
 import logging
 import uuid
 from collections import defaultdict, deque
@@ -30,6 +31,7 @@ from bkflow.pipeline_converter.constants import (
 from bkflow.pipeline_converter.converters.a2flow_v2.data_models import (
     A2FlowNode,
     A2FlowPipeline,
+    ConversionResult,
 )
 from bkflow.pipeline_converter.converters.a2flow_v2.gateway_builder import build_gateway
 from bkflow.pipeline_converter.converters.a2flow_v2.node_builder import (
@@ -52,6 +54,7 @@ from bkflow.pipeline_converter.exceptions import (
 from bkflow.template.models import Template, TemplateSnapshot
 
 logger = logging.getLogger("root")
+CONVERTER_FINGERPRINT = hashlib.sha256(b"bkflow.pipeline_converter.a2flow_v2:1").hexdigest()
 
 
 class A2FlowV2Converter:
@@ -78,6 +81,11 @@ class A2FlowV2Converter:
         self.scope_value = scope_value
 
     def convert(self) -> dict:
+        """兼容旧契约，只返回 pipeline tree。"""
+        return self.convert_with_metadata().pipeline_tree
+
+    def convert_with_metadata(self) -> ConversionResult:
+        """执行与 convert() 相同的转换路径，并返回指纹与源映射。"""
         pipeline = A2FlowPipeline(**self.a2flow_data)
         pipeline.version = normalize_a2flow_version(pipeline.version)
         if pipeline.version != "2.0":
@@ -191,7 +199,7 @@ class A2FlowV2Converter:
             self._remap_variable_source_info(var, id_mapping)
             constants[var.key] = build_constant(var, idx)
 
-        return {
+        pipeline_tree = {
             "activities": activities,
             "gateways": gateways,
             "flows": flows,
@@ -201,6 +209,11 @@ class A2FlowV2Converter:
             "outputs": [],
             "canvas_mode": "horizontal",
         }
+        return ConversionResult(
+            pipeline_tree=pipeline_tree,
+            converter_fingerprint=CONVERTER_FINGERPRINT,
+            source_map=id_mapping,
+        )
 
     def _inject_start_end(self, nodes):
         has_start = any(n.type == NodeType.START_EVENT for n in nodes)

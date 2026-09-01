@@ -16,12 +16,22 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 from pipeline.variable_framework.models import VariableModel
 from pydantic import BaseModel, Field, root_validator, validator
 
 from bkflow.pipeline_converter.constants import A2FlowPluginType, NodeType
+
+
+@dataclass(frozen=True)
+class ConversionResult:
+    """带转换元数据的 a2flow 转换结果，不改变 legacy convert() 契约。"""
+
+    pipeline_tree: Dict[str, Any]
+    converter_fingerprint: str
+    source_map: Dict[str, str]
 
 
 class A2FlowCondition(BaseModel):
