@@ -69,6 +69,7 @@
             this.loadCurSpacePermission();
           }
         },
+        immediate: true,
       },
     },
     methods: {

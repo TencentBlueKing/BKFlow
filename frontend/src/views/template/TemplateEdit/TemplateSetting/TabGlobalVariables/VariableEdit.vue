@@ -313,6 +313,11 @@
         type: [String, Number],
         default: '',
       },
+      // 是否直接调用store保存变量（外层全局变量面板为 true，循环流内部变量面板为 false）
+      useStoreDirectly: {
+        type: Boolean,
+        default: true,
+      },
     },
     data() {
       const theEditingData = tools.deepClone(this.variableData);
@@ -1054,12 +1059,16 @@
               );
             }
             this.$emit('setNewCloneKeys', variable.key);
-            this.addVariable(tools.deepClone(variable));
+            if (this.useStoreDirectly) {
+              this.addVariable(tools.deepClone(variable));
+            }
           } else { // 编辑变量
-            this.editVariable({ key: this.variableData.key, variable });
-            // 如果全局变量有被勾选为输出，修改变量 key 后需要更新 outputs 字段
-            if (this.variableData.key !== this.theEditingData.key && this.outputs.includes(this.variableData.key)) {
-              this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
+            if (this.useStoreDirectly) {
+              this.editVariable({ key: this.variableData.key, variable });
+              // 如果全局变量有被勾选为输出，修改变量 key 后需要更新 outputs 字段
+              if (this.variableData.key !== this.theEditingData.key && this.outputs.includes(this.variableData.key)) {
+                this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
+              }
             }
           }
           this.$emit('onSaveEditing', this.theEditingData);

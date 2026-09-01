@@ -20,7 +20,7 @@
           ref="renderForm"
           :scheme="inputs"
           :hooked="hooked"
-          :constants="isSubFlow ? subFlowForms : constants"
+          :constants="(isSubFlow || isSubCanvas) ? subFlowForms : constants"
           :form-option="option"
           :form-data="inputsFormData"
           :render-config="inputsRenderConfig" />
@@ -145,6 +145,10 @@
         default: () => ({}),
       },
       isSubFlow: {
+        type: Boolean,
+        default: false,
+      },
+      isSubCanvas: {
         type: Boolean,
         default: false,
       },

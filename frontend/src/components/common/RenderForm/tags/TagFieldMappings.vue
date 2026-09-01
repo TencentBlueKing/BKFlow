@@ -101,6 +101,10 @@
         type: Object,
         default: () => ({}),
       },
+      outerConstants: {
+        type: Object,
+        default: () => ({}),
+      },
     },
     data() {
       // 将对象转换为数组用于显示
@@ -119,7 +123,7 @@
         internalVariable: state => state.template.internalVariable,
       }),
       constantArr() {
-        return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow, this.subflowLoopVars);
+        return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow, this.subflowLoopVars, this.outerConstants);
       },
       keyRules() {
         return [
