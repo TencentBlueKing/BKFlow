@@ -1129,9 +1129,9 @@
       async getLoopGroupOutputs() {
         try {
           const has = Object.prototype.hasOwnProperty;
-          const subprocessPlugin = this.atomList.find(item => item.code === 'subcanvas_plugin');
-          const subprocessPluginVersion = subprocessPlugin?.list?.[0]?.version || '';
-          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion, code: 'subcanvas_plugin' });
+          const subcanvasPlugin = this.atomList.find(item => item.code === 'subcanvas_plugin');
+          const subcanvasPluginVersion = subcanvasPlugin?.list?.[0]?.version || '';
+          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subcanvasPluginVersion, code: 'subcanvas_plugin' });
           const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
             if (item.key === 'outputs') {
               acc[item.key] = item;
