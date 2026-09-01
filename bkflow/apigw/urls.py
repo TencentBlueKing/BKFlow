@@ -66,6 +66,18 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.grant_apigw_permissions_to_app import (
         grant_apigw_permissions_to_app,
     )
+    from bkflow.apigw.views.harness.capabilities import (
+        get_plugin_schema as harness_get_plugin_schema,
+    )
+    from bkflow.apigw.views.harness.capabilities import (
+        search_workflow_capabilities as harness_search_workflow_capabilities,
+    )
+    from bkflow.apigw.views.harness.workflow import (
+        create_workflow_draft as harness_create_workflow_draft,
+    )
+    from bkflow.apigw.views.harness.workflow import (
+        validate_workflow as harness_validate_workflow,
+    )
     from bkflow.apigw.views.list_plugins import list_plugins
     from bkflow.apigw.views.operate_task import operate_task, update_task_labels
     from bkflow.apigw.views.operate_task_by_app import operate_task_by_app
@@ -133,6 +145,13 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^space/(?P<space_id>\d+)/list_plugins/$", list_plugins),
         url(r"^space/(?P<space_id>\d+)/get_plugin_schema/$", get_plugin_schema),
         url(r"^space/(?P<space_id>\d+)/validate_a2flow/$", validate_a2flow),
+        url(
+            r"^space/(?P<space_id>\d+)/harness/search_workflow_capabilities/$",
+            harness_search_workflow_capabilities,
+        ),
+        url(r"^space/(?P<space_id>\d+)/harness/get_plugin_schema/$", harness_get_plugin_schema),
+        url(r"^space/(?P<space_id>\d+)/harness/validate_workflow/$", harness_validate_workflow),
+        url(r"^space/(?P<space_id>\d+)/harness/create_workflow_draft/$", harness_create_workflow_draft),
         url(r"^space/(?P<space_id>\d+)/create_variable/$", create_variable),
         url(r"^space/(?P<space_id>\d+)/variable/(?P<variable_id>\d+)/update_variable/$", update_variable),
         url(r"^space/(?P<space_id>\d+)/get_variable_list/$", get_variable_list),

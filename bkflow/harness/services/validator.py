@@ -212,6 +212,11 @@ def _fail_envelope(
 def validate_workflow(request: Any, space_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
     """确定性校验 a2flow，并在成功时创建不可变修订。"""
     context = TrustedHarnessContext.from_request(request, space_id)
+    return validate_workflow_with_context(context, payload)
+
+
+def validate_workflow_with_context(context: TrustedHarnessContext, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """在已推导可信上下文后执行校验。"""
     idempotency_key = payload.get("idempotency_key")
     if not idempotency_key:
         return _fail_envelope(None, context, [_error("USER_INPUT", "idempotency_key is required")])

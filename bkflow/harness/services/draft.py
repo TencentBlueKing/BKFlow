@@ -71,6 +71,11 @@ def _fail(run: Optional[HarnessRun], context: TrustedHarnessContext, errors: Lis
 def create_workflow_draft(request: Any, space_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
     """基于已接受修订创建或原位更新 Harness 管理的模板草稿。"""
     context = TrustedHarnessContext.from_request(request, space_id)
+    return create_workflow_draft_with_context(context, payload)
+
+
+def create_workflow_draft_with_context(context: TrustedHarnessContext, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """在已推导可信上下文后创建草稿。"""
     idempotency_key = payload.get("idempotency_key")
     if not idempotency_key:
         return _fail(None, context, [_error("USER_INPUT", "idempotency_key is required")])
