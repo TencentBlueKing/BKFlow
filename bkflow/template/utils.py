@@ -52,9 +52,10 @@ def _validate_gateways(pipeline_tree, expected_expression):
                     f"'{parse_lang}' does not match space config '{expected_expression}'"
                 )
 
-    # 递归校验子流程 SubCanvas 通过 pipeline 内嵌子流程，SubProcess 没有pipeline对象
+    # 递归校验子流程 SubCanvas / SubProcess 中的网关表达式
+    # 仓库协议数据中两者都可能携带 pipeline 对象
     for activity in pipeline_tree.get("activities", {}).values():
-        if activity.get("type") == "SubCanvas":
+        if activity.get("type") in ("SubCanvas", "SubProcess"):
             subprocess_pipeline = activity.get("pipeline")
             if subprocess_pipeline:
                 _validate_gateways(subprocess_pipeline, expected_expression)

@@ -20,10 +20,12 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
 from django_filters import FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from pipeline.component_framework.models import ComponentModel
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
@@ -115,7 +117,14 @@ class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
         if space_plugins:
             queryset = queryset.exclude(code__in=list(space_plugins))
 
-        if not validated.get("skip_space_config", False):
+        if validated.get("skip_space_config", False):
+            # skip_space_config 仅允许系统管理员或空间管理员使用，防止普通 Token 绕过插件过滤
+            if not (
+                self.request.user.is_superuser
+                or PluginSpaceSuperuserPermission().has_permission(self.request, self)
+            ):
+                raise PermissionDenied(_("仅系统管理员或空间管理员可使用 skip_space_config 参数"))
+        else:
             # 过滤空间配置插件
             scope_type = validated.get("scope_type")
             scope_id = validated.get("scope_id")

@@ -80,6 +80,13 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
         except ValidationError as e:
             logger.exception(f"[validate_configs] error: {e}")
             raise serializers.ValidationError(e.message)
+
+        # 批量入口不处理 REF 类型配置，避免只更新 Interface 而漏掉引擎同步
+        for name in configs:
+            if SpaceConfigHandler.get_config(name).value_type == SpaceConfigValueType.REF.value:
+                raise serializers.ValidationError(
+                    _("批量应用暂不支持引用类型配置: {name}").format(name=name)
+                )
         return configs
 
 
