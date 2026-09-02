@@ -113,54 +113,56 @@
 </template>
 
 <script>
+  import i18n from '@/config/i18n/index.js';
+
   const OPTION_GUIDES_BY_NAME = {
     gateway_expression: {
       boolrule: {
         title: 'Boolrule',
         syntax: [
-          { label: this.$t('比较运算符'), tokens: ['==', '!=', '>', '>=', '<=', 'in', 'notin'] },
-          { label: this.$t('逻辑关键词'), tokens: ['and', 'or', 'True / true', 'False / false'] },
-          { label: this.$t('变量引用'), text: '支持 ${key}、${int(key)}' },
+          { label: i18n.t('比较运算符'), tokens: ['==', '!=', '>', '>=', '<=', 'in', 'notin'] },
+          { label: i18n.t('逻辑关键词'), tokens: ['and', 'or', 'True / true', 'False / false'] },
+          { label: i18n.t('变量引用'), text: '支持 ${key}、${int(key)}' },
         ],
         examples: [
-          { scene: this.$t('字符串比较'), expr: '"${status}" == "success"' },
-          { scene: this.$t('数值比较'), expr: '${int(retry)} >= 3' },
-          { scene: this.$t('包含判断'), expr: '"${env}" in ("prod", "stage")' },
+          { scene: i18n.t('字符串比较'), expr: '"${status}" == "success"' },
+          { scene: i18n.t('数值比较'), expr: '${int(retry)} >= 3' },
+          { scene: i18n.t('包含判断'), expr: '"${env}" in ("prod", "stage")' },
         ],
-        tip: this.$t('前提：status / retry / env 为流程全局变量。'),
-        docText: this.$t('Boolrule 表达式文档'),
+        tip: i18n.t('前提：status / retry / env 为流程全局变量。'),
+        docText: i18n.t('Boolrule 表达式文档'),
         docLink: 'https://boolrule.readthedocs.io/en/latest/expressions.html#basic-comparison-operators',
       },
       FEEL: {
         title: 'FEEL',
         syntax: [
-          { label: this.$t('比较运算符'), tokens: ['=', '!=', '>', '>=', '<', '<='] },
-          { label: this.$t('逻辑关键词'), tokens: ['and', 'or', 'true', 'false'] },
-          { label: this.$t('变量引用'), tokens: ['${key}', '${int(key)}', '支持 list contains'] },
+          { label: i18n.t('比较运算符'), tokens: ['=', '!=', '>', '>=', '<', '<='] },
+          { label: i18n.t('逻辑关键词'), tokens: ['and', 'or', 'true', 'false'] },
+          { label: i18n.t('变量引用'), tokens: ['${key}', '${int(key)}', '支持 list contains'] },
         ],
         examples: [
-          { scene: this.$t('字符串比较'), expr: '"${env}" = "prod"' },
-          { scene: this.$t('数值比较'), expr: '${int(retry)} >= 3' },
-          { scene: this.$t('包含判断'), expr: 'list contains([1, 2, 3], ${int(retry)})' },
+          { scene: i18n.t('字符串比较'), expr: '"${env}" = "prod"' },
+          { scene: i18n.t('数值比较'), expr: '${int(retry)} >= 3' },
+          { scene: i18n.t('包含判断'), expr: 'list contains([1, 2, 3], ${int(retry)})' },
         ],
-        tip: this.$t('前提：字符串比较用 =, 不要写成 ==。'),
-        docText: this.$t('bkflow-feel 语法文档'),
+        tip: i18n.t('前提：字符串比较用 =, 不要写成 ==。'),
+        docText: i18n.t('bkflow-feel 语法文档'),
         docLink: 'https://github.com/TencentBlueKing/bkflow-feel/blob/main/docs/grammer.md',
       },
       MAKO: {
         title: 'MAKO',
         syntax: [
-          { label: this.$t('比较运算符'), tokens: ['==', '!=', '>', '>=', '<=', 'in', 'not in'] },
-          { label: this.$t('逻辑关键词'), tokens: ['and', 'or', 'not', 'True', 'False'] },
-          { label: this.$t('变量引用'), text: '直接引用变量名 key, 不要包 ${}' },
+          { label: i18n.t('比较运算符'), tokens: ['==', '!=', '>', '>=', '<=', 'in', 'not in'] },
+          { label: i18n.t('逻辑关键词'), tokens: ['and', 'or', 'not', 'True', 'False'] },
+          { label: i18n.t('变量引用'), text: '直接引用变量名 key, 不要包 ${}' },
         ],
-        warning: this.$t('因 MAKO 语法限制：请勿在表达式中使用 $、{、} 字符。误用会导致分支条件解析失败。'),
+        warning: i18n.t('因 MAKO 语法限制：请勿在表达式中使用 $、{、} 字符。误用会导致分支条件解析失败。'),
         examples: [
-          { scene: this.$t('字符串比较'), expr: 'key == "3"' },
-          { scene: this.$t('数值比较'), expr: 'int(key) >= 3' },
-          { scene: this.$t('包含判断'), expr: 'int(key) in (1,2,3)' },
+          { scene: i18n.t('字符串比较'), expr: 'key == "3"' },
+          { scene: i18n.t('数值比较'), expr: 'int(key) >= 3' },
+          { scene: i18n.t('包含判断'), expr: 'int(key) in (1,2,3)' },
         ],
-        docText: this.$t('MAKO 无独立语法站点，以本页与分支条件侧滑说明为准。'),
+        docText: i18n.t('MAKO 无独立语法站点，以本页与分支条件侧滑说明为准。'),
       },
     },
   };
