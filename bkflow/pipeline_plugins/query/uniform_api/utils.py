@@ -276,9 +276,10 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
         if self.from_apigw_check and self.check_url_from_apigw(url) is False:
             raise APIRequestError(f"check url from apigw fail: {url}")
 
+        username = kwargs.pop("username", None)
         if headers is None:
             headers = self.gen_default_apigw_header(
-                app_code=settings.BK_APP_CODE, app_secret=settings.BK_APP_SECRET, username=kwargs.get("username")
+                app_code=settings.BK_APP_CODE, app_secret=settings.BK_APP_SECRET, username=username
             )
 
         timeout = kwargs.pop("timeout", self.TIMEOUT)

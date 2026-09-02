@@ -110,3 +110,15 @@ class SpaceOpenPluginBulkActionSerializer(serializers.Serializer):
 class SpaceOpenPluginDisableSourceSerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
     source_key = serializers.CharField(help_text=_("开放插件来源标识"))
+
+
+class SpacePluginConfigQuerySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    config_name = serializers.CharField(help_text=_("配置名称，仅支持 space_plugin_config"))
+
+    def validate_config_name(self, value):
+        from bkflow.space.configs import SpacePluginConfig
+
+        if value != SpacePluginConfig.name:
+            raise serializers.ValidationError(_("只能查询空间插件配置"))
+        return value

@@ -47,8 +47,10 @@ from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
     SpaceConfigHandler,
     SpaceConfigVerifyNotSupported,
+    SpacePluginConfig,
     SuperusersConfig,
 )
+
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import (
     Credential,
@@ -70,6 +72,8 @@ from bkflow.space.serializers import (
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
     SpaceConfigSerializer,
+    SpacePluginConfigQuerySerializer,
+
     SpaceOpenPluginBulkActionSerializer,
     SpaceOpenPluginDisableSourceSerializer,
     SpaceOpenPluginListQuerySerializer,
@@ -428,7 +432,7 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         try:
             # 注入操作人
             params = dict(data.get("params", {}))
-            params.setdefault("operator", getattr(request.user, "username", "admin"))
+            params["operator"] = request.user.username
             params.pop("space_id", None)
             params.pop("value", None)
             verify_data = config_cls.verify(
@@ -567,11 +571,14 @@ class SpaceConfigViewSet(ModelViewSet, SimpleGenericViewSet):
             logger.error(err_msg)
             return Response(exception=True, data={"detail": err_msg})
 
-    @swagger_auto_schema(method="get", operation_summary="获取空间下所有配置", query_serializer=SpaceConfigBaseQuerySerializer)
+    @swagger_auto_schema(
+        method="get", operation_summary="获取空间插件配置", query_serializer=SpacePluginConfigQuerySerializer
+    )
     @action(detail=False, methods=["GET"])
-    def get_space_configs(self, request, *args, **kwargs):
-        ser = SpaceConfigBaseQuerySerializer(data=request.query_params)
+    def get_space_plugin_config(self, request, *args, **kwargs):
+        ser = SpacePluginConfigQuerySerializer(data=request.query_params)
         ser.is_valid(raise_exception=True)
-        return Response(
-            SpaceConfig.objects.get_space_config_info(space_id=ser.validated_data["space_id"], simplified=False)
+        value = SpaceConfig.get_config(
+            space_id=ser.validated_data["space_id"], config_name=SpacePluginConfig.name
         )
+        return Response({"value": value})

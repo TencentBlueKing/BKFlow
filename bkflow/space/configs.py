@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import logging
+import time
 from enum import Enum
 from typing import Dict, Optional, Type
 
@@ -412,6 +413,12 @@ class UniformApiConfig(BaseSpaceConfig):
         DEFAULT_DISPLAY_NAME = "API插件"
         DEFAULT_API_KEY = "default"
 
+    # 一键验证接口的资源/时间上限，可通过 settings 覆盖
+    MAX_VERIFY_CATEGORIES = getattr(settings, "UNIFORM_API_VERIFY_MAX_CATEGORIES", 50)
+    MAX_VERIFY_LIST_REQUESTS = getattr(settings, "UNIFORM_API_VERIFY_MAX_LIST_REQUESTS", 50)
+    MAX_VERIFY_META_SAMPLES = getattr(settings, "UNIFORM_API_VERIFY_MAX_META_SAMPLES", 5)
+    MAX_VERIFY_TOTAL_TIMEOUT = getattr(settings, "UNIFORM_API_VERIFY_MAX_TOTAL_TIMEOUT", 60)  # 秒
+
     @classmethod
     def check_url(cls, value):
         meta_apis_from_apigw = check_url_from_apigw(value.get(cls.Keys.META_APIS.value))
@@ -453,6 +460,9 @@ class UniformApiConfig(BaseSpaceConfig):
                 value = config_obj.json_value if config_obj.value_type == SpaceConfigValueType.JSON.value else {}
             else:
                 value = {}
+        else:
+            # 对请求体传入的待验证值先执行基础校验
+            cls.validate(value)
 
         try:
             model = UniformAPIConfigHandler(value).handle()
@@ -491,26 +501,48 @@ class UniformApiConfig(BaseSpaceConfig):
         if not content.get("bk_app_code") or not content.get("bk_app_secret"):
             raise ValidationError(f"[uniform_api verify] 凭证 {credential_name} 缺少 bk_app_code/bk_app_secret")
 
-        client = UniformAPIClient(from_apigw_check=False)
+        client = UniformAPIClient()
         headers = client.gen_default_apigw_header(
             app_code=content["bk_app_code"],
             app_secret=content["bk_app_secret"],
-            username=operator or "admin",
+            username=operator,
         )
         logger.info(
             f"[uniform_api verify] 测试用凭证.credential_name: {credential_name},app_code: {content['bk_app_code']}，"
             f"app_secret: ******，username：{operator}")
+
+        # 整体验证时间预算控制
+        start_time = time.time()
+
+        def _check_timeout():
+            if time.time() - start_time > cls.MAX_VERIFY_TOTAL_TIMEOUT:
+                raise ValidationError(
+                    f"[uniform_api verify] 验证总耗时超过 {cls.MAX_VERIFY_TOTAL_TIMEOUT} 秒，请检查接口响应速度"
+                )
+
         # 1. 调用 category_list 接口 → 获取分类列表
+        _check_timeout()
         cat_result = client.request(
             url=api_categories_url,
             method="GET",
             data={},
             headers=headers,
-            username=operator
+            username=operator,
+            allow_redirects=False,
         )
         if not cat_result.result:
             raise ValidationError(f"[uniform_api verify] categories 接口请求失败: {cat_result.message}")
+        # 校验 category_list 响应协议，避免字段缺失被误报为 ok
+        client.validate_response_data(
+            cat_result.json_resp.get("data", []),
+            client.UNIFORM_API_CATEGORY_LIST_RESPONSE_DATA_SCHEMA,
+        )
         categories_info = cat_result.json_resp.get('data') or []
+        if len(categories_info) > cls.MAX_VERIFY_CATEGORIES:
+            logger.warning(
+                f"[uniform_api verify] 分类数量({len(categories_info)})超过上限{cls.MAX_VERIFY_CATEGORIES}，已截断"
+            )
+            categories_info = categories_info[: cls.MAX_VERIFY_CATEGORIES]
         category_length = len(categories_info)
 
         # 先解析 categories 方便后续使用
@@ -526,26 +558,38 @@ class UniformApiConfig(BaseSpaceConfig):
 
         # 2. 调用 list 接口 → 获取接口总数和列表（用第一个分类做 category 参数）
         list_request_data = {
-            "limit": 50,
+            "limit": cls.MAX_VERIFY_LIST_REQUESTS,
             "offset": 0,
         }
 
         api_list = []
         api_length = 0
-        for category in categories:
+        for index, category in enumerate(categories):
+            if index >= cls.MAX_VERIFY_LIST_REQUESTS:
+                logger.warning(
+                    f"[uniform_api verify] list 请求次数达到上限{cls.MAX_VERIFY_LIST_REQUESTS}，已停止继续请求"
+                )
+                break
+            _check_timeout()
             list_request_data["category"] = category
             list_result = client.request(
                 url=meta_url,
                 method="GET",
                 data=list_request_data,
                 headers=headers,
-                username=operator
+                username=operator,
+                allow_redirects=False,
             )
 
             if not list_result.result:
                 logger.error(
                     f"[uniform_api verify] list 接口请求失败: {list_result.message},data: {str(list_request_data)}")
                 raise ValidationError(f"[uniform_api verify] list 接口请求失败: {list_result.message}")
+            # 校验 list 响应协议
+            client.validate_response_data(
+                list_result.json_resp.get("data", {}),
+                client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA,
+            )
             list_data = list_result.json_resp.get("data", {})
             api_length += list_data.get("total", 0)
 
@@ -557,19 +601,30 @@ class UniformApiConfig(BaseSpaceConfig):
         # 3. 调用 meta 接口 → 取 list 返回的最多 5 个 api 的 meta_url
         samples = []
         for item in api_list:
-            if len(samples) > 5:
+            if len(samples) >= cls.MAX_VERIFY_META_SAMPLES:
                 break
             meta_url_detail = item.get("meta_url")
             if not meta_url_detail:
                 continue
+            _check_timeout()
             meta_result = client.request(
-                url=meta_url_detail, method="GET", data={}, headers=headers, username=operator or "admin"
+                url=meta_url_detail,
+                method="GET",
+                data={},
+                headers=headers,
+                username=operator,
+                allow_redirects=False,
             )
             if not meta_result.result:
                 logger.error(
                     f"[uniform_api verify] meta_url_detail 接口请求失败: {meta_result.message},"
                     f"meta_url_detail: {meta_url_detail}")
                 raise ValidationError(f"[uniform_api verify] meta_url_detail 接口请求失败: {meta_result.message}")
+            # 校验 meta 响应协议
+            client.validate_response_data(
+                meta_result.json_resp.get("data", {}),
+                client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA,
+            )
             meta_data = meta_result.json_resp.get("data", {})
             samples.append({
                 "id": meta_data.get("id", ""),
