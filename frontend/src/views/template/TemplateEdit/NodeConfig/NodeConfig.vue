@@ -61,6 +61,7 @@
           :scope-info="scopeInfo"
           :space-id="spaceId"
           :space-related-config="spaceRelatedConfig"
+          :is-plugin-scope-hidden="isPluginScopeHidden"
           @back="isSelectorPanelShow = false"
           @viewSubflow="onViewSubflow"
           @select="onPluginOrTplChange" />
@@ -384,6 +385,10 @@
         default: () => ({}),
       },
       isEnableVersionManage: Boolean,
+      isPluginScopeHidden: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {

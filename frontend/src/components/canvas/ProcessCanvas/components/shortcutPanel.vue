@@ -291,6 +291,8 @@
         ];
         // 如果是复制操作且不需要插入，直接创建节点并返回
         if (isFillParam && !insert) {
+          // 调整新节点位置，避免与画布上已有节点重叠
+          this.adjustNewNodePosition(location, type);
           const copyData = type === 'SubCanvas' ? { ...currLoc.data, isCopy: true } : currLoc.data;
           const nodeInstance = this.createNode(type, location, copyData);
           nodeInstance.setData({ oldSouceId: id, id: nodeInstance.id }, { silent: false });
@@ -354,6 +356,8 @@
           location.y = parallelY + 100;
           location.x = parallelX;
         }
+        // 调整新节点位置，避免与画布上已有节点重叠
+        this.adjustNewNodePosition(location, type);
         // 克隆节点
         let nodeInstance;
         if (insert) {
@@ -378,6 +382,46 @@
         // 分组容器自适应（如果新节点在分组内）
         if (loopGroupParent) {
           this.$emit('onFitCanvas', loopGroupParent.id);
+        }
+      },
+      /**
+       * 调整新增节点的位置，避免与画布上已有节点重叠
+       * @param {Object} location 新节点初始位置，x/y 会被就地调整
+       * @param {String} type 新节点类型
+       */
+      adjustNewNodePosition(location, type) {
+        const newNodeWidth = type === 'task' || type === 'subflow' ? 154 : 34;
+        const newNodeHeight = type === 'task' || type === 'subflow' ? 54 : 34;
+        // 过滤掉竖版画布的虚拟群组节点（无实际位置）
+        const nodes = this.instance.getNodes().filter(node => !(node.data && node.data.type === 'group'));
+        // 判断位于 (x, y) 的新节点矩形是否与已有节点重叠
+        const isOverlap = (x, y) => nodes.some((node) => {
+          const { x: nodeX, y: nodeY } = node.position();
+          const { width, height } = node.size();
+          return x < nodeX + width
+            && x + newNodeWidth > nodeX
+            && y < nodeY + height
+            && y + newNodeHeight > nodeY;
+        });
+        if (!isOverlap(location.x, location.y)) return;
+        // 分别沿水平/垂直方向按步进寻找最近的空白位置，取偏移量较小的方向
+        const findNearestOffset = (axis) => {
+          const step = 50;
+          for (let i = 1; i <= 20; i += 1) {
+            const offset = step * i;
+            const x = axis === 'x' ? location.x + offset : location.x;
+            const y = axis === 'y' ? location.y + offset : location.y;
+            if (!isOverlap(x, y)) return offset;
+          }
+          return null;
+        };
+        const offsetX = findNearestOffset('x');
+        const offsetY = findNearestOffset('y');
+        if (offsetX === null && offsetY === null) return; // 两个方向均找不到空位时保持原位置
+        if (offsetX !== null && (offsetY === null || offsetX <= offsetY)) {
+          location.x += offsetX;
+        } else {
+          location.y += offsetY;
         }
       },
       /**
