@@ -29,10 +29,10 @@ class TestSubprocessPluginExecuteStartResult:
     def _execute_with_start_result(self, mocker, start_result):
         service = SubprocessPluginService()
         parent_task = mocker.Mock(id=11, creator="alice")
-        child_task = mocker.Mock(id=99)
+        child_task = mocker.Mock(id=99, pipeline_tree={"constants": {}})
         data = DataObject(inputs={"subprocess": {}})
         parent_data = DataObject(inputs={"task_id": parent_task.id})
-        template = {"data": {"pipeline_tree": {"constants": {}}}}
+        template = {"data": {"pipeline_tree": {"constants": {}}, "notify_config": {}}}
         subprocess = mocker.Mock()
 
         mocker.patch.object(service, "_get_subprocess_template", return_value=(template, subprocess))
@@ -40,6 +40,7 @@ class TestSubprocessPluginExecuteStartResult:
         mocker.patch.object(service, "_render_parent_parameters")
         mocker.patch.object(service, "_create_subprocess_task_instance", return_value=child_task)
         mocker.patch("bkflow.task.models.TaskInstance.objects.get", return_value=parent_task)
+        mocker.patch("bkflow.pipeline_plugins.components.collections.subprocess_plugin.v1_0_0.InterfaceModuleClient")
         mock_operation = mocker.patch("bkflow.task.operations.TaskOperation").return_value
         mock_operation.start.return_value = start_result
 
@@ -87,15 +88,13 @@ class TestSubprocessPluginExecuteStartResult:
         mocker.patch.object(service, "_get_subprocess_template", return_value=(template, mocker.Mock()))
         mocker.patch.object(service, "_process_subprocess_constants")
         mocker.patch.object(service, "_render_parent_parameters")
-        create_mock = mocker.patch.object(service, "_create_subprocess_task_instance")
-        mocker.patch("bkflow.task.models.TaskInstance.objects.get", return_value=parent_task)
-        mocker.patch(
-            "bkflow.pipeline_plugins.components.collections.subprocess_plugin.v1_0_0.prepare_engine_task_extra_info",
-            side_effect=ValidationError("开放插件快照构建失败"),
+        create_mock = mocker.patch.object(
+            service, "_create_subprocess_task_instance", side_effect=ValidationError("开放插件快照构建失败")
         )
+        mocker.patch("bkflow.task.models.TaskInstance.objects.get", return_value=parent_task)
 
         result = service.plugin_execute(data, parent_data)
 
         assert result is False
         assert "快照" in data.get_one_of_outputs("ex_data")
-        create_mock.assert_not_called()
+        create_mock.assert_called_once()

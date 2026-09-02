@@ -169,9 +169,13 @@ function buildValidation(field) {
 function getComponentAttrs(field, renderType) {
   const supportedComponent = ['input', 'bk-input', 'bfInput'].includes(field.uiComponent)
     || !!COMPONENT_TYPE_MAP[field.uiComponent];
-  if (!supportedComponent) return {};
-
-  const attrs = { ...(field.uiComponentProps || {}) };
+  const attrs = {};
+  if (hasOwn(field, 'hint')) attrs.placeholder = field.hint;
+  if (renderType === 'select') {
+    if (hasOwn(field, 'multiple')) attrs.multiple = field.multiple;
+    if (hasOwn(field, 'allow_create')) attrs.allowCreate = field.allow_create;
+  }
+  if (supportedComponent) Object.assign(attrs, field.uiComponentProps || {});
   delete attrs.datasource;
   if (renderType === 'select') {
     if (hasOwn(attrs, 'allow_create')) {

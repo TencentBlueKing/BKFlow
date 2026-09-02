@@ -480,3 +480,12 @@ class WebhookConfigQuerySerializer(serializers.Serializer):
     endpoint = serializers.URLField(help_text=_("webhook endpoint"), max_length=255, required=True)
     headers = serializers.JSONField(help_text=_("webhook headers"), required=False)
     authorization = serializers.JSONField(help_text=_("webhook authorization"), required=False)
+
+
+class TemplatePrepareExtraInfoSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(required=True, help_text=_("空间ID"))
+    pipeline_tree = serializers.JSONField(required=True, help_text=_("流程树"))
+    extra_info = serializers.JSONField(required=False, allow_null=True, help_text=_("已有扩展信息"))
+    username = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text=_("操作人"))
+    scope_type = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text=_("作用域类型"))
+    scope_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text=_("作用域ID"))

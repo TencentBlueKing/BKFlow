@@ -247,9 +247,16 @@ GET /open-plugins/open_plugin_001?version=1.2.0&source_key=sops&scope_type=biz&s
 | `forms` | object | 否 | 原生输入/输出表单描述；未提供时根据 `inputs/form_schema` 构造通用表单 |
 | `form_schema` | object | 否 | 通用 JSON Schema；存在 `properties` 时优先于 `inputs` 生成通用表单 |
 | `form_context` | object | 否 | 原生表单运行上下文 |
-| `polling` | object | 条件必填 | 使用轮询时必填 |
+| `polling` | object | 条件必填 | 使用轮询时必填；省略或返回 `{}` 表示不轮询 |
 | `callback` | object | 条件必填 | 使用回调时建议返回 `{"enabled": true}` |
 | `credential_key` | string | 否 | 执行、轮询和取消请求使用的凭证标识 |
+
+`polling` 的兼容规则：
+
+- 同步插件或仅依赖回调的插件可以省略 `polling`，也可以返回 `"polling": {}`，两者均表示不启用轮询。
+- 非空对象仍须完整包含 `url`、`task_tag_key`、`success_tag`、`fail_tag`、`running_tag`；三个状态标记须为包含 `key`、`value` 的对象，并满足各字段的类型约束。
+- 不接受 `null`、数组、字符串等非对象类型，也不接受仅含部分字段的非空配置。
+- 这项兼容不改变运行状态要求：仅回调时使用 `WAITING_CALLBACK`；返回 `CREATED` 或 `RUNNING` 仍必须提供完整的轮询配置。
 
 ## 7. 表单协议
 

@@ -108,3 +108,66 @@ class TestDependency:
         graph = build_dependency_graph(pipeline)
         # 数据流：A 产出 ${g1}，C 在嵌套列表中消费 -> A -> C
         assert "C" in graph["data"]["A"]
+
+    def test_subcanvas_config_hash_tracks_inner_pipeline_and_loop_config(self):
+        subcanvas = {
+            "id": "S",
+            "type": "SubCanvas",
+            "optional": True,
+            "loop_config": {"enable": True, "type": "time_loop", "loop_times": 2},
+            "pipeline": {
+                "activities": {
+                    "I": {
+                        "id": "I",
+                        "type": "ServiceActivity",
+                        "component": {"code": "test", "data": {"x": {"hook": False, "value": "1"}}},
+                    }
+                },
+                "flows": {},
+                "gateways": {},
+                "constants": {},
+                "outputs": [],
+            },
+        }
+        original_hash = compute_node_config_hash(subcanvas)
+
+        inner_changed = copy.deepcopy(subcanvas)
+        inner_changed["pipeline"]["activities"]["I"]["component"]["data"]["x"]["value"] = "2"
+        loop_changed = copy.deepcopy(subcanvas)
+        loop_changed["loop_config"]["loop_times"] = 3
+        outputs_changed = copy.deepcopy(subcanvas)
+        outputs_changed["pipeline"]["outputs"] = ["${inner_output}"]
+
+        assert compute_node_config_hash(inner_changed) != original_hash
+        assert compute_node_config_hash(loop_changed) != original_hash
+        assert compute_node_config_hash(outputs_changed) != original_hash
+
+    def test_subcanvas_references_create_data_edges(self):
+        pipeline = copy.deepcopy(PIPELINE)
+        pipeline["activities"]["S"] = {
+            "id": "S",
+            "type": "SubCanvas",
+            "loop_config": {
+                "enable": True,
+                "type": "array_loop",
+                "loop_times": None,
+                "loop_params": {"${loop_item}": "${g1}"},
+            },
+            "pipeline": {
+                "activities": {},
+                "flows": {},
+                "gateways": {},
+                "constants": {
+                    "${inner_input}": {
+                        "key": "${inner_input}",
+                        "show_type": "show",
+                        "need_render": True,
+                        "value": {"nested": ["${g1}"]},
+                    }
+                },
+            },
+        }
+
+        graph = build_dependency_graph(pipeline)
+
+        assert "S" in graph["data"]["A"]

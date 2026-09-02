@@ -224,6 +224,10 @@
           <div
             v-bkloading="{ isLoading: atomConfigLoading, opacity: 1, zIndex: 100 }"
             class="form-content">
+            <bk-alert
+              v-if="atomConfigErrorMessage"
+              type="error"
+              :title="atomConfigErrorMessage" />
             <template v-if="!atomConfigLoading && hasPluginFormFields(renderConfig)">
               <RenderForm
                 v-if="Array.isArray(renderConfig)"
@@ -248,7 +252,7 @@
         <bk-button
           v-if="!isViewMode"
           theme="primary"
-          :disabled="atomConfigLoading || varTypeListLoading"
+          :disabled="atomConfigLoading || varTypeListLoading || !!atomConfigErrorMessage"
           @click="onSaveVariable">
           {{ $t('确定') }}
         </bk-button>
@@ -276,6 +280,7 @@
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import renderFormSchema from '@/utils/renderFormSchema.js';
+  import { buildApiVariableFormFromExtraInfo, getApiVariableFormErrorMessage } from '@/utils/legacyApiVariableForm.js';
   import {
     buildV4PluginDetailRequest,
     buildVariablePluginRuntimeInputs,
@@ -307,6 +312,11 @@
       templateId: {
         type: [String, Number],
         default: '',
+      },
+      // 是否直接调用store保存变量（外层全局变量面板为 true，循环流内部变量面板为 false）
+      useStoreDirectly: {
+        type: Boolean,
+        default: true,
       },
     },
     data() {
@@ -348,6 +358,7 @@
         varTypeData: {},
         inputRegexp: '', // input，textarea类型正则
         atomConfigLoading: false,
+        atomConfigErrorMessage: '',
         atomTypeKey: '',
         // 变量名称校验规则
         variableNameRule: {
@@ -578,6 +589,7 @@
        * 加载表单标准插件配置文件
        */
       async getAtomConfig() {
+        this.atomConfigErrorMessage = '';
         const {
           source_tag: sourceTag,
           source_info: sourceInfo,
@@ -608,7 +620,7 @@
         this.atomConfigLoading = true;
         this.atomTypeKey = atom;
         this.renderConfig = [];
-        if (!isV4 && atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 判断配置文件是否已经获取过
+        if (!isV4 && atom !== 'uniform_api' && atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 判断配置文件是否已经获取过
           this.getRenderConfig();
           this.$nextTick(() => {
             this.atomConfigLoading = false;
@@ -652,22 +664,33 @@
             }
             const { api_meta: apiMeta = {} } = component;
             const { meta_url: metaUrl } = apiMeta;
-            if (!metaUrl) return;
-            const sourceActivity = sourceNodeId && this.activities[sourceNodeId];
-            // api插件配置
-            const resp = await this.loadUniformApiMeta({
-              templateId: this.templateId,
-              spaceId: this.spaceId,
-              meta_url: metaUrl,
-              ...this.scopeInfo,
-              meta_url_template: apiMeta.meta_url_template,
-              source_key: apiMeta.source_key,
-              version: sourceActivity?.component?.version || component.version || version,
-            });
-            if (!resp.result) return;
-            const tag = sourceTag.split('.')[1];
-            const field = resp.data.inputs.find(item => item.key === tag);
-            this.renderConfig = renderFormSchema([field]);
+            if (metaUrl) {
+              const sourceActivity = sourceNodeId && this.activities[sourceNodeId];
+              // api插件配置
+              const resp = await this.loadUniformApiMeta({
+                templateId: this.templateId,
+                spaceId: this.spaceId,
+                meta_url: metaUrl,
+                ...this.scopeInfo,
+                meta_url_template: apiMeta.meta_url_template,
+                source_key: apiMeta.source_key,
+                version: sourceActivity?.component?.version || component.version || version,
+              }).catch((error) => {
+                console.warn(error);
+                return null;
+              });
+              if (!isCurrent()) return;
+              if (resp && resp.result) {
+                const tag = sourceTag.split('.')[1];
+                const field = (resp.data.inputs || []).find(item => item.key === tag);
+                if (field) {
+                  this.renderConfig = renderFormSchema([field]);
+                  return;
+                }
+              }
+            }
+            const extraForm = buildApiVariableFormFromExtraInfo(this.theEditingData);
+            if (extraForm) this.renderConfig = extraForm;
             return;
           }
           this.isApiPlugin = false;
@@ -702,9 +725,11 @@
           });
           this.getRenderConfig();
         } catch (e) {
-          console.log(e);
+          if (!isCurrent()) return;
+          this.atomConfigErrorMessage = getApiVariableFormErrorMessage(e, this.$t.bind(this));
+          if (!this.atomConfigErrorMessage) console.log(e);
         } finally {
-          this.atomConfigLoading = false;
+          if (isCurrent()) this.atomConfigLoading = false;
         }
       },
       hasPluginFormFields,
@@ -961,6 +986,7 @@
       },
       // 保存变量数据
       onSaveVariable() {
+        if (this.atomConfigLoading || this.atomConfigErrorMessage) return Promise.resolve(false);
         return this.$validator.validateAll().then(async (result) => {
           let formValid = true;
           const variable = this.theEditingData;
@@ -1033,12 +1059,16 @@
               );
             }
             this.$emit('setNewCloneKeys', variable.key);
-            this.addVariable(tools.deepClone(variable));
+            if (this.useStoreDirectly) {
+              this.addVariable(tools.deepClone(variable));
+            }
           } else { // 编辑变量
-            this.editVariable({ key: this.variableData.key, variable });
-            // 如果全局变量有被勾选为输出，修改变量 key 后需要更新 outputs 字段
-            if (this.variableData.key !== this.theEditingData.key && this.outputs.includes(this.variableData.key)) {
-              this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
+            if (this.useStoreDirectly) {
+              this.editVariable({ key: this.variableData.key, variable });
+              // 如果全局变量有被勾选为输出，修改变量 key 后需要更新 outputs 字段
+              if (this.variableData.key !== this.theEditingData.key && this.outputs.includes(this.variableData.key)) {
+                this.setOutputs({ changeType: 'edit', key: this.variableData.key, newKey: this.theEditingData.key });
+              }
             }
           }
           this.$emit('onSaveEditing', this.theEditingData);

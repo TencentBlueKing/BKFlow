@@ -73,6 +73,12 @@ export const getDefaultValueFormat = (scheme) => {
         value: 0,
       };
       break;
+    case 'switch':
+      valueFormat = {
+        type: 'Boolean',
+        value: false,
+      };
+      break;
     case 'ip_selector':
       valueFormat = {
         type: 'Object',
