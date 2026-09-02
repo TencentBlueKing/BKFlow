@@ -412,7 +412,7 @@ import { mapActions } from 'vuex';
             data: resp.data,
           };
         } catch (error) {
-          console.log(error);
+          console.warn(error);
           apiItem.testResult = {
             ok: false,
             error: String(error),

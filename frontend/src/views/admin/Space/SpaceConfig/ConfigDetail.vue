@@ -39,10 +39,10 @@
           v-model="currentMode"
           @change="toggleSourceMode">
           <bk-radio-button value="form_value">
-            表单结构
+            {{ $t('表单结构') }}
           </bk-radio-button>
           <bk-radio-button value="json_value">
-            JSON源码
+            {{ $t('JSON源码') }}
           </bk-radio-button>
         </bk-radio-group>
       </div>
