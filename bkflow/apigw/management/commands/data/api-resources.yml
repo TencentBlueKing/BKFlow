@@ -1814,6 +1814,224 @@ paths:
         descriptionEn: Validate an a2flow v2 workflow definition (dry-run)
         enableWebsocket: false
         pluginConfigs: []
+  /space/{space_id}/harness/search_workflow_capabilities/:
+    post:
+      operationId: harness_search_workflow_capabilities
+      description: 检索可用于构建流程的业务能力摘要
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: 路由空间 ID，不能由请求体覆盖
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - query
+              properties:
+                query:
+                  type: string
+                top_k:
+                  type: integer
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/search_workflow_capabilities/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Search workflow capability cards
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/harness/get_plugin_schema/:
+    post:
+      operationId: harness_get_plugin_schema
+      description: 按 capability_ref 加载精确插件 Schema
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: 路由空间 ID，不能由请求体覆盖
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - capability_ref
+              properties:
+                capability_ref:
+                  type: string
+                expected_schema_hash:
+                  type: string
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/get_plugin_schema/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Load an exact plugin schema by capability_ref
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/harness/validate_workflow/:
+    post:
+      operationId: harness_validate_workflow
+      description: 确定性校验 a2flow 并生成不可变修订
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: 路由空间 ID，不能由请求体覆盖
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - a2flow
+              - bindings
+              - idempotency_key
+              properties:
+                a2flow:
+                  type: object
+                bindings:
+                  type: array
+                  items:
+                    type: object
+                idempotency_key:
+                  type: string
+                run_id:
+                  type: string
+                expected_plan_hash:
+                  type: string
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/validate_workflow/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Validate a2flow and create an immutable revision
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/harness/create_workflow_draft/:
+    post:
+      operationId: harness_create_workflow_draft
+      description: 基于已接受修订创建或更新模板草稿
+      tags: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: 路由空间 ID，不能由请求体覆盖
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - run_id
+              - revision_id
+              - idempotency_key
+              properties:
+                run_id:
+                  type: string
+                revision_id:
+                  type: string
+                plan_hash:
+                  type: string
+                expected_plan_hash:
+                  type: string
+                idempotency_key:
+                  type: string
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/create_workflow_draft/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Create or update a draft-only workflow template
+        enableWebsocket: false
+        pluginConfigs: []
   /space/{space_id}/create_mock_task/:
     post:
       operationId: create_mock_task

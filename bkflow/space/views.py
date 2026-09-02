@@ -318,11 +318,12 @@ class SpaceInternalViewSet(AdminModelViewSet):
         # 触发空间级别回调
         scopes = [Scope(type=WebhookScopeType.SPACE.value, code=str(data["space_id"]))]
         event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=data.get("extra_info"))
-        # 触发流程级别回调
-        scopes = [Scope(type=WebhookScopeType.TEMPLATE.value, code=str(data["template_id"]))]
-        extra_info = data.get("extra_info") or {}
-        extra_info["delivery_id"] = data["task_id"]
-        event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=extra_info)
+        if data.get("template_id") and data.get("task_id"):
+            # 触发流程级别回调
+            scopes = [Scope(type=WebhookScopeType.TEMPLATE.value, code=str(data["template_id"]))]
+            extra_info = data.get("extra_info") or {}
+            extra_info["delivery_id"] = data["task_id"]
+            event_broadcast_signal.send(sender=data["event"], scopes=scopes, extra_info=extra_info)
         return Response("success")
 
     def get_credential_config(self, config, space_id, scope):

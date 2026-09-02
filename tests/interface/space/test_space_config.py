@@ -30,6 +30,8 @@ from bkflow.space.configs import (
     CanvasModeConfig,
     FlowVersioning,
     GatewayExpressionConfig,
+    HarnessDeploymentConfig,
+    HarnessEnabledConfig,
     SchemaV2Model,
     SpaceConfigHandler,
     SpaceConfigValueType,
@@ -47,9 +49,9 @@ from bkflow.space.configs import (
 class TestSpaceConfigHandler:
     def test_get_all_configs(self):
         configs = SpaceConfigHandler.get_all_configs()
-        assert len(configs) == 12
+        assert len(configs) == 14
         configs = SpaceConfigHandler.get_all_configs(only_public=True)
-        assert len(configs) == 11
+        assert len(configs) == 12
 
     def test_get_config(self):
         # valid cases
@@ -571,3 +573,84 @@ class TestSpaceConfigHandler:
 
         with pytest.raises(ValidationError):
             UniformApiConfig.validate(config)
+
+
+class TestHarnessSpaceConfigs:
+    def test_harness_enabled_defaults_and_choices(self):
+        """harness_enabled 默认关闭，只接受 true/false。"""
+        config_cls = SpaceConfigHandler.get_config("harness_enabled")
+        assert config_cls == HarnessEnabledConfig
+        assert config_cls.default_value == "false"
+        assert config_cls.control is True
+        assert config_cls.validate("true")
+        assert config_cls.validate("false")
+        with pytest.raises(ValidationError):
+            config_cls.validate("yes")
+
+    def test_harness_deployment_rejects_empty_missing_and_unknown_keys(self):
+        """部署绑定必须是封闭 JSON Schema。"""
+        config_cls = SpaceConfigHandler.get_config("harness_deployment")
+        assert config_cls == HarnessDeploymentConfig
+        assert config_cls.is_public is False
+        assert config_cls.control is True
+        assert config_cls.default_value == {}
+        with pytest.raises(ValidationError):
+            config_cls.validate({})
+        with pytest.raises(ValidationError):
+            config_cls.validate(
+                {
+                    "platform_key": "bkaidev",
+                    "allowed_scope_types": [],
+                    "scope_type": None,
+                    "scope_value": None,
+                    "target_environment": "stage",
+                    "risk_policy_version": "p0-v1",
+                }
+            )
+        with pytest.raises(ValidationError):
+            config_cls.validate(
+                {
+                    "platform_key": "bkaidev",
+                    "allowed_scope_types": [],
+                    "scope_type": None,
+                    "scope_value": None,
+                    "target_environment": "stage",
+                    "risk_policy_version": "p0-v1",
+                    "mcp_contract_version": "1.0.0",
+                    "extra": "nope",
+                }
+            )
+
+    def test_harness_deployment_scope_pairs_and_contract_version(self):
+        """Scope 必须成对出现，类型必须在白名单，契约版本固定 1.0.0。"""
+        valid_space_wide = {
+            "platform_key": "bkaidev",
+            "allowed_scope_types": ["biz"],
+            "scope_type": None,
+            "scope_value": None,
+            "target_environment": "stage",
+            "risk_policy_version": "p0-v1",
+            "mcp_contract_version": "1.0.0",
+        }
+        assert HarnessDeploymentConfig.validate(valid_space_wide)
+
+        valid_scoped = dict(valid_space_wide)
+        valid_scoped["scope_type"] = "biz"
+        valid_scoped["scope_value"] = "100"
+        assert HarnessDeploymentConfig.validate(valid_scoped)
+
+        mismatched = dict(valid_space_wide)
+        mismatched["scope_type"] = "biz"
+        with pytest.raises(ValidationError):
+            HarnessDeploymentConfig.validate(mismatched)
+
+        disallowed = dict(valid_space_wide)
+        disallowed["scope_type"] = "project"
+        disallowed["scope_value"] = "p1"
+        with pytest.raises(ValidationError):
+            HarnessDeploymentConfig.validate(disallowed)
+
+        bad_version = dict(valid_space_wide)
+        bad_version["mcp_contract_version"] = "2.0.0"
+        with pytest.raises(ValidationError):
+            HarnessDeploymentConfig.validate(bad_version)

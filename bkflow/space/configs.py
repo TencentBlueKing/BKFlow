@@ -444,6 +444,71 @@ class FlowVersioning(BaseSpaceConfig):
         return True
 
 
+class HarnessEnabledConfig(BaseSpaceConfig):
+    name = "harness_enabled"
+    desc = _("是否启用 AI 流程生成 Harness")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_enabled only supports true or false")
+        return True
+
+
+class HarnessDeploymentConfig(BaseSpaceConfig):
+    name = "harness_deployment"
+    desc = _("AI 流程生成 Harness 可信部署绑定")
+    value_type = SpaceConfigValueType.JSON.value
+    default_value = {}
+    is_public = False
+    control = True
+    P0_MCP_CONTRACT_VERSION = "1.0.0"
+    SCHEMA = {
+        "type": "object",
+        "required": [
+            "platform_key",
+            "allowed_scope_types",
+            "scope_type",
+            "scope_value",
+            "target_environment",
+            "risk_policy_version",
+            "mcp_contract_version",
+        ],
+        "additionalProperties": False,
+        "properties": {
+            "platform_key": {"type": "string", "minLength": 1},
+            "allowed_scope_types": {"type": "array", "items": {"type": "string"}},
+            "scope_type": {"type": ["string", "null"]},
+            "scope_value": {"type": ["string", "null"]},
+            "target_environment": {"type": "string", "minLength": 1},
+            "risk_policy_version": {"type": "string", "minLength": 1},
+            "mcp_contract_version": {"type": "string", "const": "1.0.0"},
+        },
+    }
+
+    @classmethod
+    def validate(cls, value: dict):
+        try:
+            jsonschema.validate(instance=value, schema=cls.SCHEMA)
+        except jsonschema.ValidationError as e:
+            raise ValidationError(f"[validate harness_deployment error]: {str(e)}")
+
+        scope_type = value.get("scope_type")
+        scope_value = value.get("scope_value")
+        if (scope_type is None) != (scope_value is None):
+            raise ValidationError(
+                "[validate harness_deployment error]: scope_type and scope_value must both be set or both be null"
+            )
+        if scope_type is not None and scope_type not in (value.get("allowed_scope_types") or []):
+            raise ValidationError("[validate harness_deployment error]: scope_type is not allowed")
+        if value.get("mcp_contract_version") != cls.P0_MCP_CONTRACT_VERSION:
+            raise ValidationError("[validate harness_deployment error]: mcp_contract_version must be 1.0.0")
+        return True
+
+
 # 定义 SCHEMA_V1 对应的模型
 class SchemaV1Model(BaseModel):
     meta_apis: str

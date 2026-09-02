@@ -44,6 +44,20 @@ def _mock_component_model(mock_cm, codes_versions=None):
     mock_cm.objects.filter.side_effect = filter_side_effect
 
 
+def _mock_variable_model(valid_codes):
+    """Helper: mock VariableModel.objects.all().only('code') 返回内存假集合，
+    使基于 VariableModel 的 custom_type 校验在单测空库下可稳定运行（保留原始校验语义）。"""
+    fake_rows = [MagicMock(code=code) for code in valid_codes]
+    mock_qs = MagicMock()
+    mock_qs.only.return_value = fake_rows
+    mock_objects = MagicMock()
+    mock_objects.all.return_value = mock_qs
+    return patch(
+        "bkflow.pipeline_converter.converters.a2flow_v2.data_models.VariableModel.objects",
+        mock_objects,
+    )
+
+
 def _get_converter_class():
     from bkflow.pipeline_converter.converters.a2flow_v2.converter import (
         A2FlowV2Converter,
@@ -79,6 +93,38 @@ class TestConverterLinearFlow(TestCase):
         self.assertEqual(result["end_event"]["type"], "EmptyEndEvent")
         self.assertEqual(len(result["flows"]), 2)
         self.assertEqual(result["constants"], {})
+
+    @patch(BKPLUGIN_PATCH)
+    @patch(COMPONENT_PATCH)
+    def test_convert_with_metadata_keeps_legacy_convert_contract(self, mock_cm, mock_bkp):
+        """convert() 仍只返回 pipeline tree；convert_with_metadata 额外返回指纹和源映射。"""
+        from bkflow.pipeline_converter.converters.a2flow_v2.data_models import (
+            ConversionResult,
+        )
+
+        _mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"]})
+        mock_bkp.objects.filter.return_value.exists.return_value = False
+
+        Converter = _get_converter_class()
+        a2flow_data = {
+            "version": "2.0",
+            "name": "简单流程",
+            "nodes": [
+                {"id": "n1", "name": "等待", "code": "sleep_timer", "data": {"bk_timing": 5}, "next": "end"},
+            ],
+        }
+        converter = Converter(a2flow_data, space_id=1)
+        tree = converter.convert()
+        self.assertIsInstance(tree, dict)
+        self.assertIn("activities", tree)
+
+        metadata = Converter(a2flow_data, space_id=1).convert_with_metadata()
+        self.assertIsInstance(metadata, ConversionResult)
+        self.assertIn("activities", metadata.pipeline_tree)
+        self.assertTrue(metadata.converter_fingerprint)
+        self.assertIn("n1", metadata.source_map)
+        self.assertIn("start", metadata.source_map)
+        self.assertIn("end", metadata.source_map)
 
     @patch(BKPLUGIN_PATCH)
     @patch(COMPONENT_PATCH)
@@ -134,7 +180,8 @@ class TestConverterLinearFlow(TestCase):
             "nodes": [{"id": "n1", "name": "x", "code": "sleep_timer", "next": "end"}],
             "variables": [{"key": "${ip}", "name": "IP", "value": "10.0.0.1"}],
         }
-        result = Converter(a2flow_data, space_id=1).convert()
+        with _mock_variable_model(["input", "textarea", "datetime"]):
+            result = Converter(a2flow_data, space_id=1).convert()
 
         self.assertIn("${ip}", result["constants"])
         self.assertEqual(result["constants"]["${ip}"]["value"], "10.0.0.1")
