@@ -122,7 +122,7 @@
         syntax: [
           { label: i18n.t('比较运算符'), tokens: ['==', '!=', '>', '>=', '<=', 'in', 'notin'] },
           { label: i18n.t('逻辑关键词'), tokens: ['and', 'or', 'True / true', 'False / false'] },
-          { label: i18n.t('变量引用'), text: '支持 ${key}、${int(key)}' },
+          { label: i18n.t('变量引用'), text: i18n.t('支持 ${key}、${int(key)}') },
         ],
         examples: [
           { scene: i18n.t('字符串比较'), expr: '"${status}" == "success"' },
@@ -138,7 +138,7 @@
         syntax: [
           { label: i18n.t('比较运算符'), tokens: ['=', '!=', '>', '>=', '<', '<='] },
           { label: i18n.t('逻辑关键词'), tokens: ['and', 'or', 'true', 'false'] },
-          { label: i18n.t('变量引用'), tokens: ['${key}', '${int(key)}', '支持 list contains'] },
+          { label: i18n.t('变量引用'), tokens: ['${key}', '${int(key)}', i18n.t('支持 list contains')] },
         ],
         examples: [
           { scene: i18n.t('字符串比较'), expr: '"${env}" = "prod"' },
@@ -154,7 +154,7 @@
         syntax: [
           { label: i18n.t('比较运算符'), tokens: ['==', '!=', '>', '>=', '<=', 'in', 'not in'] },
           { label: i18n.t('逻辑关键词'), tokens: ['and', 'or', 'not', 'True', 'False'] },
-          { label: i18n.t('变量引用'), text: '直接引用变量名 key, 不要包 ${}' },
+          { label: i18n.t('变量引用'), text: i18n.t('直接引用变量名 key, 不要包 ${}') },
         ],
         warning: i18n.t('因 MAKO 语法限制：请勿在表达式中使用 $、{、} 字符。误用会导致分支条件解析失败。'),
         examples: [
