@@ -724,7 +724,7 @@
             return;
           }
           const resp = await this.getSpacePluginConfig({ space_id: spaceId, config_name: 'space_plugin_config' });
-          const defaultConfig =  resp?.data?.value?.default || {};
+          const defaultConfig = resp?.data?.value?.default || {};
           this.isPluginScopeHidden = defaultConfig.mode === 'allow_list';
         } catch (error) {
           this.isPluginScopeHidden = false;
