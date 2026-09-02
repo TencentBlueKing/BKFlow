@@ -259,6 +259,108 @@ def test_binding_coverage_and_schema_input_errors(harness_space, validator_mocks
 
 
 @pytest.mark.django_db
+def test_node_inputs_validate_type_enum_nested_and_constraints(harness_space, validator_mocks):
+    """节点输入必须按 Schema 校验类型、枚举、嵌套、约束和附加字段。"""
+    from bkflow.harness.services.validator import _validate_node_inputs
+
+    typed_schema = {
+        "inputs": [
+            {"key": "host", "type": "string", "required": True},
+            {"key": "port", "type": "int", "required": True, "minimum": 1, "maximum": 65535},
+            {"key": "enabled", "type": "bool", "required": True},
+            {"key": "mode", "type": "string", "required": True, "enum": ["restart", "reload"]},
+            {
+                "key": "meta",
+                "type": "object",
+                "required": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {"owner": {"type": "string"}},
+                    "required": ["owner"],
+                    "additionalProperties": False,
+                },
+            },
+            {
+                "key": "tags",
+                "type": "array",
+                "required": True,
+                "schema": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+            },
+            {"key": "id", "type": "string", "required": True, "pattern": r"^[a-z]+-\d+$"},
+            {
+                "key": "timeout",
+                "type": "int",
+                "required": True,
+                "oneOf": [{"minimum": 1, "maximum": 10}, {"minimum": 30, "maximum": 60}],
+            },
+        ]
+    }
+    bad_node = {
+        "id": "node_1",
+        "data": {
+            "host": 123,
+            "port": 70000,
+            "enabled": "yes",
+            "mode": "unknown",
+            "meta": {"owner": 1, "extra": True},
+            "tags": [],
+            "id": "BAD",
+            "timeout": 15,
+            "unexpected": 1,
+        },
+    }
+    errors = _validate_node_inputs(bad_node, typed_schema)
+    paths = {item["path"] for item in errors}
+    assert errors
+    assert all(item["code"] == "SCHEMA_VALIDATION_ERROR" for item in errors)
+    assert "nodes.node_1.inputs.host" in paths
+    assert "nodes.node_1.inputs.port" in paths
+    assert "nodes.node_1.inputs.enabled" in paths
+    assert "nodes.node_1.inputs.mode" in paths
+    assert "nodes.node_1.inputs.meta.owner" in paths or "nodes.node_1.inputs.meta" in paths
+    assert "nodes.node_1.inputs.tags" in paths
+    assert "nodes.node_1.inputs.id" in paths
+    assert "nodes.node_1.inputs.timeout" in paths
+    assert "nodes.node_1.inputs.unexpected" in paths
+
+    template_ok = _validate_node_inputs(
+        {
+            "id": "node_1",
+            "data": {
+                "host": "${ip}",
+                "port": 22,
+                "enabled": True,
+                "mode": "restart",
+                "meta": {"owner": "ops"},
+                "tags": ["prod"],
+                "id": "svc-1",
+                "timeout": 5,
+            },
+        },
+        typed_schema,
+    )
+    assert template_ok == []
+
+    type_payload = {
+        "version": "2.0",
+        "name": "restart",
+        "nodes": [
+            {
+                "id": "node_1",
+                "name": "重启服务",
+                "code": "demo_restart_service",
+                "data": {"host": 123},
+                "next": "end",
+            }
+        ],
+    }
+    envelope = _validate(harness_space, _payload(a2flow=type_payload, idempotency_key="type-mismatch"))
+    assert envelope["ok"] is False
+    assert envelope["errors"][0]["code"] == "SCHEMA_VALIDATION_ERROR"
+    assert envelope["errors"][0]["path"] == "nodes.node_1.inputs.host"
+
+
+@pytest.mark.django_db
 def test_repair_after_failure_has_no_parent_and_does_not_mutate(harness_space, validator_mocks):
     """首次失败没有 accepted parent；修复成功产生新修订且不回写旧报告。"""
     validator_mocks.resolve.side_effect = SchemaDrift("drift")
@@ -338,3 +440,26 @@ def test_idempotent_retry_replays_same_revision(harness_space, validator_mocks):
     assert first["revision_id"] == second["revision_id"]
     assert WorkflowPlanRevision.objects.count() == 1
     assert validator_mocks.convert.call_count == 1
+
+
+@pytest.mark.django_db
+def test_revalidate_after_draft_ready_reenters_validating(harness_space, validator_mocks):
+    """草稿就绪后再次校验必须进入 VALIDATING；失败则转为 NEEDS_REPAIR。"""
+    first = _validate(harness_space, _payload())
+    run = HarnessRun.objects.get(id=first["run_id"])
+    run.status = HarnessRunStatus.DRAFT_READY.value
+    run.save(update_fields=["status"])
+
+    second = _validate(harness_space, _payload(run_id=first["run_id"], idempotency_key="after-draft"))
+    assert second["ok"] is True
+    assert second["status"] == HarnessRunStatus.VALIDATING.value
+    run.refresh_from_db()
+    assert run.status == HarnessRunStatus.VALIDATING.value
+
+    run.status = HarnessRunStatus.DRAFT_READY.value
+    run.save(update_fields=["status"])
+    failed = _validate(harness_space, _payload(run_id=first["run_id"], bindings=[], idempotency_key="after-draft-fail"))
+    assert failed["ok"] is False
+    assert failed["status"] == HarnessRunStatus.NEEDS_REPAIR.value
+    run.refresh_from_db()
+    assert run.status == HarnessRunStatus.NEEDS_REPAIR.value

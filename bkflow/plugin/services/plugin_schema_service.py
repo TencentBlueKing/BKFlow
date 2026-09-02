@@ -142,20 +142,11 @@ class PluginSchemaService:
                 code, version=version, plugin_source=plugin_source, source_key=source_key
             )
 
-        registry_version = (
-            plugin_info.get("version")
-            or plugin_info.get("_component_version")
-            or plugin_info.get("plugin_version")
-            or ""
-        )
         self._fill_schema_single(plugin_info, strict=True)
-        if version:
-            resolved_version = version
-        elif registry_version:
-            resolved_version = registry_version
-        else:
-            resolved_version = "unversioned"
-        plugin_info["resolved_version"] = resolved_version
+        loaded_version = plugin_info.get("version") or plugin_info.get("plugin_version") or ""
+        if version and loaded_version and loaded_version != version:
+            raise ValueError("未找到内置插件 code '{}' 版本 '{}'".format(code, version))
+        plugin_info["resolved_version"] = loaded_version or version or "unversioned"
         return plugin_info
 
     # === 列表查询 ===
@@ -206,7 +197,9 @@ class PluginSchemaService:
         if not versions:
             raise ValueError("未找到内置插件 code '{}'".format(code))
 
-        if version and version in versions:
+        if version:
+            if version not in versions:
+                raise ValueError("未找到内置插件 code '{}' 版本 '{}'".format(code, version))
             target_version = version
         else:
             target_version = self._pick_latest_version(versions)
@@ -223,6 +216,7 @@ class PluginSchemaService:
             "inputs": inputs,
             "outputs": outputs,
             "description": getattr(component_cls, "desc", "") or "",
+            "version": target_version,
         }
 
     @staticmethod
@@ -519,7 +513,7 @@ class PluginSchemaService:
                 "version": obj.version,
                 "description": "",
                 "group_name": (parts[0].strip() if len(parts) > 1 else ""),
-                "_component_version": version or obj.version,
+                "_component_version": version,
             }
         elif plugin_type == "remote_plugin":
             obj = BKPlugin.objects.filter(code=code).first()
@@ -652,9 +646,8 @@ class PluginSchemaService:
             plugin_info["outputs"] = schema.get("outputs", [])
             if schema.get("description") and not plugin_info.get("description"):
                 plugin_info["description"] = schema["description"]
-            if schema.get("version") and not plugin_info.get("version"):
+            if schema.get("version"):
                 plugin_info["version"] = schema["version"]
-            if schema.get("version") and not plugin_info.get("plugin_version"):
                 plugin_info["plugin_version"] = schema["version"]
             if schema.get("plugin_source") and not plugin_info.get("plugin_source"):
                 plugin_info["plugin_source"] = schema["plugin_source"]

@@ -47,6 +47,7 @@ from bkflow.harness.services.idempotency import (
     fail_idempotency,
     run_scope_for,
 )
+from bkflow.harness.services.input_schema import validate_node_data
 from bkflow.harness.services.resolver import resolve_capability
 from bkflow.harness.services.state import transition_run
 from bkflow.pipeline_converter.constants import NodeType
@@ -81,13 +82,13 @@ def _envelope(**kwargs) -> Dict[str, Any]:
     return {key: kwargs.get(key) for key in ENVELOPE_KEYS}
 
 
-def _error(code: str, message: str, path: str = "", repairable: bool = True) -> Dict[str, Any]:
+def _error(code: str, message: str, path: str = "", repairable: bool = True, retryable: bool = False) -> Dict[str, Any]:
     return {
         "code": code,
         "message": message,
         "path": path,
         "repairable": repairable,
-        "retryable": False,
+        "retryable": retryable,
     }
 
 
@@ -116,17 +117,15 @@ def _validate_binding_coverage(a2flow: Dict[str, Any], bindings: List[Dict[str, 
 
 def _validate_node_inputs(node: Dict[str, Any], schema: Dict[str, Any]) -> List[Dict[str, Any]]:
     data = node.get("data") or {}
-    errors = []
+    errors = validate_node_data(node["id"], data, schema.get("inputs") or [])
     for field in schema.get("inputs") or []:
+        if not isinstance(field, dict):
+            continue
         key = field.get("key")
-        if field.get("required") and (key not in data or data.get(key) in (None, "")):
-            errors.append(
-                _error(
-                    "SCHEMA_VALIDATION_ERROR",
-                    "missing required input {}".format(key),
-                    path="nodes.{}.inputs.{}".format(node["id"], key),
-                )
-            )
+        if field.get("required") and key in data and data.get(key) in (None, ""):
+            path = "nodes.{}.inputs.{}".format(node["id"], key)
+            if not any(item.get("path") == path for item in errors):
+                errors.append(_error("SCHEMA_VALIDATION_ERROR", "missing required input {}".format(key), path=path))
     return errors
 
 
@@ -141,6 +140,8 @@ def _enter_validating(run: HarnessRun) -> None:
     elif run.status == HarnessRunStatus.PLANNING.value:
         transition_run(run, HarnessRunStatus.VALIDATING)
     elif run.status == HarnessRunStatus.NEEDS_REPAIR.value:
+        transition_run(run, HarnessRunStatus.VALIDATING)
+    elif run.status == HarnessRunStatus.DRAFT_READY.value:
         transition_run(run, HarnessRunStatus.VALIDATING)
 
 

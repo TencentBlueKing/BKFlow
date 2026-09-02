@@ -86,7 +86,7 @@ def test_p1_to_p4_transitions_are_rejected(harness_run, target):
 
 
 def test_mutation_after_draft_ready_is_rejected(harness_run):
-    """进入 DRAFT_READY 后不能再改回规划或校验。"""
+    """进入 DRAFT_READY 后不能再回到 PLANNING，也不能进入 P1-P4。"""
     transition_run(harness_run, HarnessRunStatus.PLANNING)
     transition_run(harness_run, HarnessRunStatus.VALIDATING)
     transition_run(harness_run, HarnessRunStatus.DRAFT_READY, trigger="create_workflow_draft")
@@ -95,3 +95,17 @@ def test_mutation_after_draft_ready_is_rejected(harness_run):
     harness_run.refresh_from_db()
     assert harness_run.status == HarnessRunStatus.DRAFT_READY.value
     assert HarnessRun.objects.get(id=harness_run.id).status == HarnessRunStatus.DRAFT_READY.value
+
+
+def test_draft_ready_can_reenter_validating(harness_run):
+    """同 Run 再次修订必须允许 DRAFT_READY -> VALIDATING。"""
+    transition_run(harness_run, HarnessRunStatus.PLANNING)
+    transition_run(harness_run, HarnessRunStatus.VALIDATING)
+    transition_run(harness_run, HarnessRunStatus.DRAFT_READY, trigger="create_workflow_draft")
+
+    again = transition_run(harness_run, HarnessRunStatus.VALIDATING)
+
+    harness_run.refresh_from_db()
+    assert again.from_status == HarnessRunStatus.DRAFT_READY.value
+    assert again.to_status == HarnessRunStatus.VALIDATING.value
+    assert harness_run.status == HarnessRunStatus.VALIDATING.value

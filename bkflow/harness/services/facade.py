@@ -23,11 +23,14 @@ from typing import Any, Dict, List
 from bkflow.harness.contracts import TrustedHarnessContext
 from bkflow.harness.exceptions import (
     AmbiguousCapability,
+    CapabilityForbidden,
+    CapabilityNotFound,
     CapabilityRefError,
     HarnessUserInputError,
     SchemaDrift,
 )
 from bkflow.harness.services.draft import create_workflow_draft_with_context
+from bkflow.harness.services.projection import catalog_may_match
 from bkflow.harness.services.projection import (
     search_workflow_capabilities as search_capabilities,
 )
@@ -87,6 +90,8 @@ _CODE_CATEGORY = {
     "HARNESS_APP_UNAUTHENTICATED": "PERMISSION",
     "HARNESS_USER_UNAUTHENTICATED": "PERMISSION",
     "HARNESS_DEPLOYMENT_INVALID": "PERMISSION",
+    "CAPABILITY_FORBIDDEN": "PERMISSION",
+    "RETRYABLE_INFRA": "RETRYABLE_INFRA",
 }
 
 
@@ -117,24 +122,60 @@ def _suggested_action(code: str) -> str:
         "VALIDATION_STALE": "validate_workflow",
         "PLAN_HASH_MISMATCH": "reload_latest_revision",
         "PERMISSION": "check_space_authorization",
+        "CAPABILITY_FORBIDDEN": "check_space_authorization",
+        "RETRYABLE_INFRA": "retry",
     }
     return mapping.get(code, "repair")
 
 
-def _to_snapshot(plugin: Dict[str, Any], space_id: int) -> Dict[str, Any]:
+def _preview_plugin(plugin: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "name": plugin.get("name"),
+        "code": plugin.get("code"),
+        "aliases": plugin.get("aliases") or [],
+        "tags": plugin.get("tags") or [],
+        "use_cases": [plugin["description"]] if plugin.get("description") else [],
+    }
+
+
+def _to_snapshot(plugin: Dict[str, Any], space_id: int, schema: Dict[str, Any], version: str) -> Dict[str, Any]:
     return {
         "plugin_type": plugin.get("plugin_type"),
         "source_key": plugin.get("source_key"),
         "code": plugin.get("code"),
-        "version": plugin.get("version") or plugin.get("resolved_version") or "unversioned",
+        "version": version,
         "name": plugin.get("name"),
         "aliases": plugin.get("aliases") or [],
         "tags": plugin.get("tags") or [],
         "use_cases": [plugin["description"]] if plugin.get("description") else [],
         "space_ids": [space_id],
-        "schema": {},
+        "schema": schema,
         "required_credentials": [],
     }
+
+
+def _load_search_snapshots(service, plugins: List[Dict[str, Any]], space_id: int, query: str) -> List[Dict[str, Any]]:
+    """先按意图分词召回，再为候选填充真实 Schema；加载失败的候选直接丢弃。"""
+    snapshots = []
+    for item in plugins:
+        if not catalog_may_match(query, _preview_plugin(item)):
+            continue
+        version = item.get("version") or None
+        if version in ("", "unversioned"):
+            version = None
+        try:
+            payload = service.get_plugin_schema(
+                code=item.get("code"),
+                version=version,
+                plugin_type=item.get("plugin_type"),
+                source_key=item.get("source_key"),
+            )
+        except Exception:
+            continue
+        schema = {"inputs": payload.get("inputs") or [], "outputs": payload.get("outputs") or []}
+        resolved = payload.get("resolved_version") or payload.get("version") or version or "unversioned"
+        snapshots.append(_to_snapshot({**item, **payload}, space_id, schema, resolved))
+    return snapshots
 
 
 class HarnessFacade:
@@ -149,11 +190,11 @@ class HarnessFacade:
                 scope_type=context.scope_type,
                 scope_id=context.scope_value,
             )
-            plugins, _ = service.list_plugins(keyword=request.get("query"), limit=200)
+            plugins, _ = service.list_plugins(limit=200)
             result = search_capabilities(
                 context=context,
                 query=request["query"],
-                registry_snapshot=[_to_snapshot(item, context.space_id) for item in plugins],
+                registry_snapshot=_load_search_snapshots(service, plugins, context.space_id, request["query"]),
                 top_k=request.get("top_k", 10),
             )
             envelope = _envelope(
@@ -231,25 +272,16 @@ class HarnessFacade:
                 next_actions=[{"action": "validate_workflow"}],
                 correlation_id=context.correlation_id,
             )
-        except (CapabilityRefError, SchemaDrift, Exception) as exc:
-            if isinstance(exc, SchemaDrift):
-                code = "SCHEMA_DRIFT"
-            elif isinstance(exc, CapabilityRefError):
-                code = "USER_INPUT"
-            else:
-                code = getattr(exc, "code", None) or "CAPABILITY_NOT_FOUND"
-            envelope = _envelope(
-                ok=False,
-                run_id=request.get("run_id"),
-                revision_id=None,
-                plan_hash=None,
-                status=None,
-                summary="schema resolve failed",
-                artifact_refs=[],
-                errors=[_error(code, str(exc))],
-                next_actions=[{"action": "search_workflow_capabilities"}],
-                correlation_id=context.correlation_id,
-            )
+        except SchemaDrift as exc:
+            envelope = self._schema_error_envelope(context, request, "SCHEMA_DRIFT", exc)
+        except CapabilityRefError as exc:
+            envelope = self._schema_error_envelope(context, request, "USER_INPUT", exc)
+        except CapabilityForbidden as exc:
+            envelope = self._schema_error_envelope(context, request, "CAPABILITY_FORBIDDEN", exc)
+        except CapabilityNotFound as exc:
+            envelope = self._schema_error_envelope(context, request, "CAPABILITY_NOT_FOUND", exc)
+        except Exception as exc:
+            envelope = self._schema_error_envelope(context, request, "RETRYABLE_INFRA", exc, retryable=True)
         return self._finish("get_plugin_schema", context, request, envelope, started)
 
     def validate_workflow(self, context: TrustedHarnessContext, request: Dict[str, Any]) -> Dict[str, Any]:
@@ -265,6 +297,27 @@ class HarnessFacade:
             payload["plan_hash"] = payload["expected_plan_hash"]
         envelope = create_workflow_draft_with_context(context, payload)
         return self._finish("create_workflow_draft", context, request, envelope, started)
+
+    def _schema_error_envelope(
+        self,
+        context: TrustedHarnessContext,
+        request: Dict[str, Any],
+        code: str,
+        exc: Exception,
+        retryable: bool = False,
+    ) -> Dict[str, Any]:
+        return _envelope(
+            ok=False,
+            run_id=request.get("run_id"),
+            revision_id=None,
+            plan_hash=None,
+            status=None,
+            summary="schema resolve failed",
+            artifact_refs=[],
+            errors=[_error(code, str(exc), repairable=not retryable, retryable=retryable)],
+            next_actions=[{"action": "retry"}] if retryable else [{"action": "search_workflow_capabilities"}],
+            correlation_id=context.correlation_id,
+        )
 
     def _finish(
         self,

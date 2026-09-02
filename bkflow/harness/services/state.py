@@ -35,6 +35,7 @@ P0_TRANSITIONS = {
     (HarnessRunStatus.VALIDATING.value, HarnessRunStatus.NEEDS_REPAIR.value): None,
     (HarnessRunStatus.NEEDS_REPAIR.value, HarnessRunStatus.VALIDATING.value): None,
     (HarnessRunStatus.VALIDATING.value, HarnessRunStatus.DRAFT_READY.value): "create_workflow_draft",
+    (HarnessRunStatus.DRAFT_READY.value, HarnessRunStatus.VALIDATING.value): None,
 }
 
 

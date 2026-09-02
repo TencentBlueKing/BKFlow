@@ -101,6 +101,12 @@ def _visible_in_space(item: Dict[str, Any], space_id: int) -> bool:
     return not space_ids or space_id in space_ids
 
 
+def catalog_may_match(query: str, item: Dict[str, Any]) -> bool:
+    """目录项是否可能被当前查询召回，供 Facade 在填充 Schema 前预过滤。"""
+    score, _ = _score(query, item)
+    return score > 0
+
+
 def _score(query: str, item: Dict[str, Any]) -> Tuple[int, List[str]]:
     query_norm = (query or "").strip().lower()
     name = str(item.get("name") or "")

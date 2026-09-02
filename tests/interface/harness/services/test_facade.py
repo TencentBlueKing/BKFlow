@@ -60,12 +60,26 @@ def test_normalize_errors_adds_category_and_redacts_nothing_extra():
     assert items[0]["suggested_action"] == "search_and_rebind"
     assert "token" not in str(items).lower()
 
+    forbidden = normalize_errors([{"code": "CAPABILITY_FORBIDDEN", "message": "no"}])
+    assert forbidden[0]["category"] == "PERMISSION"
+    infra = normalize_errors([{"code": "RETRYABLE_INFRA", "message": "timeout", "retryable": True}])
+    assert infra[0]["category"] == "RETRYABLE_INFRA"
+
 
 def test_search_wraps_projection_into_envelope(monkeypatch):
     """检索结果进入标准 Envelope。"""
     monkeypatch.setattr(
         "bkflow.harness.services.facade.PluginSchemaService.list_plugins",
         lambda self, **kwargs: ([{"code": "demo", "name": "重启", "plugin_type": "component", "version": "1.0.0"}], 1),
+    )
+    monkeypatch.setattr(
+        "bkflow.harness.services.facade.PluginSchemaService.get_plugin_schema",
+        lambda self, **kwargs: {
+            "inputs": [],
+            "outputs": [],
+            "resolved_version": "1.0.0",
+            "version": "1.0.0",
+        },
     )
     monkeypatch.setattr(
         "bkflow.harness.services.facade.search_capabilities",

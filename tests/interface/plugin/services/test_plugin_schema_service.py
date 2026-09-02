@@ -143,7 +143,20 @@ class TestComponentSchema:
         schema = service._get_component_schema("test_code", version="v2.0.0")
 
         assert schema["description"] == "v2 版本"
+        assert schema["version"] == "v2.0.0"
         mock_lib.get_component_class.assert_called_with("test_code", "v2.0.0")
+
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_component_schema_missing_version_does_not_fallback(self, mock_cm, mock_lib):
+        """指定版本不存在时不得静默回退到 latest。"""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0", "v2.0.0"]
+        service = PluginSchemaService(space_id=1)
+
+        with pytest.raises(ValueError, match="版本"):
+            service._get_component_schema("test_code", version="v9.9.9")
+
+        mock_lib.get_component_class.assert_not_called()
 
 
 class TestRemotePlugins:
@@ -744,6 +757,43 @@ class TestGetPluginSchema:
         assert "inputs" in result
         assert "outputs" in result
         assert result["resolved_version"] == "v1.0.0"
+
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_plugin_schema_missing_component_version_raises(self, mock_cm, mock_lib):
+        """对外查询指定不存在的组件版本时直接失败，且不得报告该版本。"""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0", "v2.0.0"]
+        mock_cm.objects.filter.return_value.first.return_value = MagicMock(
+            code="test_code", name="分组-插件", version="v2.0.0"
+        )
+        service = PluginSchemaService(space_id=1)
+
+        with pytest.raises(ValueError, match="版本"):
+            service.get_plugin_schema(code="test_code", version="v9.9.9", plugin_type="component")
+
+        mock_lib.get_component_class.assert_not_called()
+
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_plugin_schema_reports_actually_loaded_version(self, mock_cm, mock_lib):
+        """resolved_version 必须等于实际加载版本，而不是目录 first() 或请求版本。"""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0", "v2.0.0"]
+        mock_cm.objects.filter.return_value.first.return_value = MagicMock(
+            code="test_code", name="分组-插件", version="v1.0.0"
+        )
+        mock_component = MagicMock()
+        mock_component.desc = ""
+        mock_component.inputs_format.return_value = []
+        mock_component.outputs_format.return_value = []
+        mock_lib.get_component_class.return_value = mock_component
+
+        service = PluginSchemaService(space_id=1)
+        specified = service.get_plugin_schema(code="test_code", version="v2.0.0", plugin_type="component")
+        latest = service.get_plugin_schema(code="test_code", plugin_type="component")
+
+        assert specified["resolved_version"] == "v2.0.0"
+        assert latest["resolved_version"] == "v2.0.0"
+        mock_lib.get_component_class.assert_any_call("test_code", "v2.0.0")
 
     @patch("bkflow.plugin.services.plugin_schema_service.BKPlugin")
     @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
