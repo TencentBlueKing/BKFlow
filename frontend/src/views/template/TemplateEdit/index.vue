@@ -580,7 +580,7 @@
       ...mapActions('spaceConfig/', [
         'getNotAuthSpaceConfig',
         'checkSpaceConfig',
-        'getSpaceConfigData',
+        'getSpacePluginConfig',
       ]),
       ...mapMutations('template/', [
         'initTemplateData',
@@ -723,11 +723,9 @@
             this.isPluginScopeHidden = false;
             return;
           }
-          const resp = await this.getSpaceConfigData({ space_id: spaceId });
-          const configs = (resp && resp.data) || [];
-          const pluginConfig = configs.find(item => item.name === 'space_plugin_config');
-          const scopeConfig = (pluginConfig && pluginConfig.json_value && pluginConfig.json_value.default) || {};
-          this.isPluginScopeHidden = scopeConfig.mode === 'allow_list';
+          const resp = await this.getSpacePluginConfig({ space_id: spaceId, config_name: 'space_plugin_config' });
+          const defaultConfig = resp?.data?.value?.default || {};
+          this.isPluginScopeHidden = defaultConfig.mode === 'allow_list';
         } catch (error) {
           this.isPluginScopeHidden = false;
         }
