@@ -23,13 +23,24 @@ import re
 logger = logging.getLogger("root")
 
 _MISSING_ROUTE_STATUS = re.compile(r"status_code:\s*(404|405)\b")
+# SimpleGenericViewSet 会把 DRF NotFound 改写成 HTTP 200 + code=not_found
+_DEFAULT_NOT_FOUND_MESSAGES = {"未找到。", "Not found."}
 
 
 def is_engine_route_missing(result):
     """判断 engine 调用失败是否因为目标路由不存在（未升级的旧 engine）。"""
     if not isinstance(result, dict) or result.get("result") is not False:
         return False
-    return bool(_MISSING_ROUTE_STATUS.search(str(result.get("message") or "")))
+    message = str(result.get("message") or "")
+    if _MISSING_ROUTE_STATUS.search(message):
+        return True
+    detail = ""
+    data = result.get("data")
+    if isinstance(data, dict):
+        detail = str(data.get("detail") or "")
+    return result.get("code") == "not_found" and (
+        message in _DEFAULT_NOT_FOUND_MESSAGES or detail in _DEFAULT_NOT_FOUND_MESSAGES
+    )
 
 
 def empty_wrapped_result(data):
