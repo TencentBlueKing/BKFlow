@@ -7,8 +7,10 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.parsers import JSONParser
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
+from pipeline.component_framework.models import ComponentModel
 
 from bkflow.exceptions import APIResponseError
+
 from bkflow.plugin.permissions import (
     PluginSpaceSuperuserPermission,
     PluginTokenPermissions,
@@ -261,3 +263,49 @@ def test_detail_route_preserves_api_response_error(service_cls, api_client, user
 
     with pytest.raises(APIResponseError, match="provider rejected"):
         api_client.post("/api/plugin/detail/", uniform_request(), format="json")
+
+
+@pytest.mark.django_db
+class TestComponentModelSetViewSet:
+    @pytest.fixture(autouse=True)
+    def setup(self, api_client, user):
+        self.client = api_client
+        self.user = user
+        self.client.force_authenticate(self.user)
+
+    @patch("bkflow.plugin.views.plugin.SpacePluginConfigModel.objects.get_space_allow_list")
+    @patch("bkflow.plugin.views.plugin.SpaceConfig.get_config")
+    def test_list_applies_system_plugin_filter(self, mock_get_config, mock_allow_list):
+        """get_queryset 应根据系统插件白名单排除未授权的插件"""
+        mock_allow_list.return_value = ["allowed_plugin"]
+        mock_get_config.return_value = None
+        with patch.object(plugin_views.settings, "SPACE_PLUGIN_LIST", ["allowed_plugin", "excluded_plugin"]):
+            response = self.client.get("/api/plugin/?space_id=1")
+
+        assert response.status_code == 200
+        assert response.data["result"] is True
+
+    @patch("bkflow.plugin.views.plugin.SpacePluginConfigModel.objects.get_space_allow_list")
+    @patch("bkflow.plugin.views.plugin.SpaceConfig.get_config")
+    def test_list_skip_space_config(self, mock_get_config, mock_allow_list):
+        """skip_space_config=true 时不再读取空间插件配置"""
+        mock_allow_list.return_value = []
+        response = self.client.get("/api/plugin/?space_id=1&skip_space_config=true")
+
+        assert response.status_code == 200
+        mock_get_config.assert_not_called()
+
+    @patch("bkflow.plugin.views.plugin.SpacePluginConfigModel.objects.get_space_allow_list")
+    @patch("bkflow.plugin.views.plugin.SpaceConfig.get_config")
+    @patch("bkflow.plugin.views.plugin.SpacePluginConfigParser")
+    def test_list_with_space_config(self, mock_parser_cls, mock_get_config, mock_allow_list):
+        """空间配置存在且非 allow_all 时应调用解析器过滤 queryset"""
+        mock_allow_list.return_value = []
+        mock_get_config.return_value = {"default": {"mode": "allow_list", "plugin_codes": ["plugin1"]}}
+        mock_parser = mock_parser_cls.return_value
+        mock_parser.get_filtered_plugin_qs.return_value = ComponentModel.objects.none()
+
+        response = self.client.get("/api/plugin/?space_id=1")
+
+        assert response.status_code == 200
+        mock_parser.get_filtered_plugin_qs.assert_called_once()

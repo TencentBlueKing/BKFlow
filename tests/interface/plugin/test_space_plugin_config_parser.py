@@ -68,3 +68,15 @@ class TestSpacePluginConfigParser:
         config = {"default": {"mode": "allow_list"}, "scope1": {"mode": "deny_list", "plugin_codes": ["plugin3"]}}
         with pytest.raises(ValidationError):
             SpacePluginConfigParser(config)
+
+    @pytest.mark.django_db(transaction=True)
+    def test_allow_all_mode(self):
+        """allow_all 模式不过滤插件"""
+
+        config = {"default": {"mode": "allow_all", "plugin_codes": []}}
+        parser = SpacePluginConfigParser(config)
+        assert parser.is_valid() is True
+        assert parser.get_filtered_plugins("default", ["plugin1", "plugin2"]) == {"plugin1", "plugin2"}
+        assert set(parser.get_filtered_plugin_qs("default", ComponentModel.objects.all())) == set(
+            ComponentModel.objects.all()
+        )

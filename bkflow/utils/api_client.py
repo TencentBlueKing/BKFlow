@@ -120,6 +120,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             elif method == "HEAD":
                 response = requests.head(
@@ -129,6 +130,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             elif method == "POST":
                 response = requests.post(
@@ -139,6 +141,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             elif method == "DELETE":
                 response = requests.delete(
@@ -149,6 +152,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             elif method == "PUT":
                 response = requests.put(
@@ -159,6 +163,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             else:
                 message = f"request api error: method {method} is not supported."
