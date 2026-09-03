@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,8 +22,10 @@ from blueapps.account.middlewares import LoginRequiredMiddleware
 from django.conf import settings
 from django.http import HttpResponseNotFound, HttpResponseRedirect
 from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 
+@ensure_csrf_cookie
 def page_not_found(request, exception):
     if request.path.startswith(settings.STATIC_URL):
         return HttpResponseNotFound()
