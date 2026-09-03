@@ -45,6 +45,29 @@ def fallback_if_engine_route_missing(result, fallback):
     return result
 
 
+def enrich_task_list_result_labels(result, labels_map_getter=None):
+    """将任务列表中的 label id 转成标签对象；旧 engine 无 labels 字段时视为空。"""
+    if not isinstance(result, dict) or not result.get("result"):
+        return result
+    results = (result.get("data") or {}).get("results")
+    if not results:
+        return result
+
+    label_ids = []
+    for item in results:
+        label_ids.extend(item.get("labels") or [])
+
+    if labels_map_getter is None:
+        from bkflow.label.models import Label
+
+        labels_map_getter = Label.objects.get_labels_map
+    labels_map = labels_map_getter(set(label_ids)) if label_ids else {}
+
+    for item in results:
+        item["labels"] = [labels_map.get(label_id) for label_id in (item.get("labels") or [])]
+    return result
+
+
 def parse_task_ids(task_ids_param):
     """解析逗号分隔的任务 ID，忽略空值和非法值。"""
     if not task_ids_param:
