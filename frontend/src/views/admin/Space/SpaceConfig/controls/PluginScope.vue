@@ -107,7 +107,7 @@
         try {
           this.loading = true;
           const pluginList = await this.loadSingleAtomList({ space_id: this.spaceId, skip_space_config: true });
-          const excludedCodes = ['subcanvs_plugin', 'subprocess_plugin'];
+          const excludedCodes = ['subcanvas_plugin', 'subprocess_plugin'];
           this.candidates = (pluginList || [])
             .filter(plugin => !excludedCodes.includes(plugin.code))
             .map(plugin => ({ id: plugin.code, name: plugin.name }));
