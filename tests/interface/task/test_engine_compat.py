@@ -22,11 +22,12 @@ from unittest.mock import MagicMock
 
 from bkflow.interface.task.engine_compat import (
     empty_wrapped_result,
+    enrich_task_list_result_labels,
     fallback_if_engine_route_missing,
     is_engine_route_missing,
     parse_task_ids,
 )
-from bkflow.interface.task.view import TaskInterfaceViewSet
+from bkflow.interface.task.view import TaskInterfaceAdminViewSet, TaskInterfaceViewSet
 
 ENGINE_404 = {
     "result": False,
@@ -198,3 +199,77 @@ class TestTaskInterfaceEngineRouteCompat:
 
         assert response.data["result"] is True
         assert response.data["data"] == {}
+
+
+class TestEnrichTaskListResultLabels:
+    """任务列表 labels 兼容：缺字段当空，失败响应原样返回。"""
+
+    def test_fills_empty_labels_for_legacy_engine_items(self):
+        result = {"result": True, "data": {"results": [{"id": 1, "name": "legacy"}]}}
+        enrich_task_list_result_labels(result, labels_map_getter=lambda ids: {})
+        assert result["data"]["results"][0]["labels"] == []
+
+    def test_passthrough_failed_engine_result(self):
+        failed = {"result": False, "message": "boom"}
+        assert enrich_task_list_result_labels(failed, labels_map_getter=lambda ids: {}) == failed
+
+
+class TestGetTaskListOldEngineLabels:
+    """旧 engine 任务列表没有 labels 时，管理端列表不能 500。"""
+
+    def _request(self, query_params=None):
+        params = dict(query_params or {})
+        request = MagicMock()
+        request.query_params = MagicMock()
+        request.query_params.copy.return_value = params
+        request.query_params.get.side_effect = params.get
+        return request
+
+    @mock.patch("bkflow.interface.task.view.Label.get_label_ids_by_names", return_value=[])
+    @mock.patch("bkflow.interface.task.view.Label.objects.get_labels_map")
+    @mock.patch("bkflow.interface.task.view.TaskComponentClient")
+    def test_get_task_list_tolerates_missing_labels(self, mock_client_class, mock_get_labels_map, _mock_ids):
+        mock_get_labels_map.return_value = {}
+        mock_client = mock.Mock()
+        mock_client.task_list.return_value = {
+            "result": True,
+            "data": {"results": [{"id": 2401, "name": "legacy task"}]},
+        }
+        mock_client_class.return_value = mock_client
+
+        response = TaskInterfaceAdminViewSet().get_task_list(self._request({"space_id": "240"}), space_id=240)
+
+        assert response.data["result"] is True
+        assert response.data["data"]["results"][0]["id"] == 2401
+        assert response.data["data"]["results"][0]["labels"] == []
+
+    @mock.patch("bkflow.interface.task.view.Label.get_label_ids_by_names", return_value=[])
+    @mock.patch("bkflow.interface.task.view.Label.objects.get_labels_map")
+    @mock.patch("bkflow.interface.task.view.TaskComponentClient")
+    def test_get_task_list_keeps_existing_labels(self, mock_client_class, mock_get_labels_map, _mock_ids):
+        mock_get_labels_map.return_value = {7: {"id": 7, "name": "prod"}}
+        mock_client = mock.Mock()
+        mock_client.task_list.return_value = {
+            "result": True,
+            "data": {"results": [{"id": 1, "name": "new engine task", "labels": [7]}]},
+        }
+        mock_client_class.return_value = mock_client
+
+        response = TaskInterfaceAdminViewSet().get_task_list(self._request({}), space_id=1)
+
+        assert response.data["data"]["results"][0]["labels"] == [{"id": 7, "name": "prod"}]
+        mock_get_labels_map.assert_called_once_with({7})
+
+    @mock.patch("bkflow.interface.task.view.Label.get_label_ids_by_names", return_value=[])
+    @mock.patch("bkflow.interface.task.view.Label.objects.get_labels_map")
+    @mock.patch("bkflow.interface.task.view.TaskComponentClient")
+    def test_get_task_list_passthrough_when_engine_fails(self, mock_client_class, mock_get_labels_map, _mock_ids):
+        failed = {"result": False, "message": "Request API error, status_code: 500, url: http://engine/task/"}
+        mock_client = mock.Mock()
+        mock_client.task_list.return_value = failed
+        mock_client_class.return_value = mock_client
+
+        response = TaskInterfaceAdminViewSet().get_task_list(self._request({}), space_id=1)
+
+        assert response.data == failed
+        mock_get_labels_map.assert_not_called()

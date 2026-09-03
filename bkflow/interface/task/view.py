@@ -37,6 +37,7 @@ from bkflow.contrib.openapi.serializers import (
 from bkflow.exceptions import APIRequestError
 from bkflow.interface.task.engine_compat import (
     empty_wrapped_result,
+    enrich_task_list_result_labels,
     fallback_if_engine_route_missing,
     parse_task_ids,
 )
@@ -71,17 +72,7 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
         if label_ids:
             query_params["label"] = ",".join([str(label_id) for label_id in label_ids])
         result = client.task_list(data={**query_params, "space_id": space_id})
-
-        label_ids = []
-        for item in result["data"]["results"]:
-            label_ids.extend(item["labels"])
-
-        labels_map = Label.objects.get_labels_map(set(label_ids))
-
-        for item in result["data"]["results"]:
-            item["labels"] = [labels_map.get(label_id) for label_id in item["labels"]]
-
-        return Response(result)
+        return Response(enrich_task_list_result_labels(result))
 
     @action(methods=["POST"], detail=False, url_path="update_labels/(?P<space_id>\\d+)/(?P<pk>\\d+)")
     def update_labels(self, request, space_id, pk=None):

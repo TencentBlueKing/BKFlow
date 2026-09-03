@@ -24,6 +24,7 @@ from django.views.decorators.http import require_GET
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import GetTaskListSerializer
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.interface.task.engine_compat import enrich_task_list_result_labels
 from bkflow.label.models import Label
 
 
@@ -62,15 +63,4 @@ def get_task_list(request, space_id):
         data["label"] = ",".join([str(label_id) for label_id in label_ids])
 
     client = TaskComponentClient(space_id=space_id)
-    result = client.task_list(data=data)
-    if result.get("result"):
-        label_ids = []
-        for item in result["data"]["results"]:
-            label_ids.extend(item["labels"])
-
-        labels_map = Label.objects.get_labels_map(set(label_ids))
-
-        for item in result["data"]["results"]:
-            item["labels"] = [labels_map.get(label_id) for label_id in item["labels"]]
-
-    return result
+    return enrich_task_list_result_labels(client.task_list(data=data))
