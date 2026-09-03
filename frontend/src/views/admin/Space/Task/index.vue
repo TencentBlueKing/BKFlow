@@ -373,15 +373,23 @@ export default {
         },
         // 判断每条记录是否有子流程并且设置
         async setListHaveChild(list) {
-            const ids = list.map(item => item.id);
-            const checkStatus = await this.getTaskHasSubTasks({
-                project_id: this.project_id,
-                task_ids: ids.toString(),
-                space_id: this.spaceId,
-            });
-            list.forEach((item) => {
-                item.isHasChild = checkStatus.data.has_children_taskflow[item.id];
-            });
+            try {
+                const ids = list.map(item => item.id);
+                const checkStatus = await this.getTaskHasSubTasks({
+                    project_id: this.project_id,
+                    task_ids: ids.toString(),
+                    space_id: this.spaceId,
+                });
+                const childrenMap = (checkStatus && checkStatus.data && checkStatus.data.has_children_taskflow) || {};
+                list.forEach((item) => {
+                    item.isHasChild = !!childrenMap[item.id];
+                });
+            } catch (error) {
+                console.warn(error);
+                list.forEach((item) => {
+                    item.isHasChild = false;
+                });
+            }
             return list;
         },
         // 获取当前流程的子流程列表
@@ -406,7 +414,7 @@ export default {
                     curField.width = 20 * (curParent.level + 1) + 100;
                 } else {
                     const res = await this.getTaskHasSubTaskList({ task_id: row.id, space_id: this.spaceId });
-                    const { tasks, relations } = res.data;
+                    const { tasks = [], relations = {} } = (res && res.data) || {};
                     const parentToChildren = {};
                     for (const [childId, parentId] of Object.entries(relations)) {
                         if (!parentToChildren[parentId]) {

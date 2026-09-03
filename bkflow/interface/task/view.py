@@ -35,6 +35,11 @@ from bkflow.contrib.openapi.serializers import (
     TaskEngineAdminSerializer,
 )
 from bkflow.exceptions import APIRequestError
+from bkflow.interface.task.engine_compat import (
+    empty_wrapped_result,
+    fallback_if_engine_route_missing,
+    parse_task_ids,
+)
 from bkflow.interface.task.permissions import (
     ScopePermission,
     TaskMockTokenPermission,
@@ -322,22 +327,26 @@ class TaskInterfaceViewSet(GenericViewSet):
         space_id = self.get_space_id(request)
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
         result = client.list_children_taskflow(data={"task_id": task_id, "space_id": space_id})
-        return Response(result)
+        return Response(fallback_if_engine_route_missing(result, empty_wrapped_result({"tasks": [], "relations": {}})))
 
     @action(methods=["GET"], detail=False, url_path="root_task_info")
     def root_task_info(self, request, *args, **kwargs):
         """批量查询任务是否包含子任务"""
         space_id = self.get_space_id(request)
+        task_ids_param = request.query_params.get("task_ids")
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
-        result = client.root_task_info(data={"task_ids": request.query_params.get("task_ids"), "space_id": space_id})
-        return Response(result)
+        result = client.root_task_info(data={"task_ids": task_ids_param, "space_id": space_id})
+        fallback = empty_wrapped_result(
+            {"has_children_taskflow": {task_id: False for task_id in parse_task_ids(task_ids_param)}}
+        )
+        return Response(fallback_if_engine_route_missing(result, fallback))
 
     @action(methods=["POST"], detail=False, url_path="get_node_outputs")
     def get_node_outputs(self, request, *args, **kwargs):
         space_id = self.get_space_id(request)
         client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
         result = client.get_node_outputs(data={"space_id": space_id, **request.data})
-        return Response(result)
+        return Response(fallback_if_engine_route_missing(result, empty_wrapped_result([])))
 
     @action(methods=["GET"], detail=False, url_path="get_tasks_pipeline")
     def get_tasks_pipeline(self, request, *args, **kwargs):
@@ -346,7 +355,7 @@ class TaskInterfaceViewSet(GenericViewSet):
         result = client.get_tasks_pipeline(
             data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
         )
-        return Response(result)
+        return Response(fallback_if_engine_route_missing(result, empty_wrapped_result({})))
 
     @action(methods=["GET"], detail=False, url_path="batch_get_task_states")
     def batch_get_task_states(self, request, *args, **kwargs):
@@ -355,4 +364,4 @@ class TaskInterfaceViewSet(GenericViewSet):
         result = client.batch_get_task_states(
             data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
         )
-        return Response(result)
+        return Response(fallback_if_engine_route_missing(result, empty_wrapped_result({})))
