@@ -31,7 +31,7 @@ from django.contrib.auth import logout
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils.translation import ugettext_lazy as _
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
 from bkflow.contrib.api.collections.task import TaskComponentClient
@@ -42,6 +42,7 @@ from bkflow.task.open_plugin_callback import OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY
 logger = logging.getLogger("root")
 
 
+@ensure_csrf_cookie
 def home(request):
     return render(request, "base_vue.html")
 
@@ -54,6 +55,7 @@ def user_exit(request):
     return handler.build_401_response(request)
 
 
+@ensure_csrf_cookie
 def is_admin_or_space_superuser(request):
     """
     判断是否是管理员或者空间超级管理员
@@ -72,6 +74,7 @@ def is_admin_or_space_superuser(request):
     )
 
 
+@ensure_csrf_cookie
 def is_admin_or_current_space_superuser(request):
     """
     判断是否是管理员或者当前空间超级管理员
