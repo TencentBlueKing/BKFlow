@@ -43,6 +43,25 @@ ENGINE_500 = {
     "result": False,
     "message": "Request API error, status_code: 500, url: http://engine/task/root_task_info/, method: GET, resp: boom",
 }
+# 旧 engine 有 SimpleGenericViewSet：缺路由的 DRF 404 会被改写成 HTTP 200
+ENGINE_WRAPPED_NOT_FOUND = {
+    "result": False,
+    "data": {"detail": "未找到。"},
+    "code": "not_found",
+    "message": "未找到。",
+}
+ENGINE_WRAPPED_NOT_FOUND_EN = {
+    "result": False,
+    "data": {"detail": "Not found."},
+    "code": "not_found",
+    "message": "Not found.",
+}
+ENGINE_CUSTOM_NOT_FOUND = {
+    "result": False,
+    "data": {"detail": "task 123 not found"},
+    "code": "not_found",
+    "message": "task 123 not found",
+}
 
 
 class TestIsEngineRouteMissing:
@@ -63,6 +82,15 @@ class TestIsEngineRouteMissing:
     def test_ignores_non_dict(self):
         assert is_engine_route_missing(None) is False
         assert is_engine_route_missing("not found") is False
+
+    def test_detects_wrapped_drf_not_found(self):
+        assert is_engine_route_missing(ENGINE_WRAPPED_NOT_FOUND) is True
+
+    def test_detects_wrapped_english_not_found(self):
+        assert is_engine_route_missing(ENGINE_WRAPPED_NOT_FOUND_EN) is True
+
+    def test_does_not_swallow_custom_not_found_message(self):
+        assert is_engine_route_missing(ENGINE_CUSTOM_NOT_FOUND) is False
 
 
 class TestFallbackIfEngineRouteMissing:
@@ -147,6 +175,19 @@ class TestTaskInterfaceEngineRouteCompat:
 
         assert response.data["result"] is False
         assert "status_code: 500" in response.data["message"]
+
+    @mock.patch("bkflow.interface.task.view.TaskComponentClient")
+    def test_root_task_info_falls_back_when_engine_wraps_not_found(self, mock_client_class):
+        mock_client = mock.Mock()
+        mock_client.root_task_info.return_value = ENGINE_WRAPPED_NOT_FOUND
+        mock_client_class.return_value = mock_client
+
+        view = TaskInterfaceViewSet()
+        view.get_space_id = lambda request: 1
+        response = view.root_task_info(self._request({"task_ids": "2,1", "space_id": "240"}))
+
+        assert response.data["result"] is True
+        assert response.data["data"]["has_children_taskflow"] == {2: False, 1: False}
 
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_list_children_taskflow_falls_back_when_engine_404(self, mock_client_class):
