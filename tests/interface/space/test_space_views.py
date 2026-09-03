@@ -471,6 +471,19 @@ class TestSpaceConfigAdminViewSet:
         fake.json_resp = json_resp
         return fake
 
+    def _verify_uniform_api(self, value):
+        """调用 uniform_api 一键校验接口"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+        data = {
+            "space_id": self.space.id,
+            "name": "uniform_api",
+            "value": value,
+            "params": {"api_key": "default", "credential_name": "default_cred"},
+        }
+        request = self.factory.post("/space_configs/verify/", data, format="json")
+        force_authenticate(request, user=self.superuser)
+        return view(request)
+
     def test_uniform_api_verify_success(self):
         """uniform_api verify 成功：依次调用 category_list/list/meta 三个接口，回显统计与样例。
 
@@ -606,13 +619,31 @@ class TestSpaceConfigAdminViewSet:
         cat_result = self._make_request_result(
             True, {"data": [{"id": f"c{i}", "name": f"分类{i}"} for i in range(3)]}
         )
-        list_result = self._make_request_result(True, {"data": {"total": 1, "apis": []}})
+        detail_url = "http://bkapi.example.com/api/meta/1/"
+        list_result = self._make_request_result(
+            True,
+            {"data": {"total": 1, "apis": [{"id": "1", "name": "A", "meta_url": detail_url}]}},
+        )
+        meta_result = self._make_request_result(
+            True,
+            {
+                "data": {
+                    "id": "1",
+                    "name": "A",
+                    "url": "http://bkapi.example.com/api/1/",
+                    "methods": ["GET"],
+                    "inputs": [],
+                }
+            },
+        )
 
         def request_side_effect(url, **kwargs):
             if url == categories_url:
                 return cat_result
             if url == meta_url:
                 return list_result
+            if url == detail_url:
+                return meta_result
             return None
 
         with mock.patch(
@@ -761,7 +792,7 @@ class TestSpaceConfigAdminViewSet:
         categories_url = value["api"]["default"]["api_categories"]
         meta_url = value["api"]["default"]["meta_apis"]
         cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
-        list_result = self._make_request_result(True, {"data": {"total": 1, "apis": []}})
+        list_result = self._make_request_result(True, {"data": {"total": 0, "apis": []}})
 
         def request_side_effect(url, **kwargs):
             if url == categories_url:
@@ -1087,8 +1118,84 @@ class TestSpaceConfigAdminViewSet:
         assert payload["ok"] is False
         assert "validate response data error" in payload["error"]["message"]
 
-    def test_uniform_api_verify_meta_url_missing_skipped(self):
-        """list 返回的 api meta_url 为空字符串时应跳过"""
+    def test_uniform_api_verify_v4_meta_url_template(self):
+        """V4 list 条目应使用 latest_version 展开 meta_url_template 并校验详情"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        meta_url_template = "http://bkapi.example.com/api/meta/1/?version={version}"
+        latest_meta_url = "http://bkapi.example.com/api/meta/1/?version=1.3.0"
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(
+            True,
+            {
+                "data": {
+                    "total": 1,
+                    "apis": [
+                        {
+                            "id": "1",
+                            "name": "A",
+                            "plugin_source": "builtin",
+                            "plugin_code": "demo",
+                            "wrapper_version": "v4.0.0",
+                            "default_version": "1.2.0",
+                            "latest_version": "1.3.0",
+                            "versions": ["1.2.0", "1.3.0"],
+                            "meta_url_template": meta_url_template,
+                        }
+                    ],
+                }
+            },
+        )
+        meta_result = self._make_request_result(
+            True,
+            {
+                "data": {
+                    "id": "1",
+                    "name": "A",
+                    "plugin_source": "builtin",
+                    "plugin_code": "demo",
+                    "plugin_version": "1.3.0",
+                    "wrapper_version": "v4.0.0",
+                    "url": "http://bkapi.example.com/api/1/",
+                    "methods": ["GET"],
+                    "inputs": [],
+                    "outputs": [],
+                }
+            },
+        )
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            if url == latest_meta_url:
+                return meta_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            response = self._verify_uniform_api(value)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is True
+        assert payload["data"]["samples"] == [{"id": "1", "name": "A", "method": "GET"}]
+
+    def test_uniform_api_verify_missing_meta_url(self):
+        """list 条目无法解析详情 URL 时应返回校验失败"""
         value = self._uniform_api_value()
         Credential.objects.create(
             space_id=self.space.id,
@@ -1118,21 +1225,47 @@ class TestSpaceConfigAdminViewSet:
             "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
             return_value=True,
         ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
-            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
-            data = {
-                "space_id": self.space.id,
-                "name": "uniform_api",
-                "value": value,
-                "params": {"api_key": "default", "credential_name": "default_cred"},
-            }
-            request = self.factory.post("/space_configs/verify/", data, format="json")
-            force_authenticate(request, user=self.superuser)
-            response = view(request)
+            response = self._verify_uniform_api(value)
 
         assert response.status_code == 200
         payload = response.data.get("data", {})
-        assert payload["ok"] is True
-        assert payload["data"]["samples"] == []
+        assert payload["ok"] is False
+        assert "meta_url 和 meta_url_template 至少有一个" in payload["error"]["message"]
+
+    def test_uniform_api_verify_non_empty_catalog_without_samples(self):
+        """接口总数非零但没有详情样例时应返回校验失败"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(True, {"data": {"total": 1, "apis": []}})
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            response = self._verify_uniform_api(value)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "接口列表非空但未能校验任何接口详情" in payload["error"]["message"]
 
     def test_batch_apply(self):
         """Test batch_apply action"""
