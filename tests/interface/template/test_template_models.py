@@ -30,6 +30,7 @@ from bkflow.template.models import (
     TemplateSnapshot,
     Trigger,
 )
+from bkflow.template.utils import validate_pipeline_tree_gateway_expression
 
 
 def build_pipeline_tree():
@@ -1076,3 +1077,121 @@ class TestTriggerManager:
         # 验证新增
         new_trigger = Trigger.objects.filter(name="New Trigger").first()
         assert new_trigger is not None
+
+
+def _build_gateway(gateway_type="ExclusiveGateway", parse_lang="boolrule"):
+    return {"type": gateway_type, "extra_info": {"parse_lang": parse_lang}}
+
+
+def _build_pipeline_tree_with_subcanvas(subcanvas_parse_lang="boolrule"):
+    """构建包含 SubCanvas 的 pipeline tree"""
+    return {
+        "gateways": {},
+        "activities": {
+            "subcanvas_node": {
+                "id": "subcanvas_node",
+                "type": "SubCanvas",
+                "pipeline": {
+                    "gateways": {
+                        "subcanvas_gw": _build_gateway("ExclusiveGateway", subcanvas_parse_lang),
+                    },
+                    "activities": {},
+                },
+            },
+        },
+    }
+
+
+def test_validate_pipeline_tree_gateway_expression_subcanvas_match():
+    """SubCanvas 内部网关表达式与空间配置一致时应通过"""
+    tree = _build_pipeline_tree_with_subcanvas("boolrule")
+    validate_pipeline_tree_gateway_expression(tree, "boolrule")
+
+
+def test_validate_pipeline_tree_gateway_expression_subcanvas_mismatch():
+    """SubCanvas 内部网关表达式与空间配置不一致时应抛出异常"""
+    tree = _build_pipeline_tree_with_subcanvas("FEEL")
+    with pytest.raises(ValidationError) as exc_info:
+        validate_pipeline_tree_gateway_expression(tree, "boolrule")
+    assert "subcanvas_gw" in str(exc_info.value)
+
+
+def test_validate_pipeline_tree_gateway_expression_nested_subcanvas():
+    """SubCanvas 内部嵌套 SubCanvas 时，内部网关也应被校验"""
+    tree = _build_pipeline_tree_with_subcanvas("boolrule")
+    tree["activities"]["subcanvas_node"]["pipeline"]["activities"]["nested_subcanvas"] = {
+        "id": "nested_subcanvas",
+        "type": "SubCanvas",
+        "pipeline": {
+            "gateways": {
+                "nested_gw": _build_gateway("ExclusiveGateway", "FEEL"),
+            },
+            "activities": {},
+        },
+    }
+    with pytest.raises(ValidationError) as exc_info:
+        validate_pipeline_tree_gateway_expression(tree, "boolrule")
+    assert "nested_gw" in str(exc_info.value)
+
+
+def test_validate_pipeline_tree_gateway_expression_multiple_subcanvas():
+    """多个 SubCanvas 节点应分别被递归校验"""
+    tree = _build_pipeline_tree_with_subcanvas("boolrule")
+    tree["activities"]["another_subcanvas"] = {
+        "id": "another_subcanvas",
+        "type": "SubCanvas",
+        "pipeline": {
+            "gateways": {
+                "another_gw": _build_gateway("ExclusiveGateway", "FEEL"),
+            },
+            "activities": {},
+        },
+    }
+    with pytest.raises(ValidationError) as exc_info:
+        validate_pipeline_tree_gateway_expression(tree, "boolrule")
+    assert "another_gw" in str(exc_info.value)
+
+
+def test_validate_pipeline_tree_gateway_expression_default_parse_lang():
+    """网关未设置 parse_lang 时默认按 boolrule 处理"""
+    tree = _build_pipeline_tree_with_subcanvas("boolrule")
+    tree["activities"]["subcanvas_node"]["pipeline"]["gateways"]["subcanvas_gw"].pop("extra_info")
+    validate_pipeline_tree_gateway_expression(tree, "boolrule")
+
+    with pytest.raises(ValidationError) as exc_info:
+        validate_pipeline_tree_gateway_expression(tree, "FEEL")
+    assert "subcanvas_gw" in str(exc_info.value)
+
+
+def test_validate_pipeline_tree_gateway_expression_conditional_parallel_gateway():
+    """ConditionalParallelGateway 的 parse_lang 也应被校验"""
+    tree = {
+        "gateways": {"gw1": {"type": "ConditionalParallelGateway", "extra_info": {"parse_lang": "FEEL"}}},
+        "activities": {},
+    }
+    with pytest.raises(ValidationError) as exc_info:
+        validate_pipeline_tree_gateway_expression(tree, "boolrule")
+    assert "gw1" in str(exc_info.value)
+
+
+def test_validate_pipeline_tree_gateway_expression_empty_tree():
+    """空流程树应直接通过"""
+    validate_pipeline_tree_gateway_expression({}, "boolrule")
+
+
+def test_validate_pipeline_tree_gateway_expression_non_subcanvas_activity():
+    """非 SubCanvas 活动不应触发递归"""
+    tree = {
+        "gateways": {},
+        "activities": {"node1": {"type": "ServiceActivity"}},
+    }
+    validate_pipeline_tree_gateway_expression(tree, "boolrule")
+
+
+def test_validate_pipeline_tree_gateway_expression_subcanvas_without_pipeline():
+    """SubCanvas 未携带 pipeline 时不应报错"""
+    tree = {
+        "gateways": {},
+        "activities": {"sub1": {"type": "SubCanvas"}},
+    }
+    validate_pipeline_tree_gateway_expression(tree, "boolrule")

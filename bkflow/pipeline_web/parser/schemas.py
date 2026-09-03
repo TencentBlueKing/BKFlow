@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -156,7 +155,7 @@ WEB_PIPELINE_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "id": {"type": "string"},
-                        "type": {"type": "string", "enum": ["ServiceActivity", "SubProcess"]},
+                        "type": {"type": "string", "enum": ["ServiceActivity", "SubProcess", "SubCanvas"]},
                         "name": {"type": "string", "minLength": 1, "maxLength": ACT_MAX_LENGTH},
                         "incoming": MULTIPLE_FLOW,
                         "outgoing": ONE_FLOW,

@@ -33,8 +33,9 @@ from bkflow.constants import (
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.exceptions import APIResponseError, NotFoundError, ValidationError
-from bkflow.space.configs import FlowVersioning
+from bkflow.space.configs import FlowVersioning, GatewayExpressionConfig
 from bkflow.space.models import SpaceConfig
+from bkflow.template.utils import validate_pipeline_tree_gateway_expression
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.md5 import compute_pipeline_md5
 from bkflow.utils.models import CommonModel, CommonSnapshot
@@ -54,6 +55,9 @@ class TemplateManager(models.Manager):
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
         template_pipeline_tree = template.get_pipeline_tree_by_version(version)
+        # 校验流程树中的网关表达式语言是否与空间配置一致
+        space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+        validate_pipeline_tree_gateway_expression(template_pipeline_tree, space_gateway_expression)
         for node in template_pipeline_tree["activities"].values():
             if node["type"] == "SubProcess":
                 if copy_subprocess:
@@ -69,6 +73,11 @@ class TemplateManager(models.Manager):
                     node["version"] = new_sub_template.version
                 else:
                     continue
+            elif node["type"] == "SubCanvas":
+                pipeline = node.get("pipeline", {})
+                for sub_node in pipeline["activities"].values():
+                    if sub_node.get("component", {}).get("code") == "dmn_plugin":
+                        raise ValidationError("流程中存在决策节点 暂不支持拷贝")
             elif node["component"]["code"] == "dmn_plugin":
                 raise ValidationError("流程中存在决策节点 暂不支持拷贝")
         template.pk = None

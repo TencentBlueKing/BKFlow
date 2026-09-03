@@ -1,5 +1,9 @@
 <template>
   <div class="task-param-wrapper">
+    <bk-alert
+      v-if="formLoadErrorMessage"
+      type="error"
+      :title="formLoadErrorMessage" />
     <template v-if="!isConfigLoading">
       <template v-for="section in formSections">
         <RenderForm
@@ -22,7 +26,7 @@
       </template>
     </template>
     <NoData
-      v-if="isNoData && !isConfigLoading"
+      v-if="isNoData && !isConfigLoading && !formLoadError"
       :message="$t('暂无参数')" />
   </div>
 </template>
@@ -34,6 +38,7 @@
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import renderFormSchema from '@/utils/renderFormSchema.js';
+  import { buildApiVariableFormFromExtraInfo, getApiVariableFormErrorMessage } from '@/utils/legacyApiVariableForm.js';
   import NoData from '@/components/common/base/NoData.vue';
   import {
     buildV4PluginDetailRequest,
@@ -116,6 +121,8 @@
         formGeneration: 0,
         isDestroyed: false,
         lastPluginFormErrorKey: '',
+        formLoadError: null,
+        formLoadErrorMessage: '',
       };
     },
     computed: {
@@ -175,9 +182,20 @@
         'loadV4OpenPluginForm',
       ]),
       async loadFormData() {
+        const generation = this.formGeneration + 1;
         try {
           await this.getFormData();
         } catch (error) {
+          if (this.isDestroyed || generation !== this.formGeneration) return;
+          const message = getApiVariableFormErrorMessage(error, this.$t.bind(this));
+          if (message) {
+            this.formLoadError = error.code;
+            this.formLoadErrorMessage = message;
+            this.formSections = [];
+            this.isConfigLoading = false;
+            this.$emit('onChangeConfigLoading', false);
+            return;
+          }
           if (error?.isV4PluginFormError) {
             if (shouldNotifyPluginFormError(error, () => !this.isDestroyed, this.lastPluginFormErrorKey)) {
               this.lastPluginFormErrorKey = getPluginFormErrorKey(error);
@@ -195,6 +213,8 @@
        * 加载表单元素的标准插件配置文件
        */
       async getFormData() {
+        this.formLoadError = null;
+        this.formLoadErrorMessage = '';
         this.formGeneration += 1;
         const generation = this.formGeneration;
         const isCurrentGeneration = () => !this.isDestroyed && generation === this.formGeneration;
@@ -269,19 +289,16 @@
             throw error;
           }
           let atomConfig;
-          if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 已加载过相同类型且相同版本的插件配置项，直接取缓存
+          const codeType = (sourceTag || '').split('.')[0] || customType;
+          if (codeType === 'uniform_api') {
+            atomConfig = await this.getApiAtomConfig(sourceInfo, sourceTag, variable);
+          } else if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 已加载过相同类型且相同版本的插件配置项，直接取缓存
             atomConfig = this.atomFormConfig[atom][version];
+          } else if (pluginCode) {
+            atomConfig = await this.getThirdPartyAtomConfig(pluginCode, version);
           } else {
-            // api插件变量
-            const codeType = sourceTag.split('.')[0] || customType;
-            if (codeType === 'uniform_api') {
-              atomConfig = await this.getApiAtomConfig(sourceInfo, sourceTag);
-            } else if (pluginCode) {
-              atomConfig = await this.getThirdPartyAtomConfig(pluginCode, version);
-            } else {
-              await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
-              atomConfig = tools.deepClone(this.atomFormConfig[atom][version]);
-            }
+            await this.loadAtomConfig({ name, atom, classify, version, space_id: this.spaceId });
+            atomConfig = tools.deepClone(this.atomFormConfig[atom][version]);
           }
 
           const isPreRenderMako = this.preMakoDisabled && variable.pre_render_mako; // 变量预渲染
@@ -435,30 +452,32 @@
           }
         });
       },
-      async getApiAtomConfig(sourceInfo, sourceTag) {
+      async getApiAtomConfig(sourceInfo, sourceTag, variable) {
         try {
-          const sourceNodeId = Object.keys(sourceInfo)[0];
-          if (!sourceNodeId) return [];
-          const { api_meta: apiMeta = {} } = this.activities[sourceNodeId].component;
+          const sourceNodeId = Object.keys(sourceInfo || {})[0];
+          const component = sourceNodeId && this.activities[sourceNodeId] && this.activities[sourceNodeId].component;
+          const apiMeta = (component && component.api_meta) || {};
           const { meta_url: metaUrl } = apiMeta;
-          if (!metaUrl) return;
-          // api插件配置
-          const resp = await this.loadUniformApiMeta({
-            templateId: this.templateId,
-            spaceId: this.spaceId,
-            meta_url: metaUrl,
-            ...this.scopeInfo,
-            meta_url_template: apiMeta.meta_url_template,
-            source_key: apiMeta.source_key,
-            version: this.activities[sourceNodeId].component.version,
-          });
-          if (!resp.result) return;
-          const tag = sourceTag.split('.')[1];
-          const field = resp.data.inputs.find(item => item.key === tag);
-          return renderFormSchema([field]);
+          if (metaUrl) {
+            const resp = await this.loadUniformApiMeta({
+              templateId: this.templateId,
+              spaceId: this.spaceId,
+              meta_url: metaUrl,
+              ...this.scopeInfo,
+              meta_url_template: apiMeta.meta_url_template,
+              source_key: apiMeta.source_key,
+              version: component.version,
+            });
+            if (resp && resp.result) {
+              const tag = sourceTag.split('.')[1];
+              const field = (resp.data.inputs || []).find(item => item.key === tag);
+              if (field) return renderFormSchema([field]);
+            }
+          }
         } catch (error) {
           console.warn(error);
         }
+        return buildApiVariableFormFromExtraInfo(variable);
       },
       async getThirdPartyAtomConfig(code, version) {
         try {
@@ -484,7 +503,7 @@
         }
       },
       async validate() {
-        if (this.isConfigLoading) return false;
+        if (this.isConfigLoading || this.formLoadError) return false;
         const formRefs = normalizePluginFormRefs([
           this.$refs['renderForm-array'],
           this.$refs['renderForm-object'],

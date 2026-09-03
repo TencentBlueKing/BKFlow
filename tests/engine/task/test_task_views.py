@@ -1222,6 +1222,50 @@ class TestTaskInstanceViewSet:
             assert response.data["data"]["x"] == 1
             assert response.data["data"]["y"] == 2
 
+    def test_get_node_detail_forwards_include_loop_outputs(self):
+        """调试同步可显式读取循环聚合输出，普通任务详情默认行为不变。"""
+
+        from rest_framework.request import Request
+
+        class _Result(dict):
+            def __init__(self, result=True, data=None, message="success"):
+                super().__init__({"result": result, "data": data, "message": message})
+                self.result = result
+                self.data = data
+                self.message = message
+
+        pipeline_tree = build_default_pipeline_tree()
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=pipeline_tree)
+        node_id = list(pipeline_tree["activities"].keys())[0]
+
+        with patch("bkflow.task.views.TaskNodeOperation") as mock_node_operation:
+            mock_node_op = MagicMock()
+            mock_node_op.get_node_data.return_value = _Result(result=True, data={})
+            mock_node_op.get_node_detail.return_value = _Result(result=True, data={})
+            mock_node_operation.return_value = mock_node_op
+            view = TaskInstanceViewSet()
+            view.action = "get_node_detail"
+            view.kwargs = {"pk": task_instance.id}
+            view.get_object = MagicMock(return_value=task_instance)
+            raw_request = self._create_request_with_auth(
+                "get",
+                f"/task/{task_instance.id}/get_task_node_detail/{node_id}/",
+                {"include_data": True, "include_loop_outputs": True},
+            )
+            request = Request(raw_request)
+            view.request = request
+
+            response = TaskInstanceViewSet.get_node_detail.__wrapped__(view, request, node_id=node_id)
+
+            assert response.status_code == status.HTTP_200_OK
+            mock_node_op.get_node_data.assert_called_once_with(
+                username="",
+                subprocess_stack=[],
+                component_code=None,
+                loop=None,
+                include_loop_outputs=True,
+            )
+
     @patch("bkflow.task.views.TaskOperation")
     def test_get_states_forwards_optional_debug_details(self, mock_task_operation):
         task_instance = TaskInstance.objects.create(name="debug task", space_id=1, instance_id="root", is_started=True)

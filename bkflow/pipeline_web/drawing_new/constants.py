@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -31,6 +30,7 @@ PIPELINE_ELEMENT_TO_WEB = {
     DUMMY_NODE_TYPE: DUMMY_NODE_TYPE,
     PWE.ServiceActivity: PWE.tasknode,
     PWE.SubProcess: PWE.subflow,
+    PWE.SubCanvas: PWE.subcanvas,
     PWE.EmptyStartEvent: PWE.startpoint,
     PWE.EmptyEndEvent: PWE.endpoint,
     PWE.ExclusiveGateway: PWE.branchgateway,

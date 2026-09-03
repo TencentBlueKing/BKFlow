@@ -134,7 +134,7 @@ def _get_api_credential(
         template_id=template_id,
         task_id=task_id,
     )
-    scope = f"{scope_type}_{scope_value}" if scope_type and scope_value else None
+    scope = f"{scope_type}_{scope_value}" if scope_type and scope_value else "default"
 
     api_credential_config = SpaceConfig.get_config(
         space_id=space_id, config_name=ApiGatewayCredentialConfig.name, scope=scope

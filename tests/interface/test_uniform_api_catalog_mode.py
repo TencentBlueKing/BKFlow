@@ -4,7 +4,7 @@ import pytest
 
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.query.uniform_api import uniform_api as uniform_api_query
-from bkflow.space.configs import UniformApiConfig
+from bkflow.space.configs import UniformApiConfig, ApiGatewayCredentialConfig
 
 LIST_KEY = UniformApiConfig.Keys.META_APIS.value
 CATEGORY_KEY = UniformApiConfig.Keys.API_CATEGORIES.value
@@ -305,3 +305,22 @@ def test_dispatch_catalog_sync_ignores_cache_backend_error():
         uniform_api_query._dispatch_catalog_sync(space_id=1, source_key="sops")
 
     mock_logger.assert_called_once()
+
+
+def test_get_api_credential_uses_default_scope_when_scope_empty():
+    """scope_type/scope_value 为空时应回退到 default 凭证"""
+    with patch("bkflow.space.models.SpaceConfig") as mock_space_config, patch(
+        "bkflow.space.models.Credential"
+    ) as mock_credential:
+        mock_space_config.get_config.return_value = "default_cred"
+        mock_filter_qs = MagicMock()
+        mock_filter_qs.exists.return_value = True
+        mock_filter_qs.first.return_value = MagicMock(content={"bk_app_code": "app", "bk_app_secret": "secret"})
+        mock_credential.objects.filter.return_value = mock_filter_qs
+
+        result = uniform_api_query._get_api_credential(space_id=1, request_scope=(None, None))
+
+        mock_space_config.get_config.assert_called_once_with(
+            space_id=1, config_name=ApiGatewayCredentialConfig.name, scope="default"
+        )
+        assert result == {"bk_app_code": "app", "bk_app_secret": "secret"}

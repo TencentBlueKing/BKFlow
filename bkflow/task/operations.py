@@ -52,6 +52,7 @@ from bkflow.constants import (
     TaskOperationSource,
     TaskOperationType,
     TaskStates,
+    TaskTriggerMethod,
 )
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.contrib.operation_record.decorators import record_operation
@@ -68,7 +69,7 @@ from bkflow.plugin.services.open_plugin_detect import (
     needs_start_validation,
 )
 from bkflow.task.context import SystemObject
-from bkflow.task.models import OpenPluginRunCallbackRef, TaskInstance
+from bkflow.task.models import OpenPluginRunCallbackRef, TaskFlowRelation, TaskInstance
 from bkflow.task.open_plugin_callback import (
     callback_token_digest,
     parse_open_plugin_callback_token,
@@ -328,6 +329,66 @@ class TaskOperation:
         self.task_instance = task_instance
         self.queue = queue
 
+    def _revoke_debug_descendants(self, operator: str, node_id: str = None):
+        """撤销 DEBUG 根任务创建的子画布/子流程任务，最深层子任务优先。"""
+        if self.task_instance.create_method != "DEBUG":
+            return
+
+        relations = list(
+            TaskFlowRelation.objects.filter(root_task_id=self.task_instance.id).values(
+                "task_id", "parent_task_id", "extra_info"
+            )
+        )
+        children_by_parent = {}
+        for relation in relations:
+            children_by_parent.setdefault(relation["parent_task_id"], []).append(relation)
+
+        direct_relations = children_by_parent.get(self.task_instance.id, [])
+        if node_id:
+            direct_relations = [
+                relation
+                for relation in direct_relations
+                if (relation.get("extra_info") or {}).get("node_id") == node_id
+            ]
+
+        descendants = []
+        pending = [(relation, 1) for relation in direct_relations]
+        visited = set()
+        while pending:
+            relation, depth = pending.pop(0)
+            task_id = relation["task_id"]
+            if task_id in visited:
+                continue
+            visited.add(task_id)
+            descendants.append((task_id, depth))
+            pending.extend((child, depth + 1) for child in children_by_parent.get(task_id, []))
+
+        active_tasks = {
+            task.id: task
+            for task in TaskInstance.objects.filter(
+                id__in=[task_id for task_id, _ in descendants],
+                is_finished=False,
+                is_revoked=False,
+                is_expired=False,
+                is_deleted=False,
+            )
+        }
+        for task_id, _ in sorted(descendants, key=lambda item: item[1], reverse=True):
+            child_task = active_tasks.get(task_id)
+            if child_task is None:
+                continue
+            result = TaskOperation(task_instance=child_task, queue=self.queue).revoke(
+                operator=operator,
+                cascade_debug_descendants=False,
+            )
+            if not result.result:
+                logger.warning(
+                    "[debug revoke] revoke child task failed, root_task_id=%s, child_task_id=%s, message=%s",
+                    self.task_instance.id,
+                    task_id,
+                    result.message,
+                )
+
     def _ensure_open_plugins_ready_for_start(self):
         """仅对包含开放插件快照或 V4 节点的任务请求 Interface 做启动预检。"""
         extra_info = self.task_instance.extra_info or {}
@@ -362,20 +423,21 @@ class TaskOperation:
             self.task_instance.refresh_from_db()
             # convert web pipeline to pipeline
             pipeline = format_web_data_to_pipeline(self.task_instance.execution_data)
-
+            root_pipeline_context = {}
             root_pipeline_data = get_pipeline_context(
                 self.task_instance, obj_type=PipelineContextObjType.instance.value, username=operator
             )
-            system_obj = SystemObject(root_pipeline_data)
-            root_pipeline_context = {"${_system}": system_obj}
-            # 获取空间变量
-            space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
-            if not space_var.get("result"):
-                logger.error("get space variable failed: %s", space_var.get("message"))
-                space_var_data = {}
-            else:
-                space_var_data = space_var.get("data", {})
-            root_pipeline_context.update(space_var_data)
+            if self.task_instance.trigger_method != TaskTriggerMethod.sub_canvas.name:
+                system_obj = SystemObject(root_pipeline_data)
+                root_pipeline_context.update({"${_system}": system_obj})
+                # 获取空间变量
+                space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
+                if not space_var.get("result"):
+                    logger.error("get space variable failed: %s", space_var.get("message"))
+                    space_var_data = {}
+                else:
+                    space_var_data = space_var.get("data", {})
+                root_pipeline_context.update(space_var_data)
 
             # 创建执行级根 Span，将 trace context 注入 pipeline data，
             # 后续插件 Span 通过这些 ID 建立父子关系
@@ -455,6 +517,8 @@ class TaskOperation:
         )
         if result.result:
             _dispatch_open_plugin_cancellation(task_id=self.task_instance.id, operator=operator)
+            if kwargs.get("cascade_debug_descendants", True):
+                self._revoke_debug_descendants(operator=operator)
         return result
 
     @uniform_task_operation_result
@@ -838,6 +902,10 @@ class TaskNodeOperation:
                 node_id=self.node_id,
                 operator=operator,
             )
+            TaskOperation(task_instance=self.task_instance)._revoke_debug_descendants(
+                operator=operator,
+                node_id=self.node_id,
+            )
         return result
 
     @trace_task_operation("get_node_detail", operation_type="task_node")
@@ -947,12 +1015,32 @@ class TaskNodeOperation:
         return outputs_result
 
     @uniform_task_operation_result
+    def get_node_outputs(self, *args, **kwargs):
+        runtime = BambooDjangoRuntime()
+        outputs_data = []
+        outputs_result = bamboo_engine_api.get_execution_data_outputs(runtime=runtime, node_id=self.node_id)
+        if not outputs_result.result:
+            logger.error(f"get_outputs failed: {outputs_result.message}, exc: {outputs_result.exc}")
+            return outputs_result
+        if settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_result.data:
+            outputs_result.data.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
+        outputs_data.append(outputs_result.data)
+        hist_result = bamboo_engine_api.get_node_histories(runtime=runtime, node_id=self.node_id)
+        for hist in hist_result.data:
+            his_outputs = hist["outputs"]
+            if settings.PLUGIN_LOOP_OUTPUTS_KEY in his_outputs:
+                his_outputs.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
+            outputs_data.append(his_outputs)
+        return outputs_data
+
+    @uniform_task_operation_result
     def get_node_data(
         self,
         username: str,
         subprocess_stack: List[str],
         component_code: Optional[str] = None,
         loop: Optional[int] = None,
+        include_loop_outputs: bool = False,
         *args,
         **kwargs,
     ) -> OperationResult:
@@ -1007,7 +1095,7 @@ class TaskNodeOperation:
                     raw_outputs = hist[-1]["outputs"]
                     outputs_wrapper = {"outputs": raw_outputs, "ex_data": raw_outputs.get("ex_data")}
 
-            if settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_wrapper["outputs"]:
+            if not include_loop_outputs and settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_wrapper["outputs"]:
                 outputs_wrapper["outputs"].pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
 
         # 未执行节点需要实时渲染

@@ -83,6 +83,12 @@
   </div>
 </template>
 <script>
+  import leftTasknodeGuideUrl from '@/assets/images/left-tasknode-guide.gif';
+  import leftSubflowGuideUrl from '@/assets/images/left-subflow-guide.gif';
+  import leftParallelgatewayGuideUrl from '@/assets/images/left-parallelgateway-guide.gif';
+  import leftBranchgatewayGuideUrl from '@/assets/images/left-branchgateway-guide.gif';
+  import leftConvergegatewayGuideUrl from '@/assets/images/left-convergegateway-guide.gif';
+  import leftBranchConvergeGatewayGuideUrl from '@/assets/images/left-branch-converge-gateway-guide.gif';
   import i18n from '@/config/i18n/index.js';
   import NodeMenu from './NodeMenu/NodeMenu.vue';
   import Guide from '@/utils/guide.js';
@@ -178,7 +184,7 @@
         const nodesGuide = [
           {
             el: '.entry-item[data-type=tasknode]',
-            url: require('@/assets/images/left-tasknode-guide.gif'),
+            url: leftTasknodeGuideUrl,
             text: [
               {
                 type: 'name',
@@ -192,7 +198,7 @@
           },
           {
             el: '.entry-item[data-type=subflow]',
-            url: require('@/assets/images/left-subflow-guide.gif'),
+            url: leftSubflowGuideUrl,
             text: [
               {
                 type: 'name',
@@ -206,7 +212,7 @@
           },
           {
             el: '.entry-item[data-type=parallelgateway]',
-            url: require('@/assets/images/left-parallelgateway-guide.gif'),
+            url: leftParallelgatewayGuideUrl,
             text: [
               {
                 type: 'name',
@@ -220,7 +226,7 @@
           },
           {
             el: '.entry-item[data-type=branchgateway]',
-            url: require('@/assets/images/left-branchgateway-guide.gif'),
+            url: leftBranchgatewayGuideUrl,
             text: [
               {
                 type: 'name',
@@ -234,7 +240,7 @@
           },
           {
             el: '.entry-item[data-type=convergegateway]',
-            url: require('@/assets/images/left-convergegateway-guide.gif'),
+            url: leftConvergegatewayGuideUrl,
             text: [
               {
                 type: 'name',
@@ -248,7 +254,7 @@
           },
           {
             el: '.entry-item[data-type=conditionalparallelgateway]',
-            url: require('@/assets/images/left-branch-converge-gateway-guide.gif'),
+            url: leftBranchConvergeGatewayGuideUrl,
             text: [
               {
                 type: 'name',

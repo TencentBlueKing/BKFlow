@@ -118,6 +118,70 @@ TREE_CONTROL_GATEWAYS = {
     "constants": {},
 }
 
+TREE_SUBCANVAS = {
+    "start_event": {"id": "start", "type": "EmptyStartEvent", "incoming": None, "outgoing": "f1"},
+    "end_event": {"id": "end", "type": "EmptyEndEvent", "incoming": "f2", "outgoing": None},
+    "activities": {
+        "S": {
+            "id": "S",
+            "name": "loop canvas",
+            "type": "SubCanvas",
+            "incoming": "f1",
+            "outgoing": "f2",
+            "optional": True,
+            "loop_config": {"enable": True, "type": "time_loop", "loop_times": 2, "loop_params": {}},
+            "pipeline": {
+                "start_event": {
+                    "id": "inner_start",
+                    "type": "EmptyStartEvent",
+                    "incoming": None,
+                    "outgoing": "inner_f1",
+                },
+                "end_event": {
+                    "id": "inner_end",
+                    "type": "EmptyEndEvent",
+                    "incoming": "inner_f2",
+                    "outgoing": None,
+                },
+                "activities": {
+                    "I": {
+                        "id": "I",
+                        "type": "ServiceActivity",
+                        "incoming": "inner_f1",
+                        "outgoing": "inner_f2",
+                        "component": {"code": "t", "data": {}},
+                    }
+                },
+                "flows": {
+                    "inner_f1": {"id": "inner_f1", "source": "inner_start", "target": "I"},
+                    "inner_f2": {"id": "inner_f2", "source": "I", "target": "inner_end"},
+                },
+                "gateways": {},
+                "constants": {},
+                "outputs": [],
+            },
+        }
+    },
+    "flows": {
+        "f1": {"id": "f1", "source": "start", "target": "S"},
+        "f2": {"id": "f2", "source": "S", "target": "end"},
+    },
+    "gateways": {},
+    "constants": {
+        "${outputs}": {
+            "key": "${outputs}",
+            "name": "loop outputs",
+            "show_type": "hide",
+            "value": [],
+            "source_type": "component_outputs",
+            "source_info": {"S": ["outputs"]},
+            "custom_type": "array",
+            "source_tag": "",
+        }
+    },
+    "outputs": [],
+}
+
 
 @pytest.mark.django_db
 class TestStepRunAndMock:
@@ -228,6 +292,64 @@ class TestStepRunAndMock:
         assert ctx.global_vars["${g1}"] == "produced"
         ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
         assert ns.status == "finished" and ns.log_ref in (None, {})
+
+    def test_subcanvas_step_mock_writes_aggregate_output(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_SUBCANVAS)
+        ctx = svc.sync_node_states()
+        aggregate = [{"result": "first"}, {"result": "second"}]
+
+        result = svc.step_run(
+            node_id="S",
+            operator="admin",
+            mode="mock",
+            mock_result="success",
+            mock_outputs={"outputs": aggregate},
+        )
+
+        assert result["status"] == "finished"
+        assert result["outputs"] == {"outputs": aggregate}
+        ctx.refresh_from_db()
+        assert ctx.global_vars["${outputs}"] == aggregate
+
+    def test_subcanvas_real_step_runs_the_container_as_one_node(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_SUBCANVAS)
+        svc.sync_node_states()
+        client = mocker.MagicMock()
+        client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
+        client.get_node_id_map.return_value = {"result": True, "data": {"S": "rtS"}, "message": ""}
+        client.operate_task.return_value = {"result": True, "data": {}, "message": ""}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        result = svc.step_run(node_id="S", operator="admin", mode="real")
+
+        assert result["status"] == "running"
+        create_payload = client.create_task.call_args.args[0]
+        subcanvas = create_payload["pipeline_tree"]["activities"]["S"]
+        assert subcanvas["type"] == "SubCanvas"
+        assert set(subcanvas["pipeline"]["activities"]) == {"I"}
+        assert create_payload["create_method"] == "DEBUG"
+
+    def test_subcanvas_inner_node_step_is_explicitly_unsupported(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_SUBCANVAS)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError) as exc_info:
+            svc.step_run(node_id="I", operator="admin", mode="real")
+
+        assert exc_info.value.args[0] == {
+            "detail": "暂不支持子画布内部节点单步调试",
+            "node_id": "I",
+            "subcanvas_node_id": "S",
+        }
+
+    def test_subcanvas_context_exposes_only_container_as_debuggable_node(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_SUBCANVAS)
+
+        context_view = svc.build_context_view()
+
+        assert [node["node_id"] for node in context_view["nodes"]] == ["S"]
+        assert context_view["nodes"][0]["supports_step"] is True
+        assert context_view["nodes"][0]["supports_mock"] is True
 
     def test_step_run_mock_fail_sets_failed_no_writeback(self):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)

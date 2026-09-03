@@ -100,6 +100,8 @@
     import CronExpression from 'cron-parser-custom';
     import Translate from '@/utils/cron.js';
     import tools from '@/utils/tools.js';
+    import taskZhUrl from '@/assets/images/task-zh.png';
+    import taskEnUrl from '@/assets/images/task-en.png';
     const labelIndexMap = {
         minute: 0,
         hour: 1,
@@ -133,7 +135,7 @@
                 errorField: '',
                 isError: false,
                 isTimeMore: false,
-                periodicCronImg: require(`@/assets/images/${i18n.t('task-zh')}.png`),
+                periodicCronImg: { 'task-zh': taskZhUrl, 'task-en': taskEnUrl }[i18n.t('task-zh')],
                 ruleTipsHtmlConfig: {
                     extCls: 'periodic-cron-tips',
                     allowHtml: true,

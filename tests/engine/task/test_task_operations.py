@@ -26,7 +26,8 @@ from opentelemetry.sdk.trace import TracerProvider
 from pipeline.eri.models import Schedule as DBSchedule
 from pipeline.utils.uniqid import node_uniqid
 
-from bkflow.task.models import TaskInstance
+from bkflow.constants import TaskTriggerMethod
+from bkflow.task.models import TaskFlowRelation, TaskInstance
 from bkflow.task.operations import OperationResult, TaskOperation
 from bkflow.utils.pipeline import build_default_pipeline_tree
 
@@ -89,6 +90,50 @@ class TestTaskOperationComplete:
         )
         result = task_operation.get_task_states()
         assert "state" in result.data
+
+    def test_debug_task_revoke_cascades_to_active_subcanvas_descendants(self, mocker):
+        root = TaskInstance.objects.create_instance(
+            space_id=1,
+            pipeline_tree=build_default_pipeline_tree(),
+            create_method="DEBUG",
+            creator="admin",
+        )
+        child = TaskInstance.objects.create_instance(
+            space_id=1,
+            pipeline_tree=build_default_pipeline_tree(),
+            trigger_method=TaskTriggerMethod.sub_canvas.name,
+            creator="admin",
+        )
+        grandchild = TaskInstance.objects.create_instance(
+            space_id=1,
+            pipeline_tree=build_default_pipeline_tree(),
+            trigger_method=TaskTriggerMethod.sub_canvas.name,
+            creator="admin",
+        )
+        TaskInstance.objects.filter(id__in=[root.id, child.id, grandchild.id]).update(is_started=True)
+        TaskFlowRelation.objects.create(
+            task_id=child.id,
+            parent_task_id=root.id,
+            root_task_id=root.id,
+            extra_info={"node_id": "S", "trigger_method": TaskTriggerMethod.sub_canvas.name},
+        )
+        TaskFlowRelation.objects.create(
+            task_id=grandchild.id,
+            parent_task_id=child.id,
+            root_task_id=root.id,
+            extra_info={"node_id": "nested-S", "trigger_method": TaskTriggerMethod.sub_canvas.name},
+        )
+        revoke_pipeline = mocker.patch(
+            "bamboo_engine.api.revoke_pipeline",
+            return_value=EngineAPIResult(result=True, message="success"),
+        )
+        mocker.patch("bkflow.task.operations._dispatch_open_plugin_cancellation")
+
+        result = TaskOperation(root).revoke(operator="admin")
+
+        assert result.result is True
+        revoked_pipeline_ids = [call.kwargs["pipeline_id"] for call in revoke_pipeline.call_args_list]
+        assert revoked_pipeline_ids == [root.instance_id, grandchild.instance_id, child.instance_id]
 
     def test_render_current_constants_not_running(self, mocker):
         """测试渲染当前常量，任务未运行"""

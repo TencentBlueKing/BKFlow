@@ -212,6 +212,8 @@
 </template>
 
 <script>
+  import apigwUrl from '@/assets/images/apigw.png';
+  import apigwAccessTokenUrl from '@/assets/images/apigw_access_token.png';
 import { cloneDeepWith } from 'lodash';
 import { mapActions } from 'vuex';
 import { CREDENTIAL_TYPE_LIST, CREDENTIAL_OPEN_SCOPE_LIST } from '@/constants';
@@ -400,11 +402,11 @@ export default {
     },
     getImageUrl() {
       if (this.isApp) {
-        return require('@/assets/images/apigw.png');
+        return apigwUrl;
       }
 
       if (this.isAccessToken) {
-        return require('@/assets/images/apigw_access_token.png');
+        return apigwAccessTokenUrl;
       }
 
       return '';

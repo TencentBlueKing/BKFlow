@@ -109,8 +109,9 @@ def test_pipeline_tree_save_keeps_legacy_uniform_api_metadata_unchanged():
     save_source = source[save_start:save_end]
 
     assert "const isV4 = isV4OpenPlugin(buildUniformApiComponent(this.basicInfo));" in save_source
-    assert "const originalApiMeta = this.nodeConfig.component?.['api_meta'];" in save_source
-    assert "if (originalApiMeta) component.api_meta = tools.deepClone(originalApiMeta);" in save_source
+    assert "buildLegacyUniformApiMeta({" in save_source
+    assert "originalApiMeta: this.nodeConfig.component?.['api_meta']" in save_source
+    assert "if (legacyApiMeta) component.api_meta = legacyApiMeta;" in save_source
     assert "if (isV4) {" in save_source
     assert save_source.index("if (isV4) {") < save_source.index("component.api_meta = {")
 

@@ -11,6 +11,10 @@
 */
 <template>
   <div class="task-param-wrapper">
+    <bk-alert
+      v-if="formLoadErrorMessage"
+      type="error"
+      :title="formLoadErrorMessage" />
     <template v-if="!isConfigLoading">
       <template v-for="section in formSections">
         <RenderForm
@@ -32,7 +36,7 @@
       </template>
     </template>
     <NoData
-      v-if="isNoData && !isConfigLoading"
+      v-if="isNoData && !isConfigLoading && !formLoadError"
       :message="$t('暂无参数')" />
   </div>
 </template>
@@ -44,6 +48,8 @@
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
+  import renderFormSchema from '@/utils/renderFormSchema.js';
+  import { buildApiVariableFormFromExtraInfo, getApiVariableFormErrorMessage } from '@/utils/legacyApiVariableForm.js';
   import {
     buildV4PluginDetailRequest,
     buildVariablePluginRuntimeInputs,
@@ -119,12 +125,14 @@
         pluginFormRequestId: 0,
         formGeneration: 0,
         formLoadError: null,
+        formLoadErrorMessage: '',
         isDestroyed: false,
       };
     },
     computed: {
       ...mapState({
         spaceId: state => state.template.spaceId,
+        scopeInfo: state => state.template.scopeInfo,
         atomFormConfig: state => state.atomForm.config,
       }),
       ...mapState('project', {
@@ -161,6 +169,9 @@
         'loadAtomConfig',
         'loadPluginServiceDetail',
         'loadV4OpenPluginForm',
+      ]),
+      ...mapActions('template/', [
+        'loadUniformApiMeta',
       ]),
       ...mapMutations('atomForm/', [
         'clearAtomForm',
@@ -259,6 +270,7 @@
         this.renderData = { ...this.renderData, ...value };
       },
       async getFormData() {
+        this.formLoadErrorMessage = '';
         this.formGeneration += 1;
         const generation = this.formGeneration;
         const isCurrentGeneration = () => !this.isDestroyed && generation === this.formGeneration;
@@ -315,7 +327,11 @@
             continue;
           }
           let atomConfig;
-          if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 已加载过相同类型且相同版本的插件配置项，直接取缓存
+          const codeType = (variable.source_tag || '').split('.')[0] || variable.custom_type;
+          if (codeType === 'uniform_api') {
+            atomConfig = await this.getApiAtomConfig(variable);
+            if (!isCurrentGeneration()) return;
+          } else if (atomFilter.isConfigExists(atom, version, this.atomFormConfig)) { // 已加载过相同类型且相同版本的插件配置项，直接取缓存
             atomConfig = this.atomFormConfig[atom][version];
           } else {
             if (pluginCode) {
@@ -331,25 +347,27 @@
           /* 暂不进行变量是否被使用判断 */
           // const isUsed = this.unUsedConstants.length && !this.unUsedConstants.includes(variable.key) // 变量是否被使用
           const isUsed = false;
-          atomConfig = atomConfig.map((item) => {
-            const data = { ...item };
-            if (!data.attrs) {
-              data.attrs = {};
-            }
-            data.attrs.disabled = isPreRenderMako || isUsed;
-            if (isPreRenderMako) {
-              data.attrs.pre_mako_tip = i18n.t('设为「常量」的参数中途不允许修改');
-            } else if (isUsed) {
-              // data.attrs['used_tip'] = this.isUsedTipShow ? i18n.t('参数已被使用，不可修改') : ''
-            } else {
-              delete data.attrs.pre_mako_tip;
-              delete data.attrs.used_tip;
-            }
-            if (data.attrs.children) { // 子组件是否禁用
-              this.setAtomDisable(data.attrs.children, isPreRenderMako || isUsed);
-            }
-            return data;
-          });
+          if (Array.isArray(atomConfig)) {
+            atomConfig = atomConfig.map((item) => {
+              const data = { ...item };
+              if (!data.attrs) {
+                data.attrs = {};
+              }
+              data.attrs.disabled = isPreRenderMako || isUsed;
+              if (isPreRenderMako) {
+                data.attrs.pre_mako_tip = i18n.t('设为「常量」的参数中途不允许修改');
+              } else if (isUsed) {
+                // data.attrs['used_tip'] = this.isUsedTipShow ? i18n.t('参数已被使用，不可修改') : ''
+              } else {
+                delete data.attrs.pre_mako_tip;
+                delete data.attrs.used_tip;
+              }
+              if (data.attrs.children) { // 子组件是否禁用
+                this.setAtomDisable(data.attrs.children, isPreRenderMako || isUsed);
+              }
+              return data;
+            });
+          }
           let currentFormConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
           // 任务参数重用(元变量单独处理)
           if (pipelineTree && !variable.is_meta) {
@@ -453,6 +471,7 @@
         } catch (error) {
           if (!isCurrentGeneration()) return;
           this.formLoadError = error && error.code ? error.code : 'FORM_LOAD_FAILED';
+          this.formLoadErrorMessage = getApiVariableFormErrorMessage(error, this.$t.bind(this));
           this.formSections = [];
           this.renderData = {};
           this.metaConfig = {};
@@ -471,6 +490,34 @@
             this.setAtomDisable(item.attrs.children);
           }
         });
+      },
+      async getApiAtomConfig(variable = {}) {
+        const { source_info: sourceInfo = {}, source_tag: sourceTag = '' } = variable;
+        try {
+          const sourceNodeId = Object.keys(sourceInfo)[0];
+          const component = sourceNodeId && this.activities[sourceNodeId] && this.activities[sourceNodeId].component;
+          const apiMeta = (component && component.api_meta) || {};
+          const { meta_url: metaUrl } = apiMeta;
+          if (metaUrl) {
+            const resp = await this.loadUniformApiMeta({
+              templateId: this.resolveTemplateId(),
+              spaceId: this.spaceId,
+              meta_url: metaUrl,
+              ...(this.scopeInfo || {}),
+              meta_url_template: apiMeta.meta_url_template,
+              source_key: apiMeta.source_key,
+              version: component.version,
+            });
+            if (resp && resp.result) {
+              const tag = sourceTag.split('.')[1];
+              const field = (resp.data.inputs || []).find(item => item.key === tag);
+              if (field) return renderFormSchema([field]);
+            }
+          }
+        } catch (error) {
+          console.warn(error);
+        }
+        return buildApiVariableFormFromExtraInfo(variable);
       },
       async getThirdPartyAtomConfig(code, version) {
         try {
@@ -507,7 +554,7 @@
         }, []);
       },
       async validate() {
-        if (this.isConfigLoading) return false;
+        if (this.isConfigLoading || this.formLoadError) return false;
         return validatePluginFormSections(this.getFormRefs());
       },
       judgeDataEqual() {

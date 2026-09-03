@@ -75,10 +75,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 18px;
-    height: 18px;
-    font-size: 14px;
-    border-radius: 50%;
     z-index: 1;
   }
   .task-status-icon {
