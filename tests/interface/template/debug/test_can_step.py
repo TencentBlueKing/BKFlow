@@ -46,6 +46,38 @@ TREE = {
     },
 }
 
+SUBCANVAS_TREE = {
+    "activities": {
+        "A": {"id": "A", "type": "ServiceActivity", "component": {"code": "t", "data": {}}},
+        "S": {
+            "id": "S",
+            "type": "SubCanvas",
+            "loop_config": {
+                "enable": True,
+                "type": "array_loop",
+                "loop_times": None,
+                "loop_params": {"${loop_item}": "${g1}"},
+            },
+            "pipeline": {
+                "activities": {},
+                "flows": {},
+                "gateways": {},
+                "constants": {
+                    "${inner_input}": {
+                        "key": "${inner_input}",
+                        "show_type": "show",
+                        "need_render": True,
+                        "value": {"items": ["${g1}"]},
+                    }
+                },
+            },
+        },
+    },
+    "flows": {},
+    "gateways": {},
+    "constants": TREE["constants"],
+}
+
 
 @pytest.mark.django_db
 class TestCanStep:
@@ -65,3 +97,17 @@ class TestCanStep:
         ctx.save()
         can2, missing2 = svc.compute_can_step(ctx, "B")
         assert can2 is True and missing2 == []
+
+    def test_subcanvas_blocked_until_loop_and_inner_dependencies_exist(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=SUBCANVAS_TREE)
+        ctx = svc.get_or_create_context()
+
+        can, missing = svc.compute_can_step(ctx, "S")
+
+        assert can is False
+        assert missing == [{"key": "${g1}", "source_node_id": "A"}]
+
+        ctx.global_vars = {"${g1}": ["first", "second"]}
+        ctx.save(update_fields=["global_vars"])
+
+        assert svc.compute_can_step(ctx, "S") == (True, [])

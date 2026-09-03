@@ -29,6 +29,20 @@ PIPELINE = {
     "constants": {},
 }
 
+PIPELINE_SUBCANVAS = {
+    "activities": {
+        "S": {
+            "id": "S",
+            "type": "SubCanvas",
+            "loop_config": {"enable": True, "type": "time_loop", "loop_times": 2, "loop_params": {}},
+            "pipeline": {"activities": {}, "flows": {}, "gateways": {}, "constants": {}, "outputs": []},
+        }
+    },
+    "flows": {},
+    "gateways": {},
+    "constants": {},
+}
+
 
 def _create_task_payload(client):
     call = client.create_task.call_args
@@ -166,3 +180,28 @@ class TestGlobalRun:
         sent = _create_task_payload(client)
         assert sent["mock_data"]["fail_nodes"] == ["A"]
         assert sent["mock_data"]["errors"] == {"A": "boom"}
+
+    def test_global_run_can_mock_subcanvas_container(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE_SUBCANVAS)
+        client = mocker.MagicMock()
+        client.create_task.return_value = {"result": True, "data": {"id": 456}, "message": ""}
+        client.operate_task.return_value = {"result": True, "data": {}, "message": ""}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+        svc.sync_node_states()
+        svc.node_mock(
+            node_id="S",
+            enable=True,
+            mock_result="success",
+            mock_outputs={"outputs": [{"result": "mocked"}]},
+        )
+
+        svc.global_run(inputs={}, operator="admin")
+
+        sent = _create_task_payload(client)
+        assert sent["pipeline_tree"]["activities"]["S"]["type"] == "SubCanvas"
+        assert sent["mock_data"] == {
+            "nodes": ["S"],
+            "outputs": {"S": {"outputs": [{"result": "mocked"}]}},
+            "fail_nodes": [],
+            "errors": {},
+        }

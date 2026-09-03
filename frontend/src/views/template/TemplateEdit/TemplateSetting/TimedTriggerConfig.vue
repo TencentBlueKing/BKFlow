@@ -374,9 +374,9 @@ export default {
           this.copyTriggerConstants = {};
           this.isShowTriggerDialog = false;
         },
-        onTriggerConfirm(type) {
+        async onTriggerConfirm(type) {
           const isCronError = this.$refs.cronRuleSelect.isError;
-          const isParamsValid = this.currentTriggerConfig.config.mode === 'json' ? this.isJsonConstantsValid : this.$refs.taskParamEdit.validate();
+          const isParamsValid = this.currentTriggerConfig.config.mode === 'json' ? this.isJsonConstantsValid : await this.$refs.taskParamEdit.validate();
           if (!isParamsValid || isCronError) {
             return;
           }

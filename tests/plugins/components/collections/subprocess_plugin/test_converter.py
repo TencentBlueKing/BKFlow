@@ -13,7 +13,7 @@ import copy
 
 from django.test import TestCase
 
-from bkflow.pipeline_plugins.components.collections.subprocess_plugin.converter import (
+from bkflow.pipeline_plugins.components.collections.converter import (
     PipelineTreeSubprocessConverter,
 )
 
@@ -54,10 +54,10 @@ class PipelineTreeSubprocessConverterTest(TestCase):
                     "template_node_id": "template_node_123",
                 },
             },
-            "constants": [
-                ("constant1", {"value": "old_value1"}),
-                ("constant2", {"value": "old_value2"}),
-            ],
+            "constants": {
+                "constant1": {"value": "old_value1"},
+                "constant2": {"value": "old_value2"},
+            },
             "location": [
                 {"type": "tasknode", "id": "node1"},
                 {"type": "subflow", "id": "node2"},
@@ -146,12 +146,9 @@ class PipelineTreeSubprocessConverterTest(TestCase):
         converted_node = activities["node2"]
         self.assertEqual(converted_node["component"]["code"], "subprocess_plugin")
 
-        constants_list = converter.pipeline_tree["constants"]
-        for key, constant in constants_list:
-            if key == "constant1":
-                self.assertEqual(constant["value"], "updated_value1")
-            elif key == "constant2":
-                self.assertEqual(constant["value"], "old_value2")
+        constants_dict = converter.pipeline_tree["constants"]
+        self.assertEqual(constants_dict["constant1"]["value"], "updated_value1")
+        self.assertEqual(constants_dict["constant2"]["value"], "old_value2")
 
         locations = converter.pipeline_tree["location"]
         for location in locations:

@@ -107,6 +107,8 @@ class ComponentListQuerySerializer(serializers.Serializer):
     space_id = serializers.CharField(help_text="空间ID")
     scope_type = serializers.CharField(help_text="空间下scope类型", required=False)
     scope_id = serializers.CharField(help_text="空间下scope ID", required=False)
+    skip_space_config = serializers.BooleanField(help_text="跳过空间插件配置过滤，返回全量", required=False,
+                                                 default=False)
 
 
 class ComponentDetailQuerySerializer(serializers.Serializer):

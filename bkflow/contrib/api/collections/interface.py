@@ -82,3 +82,10 @@ class InterfaceModuleClient(BaseComponentClient):
             url=self._get_interface_url("api/plugin/internal/build_open_plugin_snapshots/"),
             data=data,
         )
+
+    def prepare_task_extra_info(self, data):
+        return self._request(
+            method="post",
+            url=self._get_interface_url("api/template/internal/prepare_task_extra_info/"),
+            data=data,
+        )

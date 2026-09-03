@@ -38,7 +38,20 @@
         :class-name="item.id === 'label' ? 'label-column' : ''"
         :min-width="item.min_width">
         <template slot-scope="props">
-          <div v-if="item.id === 'name'">
+          <div v-if="item.id === 'id'">
+            <span
+              v-if="props.row.isHasChild || (props.row.children && props.row.children.length !== 0)"
+              :style="{ 'margin-left': `${(props.row.level) * 20}px` }">
+              <i
+                :class="['commonicon-icon', 'common-icon-next-triangle-shape', props.row.isOpen ? 'show-chd' : 'close-chd']"
+                @click="getCurProcessChdProcess(props.row)" />
+            </span>
+            <span
+              v-else
+              :style="{ 'margin-left': `${(props.row.level) * 20}px`, width: '12px', display: 'inline-block' }" />
+            <span>{{ props.row[item.id] || '--' }}</span>
+          </div>
+          <div v-else-if="item.id === 'name'">
             <router-link
               class="task-name"
               :to="{
@@ -148,7 +161,7 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
+import { mapState, mapActions, mapMutations } from 'vuex';
 import CancelRequest from '@/api/cancelRequest.js';
 import NoData from '@/components/common/base/NoData.vue';
 import moment from 'moment-timezone';
@@ -158,6 +171,7 @@ import TableOperate from '../common/TableOperate.vue';
 import i18n from '@/config/i18n/index.js';
 import LabelCascade from '../common/LabelCascade.vue';
 import LabelCell from '../Template/label-cell.vue';
+import tools from '@/utils/tools.js';
 
 const TABLE_FIELDS = [
     {
@@ -269,10 +283,11 @@ const SEARCH_LIST = [
     },
 ];
 const TRIGGER_METHOD = {
-    api: 'api触发',
-    manual: '手动触发',
-    timing: '定时触发',
-    subprocess: '子流程触发',
+    api: i18n.t('api触发'),
+    manual: i18n.t('手动触发'),
+    timing: i18n.t('定时触发'),
+    subprocess: i18n.t('子流程触发'),
+    sub_canvas: i18n.t('子画布触发'),
 };
 export default {
     name: 'TaskList',
@@ -285,7 +300,6 @@ export default {
     mixins: [tableHeader, tableCommon],
     data() {
         return {
-            taskList: [],
             deleting: false,
             tableFields: TABLE_FIELDS,
             defaultSelected: [
@@ -314,6 +328,7 @@ export default {
     computed: {
         ...mapState({
             isAdmin: state => state.isAdmin,
+            taskList: state => state.taskList.taskListData,
         }),
     },
     methods: {
@@ -321,8 +336,15 @@ export default {
             'loadTaskList',
             'deleteTask',
             'updateTaskLabel',
+            'getTaskHasSubTaskList',
+            'getTaskHasSubTasks',
         ]),
-        ...mapActions('task/', ['getTaskStatus']),
+        ...mapActions('task/', [
+            'getTaskStatus']
+        ),
+        ...mapMutations('taskList/', [
+            'setTaskListData',
+        ]),
         async getTaskList() {
             try {
                 if (!this.spaceId) return;
@@ -330,7 +352,12 @@ export default {
                 const data = this.getQueryData();
                 const resp = await this.loadTaskList(data);
                 const list = await this.setFillTaskField(resp.data.results);
-                this.taskList = list;
+                // 设置level初始值
+                list.forEach((item) => {
+                    item.level = 0;
+                });
+                const result = await this.setListHaveChild(list);
+                this.setTaskListData(result);
                 this.pagination.count = resp.data.count;
                 const totalPage = Math.ceil(this.pagination.count / this.pagination.limit);
                 if (!totalPage) {
@@ -343,6 +370,115 @@ export default {
             } finally {
                 this.listLoading = false;
             }
+        },
+        // 判断每条记录是否有子流程并且设置
+        async setListHaveChild(list) {
+            const ids = list.map(item => item.id);
+            const checkStatus = await this.getTaskHasSubTasks({
+                project_id: this.project_id,
+                task_ids: ids.toString(),
+                space_id: this.spaceId,
+            });
+            list.forEach((item) => {
+                item.isHasChild = checkStatus.data.has_children_taskflow[item.id];
+            });
+            return list;
+        },
+        // 获取当前流程的子流程列表
+        async getCurProcessChdProcess(row) {
+            const curTaskList = tools.deepClone(this.$store.state.taskList.taskListData);
+            const curParent = curTaskList.find(item => item.id === row.id);
+            curParent.isOpen = !row.isOpen;
+            curParent.maxLevel = '';
+            // table field
+            const curField = this.setting.fieldList.find(item => item.id);
+            let result = [];
+            if (curParent.isOpen) {
+                // 处理task与relations
+                const taskIds = []; // task id
+                const taskIdList = [];
+                if (curParent.children && curParent.children.length !== 0) {
+                    curParent.children.forEach((item) => {
+                        item.isOpen = false; // 子流程默认icon close
+                        item.level = curParent.level + 1;
+                        result.push(item);
+                    });
+                    curField.width = 20 * (curParent.level + 1) + 100;
+                } else {
+                    const res = await this.getTaskHasSubTaskList({ task_id: row.id, space_id: this.spaceId });
+                    const { tasks, relations } = res.data;
+                    const parentToChildren = {};
+                    for (const [childId, parentId] of Object.entries(relations)) {
+                        if (!parentToChildren[parentId]) {
+                            parentToChildren[parentId] = [];
+                        }
+                        parentToChildren[parentId].push(Number(childId));
+                    }
+                    for (const [parentId, children] of Object.entries(parentToChildren)) {
+                        taskIds.push({
+                            id: Number(parentId),
+                            children_id: children,
+                        });
+                    }
+                    const rootObj = {};
+                    taskIds.forEach((item) => {
+                        item.children_id.forEach((ite) => {
+                            rootObj[ite] = item.id in rootObj ? `${rootObj[item.id]},${item.id}` : item.id;
+                            taskIdList.push({
+                                id: ite,
+                                parent_id: item.id,
+                                root_id: rootObj[ite],
+                                children: [],
+                            });
+                        });
+                    });
+                    const arrToTree = (arr, parentId, level = 1) => {
+                        const result = [];
+                        curParent.maxLevel = level;
+                        arr.forEach((item) => {
+                            if (item.parent_id === parentId) {
+                                const task = tasks.find(task => task.id === item.id);
+                                if (!task) return;
+                                task.root_id = item.root_id;
+                                result.push({
+                                    ...item,
+                                    level,
+                                    ...task,
+                                    children: arrToTree(arr, item.id, level + 1),
+                                });
+                            }
+                        });
+                        return result;
+                    };
+                    result = arrToTree(taskIdList, Number(row.id));
+                    curField.width = 20 * curParent.maxLevel + 100;
+                }
+                curTaskList.splice(curTaskList.findIndex(item => item.id === row.id) + 1, 0, ...result);
+                const fillTaskList = await this.setFillTaskField(curTaskList);
+                this.setTaskListData(fillTaskList);
+            } else {
+                // 关闭获取已展开列的最大level
+                const MaxLevel = Math.max(...curTaskList.map((item) => {
+                    if (item.isOpen) {
+                        return item.maxLevel;
+                    }
+                        return 0;
+                }));
+                const filterArr = this.filterTaskList(curTaskList, curParent.id);
+                const fillTaskList = await this.setFillTaskField(filterArr);
+                this.setTaskListData(fillTaskList);
+                curField.width = 20 * MaxLevel + 100;
+            }
+        },
+        // 关闭展开icon过滤列表
+        filterTaskList(list, id, ids = []) {
+            list.map((item) => {
+                if (item.parent_id === id) {
+                    ids.push(item.id);
+                    this.filterTaskList(list, item.id, ids);
+                }
+            });
+            return list.filter(item => !ids.includes(item.id));
         },
         async setFillTaskField(list) {
             try {
@@ -595,5 +731,21 @@ export default {
 }
 .label-cell {
     height: 100%;
+}
+.show-chd {
+    transform: rotate(90deg);
+    display: inline-block;
+    transition: 0.5s;
+    position: relative;
+    top: -2px;
+    cursor: pointer;
+}
+.close-chd {
+    transform: rotate(0deg);
+    display: inline-block;
+    transition: 0.5s;
+    position: relative;
+    top: -1px;
+    cursor: pointer;
 }
 </style>

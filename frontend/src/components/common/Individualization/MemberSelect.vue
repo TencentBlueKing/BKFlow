@@ -12,6 +12,7 @@
 <template>
   <bk-user-selector
     v-model="setValue"
+    class="tag-member-selector-wrap"
     :api="api"
     :placeholder="placeholder"
     :disabled="disabled"
@@ -93,8 +94,7 @@
 </script>
 <style lang="scss" scoped>
     .tag-member-selector-wrap {
-        .user-selector {
-            width: 100%;
-        }
+      max-width: 600px;
+      width: 100%;
     }
 </style>

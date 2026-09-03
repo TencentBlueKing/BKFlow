@@ -36,7 +36,7 @@ class SpacePluginConfigParser:
                 "type": "object",
                 "required": ["mode", "plugin_codes"],
                 "properties": {
-                    "mode": {"type": "string", "enum": ["allow_list", "deny_list"]},
+                    "mode": {"type": "string", "enum": ["allow_list", "deny_list", "allow_all"]},
                     "plugin_codes": {"type": "array", "items": {"type": "string"}},
                 },
             },
@@ -67,6 +67,8 @@ class SpacePluginConfigParser:
         config_plugin_codes = scope_config["plugin_codes"]
         if mode == "allow_list":
             return set(plugin_codes) & set(config_plugin_codes)
+        elif mode == 'allow_all':
+            return set(plugin_codes)
         else:
             return set(plugin_codes) - set(config_plugin_codes)
 
@@ -76,5 +78,7 @@ class SpacePluginConfigParser:
         config_plugin_codes = scope_config["plugin_codes"]
         if mode == "allow_list":
             return plugin_qs.filter(code__in=config_plugin_codes)
+        elif mode == 'allow_all':
+            return plugin_qs
         else:
             return plugin_qs.exclude(code__in=config_plugin_codes)

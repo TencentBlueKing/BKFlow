@@ -34,6 +34,7 @@ const NODE_DICT = {
   convergegateway: i18n.t('汇聚网关'),
   tasknode: i18n.t('标准插件节点'),
   subflow: i18n.t('子流程节点'),
+  SubCanvas: i18n.t('循环节点'),
 };
 
 const INVALID_NAME_CHAR = '\'‘"”$&<>';

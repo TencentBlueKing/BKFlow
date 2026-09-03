@@ -16,11 +16,13 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-
+import logging
+import time
 from enum import Enum
 from typing import Dict, Optional, Type
 
 import jsonschema
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pydantic import BaseModel, constr
 from pytimeparse import parse
@@ -30,6 +32,7 @@ from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.utils.apigw import check_url_from_apigw
 
 valid_api_key = constr(regex=r"^[A-Za-z0-9_]+$")
+logger = logging.getLogger("root")
 
 
 class SpaceConfigValueType(Enum):
@@ -39,6 +42,12 @@ class SpaceConfigValueType(Enum):
     TEXT = "TEXT"
     # 引用类型 存储在 engine
     REF = "REF"
+
+
+class SpaceConfigVerifyNotSupported(Exception):
+    """配置项不支持验证"""
+
+    pass
 
 
 class SpaceConfigMeta(type):
@@ -71,6 +80,10 @@ class BaseSpaceConfig(metaclass=SpaceConfigMeta):
     choices = None  # 配置值可选项列表，适用于 TEXT 类型
     example = None  # 配置值示例
     is_mix_type = False
+    group = None  # 分组 key：access_security / flow_canvas / api_integration
+    help = None  # {"summary": 用途, "effect": 影响, "media": [{type, src, caption}], "doc_link": url}
+    ui = None  # 控件描述
+    verifiable = False  # 是否支持"测试/验证"
 
     @classmethod
     def to_dict(cls):
@@ -83,11 +96,20 @@ class BaseSpaceConfig(metaclass=SpaceConfigMeta):
             "choices": cls.choices,
             "example": cls.example,
             "is_mix_type": cls.is_mix_type,
+            "group": cls.group,
+            "help": cls.help,
+            "ui": cls.ui,
+            "verifiable": cls.verifiable,
         }
 
     @classmethod
     def validate(cls, value):
         return True
+
+    @classmethod
+    def verify(cls, space_id, value, **params):
+        """验证配置（真实连通性/预览）。默认不支持。"""
+        raise SpaceConfigVerifyNotSupported(f"config '{cls.name}' does not support verify")
 
     @classmethod
     def get_value(cls, config, *args, **kwrags):
@@ -141,8 +163,23 @@ class TokenExpirationConfig(BaseSpaceConfig):
     name = "token_expiration"
     desc = _("Token过期时间")
     default_value = "1h"
-    example = "[n]m or [n]h or [n]d, m->minute h->hour d->day, at least 1h"
+    example = "[n]h or [n]d, h->hour d->day, at least 1h"
     LEAST_EXPIRATION_SECONDS = 60 * 60 * 1
+
+    group = "access_security"
+    help = {
+        "summary": _("访问 Token 的有效期"),
+        "effect": _("Token 到该时间节点之后自动过期"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {
+        "control": "input",
+        "label": _("设置过期时间"),
+        "help": _("最短 1 小时，单位可选择小时/天"),
+        "placeholder": "1h",
+        "validation": {"type": "duration", "min": "1h"},
+    }
 
     @classmethod
     def validate(cls, value: str):
@@ -167,15 +204,47 @@ class TokenExpirationConfig(BaseSpaceConfig):
                 )
             )
 
+        max_expiration = settings.TOKEN_EXPIRATION_MAX_EXPIRATION
+        if max_expiration:
+            try:
+                max_seconds = int(max_expiration)
+            except (TypeError, ValueError):
+                raise ValidationError(
+                    "[validate token expiration config error]: invalid max expiration setting: {}".format(
+                        max_expiration
+                    )
+                )
+            if seconds > max_seconds:
+                raise ValidationError(
+                    "[validate token expiration config error]: time expiration must be less than {}s, value: {}".format(
+                        max_seconds, value
+                    )
+                )
+
         return True
 
 
 class TokenAutoRenewalConfig(BaseSpaceConfig):
     name = "token_auto_renewal"
-    desc = _("是否开启Token自动续期")
+    desc = _("Token自动续期")
     default_value = "true"
     choices = ["true", "false"]
     control = True
+
+    group = "access_security"
+    help = {
+        "summary": _("Token 临近过期时是否自动续期"),
+        "effect": _("Token 临近过期时自动延长有效期，减少调用中断"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {
+        "control": "switch",
+        "label": _("启用自动续期"),
+        "true_value": "true",
+        "false_value": "false",
+        "help": _("关闭后到期即失效，需重新获取")
+    }
 
     @classmethod
     def validate(cls, value: str):
@@ -193,6 +262,15 @@ class TemplateTriggerConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+
+    group = "flow_canvas"
+    help = {
+        "summary": _("单个流程是否允许配置多个触发器"),
+        "effect": _("开启：一个流程可挂多个触发器（定时/事件）同时生效；关闭：仅允许一个"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {"control": "switch", "label": _("允许多触发器"), "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
@@ -212,6 +290,20 @@ class SpaceEngineConfig(BaseSpaceConfig):
     desc = _("引擎模块配置")
     value_type = SpaceConfigValueType.REF.value
     example = {"space": {"{key1}", "{value1}"}, "scope": {"{scope_type}_{scope_value}": {"{key1}": "{value1}"}}}
+
+    group = "api_integration"
+    help = {
+        "summary": _("下发给引擎的运行参数（高级）"),
+        "effect": _("space 为空间级键值，scope 为按作用域覆盖的键值；影响引擎运行行为，请谨慎修改"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {
+        "control": "engine_kv",
+        "label": _("引擎模块配置"),
+        "help": _("键值仅支持字符串/数字/布尔"),
+    }
+
     SCHEMA = {
         "type": "object",
         "properties": {
@@ -226,6 +318,7 @@ class SpaceEngineConfig(BaseSpaceConfig):
         },
         "additionalProperties": False,
     }
+    is_public = False
 
     @classmethod
     def validate(cls, value: dict):
@@ -237,6 +330,7 @@ class SpaceEngineConfig(BaseSpaceConfig):
 
 
 class CallbackHooksConfig(BaseSpaceConfig):
+    # 目前配置已废弃
     name = "callback_hooks"
     desc = _("回调配置")
     value_type = SpaceConfigValueType.JSON.value
@@ -290,11 +384,26 @@ class UniformApiConfig(BaseSpaceConfig):
             }
         }
     }
-    desc = _("API 插件配置 （如更改配置，可能对已存在数据产生不兼容影响，请谨慎操作）")
+    desc = _("API插件")
     """
     仍然支持读取 旧 SCHEMA 但不能支持继续配置
     旧 SCHEMA 格式 example = {"meta_apis": "{meta_apis url}", "api_categories": "{api_categories url}"}
     """
+
+    group = "api_integration"
+    verifiable = True
+    help = {
+        "summary": _("接入统一 API 平台，把外部 API 暴露为可编排的 API 插件"),
+        "effect": _("管理API相关api_key的结构化接入与可视化解析；每个api_key一条接入信息"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {
+        "control": "api_plugin_config",
+        "label": _("API 插件"),
+        "help": _("每个 api_key 配置 display_name / meta_apis(apigw URL) / api_categories(可选) / headers"),
+        "validation": {"type": "apigw_url"},
+    }
 
     class Keys(Enum):
         META_APIS = "meta_apis"
@@ -303,6 +412,12 @@ class UniformApiConfig(BaseSpaceConfig):
         CATALOG_MODE = "catalog_mode"
         DEFAULT_DISPLAY_NAME = "API插件"
         DEFAULT_API_KEY = "default"
+
+    # 一键验证接口的资源/时间上限，可通过 settings 覆盖
+    MAX_VERIFY_CATEGORIES = getattr(settings, "UNIFORM_API_VERIFY_MAX_CATEGORIES", 50)
+    MAX_VERIFY_LIST_REQUESTS = getattr(settings, "UNIFORM_API_VERIFY_MAX_LIST_REQUESTS", 50)
+    MAX_VERIFY_META_SAMPLES = getattr(settings, "UNIFORM_API_VERIFY_MAX_META_SAMPLES", 5)
+    MAX_VERIFY_TOTAL_TIMEOUT = getattr(settings, "UNIFORM_API_VERIFY_MAX_TOTAL_TIMEOUT", 60)  # 秒
 
     @classmethod
     def check_url(cls, value):
@@ -325,6 +440,206 @@ class UniformApiConfig(BaseSpaceConfig):
             cls.check_url(obj)
         return True
 
+    @classmethod
+    def verify(cls, space_id=None, value=None, api_key=None, credential_name=None, operator=None, **kwargs):
+        """一键测试：依次调用 category_list / list / meta 三个接口，验证接入是否可用。
+
+        :param space_id: 空间id
+        :param value: 待测的 uniform_api 配置（表单当前值；为空则回退到已存配置）
+        :param api_key: 待测 api_key，默认 default
+        :param credential_name: 用于鉴权的凭证名，默认取空间默认网关凭证
+        :param operator: 操作人用户名，用于 apigw 请求头
+        """
+        from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
+        from bkflow.space.models import Credential, SpaceConfig
+
+        # 获取待测试的api
+        if not value:
+            config_obj = SpaceConfig.objects.filter(space_id=space_id, name=cls.name).first()
+            if config_obj:
+                value = config_obj.json_value if config_obj.value_type == SpaceConfigValueType.JSON.value else {}
+            else:
+                value = {}
+        else:
+            # 对请求体传入的待验证值先执行基础校验
+            cls.validate(value)
+
+        try:
+            model = UniformAPIConfigHandler(value).handle()
+        except Exception as e:
+            raise ValidationError(f"[uniform_api verify] 配置解析失败: {e}")
+
+        api_key = api_key or cls.Keys.DEFAULT_API_KEY.value
+        api_obj = model.api.get(api_key)
+        if not api_obj:
+            raise ValidationError(f"[uniform_api verify] 未找到 api_key={api_key} 的配置")
+        meta_url = api_obj.get(cls.Keys.META_APIS.value)
+        api_categories_url = api_obj.get(cls.Keys.API_CATEGORIES.value)
+        if not meta_url:
+            raise ValidationError(f"[uniform_api verify] api_key={api_key} 未配置 meta_apis")
+
+        if not api_categories_url:
+            raise ValidationError(f"[uniform_api verify] api_key={api_key} 未配置 api_categories_url")
+
+        logger.info(f"[uniform_api verify] 待测试api.meta_url: {meta_url}，api_categories_url：{api_categories_url}")
+
+        # 获取测试用的凭证
+        if not credential_name:
+            cred_config = SpaceConfig.objects.filter(
+                space_id=space_id, name=ApiGatewayCredentialConfig.name).first()
+            if cred_config:
+                credential_name = ApiGatewayCredentialConfig.get_value(cred_config, scope='default')
+
+        if not credential_name:
+            raise ValidationError("[uniform_api verify] 空间未配置默认网关凭证，无法测试")
+
+        credential = Credential.objects.filter(space_id=space_id, name=credential_name).first()
+        if credential is None:
+            raise ValidationError(f"[uniform_api verify] 凭证 {credential_name} 不存在")
+
+        content = credential.content or {}
+        if not content.get("bk_app_code") or not content.get("bk_app_secret"):
+            raise ValidationError(f"[uniform_api verify] 凭证 {credential_name} 缺少 bk_app_code/bk_app_secret")
+
+        client = UniformAPIClient()
+        headers = client.gen_default_apigw_header(
+            app_code=content["bk_app_code"],
+            app_secret=content["bk_app_secret"],
+            username=operator,
+        )
+        logger.info(
+            f"[uniform_api verify] 测试用凭证.credential_name: {credential_name},app_code: {content['bk_app_code']}，"
+            f"app_secret: ******，username：{operator}")
+
+        # 整体验证时间预算控制
+        start_time = time.time()
+
+        def _check_timeout():
+            if time.time() - start_time > cls.MAX_VERIFY_TOTAL_TIMEOUT:
+                raise ValidationError(
+                    f"[uniform_api verify] 验证总耗时超过 {cls.MAX_VERIFY_TOTAL_TIMEOUT} 秒，请检查接口响应速度"
+                )
+
+        # 1. 调用 category_list 接口 → 获取分类列表
+        _check_timeout()
+        cat_result = client.request(
+            url=api_categories_url,
+            method="GET",
+            data={},
+            headers=headers,
+            username=operator,
+            allow_redirects=False,
+        )
+        if not cat_result.result:
+            raise ValidationError(f"[uniform_api verify] categories 接口请求失败: {cat_result.message}")
+        # 校验 category_list 响应协议，避免字段缺失被误报为 ok
+        client.validate_response_data(
+            cat_result.json_resp.get("data", []),
+            client.UNIFORM_API_CATEGORY_LIST_RESPONSE_DATA_SCHEMA,
+        )
+        categories_info = cat_result.json_resp.get('data') or []
+        if len(categories_info) > cls.MAX_VERIFY_CATEGORIES:
+            logger.warning(
+                f"[uniform_api verify] 分类数量({len(categories_info)})超过上限{cls.MAX_VERIFY_CATEGORIES}，已截断"
+            )
+            categories_info = categories_info[: cls.MAX_VERIFY_CATEGORIES]
+        category_length = len(categories_info)
+
+        # 先解析 categories 方便后续使用
+        categories = []
+        for category in categories_info:
+            try:
+                categories.append(category.get("id", "all"))
+            except Exception as e:
+                logger.error(
+                    f"[uniform_api verify] categories 接口获取数据失败: {str(e)},data: {str(category)}")
+                raise ValidationError(
+                    f"[uniform_api verify] categories 接口获取数据失败: {str(e)}，请检查接口地址或者接口内容是否符合规范.")
+
+        # 2. 调用 list 接口 → 获取接口总数和列表（用第一个分类做 category 参数）
+        list_request_data = {
+            "limit": cls.MAX_VERIFY_LIST_REQUESTS,
+            "offset": 0,
+        }
+
+        api_list = []
+        api_length = 0
+        for index, category in enumerate(categories):
+            if index >= cls.MAX_VERIFY_LIST_REQUESTS:
+                logger.warning(
+                    f"[uniform_api verify] list 请求次数达到上限{cls.MAX_VERIFY_LIST_REQUESTS}，已停止继续请求"
+                )
+                break
+            _check_timeout()
+            list_request_data["category"] = category
+            list_result = client.request(
+                url=meta_url,
+                method="GET",
+                data=list_request_data,
+                headers=headers,
+                username=operator,
+                allow_redirects=False,
+            )
+
+            if not list_result.result:
+                logger.error(
+                    f"[uniform_api verify] list 接口请求失败: {list_result.message},data: {str(list_request_data)}")
+                raise ValidationError(f"[uniform_api verify] list 接口请求失败: {list_result.message}")
+            # 校验 list 响应协议
+            client.validate_response_data(
+                list_result.json_resp.get("data", {}),
+                client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA,
+            )
+            list_data = list_result.json_resp.get("data", {})
+            api_length += list_data.get("total", 0)
+
+            # 取某个分类的api
+            if not api_list:
+                for api in list_data.get('apis') or []:
+                    api_list.append(api)
+
+        # 3. 调用 meta 接口 → 取 list 返回的最多 5 个 api 的 meta_url
+        samples = []
+        for item in api_list:
+            if len(samples) >= cls.MAX_VERIFY_META_SAMPLES:
+                break
+            meta_url_detail = item.get("meta_url")
+            if not meta_url_detail:
+                continue
+            _check_timeout()
+            meta_result = client.request(
+                url=meta_url_detail,
+                method="GET",
+                data={},
+                headers=headers,
+                username=operator,
+                allow_redirects=False,
+            )
+            if not meta_result.result:
+                logger.error(
+                    f"[uniform_api verify] meta_url_detail 接口请求失败: {meta_result.message},"
+                    f"meta_url_detail: {meta_url_detail}")
+                raise ValidationError(f"[uniform_api verify] meta_url_detail 接口请求失败: {meta_result.message}")
+            # 校验 meta 响应协议
+            client.validate_response_data(
+                meta_result.json_resp.get("data", {}),
+                client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA,
+            )
+            meta_data = meta_result.json_resp.get("data", {})
+            samples.append({
+                "id": meta_data.get("id", ""),
+                "name": meta_data.get("name", ""),
+                "method": meta_data.get("methods", [""])[0] if meta_data.get("methods") else ""
+            })
+
+        return {
+            "api_key": api_key,
+            "credential_name": credential_name,
+            "category_length": category_length,
+            "api_length": api_length,
+            "samples": samples,
+        }
+
 
 class SuperusersConfig(BaseSpaceConfig):
     name = "superusers"
@@ -333,10 +648,23 @@ class SuperusersConfig(BaseSpaceConfig):
     default_value = []
     example = ["super_user1", "super_user2", "super_user3"]
 
+    group = "access_security"
+    help = {
+        "summary": _("空间的超级管理员"),
+        "effect": _("拥有本空间全部管理权限，加入后可管理配置、凭证与全部流程/任务"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {"control": "member_selector", "label": _("配置管理员"), "placeholder": _("请选择成员")}
+
     @classmethod
     def validate(cls, value: list):
         if not isinstance(value, list):
             raise ValidationError("[validate superusers error]: superusers must be a list, value: {}".format(value))
+        if len(value) < 1:
+            raise ValidationError(
+                "[validate superusers error]: superusers must keep at least one, value: {}".format(value)
+            )
         return True
 
 
@@ -345,6 +673,23 @@ class CanvasModeConfig(BaseSpaceConfig):
     desc = _("画布模式")
     default_value = "horizontal"
     choices = ["horizontal", "vertical"]
+
+    group = "flow_canvas"
+    help = {
+        "summary": _("流程画布的默认排布方向"),
+        "effect": _("控制流程画布中节点的默认排布方向"),
+        "media": [{"type": "gif", "src": "", "caption": _("横向 vs 纵向 排布示意")}],
+        "doc_link": "",
+    }
+    ui = {
+        "control": "radio",
+        "label": _("画布模式"),
+        "help": _("切换后新建流程画布按所选方向排布"),
+        "options": [
+            {"value": "horizontal", "label": _("横向"), "desc": _("节点从左到右排布，适合较线性的流程")},
+            {"value": "vertical", "label": _("纵向"), "desc": _("节点从上到下排布，适合分支多、层级清晰的流程")},
+        ],
+    }
 
     @classmethod
     def validate(cls, value: str):
@@ -361,6 +706,23 @@ class GatewayExpressionConfig(BaseSpaceConfig):
     default_value = "boolrule"
     choices = ["boolrule", "FEEL", "MAKO"]
 
+    group = "flow_canvas"
+    help = {
+        "summary": _("分支网关条件使用的表达式语言"),
+        "effect": _("影响分支网关条件的书写与求值方式；修改仅影响此后新建/编辑的条件"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {
+        "control": "radio",
+        "label": _("表达式类型"),
+        "options": [
+            {"value": "boolrule", "label": _("Boolrule（默认）"), "desc": _("简单布尔规则，可视化友好，适合常规条件")},
+            {"value": "FEEL", "label": "FEEL", "desc": _("DMN 标准表达式，功能强，适合复杂决策")},
+            {"value": "MAKO", "label": "MAKO", "desc": _("Python 模板表达式，最灵活但需谨慎")},
+        ],
+    }
+
     @classmethod
     def validate(cls, value: str):
         if value not in cls.choices:
@@ -373,10 +735,24 @@ class GatewayExpressionConfig(BaseSpaceConfig):
 
 class ApiGatewayCredentialConfig(BaseSpaceConfig):
     name = "api_gateway_credential_name"
-    desc = _("API_GATEWAY使用的凭证配置")
+    desc = _("网关凭证")
     example = {"default": "{default_credential_name}", "{scope_type}_{scope_id}": "{credential_name}"}
     value_type = SpaceConfigValueType.TEXT.value
     is_mix_type = True
+
+    group = "access_security"
+    help = {
+        "summary": _("网关调用使用哪个凭证（引用凭证管理里的 BK_APP 凭证）"),
+        "effect": _("适用于 [凭证管理] 中的BK_APP 凭证访问统一API网关。本质是一张 [作用域] 到 [凭证] 的路由表。"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {
+        "control": "credential_map",
+        "label": _("网关凭证"),
+        "help": _("默认凭证必选；可按作用域（scope_type_scope_value）追加覆盖"),
+        "data_source": {"type": "credential", "credential_type": "BK_APP"},
+    }
 
     SCHEMA = {
         "type": "object",
@@ -421,7 +797,26 @@ class SpacePluginConfig(BaseSpaceConfig):
     name = "space_plugin_config"
     desc = _("空间插件配置")
     value_type = SpaceConfigValueType.JSON.value
-    example = {"default": {"mode": "{allow_list/deny_list}", "plugin_codes": ["plugin_1", "plugin_2"]}}
+    example = {"default": {"mode": "{allow_list/deny_list/allow_all}", "plugin_codes": ["plugin_1", "plugin_2"]}}
+    default_value = {
+        "default": {
+            "mode": "allow_all",
+            "plugin_codes": []
+        }
+    }
+
+    group = "api_integration"
+    help = {
+        "summary": _("控制本空间可用的插件范围"),
+        "effect": _("allow_list 仅允许所列插件，deny_list 屏蔽所列插件；影响流程编辑时可选插件，allow_all 允许所有插件"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {
+        "control": "plugin_scope",
+        "label": _("过滤方式"),
+        "help": _("选择模式并配置插件 code 列表"),
+    }
 
     @classmethod
     def validate(cls, value: dict):
@@ -434,6 +829,15 @@ class FlowVersioning(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+
+    group = "flow_canvas"
+    help = {
+        "summary": _("是否开启流程版本管理"),
+        "effect": _("开启：流程保存产生版本、可回溯与回滚；关闭：仅保留最新版本"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {"control": "switch", "label": _("版本控制"), "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
