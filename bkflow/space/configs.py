@@ -450,7 +450,7 @@ class UniformApiConfig(BaseSpaceConfig):
         :param credential_name: 用于鉴权的凭证名，默认取空间默认网关凭证
         :param operator: 操作人用户名，用于 apigw 请求头
         """
-        from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
+        from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient, resolve_meta_url
         from bkflow.space.models import Credential, SpaceConfig
 
         # 获取待测试的api
@@ -603,9 +603,11 @@ class UniformApiConfig(BaseSpaceConfig):
         for item in api_list:
             if len(samples) >= cls.MAX_VERIFY_META_SAMPLES:
                 break
-            meta_url_detail = item.get("meta_url")
-            if not meta_url_detail:
-                continue
+            meta_url_detail = resolve_meta_url(
+                meta_url=item.get("meta_url", ""),
+                meta_url_template=item.get("meta_url_template", ""),
+                version=item.get("latest_version") or item.get("default_version", ""),
+            )
             _check_timeout()
             meta_result = client.request(
                 url=meta_url_detail,
@@ -631,6 +633,9 @@ class UniformApiConfig(BaseSpaceConfig):
                 "name": meta_data.get("name", ""),
                 "method": meta_data.get("methods", [""])[0] if meta_data.get("methods") else ""
             })
+
+        if api_length and not samples:
+            raise ValidationError("[uniform_api verify] 接口列表非空但未能校验任何接口详情")
 
         return {
             "api_key": api_key,
