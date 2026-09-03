@@ -21,6 +21,15 @@ export default {
         },
       }).then(response => response.data);
     },
+    // 按 config_name 获取单条空间插件配置
+    getSpacePluginConfig({}, data) {
+      return axios.get('api/space/config/get_space_plugin_config/', {
+        params: {
+          space_id: data.space_id,
+          config_name: data.config_name,
+        },
+      }).then(response => response.data);
+    },
     updateSpaceConfig({}, data) {
       let url = 'api/space/admin/space_config/';
       let method = 'post';
