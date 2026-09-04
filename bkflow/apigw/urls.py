@@ -26,6 +26,7 @@ urlpatterns = []
 if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.apply_token import apply_token
     from bkflow.apigw.views.apply_webhook_configs import apply_webhook_configs
+    from bkflow.apigw.views.batch_delete_template import batch_delete_template
     from bkflow.apigw.views.create_credential import create_credential
     from bkflow.apigw.views.create_label import create_label
     from bkflow.apigw.views.create_mock_task import create_mock_task
@@ -142,4 +143,5 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^task/(?P<task_id>\d+)/operate_task_by_app/(?P<operation>\w+)/$", operate_task_by_app),
         url(r"^task/(?P<task_id>\d+)/get_task_states_by_app/$", get_task_states_by_app),
         url(r"^space/(?P<space_id>\d+)/get_plugin_outputs/$", get_plugin_outputs),
+        url(r"^space/(?P<space_id>\d+)/batch_delete_template/$", batch_delete_template),
     ]

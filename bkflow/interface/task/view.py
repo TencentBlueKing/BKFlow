@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from django.db.models import Q
@@ -34,6 +35,12 @@ from bkflow.contrib.openapi.serializers import (
     TaskEngineAdminSerializer,
 )
 from bkflow.exceptions import APIRequestError
+from bkflow.interface.task.engine_compat import (
+    empty_wrapped_result,
+    enrich_task_list_result_labels,
+    fallback_if_engine_route_missing,
+    parse_task_ids,
+)
 from bkflow.interface.task.permissions import (
     ScopePermission,
     TaskMockTokenPermission,
@@ -61,21 +68,11 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
         # 把标签名称转换为id进行搜索
         query_params = request.query_params.copy()
         labels = request.query_params.get("label", "")
-        label_ids = Label.get_label_ids_by_names(labels)
+        label_ids = Label.get_label_ids_by_names(labels, space_id)
         if label_ids:
             query_params["label"] = ",".join([str(label_id) for label_id in label_ids])
         result = client.task_list(data={**query_params, "space_id": space_id})
-
-        label_ids = []
-        for item in result["data"]["results"]:
-            label_ids.extend(item["labels"])
-
-        labels_map = Label.objects.get_labels_map(set(label_ids))
-
-        for item in result["data"]["results"]:
-            item["labels"] = [labels_map.get(label_id) for label_id in item["labels"]]
-
-        return Response(result)
+        return Response(enrich_task_list_result_labels(result))
 
     @action(methods=["POST"], detail=False, url_path="update_labels/(?P<space_id>\\d+)/(?P<pk>\\d+)")
     def update_labels(self, request, space_id, pk=None):
@@ -314,3 +311,48 @@ class TaskInterfaceViewSet(GenericViewSet):
         handler = StageConstantHandler(space_id, request.user.is_superuser)
         result = handler.process(task_id, node_ids, stage_constants)
         return Response(result)
+
+    @action(methods=["GET"], detail=False, url_path="list_children_taskflow/(?P<task_id>\\d+)")
+    def list_children_taskflow(self, request, task_id, *args, **kwargs):
+        """获取根任务下的所有子任务列表"""
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.list_children_taskflow(data={"task_id": task_id, "space_id": space_id})
+        return Response(fallback_if_engine_route_missing(result, empty_wrapped_result({"tasks": [], "relations": {}})))
+
+    @action(methods=["GET"], detail=False, url_path="root_task_info")
+    def root_task_info(self, request, *args, **kwargs):
+        """批量查询任务是否包含子任务"""
+        space_id = self.get_space_id(request)
+        task_ids_param = request.query_params.get("task_ids")
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.root_task_info(data={"task_ids": task_ids_param, "space_id": space_id})
+        fallback = empty_wrapped_result(
+            {"has_children_taskflow": {task_id: False for task_id in parse_task_ids(task_ids_param)}}
+        )
+        return Response(fallback_if_engine_route_missing(result, fallback))
+
+    @action(methods=["POST"], detail=False, url_path="get_node_outputs")
+    def get_node_outputs(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.get_node_outputs(data={"space_id": space_id, **request.data})
+        return Response(fallback_if_engine_route_missing(result, empty_wrapped_result([])))
+
+    @action(methods=["GET"], detail=False, url_path="get_tasks_pipeline")
+    def get_tasks_pipeline(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.get_tasks_pipeline(
+            data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
+        )
+        return Response(fallback_if_engine_route_missing(result, empty_wrapped_result({})))
+
+    @action(methods=["GET"], detail=False, url_path="batch_get_task_states")
+    def batch_get_task_states(self, request, *args, **kwargs):
+        space_id = self.get_space_id(request)
+        client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+        result = client.batch_get_task_states(
+            data={"space_id": space_id, "task_ids": request.query_params.get("task_ids")}
+        )
+        return Response(fallback_if_engine_route_missing(result, empty_wrapped_result({})))

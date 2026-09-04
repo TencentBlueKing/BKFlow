@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.conf import settings
 
 from bkflow.contrib.api.client import BaseComponentClient
@@ -66,4 +67,25 @@ class InterfaceModuleClient(BaseComponentClient):
             method="get",
             url=self._get_interface_url("api/variable/internal/get_variable/"),
             data={"space_id": space_id},
+        )
+
+    def validate_open_plugins_for_start(self, data):
+        return self._request(
+            method="post",
+            url=self._get_interface_url("api/plugin/internal/validate_open_plugins_for_start/"),
+            data=data,
+        )
+
+    def build_open_plugin_snapshots(self, data):
+        return self._request(
+            method="post",
+            url=self._get_interface_url("api/plugin/internal/build_open_plugin_snapshots/"),
+            data=data,
+        )
+
+    def prepare_task_extra_info(self, data):
+        return self._request(
+            method="post",
+            url=self._get_interface_url("api/template/internal/prepare_task_extra_info/"),
+            data=data,
         )

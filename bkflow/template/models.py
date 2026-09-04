@@ -33,8 +33,9 @@ from bkflow.constants import (
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.exceptions import APIResponseError, NotFoundError, ValidationError
-from bkflow.space.configs import FlowVersioning
+from bkflow.space.configs import FlowVersioning, GatewayExpressionConfig
 from bkflow.space.models import SpaceConfig
+from bkflow.template.utils import validate_pipeline_tree_gateway_expression
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.md5 import compute_pipeline_md5
 from bkflow.utils.models import CommonModel, CommonSnapshot
@@ -54,6 +55,9 @@ class TemplateManager(models.Manager):
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
         template_pipeline_tree = template.get_pipeline_tree_by_version(version)
+        # 校验流程树中的网关表达式语言是否与空间配置一致
+        space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+        validate_pipeline_tree_gateway_expression(template_pipeline_tree, space_gateway_expression)
         for node in template_pipeline_tree["activities"].values():
             if node["type"] == "SubProcess":
                 if copy_subprocess:
@@ -69,6 +73,11 @@ class TemplateManager(models.Manager):
                     node["version"] = new_sub_template.version
                 else:
                     continue
+            elif node["type"] == "SubCanvas":
+                pipeline = node.get("pipeline", {})
+                for sub_node in pipeline["activities"].values():
+                    if sub_node.get("component", {}).get("code") == "dmn_plugin":
+                        raise ValidationError("流程中存在决策节点 暂不支持拷贝")
             elif node["component"]["code"] == "dmn_plugin":
                 raise ValidationError("流程中存在决策节点 暂不支持拷贝")
         template.pk = None
@@ -546,27 +555,33 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
 
 
 class TriggerManager(models.Manager):
-    def create_trigger(self, data, template):
+    def create_trigger(self, data, template, username):
         config = {
-            "space_id": data.get("space_id"),
+            "space_id": template.space_id,
             "pipeline_tree": template.pipeline_tree,
             "scope_type": template.scope_type,
             "scope_value": template.scope_value,
         }
         data["config"] = {**data["config"], **config}
+        data["creator"] = username
+        data["space_id"] = template.space_id
+        data["template_id"] = template.id
         with transaction.atomic():
             trigger = Trigger.objects.create(**data)
             handler = self._get_handler(trigger.type)
             handler.create(trigger, template)
         return trigger
 
-    def update_trigger(self, trigger, data, template):
+    def update_trigger(self, trigger, data, template, username):
         config = {
             "pipeline_tree": template.pipeline_tree,
             "scope_type": template.scope_type,
             "scope_value": template.scope_value,
         }
         data["config"] = {**data["config"], **config}
+        data["updated_by"] = username
+        data["space_id"] = template.space_id
+        data["template_id"] = template.id
         with transaction.atomic():
             for field, value in data.items():
                 setattr(trigger, field, value)
@@ -617,15 +632,20 @@ class TriggerManager(models.Manager):
                     f"该流程下的触发器 #{index}:{cron_config} 有以下新增参数未填写：{', '.join(new_constants - trigger_constants)}"
                 )
 
-    def batch_modify_triggers(self, template, triggers):
+    def batch_modify_triggers(self, template, triggers, username):
         """批量更新、创建和删除单个流程下的多个触发器"""
 
         input_trigger_ids = [trigger.get("id") for trigger in triggers if trigger.get("id")]
-        exist_triggers = self.filter(template_id=template.id)
+        exist_triggers = self.filter(template_id=template.id, is_deleted=False)
 
         # 根据入参中触发器的id集合和数据库中存在的触发器id集合，筛选出待更新、待创建和待删除的触发器id列表
         exist_triggers_dict = {trigger.id: trigger for trigger in exist_triggers}
         exist_trigger_ids = exist_triggers_dict.keys()
+
+        invalid_ids = set(input_trigger_ids) - exist_trigger_ids
+        if invalid_ids:
+            raise ValidationError(f"触发器 id {sorted(invalid_ids)} 不属于当前模板(template_id={template.id})或已删除，不允许更新")
+
         to_update_trigger_ids = list(set(input_trigger_ids) & set(exist_trigger_ids))
         to_delete_trigger_ids = list(set(exist_trigger_ids) - set(input_trigger_ids))
         to_update_triggers = [
@@ -636,10 +656,10 @@ class TriggerManager(models.Manager):
 
         for update_instance in to_update_triggers:
             trigger = exist_triggers_dict[update_instance.get("id")]
-            self.update_trigger(trigger, update_instance, template)
+            self.update_trigger(trigger, update_instance, template, username)
 
         for create_instance in to_create_triggers:
-            self.create_trigger(create_instance, template)
+            self.create_trigger(create_instance, template, username)
 
         # 批量删除触发器以及其对应的周期任务
         if to_delete_trigger_ids:
@@ -684,3 +704,83 @@ class TemplateReference(models.Model):
     subprocess_node_id = models.CharField(_("子流程节点 ID"), max_length=32, null=False)
     version = models.CharField(_("快照字符串的md5"), max_length=32, null=False)
     always_use_latest = models.BooleanField(_("是否永远使用最新版本"), default=False)
+
+
+class DebugContext(CommonModel):
+    """每模板唯一的调试上下文，跨用户共享。
+
+    生命周期约定：按模板维度 get_or_create，**不软删除**；reset 只清空 global_vars/节点态、
+    不删除该行（故 template_id 的 unique 与 CommonModel 软删除不冲突）。
+    """
+
+    STATUS_CHOICES = (("idle", "idle"), ("running", "running"), ("terminating", "terminating"))
+    RUN_TYPE_CHOICES = (("global", "global"), ("step", "step"))
+    RUN_STATUS_CHOICES = (
+        ("not_run", "not_run"),
+        ("running", "running"),
+        ("waiting", "waiting"),
+        ("paused", "paused"),
+        ("finished", "finished"),
+        ("failed", "failed"),
+        ("revoked", "revoked"),
+    )
+
+    template_id = models.BigIntegerField(_("模板ID"), unique=True)
+    space_id = models.IntegerField(_("空间ID"), db_index=True)
+    global_vars = models.JSONField(_("调试全局变量"), default=dict, blank=True)
+    tree_fingerprint = models.JSONField(_("树指纹"), default=dict, blank=True)
+    status = models.CharField(_("调试状态"), max_length=16, choices=STATUS_CHOICES, default="idle")
+    active_task_id = models.BigIntegerField(_("当前DEBUG任务ID"), null=True, blank=True)
+    active_run_type = models.CharField(_("当前调试类型"), max_length=16, choices=RUN_TYPE_CHOICES, blank=True, default="")
+    active_node_id = models.CharField(_("当前单步节点ID"), max_length=33, blank=True, default="")
+    last_task_id = models.BigIntegerField(_("最近DEBUG任务ID"), null=True, blank=True)
+    last_run_type = models.CharField(_("最近调试类型"), max_length=16, choices=RUN_TYPE_CHOICES, blank=True, default="")
+    last_run_status = models.CharField(_("最近调试状态"), max_length=16, choices=RUN_STATUS_CHOICES, default="not_run")
+    last_error_detail = models.JSONField(_("最近调试错误详情"), default=dict, blank=True)
+    last_inputs = models.JSONField(_("最近一次输入"), default=dict, blank=True)
+    locked_by = models.CharField(_("持锁用户"), max_length=32, blank=True, default="")
+    locked_at = models.DateTimeField(_("持锁时间"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("调试上下文 DebugContext")
+        verbose_name_plural = _("调试上下文 DebugContext")
+
+
+class DebugNodeState(models.Model):
+    """每模板每节点一份的调试态"""
+
+    EXECUTION_MODE_CHOICES = (("real", "real"), ("mock", "mock"))
+    MOCK_RESULT_CHOICES = (("success", "success"), ("fail", "fail"))
+    STATUS_CHOICES = (
+        ("not_run", "not_run"),
+        ("running", "running"),
+        ("waiting", "waiting"),
+        ("paused", "paused"),
+        ("finished", "finished"),
+        ("failed", "failed"),
+        ("revoked", "revoked"),
+    )
+
+    debug_context = models.ForeignKey(
+        DebugContext, related_name="node_states", on_delete=models.CASCADE, verbose_name=_("所属上下文")
+    )
+    node_id = models.CharField(_("节点ID"), max_length=33)
+    node_type = models.CharField(_("节点类型"), max_length=32, default="ServiceActivity")
+    execution_mode = models.CharField(_("执行模式"), max_length=8, choices=EXECUTION_MODE_CHOICES, default="real")
+    mock_result = models.CharField(_("Mock结果"), max_length=8, choices=MOCK_RESULT_CHOICES, default="success")
+    mock_outputs = models.JSONField(_("Mock预设输出"), default=dict, blank=True)
+    mock_error = models.CharField(_("Mock错误信息"), max_length=1024, blank=True, default="")
+    status = models.CharField(_("运行状态"), max_length=16, choices=STATUS_CHOICES, default="not_run")
+    waiting_reason = models.CharField(_("等待原因"), max_length=32, blank=True, default="")
+    inputs = models.JSONField(_("最近输入快照"), default=dict, blank=True)
+    outputs = models.JSONField(_("最近输出快照"), default=dict, blank=True)
+    duration_ms = models.IntegerField(_("耗时(ms)"), null=True, blank=True)
+    error_detail = models.JSONField(_("错误详情"), default=dict, blank=True)
+    log_ref = models.JSONField(_("引擎引用"), default=dict, blank=True)
+    config_hash = models.CharField(_("配置指纹"), max_length=64, blank=True, default="")
+    last_run_at = models.DateTimeField(_("最近运行时间"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("调试节点态 DebugNodeState")
+        verbose_name_plural = _("调试节点态 DebugNodeState")
+        unique_together = (("debug_context", "node_id"),)

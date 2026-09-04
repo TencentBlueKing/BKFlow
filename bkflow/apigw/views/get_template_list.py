@@ -19,12 +19,14 @@ to the current version of the project delivered to anyone in the future.
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
+from django.db.models import Subquery
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.template import TemplateListFilterSerializer
 from bkflow.apigw.utils import paginate_list_data
+from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.template.models import Template, Trigger
 from bkflow.utils import err_code
 
@@ -50,26 +52,49 @@ def get_template_list(request, space_id):
     }
 
     filter_kwargs = {}
+    label_template_ids = None
 
     for key, value in params_validator_data.items():
         if key in filter_map:
             filter_kwargs[filter_map[key]] = value
             continue
+        if key == "id":
+            value = [int(item) for item in value.split(",") if item.strip()]
+            if value:
+                filter_kwargs["id__in"] = value
+            continue
+        if key == "label":
+            label_ids = Label.get_label_ids_by_names(value, space_id)
+            if not label_ids:
+                label_template_ids = []
+            else:
+                template_ids_subquery = TemplateLabelRelation.objects.filter(label_id__in=label_ids).values_list(
+                    "template_id", flat=True
+                )
+                label_template_ids = Subquery(template_ids_subquery)
+            continue
         filter_kwargs[key] = value
 
     template_queryset = Template.objects.filter(space_id=space_id, is_deleted=False, **filter_kwargs).order_by(order_by)
+    # 当同时传入 id 与 label 时，两个 id__in 条件通过链式 filter 求交集，
+    # 避免后者覆盖前者导致 label 筛选失效
+    if label_template_ids is not None:
+        template_queryset = template_queryset.filter(id__in=label_template_ids)
 
     templates, count = paginate_list_data(request, template_queryset)
 
     data = []
 
     has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
+    template_ids = [template.id for template in templates]
+    templates_labels = TemplateLabelRelation.objects.fetch_objects_labels(template_ids)
     for template in templates:
         json_data = template.to_json(with_pipeline_tree=False)
         if template.id in has_trigger_template_ids:
             json_data["has_interval_trigger"] = True
         else:
             json_data["has_interval_trigger"] = False
+        json_data["labels"] = templates_labels.get(template.id, [])
         data.append(json_data)
 
     response = {

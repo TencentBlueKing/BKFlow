@@ -18,11 +18,15 @@ to the current version of the project delivered to anyone in the future.
 """
 from unittest import mock
 
+import pytest
+
+from bkflow.exceptions import ValidationError
 from bkflow.template.utils import (
     _mako_str_to_system_constants,
     _system_constants_to_mako_str,
     analysis_pipeline_constants_ref,
     send_callback,
+    validate_pipeline_tree_gateway_expression,
 )
 
 
@@ -223,3 +227,110 @@ class TestSendCallback:
         mock_get_config.side_effect = None
         mock_client.request.side_effect = Exception("Network error")
         send_callback(space_id=1, callback_type="task_created", data={"task_id": "123"})
+
+
+class TestValidatePipelineTreeGatewayExpression:
+    """Test gateway expression language validation in pipeline tree"""
+
+    def _build_gateway(self, gateway_id, parse_lang="boolrule"):
+        return {
+            "type": "ExclusiveGateway",
+            "extra_info": {"parse_lang": parse_lang},
+            "conditions": {"condition1": {"evaluate": "${var1} == 'test'"}},
+        }
+
+    def _build_tree(self, gateways=None, activities=None):
+        return {"gateways": gateways or {}, "activities": activities or {}}
+
+    def test_top_level_gateway_mismatch(self):
+        """顶层网关表达式不匹配时应抛异常"""
+        tree = self._build_tree(gateways={"gw1": self._build_gateway("gw1", parse_lang="FEEL")})
+        with pytest.raises(ValidationError):
+            validate_pipeline_tree_gateway_expression(tree, expected_expression="boolrule")
+
+    def test_top_level_gateway_match(self):
+        """顶层网关表达式匹配时不应抛异常"""
+        tree = self._build_tree(gateways={"gw1": self._build_gateway("gw1", parse_lang="boolrule")})
+        validate_pipeline_tree_gateway_expression(tree, expected_expression="boolrule")
+
+    def test_subprocess_gateway_mismatch(self):
+        """SubProcess 内部网关表达式不匹配时应抛异常"""
+        tree = self._build_tree(
+            activities={
+                "sub1": {
+                    "type": "SubProcess",
+                    "pipeline": self._build_tree(
+                        gateways={"gw_sub": self._build_gateway("gw_sub", parse_lang="MAKO")}
+                    ),
+                }
+            }
+        )
+        with pytest.raises(ValidationError):
+            validate_pipeline_tree_gateway_expression(tree, expected_expression="boolrule")
+
+    def test_subprocess_gateway_match(self):
+        """SubProcess 内部网关表达式匹配时不应抛异常"""
+        tree = self._build_tree(
+            activities={
+                "sub1": {
+                    "type": "SubProcess",
+                    "pipeline": self._build_tree(
+                        gateways={"gw_sub": self._build_gateway("gw_sub", parse_lang="boolrule")}
+                    ),
+                }
+            }
+        )
+        validate_pipeline_tree_gateway_expression(tree, expected_expression="boolrule")
+
+    def test_subcanvas_gateway_mismatch(self):
+        """SubCanvas 内部网关表达式不匹配时应抛异常"""
+        tree = self._build_tree(
+            activities={
+                "sub_canvas1": {
+                    "type": "SubCanvas",
+                    "pipeline": self._build_tree(
+                        gateways={"gw_sub": self._build_gateway("gw_sub", parse_lang="FEEL")}
+                    ),
+                }
+            }
+        )
+        with pytest.raises(ValidationError):
+            validate_pipeline_tree_gateway_expression(tree, expected_expression="boolrule")
+
+    def test_nested_subprocess_gateway_mismatch(self):
+        """嵌套 SubProcess 内部网关表达式不匹配时应抛异常"""
+        tree = self._build_tree(
+            activities={
+                "sub1": {
+                    "type": "SubProcess",
+                    "pipeline": self._build_tree(
+                        activities={
+                            "sub2": {
+                                "type": "SubProcess",
+                                "pipeline": self._build_tree(
+                                    gateways={
+                                        "gw_nested": self._build_gateway("gw_nested", parse_lang="MAKO")
+                                    }
+                                ),
+                            }
+                        }
+                    ),
+                }
+            }
+        )
+        with pytest.raises(ValidationError):
+            validate_pipeline_tree_gateway_expression(tree, expected_expression="boolrule")
+
+    def test_activity_without_pipeline_is_skipped(self):
+        """没有 pipeline 的子流程活动应被跳过，不抛异常"""
+        tree = self._build_tree(
+            activities={"sub1": {"type": "SubProcess"}, "canvas1": {"type": "SubCanvas"}}
+        )
+        validate_pipeline_tree_gateway_expression(tree, expected_expression="boolrule")
+
+    def test_unsupported_gateway_type_is_skipped(self):
+        """非排他/条件并行网关应被跳过"""
+        tree = self._build_tree(
+            gateways={"gw1": {"type": "ParallelGateway", "extra_info": {"parse_lang": "MAKO"}}}
+        )
+        validate_pipeline_tree_gateway_expression(tree, expected_expression="boolrule")

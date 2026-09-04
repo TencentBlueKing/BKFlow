@@ -22,7 +22,9 @@
           {{ option.name }}
         </div>
       </div>
-      <div class="api-list">
+      <div
+        class="api-list"
+        @scroll="handleApiPluginScroll">
         <template v-if="apiList.length > 0">
           <div
             v-for="(plugin, index) in apiList"
@@ -94,7 +96,7 @@
         categoryList: [],
         categoryActive: '',
         apiList: [],
-        apiActive: this.crtPlugin,
+        apiActive: this.apiTabList.some(item => item.key === this.currentTab) ? this.crtPlugin : '',
         pagination: {
           current: 1,
           count: 0,
@@ -103,40 +105,45 @@
       };
     },
     computed: {
+      crtApiConfig() {
+        return this.apiTabList.find(item => item.key === this.currentTab);
+      },
       crtApiKey() {
-        return this.apiTabList.find(item => item.key === this.currentTab)?.key;
+        return this.crtApiConfig?.key;
+      },
+      crtSourceKey() {
+        return this.crtApiConfig?.sourceKey || this.crtApiKey;
       },
     },
     watch: {
       crtApiKey: {
-        handler(val) {
+        handler(val, oldVal) {
+          const preserveSelection = oldVal === undefined && Boolean(this.apiActive);
+          this.resetCatalogState(!preserveSelection);
           if (val) {
-            this.getUniformCategoryList();
-          } else {
-            this.categoryActive = '';
-            this.categoryList = [];
-            this.apiActive = '';
-            this.apiList = [];
+            this.getUniformCategoryList(preserveSelection ? this.crtGroup : '');
           }
         },
         deep: true,
         immediate: true,
       },
     },
-    mounted() {
-      const listWrapEl = this.$el.querySelector('.api-list');
-      listWrapEl.addEventListener('scroll', this.handleApiPluginScroll, false);
-    },
-    beforeDestroy() {
-      const listWrapEl = this.$el.querySelector('.api-list');
-      listWrapEl.removeEventListener('scroll', this.handleApiPluginScroll, false);
-    },
     methods: {
       ...mapActions('template', [
         'loadUniformCategoryList',
         'loadUniformApiList',
       ]),
-      async getUniformCategoryList() {
+      resetCatalogState(clearSelection = true) {
+        this.categoryActive = '';
+        this.categoryList = [];
+        this.apiList = [];
+        this.pagination.current = 1;
+        this.pagination.count = 0;
+        if (clearSelection) {
+          this.apiActive = '';
+        }
+      },
+      async getUniformCategoryList(preferredCategory = '') {
         try {
           this.categoryLoading = true;
           const resp = await this.loadUniformCategoryList({
@@ -146,10 +153,9 @@
           });
           if (!resp.result) return;
           this.categoryList = resp.data;
-          if (!this.categoryActive) {
-            this.categoryActive = this.crtGroup || this.categoryList[0]?.id;
-          }
-          this.getUniformApiList();
+          const hasPreferredCategory = this.categoryList.some(item => item.id === preferredCategory);
+          this.categoryActive = hasPreferredCategory ? preferredCategory : this.categoryList[0]?.id;
+          if (this.categoryActive) this.getUniformApiList();
         } catch (error) {
           console.warn(error);
         } finally {
@@ -206,16 +212,46 @@
         this.pagination.current = 1;
         this.getUniformApiList();
       },
+      handleSearch() {
+        this.pagination.current = 1;
+        this.pagination.count = 0;
+        this.apiList = [];
+        if (this.categoryActive) this.getUniformApiList();
+      },
       onSelectApiPlugin(plugin) {
-        const category = this.categoryList.find(item => item.id === this.categoryActive);
+        const {
+          id,
+          name,
+          category: pluginCategory,
+          default_version,
+          latest_version,
+          versions,
+          meta_url_template,
+          meta_url,
+          description,
+          plugin_source,
+          plugin_code,
+          wrapper_version,
+        } = plugin;
+        const categoryId = pluginCategory || this.categoryActive;
+        const category = this.categoryList.find(item => item.id === categoryId) || {};
         this.$emit('select', {
-          id: plugin.id,
+          id,
           code: 'uniform_api',
-          name: plugin.name,
-          group_id: this.categoryActive,
-          group_name: category.name,
-          metaUrl: plugin.meta_url,
+          name,
+          group_id: categoryId,
+          group_name: category.name || categoryId,
+          metaUrl: meta_url,
           apiKey: this.crtApiKey,
+          sourceKey: this.crtSourceKey,
+          pluginSource: plugin_source,
+          pluginCode: plugin_code,
+          wrapperVersion: wrapper_version,
+          list: versions || [],
+          latest_version,
+          default_version,
+          meta_url_template,
+          desc: description,
         });
       },
     },

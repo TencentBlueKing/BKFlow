@@ -156,6 +156,9 @@
           ref="retryNode"
           :node-detail-config="nodeDetailConfig"
           :node-info="nodeInfo"
+          :space-id="spaceId"
+          :template-id="templateId"
+          :scope-info="scopeInfo"
           :retrying="pending.retry"
           :node-inputs="nodeInputs"
           @retrySuccess="onRetrySuccess"
@@ -2483,6 +2486,8 @@
 }
 .node-info-panel {
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
     .operation-flow, .wehhook-callback{
         padding: 20px 30px;
     }

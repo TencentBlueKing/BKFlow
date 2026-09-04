@@ -21,11 +21,44 @@ import logging
 
 from pipeline.core.data.expression import ConstantTemplate
 
+from bkflow.exceptions import ValidationError
 from bkflow.space.configs import CallbackHooksConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.utils.api_client import ApiGwClient
 
 logger = logging.getLogger("root")
+
+
+def validate_pipeline_tree_gateway_expression(pipeline_tree, expected_expression):
+    """
+    校验流程树中的网关表达式语言是否与期望的网关表达式一致
+    """
+    _validate_gateways(pipeline_tree, expected_expression)
+
+
+def _validate_gateways(pipeline_tree, expected_expression):
+    """
+    递归校验流程树（包括子流程）中的网关表达式语言
+    """
+    gateways = pipeline_tree.get("gateways", {})
+    for gateway_id, gateway in gateways.items():
+        gateway_type = gateway.get("type")
+        if gateway_type in ("ExclusiveGateway", "ConditionalParallelGateway"):
+            # 未设置 parse_lang 的老数据默认按 boolrule 解析
+            parse_lang = gateway.get("extra_info", {}).get("parse_lang") or "boolrule"
+            if parse_lang != expected_expression:
+                raise ValidationError(
+                    f"[validate gateway expression error]: gateway {gateway_id} parse_lang "
+                    f"'{parse_lang}' does not match space config '{expected_expression}'"
+                )
+
+    # 递归校验子流程 SubCanvas / SubProcess 中的网关表达式
+    # 仓库协议数据中两者都可能携带 pipeline 对象
+    for activity in pipeline_tree.get("activities", {}).values():
+        if activity.get("type") in ("SubCanvas", "SubProcess"):
+            subprocess_pipeline = activity.get("pipeline")
+            if subprocess_pipeline:
+                _validate_gateways(subprocess_pipeline, expected_expression)
 
 
 def _system_constants_to_mako_str(value):

@@ -11,7 +11,16 @@
 */
 import Vue from 'vue';
 import axios from 'axios';
+import { applyPluginFormContext } from '@/config/setting.js';
+import { loadPluginForms } from '@/utils/pluginFormLoader.js';
 import transAtom from '@/utils/transAtom.js';
+import { buildV4DetailFromSchemaSnapshot, getOpenPluginSchemaSnapshot } from '@/utils/uniformApi.js';
+
+const createPluginFormStaleError = () => {
+  const error = new Error('stale plugin form request');
+  error.code = 'FORM_LOAD_STALE';
+  return error;
+};
 
 /**
  * 获取全局 jQuery 实例上的 $.atoms 对象
@@ -213,6 +222,42 @@ const atomForm = {
       return axios.get('/api/plugin_service/meta/', { params }).then(response => response.data);
     },
     /**
+     * V4 原生表单编排入口：优先获取标准化详情，任务只读场景加载失败时再回退到 schema 快照。
+     * 每个异步边界都检查 isCurrent，旧请求只能结束，不能覆盖用户随后选择的插件或版本。
+     */
+    async loadV4OpenPluginForm({ rootState }, payload) {
+      const isCurrent = typeof payload.isCurrent === 'function' ? payload.isCurrent : () => true;
+      let { snapshot } = payload;
+      if (!snapshot && payload.readOnly && payload.taskId && payload.nodeId) {
+        const extraInfoById = (rootState && rootState.task && rootState.task.taskExtraInfoById) || {};
+        snapshot = getOpenPluginSchemaSnapshot(
+          extraInfoById[payload.taskId] || extraInfoById[String(payload.taskId)],
+          payload.nodeId,
+          payload.templateNodeId,
+        );
+      }
+
+      const loadForm = async (detail) => {
+        if (!isCurrent()) throw createPluginFormStaleError();
+        applyPluginFormContext(detail.form_context, payload.runtimeContext);
+        return loadPluginForms(detail, { readOnly: payload.readOnly, isCurrent });
+      };
+
+      try {
+        const response = await axios.post('/api/plugin/detail/', payload.request);
+        if (!isCurrent()) throw createPluginFormStaleError();
+        if (!response.data.result) {
+          throw new Error(response.data.message || 'load plugin detail failed');
+        }
+        const form = await loadForm(response.data.data);
+        return form;
+      } catch (error) {
+        if (!isCurrent()) throw createPluginFormStaleError();
+        if (!payload.readOnly || !snapshot || (error && error.code === 'FORM_LOAD_STALE')) throw error;
+        return loadForm(buildV4DetailFromSchemaSnapshot(snapshot));
+      }
+    },
+    /**
      * 加载第三方插件
      */
     loadPluginServiceAppDetail({}, params) {
@@ -234,7 +279,8 @@ const atomForm = {
      * 加载子流程输出参数
      */
     loadSubprocessOutput({}, params) {
-      return axios.get('/api/plugin/subprocess_plugin/', { params }).then(response => response.data);
+      const { code, ...queryParams } = params;
+      return axios.get(`/api/plugin/${code}/`, { params: queryParams }).then(response => response.data);
     },
   },
 };

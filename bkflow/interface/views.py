@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import logging
 import traceback
@@ -31,16 +31,18 @@ from django.contrib.auth import logout
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils.translation import ugettext_lazy as _
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import Space, SpaceConfig
+from bkflow.task.open_plugin_callback import OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY
 
 logger = logging.getLogger("root")
 
 
+@ensure_csrf_cookie
 def home(request):
     return render(request, "base_vue.html")
 
@@ -53,6 +55,7 @@ def user_exit(request):
     return handler.build_401_response(request)
 
 
+@ensure_csrf_cookie
 def is_admin_or_space_superuser(request):
     """
     判断是否是管理员或者空间超级管理员
@@ -71,6 +74,7 @@ def is_admin_or_space_superuser(request):
     )
 
 
+@ensure_csrf_cookie
 def is_admin_or_current_space_superuser(request):
     """
     判断是否是管理员或者当前空间超级管理员
@@ -115,11 +119,22 @@ def callback(request, token):
     try:
         callback_data = json.loads(request.body)
     except Exception:
-        message = _("节点回调失败: 无效的请求, 请重试. 如持续失败可联系管理员处理. {msg} | api callback").format(
-            msg=traceback.format_exc()
-        )
+        message = _("节点回调失败: 无效的请求, 请重试. 如持续失败可联系管理员处理. {msg} | api callback").format(msg=traceback.format_exc())
         logger.error(message)
         return JsonResponse({"result": False, "message": message}, status=400)
+
+    callback_token = request.META.get(OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY, "")
+    is_open_plugin_callback = bool(callback_token)
+    if is_open_plugin_callback:
+        if (
+            not isinstance(callback_data, dict)
+            or not callback_data.get("open_plugin_run_id")
+            or not callback_data.get("status")
+        ):
+            return JsonResponse({"result": False, "message": "invalid callback payload"}, status=400)
+        if not callback_token:
+            return JsonResponse({"result": False, "message": "missing callback token"}, status=400)
+        callback_data["_callback_token"] = callback_token
 
     client = TaskComponentClient(space_id=space_id)
 
@@ -134,4 +149,5 @@ def callback(request, token):
     logger.info(
         "[callback] resp, space_id={}, task_id={}, node_id={}, resp={}".format(space_id, task_id, node_id, resp)
     )
-    return JsonResponse(resp)
+    status = 400 if is_open_plugin_callback and not resp.get("result") else 200
+    return JsonResponse(resp, status=status)

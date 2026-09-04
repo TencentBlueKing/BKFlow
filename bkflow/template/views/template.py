@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 from copy import deepcopy
 
@@ -28,6 +29,7 @@ from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import CharFilter, DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
+from rest_framework import serializers as drf_serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -57,6 +59,7 @@ from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.configs import (
     FlowVersioning,
     GatewayExpressionConfig,
@@ -97,6 +100,7 @@ from bkflow.template.serializers.template import (
     TemplateMockDataSerializer,
     TemplateMockSchemeSerializer,
     TemplateOperationRecordSerializer,
+    TemplatePrepareExtraInfoSerializer,
     TemplateRelatedResourceSerializer,
     TemplateReleaseSerializer,
     TemplateSerializer,
@@ -138,14 +142,14 @@ class TemplateFilterSet(FilterSet):
         根据逗号/加号/换行分隔的 label 字符串过滤任务。
         URL Query Param 示例: ?label=tag1,tag2+tag3\ntag4
         """
+        space_id = self.request.GET.get("space_id", -1)
         # 支持逗号、加号或换行分隔，并去除空项与两端空白
-        label_ids = Label.get_label_ids_by_names(value)
+        label_ids = Label.get_label_ids_by_names(value, space_id=space_id)
         if not label_ids:
-            return queryset
+            return queryset.filter(id__in=[])
 
-        ttemplate_ids_subquery = TemplateLabelRelation.objects.filter(label_id__in=label_ids).values("template_id")
-
-        return queryset.filter(id__in=Subquery(ttemplate_ids_subquery))
+        template_ids_subquery = TemplateLabelRelation.objects.filter(label_id__in=label_ids).values("template_id")
+        return queryset.filter(id__in=Subquery(template_ids_subquery))
 
 
 class TemplateSnapshotFilterSet(FilterSet):
@@ -247,6 +251,18 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
+        try:
+            create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+                space_id=int(space_id),
+                pipeline_tree=pre_pipeline_tree,
+                extra_info=create_task_data.get("extra_info"),
+                username=request.user.username,
+                scope_type=template.scope_type,
+                scope_id=template.scope_value,
+            )
+        except drf_serializers.ValidationError as error:
+            detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
+            raise ValidationError(str(detail))
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
@@ -661,12 +677,39 @@ class TemplateViewSet(UserModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
+        try:
+            create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+                space_id=int(template.space_id),
+                pipeline_tree=pipeline_tree,
+                extra_info=create_task_data.get("extra_info"),
+                username=request.user.username,
+                scope_type=template.scope_type,
+                scope_id=template.scope_value,
+            )
+        except drf_serializers.ValidationError as error:
+            detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
+            raise ValidationError(str(detail))
 
         client = TaskComponentClient(space_id=template.space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
             raise APIResponseError(result["message"])
         return Response(result["data"])
+
+    @swagger_auto_schema(method="GET", operation_description="批量获取模板版本")
+    @action(methods=["GET"], detail=False, url_path="batch_get_template_version")
+    def batch_get_template_version(self, request, *args, **kwargs):
+        template_ids = request.GET.get("template_ids")
+        space_id = request.GET.get("space_id")
+        if not template_ids:
+            return Response(exception=True, data={"message": "template_ids is required"})
+        template_ids = template_ids.split(",")
+        template_objs = Template.objects.filter(id__in=template_ids, space_id=space_id)
+        data = [
+            {"template_id": template_obj.id, "name": template_obj.name, "version": template_obj.version}
+            for template_obj in template_objs
+        ]
+        return Response(data=data)
 
     @action(methods=["GET"], detail=True, url_path="get_draft_template")
     def get_draft_template(self, request, *args, **kwargs):
@@ -837,6 +880,21 @@ class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, Simp
         pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
         subproc_data["pipeline_tree"] = pre_pipeline_tree
         return Response(subproc_data)
+
+    @action(methods=["POST"], detail=False)
+    def prepare_task_extra_info(self, request, *args, **kwargs):
+        ser = TemplatePrepareExtraInfoSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        validated = ser.validated_data
+        extra_info = OpenPluginSnapshotService.prepare_task_extra_info(
+            space_id=validated["space_id"],
+            pipeline_tree=validated["pipeline_tree"],
+            extra_info=validated.get("extra_info"),
+            username=validated.get("username"),
+            scope_type=validated.get("scope_type"),
+            scope_id=validated.get("scope_id"),
+        )
+        return Response({"extra_info": extra_info})
 
 
 class TemplateMockDataViewSet(

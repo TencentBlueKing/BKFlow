@@ -18,8 +18,22 @@
       v-if="!isReadyStatus"
       :message="$t('暂无输出')" />
     <template v-else-if="!adminView">
+      <div
+        v-if="shouldRenderNativeForm && !isShowOutputOrigin"
+        class="output-form">
+        <RenderForm
+          v-if="Array.isArray(renderConfig)"
+          :key="renderKey"
+          v-model="outputFormData"
+          :scheme="renderConfig"
+          :form-option="renderOption" />
+        <jsonschema-form
+          v-else
+          :schema="renderConfig"
+          :value="outputFormData" />
+      </div>
       <table
-        v-if="!isShowOutputOrigin"
+        v-else-if="!isShowOutputOrigin"
         class="operation-table outputs-table">
         <thead>
           <tr>
@@ -83,12 +97,17 @@
   import VueJsonPretty from 'vue-json-pretty';
   import NoData from '@/components/common/base/NoData.vue';
   import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
+  import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
+  import JsonschemaForm from './JsonschemaForm.vue';
+  import { hasPluginFormFields } from '@/utils/pluginFormLoader.js';
   import tools from '@/utils/tools.js';
   export default {
     components: {
       VueJsonPretty,
       NoData,
       FullCodeEditor,
+      RenderForm,
+      JsonschemaForm,
     },
     props: {
       adminView: {
@@ -98,6 +117,18 @@
       outputs: {
         type: Array,
         default: () => ([]),
+      },
+      renderConfig: {
+        type: [Array, Object],
+        default: () => ([]),
+      },
+      renderData: {
+        type: Object,
+        default: () => ({}),
+      },
+      isRenderOutputForm: {
+        type: Boolean,
+        default: false,
       },
       nodeDetailConfig: {
         type: Object,
@@ -112,13 +143,35 @@
       return {
         isShowOutputOrigin: false,
         outputsInfo: null,
+        outputFormData: {},
+        renderKey: null,
+        renderOption: {
+          showGroup: false,
+          showLabel: true,
+          showHook: false,
+          formEdit: false,
+          formMode: false,
+        },
       };
+    },
+    computed: {
+      shouldRenderNativeForm() {
+        return this.isRenderOutputForm && hasPluginFormFields(this.renderConfig);
+      },
     },
     watch: {
       outputs: {
         handler(val) {
           this.outputsInfo = tools.deepClone(val);
         },
+        immediate: true,
+      },
+      renderData: {
+        handler(val) {
+          this.renderKey = new Date().getTime();
+          this.outputFormData = tools.deepClone(val);
+        },
+        deep: true,
         immediate: true,
       },
     },
@@ -164,6 +217,9 @@
             white-space: nowrap;
             word-break: break-all;
         }
+    }
+    .output-form {
+        margin-top: 8px;
     }
     .outputs-section .full-code-editor {
         height: 400px;

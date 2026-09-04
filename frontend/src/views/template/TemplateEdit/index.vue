@@ -126,6 +126,7 @@
           :is-not-exist-atom-or-version="isNotExistAtomOrVersion"
           :space-related-config="spaceRelatedConfig"
           :is-enable-version-manage="isEnableVersionManage"
+          :is-plugin-scope-hidden="isPluginScopeHidden"
           @globalVariableUpdate="globalVariableUpdate"
           @updateNodeInfo="onUpdateNodeInfo"
           @templateDataChanged="templateDataChanged"
@@ -249,6 +250,7 @@
   </div>
 </template>
 <script>
+  import nodeDoubleClickGuideUrl from '@/assets/images/node-double-click-guide.gif';
   import i18n from '@/config/i18n/index.js';
   import { mapState, mapGetters, mapActions, mapMutations } from 'vuex';
   // moment用于时区使用
@@ -379,7 +381,7 @@
           arrow: true,
           img: {
             height: 112,
-            url: require('@/assets/images/node-double-click-guide.gif'),
+            url: nodeDoubleClickGuideUrl,
           },
           text: [
             {
@@ -420,6 +422,7 @@
         latestedVersion: '', // 最新版本
         isNeedToProhibitEdit: false,
         isEnableVersionManage: false,
+        isPluginScopeHidden: false, // 空间插件配置白名单模式时隐藏第三方/API插件
         tplInfoAndVarChange: false, // 全局变量和基础信息发生变化
         isAtPublish: false,
         draftInfo: {},
@@ -633,6 +636,7 @@
       ...mapActions('spaceConfig/', [
         'getNotAuthSpaceConfig',
         'checkSpaceConfig',
+        'getSpacePluginConfig',
       ]),
       ...mapMutations('template/', [
         'initTemplateData',
@@ -699,7 +703,7 @@
           this.constructedSubprocessInfo = [];
           return;
         }
-        const activities = pipelineTree.activities;
+        const { activities } = pipelineTree;
         const subProcessNodes = Object.values(activities)
           .filter(act => act.type === 'SubProcess' && act.template_id);
         if (subProcessNodes.length === 0) {
@@ -743,7 +747,7 @@
        * 根据当前有效的 subprocess_info 更新画布上子流程节点的小红点 (hasUpdated)
        */
       syncCanvasSubflowHasUpdated() {
-        const processCanvas = this.$refs.processCanvas;
+        const { processCanvas } = this.$refs;
         if (!processCanvas) return;
         const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
           ? this.subprocess_info
@@ -766,6 +770,20 @@
           this.isEnableVersionManage = result.data.value === 'true';
         } catch (error) {
           this.isEnableVersionManage = false;
+        }
+      },
+      // 判断空间插件配置是否为白名单模式
+      async checkPluginScope(spaceId) {
+        try {
+          if (!spaceId) {
+            this.isPluginScopeHidden = false;
+            return;
+          }
+          const resp = await this.getSpacePluginConfig({ space_id: spaceId, config_name: 'space_plugin_config' });
+          const defaultConfig = resp?.data?.value?.default || {};
+          this.isPluginScopeHidden = defaultConfig.mode === 'allow_list';
+        } catch (error) {
+          this.isPluginScopeHidden = false;
         }
       },
       // 轮询更新token
@@ -871,6 +889,7 @@
           };
           const templateData = await this.loadTemplateData(data);
           await this.checkoutSpace(templateData.space_id);
+          this.checkPluginScope(templateData.space_id);
           this.lastedPipelineTree = tools.deepClone(templateData.pipeline_tree);
           // 保存最新版本的流程树数据
           this.tplActions = templateData.auth;
@@ -1594,14 +1613,22 @@
           // api插件是否存在
           const { code, api_meta, version } = nodeConfig.component || {};
           if (code === 'uniform_api' && !this.apiExistMap[id]) {
+            // eslint-disable-next-line camelcase
+            const { uniform_api_plugin_version: savedPluginVersion } = nodeConfig.component.data || {};
+            const pluginVersion = savedPluginVersion?.value
+              || api_meta.plugin_version
+              || version;
             const resp = await this.loadUniformApiMeta({
               templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: api_meta.meta_url,
               ...this.scopeInfo,
+              meta_url_template: api_meta.meta_url_template,
+              source_key: api_meta.source_key,
+              version: pluginVersion,
             });
             if (resp.result) {
-              this.apiExistMap[id] = { code, version };
+              this.apiExistMap[id] = { code, version: pluginVersion };
             }
             this.isNotExistAtomOrVersion = !resp.result;
           }
@@ -1727,6 +1754,9 @@
                     spaceId: this.spaceId,
                     meta_url: apiMeta.meta_url,
                     ...this.scopeInfo,
+                    meta_url_template: apiMeta.meta_url_template,
+                    source_key: apiMeta.source_key,
+                    version: apiMeta.version,
                   });
                   const { url, methods, version, credential_key: credentialKey } = resp.data;
                   const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中

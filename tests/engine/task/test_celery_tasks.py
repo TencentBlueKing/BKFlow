@@ -16,21 +16,27 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.utils import timezone
 
 from bkflow.constants import TaskTriggerMethod, WebhookEventType
 from bkflow.task.celery.tasks import (
     auto_retry_node,
     bkflow_periodic_task_start,
+    cancel_open_plugin_runs,
+    clean_expired_open_plugin_callback_refs,
     dispatch_timeout_nodes,
     execute_node_timeout_strategy,
     send_task_message,
 )
 from bkflow.task.models import (
     AutoRetryNodeStrategy,
+    OpenPluginRunCallbackRef,
     PeriodicTask,
     TaskInstance,
     TimeoutNodeConfig,
@@ -39,6 +45,97 @@ from bkflow.task.models import (
 from bkflow.task.operations import OperationResult
 from bkflow.task.utils import ATOM_FAILED
 from bkflow.utils.pipeline import build_default_pipeline_tree
+
+
+@pytest.mark.django_db(transaction=True)
+class TestCleanExpiredOpenPluginCallbackRefs:
+    def test_clean_expired_open_plugin_callback_refs_keeps_active_tokens(self):
+        """过期回调映射应被清理，未过期记录保留。"""
+        expired = OpenPluginRunCallbackRef.objects.create(
+            task_id=1,
+            node_id="node-expired",
+            node_version="v4.0.0",
+            client_request_id="request-expired",
+            open_plugin_run_id="run-expired",
+            callback_token_digest="digest-expired",
+            callback_expire_at=timezone.now() - timedelta(minutes=1),
+            plugin_id="open_plugin_001",
+        )
+        active = OpenPluginRunCallbackRef.objects.create(
+            task_id=1,
+            node_id="node-active",
+            node_version="v4.0.0",
+            client_request_id="request-active",
+            open_plugin_run_id="run-active",
+            callback_token_digest="digest-active",
+            callback_expire_at=timezone.now() + timedelta(hours=1),
+            plugin_id="open_plugin_001",
+        )
+
+        deleted = clean_expired_open_plugin_callback_refs()
+
+        assert deleted == 1
+        assert not OpenPluginRunCallbackRef.objects.filter(id=expired.id).exists()
+        assert OpenPluginRunCallbackRef.objects.filter(id=active.id).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+class TestCancelOpenPluginRuns:
+    @staticmethod
+    def _create_callback_ref(task_id, node_id, suffix, consumed_at=None):
+        return OpenPluginRunCallbackRef.objects.create(
+            task_id=task_id,
+            node_id=node_id,
+            node_version="v4.0.0",
+            client_request_id="request-{}".format(suffix),
+            open_plugin_run_id="run-{}".format(suffix),
+            callback_token_digest="digest",
+            callback_expire_at=timezone.now() + timedelta(hours=1),
+            plugin_source="builtin",
+            source_key="sops",
+            plugin_id="plugin-{}".format(suffix),
+            plugin_version="1.0.0",
+            cancel_url="https://example.com/runs/{}/cancel".format(suffix),
+            consumed_at=consumed_at,
+        )
+
+    @patch("bkflow.task.celery.tasks._cancel_open_plugin_run")
+    @patch("bkflow.task.celery.tasks._get_open_plugin_space_configs", return_value={"uniform_api": {}})
+    def test_cancel_task_filters_consumed_refs_and_continues_after_one_failure(self, mock_configs, mock_cancel):
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        first_ref = self._create_callback_ref(task_instance.id, "node-1", "first")
+        second_ref = self._create_callback_ref(task_instance.id, "node-2", "second")
+        self._create_callback_ref(task_instance.id, "node-3", "consumed", consumed_at=timezone.now())
+        mock_cancel.side_effect = [RuntimeError("cancel failed"), None]
+
+        cancel_open_plugin_runs(task_id=task_instance.id, operator="test_operator")
+
+        mock_configs.assert_called_once_with(task_instance)
+        assert [call.kwargs["callback_ref"] for call in mock_cancel.call_args_list] == [first_ref, second_ref]
+        assert all(call.kwargs["space_configs"] == {"uniform_api": {}} for call in mock_cancel.call_args_list)
+
+    @patch("bkflow.task.celery.tasks._cancel_open_plugin_run")
+    @patch("bkflow.task.celery.tasks._get_open_plugin_space_configs", return_value={"uniform_api": {}})
+    def test_cancel_node_filters_other_nodes(self, mock_configs, mock_cancel):
+        task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
+        expected_ref = self._create_callback_ref(task_instance.id, "node-1", "node-1")
+        self._create_callback_ref(task_instance.id, "node-2", "node-2")
+
+        cancel_open_plugin_runs(task_id=task_instance.id, operator="test_operator", node_id="node-1")
+
+        mock_cancel.assert_called_once_with(
+            task_instance=task_instance,
+            callback_ref=expected_ref,
+            operator="test_operator",
+            space_configs={"uniform_api": {}},
+        )
+        mock_configs.assert_called_once_with(task_instance)
+
+    @patch("bkflow.task.celery.tasks._get_open_plugin_space_configs")
+    def test_missing_task_is_ignored(self, mock_configs):
+        cancel_open_plugin_runs(task_id=999999, operator="test_operator")
+
+        mock_configs.assert_not_called()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -468,6 +565,73 @@ class TestBkflowPeriodicTaskStart:
         periodic_task.refresh_from_db()
         assert periodic_task.total_run_count == 1
         assert periodic_task.last_run_at is not None
+
+    @patch("bkflow.task.celery.tasks.InterfaceModuleClient")
+    @patch("bkflow.task.celery.tasks.TaskOperation")
+    @patch("bkflow.task.celery.tasks.prepare_engine_task_extra_info")
+    def test_bkflow_periodic_task_start_writes_open_plugin_snapshots(
+        self, mock_prepare, mock_task_operation, mock_client_class
+    ):
+        """V4 定时任务创建后同时包含引用快照和 schema 快照。"""
+        periodic_task = PeriodicTask.objects.create(
+            name="test_periodic_task",
+            creator="test_user",
+            template_id=1,
+            trigger_id=1,
+            cron={"minute": "0", "hour": "*", "day_of_week": "*", "day_of_month": "*", "month_of_year": "*"},
+            config={"space_id": 1, "pipeline_tree": self.pipeline_tree},
+            extra_info={
+                "notify_config": {
+                    "notify_type": {"fail": [], "success": []},
+                    "notify_receivers": {"more_receiver": "", "receiver_group": []},
+                }
+            },
+        )
+        mock_prepare.return_value = {
+            "notify_config": {
+                "notify_type": {"fail": [], "success": []},
+                "notify_receivers": {"more_receiver": "", "receiver_group": []},
+            },
+            "plugin_reference_snapshot": [{"node_id": "node1", "plugin_id": "open_plugin_001"}],
+            "plugin_schema_snapshot": {"node1": {"plugin_id": "open_plugin_001"}},
+        }
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.get_template_data.return_value = {"data": {"pipeline_tree": self.pipeline_tree}}
+        mock_operation = MagicMock()
+        mock_operation.start.return_value = OperationResult(result=True, message="success")
+        mock_task_operation.return_value = mock_operation
+
+        bkflow_periodic_task_start(periodic_task_id=periodic_task.id)
+
+        task = TaskInstance.objects.filter(trigger_method=TaskTriggerMethod.timing.name).last()
+        assert task.extra_info["plugin_reference_snapshot"][0]["plugin_id"] == "open_plugin_001"
+        assert task.extra_info["plugin_schema_snapshot"]["node1"]["plugin_id"] == "open_plugin_001"
+        mock_prepare.assert_called_once()
+
+    @patch("bkflow.task.celery.tasks.InterfaceModuleClient")
+    @patch("bkflow.task.celery.tasks.prepare_engine_task_extra_info")
+    def test_bkflow_periodic_task_start_does_not_create_when_snapshot_fails(self, mock_prepare, mock_client_class):
+        """Interface 快照接口失败时，不产生半成品 TaskInstance。"""
+        from bkflow.exceptions import ValidationError
+
+        periodic_task = PeriodicTask.objects.create(
+            name="test_periodic_task",
+            creator="test_user",
+            template_id=1,
+            trigger_id=1,
+            cron={"minute": "0", "hour": "*", "day_of_week": "*", "day_of_month": "*", "month_of_year": "*"},
+            config={"space_id": 1, "pipeline_tree": self.pipeline_tree},
+            extra_info={},
+        )
+        mock_prepare.side_effect = ValidationError("开放插件快照构建失败")
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_client.get_template_data.return_value = {"data": {"pipeline_tree": self.pipeline_tree}}
+
+        bkflow_periodic_task_start(periodic_task_id=periodic_task.id)
+
+        assert TaskInstance.objects.filter(trigger_method=TaskTriggerMethod.timing.name).count() == 0
 
     @patch("bkflow.task.celery.tasks.InterfaceModuleClient")
     def test_bkflow_periodic_task_start_not_found(self, mock_client_class):

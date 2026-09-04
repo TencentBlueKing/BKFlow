@@ -22,6 +22,17 @@
 | custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到执行级根 Span 和所有节点上报的 Span 中，详见下方说明                                                                                                                              |
 | mock_data             | dict   | 否  | mock 数据，包含 nodes（mock 任务使用 mock 执行的节点)，outputs（可选参数，mock 执行对应节点的节点输出)，mock_data_ids（mock 执行对应节点使用的 mock 数据 id，如果 outputs 没有传参，则会自动将创建任务时对应的 mock 数据 作为 outputs） |
 
+### 开放插件治理说明
+
+当模板中包含标准运维开放插件（`uniform_api v4.0.0`）时，创建任务前会做服务端治理校验：
+
+- 插件必须仍存在于当前空间的开放插件目录中
+- 插件状态必须为可用
+- 插件业务版本必须仍在目录可用版本列表中
+- 插件必须已在当前空间开启
+
+校验通过后，BKFlow 会在任务 `extra_info` 中写入开放插件引用快照与 schema 快照，供后续执行与历史回看使用。
+
 ### credentials 参数说明
 
 `credentials` 参数用于在创建任务时传递 API 调用所需的凭证信息。该参数是一个字典类型，字典的 key 为凭证的标识名称，value 为 base64 编码的 JSON 字符串。
@@ -216,6 +227,17 @@
     "message": ""
 }
 
+```
+
+开放插件未开放时的失败示例：
+
+```json
+{
+    "result": false,
+    "code": 400,
+    "data": null,
+    "message": "开放插件 [open_plugin_001] 在当前空间未开放"
+}
 ```
 ### 返回结果参数说明
 
