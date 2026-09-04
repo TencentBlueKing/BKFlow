@@ -174,7 +174,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
             validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
         except ValidationError as e:
-            raise serializers.ValidationError(str(e))
+            raise serializers.ValidationError(_(f"参数校验失败，pipeline网关表达式校验不通过, err={e}"))
 
         template_id = getattr(self.instance, "id", None)
         data = PipelineTemplateWebPreviewer.is_circular_reference(

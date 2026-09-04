@@ -62,6 +62,22 @@ def _validate_template_label_ids(label_ids, space_id):
         raise serializers.ValidationError(_("父标签不能单独作为标签使用，请选择具体的子标签"))
 
 
+def _validate_pipeline_tree(tree, space_id):
+    if not tree:
+        return
+    try:
+        validate_pipeline_tree(tree, cycle_tolerate=True)
+    except Exception as e:
+        logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
+        raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
+
+    try:
+        space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+        validate_pipeline_tree_gateway_expression(tree, space_gateway_expression)
+    except ValidationError as e:
+        raise serializers.ValidationError(_(f"参数校验失败，pipeline网关表达式校验不通过, err={e}"))
+
+
 class CreateTemplateSerializer(serializers.Serializer):
     """
     创建模板的序列化器
@@ -108,18 +124,7 @@ class CreateTemplateSerializer(serializers.Serializer):
         pipeline_tree = attrs.get("pipeline_tree")
 
         if pipeline_tree:
-            try:
-                validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
-            except Exception as e:
-                logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
-                raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
-
-            space_id = self.context.get("space_id")
-            try:
-                space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
-                validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
-            except ValidationError as e:
-                raise serializers.ValidationError(_(f"参数校验失败，pipeline网关表达式校验不通过, err={e}"))
+            _validate_pipeline_tree(pipeline_tree, self.context.get("space_id"))
 
         creator = attrs.get("creator")
         if not creator and not self.context.get("request").user.username:
@@ -198,18 +203,7 @@ class UpdateTemplateSerializer(serializers.Serializer):
         pipeline_tree = attrs.get("pipeline_tree")
 
         if pipeline_tree:
-            try:
-                validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
-            except Exception as e:
-                logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
-                raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
-
-            space_id = self.context.get("space_id")
-            try:
-                space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
-                validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
-            except ValidationError as e:
-                raise serializers.ValidationError(_(f"参数校验失败，pipeline网关表达式校验不通过, err={e}"))
+            _validate_pipeline_tree(pipeline_tree, self.context.get("space_id"))
 
         if "label_ids" in attrs:
             _validate_template_label_ids(attrs.get("label_ids") or [], self.context.get("space_id"))
