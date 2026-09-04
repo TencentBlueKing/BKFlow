@@ -125,6 +125,11 @@
         type: Boolean,
         default: false,
       },
+      // 空间相关配置（含网关表达式解析语法 gateway_expression）
+      spaceRelatedConfig: {
+        type: Object,
+        default: () => ({}),
+      },
     },
     data() {
       return {
@@ -1000,6 +1005,18 @@
               parent: parentNode.id,
             };
           }
+          // 分支网关/条件并行网关：补充表达式解析语法标识
+          // （仅 FEEL/MAKO 显式记录 extra_info.parse_lang，boolrule 为默认解析，无需记录）
+          const innerGwType = pt.gateways[nodeId].type;
+          if (innerGwType === 'ExclusiveGateway' || innerGwType === 'ConditionalParallelGateway') {
+            const parseLang = (this.spaceRelatedConfig && this.spaceRelatedConfig.gateway_expression) || '';
+            if (['FEEL', 'MAKO'].includes(parseLang)) {
+              pt.gateways[nodeId].extra_info = {
+                ...(pt.gateways[nodeId].extra_info || {}),
+                parse_lang: parseLang,
+              };
+            }
+          }
         }
         this.$emit('templateDataChanged');
       },
@@ -1074,7 +1091,17 @@
               }
             });
             const name = defaultName + (maxCount + 1);
-            const evaluate = Object.keys(conditions).length ? '1 == 0' : '1 == 1';
+            // 根据网关表达式解析语法生成默认条件
+            const parseLang = (gw.extra_info && gw.extra_info.parse_lang) || '';
+            let evaluate;
+            if (parseLang === 'FEEL') {
+              evaluate = Object.keys(conditions).length ? '1 = 0' : '1 = 1';
+            } else {
+              evaluate = Object.keys(conditions).length ? '1 == 0' : '1 == 1';
+            }
+            if (parseLang === 'MAKO') {
+              evaluate = `\${${evaluate}}`;
+            }
             Vue.set(conditions, id, {
               evaluate,
               name,

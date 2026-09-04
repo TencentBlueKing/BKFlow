@@ -73,6 +73,7 @@
           :node-variable-info="nodeVariableInfo"
           :template-id="templateId"
           :space-id="spaceId"
+          :space-related-config="spaceRelatedConfig"
           @onLineChange="onLineChange"
           @onLocationChange="onLocationChange"
           @onLocationMoveDone="onLocationMoveDone"
