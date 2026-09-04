@@ -2784,6 +2784,9 @@
           return;
         }
         const taskId = createResult?.data?.id;
+        if (!taskId) {
+          return;
+        }
         const { href } = this.$router.resolve({
           name: 'taskExecute',
           params: { spaceId: this.spaceId },
