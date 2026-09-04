@@ -36,11 +36,16 @@ from bkflow.constants import (
     WebhookEventType,
     WebhookScopeType,
 )
+from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
-from bkflow.space.configs import FlowVersioning, TemplateTriggerConfig
+from bkflow.space.configs import (
+    FlowVersioning,
+    GatewayExpressionConfig,
+    TemplateTriggerConfig,
+)
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
     Template,
@@ -51,7 +56,10 @@ from bkflow.template.models import (
     Trigger,
 )
 from bkflow.template.serializers.trigger import TriggerSerializer
-from bkflow.template.utils import send_callback
+from bkflow.template.utils import (
+    send_callback,
+    validate_pipeline_tree_gateway_expression,
+)
 from bkflow.utils.pipeline import replace_subprocess_version
 from bkflow.utils.version import bump_custom
 from bkflow.utils.webhook import (
@@ -161,6 +169,12 @@ class TemplateSerializer(serializers.ModelSerializer):
             space_id = getattr(self.instance, "space_id", None)
             scope_type = getattr(self.instance, "scope_type", None)
             scope_value = getattr(self.instance, "scope_value", None)
+
+        try:
+            space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+            validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
+        except ValidationError as e:
+            raise serializers.ValidationError(str(e))
 
         template_id = getattr(self.instance, "id", None)
         data = PipelineTemplateWebPreviewer.is_circular_reference(

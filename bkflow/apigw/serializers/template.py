@@ -24,11 +24,13 @@ from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TEMPLATE_NAME, USER_NAME_MAX_LENGTH
+from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label
-from bkflow.space.configs import TemplateTriggerConfig
+from bkflow.space.configs import GatewayExpressionConfig, TemplateTriggerConfig
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import Template, Trigger
 from bkflow.template.serializers.trigger import TriggerSerializer
+from bkflow.template.utils import validate_pipeline_tree_gateway_expression
 
 logger = logging.getLogger("root")
 
@@ -112,6 +114,13 @@ class CreateTemplateSerializer(serializers.Serializer):
                 logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
                 raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
 
+            space_id = self.context.get("space_id")
+            try:
+                space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+                validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
+            except ValidationError as e:
+                raise serializers.ValidationError(_(f"参数校验失败，pipeline网关表达式校验不通过, err={e}"))
+
         creator = attrs.get("creator")
         if not creator and not self.context.get("request").user.username:
             raise serializers.ValidationError(_("网关用户和creator都为空，请检查"))
@@ -194,6 +203,13 @@ class UpdateTemplateSerializer(serializers.Serializer):
             except Exception as e:
                 logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
                 raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
+
+            space_id = self.context.get("space_id")
+            try:
+                space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+                validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
+            except ValidationError as e:
+                raise serializers.ValidationError(_(f"参数校验失败，pipeline网关表达式校验不通过, err={e}"))
 
         if "label_ids" in attrs:
             _validate_template_label_ids(attrs.get("label_ids") or [], self.context.get("space_id"))
