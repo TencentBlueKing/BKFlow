@@ -107,7 +107,7 @@ export const fetchInnerVariableDetail = code => axios.get(`api/template/variable
  */
 export const fetchBkFlowInnerPluginList = () => axios.get('api/plugin/', {
   params: { space_id: store.state.spaceId },
-}).then(response => response.data.data.filter(item => !['subprocess_plugin', 'subprocess_plugin'].includes(item.code)));
+}).then(response => response.data.data.filter(item => !['subprocess_plugin', 'subcanvas_plugin'].includes(item.code)));
 
 /**
  * 获取子流程/子画布插件详情
