@@ -65,6 +65,7 @@
           :flow-version="compVersion"
           :on-before-leave="handleBeforeLeave"
           @save="onSaveFlowTemplate"
+          @subflow-view="onViewSubflow"
           @back="handleFlowBack"
           @exit-edit="handleFlowBack" />
         <FlowViewBridge
@@ -2109,17 +2110,18 @@
             }
           }
         }
-
-        this.$refs.processCanvas.onUpdateNodeInfo(id, {
-          ...data,
-          name,
-          stage_name: stageName,
-          group: displayGroup,
-          icon: displayIcon,
-          code: displayCode,
-          type: displayType,
-          mode: displayType === 'subflow' ? 'subflow' : (location.type || this.type),
-        });
+        if (this.$refs.processCanvas) {
+          this.$refs.processCanvas.onUpdateNodeInfo(id, {
+            ...data,
+            name,
+            stage_name: stageName,
+            group: displayGroup,
+            icon: displayIcon,
+            code: displayCode,
+            type: displayType,
+            mode: displayType === 'subflow' ? 'subflow' : (location.type || this.type),
+          });
+        }
       },
       async jumpToTemplateMock() {
         if (this.isTemplateDataChanged) {
@@ -2773,12 +2775,34 @@
         });
       },
       // SDK 执行流程成功回调
-      onFlowExecuteSuccess(taskId) {
+      onFlowExecuteSuccess({ createResult, executeResult }) {
+        // 使用 result.executeResult.data.url 跳转任务详情
+        const executeUrl = executeResult?.data?.url;
+        if (executeUrl) {
+          window.open(executeUrl, '_blank');
+          return;
+        }
+        const taskId = createResult?.data?.id;
+        if (!taskId) {
+          return;
+        }
         const { href } = this.$router.resolve({
           name: 'taskExecute',
           params: { spaceId: this.spaceId },
           query: { instanceId: taskId },
         });
+        window.open(href, '_blank');
+      },
+      onViewSubflow(template) {
+        const { name } = this.$route;
+        const pathData = {
+          name,
+          params: {
+            type: 'view',
+            templateId: template.id,
+          },
+        };
+        const { href } = this.$router.resolve(pathData);
         window.open(href, '_blank');
       },
       handleFlowBack() {

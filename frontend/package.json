@@ -24,6 +24,7 @@
     "@antv/x6-plugin-snapline": "^2.1.7",
     "@antv/x6-vue-shape": "^2.0.11",
     "@babel/core": "^7.14.3",
+    "@blueking/bk-user-selector": "^0.1.15",
     "@blueking/bkcharts": "^2.0.6",
     "@blueking/bkflow-canvas-editor-vue2": "1.0.5",
     "@blueking/bkui-form": "^0.0.51",

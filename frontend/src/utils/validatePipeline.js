@@ -191,7 +191,10 @@ function getFieldNameFromPath(dataPath) {
  */
 function formatAjvError(error) {
   const { keyword, dataPath, params } = error;
-  const field = getFieldNameFromPath(dataPath);
+  let field = getFieldNameFromPath(dataPath);
+  if (keyword === 'required' && params && params.missingProperty) {
+    field = String(params.missingProperty).replace(/^\./, '');
+  }
   const fieldLabel = FIELD_NAME_CN_MAP[field] || field || '数据';
   let cnMsg = AJV_ERROR_CN_MAP[keyword];
   if (!cnMsg) {

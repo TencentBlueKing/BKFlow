@@ -107,7 +107,17 @@ export const fetchInnerVariableDetail = code => axios.get(`api/template/variable
  */
 export const fetchBkFlowInnerPluginList = () => axios.get('api/plugin/', {
   params: { space_id: store.state.spaceId },
-}).then(response => response.data.data.filter(item => item.code !== 'subprocess_plugin'));
+}).then(response => response.data.data.filter(item => !['subprocess_plugin', 'subcanvas_plugin'].includes(item.code)));
+
+/**
+ * 获取子流程/子画布插件详情
+ */
+export const fetchSubprocessOutput = (params) => {
+  const { code, version } = params;
+  return axios.get(`/api/plugin/${code}/`, {
+    params: { space_id: store.state.spaceId, version }},
+  ).then(response => response.data.data);
+};
 
 /**
  * 获取bkflow第三方插件对应SaaS应用的app详情
@@ -148,15 +158,99 @@ export const createFlowTask = (params) => {
 /**
  * 操作流程任务
  */
-// export const executeFlowTask = (params) => {
-//   const { task_id: taskId, action } = params;
-//   return axios.post(`task/operate_task/${taskId}/${action}/`, {
-//     space_id: store.state.spaceId,
-//     ...params,
-//   }).then((response) => {
-//     return response.data;
-//   });
-// };
+export const executeFlowTask = (params) => {
+  const { task_id: taskId, action } = params;
+  return axios.post(`task/operate_task/${taskId}/${action}/`, {
+    space_id: store.state.spaceId,
+  }).then(response => response.data);
+};
+
+/**
+ * 任务节点操作
+ */
+export const operateTaskNode = (params) => {
+  const ACTION_TO_OPERATION = {
+    retry: 'retry',
+    skip: 'skip',
+    forceFail: 'forced_fail',
+    resume: 'callback',
+    gatewaySkip: 'skip_exg',
+  };
+  const { task_id: taskId, node_id: nodeId, action, data, operation: customOperation } = params;
+  const operation = customOperation ?? ACTION_TO_OPERATION[action] ?? action;
+  return axios.post(`task/operate_node/${taskId}/node/${nodeId}/${operation}/`, {
+    space_id: store.state.spaceId,
+    ...data,
+  }).then(response => response.data);
+};
+
+/**
+ * 强制终止流程任务
+ */
+export const revokeFlowTask = (params) => {
+  const { task_id: taskId } = params;
+  return axios.post(`task/operate_task/${taskId}/revoke/`, {
+    space_id: store.state.spaceId,
+  }).then(response => response.data);
+};
+
+/**
+ * 获取任务状态
+ */
+export const fetchTaskState = ({ task_id: taskId }) => axios.get(`task/get_task_states/${taskId}/`, {
+  params: { space_id: store.state.spaceId },
+}).then(response => response.data.data);
+
+/**
+ * 获取流程任务详情
+ */
+export const getFlowTaskDetail = ({ task_id: taskId }) => {
+  return axios.get(`task/get_task_detail/${taskId}/`, {
+    params: { space_id: store.state.spaceId },
+  }).then(response => response.data.data);
+};
+
+/**
+ * 获取流程任务节点详情
+ */
+export const fetchTaskNodeDetail = (params) => {
+  const { task_id: taskId, node_id: nodeId, component_code } = params;
+  return axios.get(`task/get_task_node_detail/${taskId}/node/${nodeId}/`, {
+    params: {
+      component_code,
+      space_id: store.state.spaceId,
+    },
+  }).then(response => response.data);
+};
+
+/**
+ * 获取任务节点快照
+ */
+export const fetchTaskNodeSnapshot = params => axios.get(`task/get_node_snapshot_config/${params.task_id}/${params.node_id}/`, {
+  params: { space_id: store.state.spaceId },
+}).then(response => response.data.data);
+
+/**
+ * 获取执行记录日志
+ */
+export const fetchTaskNodeLog = (params) => {
+  const { task_id: taskId, node_id: nodeId, version } = params;
+  return axios.get(`task/get_task_node_log/${taskId}/${nodeId}/${version}/`, {
+    params: {
+      space_id: store.state.spaceId,
+    },
+  }).then(response => response.data);
+};
+/**
+ * 创建mock任务
+ */
+export const createMockDebugTask = (params) => {
+  const { template_id: templateId, ...payload } = params;
+  return axios.post(`api/template/${templateId}/create_mock_task/`, {
+    space_id: store.state.spaceId,
+    ...payload,
+  }).then(response => response.data);
+};
 
 /**
  * 获取控制配置列表(无鉴权获取空间基本配置信息)
@@ -192,6 +286,22 @@ export const fetchFlowDetailByVersion = (id, version) => {
   if (version !== undefined && version !== null) {
     requestData.version = version;
   }
-  return axios.post(`/api/template/${id}/preview_task_tree/`, requestData).then(response => response.data);
+  return axios.post(`/api/template/${id}/preview_task_tree/`, requestData).then(response => response.data.data);
 };
 
+/**
+ * 获取子流程模板列表
+ */
+export const fetchSubflowTemplateList = (params) => {
+  const { limit, offset, keyword } = params;
+  return axios.get('api/template/list_template/', {
+    params: {
+      limit,
+      offset,
+      ...(keyword ? { name__icontains: keyword } : {}),
+      empty_scope: 1,
+      space_id: store.state.spaceId,
+      ...store.state.template.scopeInfo,
+    },
+  }).then(response => response.data.data);
+};
