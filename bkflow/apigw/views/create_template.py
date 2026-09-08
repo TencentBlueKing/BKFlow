@@ -93,7 +93,7 @@ def create_template(request, space_id):
         space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
         validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
     except ValidationError as e:
-        raise GatewayExpressionException(f"{str(e)}")
+        raise GatewayExpressionException(str(e))
 
     # 涉及到两张表的创建，需要那个开启事物，确保两张表全部都创建成功
     with transaction.atomic():
