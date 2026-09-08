@@ -720,8 +720,11 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
     # ------------------------------------------------------------------
     # validate_loop_variables 分支覆盖
     # ------------------------------------------------------------------
-    def _build_tree_with_activities(self, activities):
-        return {"activities": activities}
+    def _build_tree_with_activities(self, activities, constants=None):
+        tree = {"activities": activities}
+        if constants is not None:
+            tree["constants"] = constants
+        return tree
 
     def test_validate_loop_variables_no_loop_config(self):
         """没有任何循环配置 -> 直接通过"""
@@ -898,3 +901,49 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
         self.assertIn("节点A", result["error_message"])
         self.assertIn("节点B", result["error_message"])
         self.assertIn("; ", result["error_message"])
+
+    def test_validate_loop_variables_array_loop_conflicting_global_variable(self):
+        """array_loop 的循环变量 key 与流程全局变量(constants)冲突 -> 返回冲突错误"""
+        # 全局变量中存在 ${items}，与 array_loop 的循环变量 key 重名
+        constants = {"${items}": {"key": "${items}", "index": 0, "source_type": "custom", "source_info": {}}}
+        pipeline_tree = self._build_tree_with_activities(
+            {
+                "node1": {
+                    "name": "数组循环",
+                    "loop_config": {
+                        "enable": True,
+                        "type": "array_loop",
+                        # loop_times 与变量元素数量(2)一致，避免触发"循环次数不匹配"分支，
+                        # 从而能精确命中"循环变量与全局变量冲突"分支
+                        "loop_times": 2,
+                        "loop_params": {"${items}": "a,b"},
+                    },
+                }
+            },
+            constants=constants,
+        )
+        result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
+        self.assertFalse(result["has_loop"])
+        self.assertIn("循环变量与全局变量冲突", result["error_message"])
+        self.assertIn("${items}", result["error_message"])
+
+    def test_validate_loop_variables_array_loop_no_conflict_with_global_variable(self):
+        """array_loop 的循环变量 key 与全局变量不重名 -> 不触发冲突，正常通过"""
+        # 全局变量中存在 ${other}，与 array_loop 的循环变量 ${items} 不重名
+        constants = {"${other}": {"key": "${other}", "index": 0, "source_type": "custom", "source_info": {}}}
+        pipeline_tree = self._build_tree_with_activities(
+            {
+                "node1": {
+                    "name": "数组循环",
+                    "loop_config": {
+                        "enable": True,
+                        "type": "array_loop",
+                        "loop_times": 2,
+                        "loop_params": {"${items}": "a,b"},
+                    },
+                }
+            },
+            constants=constants,
+        )
+        result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
+        self.assertTrue(result["has_loop"])
