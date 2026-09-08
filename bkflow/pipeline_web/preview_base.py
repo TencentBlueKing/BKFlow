@@ -422,6 +422,9 @@ class PipelineTemplateWebPreviewer:
         """
         loop_variables = []
         exceeded_loop_times_nodes = []
+        conflicting_global_variables = []
+
+        global_variable_keys = set(pipeline_tree.get("constants", {}).keys())
 
         for node_id, activity in pipeline_tree["activities"].items():
             loop_config = activity.get("loop_config", {})
@@ -448,6 +451,12 @@ class PipelineTemplateWebPreviewer:
                 if valid_loop_params and loop_times != min(valid_loop_params):
                     loop_variables.append(activity["name"])
 
+            # 统计循环变量使用情况
+            for param_key, param_value in loop_params.items():
+                # 检查是否与全局变量冲突
+                if param_key in global_variable_keys:
+                    conflicting_global_variables.append(param_key)
+
         if exceeded_loop_times_nodes:
             return {
                 "has_loop": False,
@@ -455,5 +464,7 @@ class PipelineTemplateWebPreviewer:
             }
         if loop_variables:
             return {"has_loop": False, "error_message": f"节点 {'; '.join(loop_variables)} 的循环次数与循环变量参数不匹配"}
+        if conflicting_global_variables:
+            return {"has_loop": False, "error_message": f"循环变量与全局变量冲突: {'; '.join(conflicting_global_variables)}"}
 
         return {"has_loop": True}
