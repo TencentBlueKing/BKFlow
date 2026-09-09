@@ -537,7 +537,8 @@
         if (this.isIframe) {
             return this.$route.query.useCanvasEditor === 'true';
         }
-        return this.canvasMode === 'horizontal';
+        // return this.canvasMode === 'horizontal';
+        return true;
       },
       templateComponentName() {
           const canvasModeToComponentMap = {
