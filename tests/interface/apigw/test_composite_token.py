@@ -167,10 +167,10 @@ def test_composite_disabled_only_blocks_grants_issuance(token_api):
 
 
 @pytest.mark.parametrize(
-    "value,expected", [(None, False), ("false", False), ("0", False), ("true", True), ("TRUE", True), ("1", False)]
+    "value,expected", [(None, True), ("false", False), ("0", False), ("true", True), ("TRUE", True), ("1", False)]
 )
 def test_composite_environment_flag(value, expected):
-    """只有不区分大小写的 true 启用组合申请；默认和显式 false 关闭。"""
+    """默认启用组合申请；显式配置仍仅接受不区分大小写的 true，false 保持关闭。"""
     env_path = Path(__file__).resolve().parents[3] / "env.py"
     with patch.dict(os.environ):
         os.environ.pop("BKAPP_TOKEN_COMPOSITE_ENABLED", None)

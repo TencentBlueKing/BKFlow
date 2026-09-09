@@ -220,7 +220,7 @@ paths:
             schema:
               type: object
               additionalProperties: true
-              description: 顶层出现任意旧字段时优先旧格式并忽略grants，缺少旧字段报原必填错误。仅无旧字段且含grants时用新格式。TOKEN_COMPOSITE_ENABLED默认关闭；BKAPP_TOKEN_COMPOSITE_ENABLED仅字面量true（大小写不敏感）启用，1/0/false不启用。开关不影响已有组合票据消费。
+              description: 顶层出现任意旧字段时优先旧格式并忽略grants，缺少旧字段报原必填错误。仅无旧字段且含grants时用新格式。TOKEN_COMPOSITE_ENABLED默认开启；未设置BKAPP_TOKEN_COMPOSITE_ENABLED时启用，显式配置仅字面量true（大小写不敏感）启用，1/0/false不启用。开关不影响已有组合票据消费。
               oneOf:
               - type: object
                 additionalProperties: true

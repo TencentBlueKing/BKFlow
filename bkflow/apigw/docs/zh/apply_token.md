@@ -13,7 +13,7 @@
 
 ### 组合申请开关与兼容规则
 
-服务配置 `TOKEN_COMPOSITE_ENABLED` 默认关闭。部署环境设置 `BKAPP_TOKEN_COMPOSITE_ENABLED=true` 才允许 grants 格式申请；解析仅接受不区分大小写的字面量 `true`，`false`、`0`、`1` 均不启用。开关关闭不影响旧单项申请，也不影响已发出组合票据的鉴权、续期和撤销。
+服务配置 `TOKEN_COMPOSITE_ENABLED` 默认开启，未设置环境变量时允许 grants 格式申请。部署环境设置 `BKAPP_TOKEN_COMPOSITE_ENABLED=false` 可关闭；显式配置仅接受不区分大小写的字面量 `true` 启用，`false`、`0`、`1` 均不启用。开关关闭不影响旧单项申请，也不影响已发出组合票据的鉴权、续期和撤销。
 
 - 请求出现任意旧字段 `resource_type`、`resource_id`、`permission_type` 时，优先按旧单项格式处理，额外 `grants` 被忽略；旧字段不完整时仍返回旧必填错误。
 - 仅在没有任何旧字段且存在 `grants` 时使用新格式。`grants` 为非空数组，原始条目数最多 32，先检查长度再去重。每项采用下表三个必填字段和相同资源校验；错误标明 `grants[索引]`，索引从 0 开始。

@@ -20,7 +20,7 @@
 - 所有单项和多项票据都从 `TokenGrant` 读取授权；主表 `grant_set_hash` 非空并校验完整集合。
 - `Token` 不再保存 `resource_type`、`resource_id`、`permission_type`，也不提供生产 ORM 兼容写入。
 - 单项摘要输入为 `['v1', resource_type, resource_id, permission_type]`，集合摘要输入为 `['v1', 排序后的三元组数组]`；统一采用无额外空白、ASCII 转义的 JSON，再按 UTF-8 编码计算摘要。
-- 新增服务配置 `TOKEN_COMPOSITE_ENABLED`，默认关闭，只控制 grants 格式的申请入口。
+- 新增服务配置 `TOKEN_COMPOSITE_ENABLED`，默认开启，只控制 grants 格式的申请入口。
 - 旧响应不增加 grants、permission_type、grant_set_hash；请求出现任意旧字段时仍按旧序列化器处理并忽略额外 grants。
 - `permission.0006` 自动回填旧记录，`permission.0007` 清理旧字段；结构迁移必须通过 Django makemigrations 生成，不手写或修改已有 migration。
 - 沿用隔离工作区 `.worktrees/docs-token-authorization` 和分支 `ai/docs-token-authorization`，不修改主工作区用户文件。
@@ -151,7 +151,7 @@ with transaction.atomic():
 
 **Interfaces:**
 - Consumes: issue_token、revoke_tokens 和 Grant。
-- Produces: 同一个 apply_token 根据旧字段优先规则分派；grants 格式有独立序列化器，TOKEN_COMPOSITE_ENABLED 默认 false，环境变量 `BKAPP_TOKEN_COMPOSITE_ENABLED` 控制。
+- Produces: 同一个 apply_token 根据旧字段优先规则分派；grants 格式有独立序列化器，TOKEN_COMPOSITE_ENABLED 默认 true，环境变量 `BKAPP_TOKEN_COMPOSITE_ENABLED` 控制。
 - Produces: 旧成功数据字段集合不变；新格式返回公共字段和 grants；revoke 输入和输出不变。
 
 - [x] Step 1：先写 Django client 层测试。创建真实 Space/Template；任务不存在性在 engine 客户端边界提供具体返回；不 mock TokenResourceValidator.validate。沿用现有测试的网关认证替身。
@@ -249,7 +249,7 @@ assert token.has_expired()
 线程入口单独创建/关闭数据库连接并回传异常；不得吞掉线程错误。完整用例通过 `performance_schema.data_lock_waits/data_locks` 验证 worker 在最小主键 PRIMARY 上等待本连接，等待前未持有其他主行/二级记录锁，并断言未完成；不以固定 sleep 假装竞争。另覆盖旧/组合、单/多等价候选、token/资源过滤、申请复用与撤销两个顺序及并发同集合票据各自完整。
 
 - [x] Step 2：运行 MySQL 测试与真实迁移；验证旧记录在 schema upgrade 后可读，新增摘要/明细约束、case-distinct 三元组、事务回滚和级联。证据必须来自 MySQL，不把 SQLite 跳过当通过。
-- [x] Step 3：文档新增两种请求/响应、混合旧字段优先、32 项限制、开关默认关闭、单项复用、整票据撤销计数、时序修正与上线回退。网关只修改现有两个 operation 的 Schema，不新增 path、operationId 或认证设置。
+- [x] Step 3：文档新增两种请求/响应、混合旧字段优先、32 项限制、开关默认开启、单项复用、整票据撤销计数、时序修正与上线回退。网关只修改现有两个 operation 的 Schema，不新增 path、operationId 或认证设置。
 
 ```yaml
 requestBody:

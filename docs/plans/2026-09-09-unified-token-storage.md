@@ -15,7 +15,7 @@
 - 保持所有已批准旧 HTTP 请求/响应/错误/auth/日期时间编码协议；不新增接口。
 - 单项与组合授权都只存入 TokenGrant；Token 不保留 resource_type/resource_id/permission_type 字段或写入兼容层。
 - 存量 token 值、用户、空间、有效期和原三元组身份不变；迁移涵盖过期和失效资源记录，不调用外部资源服务。
-- 原始 grants 1–32 项、旧字段优先、完全校验后原子签发、完整集合复用、整张撤销、撤销不可续活和默认关闭组合申请保持不变。
+- 原始 grants 1–32 项、旧字段优先、完全校验后原子签发、完整集合复用、整张撤销、撤销不可续活保持不变；组合申请默认开启，显式 false 可关闭。
 - 只追加迁移；结构操作由 Django makemigrations 自动生成；数据回填使用 makemigrations --empty 生成的独立 RunPython 迁移和历史模型。
 - 所有 commit 使用 --story=138057563，追加原 ai/docs-token-authorization 分支和 PR #913；不合并、不部署、不启用生产开关。
 - 两连接 MySQL 及 MigrationExecutor 用例须在独立 pytest 进程运行；覆盖率 append；保留测试失败传播。
