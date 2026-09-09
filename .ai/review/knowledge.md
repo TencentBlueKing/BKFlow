@@ -51,3 +51,9 @@ Token 的资源类型/ID、permission_type、用户名、空间和过期时间�
 前端在 frontend 目录按锁文件准备依赖，可执行 `npm run lint` 和 `npm run build`。是否有额外专项测试、具体测试文件及版本，以该分支 `frontend/package.json` 为准。依赖安装受内部包源约束时应记录限制，不能通过删除生产依赖来宣称完整安装通过。
 
 本知识文件是源码导航和审查背景，不是现存缺陷清单，也不构成测试通过或发布验收结论。报告应区分静态分析、本地测试、GitHub Actions、部署 SHA、网关同步、外部依赖/浏览器真实操作及业务验收；无运行证据时明确需要什么验证，不能把历史事故当成本次回归。
+
+## 只读源码快照的阅读边界
+
+本轮可信背景仅来自 Base SHA 的本知识文件和审查规则；旧项目规范的安全、查询、职责分离、异步任务和兼容性要求已整理进规则，不要求加载 head 的 AGENTS 或其他 Agent 配置。`module_settings.py` 的实际 interface/engine 分支是部署依据，旧标准中的 pipeline 模块、MODULE_APPS 或空模块示例不能代替源码。
+
+模型可用 Read/Glob/Grep 阅读 head 的普通文件快照及完整 diff，不能执行本文列出的测试/构建命令。快照会排除 Agent 控制文件、符号链接和超出单文件大小上限的资料；本分支的 `frontend/src/assets/js/flow.js` 与 `frontend/package-lock.json` 会被过滤。即使 diff 包含相关改动，也不能据此声称已阅读完整文件或验证依赖解析；需要完整前后文时在 limitations 中明确。压缩包、图片及 wheel 的存在不证明已验证内部实现，特别是 `bkflow/apigw/docs/apigw-docs.zip` 应结合保留的 Markdown 文档和打包脚本判断，不能宣称已运行发布验收。
