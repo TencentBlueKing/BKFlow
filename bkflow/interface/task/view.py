@@ -19,8 +19,6 @@ to the current version of the project delivered to anyone in the future.
 
 import logging
 
-from django.db.models import Q
-from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import action
@@ -48,7 +46,12 @@ from bkflow.interface.task.permissions import (
 )
 from bkflow.interface.task.utils import StageConstantHandler, StageJobStateHandler
 from bkflow.label.models import Label
-from bkflow.permission.models import TASK_PERMISSION_TYPE, ResourceType, Token
+from bkflow.permission.models import (
+    TASK_AUTH_CODES,
+    TEMPLATE_PERMISSION_TO_TASK_AUTH,
+    ResourceType,
+)
+from bkflow.permission.services import get_valid_token, iter_user_grants
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
@@ -145,27 +148,26 @@ class TaskInterfaceViewSet(GenericViewSet):
         if data.get("result", False):
             task_detail = data["data"]
             if request.user.is_superuser or getattr(request, "is_space_superuser", False):
-                task_detail["auth"] = TASK_PERMISSION_TYPE
+                task_detail["auth"] = TASK_AUTH_CODES
                 return
 
-            base_query = Q(
-                resource_id=f"{task_detail['scope_type']}_{task_detail['scope_value']}", resource_type="SCOPE"
-            ) | Q(resource_id=task_detail["id"], resource_type="TASK")
-
-            base_query |= Q(resource_id=task_detail["template_id"], resource_type="TEMPLATE")
-
-            permissions = Token.objects.filter(
-                base_query,
-                space_id=task_detail["space_id"],
-                user=request.user.username,
-                expired_time__gte=timezone.now(),
-            ).values_list("resource_type", "permission_type")
+            permissions = iter_user_grants(
+                task_detail["space_id"],
+                request.user.username,
+                [
+                    ("SCOPE", f"{task_detail['scope_type']}_{task_detail['scope_value']}"),
+                    ("TASK", task_detail["id"]),
+                    ("TEMPLATE", task_detail["template_id"]),
+                ],
+            )
 
             # 模板权限增加 FLOW_ 前缀，便于前端区分模板权限与任务/作用域权限
             auth_set = set()
-            for resource_type, permission_type in permissions:
+            for grant in permissions:
+                resource_type, permission_type = grant.resource_type, grant.permission_type
                 if resource_type == ResourceType.TEMPLATE.value:
-                    auth_set.add(f"FLOW_{permission_type}")
+                    # 保留非标准组合的历史响应（如 TEMPLATE + OPERATE -> FLOW_OPERATE）。
+                    auth_set.add(TEMPLATE_PERMISSION_TO_TASK_AUTH.get(permission_type, f"FLOW_{permission_type}"))
                 else:
                     auth_set.add(permission_type)
 
@@ -178,17 +180,15 @@ class TaskInterfaceViewSet(GenericViewSet):
         ):
             return request_space_id
 
-        try:
-            return Token.objects.get(
-                token=request.token, expired_time__gte=timezone.now(), user=request.user.username
-            ).space_id
-        except Token.DoesNotExist:
-            logger.exception("find token is not exist")
-            raise APIRequestError(
-                _("当前token已过期或不存在，token={token}, user={username}").format(
-                    token=request.token, username=request.user.username
-                )
+        token = get_valid_token(request.token, request.user.username, request_space_id, request)
+        if token is not None:
+            return token.space_id
+        logger.warning("find token is not exist")
+        raise APIRequestError(
+            _("当前token已过期或不存在，token={token}, user={username}").format(
+                token=request.token, username=request.user.username
             )
+        )
 
     @action(methods=["GET"], detail=False, url_path="get_task_detail/(?P<task_id>\\d+)")
     def get_task_detail(self, request, task_id, *args, **kwargs):

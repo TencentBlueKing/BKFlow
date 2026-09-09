@@ -62,6 +62,8 @@ INTERFACE_APP_INTERNAL_TOKEN = os.getenv("INTERFACE_APP_INTERNAL_TOKEN", "")
 INTERFACE_APP_URL = os.getenv("INTERFACE_APP_URL", "")
 # TOKEN保留时间，默认半天
 TOKEN_RETENTION_TIME = int(os.getenv("TOKEN_RETENTION_TIME", 12 * 60 * 60))
+# 默认启用 grants 格式申请；显式配置时仅 true（不区分大小写）启用。
+TOKEN_COMPOSITE_ENABLED = os.getenv("BKAPP_TOKEN_COMPOSITE_ENABLED", "true").lower() == "true"
 
 # 变量名关键字黑名单
 VARIABLE_KEY_BLACKLIST = os.getenv("BKAPP_VARIABLE_KEY_BLACKLIST", "context,")

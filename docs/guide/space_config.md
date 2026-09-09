@@ -26,14 +26,15 @@
 | [n]m | m->minute |
 | [n]h | h->hour   |
 | [n]d | d->day    |
-**说明：** 至少为1h。
 
-**功能表现：** 该空间下访问资源权限的token的过期时间被修改为对应值
+**说明：** 至少为 1h。上限由部署配置 `BKAPP_TOKEN_EXPIRATION_MAX_EXPIRATION` 控制，单位为秒，默认 `2592000`（30 天）。
+
+**功能表现：** 后续签发或成功续期的 token，其到期时间设为“当前时间 + 配置时长”。修改配置不会批量更新已有 token，也不限制持续续期后的累计存活时长。完整机制见 [Token 授权与接入说明](token_authorization.md)。
 
 ## token_auto_renewal
 **字段类型：** TEXT
 
-**字段含义：** 是否开启Token自动续期，token会在用户操作的过程中自动续期，避免用户操作过程中token失效的问题
+**字段含义：** 是否允许复用有效 token 或显式调用续期接口时刷新到期时间。
 
 **默认值：** true
 
@@ -44,7 +45,9 @@
 | true  | 开启自动续期 |
 | false | 不开启，到期后token过期 |
 
-**功能表现：** 开启后token到期会自动延长一个周期
+**功能表现：** 开启后，再次申请已有有效 token 或成功调用续期接口，会将到期时间刷新为“当前时间 + token_expiration”。编辑页和模板调试页为普通用户每 5 分钟发起一次续期请求；普通业务请求校验 token 时不会自动续期，也没有到期后统一续期的后台任务。续期对过期及撤销状态的限制见 [当前实现边界](token_authorization.md#9-当前实现边界)。
+
+配置只影响有效期，不改变授权集合，也不控制 grants 申请开关。发布统一 Token 存储时，历史单项会由数据库迁移原值回填，无需通过修改空间配置或重新申请票据完成转换；维护窗口和回退顺序见 [Token 上线与回退](token_authorization.md#11-上线与回退)。
 
 ## callback_hooks
 **字段类型：** JSON
@@ -211,4 +214,3 @@ vertical:
 }
 ```
 ![hide display plugin](../pics/only_show_display.png)
-

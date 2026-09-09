@@ -96,11 +96,17 @@ TokenMiddleware → ApiGatewayJWTGenericMiddleware → ApiGatewayJWTAppMiddlewar
 
 `Token` model（`bkflow/permission/models.py`）：
 - 主键：32 位 UUID hex（`uuid.uuid3(uuid.uuid1(), uuid.uuid4().hex).hex`）
-- 字段：`space_id`, `user`, `resource_type`, `resource_id`, `permission_type`, `expired_time`
+- 字段：`space_id`, `user`, `expired_time`, `grant_set_hash`
+
+`TokenGrant` 是所有单项和组合票据的唯一授权来源：
+- 每条明细保存 `resource_type`, `resource_id`, `permission_type`, `grant_hash`
+- 单项票据恰好一条明细，组合票据有多条明细
+- 主票据集合摘要和全部明细必须一致；缺失、重复、非法字段或摘要不匹配时整张票据无效
+- 不向 `Token` 主表写入旧资源三元组，也不提供 ORM 兼容字段
 
 ### 校验
 
-`Token.verify(space_id, user, resource_type, resource_id, permission_type, token)` 查询数据库验证 token 是否存在、是否过期、资源是否匹配。
+`Token.verify(space_id, user, resource_type, resource_id, permission_type, token)` 先验证票据用户、空间、有效期和完整授权集合，再匹配同一条 `TokenGrant` 明细及资源关系。scope 的 HTTP 消费者还应传入实际目标资源类型，避免模板与任务的相同 ID 混淆。
 
 ### 传递路径
 
