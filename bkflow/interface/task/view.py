@@ -56,7 +56,7 @@ from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.utils.permissions import AdminPermission
-from bkflow.utils.renderers import NodeDetailJSONRenderer
+from bkflow.utils.renderers import get_node_detail_renderer_classes
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 from bkflow.utils.webhook import get_webhook_delivery_history_by_delivery_id
 
@@ -234,7 +234,7 @@ class TaskInterfaceViewSet(GenericViewSet):
         methods=["GET"],
         detail=False,
         url_path="get_task_node_detail/(?P<task_id>\\w+)/node/(?P<node_id>\\w+)",
-        renderer_classes=[NodeDetailJSONRenderer],
+        renderer_classes=get_node_detail_renderer_classes(),
     )
     def get_task_node_detail(self, request, task_id, node_id, *args, **kwargs):
         space_id = self.get_space_id(request)

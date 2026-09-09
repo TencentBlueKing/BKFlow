@@ -82,7 +82,7 @@ from bkflow.task.serializers import (
 from bkflow.utils.handlers import handle_plain_log
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
-from bkflow.utils.renderers import NodeDetailJSONRenderer
+from bkflow.utils.renderers import get_node_detail_renderer_classes
 from bkflow.utils.trace import start_trace
 from bkflow.utils.views import SimpleGenericViewSet
 
@@ -581,7 +581,7 @@ class TaskInstanceViewSet(
         detail=True,
         methods=["get"],
         url_path="get_task_node_detail/(?P<node_id>\\w+)",
-        renderer_classes=[NodeDetailJSONRenderer],
+        renderer_classes=get_node_detail_renderer_classes(),
     )
     @validate_task_info
     def get_node_detail(self, request, node_id, *args, **kwargs):

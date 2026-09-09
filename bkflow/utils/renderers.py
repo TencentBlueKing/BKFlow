@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import math
 
 from rest_framework.renderers import JSONRenderer
+from rest_framework.settings import api_settings
 from rest_framework.utils.encoders import JSONEncoder
 
 
@@ -72,3 +73,11 @@ class NodeDetailJSONRenderer(JSONRenderer):
             return _EscapedDisplayJSONRenderer().render(
                 _prepare_display_value(data), accepted_media_type, renderer_context
             )
+
+
+def get_node_detail_renderer_classes():
+    """只替换默认 JSON renderer，保留既有响应格式、顺序及自定义 renderer。"""
+    return [
+        NodeDetailJSONRenderer if renderer is JSONRenderer else renderer
+        for renderer in api_settings.DEFAULT_RENDERER_CLASSES
+    ]
