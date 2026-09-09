@@ -26,7 +26,7 @@
     "@babel/core": "^7.14.3",
     "@blueking/bk-user-selector": "^0.1.15",
     "@blueking/bkcharts": "^2.0.6",
-    "@blueking/bkflow-canvas-editor-vue2": "1.0.5",
+    "@blueking/bkflow-canvas-editor-vue2": "1.2.0-beta.1",
     "@blueking/bkui-form": "^0.0.51",
     "@blueking/crypto-js-sdk": "^0.0.5",
     "@blueking/login-modal": "^1.0.1",
