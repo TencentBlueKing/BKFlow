@@ -82,6 +82,7 @@ from bkflow.task.serializers import (
 from bkflow.utils.handlers import handle_plain_log
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
+from bkflow.utils.renderers import NodeDetailJSONRenderer
 from bkflow.utils.trace import start_trace
 from bkflow.utils.views import SimpleGenericViewSet
 
@@ -576,7 +577,12 @@ class TaskInstanceViewSet(
     @swagger_auto_schema(
         methods=["get"], operation_description="任务节点详情查询", query_serializer=GetNodeDetailQuerySerializer
     )
-    @action(detail=True, methods=["get"], url_path="get_task_node_detail/(?P<node_id>\\w+)")
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="get_task_node_detail/(?P<node_id>\\w+)",
+        renderer_classes=[NodeDetailJSONRenderer],
+    )
     @validate_task_info
     def get_node_detail(self, request, node_id, *args, **kwargs):
         query_ser = GetNodeDetailQuerySerializer(data=request.query_params)
