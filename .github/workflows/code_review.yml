@@ -136,13 +136,24 @@ jobs:
           echo "📦 Head SHA: $HEAD_SHA"
           echo "📦 Base SHA: $BASE_SHA"
           echo "📦 事件类型: $EVENT_ACTION"
-          # 仅从可信 base 加载审查约束，兼容尚未包含新规则的已有 PR head。
+          # pull_request_target 执行默认分支工作流；审查资料按本次 PR 的可信 base 选择。
           REVIEW_STANDARDS=""
-          for CONTEXT_FILE in \
-            .ai/rules/bkflow-review-standards.mdc \
-            .ai/review/knowledge.md \
-            .ai/review/rules.md; do
-            if ! CONTEXT_CONTENT=$(git show "${BASE_SHA}:${CONTEXT_FILE}"); then
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "::error::无法读取 PR base commit"
+            exit 1
+          fi
+          context_exists() {
+            local CONTEXT_ENTRY
+            if ! CONTEXT_ENTRY=$(git ls-tree --full-tree "$BASE_SHA" -- "$1"); then
+              echo "::error::无法检查 PR base 的审查文件: $1"
+              exit 1
+            fi
+            [ -n "$CONTEXT_ENTRY" ]
+          }
+          load_review_context() {
+            local CONTEXT_FILE="$1" CONTEXT_CONTENT CONTEXT_TYPE
+            CONTEXT_TYPE=$(git cat-file -t "${BASE_SHA}:${CONTEXT_FILE}" 2>/dev/null) || true
+            if [ "$CONTEXT_TYPE" != "blob" ] || ! CONTEXT_CONTENT=$(git show "${BASE_SHA}:${CONTEXT_FILE}"); then
               echo "::error::无法从 PR base 加载审查上下文: $CONTEXT_FILE"
               exit 1
             fi
@@ -151,12 +162,36 @@ jobs:
               in_frontmatter && $0 == "---" { in_frontmatter = 0; next }
               !in_frontmatter { print }
             ')
+            if [ -z "$CONTEXT_CONTENT" ]; then
+              echo "::error::PR base 的审查上下文为空: $CONTEXT_FILE"
+              exit 1
+            fi
             REVIEW_STANDARDS="${REVIEW_STANDARDS}
           ### ${CONTEXT_FILE}
           ${CONTEXT_CONTENT}
           "
             echo "✅ 已从 PR base 加载 $CONTEXT_FILE"
-          done
+          }
+          if context_exists .ai/rules/bkflow-review-standards.mdc; then
+            load_review_context .ai/rules/bkflow-review-standards.mdc
+          else
+            echo "::warning::PR base 未包含 bkflow-review-standards.mdc，本次沿用工作流基础提示"
+          fi
+          KNOWLEDGE_PRESENT=false
+          RULES_PRESENT=false
+          if context_exists .ai/review/knowledge.md; then
+            KNOWLEDGE_PRESENT=true
+          fi
+          if context_exists .ai/review/rules.md; then
+            RULES_PRESENT=true
+          fi
+          if [ "$KNOWLEDGE_PRESENT" = false ] && [ "$RULES_PRESENT" = false ]; then
+            echo "::warning::PR base 尚未接入分支知识和规则，本次仅使用已加载标准或工作流基础提示"
+          else
+            # 一旦目标分支开始接入，两个文件必须同时完整可读，不回退到 PR head。
+            load_review_context .ai/review/knowledge.md
+            load_review_context .ai/review/rules.md
+          fi
           # 收集已有 review comments（用于去重和跟踪已解决问题）
           EXISTING_COMMENTS=""
           EXISTING_COMMENTS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments,reviews --jq '
