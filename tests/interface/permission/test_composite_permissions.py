@@ -203,14 +203,6 @@ def test_invalid_whole_token_rejected_by_every_consumer(template, engine, case):
         TaskInterfaceViewSet().get_space_id(request)
 
 
-def test_composite_old_fields_never_add_authority(template):
-    """组合主表残留旧字段不能增加任何授权。"""
-    token = issue()
-    Token.objects.filter(pk=token.pk).update(resource_type="TASK", resource_id="300", permission_type="MOCK")
-    assert not Token.verify(1, "alice", "TASK", 300, "MOCK", token.pk)
-    assert not Token.objects.get_resource_tokens(token.pk, {"task_id": 300}, user="alice", space_id=1).exists()
-
-
 @pytest.mark.parametrize(
     "grants,action,allowed",
     [
@@ -323,6 +315,57 @@ def test_admin_grants_inline_cannot_append_modify_or_delete():
     assert set(inline.readonly_fields) >= {"resource_type", "resource_id", "permission_type", "grant_hash"}
 
 
+def _token_admin_with_superuser_request():
+    """构造使用真实 Django Admin 表单路径的主模型管理对象与超级用户请求。"""
+    from django.contrib.admin.sites import AdminSite
+    from django.test import RequestFactory
+
+    from bkflow.permission.admin import TokenAdmin
+
+    request = RequestFactory().get("/admin/permission/token/")
+    request.user = SimpleNamespace(is_active=True, is_staff=True, is_superuser=True, has_perm=lambda permission: True)
+    return TokenAdmin(Token, AdminSite()), request
+
+
+def test_admin_main_token_cannot_be_added():
+    """主票据管理入口不能创建没有授权明细的孤儿记录。"""
+    token_admin, request = _token_admin_with_superuser_request()
+
+    assert token_admin.has_add_permission(request) is False
+
+
+def test_admin_change_form_cannot_change_token_identity_or_digest():
+    """主票据表单应忽略提交的主键和摘要，避免复制孤儿或破坏授权集合。"""
+    token = issue()
+    original_token = token.pk
+    original_digest = token.grant_set_hash
+    token_admin, request = _token_admin_with_superuser_request()
+    form_class = token_admin.get_form(request, obj=token)
+
+    assert "token" not in form_class.base_fields
+    assert "grant_set_hash" not in form_class.base_fields
+
+    expired_date, expired_clock = form_class.base_fields["expired_time"].widget.decompress(token.expired_time)
+    form = form_class(
+        data={
+            "token": "orphan-token",
+            "space_id": token.space_id,
+            "user": token.user,
+            "expired_time_0": expired_date,
+            "expired_time_1": expired_clock,
+            "grant_set_hash": "0" * 64,
+        },
+        instance=token,
+    )
+    assert form.is_valid(), form.errors
+    saved = form.save()
+    saved.refresh_from_db()
+    assert saved.pk == original_token
+    assert saved.grant_set_hash == original_digest
+    assert Token.objects.count() == 1
+    assert not Token.objects.filter(pk="orphan-token").exists()
+
+
 @pytest.mark.parametrize("composite", [False, True])
 @pytest.mark.parametrize("case", ["wrong_user", "wrong_space", "expired"])
 def test_auxiliary_invalid_tokens_independently(composite, case):
@@ -343,20 +386,19 @@ def test_auxiliary_invalid_tokens_independently(composite, case):
         check_resource_token(lambda *args, **kwargs: True)(request, space_id=space_id)
 
 
-def test_auth_ignores_main_field_leaks_and_batches_queries(template, django_assert_num_queries):
-    """多个完整票据一次主表一次明细查询，旧字段与游离明细不贡献权限。"""
+def test_auth_rejects_stray_detail_and_batches_queries(template, django_assert_num_queries):
+    """多个票据一次主表一次明细查询，摘要外明细使整张票据失效。"""
     from bkflow.permission.grants import grant_hash
     from bkflow.permission.models import TokenGrant
     from bkflow.permission.services import iter_user_grants
 
-    token = issue()
-    Token.objects.filter(pk=token.pk).update(resource_type="TASK", resource_id="999", permission_type="MOCK")
+    issue()
     old = issue([Grant("TEMPLATE", "100", "VIEW")])
     stray = Grant("TASK", "999", "EDIT")
     TokenGrant.objects.create(token=old, **stray.as_dict(), grant_hash=grant_hash(stray))
     with django_assert_num_queries(2):
         grants = list(iter_user_grants(1, "alice", [("TEMPLATE", 100), ("TASK", 999)]))
-    assert set(grants) == {Grant("TEMPLATE", "100", "MOCK"), Grant("TEMPLATE", "100", "VIEW")}
+    assert set(grants) == {Grant("TEMPLATE", "100", "MOCK")}
 
 
 def test_scope_failure_and_unknown_target_rejected(template, engine):

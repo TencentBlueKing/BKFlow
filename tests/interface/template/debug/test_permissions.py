@@ -23,9 +23,10 @@ import pytest
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
-from bkflow.permission.models import ResourceType, Token, TokenPermissionType
+from bkflow.permission.models import ResourceType, TokenPermissionType
 from bkflow.template.permissions import TemplateRelatedResourcePermission
 from bkflow.template.views.debug import DebugViewSet
+from tests.utils.token import create_token
 
 
 @pytest.mark.django_db
@@ -43,7 +44,7 @@ class TestDebugTokenPermission:
         return request
 
     def _create_token(self, token, permission_type, resource_id="407"):
-        Token.objects.create(
+        create_token(
             token=token,
             space_id=1,
             user="testuser",

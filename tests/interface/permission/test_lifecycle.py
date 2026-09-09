@@ -28,7 +28,7 @@ from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
-from bkflow.permission.grants import Grant
+from bkflow.permission.grants import Grant, grant_hash, grant_set_hash
 from bkflow.permission.models import Token, TokenGrant
 from bkflow.space.models import SpaceConfig
 
@@ -44,40 +44,40 @@ def issue(grants=GRANTS, space_id=1, user="alice", expiration_seconds=3600, auto
     return issue_token(space_id, user, grants, expiration_seconds, auto_renewal)
 
 
-def legacy(expired_time=None):
-    """创建旧单项票据，允许覆盖到期时间。"""
-    return Token.objects.create(
+def single(expired_time=None):
+    """直接创建统一存储的单项票据，允许覆盖到期时间。"""
+    grant = Grant("TEMPLATE", "100", "MOCK")
+    token = Token.objects.create(
         token=Token.generate_token(),
         space_id=1,
         user="alice",
-        resource_type="TEMPLATE",
-        resource_id="100",
-        permission_type="MOCK",
+        grant_set_hash=grant_set_hash((grant,)),
         expired_time=expired_time or timezone.now() + timedelta(hours=1),
     )
+    TokenGrant.objects.create(token=token, **grant.as_dict(), grant_hash=grant_hash(grant))
+    return token
 
 
 def test_issue_composite_normalizes_and_reuses():
-    """顺序和重复条目不改变整张票据，主表不泄漏额外资源。"""
+    """顺序和重复条目不改变整张票据。"""
     token = issue()
     reused = issue([GRANTS[1], GRANTS[0], GRANTS[1]])
     assert reused.pk == token.pk
     assert token.get_grants() == (Grant("TASK", "200", "OPERATE"), Grant("TEMPLATE", "100", "MOCK"))
-    assert (token.resource_type, token.resource_id, token.permission_type) == ("", "", "")
     assert Token.objects.count() == 1
     assert TokenGrant.objects.count() == 2
 
 
-def test_single_reuses_latest_legacy_and_never_composite():
-    """单项复用最晚过期的旧票据，不复用含该项的组合票据。"""
+def test_single_reuses_latest_exact_set_and_never_composite():
+    """单项复用最晚过期的精确集合，不复用含该项的组合票据。"""
     composite = issue()
-    older = legacy(timezone.now() + timedelta(minutes=5))
-    latest = legacy()
+    older = single(timezone.now() + timedelta(minutes=5))
+    latest = single()
     token = issue([GRANTS[0], GRANTS[0]])
     assert token.pk == latest.pk
     assert token.pk not in (older.pk, composite.pk)
     assert not token.is_composite
-    assert token.grants.count() == 0
+    assert token.grants.count() == 1
 
 
 @pytest.mark.parametrize(
@@ -115,14 +115,37 @@ def test_issue_rolls_back_parent_and_partial_details():
     assert TokenGrant.objects.count() == 0
 
 
-def test_issue_expired_or_incomplete_candidate_creates_new():
-    """到期和明细损坏的组合票据不能复用。"""
-    original = issue()
-    Token.objects.filter(pk=original.pk).update(expired_time=timezone.now())
-    second = issue()
-    second.grants.all().delete()
-    third = issue()
-    assert len({original.pk, second.pk, third.pk}) == 3
+def test_single_issue_rolls_back_parent_when_detail_write_fails():
+    """单项明细写入失败时主票据也必须整体回滚。"""
+    original_bulk_create = TokenGrant.objects.bulk_create
+
+    def create_then_fail(objects):
+        original_bulk_create(objects)
+        raise IntegrityError("forced detail failure")
+
+    with patch.object(TokenGrant.objects, "bulk_create", side_effect=create_then_fail):
+        with pytest.raises(IntegrityError):
+            issue((GRANTS[0],))
+    assert not Token.objects.exists()
+    assert not TokenGrant.objects.exists()
+
+
+@pytest.mark.parametrize("grants", [GRANTS[:1], GRANTS], ids=["single", "composite"])
+@pytest.mark.parametrize("corruption", ["expired", "missing_detail", "wrong_digest"])
+def test_issue_expired_or_incomplete_candidate_creates_new(grants, corruption):
+    """到期、缺明细和摘要损坏的单项或组合票据不能复用。"""
+    original = issue(grants)
+    if corruption == "expired":
+        Token.objects.filter(pk=original.pk).update(expired_time=timezone.now())
+    elif corruption == "missing_detail":
+        original.grants.all().delete()
+    else:
+        detail = TokenGrant.objects.filter(token=original).order_by("pk").first()
+        detail.grant_hash = "bad"
+        detail.save(update_fields=["grant_hash"])
+
+    replacement = issue(grants)
+    assert replacement.pk != original.pk
 
 
 @pytest.mark.parametrize("auto_renewal", [False, True])
@@ -163,7 +186,7 @@ def test_revoke_counts_distinct_parents_including_expired():
     from bkflow.permission.services import revoke_tokens
 
     token = issue([Grant("TEMPLATE", "100", "VIEW"), Grant("TEMPLATE", "100", "MOCK")])
-    old = legacy(timezone.now() - timedelta(hours=1))
+    old = single(timezone.now() - timedelta(hours=1))
     assert revoke_tokens(1, {"resource_type": "TEMPLATE", "resource_id": "100"}) == 2
     for obj in (token, old):
         obj.refresh_from_db()
@@ -187,7 +210,7 @@ def test_revoke_empty_filters_includes_corrupt_but_only_current_space():
 
     token = issue()
     token.grants.all().delete()
-    legacy()
+    single()
     other = issue(space_id=2)
     assert revoke_tokens(1, {}) == 2
     token.refresh_from_db()
@@ -196,22 +219,21 @@ def test_revoke_empty_filters_includes_corrupt_but_only_current_space():
     assert not other.has_expired()
 
 
-def test_legacy_revoke_ignores_stray_details_and_composite_old_fields():
-    """两种存储形态均只按权威字段筛选撤销。"""
-    from bkflow.permission.grants import grant_hash
+def test_revoke_uses_details_for_single_and_composite_tokens():
+    """单项和组合票据都只通过授权明细参与资源撤销。"""
     from bkflow.permission.services import revoke_tokens
 
-    old = legacy()
-    detail = Grant("TASK", "300", "VIEW")
-    TokenGrant.objects.create(token=old, **detail.as_dict(), grant_hash=grant_hash(detail))
+    old = single()
     composite = issue()
-    Token.objects.filter(pk=composite.pk).update(resource_type="TASK", resource_id="300", permission_type="VIEW")
-    assert revoke_tokens(1, {"resource_id": "300"}) == 0
+    assert revoke_tokens(1, {"resource_type": "TEMPLATE", "resource_id": "100"}) == 2
+    old.refresh_from_db()
+    composite.refresh_from_db()
+    assert old.has_expired() and composite.has_expired()
 
 
 def test_model_renewal_does_not_revive_expired_token():
     """旧模型接口不得恢复到期票据，仍返回二元组。"""
-    token = legacy(timezone.now() - timedelta(seconds=1))
+    token = single(timezone.now() - timedelta(seconds=1))
     result, message = token.renewal()
     assert result is False
     assert message
@@ -273,24 +295,31 @@ def test_model_renewal_syncs_expiry_and_uses_space_duration():
 def test_expiry_equality_is_expired():
     """等于当前时刻的票据已失效。"""
     now = timezone.now()
-    token = legacy(now)
+    token = single(now)
     with patch("bkflow.permission.models.timezone.now", return_value=now):
         assert token.has_expired()
 
 
-def test_valid_token_checks_identity_space_expiry_and_integrity():
-    """公共读取只返回当前身份空间内有效且完整的票据。"""
+@pytest.mark.parametrize("grants", [GRANTS[:1], GRANTS], ids=["single", "composite"])
+@pytest.mark.parametrize("corruption", ["missing_detail", "wrong_digest"])
+def test_valid_token_checks_identity_space_expiry_and_integrity(grants, corruption):
+    """公共读取只返回当前身份空间内有效且完整的单项或组合票据。"""
     from bkflow.permission.services import get_valid_token
 
-    token = issue()
+    token = issue(grants)
     assert get_valid_token(token.pk, "alice", "1").pk == token.pk
     assert get_valid_token(token.pk, "alice").pk == token.pk
     assert get_valid_token(token.pk, "bob", 1) is None
     assert get_valid_token(token.pk, "alice", 2) is None
     assert get_valid_token("missing", "alice", 1) is None
-    token.grants.all().delete()
+    if corruption == "missing_detail":
+        token.grants.all().delete()
+    else:
+        detail = TokenGrant.objects.filter(token=token).order_by("pk").first()
+        detail.grant_hash = "bad"
+        detail.save(update_fields=["grant_hash"])
     assert get_valid_token(token.pk, "alice", 1) is None
-    old = legacy(timezone.now() - timedelta(seconds=1))
+    old = single(timezone.now() - timedelta(seconds=1))
     assert get_valid_token(old.pk, "alice", 1) is None
 
 
@@ -349,7 +378,7 @@ def test_successful_renewal_renders_legacy_default_timezone_expiry():
     now = datetime(2030, 1, 1, 12, tzinfo=datetime_timezone.utc)
     SpaceConfig.objects.create(space_id=1, name="token_auto_renewal", text_value="true", value_type="TEXT")
     SpaceConfig.objects.create(space_id=1, name="token_expiration", text_value="1h", value_type="TEXT")
-    token = legacy(now + timedelta(hours=2))
+    token = single(now + timedelta(hours=2))
     request = APIRequestFactory().post(f"/api/permission/token/{token.pk}/renewal/")
     force_authenticate(request, user=SimpleNamespace(username="alice", is_authenticated=True))
 
@@ -374,7 +403,7 @@ def test_disabled_renewal_renders_original_database_expiry():
 
     now = datetime(2030, 1, 1, 12, tzinfo=datetime_timezone.utc)
     SpaceConfig.objects.create(space_id=1, name="token_auto_renewal", text_value="false", value_type="TEXT")
-    token = legacy(now + timedelta(hours=2))
+    token = single(now + timedelta(hours=2))
     request = APIRequestFactory().post(f"/api/permission/token/{token.pk}/renewal/")
     force_authenticate(request, user=SimpleNamespace(username="alice", is_authenticated=True))
 
@@ -399,7 +428,7 @@ def test_view_queryset_uses_current_time_on_every_call():
     from bkflow.permission.views import TokenViewSet
 
     now = timezone.now()
-    token = legacy(now + timedelta(seconds=30))
+    token = single(now + timedelta(seconds=30))
     view = TokenViewSet()
     with patch("bkflow.permission.views.timezone.now", return_value=now):
         assert view.get_queryset().filter(pk=token.pk).exists()
@@ -438,12 +467,12 @@ def test_lifecycle_rechecks_expiry_after_parent_read(operation):
     assert token.expired_time == before + timedelta(seconds=1)
 
 
-def test_single_creation_preserves_resource_id_and_authoritative_fields():
-    """单项去重后只写旧字段，资源 ID 不做额外数值规范化。"""
+def test_single_creation_preserves_resource_id_in_authoritative_detail():
+    """单项去重后只写统一明细，资源 ID 不做额外数值规范化。"""
     token = issue([Grant("TEMPLATE", "001", "MOCK")])
     assert not token.is_composite
-    assert token.resource_id == "001"
-    assert token.grants.count() == 0
+    assert token.get_grants() == (Grant("TEMPLATE", "001", "MOCK"),)
+    assert token.grants.count() == 1
     assert issue([Grant("TEMPLATE", "1", "MOCK")]).pk != token.pk
 
 

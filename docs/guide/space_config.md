@@ -47,6 +47,8 @@
 
 **功能表现：** 开启后，再次申请已有有效 token 或成功调用续期接口，会将到期时间刷新为“当前时间 + token_expiration”。编辑页和模板调试页为普通用户每 5 分钟发起一次续期请求；普通业务请求校验 token 时不会自动续期，也没有到期后统一续期的后台任务。续期对过期及撤销状态的限制见 [当前实现边界](token_authorization.md#9-当前实现边界)。
 
+配置只影响有效期，不改变授权集合，也不控制 grants 申请开关。发布统一 Token 存储时，历史单项会由数据库迁移原值回填，无需通过修改空间配置或重新申请票据完成转换；维护窗口和回退顺序见 [Token 上线与回退](token_authorization.md#11-上线与回退)。
+
 ## callback_hooks
 **字段类型：** JSON
 
@@ -212,4 +214,3 @@ vertical:
 }
 ```
 ![hide display plugin](../pics/only_show_display.png)
-

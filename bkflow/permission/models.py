@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 import uuid
 from enum import Enum
@@ -125,43 +126,27 @@ class Token(models.Model):
     token = models.CharField(_("Token值"), max_length=32, primary_key=True)
     space_id = models.IntegerField(_("空间ID"))
     user = models.CharField(_("用户名"), max_length=32)
-    resource_type = models.CharField(_("资源类型"), max_length=32)
-    resource_id = models.CharField(_("资源ID"), max_length=32)
-    permission_type = models.CharField(
-        help_text=_("权限类型"), choices=PERMISSION_TYPE, max_length=32, default=TokenPermissionType.VIEW.value
-    )
     expired_time = models.DateTimeField(_("过期时间"), db_index=True)
-    grant_set_hash = models.CharField(_("授权集合摘要"), max_length=64, null=True)
+    grant_set_hash = models.CharField(_("授权集合摘要"), max_length=64)
 
     objects = TokenManager()
 
     class Meta:
         verbose_name = _("token 表")
         verbose_name_plural = _("token 表")
-        index_together = [
-            "space_id",
-            "user",
-            "resource_type",
-            "resource_id",
-            "permission_type",
-            "expired_time",
-        ]
         indexes = [
             models.Index(fields=["space_id", "user", "grant_set_hash", "expired_time"], name="perm_tok_s_u_g_exp_idx")
         ]
 
     @property
     def is_composite(self) -> bool:
-        """判断票据是否使用组合授权明细。"""
-        return self.grant_set_hash is not None
+        """判断完整授权集合是否含有多项明细。"""
+        return len(self.get_grants()) > 1
 
     def get_grants(self) -> Tuple[Grant, ...]:
         """读取票据唯一权威的授权集合，完整性异常时拒绝全部授权。"""
-        if not self.is_composite:
-            return (Grant(self.resource_type, self.resource_id, self.permission_type),)
-
         details = tuple(self.grants.all())
-        if len(details) < 2:
+        if not details:
             return ()
 
         resource_types = {resource_type.value for resource_type in ResourceType}
@@ -185,14 +170,16 @@ class Token(models.Model):
         return canonical
 
     def to_json(self):
-        return {
+        data = {
             "space_id": int(self.space_id),
             "user": self.user,
-            "resource_type": self.resource_type,
-            "resource_id": self.resource_id,
             "token": self.token,
             "expired_time": self.expired_time,
         }
+        grants = self.get_grants()
+        if len(grants) == 1:
+            data.update(resource_type=grants[0].resource_type, resource_id=grants[0].resource_id)
+        return data
 
     def renewal(self):
         """通过持锁服务续期，保留旧二元组接口并同步实例到期时间。"""
@@ -239,7 +226,7 @@ class Token(models.Model):
 
 
 class TokenGrant(models.Model):
-    """组合票据的一项授权明细。"""
+    """票据的一项授权明细。"""
 
     token = models.ForeignKey(Token, related_name="grants", on_delete=models.CASCADE, verbose_name=_("Token"))
     resource_type = models.CharField(_("资源类型"), max_length=32)

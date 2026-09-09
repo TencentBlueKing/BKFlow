@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -28,7 +29,8 @@ from bkflow.interface.task.permissions import (
     TaskMockTokenPermission,
     TaskTokenPermission,
 )
-from bkflow.permission.models import ResourceType, Token, TokenPermissionType
+from bkflow.permission.models import ResourceType, TokenPermissionType
+from tests.utils.token import create_token
 
 
 @pytest.mark.django_db
@@ -46,7 +48,7 @@ class TestTaskTokenPermission:
     def test_has_operate_permission(self):
         """Test has_operate_permission method"""
         # Create a valid token
-        token_obj = Token.objects.create(
+        token_obj = create_token(
             token="test_token_123",
             space_id=1,
             user="testuser",
@@ -104,7 +106,7 @@ class TestTaskTokenPermission:
     def test_has_permission_operate_above_action_with_permission(self):
         """Test has_permission when action is in OPERATE_ABOVE_ACTIONS and has operate permission"""
         # Create a valid token with operate permission
-        Token.objects.create(
+        create_token(
             token="test_token_operate",
             space_id=1,
             user="testuser",
@@ -147,7 +149,7 @@ class TestTaskTokenPermission:
     def test_has_permission_view_action_with_view_permission(self):
         """Test has_permission when action is view and has view permission"""
         # Create a valid token with view permission
-        Token.objects.create(
+        create_token(
             token="test_token_view",
             space_id=1,
             user="testuser",
@@ -174,7 +176,7 @@ class TestTaskTokenPermission:
     def test_has_permission_view_action_with_operate_permission(self):
         """Test has_permission when action is view and has operate permission"""
         # Create a valid token with operate permission
-        Token.objects.create(
+        create_token(
             token="test_token_operate_view",
             space_id=1,
             user="testuser",
@@ -230,7 +232,7 @@ class TestScopePermission:
     def test_has_operate_permission(self):
         """Test has_operate_permission method"""
         # Create a valid token
-        Token.objects.create(
+        create_token(
             token="test_token_scope_123",
             space_id=1,
             user="testuser",
@@ -287,7 +289,7 @@ class TestScopePermission:
             "data": {"scope_type": "project", "scope_value": "123"} if str(task_id) == "123" else None,
         }
         # Create a valid token with operate permission
-        Token.objects.create(
+        create_token(
             token="test_token_scope_operate",
             space_id=1,
             user="testuser",
@@ -319,7 +321,7 @@ class TestScopePermission:
             "data": {"scope_type": "project", "scope_value": "123"} if str(task_id) == "123" else None,
         }
         # Create a valid token with view permission
-        Token.objects.create(
+        create_token(
             token="test_token_scope_view",
             space_id=1,
             user="testuser",
@@ -423,7 +425,7 @@ class TestTaskMockTokenPermission:
     def test_has_permission_success(self, mock_client_class):
         """Test has_permission when everything is correct"""
         # Create a valid token with mock permission
-        Token.objects.create(
+        create_token(
             token="test_token_mock",
             space_id=1,
             user="testuser",
@@ -482,7 +484,7 @@ class TestTaskMockTokenPermission:
     def test_has_permission_space_id_from_data(self, mock_client_class):
         """Test has_permission when space_id comes from request.data"""
         # Create a valid token with mock permission
-        Token.objects.create(
+        create_token(
             token="test_token_mock_data",
             space_id=1,
             user="testuser",

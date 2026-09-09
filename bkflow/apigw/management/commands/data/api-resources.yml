@@ -47,7 +47,7 @@ paths:
             application/json:
               schema: {}
         '200':
-          description: HTTP 200 包含业务成功或原错误包装（result=false，code=400/500，data=null）。成功；返回形态取决于请求格式。grants去重后仅一项可复用旧单项存储，响应仍含grants。旧申请不复用多项组合票据；并发允许多张完整等价票据。
+          description: HTTP 200 包含业务成功或原错误包装（result=false，code=400/500，data=null）。成功；返回形态取决于请求格式。相同用户、空间和完整授权集合才复用；grants 去重后仅一项可与旧格式请求复用同一票据，授权统一存于 TokenGrant，响应仍含 grants。旧格式请求不复用包含该项的多项票据；并发允许多张完整等价票据。
           content:
             application/json:
               schema:

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.contrib import admin
 
 from bkflow.permission.models import Token, TokenGrant
@@ -42,7 +43,16 @@ class TokenGrantInline(admin.TabularInline):
 @admin.register(Token)
 class TokenAdmin(admin.ModelAdmin):
     inlines = (TokenGrantInline,)
-    list_display = ("token", "user", "resource_type", "resource_id", "permission_type", "expired_time")
-    search_fields = ("token", "user", "resource_type", "expired_time")
-    list_filter = ("token", "user", "resource_type", "expired_time")
+    readonly_fields = ("token", "grant_set_hash")
+    list_display = ("token", "user", "grant_set_hash", "expired_time")
+    search_fields = ("token", "user", "grants__resource_type", "grants__resource_id")
+    list_filter = ("token", "user", "grants__resource_type", "expired_time")
     ordering = ["-expired_time"]
+
+    def has_add_permission(self, request):
+        """禁止从管理后台创建缺少授权明细的主票据。"""
+        return False
+
+    def get_queryset(self, request):
+        """预取只读授权明细，避免管理列表关联查询重复访问数据库。"""
+        return super().get_queryset(request).prefetch_related("grants")

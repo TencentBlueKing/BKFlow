@@ -31,8 +31,9 @@ from bkflow.interface.task.view import (
     TaskInterfaceSystemSuperuserViewSet,
     TaskInterfaceViewSet,
 )
-from bkflow.permission.models import ResourceType, Token, TokenPermissionType
+from bkflow.permission.models import ResourceType, TokenPermissionType
 from bkflow.space.models import Space
+from tests.utils.token import create_token
 
 
 @pytest.mark.django_db
@@ -254,7 +255,7 @@ class TestTaskInterfaceViewSet:
     def test_inject_user_task_auth_with_token_permissions(self):
         """Test _inject_user_task_auth with token permissions"""
         # Create tokens with different permissions
-        Token.objects.create(
+        create_token(
             token="token1",
             space_id=self.space.id,
             user="normaluser",
@@ -263,7 +264,7 @@ class TestTaskInterfaceViewSet:
             permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
-        Token.objects.create(
+        create_token(
             token="token2",
             space_id=self.space.id,
             user="normaluser",
@@ -298,7 +299,7 @@ class TestTaskInterfaceViewSet:
     @pytest.mark.parametrize("permission_type", ["VIEW", "EDIT", "OPERATE", "MOCK"])
     def test_inject_user_task_auth_with_scope_permissions(self, permission_type):
         """作用域的四种操作在任务 auth 中保留原值，不加模板前缀。"""
-        Token.objects.create(
+        create_token(
             token="token_scope",
             space_id=self.space.id,
             user="normaluser",
@@ -330,7 +331,7 @@ class TestTaskInterfaceViewSet:
 
     def test_inject_user_task_auth_mock_task_with_template_permission(self):
         """Test _inject_user_task_auth for MOCK task, should include TEMPLATE permission query"""
-        Token.objects.create(
+        create_token(
             token="token_template_mock",
             space_id=self.space.id,
             user="normaluser",
@@ -370,7 +371,7 @@ class TestTaskInterfaceViewSet:
         for index, (resource_type, permission_type) in enumerate(
             [("TASK", "VIEW"), ("TASK", "OPERATE"), ("TEMPLATE", template_permission)]
         ):
-            Token.objects.create(
+            create_token(
                 token=f"auth_projection_{index}",
                 space_id=self.space.id,
                 user="normaluser",
@@ -441,7 +442,7 @@ class TestTaskInterfaceViewSet:
 
     def test_get_space_id_with_token(self):
         """Test get_space_id when using token"""
-        Token.objects.create(
+        create_token(
             token="test_token_valid",
             space_id=self.space.id,
             user="normaluser",
@@ -478,7 +479,7 @@ class TestTaskInterfaceViewSet:
 
     def test_get_space_id_from_data(self):
         """Test get_space_id when space_id comes from request.data"""
-        Token.objects.create(
+        create_token(
             token="test_token_data",
             space_id=self.space.id,
             user="normaluser",
@@ -503,7 +504,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_detail(self, mock_client_class):
         """Test get_task_detail method"""
-        Token.objects.create(
+        create_token(
             token="test_token_detail",
             space_id=self.space.id,
             user="normaluser",
@@ -542,7 +543,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_states(self, mock_client_class):
         """Test get_task_states method"""
-        Token.objects.create(
+        create_token(
             token="test_token_states",
             space_id=self.space.id,
             user="normaluser",
@@ -589,7 +590,7 @@ class TestTaskInterfaceViewSet:
         )
 
         # Create token with MOCK permission for template
-        Token.objects.create(
+        create_token(
             token="test_token_mock",
             space_id=self.space.id,
             user="normaluser",
@@ -632,7 +633,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.start_trace")
     def test_operate_task(self, mock_start_trace, mock_client_class):
         """Test operate_task method"""
-        Token.objects.create(
+        create_token(
             token="test_token_operate",
             space_id=self.space.id,
             user="normaluser",
@@ -675,7 +676,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.start_trace")
     def test_start_task_does_not_prefetch_task_detail(self, mock_start_trace, mock_client_class):
         """Web 启动入口不再无条件拉取完整任务详情。"""
-        Token.objects.create(
+        create_token(
             token="test_token_open_plugin_start",
             space_id=self.space.id,
             user="normaluser",
@@ -707,7 +708,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_node_detail(self, mock_client_class):
         """Test get_task_node_detail method"""
-        Token.objects.create(
+        create_token(
             token="test_token_node",
             space_id=self.space.id,
             user="normaluser",
@@ -741,7 +742,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.start_trace")
     def test_operate_node(self, mock_start_trace, mock_client_class):
         """Test operate_node method"""
-        Token.objects.create(
+        create_token(
             token="test_token_node_operate",
             space_id=self.space.id,
             user="normaluser",
@@ -784,7 +785,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_node_log(self, mock_client_class):
         """Test get_task_node_log method"""
-        Token.objects.create(
+        create_token(
             token="test_token_log",
             space_id=self.space.id,
             user="normaluser",
@@ -816,7 +817,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_render_current_constants(self, mock_client_class):
         """Test render_current_constants method"""
-        Token.objects.create(
+        create_token(
             token="test_token_constants",
             space_id=self.space.id,
             user="normaluser",
@@ -848,7 +849,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_operation_record(self, mock_client_class):
         """Test get_task_operation_record method"""
-        Token.objects.create(
+        create_token(
             token="test_token_record",
             space_id=self.space.id,
             user="normaluser",
@@ -880,7 +881,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_node_snapshot_config(self, mock_client_class):
         """Test get_node_snapshot_config method"""
-        Token.objects.create(
+        create_token(
             token="test_token_snapshot",
             space_id=self.space.id,
             user="normaluser",
@@ -918,7 +919,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.StageJobStateHandler")
     def test_get_stage_and_job_states(self, mock_handler_class):
         """Test get_stage_and_job_states method"""
-        Token.objects.create(
+        create_token(
             token="test_token_stage",
             space_id=self.space.id,
             user="normaluser",
@@ -947,7 +948,7 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.StageConstantHandler")
     def test_render_stage_constants(self, mock_handler_class):
         """Test render_stage_constants method"""
-        Token.objects.create(
+        create_token(
             token="test_token_render",
             space_id=self.space.id,
             user="normaluser",

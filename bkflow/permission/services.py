@@ -69,17 +69,12 @@ def issue_token(space_id, user, grants: Sequence[Grant], expiration_seconds, aut
         raise ValueError("授权集合不能为空")
     # 与 IntegerField 查询转换保持一致；资源 ID 仍保留字符串身份。
     space_id = Token._meta.get_field("space_id").get_prep_value(space_id)
-    composite = len(grants) > 1
-    storage_fields = (
-        {"grant_set_hash": grant_set_hash(grants)}
-        if composite
-        else {"grant_set_hash__isnull": True, **grants[0].as_dict()}
-    )
+    digest = grant_set_hash(grants)
     with transaction.atomic():
         # 候选发现不加二级索引锁；所有生命周期写入先按相同顺序锁主键。
         candidate_ids = list(
             Token.objects.filter(
-                space_id=space_id, user=user, expired_time__gt=timezone.now(), **storage_fields
+                space_id=space_id, user=user, grant_set_hash=digest, expired_time__gt=timezone.now()
             ).values_list("pk", flat=True)
         )
         candidates = _lock_token_candidates(candidate_ids)
@@ -87,13 +82,7 @@ def issue_token(space_id, user, grants: Sequence[Grant], expiration_seconds, aut
         candidates.sort(key=lambda token: token.pk)
         candidates.sort(key=lambda token: token.expired_time, reverse=True)
         for token in candidates:
-            if (
-                token.has_expired()
-                or token.user != user
-                or token.space_id != space_id
-                or token.is_composite != composite
-                or token.get_grants() != grants
-            ):
+            if token.has_expired() or token.user != user or token.space_id != space_id or token.get_grants() != grants:
                 continue
             if auto_renewal:
                 result, _, token = _renew_locked_token(token, user, expiration_seconds, auto_renewal)
@@ -108,13 +97,11 @@ def issue_token(space_id, user, grants: Sequence[Grant], expiration_seconds, aut
             space_id=space_id,
             user=user,
             expired_time=timezone.now() + timedelta(seconds=expiration_seconds),
-            grant_set_hash=storage_fields["grant_set_hash"] if composite else None,
-            **({"resource_type": "", "resource_id": "", "permission_type": ""} if composite else grants[0].as_dict()),
+            grant_set_hash=digest,
         )
-        if composite:
-            TokenGrant.objects.bulk_create(
-                [TokenGrant(token=token, grant_hash=grant_hash(grant), **grant.as_dict()) for grant in grants]
-            )
+        TokenGrant.objects.bulk_create(
+            [TokenGrant(token=token, grant_hash=grant_hash(grant), **grant.as_dict()) for grant in grants]
+        )
         return token
 
 
@@ -134,10 +121,7 @@ def revoke_tokens(space_id, filters: dict) -> int:
     if resource_filters:
         # EXISTS 保证所有资源条件落在同一条明细，也避免多条匹配产生重复主行。
         matching_grants = TokenGrant.objects.filter(token_id=OuterRef("pk"), **resource_filters)
-        tokens = tokens.annotate(has_matching_grant=Exists(matching_grants)).filter(
-            Q(grant_set_hash__isnull=True, **resource_filters)
-            | Q(grant_set_hash__isnull=False, has_matching_grant=True)
-        )
+        tokens = tokens.annotate(has_matching_grant=Exists(matching_grants)).filter(has_matching_grant=True)
     with transaction.atomic():
         candidate_ids = list(tokens.values_list("pk", flat=True))
         locked = _lock_token_candidates(candidate_ids)
@@ -187,9 +171,7 @@ def iter_user_grants(space_id, user, resource_selectors) -> Iterator[Grant]:
     tokens = (
         Token.objects.filter(space_id=space_id, user=user, expired_time__gt=timezone.now())
         .annotate(has_matching_grant=Exists(matching_grants))
-        .filter(
-            Q(grant_set_hash__isnull=True) & resource_filter | Q(grant_set_hash__isnull=False, has_matching_grant=True)
-        )
+        .filter(has_matching_grant=True)
         .prefetch_related("grants")
     )
     for token in tokens:

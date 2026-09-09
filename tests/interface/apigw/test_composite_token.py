@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import datetime
 import json
 import os
@@ -104,8 +105,8 @@ def test_legacy_numeric_id_extras_mixed_and_date(token_api):
     assert data["user"] == "username" and data["space_id"] == token_api[1].id
     token = Token.objects.get(pk=data["token"])
     assert data["expired_time"] == token.expired_time.isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    assert token.permission_type == "MOCK" and token.grant_set_hash is None
-    assert not TokenGrant.objects.exists()
+    assert token.get_grants() == (Grant("TEMPLATE", str(token_api[2].id), "MOCK"),)
+    assert token.grant_set_hash and TokenGrant.objects.count() == 1
 
 
 @pytest.mark.parametrize("key", [None, "resource_type", "resource_id", "permission_type"])
@@ -258,12 +259,12 @@ def test_composite_order_duplicates_resource_cache_and_scope_identity(token_api)
     assert set(first["data"]) == {"token", "space_id", "user", "expired_time", "grants"}
     assert first["data"]["grants"] == [scope, task, task_view, template]
     token = Token.objects.get()
-    assert token.is_composite and token.resource_type == token.resource_id == token.permission_type == ""
+    assert token.is_composite
     assert TokenGrant.objects.count() == 4
 
 
-def test_new_single_grant_reuses_legacy_storage_with_new_response(token_api):
-    """新单项和旧单项复用同票据，但响应形式跟随请求。"""
+def test_new_single_grant_reuses_legacy_request_ticket_with_new_response(token_api):
+    """grants 单项和旧请求复用同票据，但响应形式跟随请求。"""
     grant = template_grant(token_api)
     legacy = post(token_api, grant)
     response = post(token_api, {"grants": [dict(grant, resource_id=token_api[2].id), grant]})
@@ -272,7 +273,9 @@ def test_new_single_grant_reuses_legacy_storage_with_new_response(token_api):
     assert response["data"]["grants"] == [grant]
     assert set(response["data"]) == {"token", "space_id", "user", "expired_time", "grants"}
     assert response["data"]["expired_time"] == legacy["data"]["expired_time"]
-    assert Token.objects.get().grant_set_hash is None and not TokenGrant.objects.exists()
+    token = Token.objects.get()
+    assert token.grant_set_hash and token.get_grants() == (Grant(**grant),)
+    assert TokenGrant.objects.count() == 1
 
 
 def test_composite_resource_must_be_in_url_space(token_api):
@@ -353,7 +356,7 @@ def test_composite_preserves_leading_zero_resource_identity(token_api):
     grant = dict(template_grant(token_api), resource_id="00100")
     response = post(token_api, {"grants": [grant]})
     assert response["result"] is True and response["data"]["grants"] == [grant]
-    assert Token.objects.get().resource_id == "00100"
+    assert Token.objects.get().get_grants() == (Grant("TEMPLATE", "00100", "MOCK"),)
 
 
 def test_composite_engine_failure_is_indexed_and_has_no_writes(token_api):

@@ -75,24 +75,20 @@ def test_unicode_hashes_use_ascii_escapes_including_surrogate_pair():
 
 
 @pytest.mark.django_db
-def test_legacy_grant_keeps_resource_identity():
-    """历史单项票据应保留包括前导零在内的资源标识。"""
+def test_single_grant_uses_detail_storage_and_legacy_response():
+    """单项票据应只存一条完整明细，并重建旧成功响应字段。"""
+    from bkflow.permission.grants import Grant, grant_set_hash
     from bkflow.permission.models import Token
+    from bkflow.permission.services import issue_token
 
-    token = Token.objects.create(
-        token="legacy",
-        space_id=1,
-        user="alice",
-        resource_type="TEMPLATE",
-        resource_id="001",
-        permission_type="MOCK",
-        expired_time=timezone.now(),
-    )
+    grant = Grant("TEMPLATE", "001", "MOCK")
+    token = issue_token(1, "alice", (grant,), 3600, False)
 
+    assert token.grants.count() == 1
+    assert token.grant_set_hash == grant_set_hash(token.get_grants())
+    assert not {"resource_type", "resource_id", "permission_type"} & {field.name for field in Token._meta.fields}
+    assert token.to_json()["resource_id"] == "001"
     assert token.is_composite is False
-    assert [grant.as_dict() for grant in token.get_grants()] == [
-        {"resource_type": "TEMPLATE", "resource_id": "001", "permission_type": "MOCK"}
-    ]
 
 
 def _create_composite_token(token_id, grant_set_digest):
@@ -102,9 +98,6 @@ def _create_composite_token(token_id, grant_set_digest):
         token=token_id,
         space_id=1,
         user="alice",
-        resource_type="LEGACY_MUST_BE_IGNORED",
-        resource_id="legacy-resource",
-        permission_type="EDIT",
         grant_set_hash=grant_set_digest,
         expired_time=timezone.now(),
     )

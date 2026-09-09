@@ -160,16 +160,11 @@ def test_apply_reuse_and_revoke_are_serialized_on_parent(first, composite, multi
     if multiple:
         duplicate = Token.objects.create(
             token="0" * 32,
-            **{
-                field: getattr(token, field)
-                for field in ("space_id", "user", "resource_type", "resource_id", "permission_type", "grant_set_hash")
-            },
+            **{field: getattr(token, field) for field in ("space_id", "user", "grant_set_hash")},
             expired_time=token.expired_time - timedelta(minutes=30),
         )
         TokenGrant.objects.bulk_create(
             [TokenGrant(token=duplicate, **grant.as_dict(), grant_hash=grant_hash(grant)) for grant in grants]
-            if composite
-            else []
         )
         token_ids.append(duplicate.pk)
     filters = {"user": "alice", "resource_id": grants[0].resource_id} if multiple else {"token": token.pk}
@@ -193,7 +188,7 @@ def test_apply_reuse_and_revoke_are_serialized_on_parent(first, composite, multi
         assert later_result.pk not in token_ids
         assert not later_result.has_expired()
         assert later_result.get_grants() == grants
-        assert later_result.grants.count() == (2 if composite else 0)
+        assert later_result.grants.count() == len(grants)
     else:
         assert initial_result.pk == token.pk
         assert later_result == len(token_ids)
