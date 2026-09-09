@@ -101,6 +101,16 @@
 ```
 第一次创建是id为null，后续在更新时需要传递具体的id
 
+### 网关表达式校验说明
+
+更新模板时，接口会对请求体中的 `pipeline_tree` 进行**分支网关表达式语言**校验：流程树内所有 `ExclusiveGateway` / `ConditionalParallelGateway` 网关节点的表达式语言，必须与所属空间的网关表达式配置（空间配置项 `gateway_expression`，默认值为 `boolrule`）保持一致。
+
+校验规则：
+
+- 未显式设置 `extra_info.parse_lang` 的老数据，默认按 `boolrule` 解析；
+- 若网关 `parse_lang` 与空间配置不一致，则校验失败；
+- 子流程（`SubCanvas` / `SubProcess`）内嵌的网关也会被递归校验；
+
 ### 请求参数示例
 
 ```json
