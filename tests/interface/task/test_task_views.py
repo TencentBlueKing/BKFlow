@@ -31,12 +31,7 @@ from bkflow.interface.task.view import (
     TaskInterfaceSystemSuperuserViewSet,
     TaskInterfaceViewSet,
 )
-from bkflow.permission.models import (
-    TASK_PERMISSION_TYPE,
-    PermissionType,
-    ResourceType,
-    Token,
-)
+from bkflow.permission.models import ResourceType, Token, TokenPermissionType
 from bkflow.space.models import Space
 
 
@@ -241,7 +236,7 @@ class TestTaskInterfaceViewSet:
 
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
-        assert data["data"]["auth"] == TASK_PERMISSION_TYPE
+        assert data["data"]["auth"] == ["VIEW", "OPERATE", "FLOW_VIEW", "FLOW_EDIT", "FLOW_MOCK"]
 
     def test_inject_user_task_auth_space_superuser(self):
         """Test _inject_user_task_auth when user is space superuser"""
@@ -254,7 +249,7 @@ class TestTaskInterfaceViewSet:
 
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
-        assert data["data"]["auth"] == TASK_PERMISSION_TYPE
+        assert data["data"]["auth"] == ["VIEW", "OPERATE", "FLOW_VIEW", "FLOW_EDIT", "FLOW_MOCK"]
 
     def test_inject_user_task_auth_with_token_permissions(self):
         """Test _inject_user_task_auth with token permissions"""
@@ -265,7 +260,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
         Token.objects.create(
@@ -274,7 +269,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -297,18 +292,19 @@ class TestTaskInterfaceViewSet:
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
         assert "auth" in data["data"]
-        assert PermissionType.VIEW.value in data["data"]["auth"]
-        assert PermissionType.OPERATE.value in data["data"]["auth"]
+        assert TokenPermissionType.VIEW.value in data["data"]["auth"]
+        assert TokenPermissionType.OPERATE.value in data["data"]["auth"]
 
-    def test_inject_user_task_auth_with_scope_permissions(self):
-        """Test _inject_user_task_auth with scope permissions"""
+    @pytest.mark.parametrize("permission_type", ["VIEW", "EDIT", "OPERATE", "MOCK"])
+    def test_inject_user_task_auth_with_scope_permissions(self, permission_type):
+        """作用域的四种操作在任务 auth 中保留原值，不加模板前缀。"""
         Token.objects.create(
             token="token_scope",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.SCOPE.value,
             resource_id="project_456",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=permission_type,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -330,8 +326,7 @@ class TestTaskInterfaceViewSet:
 
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
-        assert "auth" in data["data"]
-        assert PermissionType.VIEW.value in data["data"]["auth"]
+        assert data["data"]["auth"] == [permission_type]
 
     def test_inject_user_task_auth_mock_task_with_template_permission(self):
         """Test _inject_user_task_auth for MOCK task, should include TEMPLATE permission query"""
@@ -341,7 +336,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TEMPLATE.value,
             resource_id="456",
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -364,7 +359,43 @@ class TestTaskInterfaceViewSet:
 
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
-        assert PermissionType.FLOW_MOCK.value in data["data"]["auth"]
+        assert "FLOW_MOCK" in data["data"]["auth"]
+
+    @pytest.mark.parametrize(
+        ("template_permission", "expected_auth"),
+        [("VIEW", "FLOW_VIEW"), ("EDIT", "FLOW_EDIT"), ("MOCK", "FLOW_MOCK"), ("OPERATE", "FLOW_OPERATE")],
+    )
+    def test_inject_user_task_auth_keeps_resource_namespaces(self, template_permission, expected_auth):
+        """同一数值 ID 的任务和模板不混淆，历史模板操作标记保留原响应。"""
+        for index, (resource_type, permission_type) in enumerate(
+            [("TASK", "VIEW"), ("TASK", "OPERATE"), ("TEMPLATE", template_permission)]
+        ):
+            Token.objects.create(
+                token=f"auth_projection_{index}",
+                space_id=self.space.id,
+                user="normaluser",
+                resource_type=resource_type,
+                resource_id="123",
+                permission_type=permission_type,
+                expired_time=timezone.now() + timezone.timedelta(hours=1),
+            )
+
+        request = self.factory.get("/task/get_task_detail/123/")
+        request.user = self.normal_user
+        data = {
+            "result": True,
+            "data": {
+                "id": "123",
+                "template_id": "123",
+                "space_id": self.space.id,
+                "scope_type": "project",
+                "scope_value": "456",
+            },
+        }
+
+        TaskInterfaceViewSet._inject_user_task_auth(request, data)
+
+        assert set(data["data"]["auth"]) == {"VIEW", "OPERATE", expected_auth}
 
     def test_inject_user_task_auth_result_false(self):
         """Test _inject_user_task_auth when result is False"""
@@ -416,7 +447,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -453,7 +484,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -478,7 +509,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -517,7 +548,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -564,7 +595,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TEMPLATE.value,
             resource_id="456",
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -607,7 +638,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -650,7 +681,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
         mock_client = mock_client_class.return_value
@@ -682,7 +713,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -716,7 +747,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -759,7 +790,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -791,7 +822,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -823,7 +854,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -855,7 +886,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -893,7 +924,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -922,7 +953,7 @@ class TestTaskInterfaceViewSet:
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 

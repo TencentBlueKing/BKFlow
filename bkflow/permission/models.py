@@ -46,7 +46,18 @@ class ResourceType(Enum):
     LABEL = "LABEL"
 
 
-class PermissionType(Enum):
+class TokenPermissionType(Enum):
+    """Token 可签发、持久化和参与鉴权的操作类型。"""
+
+    VIEW = "VIEW"
+    EDIT = "EDIT"
+    OPERATE = "OPERATE"
+    MOCK = "MOCK"
+
+
+class TaskAuthCode(Enum):
+    """任务详情 auth 的展示标记，不作为 Token 签发或鉴权的参数类型。"""
+
     VIEW = "VIEW"
     EDIT = "EDIT"
     OPERATE = "OPERATE"
@@ -56,18 +67,25 @@ class PermissionType(Enum):
     FLOW_MOCK = "FLOW_MOCK"
 
 
-TASK_PERMISSION_TYPE = [
-    PermissionType.VIEW.value,
-    PermissionType.OPERATE.value,
-    PermissionType.FLOW_VIEW.value,
-    PermissionType.FLOW_EDIT.value,
-    PermissionType.FLOW_MOCK.value,
+# 管理员的任务详情展示集合；作用域票据还可能贡献 EDIT、MOCK 标记。
+TASK_AUTH_CODES = [
+    TaskAuthCode.VIEW.value,
+    TaskAuthCode.OPERATE.value,
+    TaskAuthCode.FLOW_VIEW.value,
+    TaskAuthCode.FLOW_EDIT.value,
+    TaskAuthCode.FLOW_MOCK.value,
 ]
 
+TEMPLATE_PERMISSION_TO_TASK_AUTH = {
+    TokenPermissionType.VIEW.value: TaskAuthCode.FLOW_VIEW.value,
+    TokenPermissionType.EDIT.value: TaskAuthCode.FLOW_EDIT.value,
+    TokenPermissionType.MOCK.value: TaskAuthCode.FLOW_MOCK.value,
+}
+
 TEMPLATE_PERMISSION_TYPE = [
-    PermissionType.VIEW.value,
-    PermissionType.EDIT.value,
-    PermissionType.MOCK.value,
+    TokenPermissionType.VIEW.value,
+    TokenPermissionType.EDIT.value,
+    TokenPermissionType.MOCK.value,
 ]
 
 
@@ -101,10 +119,10 @@ class Token(models.Model):
     )
 
     PERMISSION_TYPE = (
-        (PermissionType.VIEW.value, _("查看")),
-        (PermissionType.EDIT.value, _("编辑")),
-        (PermissionType.OPERATE.value, _("操作")),
-        (PermissionType.MOCK.value, _("调试")),
+        (TokenPermissionType.VIEW.value, _("查看")),
+        (TokenPermissionType.EDIT.value, _("编辑")),
+        (TokenPermissionType.OPERATE.value, _("操作")),
+        (TokenPermissionType.MOCK.value, _("调试")),
     )
     token = models.CharField(_("Token值"), max_length=32, primary_key=True)
     space_id = models.IntegerField(_("空间ID"))
@@ -112,7 +130,7 @@ class Token(models.Model):
     resource_type = models.CharField(_("资源类型"), max_length=32)
     resource_id = models.CharField(_("资源ID"), max_length=32)
     permission_type = models.CharField(
-        help_text=_("权限类型"), choices=PERMISSION_TYPE, max_length=32, default=PermissionType.VIEW.value
+        help_text=_("权限类型"), choices=PERMISSION_TYPE, max_length=32, default=TokenPermissionType.VIEW.value
     )
     expired_time = models.DateTimeField(_("过期时间"), db_index=True)
 

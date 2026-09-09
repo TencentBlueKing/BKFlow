@@ -48,7 +48,12 @@ from bkflow.interface.task.permissions import (
 )
 from bkflow.interface.task.utils import StageConstantHandler, StageJobStateHandler
 from bkflow.label.models import Label
-from bkflow.permission.models import TASK_PERMISSION_TYPE, ResourceType, Token
+from bkflow.permission.models import (
+    TASK_AUTH_CODES,
+    TEMPLATE_PERMISSION_TO_TASK_AUTH,
+    ResourceType,
+    Token,
+)
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
@@ -145,7 +150,7 @@ class TaskInterfaceViewSet(GenericViewSet):
         if data.get("result", False):
             task_detail = data["data"]
             if request.user.is_superuser or getattr(request, "is_space_superuser", False):
-                task_detail["auth"] = TASK_PERMISSION_TYPE
+                task_detail["auth"] = TASK_AUTH_CODES
                 return
 
             base_query = Q(
@@ -165,7 +170,8 @@ class TaskInterfaceViewSet(GenericViewSet):
             auth_set = set()
             for resource_type, permission_type in permissions:
                 if resource_type == ResourceType.TEMPLATE.value:
-                    auth_set.add(f"FLOW_{permission_type}")
+                    # 保留非标准组合的历史响应（如 TEMPLATE + OPERATE -> FLOW_OPERATE）。
+                    auth_set.add(TEMPLATE_PERMISSION_TO_TASK_AUTH.get(permission_type, f"FLOW_{permission_type}"))
                 else:
                     auth_set.add(permission_type)
 

@@ -21,7 +21,7 @@ import abc
 from rest_framework import permissions
 from rest_framework.request import Request
 
-from bkflow.permission.models import PermissionType, Token
+from bkflow.permission.models import Token, TokenPermissionType
 
 
 class BaseTokenPermission(permissions.BasePermission):
@@ -35,7 +35,7 @@ class BaseTokenPermission(permissions.BasePermission):
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             token=token,
         )
 
@@ -45,7 +45,7 @@ class BaseTokenPermission(permissions.BasePermission):
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.EDIT.value,
+            permission_type=TokenPermissionType.EDIT.value,
             token=token,
         )
 
@@ -55,7 +55,7 @@ class BaseTokenPermission(permissions.BasePermission):
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             token=token,
         )
 
@@ -65,7 +65,7 @@ class BaseTokenPermission(permissions.BasePermission):
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             token=token,
         )
 
@@ -84,7 +84,7 @@ class BaseMockTokenPermission(BaseTokenPermission):
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             token=token,
         )
 
@@ -94,6 +94,6 @@ class BaseMockTokenPermission(BaseTokenPermission):
             username,
             resource_type="SCOPE",
             resource_id=resource_id,
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             token=token,
         )

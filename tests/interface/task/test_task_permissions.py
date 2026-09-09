@@ -28,7 +28,7 @@ from bkflow.interface.task.permissions import (
     TaskMockTokenPermission,
     TaskTokenPermission,
 )
-from bkflow.permission.models import PermissionType, ResourceType, Token
+from bkflow.permission.models import ResourceType, Token, TokenPermissionType
 
 
 @pytest.mark.django_db
@@ -52,7 +52,7 @@ class TestTaskTokenPermission:
             user="testuser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -110,7 +110,7 @@ class TestTaskTokenPermission:
             user="testuser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -153,7 +153,7 @@ class TestTaskTokenPermission:
             user="testuser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -180,7 +180,7 @@ class TestTaskTokenPermission:
             user="testuser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -236,7 +236,7 @@ class TestScopePermission:
             user="testuser",
             resource_type=ResourceType.SCOPE.value,
             resource_id="project_123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -288,7 +288,7 @@ class TestScopePermission:
             user="testuser",
             resource_type=ResourceType.SCOPE.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -315,7 +315,7 @@ class TestScopePermission:
             user="testuser",
             resource_type=ResourceType.SCOPE.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -419,7 +419,7 @@ class TestTaskMockTokenPermission:
             user="testuser",
             resource_type=ResourceType.TEMPLATE.value,
             resource_id="456",
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -478,7 +478,7 @@ class TestTaskMockTokenPermission:
             user="testuser",
             resource_type=ResourceType.TEMPLATE.value,
             resource_id="456",
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 

@@ -19,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from bkflow.contrib.api.collections.task import TaskComponentClient
-from bkflow.permission.models import PermissionType, Token
+from bkflow.permission.models import Token, TokenPermissionType
 from bkflow.permission.permissions import BaseMockTokenPermission, BaseTokenPermission
 
 logger = logging.getLogger("root")
@@ -35,7 +35,7 @@ class TaskTokenPermission(BaseTokenPermission):
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             token=token,
         )
 
@@ -66,7 +66,7 @@ class ScopePermission(BaseTokenPermission):
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             token=token,
         )
 

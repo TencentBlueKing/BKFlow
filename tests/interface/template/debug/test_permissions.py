@@ -23,7 +23,7 @@ import pytest
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory
 
-from bkflow.permission.models import PermissionType, ResourceType, Token
+from bkflow.permission.models import ResourceType, Token, TokenPermissionType
 from bkflow.template.permissions import TemplateRelatedResourcePermission
 from bkflow.template.views.debug import DebugViewSet
 
@@ -55,7 +55,7 @@ class TestDebugTokenPermission:
 
     @pytest.mark.parametrize("action", ["context", "input_schema", "history", "reset_impact"])
     def test_mock_token_can_access_debug_read_action(self, action):
-        self._create_token("mock_token", PermissionType.MOCK.value)
+        self._create_token("mock_token", TokenPermissionType.MOCK.value)
         view = DebugViewSet()
         view.action = action
 
@@ -63,14 +63,14 @@ class TestDebugTokenPermission:
 
     @pytest.mark.parametrize("action", ["global_run", "reset", "terminate", "step_run", "node_mock", "context_var"])
     def test_view_token_cannot_access_debug_write_action(self, action):
-        self._create_token("view_token", PermissionType.VIEW.value)
+        self._create_token("view_token", TokenPermissionType.VIEW.value)
         view = DebugViewSet()
         view.action = action
 
         assert self.permission.has_permission(self._request("view_token"), view) is False
 
     def test_mock_token_cannot_access_another_template(self):
-        self._create_token("other_template_token", PermissionType.MOCK.value, resource_id="408")
+        self._create_token("other_template_token", TokenPermissionType.MOCK.value, resource_id="408")
         view = DebugViewSet()
         view.action = "context"
 

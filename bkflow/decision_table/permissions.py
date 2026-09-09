@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,7 +21,7 @@ import logging
 from rest_framework import permissions
 
 from bkflow.contrib.api.collections.task import TaskComponentClient
-from bkflow.permission.models import PermissionType, ResourceType, Token
+from bkflow.permission.models import ResourceType, Token, TokenPermissionType
 from bkflow.template.serializers.template import TemplateRelatedResourceSerializer
 
 logger = logging.getLogger("root")
@@ -42,8 +41,8 @@ class DecisionTableUserPermission(permissions.BasePermission):
 
         if token.resource_type == ResourceType.TEMPLATE.value and int(token.resource_id) == template_id:
             return view.action not in self.NEED_TEMPLATE_EDIT_ACTIONS or token.permission_type in [
-                PermissionType.EDIT.value,
-                PermissionType.MOCK.value,
+                TokenPermissionType.EDIT.value,
+                TokenPermissionType.MOCK.value,
             ]
 
         if token.resource_type == ResourceType.TASK.value:
