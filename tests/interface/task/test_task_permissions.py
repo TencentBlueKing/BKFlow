@@ -279,15 +279,20 @@ class TestScopePermission:
         result = self.permission.has_permission(request, view)
         assert result is False
 
-    def test_has_permission_operate_above_action_with_permission(self):
+    @mock.patch("bkflow.permission.resource_matching.TaskComponentClient")
+    def test_has_permission_operate_above_action_with_permission(self, mock_client_class):
         """Test has_permission when action is in OPERATE_ABOVE_ACTIONS and has operate permission"""
+        mock_client_class.return_value.get_task_detail.side_effect = lambda task_id: {
+            "result": str(task_id) == "123",
+            "data": {"scope_type": "project", "scope_value": "123"} if str(task_id) == "123" else None,
+        }
         # Create a valid token with operate permission
         Token.objects.create(
             token="test_token_scope_operate",
             space_id=1,
             user="testuser",
             resource_type=ResourceType.SCOPE.value,
-            resource_id="123",
+            resource_id="project_123",
             permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
@@ -306,15 +311,20 @@ class TestScopePermission:
         result = self.permission.has_permission(request, view)
         assert result is True
 
-    def test_has_permission_view_action_with_view_permission(self):
+    @mock.patch("bkflow.permission.resource_matching.TaskComponentClient")
+    def test_has_permission_view_action_with_view_permission(self, mock_client_class):
         """Test has_permission when action is view and has view permission"""
+        mock_client_class.return_value.get_task_detail.side_effect = lambda task_id: {
+            "result": str(task_id) == "123",
+            "data": {"scope_type": "project", "scope_value": "123"} if str(task_id) == "123" else None,
+        }
         # Create a valid token with view permission
         Token.objects.create(
             token="test_token_scope_view",
             space_id=1,
             user="testuser",
             resource_type=ResourceType.SCOPE.value,
-            resource_id="123",
+            resource_id="project_123",
             permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )

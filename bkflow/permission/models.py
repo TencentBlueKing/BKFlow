@@ -16,21 +16,17 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-import datetime
 import logging
 import uuid
 from enum import Enum
+from typing import Tuple
 
 from django.db import models
 from django.db.models.query import QuerySet
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
-from pytimeparse import parse
 
-from bkflow.contrib.api.collections.task import TaskComponentClient
-from bkflow.space.configs import TokenAutoRenewalConfig, TokenExpirationConfig
-from bkflow.space.models import SpaceConfig
-from bkflow.template.models import Template
+from bkflow.permission.grants import Grant, canonical_grants, grant_hash, grant_set_hash
 
 logger = logging.getLogger("root")
 
@@ -90,24 +86,26 @@ TEMPLATE_PERMISSION_TYPE = [
 
 
 class TokenManager(models.Manager):
-    def get_resource_tokens(self, token_id: str, resource_params: dict) -> QuerySet:
-        """获取资源的token列表
+    def get_resource_tokens(self, token_id: str, resource_params: dict, user=None, space_id=None) -> QuerySet:
+        """校验整张票据后按旧资源筛选规则返回不重复的 QuerySet。"""
+        from bkflow.permission.services import get_valid_token
 
-        :param resource_kwargs: 资源配置
-        :return: token queryset
-        """
-        query_filter = models.Q()
+        # 旧内部调用可省略身份，HTTP 消费者必须提供认证用户与可信空间。
+        if user is None:
+            user = self.filter(pk=token_id).values_list("user", flat=True).first()
+        token = get_valid_token(token_id, user, space_id)
+        if token is None:
+            return self.none()
+        selectors = set()
         if resource_params.get("scope_type") and resource_params.get("scope_value"):
-            scope_resource_id = f"{resource_params.get('scope_type')}_{resource_params.get('scope_value')}"
-            query_filter |= models.Q(resource_id=scope_resource_id, resource_type=ResourceType.SCOPE.value)
+            selectors.add(("SCOPE", f"{resource_params['scope_type']}_{resource_params['scope_value']}"))
         if "template_id" in resource_params:
-            query_filter |= models.Q(
-                resource_id=resource_params.get("template_id"), resource_type=ResourceType.TEMPLATE.value
-            )
+            selectors.add(("TEMPLATE", str(resource_params["template_id"])))
         elif "task_id" in resource_params:
-            query_filter |= models.Q(resource_id=resource_params.get("task_id"), resource_type=ResourceType.TASK.value)
-
-        return self.filter(query_filter, token=token_id)
+            selectors.add(("TASK", str(resource_params["task_id"])))
+        if selectors and not any((grant.resource_type, grant.resource_id) in selectors for grant in token.get_grants()):
+            return self.none()
+        return self.filter(pk=token.pk).distinct()
 
 
 class Token(models.Model):
@@ -133,6 +131,7 @@ class Token(models.Model):
         help_text=_("权限类型"), choices=PERMISSION_TYPE, max_length=32, default=TokenPermissionType.VIEW.value
     )
     expired_time = models.DateTimeField(_("过期时间"), db_index=True)
+    grant_set_hash = models.CharField(_("授权集合摘要"), max_length=64, null=True)
 
     objects = TokenManager()
 
@@ -147,6 +146,43 @@ class Token(models.Model):
             "permission_type",
             "expired_time",
         ]
+        indexes = [
+            models.Index(fields=["space_id", "user", "grant_set_hash", "expired_time"], name="perm_tok_s_u_g_exp_idx")
+        ]
+
+    @property
+    def is_composite(self) -> bool:
+        """判断票据是否使用组合授权明细。"""
+        return self.grant_set_hash is not None
+
+    def get_grants(self) -> Tuple[Grant, ...]:
+        """读取票据唯一权威的授权集合，完整性异常时拒绝全部授权。"""
+        if not self.is_composite:
+            return (Grant(self.resource_type, self.resource_id, self.permission_type),)
+
+        details = tuple(self.grants.all())
+        if len(details) < 2:
+            return ()
+
+        resource_types = {resource_type.value for resource_type in ResourceType}
+        permission_types = {permission_type.value for permission_type in TokenPermissionType}
+        grants = []
+        for detail in details:
+            fields = (detail.resource_type, detail.resource_id, detail.permission_type)
+            if any(not isinstance(field, str) or not field or len(field) > 32 for field in fields):
+                return ()
+            if detail.resource_type not in resource_types or detail.permission_type not in permission_types:
+                return ()
+
+            grant = Grant(*fields)
+            if detail.grant_hash != grant_hash(grant):
+                return ()
+            grants.append(grant)
+
+        canonical = canonical_grants(grants)
+        if len(canonical) != len(grants) or grant_set_hash(canonical) != self.grant_set_hash:
+            return ()
+        return canonical
 
     def to_json(self):
         return {
@@ -159,93 +195,65 @@ class Token(models.Model):
         }
 
     def renewal(self):
-        token_auto_renewal = SpaceConfig.get_config(self.space_id, TokenAutoRenewalConfig.name)
-        if token_auto_renewal == "true":
-            expiration = SpaceConfig.get_config(self.space_id, TokenExpirationConfig.name)
-            # 原地补全目标周期
-            self.expired_time = datetime.datetime.now() + datetime.timedelta(seconds=parse(expiration))
-            self.save(update_fields=["expired_time"])
-            return True, ""
-        else:
-            return False, "续期失败，当前空间未开启token自动续期"
+        """通过持锁服务续期，保留旧二元组接口并同步实例到期时间。"""
+        from bkflow.permission.services import renew_token
+
+        result, message, token = renew_token(self.pk, user=self.user)
+        if token is not None:
+            self.expired_time = token.expired_time
+        return result, message
 
     def has_expired(self):
-        return self.expired_time < timezone.now()
+        """票据到期时间必须严格晚于当前时刻。"""
+        return self.expired_time <= timezone.now()
 
     @classmethod
     def generate_token(cls):
         return uuid.uuid3(uuid.uuid1(), uuid.uuid4().hex).hex
 
     @classmethod
-    def verify(cls, space_id, user, resource_type, resource_id, permission_type, token) -> bool:
-        """
-        校验权限
-        """
+    def verify(
+        cls,
+        space_id,
+        user,
+        resource_type,
+        resource_id,
+        permission_type,
+        token,
+        target_resource_type=None,
+        request=None,
+    ) -> bool:
+        """校验主票据后，由一条完整授权独立满足资源类型、范围与操作。"""
+        from bkflow.permission.resource_matching import matches_resource
+        from bkflow.permission.services import get_valid_token
 
-        query_params = {
-            "user": user,
-            "resource_type": resource_type,
-            "permission_type": permission_type,
-            "token": token,
-        }
+        db_token = get_valid_token(token, user, space_id, request)
+        if db_token is None:
+            return False
+        return any(
+            grant.resource_type == resource_type
+            and grant.permission_type == permission_type
+            and matches_resource(grant, db_token.space_id, resource_id, target_resource_type, db_token.is_composite)
+            for grant in db_token.get_grants()
+        )
 
-        if space_id:
-            query_params["space_id"] = space_id
 
-        try:
-            db_token = cls.objects.get(**query_params)
-        except cls.DoesNotExist:
-            logger.info(
-                "[Token->verify] the token does not exist, space_id={}, user={},resource_type={},"
-                "resource_id={},permission_type={}".format(space_id, user, resource_type, resource_id, permission_type)
+class TokenGrant(models.Model):
+    """组合票据的一项授权明细。"""
+
+    token = models.ForeignKey(Token, related_name="grants", on_delete=models.CASCADE, verbose_name=_("Token"))
+    resource_type = models.CharField(_("资源类型"), max_length=32)
+    resource_id = models.CharField(_("资源ID"), max_length=32)
+    permission_type = models.CharField(_("权限类型"), choices=Token.PERMISSION_TYPE, max_length=32)
+    grant_hash = models.CharField(_("授权摘要"), max_length=64)
+
+    class Meta:
+        verbose_name = _("token 授权明细")
+        verbose_name_plural = _("token 授权明细")
+        constraints = [models.UniqueConstraint(fields=["token", "grant_hash"], name="perm_grant_tok_hash_uniq")]
+        indexes = [
+            models.Index(
+                fields=["resource_type", "resource_id", "permission_type", "token"],
+                name="perm_grant_res_perm_tok_idx",
             )
-            return False
-
-        if db_token.has_expired():
-            return False
-
-        # todo: 此处在递归中查询接口，如果出现子流程嵌套多层导致性能问题，需要优化
-        def check_parent_task_id(db_token, current_task_id):
-            client = TaskComponentClient(space_id=db_token.space_id)
-            result = client.get_task_detail(current_task_id)
-
-            if not result.get("result"):
-                logger.warning(
-                    f"[Token->verify] Failed to get task detail, task_id={current_task_id}, "
-                    f"space_id={db_token.space_id}"
-                )
-                return False
-
-            parent_task_info = result["data"].get("parent_task_info")
-            if not parent_task_info:
-                return False
-
-            parent_task_id = parent_task_info["task_id"]
-            if db_token.resource_id == str(parent_task_id):
-                return True
-
-            return check_parent_task_id(db_token, parent_task_id)
-
-        if db_token.resource_id != str(resource_id):
-            if resource_type == ResourceType.SCOPE.value:
-                scope_parts = db_token.resource_id.split("_")
-                scope_type, scope_value = scope_parts[0], scope_parts[1]
-                try:
-                    resource_obj = Template.objects.get(id=resource_id, space_id=db_token.space_id)
-                    return resource_obj.scope_type == scope_type and resource_obj.scope_value == scope_value
-                except Template.DoesNotExist:
-                    client = TaskComponentClient(space_id=db_token.space_id)
-                    result = client.get_task_detail(resource_id)
-                    if not result.get("result"):
-                        logger.warning(
-                            f"[Token->verify] Failed to get task detail, task_id={resource_id}, "
-                            f"space_id={db_token.space_id}"
-                        )
-                        return False
-                    resource_data = result["data"]
-                    return resource_data["scope_type"] == scope_type and resource_data["scope_value"] == scope_value
-            elif resource_type == ResourceType.TEMPLATE.value:
-                return False
-            elif not check_parent_task_id(db_token, resource_id):
-                return False
-        return True
+        ]

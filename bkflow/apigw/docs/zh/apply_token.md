@@ -1,6 +1,6 @@
 ### 资源描述
 
-创建或获取资源访问 token
+创建或获取资源访问 token；同一接口支持旧版单项申请和新版 grants 申请。
 
 ### 接口行为说明
 
@@ -10,6 +10,17 @@
 - **过期时间**：由空间配置 `token_expiration` 决定，默认 1h、最短 1h；上限由部署配置 `BKAPP_TOKEN_EXPIRATION_MAX_EXPIRATION` 控制，默认 30 天
 
 接入系统应先检查用户的业务权限。该接口要求通过网关的应用认证、用户认证及资源权限校验，后端还会检查调用应用是否绑定目标空间。用户名取自已认证的 `request.user.username`，请求体的额外 `user` 字段不能指定其他被授权人。
+
+### 组合申请开关与兼容规则
+
+服务配置 `TOKEN_COMPOSITE_ENABLED` 默认关闭。部署环境设置 `BKAPP_TOKEN_COMPOSITE_ENABLED=true` 才允许 grants 格式申请；解析仅接受不区分大小写的字面量 `true`，`false`、`0`、`1` 均不启用。开关关闭不影响旧单项申请，也不影响已发出组合票据的鉴权、续期和撤销。
+
+- 请求出现任意旧字段 `resource_type`、`resource_id`、`permission_type` 时，优先按旧单项格式处理，额外 `grants` 被忽略；旧字段不完整时仍返回旧必填错误。
+- 仅在没有任何旧字段且存在 `grants` 时使用新格式。`grants` 为非空数组，原始条目数最多 32，先检查长度再去重。每项采用下表三个必填字段和相同资源校验；错误标明 `grants[索引]`，索引从 0 开始。
+- 全部资源校验成功才签发或续期，不允许部分授权成功。用户名、空间始终分别来自认证身份和 URL。
+- 完整三元组去重、排序后，相同用户、空间、完整集合可复用；子集、超集和不同操作不会复用同一张组合票据。并发可能产生多张等价票据，每张都必须包含完整授权。
+- 去重后仅一项时使用单项存储，可复用旧票据，但新格式响应仍返回 `grants`。旧单项申请不会复用包含该项的多项组合票据。
+- 不向已发出票据追加或替换授权；角色权限变化时整票据撤销后重新申请。
 
 ### 输入通用参数说明
 
@@ -21,7 +32,7 @@
 
 `access_token` 是否使用取决于部署网关支持的认证方式，但用户身份认证本身为必需，不能只传应用凭证而省略用户身份。
 
-#### 接口参数
+#### 旧单项字段（也用于 grants 中的每一项）
 
 | 字段              | 类型     | 必选 | 描述                                      |
 |-----------------|--------|----|-----------------------------------------|
@@ -85,11 +96,43 @@ MOCK 调试能力可能创建、启动或终止真实引擎任务，并非只读
     "resource_id": "1",
     "user": "admin",
     "token": "<BKFLOW_TOKEN>",
-    "expired_time": "2026-09-08T13:00:00"
+    "expired_time": "2026-09-09T05:00:00Z"
   },
   "code": 0
 }
 ```
+
+### 新格式请求与响应示例
+
+同一用户需要调试模板 `100` 并操作普通任务 `200` 时，可申请一张票据：
+
+```json
+{
+  "grants": [
+    {"resource_type": "TEMPLATE", "resource_id": "100", "permission_type": "MOCK"},
+    {"resource_type": "TASK", "resource_id": "200", "permission_type": "OPERATE"}
+  ]
+}
+```
+
+```json
+{
+  "result": true,
+  "data": {
+    "space_id": 3,
+    "user": "admin",
+    "token": "<BKFLOW_TOKEN>",
+    "expired_time": "2026-09-09T05:00:00Z",
+    "grants": [
+      {"resource_type": "TASK", "resource_id": "200", "permission_type": "OPERATE"},
+      {"resource_type": "TEMPLATE", "resource_id": "100", "permission_type": "MOCK"}
+    ]
+  },
+  "code": 0
+}
+```
+
+新格式 data 为 `space_id`、`user`、`token`、`expired_time` 和规范化后的 `grants`，不返回顶层资源字段或内部摘要。每项授权独立匹配，不会组合生成模板操作权限。旧格式 data 字段保持下表不变。两种申请响应的时间均沿用当前 JSON 时间编码（示例为 UTC `Z`）；成功包装不强制补充 `message`，部署链路可附带 `trace_id`。
 
 ### 返回结果参数说明
 
@@ -111,7 +154,7 @@ MOCK 调试能力可能创建、启动或终止真实引擎任务，并非只读
 | token           | string | token                        |
 | expired_time    | string | 过期时间                         |
 
-当前返回数据由 `Token.to_json()` 生成，不包含 `permission_type`；调用方应保留申请时使用的权限类型。`<BKFLOW_TOKEN>` 为示例占位符，实际值为 32 位字符串。
+旧格式返回数据由 `Token.to_json()` 生成，不包含 `permission_type`；调用方应保留申请时使用的权限类型。`<BKFLOW_TOKEN>` 为示例占位符，实际值为 32 位字符串。
 
 ### 相关空间配置
 

@@ -46,6 +46,148 @@ paths:
           content:
             application/json:
               schema: {}
+        '200':
+          description: HTTP 200 包含业务成功或原错误包装（result=false，code=400/500，data=null）。成功；返回形态取决于请求格式。grants去重后仅一项可复用旧单项存储，响应仍含grants。旧申请不复用多项组合票据；并发允许多张完整等价票据。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - type: object
+                  additionalProperties: true
+                  required:
+                  - result
+                  - data
+                  - code
+                  properties:
+                    result:
+                      type: boolean
+                      enum:
+                      - true
+                    code:
+                      type: integer
+                      enum:
+                      - 0
+                    trace_id:
+                      type: string
+                    data:
+                      oneOf:
+                      - type: object
+                        additionalProperties: false
+                        required:
+                        - space_id
+                        - user
+                        - token
+                        - expired_time
+                        - resource_type
+                        - resource_id
+                        properties:
+                          space_id:
+                            type: integer
+                          user:
+                            type: string
+                          token:
+                            type: string
+                            minLength: 32
+                            maxLength: 32
+                          expired_time:
+                            type: string
+                            format: date-time
+                            description: 沿用申请响应的时间编码，例如2026-09-09T05:00:00Z
+                          resource_type:
+                            type: string
+                            enum:
+                            - TEMPLATE
+                            - TASK
+                            - SCOPE
+                          resource_id:
+                            type: string
+                        title: 旧响应：无permission_type或grants
+                      - type: object
+                        additionalProperties: false
+                        required:
+                        - space_id
+                        - user
+                        - token
+                        - expired_time
+                        - grants
+                        properties:
+                          space_id:
+                            type: integer
+                          user:
+                            type: string
+                          token:
+                            type: string
+                            minLength: 32
+                            maxLength: 32
+                          expired_time:
+                            type: string
+                            format: date-time
+                            description: 沿用申请响应的时间编码，例如2026-09-09T05:00:00Z
+                          grants:
+                            type: array
+                            minItems: 1
+                            maxItems: 32
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required:
+                              - resource_type
+                              - resource_id
+                              - permission_type
+                              properties:
+                                resource_type:
+                                  type: string
+                                  enum:
+                                  - TEMPLATE
+                                  - TASK
+                                  - SCOPE
+                                  description: LABEL 虽在模型 choices 中，但申请资源校验不支持签发
+                                resource_id:
+                                  type: string
+                                  maxLength: 32
+                                permission_type:
+                                  type: string
+                                  enum:
+                                  - VIEW
+                                  - EDIT
+                                  - OPERATE
+                                  - MOCK
+                                  description: 不新增资源与操作组合限制；FLOW_* 仅为展示标记，不接受签发
+                        title: 新响应：无顶层资源字段或内部摘要
+                - type: object
+                  additionalProperties: true
+                  required:
+                  - result
+                  - data
+                  - message
+                  - code
+                  properties:
+                    result:
+                      type: boolean
+                      enum:
+                      - false
+                    data:
+                      nullable: true
+                      enum:
+                      - null
+                      description: 沿用原错误包装，data为null
+                    message:
+                      type: string
+                    code:
+                      type: integer
+                      enum:
+                      - 400
+                      - 500
+                      description: 参数校验400，其他业务异常500；HTTP状态仍为200
+                    trace_id:
+                      type: string
+                  example:
+                    result: false
+                    message: '{"resource_type": "\u8be5\u5b57\u6bb5\u662f\u5fc5\u586b\u9879\u3002", "resource_id":
+                      "\u8be5\u5b57\u6bb5\u662f\u5fc5\u586b\u9879\u3002", "permission_type": "\u201cFLOW_INVALID\u201d
+                      \u4e0d\u662f\u5408\u6cd5\u9009\u9879\u3002"}'
+                    code: 400
+                    data: null
       parameters:
       - in: path
         name: space_id
@@ -71,6 +213,94 @@ paths:
         descriptionEn: Apply a token
         enableWebsocket: false
         pluginConfigs: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: 顶层出现任意旧字段时优先旧格式并忽略grants，缺少旧字段报原必填错误。仅无旧字段且含grants时用新格式。TOKEN_COMPOSITE_ENABLED默认关闭；BKAPP_TOKEN_COMPOSITE_ENABLED仅字面量true（大小写不敏感）启用，1/0/false不启用。开关不影响已有组合票据消费。
+              oneOf:
+              - type: object
+                additionalProperties: true
+                required:
+                - resource_type
+                - resource_id
+                - permission_type
+                properties:
+                  resource_type:
+                    type: string
+                    enum:
+                    - TEMPLATE
+                    - TASK
+                    - SCOPE
+                    description: LABEL 虽在模型 choices 中，但申请资源校验不支持签发
+                  resource_id:
+                    description: 最长32位，按旧DRF规则转换为字符串；SCOPE为scope_type_scope_value且空间内须存在相同scope模板
+                    anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 32
+                    - type: number
+                  permission_type:
+                    type: string
+                    enum:
+                    - VIEW
+                    - EDIT
+                    - OPERATE
+                    - MOCK
+                    description: 不新增资源与操作组合限制；FLOW_* 仅为展示标记，不接受签发
+                title: 旧单项申请（额外grants忽略）
+              - type: object
+                additionalProperties: true
+                required:
+                - grants
+                not:
+                  anyOf:
+                  - required:
+                    - resource_type
+                  - required:
+                    - resource_id
+                  - required:
+                    - permission_type
+                properties:
+                  grants:
+                    type: array
+                    minItems: 1
+                    maxItems: 32
+                    description: 按原始条目数限制，之后按完整三元组排序去重；全部资源验证成功后签发，错误包含从0开始的grants[index]
+                    items:
+                      type: object
+                      additionalProperties: true
+                      required:
+                      - resource_type
+                      - resource_id
+                      - permission_type
+                      properties:
+                        resource_type:
+                          type: string
+                          enum:
+                          - TEMPLATE
+                          - TASK
+                          - SCOPE
+                          description: LABEL 虽在模型 choices 中，但申请资源校验不支持签发
+                        resource_id:
+                          description: 最长32位，按旧DRF规则转换为字符串；SCOPE为scope_type_scope_value且空间内须存在相同scope模板
+                          anyOf:
+                          - type: string
+                            minLength: 1
+                            maxLength: 32
+                          - type: number
+                        permission_type:
+                          type: string
+                          enum:
+                          - VIEW
+                          - EDIT
+                          - OPERATE
+                          - MOCK
+                          description: 不新增资源与操作组合限制；FLOW_* 仅为展示标记，不接受签发
+                title: grants申请（不得含旧顶层字段）
   /space/{space_id}/revoke_token/:
     post:
       operationId: revoke_token
@@ -82,6 +312,67 @@ paths:
           content:
             application/json:
               schema: {}
+        '200':
+          description: HTTP 200 包含业务成功或原错误包装（result=false，code=400/500，data=null）。按匹配的不同主票据计数，包含已过期票据；多条明细只计一张。撤销在事务内协调主行锁，续期不能恢复已失效票据。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - type: object
+                  additionalProperties: true
+                  required:
+                  - result
+                  - data
+                  - message
+                  - code
+                  properties:
+                    result:
+                      type: boolean
+                      enum:
+                      - true
+                    data:
+                      type: string
+                      example: 1 tokens revoke success
+                    message:
+                      type: string
+                    code:
+                      type: integer
+                      enum:
+                      - 0
+                    trace_id:
+                      type: string
+                - type: object
+                  additionalProperties: true
+                  required:
+                  - result
+                  - data
+                  - message
+                  - code
+                  properties:
+                    result:
+                      type: boolean
+                      enum:
+                      - false
+                    data:
+                      nullable: true
+                      enum:
+                      - null
+                      description: 沿用原错误包装，data为null
+                    message:
+                      type: string
+                    code:
+                      type: integer
+                      enum:
+                      - 400
+                      - 500
+                      description: 参数校验400，其他业务异常500；HTTP状态仍为200
+                    trace_id:
+                      type: string
+                  example:
+                    result: false
+                    message: '{"permission_type": "\u201cFLOW_INVALID\u201d \u4e0d\u662f\u5408\u6cd5\u9009\u9879\u3002"}'
+                    code: 400
+                    data: null
       parameters:
       - in: path
         name: space_id
@@ -107,6 +398,46 @@ paths:
         descriptionEn: Revoke a token
         enableWebsocket: false
         pluginConfigs: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: 不增加grants或撤销模式参数。空间与token/user条件AND匹配；全部资源条件必须命中同一条授权，随后撤销整张票据。空对象撤销URL空间全部票据；不按scope成员、父子任务或权限包含关系扩展。
+              properties:
+                resource_type:
+                  type: string
+                  enum:
+                  - TEMPLATE
+                  - TASK
+                  - SCOPE
+                  - LABEL
+                  description: 精确资源类型过滤；LABEL不能通过apply_token签发
+                resource_id:
+                  description: 最长32位，按旧DRF规则转换为字符串后精确匹配存储授权ID；不检查目标资源是否仍然存在，也不展开scope成员或父子任务
+                  anyOf:
+                  - type: string
+                    minLength: 1
+                    maxLength: 32
+                  - type: number
+                permission_type:
+                  type: string
+                  enum:
+                  - VIEW
+                  - EDIT
+                  - OPERATE
+                  - MOCK
+                  description: 不新增资源与操作组合限制；FLOW_* 仅为展示标记，不接受签发
+                token:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+                user:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
   /space/{space_id}/create_label/:
     post:
       operationId: create_label

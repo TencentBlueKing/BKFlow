@@ -21,8 +21,6 @@ import logging
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
-from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
@@ -38,7 +36,8 @@ from bkflow.constants import (
 )
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
-from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
+from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE
+from bkflow.permission.services import iter_user_grants
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.configs import (
@@ -323,14 +322,12 @@ class TemplateSerializer(serializers.ModelSerializer):
         ):
             return TEMPLATE_PERMISSION_TYPE
         username = self.context["request"].user.username
-        permissions = Token.objects.filter(
-            Q(resource_id=f"{instance.scope_type}_{instance.scope_value}", resource_type="SCOPE")
-            | Q(resource_id=instance.id, resource_type="TEMPLATE"),
-            space_id=instance.space_id,
-            user=username,
-            expired_time__gte=timezone.now(),
-        ).values_list("permission_type", flat=True)
-        return list(set(permissions))
+        permissions = iter_user_grants(
+            instance.space_id,
+            username,
+            [("SCOPE", f"{instance.scope_type}_{instance.scope_value}"), ("TEMPLATE", instance.id)],
+        )
+        return list({grant.permission_type for grant in permissions})
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

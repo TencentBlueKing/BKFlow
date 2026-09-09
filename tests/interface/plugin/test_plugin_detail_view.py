@@ -3,14 +3,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from django.urls import resolve
+from pipeline.component_framework.models import ComponentModel
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.parsers import JSONParser
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
-from pipeline.component_framework.models import ComponentModel
 
 from bkflow.exceptions import APIResponseError
-
+from bkflow.permission.grants import Grant
+from bkflow.permission.services import issue_token
 from bkflow.plugin.permissions import (
     PluginSpaceSuperuserPermission,
     PluginTokenPermissions,
@@ -131,15 +132,13 @@ def test_space_superuser_permission_reads_space_id_from_post_body():
     get_config.assert_called_once_with("245", "superusers")
 
 
-def test_token_permission_reads_space_id_from_post_body():
+def test_token_permission_reads_space_id_from_post_body(db):
     """token 权限必须从 POST body 读取 space_id。"""
     request = drf_request(APIRequestFactory().post("/api/plugin/detail/", uniform_request(), format="json"))
-    request.token = "valid-token"
-    token = SimpleNamespace(space_id=245, has_expired=lambda: False)
-
-    with patch("bkflow.plugin.permissions.Token.objects.filter") as token_filter:
-        token_filter.return_value.first.return_value = token
-        allowed = PluginTokenPermissions().has_permission(request, MagicMock())
+    request.user = SimpleNamespace(username="token_user")
+    token = issue_token(245, "token_user", [Grant("TEMPLATE", "2329", "VIEW")], 3600, False)
+    request.token = token.pk
+    allowed = PluginTokenPermissions().has_permission(request, MagicMock())
 
     assert allowed is True
 
@@ -162,7 +161,7 @@ def test_space_superuser_permission_rejects_conflicting_query_and_post_space_id(
     get_config.assert_not_called()
 
 
-def test_token_permission_rejects_conflicting_query_and_post_space_id():
+def test_token_permission_rejects_conflicting_query_and_post_space_id(db):
     """token 不能用 query 空间权限操作 body 中的其他空间。"""
     request = drf_request(
         APIRequestFactory().post(
@@ -171,13 +170,11 @@ def test_token_permission_rejects_conflicting_query_and_post_space_id():
             format="json",
         )
     )
-    request.token = "valid-token"
-    token = SimpleNamespace(space_id=245, has_expired=lambda: False)
-
-    with patch("bkflow.plugin.permissions.Token.objects.filter") as token_filter:
-        token_filter.return_value.first.return_value = token
-        with pytest.raises(PermissionDenied, match="space_id.*不一致"):
-            PluginTokenPermissions().has_permission(request, MagicMock())
+    request.user = SimpleNamespace(username="token_user")
+    token = issue_token(245, "token_user", [Grant("TEMPLATE", "2329", "VIEW")], 3600, False)
+    request.token = token.pk
+    with pytest.raises(PermissionDenied, match="space_id.*不一致"):
+        PluginTokenPermissions().has_permission(request, MagicMock())
 
 
 @patch.object(plugin_views, "PluginDetailService", create=True)
@@ -207,14 +204,11 @@ def test_plugin_permissions_keep_get_query_behavior():
     assert allowed is True
 
 
-def test_detail_route_rejects_request_without_permission(api_client):
+def test_detail_route_rejects_request_without_permission(api_client, db):
     """非管理员、非空间管理员且无 token 时返回 403。"""
     api_client.force_authenticate(SimpleNamespace(username="normal_user", is_superuser=False, is_authenticated=True))
 
-    with patch("bkflow.plugin.permissions.SpaceConfig.get_config", return_value=[]), patch(
-        "bkflow.plugin.permissions.Token.objects.filter"
-    ) as token_filter:
-        token_filter.return_value.first.return_value = None
+    with patch("bkflow.plugin.permissions.SpaceConfig.get_config", return_value=[]):
         response = api_client.post("/api/plugin/detail/", uniform_request(), format="json")
 
     assert response.status_code == 403
@@ -309,3 +303,31 @@ class TestComponentModelSetViewSet:
 
         assert response.status_code == 200
         mock_parser.get_filtered_plugin_qs.assert_called_once()
+
+
+@pytest.mark.parametrize("composite", [False, True])
+@pytest.mark.parametrize("request_space,status", [("0245", 200), ("0246", 403)])
+@patch.object(plugin_views, "PluginDetailService", create=True)
+def test_plugin_http_token_accepts_equivalent_integer_space(
+    service_cls, api_client, db, composite, request_space, status
+):
+    """真实插件请求兼容空间前导零，错空间仍拒绝单项和组合票据。"""
+    user = SimpleNamespace(username="token_user", is_superuser=False, is_authenticated=True)
+    api_client.force_authenticate(user)
+    grants = [Grant("TEMPLATE", "001", "VIEW")]
+    if composite:
+        grants.append(Grant("TASK", "200", "OPERATE"))
+    token = issue_token(245, user.username, grants, 3600, False)
+    service_cls.return_value.get_detail.return_value = build_detail(plugin_type="uniform_api")
+    with patch("bkflow.plugin.permissions.SpaceConfig.get_config", return_value=[]):
+        response = api_client.post(
+            "/api/plugin/detail/",
+            uniform_request(space_id=request_space),
+            format="json",
+            HTTP_BKFLOW_TOKEN=token.pk,
+        )
+    assert response.status_code == status
+    if status == 200:
+        service_cls.return_value.get_detail.assert_called_once()
+    else:
+        service_cls.assert_not_called()

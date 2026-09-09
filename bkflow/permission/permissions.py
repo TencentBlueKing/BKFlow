@@ -29,7 +29,7 @@ class BaseTokenPermission(permissions.BasePermission):
     def get_resource_type(self):
         pass
 
-    def has_operate_permission(self, username, space_id, resource_id, token):
+    def has_operate_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
         return Token.verify(
             space_id,
             username,
@@ -37,9 +37,11 @@ class BaseTokenPermission(permissions.BasePermission):
             resource_id=resource_id,
             permission_type=TokenPermissionType.OPERATE.value,
             token=token,
+            request=request,
+            target_resource_type=target_resource_type,
         )
 
-    def has_edit_permission(self, username, space_id, resource_id, token):
+    def has_edit_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
         return Token.verify(
             space_id,
             username,
@@ -47,9 +49,11 @@ class BaseTokenPermission(permissions.BasePermission):
             resource_id=resource_id,
             permission_type=TokenPermissionType.EDIT.value,
             token=token,
+            request=request,
+            target_resource_type=target_resource_type,
         )
 
-    def has_view_permission(self, username, space_id, resource_id, token):
+    def has_view_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
         return Token.verify(
             space_id,
             username,
@@ -57,9 +61,11 @@ class BaseTokenPermission(permissions.BasePermission):
             resource_id=resource_id,
             permission_type=TokenPermissionType.VIEW.value,
             token=token,
+            request=request,
+            target_resource_type=target_resource_type,
         )
 
-    def has_mock_permission(self, username, space_id, resource_id, token):
+    def has_mock_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
         return Token.verify(
             space_id,
             username,
@@ -67,6 +73,8 @@ class BaseTokenPermission(permissions.BasePermission):
             resource_id=resource_id,
             permission_type=TokenPermissionType.MOCK.value,
             token=token,
+            request=request,
+            target_resource_type=target_resource_type,
         )
 
 
@@ -76,9 +84,9 @@ class BaseMockTokenPermission(BaseTokenPermission):
 
     @staticmethod
     def get_space_id(request: Request):
-        return request.query_params.get("space_id", None) or request.data.get("space_id", None)
+        return getattr(request, "query_params", {}).get("space_id") or getattr(request, "data", {}).get("space_id")
 
-    def has_mock_permission(self, username, space_id, resource_id, token):
+    def has_mock_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
         return Token.verify(
             space_id,
             username,
@@ -86,9 +94,13 @@ class BaseMockTokenPermission(BaseTokenPermission):
             resource_id=resource_id,
             permission_type=TokenPermissionType.MOCK.value,
             token=token,
+            request=request,
+            target_resource_type=target_resource_type,
         )
 
-    def has_scope_mock_permission(self, username, space_id, resource_id, token):
+    def has_scope_mock_permission(
+        self, username, space_id, resource_id, token, request=None, target_resource_type=None
+    ):
         return Token.verify(
             space_id,
             username,
@@ -96,4 +108,6 @@ class BaseMockTokenPermission(BaseTokenPermission):
             resource_id=resource_id,
             permission_type=TokenPermissionType.MOCK.value,
             token=token,
+            request=request,
+            target_resource_type=target_resource_type,
         )
