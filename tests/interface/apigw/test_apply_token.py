@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import datetime
 import json
 from unittest.mock import patch
@@ -78,7 +79,9 @@ class TestApplyToken(TestCase):
         self.assertEqual(resp_data["data"]["resource_id"], "123")
 
         # 验证 token 已创建
-        token_count = Token.objects.filter(space_id=self.space_id, resource_type="TASK", resource_id="123").count()
+        token_count = Token.objects.filter(
+            space_id=self.space_id, grants__resource_type="TASK", grants__resource_id="123"
+        ).count()
         self.assertEqual(token_count, 1)
 
     @override_settings(
@@ -109,7 +112,9 @@ class TestApplyToken(TestCase):
         self.assertEqual(token1, token2)
 
         # 验证只有一个 token 记录
-        token_count = Token.objects.filter(space_id=self.space_id, resource_type="TASK", resource_id="456").count()
+        token_count = Token.objects.filter(
+            space_id=self.space_id, grants__resource_type="TASK", grants__resource_id="456"
+        ).count()
         self.assertEqual(token_count, 1)
 
     @override_settings(
@@ -241,7 +246,7 @@ class TestApplyToken(TestCase):
         self.assertNotEqual(token1, token2)
 
         # 验证有两个 token 记录
-        token_count = Token.objects.filter(space_id=self.space_id, resource_type="TASK").count()
+        token_count = Token.objects.filter(space_id=self.space_id, grants__resource_type="TASK").distinct().count()
         self.assertEqual(token_count, 2)
 
     @override_settings(

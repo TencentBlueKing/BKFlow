@@ -27,16 +27,18 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.exceptions import CreateTemplateException
+from bkflow.apigw.exceptions import CreateTemplateException, GatewayExpressionException
 from bkflow.apigw.serializers.template import CreateTemplateApigwSerializer
 from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
 from bkflow.contrib.operation_record.decorators import record_operation
+from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.label.serializers import LabelSerializer
-from bkflow.space.configs import FlowVersioning
+from bkflow.space.configs import FlowVersioning, GatewayExpressionConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.utils import build_default_pipeline_tree_with_space_id
 from bkflow.template.models import Template, TemplateSnapshot
+from bkflow.template.utils import validate_pipeline_tree_gateway_expression
 from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
@@ -86,6 +88,12 @@ def create_template(request, space_id):
         replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
     else:
         pipeline_tree = build_default_pipeline_tree_with_space_id(space_id)
+
+    try:
+        space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+        validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
+    except ValidationError as e:
+        raise GatewayExpressionException(str(e))
 
     # 涉及到两张表的创建，需要那个开启事物，确保两张表全部都创建成功
     with transaction.atomic():

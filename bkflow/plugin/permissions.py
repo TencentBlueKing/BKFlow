@@ -1,7 +1,7 @@
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
 
-from bkflow.permission.models import Token
+from bkflow.permission.services import get_valid_token
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 
@@ -30,11 +30,9 @@ class PluginTokenPermissions(permissions.BasePermission):
 
     def has_permission(self, request, view):
         space_id = get_request_space_id(request)
-        token = Token.objects.filter(token=request.token).first()
-        if not token or token.has_expired():
+        if not space_id:
             return False
-
-        return int(token.space_id) == int(space_id or -1)
+        return get_valid_token(request.token, request.user.username, space_id, request) is not None
 
 
 class PluginSpaceSuperuserPermission(permissions.BasePermission):
