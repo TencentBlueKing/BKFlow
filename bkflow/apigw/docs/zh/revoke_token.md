@@ -2,6 +2,10 @@
 
 撤回 token
 
+该接口将匹配记录的 `expired_time` 更新为当前时间，不删除记录，也不终止已运行的任务。多个过滤条件共同生效。对组合票据，只要一条授权命中全部资源条件，就撤销整张票据的全部授权；不提供单项撤销或 grants 参数。
+
+接口要求网关应用认证及资源权限，并校验应用与空间的绑定关系；不要求网关用户认证。请求中的 `user` 是撤销对象的过滤条件。
+
 ### 输入通用参数说明
 
 | 参数名称          | 参数类型   | 必须 | 参数说明                                                       |
@@ -16,27 +20,25 @@
 
 | 字段              | 类型     | 必选      | 描述                           |
 |-----------------|--------|---------|------------------------------|
-| resource_type   | string | 否       | 资源类型，支持TEMPLATE(模板)和TASK(任务) |
+| resource_type   | string | 否       | 资源类型：TEMPLATE、TASK、SCOPE、LABEL；LABEL 目前不能通过 apply_token 签发 |
 | resource_id     | string | 否       | 资源的ID                        |
 | permission_type | string | 否       | 权限类型                         |
-| user            | string | 否 ｜ 用户名 | 
+| user            | string | 否       | 被授权用户名 |
 | token           | string | 否       | token                        |
 
 ### permission_type 说明:
 
-当 resource_type 为 TASK 时，支持VIEW(查看)和OPERATE(操作)
-两种类型。拥有OPERATE类型的全新则默认可以查看该任务，不需要额外申请VIEW权限的token。而申请了VIEW全新的token，则不能操作任务，
-当 resource_type 为 TEMPLATE时，支持VIEW(查看)和EDIT(编辑) 两种权限类型。
+过滤字段接受 VIEW、EDIT、OPERATE、MOCK，表示只撤销相同权限类型的记录，不会按权限包含关系扩大过滤范围。例如，传 `permission_type=VIEW` 不会一并撤销 EDIT 或 OPERATE 票据。
+
+通常模板使用 VIEW / EDIT / MOCK，任务使用 VIEW / OPERATE，作用域使用 VIEW / EDIT / OPERATE / MOCK。需要撤销某用户对目标资源的全部票据时，应省略 `permission_type` 并保留用户、资源等范围条件。
 
 ### 请求参数示例
 
+以下为精确撤销一张票据的业务请求体；应用认证材料需按网关协议另行提供。
+
 ```json
 {
-  "bk_app_code": "xxxx",
-  "bk_app_secret": "xxxx",
-  "resource_type": "TEMPLATE",
-  "resource_id": "1",
-  "permission_type": "VIEW"
+  "token": "<BKFLOW_TOKEN>"
 }
 ```
 
@@ -45,7 +47,7 @@
 ```json
 {
     "result": true,
-    "data": "10 tokens revoke success",
+    "data": "1 tokens revoke success",
     "message": "",
     "code": 0
 }
@@ -58,4 +60,20 @@
 | result  | bool   | 返回结果，true为成功，false为失败 |
 | code    | int    | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
-| data    | dict   | 返回数据                  |
+| data    | string | 匹配并更新的不同主票据数量说明，不统计授权明细，不代表票据此前全部有效 |
+
+### 组合票据筛选与计数
+
+空间、`token`、`user` 条件与资源条件按 AND 匹配。资源类型、ID、权限必须落在同一条授权上，不能跨明细拼接。例如票据包含 `TEMPLATE/100/MOCK` 和 `TASK/200/OPERATE`：
+
+- 按 `resource_type=TEMPLATE, resource_id=100` 撤销时，两项授权一起失效。
+- 按 `resource_type=TEMPLATE, resource_id=200` 不会命中该票据。
+- 过滤只精确匹配存储授权，不按 scope 成员、父子任务或权限包含关系扩展。
+
+返回仍为 `N tokens revoke success`，N 是匹配并更新的不同主票据数量。多条授权命中只计一张；已过期票据也计数。无资源条件时直接筛选主票据，可撤销明细损坏的组合票据；空对象仅撤销 URL 指定空间的全部票据。
+
+### 撤销与续期的先后关系
+
+撤销与续期在事务内协调主票据行锁。撤销先完成，后续续期拒绝已失效票据；续期先完成，后续撤销覆盖新到期时间。申请复用也在锁后重新检查有效性，不会续活已撤销票据；重新申请可生成新的票据值。
+
+关闭组合申请开关不影响已有组合票据的撤销。撤销依然使用到期时间，不删除记录或明细；过期清理删除主票据时级联删除明细。上述行为需部署包含组合票据与生命周期修正的版本，不能据本文推断旧部署已修复。

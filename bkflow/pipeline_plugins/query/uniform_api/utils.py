@@ -67,7 +67,9 @@ def check_resource_token(func: callable) -> callable:
         if not request.token:
             raise ValidationError("不存在访问 token")
 
-        token = Token.objects.get_resource_tokens(request.token, request.query_params)
+        token = Token.objects.get_resource_tokens(
+            request.token, request.query_params, user=request.user.username, space_id=space_id
+        )
         if not token.exists():
             if settings.ENABLE_DEBUG_LOG:
                 logger.error(f"token 不存在或有误: {request.token}")

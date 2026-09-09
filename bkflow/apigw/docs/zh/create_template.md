@@ -35,6 +35,18 @@
 当存在pipeline_tree时, 创建模板时将优先采用用户传递的pipeline_tree。当同时存在pipeline_tree 和 source_template_id
 将优先使用source_template_id对应的模板的pipeline_tree
 
+### 网关表达式校验说明
+
+创建模板时，接口会对请求体中的 `pipeline_tree` 进行**分支网关表达式语言**校验：流程树内所有 `ExclusiveGateway` / `ConditionalParallelGateway` 网关节点的表达式语言，必须与所属空间的网关表达式配置（空间配置项 `gateway_expression`，默认值为 `boolrule`）保持一致。
+
+校验规则：
+
+- 未显式设置 `extra_info.parse_lang` 的老数据，默认按 `boolrule` 解析；
+- 若网关 `parse_lang` 与空间配置不一致，则校验失败；
+- 子流程（`SubCanvas` / `SubProcess`）内嵌的网关也会被递归校验；
+- 通过 `source_template_id` 复制创建时，最终保存的流程树（源模板的 `pipeline_tree`）同样会经过该校验。
+
+
 ### notify_config 示例:
 
 ```json

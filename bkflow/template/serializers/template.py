@@ -21,8 +21,6 @@ import logging
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
-from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
@@ -36,11 +34,17 @@ from bkflow.constants import (
     WebhookEventType,
     WebhookScopeType,
 )
+from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
-from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
+from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE
+from bkflow.permission.services import iter_user_grants
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
-from bkflow.space.configs import FlowVersioning, TemplateTriggerConfig
+from bkflow.space.configs import (
+    FlowVersioning,
+    GatewayExpressionConfig,
+    TemplateTriggerConfig,
+)
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
     Template,
@@ -51,7 +55,10 @@ from bkflow.template.models import (
     Trigger,
 )
 from bkflow.template.serializers.trigger import TriggerSerializer
-from bkflow.template.utils import send_callback
+from bkflow.template.utils import (
+    send_callback,
+    validate_pipeline_tree_gateway_expression,
+)
 from bkflow.utils.pipeline import replace_subprocess_version
 from bkflow.utils.version import bump_custom
 from bkflow.utils.webhook import (
@@ -161,6 +168,12 @@ class TemplateSerializer(serializers.ModelSerializer):
             space_id = getattr(self.instance, "space_id", None)
             scope_type = getattr(self.instance, "scope_type", None)
             scope_value = getattr(self.instance, "scope_value", None)
+
+        try:
+            space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+            validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
+        except ValidationError as e:
+            raise serializers.ValidationError(_(f"参数校验失败，pipeline网关表达式校验不通过, err={e}"))
 
         template_id = getattr(self.instance, "id", None)
         data = PipelineTemplateWebPreviewer.is_circular_reference(
@@ -309,14 +322,12 @@ class TemplateSerializer(serializers.ModelSerializer):
         ):
             return TEMPLATE_PERMISSION_TYPE
         username = self.context["request"].user.username
-        permissions = Token.objects.filter(
-            Q(resource_id=f"{instance.scope_type}_{instance.scope_value}", resource_type="SCOPE")
-            | Q(resource_id=instance.id, resource_type="TEMPLATE"),
-            space_id=instance.space_id,
-            user=username,
-            expired_time__gte=timezone.now(),
-        ).values_list("permission_type", flat=True)
-        return list(set(permissions))
+        permissions = iter_user_grants(
+            instance.space_id,
+            username,
+            [("SCOPE", f"{instance.scope_type}_{instance.scope_value}"), ("TEMPLATE", instance.id)],
+        )
+        return list({grant.permission_type for grant in permissions})
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
