@@ -744,7 +744,7 @@ class DebugService:
         """
         ctx = self.get_or_create_context()
         if ctx.status == "idle" or not ctx.active_task_id:
-            raise DebugStateError("当前没有运行中的调试")
+            raise DebugStateError("当前没有调试中的任务")
         active_task_id = ctx.active_task_id
         previous_active_node_id = ctx.active_node_id
         ctx.status = "terminating"
