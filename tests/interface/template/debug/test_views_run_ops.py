@@ -21,7 +21,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIRequestFactory, force_authenticate
 
-from bkflow.template.debug.service import DebugService
+from bkflow.template.debug.service import DebugService, DebugStateError
 from bkflow.template.models import DebugContext, DebugNodeState
 from bkflow.template.views.debug import DebugViewSet
 
@@ -137,6 +137,7 @@ class TestRunOpsViews:
         response = view(request)
         assert response.status_code == 200
         assert response.data["result"] is False
+        assert response.data["data"]["detail"] == "当前没有调试中的任务"
 
     def test_terminate_node_uses_forced_fail_and_resets_node(self, mocker):
         """单节点终止后立即恢复未调试并释放调试锁。"""
@@ -216,3 +217,15 @@ class TestRunOpsViews:
         assert response.status_code == 200
         assert response.data["result"] is False
         assert DebugContext.objects.get(template_id=1).status == "running"
+
+
+def test_terminate_when_idle_uses_debug_task_message(mocker):
+    """空闲态终止应提示当前没有调试中的任务。"""
+    svc = DebugService(template_id=1, space_id=10)
+    mocker.patch.object(
+        svc,
+        "get_or_create_context",
+        return_value=mocker.Mock(status="idle", active_task_id=None),
+    )
+    with pytest.raises(DebugStateError, match="当前没有调试中的任务"):
+        svc.terminate()
