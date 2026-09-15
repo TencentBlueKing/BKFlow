@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import datetime
 import logging
 from copy import deepcopy
@@ -165,7 +166,11 @@ class Template(CommonModel):
 
     @property
     def pipeline_tree(self):
-        return self.snapshot.data
+        from bkflow.template.tenant import validate_template_references
+
+        pipeline_tree = self.snapshot.data
+        validate_template_references(self.space_id, pipeline_tree)
+        return pipeline_tree
 
     def build_callback_data(self, operate_type):
         return {"type": "template", "data": {"id": self.id, "operate_type": operate_type}}
@@ -191,10 +196,13 @@ class Template(CommonModel):
         if self.validate_space("true"):
             data = {"template_id": self.id, "version": version}
         else:
-            data = {"md5sum": version}
+            data = {"template_id": self.id, "md5sum": version}
         snapshot = TemplateSnapshot.objects.filter(**data).order_by("-id").first()
         if snapshot is None:
             raise ValidationError(f"Template snapshot with version {version} not found for template {self.id}")
+        from bkflow.template.tenant import validate_template_references
+
+        validate_template_references(self.space_id, snapshot.data)
         return snapshot.data
 
     @property
@@ -212,12 +220,24 @@ class Template(CommonModel):
 
     @property
     def subprocess_info(self):
+        from bkflow.template.tenant import validate_template_references
+
         subprocess_info = TemplateReference.objects.filter(root_template_id=self.id).values(
             "subprocess_template_id", "subprocess_node_id", "version", "always_use_latest"
         )
         info = []
         if not subprocess_info:
             return info
+
+        validate_template_references(
+            self.space_id,
+            {
+                "activities": {
+                    item["subprocess_node_id"]: {"type": "SubProcess", "template_id": item["subprocess_template_id"]}
+                    for item in subprocess_info
+                }
+            },
+        )
 
         temp_current_versions = {
             item.id: item
@@ -238,8 +258,12 @@ class Template(CommonModel):
         md5_to_version_map = {}
         version_to_snapshot_map = {}
         if md5sums_to_query:
-            snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sums_to_query, draft=False).order_by("id")
-            md5_to_version_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
+            snapshots = TemplateSnapshot.objects.filter(
+                template_id__in=temp_current_versions, md5sum__in=md5sums_to_query, draft=False
+            ).order_by("id")
+            md5_to_version_map = {
+                (str(snapshot.template_id), snapshot.md5sum): snapshot.version for snapshot in snapshots
+            }
         if version_to_query:
             templates = TemplateSnapshot.objects.filter(template_id__in=version_to_query, draft=False).order_by("id")
             for template in templates:
@@ -247,7 +271,7 @@ class Template(CommonModel):
 
         for item in subprocess_info:
             if self.validate_space("true") and len(item["version"]) == TEMPLATE_MD5SUM_LENGTH:
-                version = md5_to_version_map.get(item["version"], item["version"])
+                version = md5_to_version_map.get((item["subprocess_template_id"], item["version"]), item["version"])
             elif not self.validate_space("true") and len(item["version"]) != TEMPLATE_MD5SUM_LENGTH:
                 version = version_to_snapshot_map.get(item["subprocess_template_id"], {}).get(item["version"])
             else:

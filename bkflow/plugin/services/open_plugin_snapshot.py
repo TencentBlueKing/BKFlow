@@ -115,6 +115,9 @@ class OpenPluginSnapshotService:
 
     @classmethod
     def validate_pipeline_tree(cls, space_id, pipeline_tree):
+        from bkflow.template.tenant import validate_template_references
+
+        validate_template_references(space_id, pipeline_tree)
         for ref in cls.collect_plugin_references(
             space_id=space_id, pipeline_tree=pipeline_tree, include_unmatched=True
         ):

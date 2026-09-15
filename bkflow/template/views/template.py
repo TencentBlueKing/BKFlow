@@ -22,6 +22,7 @@ from copy import deepcopy
 
 import django_filters
 from blueapps.account.decorators import login_exempt
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Subquery
 from django.utils.decorators import method_decorator
@@ -869,6 +870,18 @@ class TemplateInternalViewSet(TenantScopeMixin, BKFLOWCommonMixin, mixins.Retrie
     queryset = Template.objects.filter()
     serializer_class = TemplateSerializer
     permission_classes = [AdminPermission | AppInternalPermission]
+
+    def get_queryset(self):
+        """模板内部读取绑定调用空间；单租户兼容旧 Engine 不传空间的请求。"""
+        queryset = super().get_queryset()
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            from rest_framework.exceptions import PermissionDenied
+
+            space_id = self.request.query_params.get("space_id")
+            if not space_id or not str(space_id).isdigit() or int(space_id) <= 0:
+                raise PermissionDenied("内部模板读取缺少有效的空间 ID")
+            queryset = queryset.filter(space_id=int(space_id), is_deleted=False)
+        return queryset
 
     @action(methods=["GET"], detail=True)
     def get_template_data(self, request, *args, **kwargs):
