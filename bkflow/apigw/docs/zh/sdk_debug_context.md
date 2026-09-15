@@ -4,9 +4,9 @@
 
 ### HTTP Header 参数说明
 
-| 参数名称 | 参数类型 | 必须 | 参数说明 |
-| --- | --- | --- | --- |
-| BKFLOW_TOKEN | string | 是 | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 申请，权限类型建议为 `MOCK` |
+| 参数名称         | 参数类型 | 必须 | 参数说明 |
+|--------------| --- | --- | --- |
+| BKFLOW-TOKEN | string | 是 | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 申请，权限类型建议为 `MOCK` |
 
 ### 接口参数
 
