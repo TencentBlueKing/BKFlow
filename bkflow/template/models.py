@@ -194,10 +194,12 @@ class Template(CommonModel):
         if not version:
             return self.pipeline_tree
         if self.validate_space("true"):
-            data = {"template_id": self.id, "version": version}
+            data = {"version": version}
         else:
-            data = {"template_id": self.id, "md5sum": version}
-        snapshot = TemplateSnapshot.objects.filter(**data).order_by("-id").first()
+            data = {"md5sum": version}
+        # 旧数据可能未填反向归属，只兼容本模板明确指向的当前快照，不能按版本全局回退。
+        ownership = models.Q(template_id=self.id) | models.Q(id=self.snapshot_id, template_id__isnull=True)
+        snapshot = TemplateSnapshot.objects.filter(ownership, **data).order_by("-id").first()
         if snapshot is None:
             raise ValidationError(f"Template snapshot with version {version} not found for template {self.id}")
         from bkflow.template.tenant import validate_template_references

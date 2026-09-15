@@ -189,6 +189,26 @@ def test_snapshot_version_belongs_to_template(templates, enabled):
 
 
 @pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("semantic_version", [False, True])
+def test_current_legacy_snapshot_with_blank_owner_is_still_readable(templates, enabled, semantic_version):
+    """兼容旧当前快照的空归属；未知历史快照或明确属于他人的快照仍拒绝。"""
+    own, other = templates
+    TemplateSnapshot.objects.filter(pk__in=[own.snapshot_id, other.snapshot_id]).update(template_id=None)
+    TemplateSnapshot.objects.filter(pk=other.snapshot_id).update(version="9.0.0")
+    own_version = "1.0.0" if semantic_version else "a" * 32
+    other_version = "9.0.0" if semantic_version else "b" * 32
+    with override_settings(ENABLE_MULTI_TENANT_MODE=enabled), patch.object(
+        own, "validate_space", return_value=semantic_version
+    ):
+        assert own.get_pipeline_tree_by_version(own_version) == own.pipeline_tree
+        with pytest.raises(FlowValidationError):
+            own.get_pipeline_tree_by_version(other_version)
+        TemplateSnapshot.objects.filter(pk=own.snapshot_id).update(template_id=other.pk)
+        with pytest.raises(FlowValidationError):
+            own.get_pipeline_tree_by_version(own_version)
+
+
+@pytest.mark.parametrize("enabled", [False, True])
 @override_settings(BLOCK_ADMIN_PERMISSION=False)
 def test_public_preview_cannot_read_foreign_snapshot(templates, enabled):
     """通过真实预览入口拒绝串用快照，正常历史预览仍可用。"""
