@@ -10,7 +10,8 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from webhook.base_models import Scope
 
 from bkflow.constants import WebhookScopeType
-from bkflow.space.configs import ApiGatewayCredentialConfig, SuperusersConfig
+from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.space.configs import ApiGatewayCredentialConfig, SuperusersConfig, UniformApiConfig
 from bkflow.space.models import (
     Credential,
     CredentialType,
@@ -425,8 +426,850 @@ class TestSpaceConfigAdminViewSet:
         # Response is wrapped by SimpleGenericViewSet.finalize_response
         assert "superusers" in response.data.get("data", {})
 
+    def test_verify_not_supported_config(self):
+        """验证不支持验证的配置项：返回 ok=False 且 not_supported=True"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+        data = {"space_id": self.space.id, "name": "canvas_mode", "value": "horizontal"}
+        request = self.factory.post("/space_configs/verify/", data, format="json")
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload.get("ok") is False
+        assert payload.get("error", {}).get("not_supported") is True
+
+    def test_verify_unknown_config(self):
+        """验证不存在的配置项：返回 ok=False"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+        data = {"space_id": self.space.id, "name": "not_exist_config", "value": "x"}
+        request = self.factory.post("/space_configs/verify/", data, format="json")
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        assert response.data.get("data", {}).get("ok") is False
+
+    def _uniform_api_value(self):
+        """返回一个测试用的 uniform_api 配置值"""
+        return {
+            "api": {
+                "default": {
+                    "meta_apis": "http://bkapi.example.com/api/meta/",
+                    "api_categories": "http://bkapi.example.com/api/category/",
+                    "display_name": "演示 API",
+                }
+            }
+        }
+
+    def _make_request_result(self, result, json_resp):
+        fake = mock.MagicMock()
+        fake.result = result
+        fake.message = "" if result else "request failed"
+        fake.json_resp = json_resp
+        return fake
+
+    def _verify_uniform_api(self, value):
+        """调用 uniform_api 一键校验接口"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+        data = {
+            "space_id": self.space.id,
+            "name": "uniform_api",
+            "value": value,
+            "params": {"api_key": "default", "credential_name": "default_cred"},
+        }
+        request = self.factory.post("/space_configs/verify/", data, format="json")
+        force_authenticate(request, user=self.superuser)
+        return view(request)
+
+    def test_uniform_api_verify_success(self):
+        """uniform_api verify 成功：依次调用 category_list/list/meta 三个接口，回显统计与样例。
+
+        新 verify 逻辑会发出三类请求：
+          1. category_list -> 返回分类列表（提供 list 的 category 入参）
+          2. list          -> 返回接口总数与列表（取 meta_url 用于第三类请求）
+          3. meta          -> 针对 list 返回的 api 逐个拉取详情，作为样例回显
+        这里用 side_effect 按 URL 区分，分别打 mock。
+        """
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+
+        value = self._uniform_api_value()
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+
+        # 1) category_list 返回的分类列表
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        # 2) list 返回的接口总数与列表
+        list_result = self._make_request_result(
+            True,
+            {
+                "data": {
+                    "total": 2,
+                    "apis": [
+                        {"id": "1", "meta_url": "http://bkapi.example.com/api/meta/1/", "name": "A"},
+                        {"id": "2", "meta_url": "http://bkapi.example.com/api/meta/2/", "name": "B"},
+                    ],
+                }
+            },
+        )
+        # 3) meta 针对每个 api 返回的详情
+        meta_results = {
+            "http://bkapi.example.com/api/meta/1/": self._make_request_result(
+                True,
+                {
+                    "data": {
+                        "id": "1",
+                        "name": "A",
+                        "url": "http://bkapi.example.com/api/1/",
+                        "methods": ["GET"],
+                        "inputs": [],
+                    }
+                },
+            ),
+            "http://bkapi.example.com/api/meta/2/": self._make_request_result(
+                True,
+                {
+                    "data": {
+                        "id": "2",
+                        "name": "B",
+                        "url": "http://bkapi.example.com/api/2/",
+                        "methods": ["POST"],
+                        "inputs": [],
+                    }
+                },
+            ),
+        }
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return meta_results.get(url)
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw", return_value=True
+        ), mock.patch(
+            "bkflow.space.configs.check_url_from_apigw", return_value=True
+        ):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is True
+        assert payload["data"]["category_length"] == 1
+        assert payload["data"]["api_length"] == 2
+        assert payload["data"]["samples"] == [
+            {"id": "1", "name": "A", "method": "GET"},
+            {"id": "2", "name": "B", "method": "POST"},
+        ]
+
+    def test_uniform_api_verify_missing_credential(self):
+        """uniform_api verify 凭证不存在：ok=False 且回显错误"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+        data = {
+            "space_id": self.space.id,
+            "name": "uniform_api",
+            "value": self._uniform_api_value(),
+            "params": {"api_key": "default", "credential_name": "not_exist"},
+        }
+        request = self.factory.post("/space_configs/verify/", data, format="json")
+        force_authenticate(request, user=self.superuser)
+
+        with mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "not_exist" in payload["error"]["message"]
+
+    def test_uniform_api_verify_exceeds_limits(self):
+        """分类数/list 请求数超过上限时应截断"""
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+
+        value = self._uniform_api_value()
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+
+        cat_result = self._make_request_result(
+            True, {"data": [{"id": f"c{i}", "name": f"分类{i}"} for i in range(3)]}
+        )
+        detail_url = "http://bkapi.example.com/api/meta/1/"
+        list_result = self._make_request_result(
+            True,
+            {"data": {"total": 1, "apis": [{"id": "1", "name": "A", "meta_url": detail_url}]}},
+        )
+        meta_result = self._make_request_result(
+            True,
+            {
+                "data": {
+                    "id": "1",
+                    "name": "A",
+                    "url": "http://bkapi.example.com/api/1/",
+                    "methods": ["GET"],
+                    "inputs": [],
+                }
+            },
+        )
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            if url == detail_url:
+                return meta_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch(
+            "bkflow.space.configs.check_url_from_apigw", return_value=True
+        ), mock.patch.object(UniformApiConfig, "MAX_VERIFY_CATEGORIES", 2), mock.patch.object(
+            UniformApiConfig, "MAX_VERIFY_LIST_REQUESTS", 2
+        ):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is True
+        # 分类数被截断为 MAX_VERIFY_CATEGORIES
+        assert payload["data"]["category_length"] == 2
+        # list 请求次数被截断为 MAX_VERIFY_LIST_REQUESTS
+        assert payload["data"]["api_length"] == 2
+
+    def test_uniform_api_verify_invalid_category_schema(self):
+        """category_list 响应不符合 schema 时应报错"""
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+
+        value = self._uniform_api_value()
+        categories_url = value["api"]["default"]["api_categories"]
+        cat_result = self._make_request_result(True, {"data": {"invalid": "schema"}})
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "validate response data error" in payload["error"]["message"]
+
+    def test_uniform_api_verify_invalid_meta_schema(self):
+        """meta 响应不符合 schema 时应报错"""
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+
+        value = self._uniform_api_value()
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(
+            True,
+            {
+                "data": {
+                    "total": 1,
+                    "apis": [
+                        {"id": "1", "meta_url": "http://bkapi.example.com/api/meta/1/", "name": "A"}
+                    ],
+                }
+            },
+        )
+        meta_result = self._make_request_result(
+            True, {"data": {"id": "1", "name": "A"}}  # 缺少 url/methods/inputs
+        )
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return meta_result
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "validate response data error" in payload["error"]["message"]
+
+    def test_uniform_api_verify_without_value(self):
+        """未传入 value 时应回退到已存储的 uniform_api 配置"""
+        value = self._uniform_api_value()
+        SpaceConfig.objects.create(
+            space_id=self.space.id, name=UniformApiConfig.name, value_type="JSON", json_value=value
+        )
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(True, {"data": {"total": 0, "apis": []}})
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is True
+        assert payload["data"]["category_length"] == 1
+
+    def test_uniform_api_verify_default_credential(self):
+        """未传 credential_name 时回退到空间默认网关凭证"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        SpaceConfig.objects.create(
+            space_id=self.space.id,
+            name=ApiGatewayCredentialConfig.name,
+            value_type="TEXT",
+            text_value="default_cred",
+        )
+
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(True, {"data": {"total": 0, "apis": []}})
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is True
+        assert payload["data"]["credential_name"] == "default_cred"
+
+    def test_uniform_api_verify_missing_default_credential(self):
+        """未传 credential_name 且未配置默认凭证时应报错"""
+        value = self._uniform_api_value()
+        with mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "默认网关凭证" in payload["error"]["message"]
+
+    def test_uniform_api_verify_api_key_not_found(self):
+        """传入不存在的 api_key 时应报错"""
+        value = self._uniform_api_value()
+        with mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "not_exist", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "未找到 api_key" in payload["error"]["message"]
+
+    def test_uniform_api_verify_credential_missing_app_info(self):
+        """凭证缺少 bk_app_code/bk_app_secret 时应报错"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code"},
+        )
+        with mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "缺少 bk_app_code/bk_app_secret" in payload["error"]["message"]
+
+    def test_uniform_api_verify_category_request_failed(self):
+        """category_list 请求失败时应报错"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        categories_url = value["api"]["default"]["api_categories"]
+        cat_result = self._make_request_result(False, {})
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "categories 接口请求失败" in payload["error"]["message"]
+
+    def test_uniform_api_verify_list_request_failed(self):
+        """list 请求失败时应报错"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(False, {})
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "list 接口请求失败" in payload["error"]["message"]
+
+    def test_uniform_api_verify_meta_request_failed(self):
+        """meta 请求失败时应报错"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        detail_url = "http://bkapi.example.com/api/meta/1/"
+
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(
+            True,
+            {"data": {"total": 1, "apis": [{"id": "1", "meta_url": detail_url, "name": "A"}]}}
+        )
+        meta_result = self._make_request_result(False, {})
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return meta_result
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "meta_url_detail 接口请求失败" in payload["error"]["message"]
+
+    def test_uniform_api_verify_invalid_list_schema(self):
+        """list 响应 schema 非法时应报错"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(True, {"data": {"invalid": "schema"}})
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            view = SpaceConfigAdminViewSet.as_view({"post": "verify"})
+            data = {
+                "space_id": self.space.id,
+                "name": "uniform_api",
+                "value": value,
+                "params": {"api_key": "default", "credential_name": "default_cred"},
+            }
+            request = self.factory.post("/space_configs/verify/", data, format="json")
+            force_authenticate(request, user=self.superuser)
+            response = view(request)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "validate response data error" in payload["error"]["message"]
+
+    def test_uniform_api_verify_v4_meta_url_template(self):
+        """V4 list 条目应使用 latest_version 展开 meta_url_template 并校验详情"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        meta_url_template = "http://bkapi.example.com/api/meta/1/?version={version}"
+        latest_meta_url = "http://bkapi.example.com/api/meta/1/?version=1.3.0"
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(
+            True,
+            {
+                "data": {
+                    "total": 1,
+                    "apis": [
+                        {
+                            "id": "1",
+                            "name": "A",
+                            "plugin_source": "builtin",
+                            "plugin_code": "demo",
+                            "wrapper_version": "v4.0.0",
+                            "default_version": "1.2.0",
+                            "latest_version": "1.3.0",
+                            "versions": ["1.2.0", "1.3.0"],
+                            "meta_url_template": meta_url_template,
+                        }
+                    ],
+                }
+            },
+        )
+        meta_result = self._make_request_result(
+            True,
+            {
+                "data": {
+                    "id": "1",
+                    "name": "A",
+                    "plugin_source": "builtin",
+                    "plugin_code": "demo",
+                    "plugin_version": "1.3.0",
+                    "wrapper_version": "v4.0.0",
+                    "url": "http://bkapi.example.com/api/1/",
+                    "methods": ["GET"],
+                    "inputs": [],
+                    "outputs": [],
+                }
+            },
+        )
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            if url == latest_meta_url:
+                return meta_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            response = self._verify_uniform_api(value)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is True
+        assert payload["data"]["samples"] == [{"id": "1", "name": "A", "method": "GET"}]
+
+    def test_uniform_api_verify_missing_meta_url(self):
+        """list 条目无法解析详情 URL 时应返回校验失败"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(
+            True,
+            {"data": {"total": 1, "apis": [{"id": "1", "name": "A", "meta_url": ""}]}}
+        )
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            response = self._verify_uniform_api(value)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "meta_url 和 meta_url_template 至少有一个" in payload["error"]["message"]
+
+    def test_uniform_api_verify_non_empty_catalog_without_samples(self):
+        """接口总数非零但没有详情样例时应返回校验失败"""
+        value = self._uniform_api_value()
+        Credential.objects.create(
+            space_id=self.space.id,
+            name="default_cred",
+            type=CredentialType.BK_APP.value,
+            content={"bk_app_code": "code", "bk_app_secret": "secret"},
+        )
+        categories_url = value["api"]["default"]["api_categories"]
+        meta_url = value["api"]["default"]["meta_apis"]
+        cat_result = self._make_request_result(True, {"data": [{"id": "c1", "name": "分类1"}]})
+        list_result = self._make_request_result(True, {"data": {"total": 1, "apis": []}})
+
+        def request_side_effect(url, **kwargs):
+            if url == categories_url:
+                return cat_result
+            if url == meta_url:
+                return list_result
+            return None
+
+        with mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.request",
+            side_effect=request_side_effect,
+        ), mock.patch(
+            "bkflow.pipeline_plugins.query.uniform_api.utils.UniformAPIClient.check_url_from_apigw",
+            return_value=True,
+        ), mock.patch("bkflow.space.configs.check_url_from_apigw", return_value=True):
+            response = self._verify_uniform_api(value)
+
+        assert response.status_code == 200
+        payload = response.data.get("data", {})
+        assert payload["ok"] is False
+        assert "接口列表非空但未能校验任何接口详情" in payload["error"]["message"]
+
     def test_batch_apply(self):
         """Test batch_apply action"""
+
         view = SpaceConfigAdminViewSet.as_view({"post": "batch_apply"})
         data = {"space_id": self.space.id, "configs": {"superusers": ["admin", "user1"]}}
         request = self.factory.post("/space_configs/batch_apply/", data, format="json")
@@ -761,3 +1604,194 @@ class TestSpaceConfigViewSet:
             assert response.status_code == 200
             assert response.data.get("result") is False
             assert "detail" in response.data.get("data", {})
+
+    def test_get_space_plugin_config(self):
+        """Test get_space_plugin_config action"""
+        view = SpaceConfigViewSet.as_view({"get": "get_space_plugin_config"})
+        request = self.factory.get(
+            f"/space_configs/get_space_plugin_config/?space_id={self.space.id}&config_name=space_plugin_config"
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        assert response.status_code == 200
+
+    def test_get_space_plugin_config_invalid_name(self):
+        """Test get_space_plugin_config with invalid config name"""
+        view = SpaceConfigViewSet.as_view({"get": "get_space_plugin_config"})
+        request = self.factory.get(
+            f"/space_configs/get_space_plugin_config/?space_id={self.space.id}&config_name=superusers"
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        assert response.data['result'] is False
+
+
+@pytest.mark.django_db
+class TestSpaceOpenPluginAdminActions:
+
+    def setup_method(self):
+        self.factory = APIRequestFactory()
+        self.superuser, _ = User.objects.get_or_create(
+            username="spaceadmin", defaults={"is_superuser": True, "is_staff": True}
+        )
+        self.space = Space.objects.create(name="Open Plugin Space", app_code="open_plugin_app")
+        OpenPluginCatalogIndex.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_code="job_execute_task",
+            plugin_name="JOB 执行作业",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.2.0",
+            latest_version="1.3.0",
+            versions=["1.2.0", "1.3.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            enabled=False,
+        )
+
+    def test_list_open_plugins(self):
+        """测试空间管理员获取开放插件列表"""
+        view = SpaceConfigAdminViewSet.as_view({"get": "list_open_plugins"})
+        request = self.factory.get("/spaces/admin/space_config/open_plugins/", {"space_id": self.space.id})
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        data = response.data.get("data", [])
+        assert len(data) == 1
+        assert data[0]["plugin_id"] == "open_plugin_001"
+        assert data[0]["enabled"] is False
+
+    def test_toggle_open_plugin(self):
+        """测试空间管理员切换单个开放插件状态"""
+        view = SpaceConfigAdminViewSet.as_view({"post": "toggle_open_plugin"})
+        request = self.factory.post(
+            "/spaces/admin/space_config/open_plugins/toggle/",
+            {"space_id": self.space.id, "source_key": "sops", "plugin_id": "open_plugin_001", "enabled": True},
+            format="json",
+        )
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        availability = SpaceOpenPluginAvailability.objects.get(
+            space_id=self.space.id, source_key="sops", plugin_id="open_plugin_001"
+        )
+        assert availability.enabled is True
+
+    def test_enable_all_open_plugins_only_affects_current_visible_plugins(self):
+        """测试一键全开只作用于当前可见插件，后续新增插件仍默认关闭"""
+        OpenPluginCatalogIndex.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_002",
+            plugin_code="job_fast_execute_script",
+            plugin_name="JOB 快速执行脚本",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.0.0",
+            latest_version="1.0.0",
+            versions=["1.0.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_002?version={version}",
+            status="available",
+        )
+
+        view = SpaceConfigAdminViewSet.as_view({"post": "enable_all_open_plugins"})
+        request = self.factory.post(
+            "/spaces/admin/space_config/open_plugins/enable_all/",
+            {"space_id": self.space.id, "source_key": "sops"},
+            format="json",
+        )
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        availability_map = {
+            item.plugin_id: item.enabled
+            for item in SpaceOpenPluginAvailability.objects.filter(space_id=self.space.id, source_key="sops")
+        }
+        assert availability_map["open_plugin_001"] is True
+        assert availability_map["open_plugin_002"] is True
+
+        OpenPluginCatalogIndex.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_003",
+            plugin_code="job_execute_script",
+            plugin_name="JOB 执行脚本",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="2.0.0",
+            latest_version="2.0.0",
+            versions=["2.0.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_003?version={version}",
+            status="available",
+        )
+
+        list_view = SpaceConfigAdminViewSet.as_view({"get": "list_open_plugins"})
+        list_request = self.factory.get("/spaces/admin/space_config/open_plugins/", {"space_id": self.space.id})
+        force_authenticate(list_request, user=self.superuser)
+        list_response = list_view(list_request)
+
+        assert list_response.status_code == 200
+        enabled_map = {item["plugin_id"]: item["enabled"] for item in list_response.data.get("data", [])}
+        assert enabled_map["open_plugin_003"] is False
+
+    def test_disable_source_open_plugins(self):
+        """测试按来源一键关闭开放插件"""
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_002",
+            enabled=True,
+        )
+        OpenPluginCatalogIndex.objects.create(
+            space_id=self.space.id,
+            source_key="sops",
+            plugin_id="open_plugin_002",
+            plugin_code="job_fast_execute_script",
+            plugin_name="JOB 快速执行脚本",
+            plugin_source="builtin",
+            group_name="作业平台",
+            default_version="1.0.0",
+            latest_version="1.0.0",
+            versions=["1.0.0"],
+            meta_url_template="https://bk-sops.example/open-plugins/open_plugin_002?version={version}",
+            status="available",
+        )
+        SpaceOpenPluginAvailability.objects.filter(
+            space_id=self.space.id, source_key="sops", plugin_id="open_plugin_001"
+        ).update(enabled=True)
+
+        view = SpaceConfigAdminViewSet.as_view({"post": "disable_source_open_plugins"})
+        request = self.factory.post(
+            "/spaces/admin/space_config/open_plugins/disable_source/",
+            {"space_id": self.space.id, "source_key": "sops"},
+            format="json",
+        )
+        force_authenticate(request, user=self.superuser)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        availability_map = {
+            item.plugin_id: item.enabled
+            for item in SpaceOpenPluginAvailability.objects.filter(space_id=self.space.id, source_key="sops")
+        }
+        assert availability_map["open_plugin_001"] is False
+        assert availability_map["open_plugin_002"] is False

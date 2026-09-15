@@ -24,6 +24,8 @@ from django.views.decorators.http import require_GET
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import GetTaskListSerializer
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.interface.task.engine_compat import enrich_task_list_result_labels
+from bkflow.label.models import Label
 
 
 @login_exempt
@@ -49,11 +51,16 @@ def get_task_list(request, space_id):
         "task_id_list": "id__in",
         "executor": "executor",
         "template_id": "template_id",
+        "is_child_taskflow": "is_child_taskflow",
     }
     for k, v in filter_map.items():
         if k in data:
             data[v] = data.pop(k)
 
+    labels = data.get("label", "")
+    label_ids = Label.get_label_ids_by_names(labels, space_id)
+    if label_ids:
+        data["label"] = ",".join([str(label_id) for label_id in label_ids])
+
     client = TaskComponentClient(space_id=space_id)
-    result = client.task_list(data=data)
-    return result
+    return enrich_task_list_result_labels(client.task_list(data=data))

@@ -20,11 +20,14 @@ to the current version of the project delivered to anyone in the future.
 import pytest
 from bamboo_engine import states as bamboo_engine_states
 from bamboo_engine.api import EngineAPIResult
+from bamboo_engine.eri import ScheduleType
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
+from pipeline.eri.models import Schedule as DBSchedule
 from pipeline.utils.uniqid import node_uniqid
 
-from bkflow.task.models import TaskInstance
+from bkflow.constants import TaskTriggerMethod
+from bkflow.task.models import TaskFlowRelation, TaskInstance
 from bkflow.task.operations import OperationResult, TaskOperation
 from bkflow.utils.pipeline import build_default_pipeline_tree
 
@@ -47,9 +50,11 @@ class TestTaskOperationComplete:
         assert result.result is True
 
         # Revoke
+        cancel_open_plugin_runs = mocker.patch("bkflow.task.celery.tasks.cancel_open_plugin_runs.delay")
         mocker.patch("bamboo_engine.api.revoke_pipeline", return_value=EngineAPIResult(result=True, message="success"))
         result = task_operation.revoke(operator="test_operator")
         assert result.result is True
+        cancel_open_plugin_runs.assert_called_once_with(task_id=task_instance.id, operator="test_operator")
 
         # Get states - not started
         task_instance = TaskInstance.objects.create(
@@ -85,6 +90,50 @@ class TestTaskOperationComplete:
         )
         result = task_operation.get_task_states()
         assert "state" in result.data
+
+    def test_debug_task_revoke_cascades_to_active_subcanvas_descendants(self, mocker):
+        root = TaskInstance.objects.create_instance(
+            space_id=1,
+            pipeline_tree=build_default_pipeline_tree(),
+            create_method="DEBUG",
+            creator="admin",
+        )
+        child = TaskInstance.objects.create_instance(
+            space_id=1,
+            pipeline_tree=build_default_pipeline_tree(),
+            trigger_method=TaskTriggerMethod.sub_canvas.name,
+            creator="admin",
+        )
+        grandchild = TaskInstance.objects.create_instance(
+            space_id=1,
+            pipeline_tree=build_default_pipeline_tree(),
+            trigger_method=TaskTriggerMethod.sub_canvas.name,
+            creator="admin",
+        )
+        TaskInstance.objects.filter(id__in=[root.id, child.id, grandchild.id]).update(is_started=True)
+        TaskFlowRelation.objects.create(
+            task_id=child.id,
+            parent_task_id=root.id,
+            root_task_id=root.id,
+            extra_info={"node_id": "S", "trigger_method": TaskTriggerMethod.sub_canvas.name},
+        )
+        TaskFlowRelation.objects.create(
+            task_id=grandchild.id,
+            parent_task_id=child.id,
+            root_task_id=root.id,
+            extra_info={"node_id": "nested-S", "trigger_method": TaskTriggerMethod.sub_canvas.name},
+        )
+        revoke_pipeline = mocker.patch(
+            "bamboo_engine.api.revoke_pipeline",
+            return_value=EngineAPIResult(result=True, message="success"),
+        )
+        mocker.patch("bkflow.task.operations._dispatch_open_plugin_cancellation")
+
+        result = TaskOperation(root).revoke(operator="admin")
+
+        assert result.result is True
+        revoked_pipeline_ids = [call.kwargs["pipeline_id"] for call in revoke_pipeline.call_args_list]
+        assert revoked_pipeline_ids == [root.instance_id, grandchild.instance_id, child.instance_id]
 
     def test_render_current_constants_not_running(self, mocker):
         """测试渲染当前常量，任务未运行"""
@@ -399,6 +448,108 @@ class TestTaskOperationComplete:
         result = task_operation.get_task_states()
         assert result.result is True
         assert result.data["state"] == "NODE_SUSPENDED"
+
+    @pytest.mark.parametrize(
+        "schedule_type", [ScheduleType.CALLBACK, ScheduleType.MULTIPLE_CALLBACK, ScheduleType.POLL]
+    )
+    def test_get_task_states_can_include_active_schedule_type(self, mocker, schedule_type):
+        task_instance = TaskInstance.objects.create(
+            name="test_task", space_id=1, instance_id=node_uniqid(), is_started=True
+        )
+        DBSchedule.objects.create(
+            node_id="node_1", version="v1", process_id=1, type=schedule_type.value, finished=False, expired=False
+        )
+        mock_states = {
+            task_instance.instance_id: {
+                "id": task_instance.instance_id,
+                "state": bamboo_engine_states.RUNNING,
+                "version": "root-v1",
+                "children": {
+                    "node_1": {
+                        "id": "node_1",
+                        "state": bamboo_engine_states.RUNNING,
+                        "version": "v1",
+                        "children": {},
+                    }
+                },
+            }
+        }
+        mocker.patch(
+            "bamboo_engine.api.get_pipeline_states",
+            return_value=EngineAPIResult(result=True, data=mock_states, message="success"),
+        )
+
+        result = TaskOperation(task_instance).get_task_states(include_schedule=True)
+
+        assert result.data["children"]["node_1"]["schedule_type"] == schedule_type.name
+
+    def test_get_task_states_infers_schedule_type_for_sleeping_service(self, mocker):
+        task_instance = TaskInstance.objects.create(
+            name="test_task", space_id=1, instance_id=node_uniqid(), is_started=True
+        )
+        mock_states = {
+            task_instance.instance_id: {
+                "id": task_instance.instance_id,
+                "state": bamboo_engine_states.RUNNING,
+                "version": "root-v1",
+                "children": {
+                    "node_1": {
+                        "id": "node_1",
+                        "state": bamboo_engine_states.RUNNING,
+                        "version": "v1",
+                        "children": {},
+                    }
+                },
+            }
+        }
+        mocker.patch(
+            "bamboo_engine.api.get_pipeline_states",
+            return_value=EngineAPIResult(result=True, data=mock_states, message="success"),
+        )
+        mocker.patch(
+            "pipeline.eri.runtime.BambooDjangoRuntime.get_sleep_process_info_with_current_node_id",
+            return_value=mocker.MagicMock(),
+        )
+        mocker.patch(
+            "pipeline.eri.runtime.BambooDjangoRuntime.get_node",
+            return_value=mocker.MagicMock(code="pause_node", version="legacy", name="pause"),
+        )
+        service = mocker.MagicMock()
+        service.schedule_type.return_value = ScheduleType.CALLBACK
+        mocker.patch("pipeline.eri.runtime.BambooDjangoRuntime.get_service", return_value=service)
+
+        result = TaskOperation(task_instance).get_task_states(include_schedule=True)
+
+        assert result.data["children"]["node_1"]["schedule_type"] == ScheduleType.CALLBACK.name
+
+    def test_get_task_states_does_not_include_schedule_type_by_default(self, mocker):
+        task_instance = TaskInstance.objects.create(
+            name="test_task", space_id=1, instance_id=node_uniqid(), is_started=True
+        )
+        DBSchedule.objects.create(node_id="node_1", version="v1", process_id=1, type=ScheduleType.CALLBACK.value)
+        mock_states = {
+            task_instance.instance_id: {
+                "id": task_instance.instance_id,
+                "state": bamboo_engine_states.RUNNING,
+                "version": "root-v1",
+                "children": {
+                    "node_1": {
+                        "id": "node_1",
+                        "state": bamboo_engine_states.RUNNING,
+                        "version": "v1",
+                        "children": {},
+                    }
+                },
+            }
+        }
+        mocker.patch(
+            "bamboo_engine.api.get_pipeline_states",
+            return_value=EngineAPIResult(result=True, data=mock_states, message="success"),
+        )
+
+        result = TaskOperation(task_instance).get_task_states()
+
+        assert "schedule_type" not in result.data["children"]["node_1"]
 
     def test_get_task_states_with_ex_data(self, mocker):
         """测试获取任务状态时包含异常数据"""

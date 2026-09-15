@@ -233,12 +233,12 @@ Validator.localize({
   },
 });
 
-BkUserDisplayName.configure({
-  // 必填，租户 ID
-  tenantId: window.TENANT_ID,
-  // 必填，网关地址
-  apiBaseUrl: window.BK_USER_WEB_APIGW_URL,
-});
+if (store.state.isMultiTenantMode) {
+  BkUserDisplayName.configure({
+    tenantId: window.TENANT_ID,
+    apiBaseUrl: window.BK_USER_WEB_APIGW_URL,
+  });
+}
 
 const app = new Vue({
   el: '#app',

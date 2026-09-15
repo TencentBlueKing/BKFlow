@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import logging
 from collections import defaultdict
@@ -43,7 +44,7 @@ from bkflow.constants import (
     TaskTriggerMethod,
 )
 from bkflow.contrib.operation_record.models import BaseOperateRecord
-from bkflow.pipeline_plugins.components.collections.subprocess_plugin.converter import (
+from bkflow.pipeline_plugins.components.collections.converter import (
     PipelineTreeSubprocessConverter,
 )
 from bkflow.task.auto_retry import AutoRetryNodeStrategyCreator
@@ -58,6 +59,7 @@ class TaskTreeInfo(models.Model):
     data = CompressJSONField(null=True, blank=True)
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务流程树信息"
         verbose_name_plural = "任务流程树信息"
         ordering = ["-id"]
@@ -67,6 +69,7 @@ class TaskSnapshot(CommonSnapshot):
     objects = CommonSnapshotManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "模板快照"
         verbose_name_plural = "模板快照"
         ordering = ["-id"]
@@ -76,6 +79,7 @@ class TaskExecutionSnapshot(CommonSnapshot):
     objects = CommonSnapshotManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务执行快照"
         verbose_name_plural = "任务执行快照"
         ordering = ["-id"]
@@ -93,8 +97,9 @@ class TaskInstanceManager(models.Manager):
         """
         pipeline 注入原始模板节点 ID
         """
-        for act_id, act in pipeline_tree[PE.activities].items():
-            act["template_node_id"] = act["template_node_id"] = act.get("template_node_id") or act_id
+        for node_type in (PE.activities, PE.gateways):
+            for node_id, node in pipeline_tree.get(node_type, {}).items():
+                node["template_node_id"] = node.get("template_node_id") or node_id
 
     def create_instance(self, *args, **kwargs):
         """
@@ -120,13 +125,17 @@ class TaskInstanceManager(models.Manager):
                 **kwargs,
             )
             # create task mock data
-            if kwargs.get("create_method") == "MOCK":
+            if kwargs.get("create_method") in ("MOCK", "DEBUG"):
                 new_mock_data = {}
                 act_mappings = node_mappings[PE.activities]
                 new_mock_data["nodes"] = [act_mappings[node_id] for node_id in mock_data.get("nodes", [])]
                 new_mock_data["outputs"] = {
                     act_mappings[node_id]: outputs for node_id, outputs in mock_data.get("outputs", {}).items()
                 }
+                if mock_data.get("fail_nodes"):
+                    new_mock_data["fail_nodes"] = [act_mappings[nid] for nid in mock_data["fail_nodes"]]
+                if mock_data.get("errors"):
+                    new_mock_data["errors"] = {act_mappings[nid]: msg for nid, msg in mock_data["errors"].items()}
                 TaskMockData.objects.create(
                     taskflow_id=instance.id, data=new_mock_data, mock_data_ids=mock_data.get("mock_data_ids", {})
                 )
@@ -148,7 +157,7 @@ class TaskInstance(models.Model):
     任务实例
     """
 
-    CREATE_METHODS = (("API", "API"), ("MOCK", "MOCK"))
+    CREATE_METHODS = (("API", "API"), ("MOCK", "MOCK"), ("DEBUG", "DEBUG"))
 
     id = models.BigAutoField(primary_key=True)
     space_id = models.IntegerField("空间ID", db_index=True)
@@ -179,6 +188,7 @@ class TaskInstance(models.Model):
     objects = TaskInstanceManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务实例"
         verbose_name_plural = "任务实例"
         index_together = [("space_id", "scope_type", "scope_value")]
@@ -306,8 +316,13 @@ class TaskInstance(models.Model):
         }
 
     def change_parent_task_node_state_to_running(self):
-        if not self.trigger_method == TaskTriggerMethod.subprocess.name:
-            logger.info("taskflow[id=%s] is not child taskflow, cannot change parent task node state to running")
+        if self.trigger_method not in [
+            TaskTriggerMethod.subprocess.name,
+            TaskTriggerMethod.sub_canvas.name,
+        ]:
+            logger.info(
+                "taskflow[id=%s] is not child taskflow, cannot change parent task node state to running", self.id
+            )
             return
 
         with transaction.atomic():
@@ -337,6 +352,37 @@ class TaskInstance(models.Model):
             parent_task.change_parent_task_node_state_to_running()
 
 
+class OpenPluginRunCallbackRef(models.Model):
+    task_id = models.BigIntegerField(verbose_name="任务ID", db_index=True)
+    node_id = models.CharField(verbose_name="节点ID", max_length=64, db_index=True)
+    node_version = models.CharField(verbose_name="节点版本", max_length=64, blank=True, default="")
+    client_request_id = models.CharField(verbose_name="客户端请求ID", max_length=128, unique=True)
+    open_plugin_run_id = models.CharField(verbose_name="开放插件运行ID", max_length=64, unique=True, db_index=True)
+    callback_token_digest = models.CharField(verbose_name="回调令牌摘要", max_length=128)
+    callback_expire_at = models.DateTimeField(verbose_name="回调令牌过期时间")
+    plugin_source = models.CharField(verbose_name="插件来源类型", max_length=64, blank=True, default="")
+    source_key = models.CharField(verbose_name="开放插件来源", max_length=64, blank=True, default="")
+    plugin_id = models.CharField(verbose_name="开放插件ID", max_length=128)
+    plugin_version = models.CharField(verbose_name="开放插件版本", max_length=64, blank=True, default="")
+    cancel_url = models.CharField(verbose_name="开放插件取消URL", max_length=1024, blank=True, default="")
+    credential_key = models.CharField(verbose_name="取消调用使用的凭证key", max_length=128, blank=True, default="")
+    consumed_at = models.DateTimeField(verbose_name="回调消费时间", null=True, blank=True)
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    update_time = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    class Meta:
+        app_label = "task"
+        verbose_name = "开放插件回调映射"
+        verbose_name_plural = "开放插件回调映射"
+        indexes = [
+            models.Index(fields=["task_id", "node_id"]),
+            models.Index(fields=["callback_expire_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.task_id}:{self.node_id}:{self.open_plugin_run_id}"
+
+
 class AutoRetryNodeStrategy(models.Model):
     taskflow_id = models.BigIntegerField(verbose_name="taskflow id")
     root_pipeline_id = models.CharField(verbose_name="root pipeline id", max_length=64)
@@ -346,6 +392,7 @@ class AutoRetryNodeStrategy(models.Model):
     interval = models.IntegerField(verbose_name="retry interval", default=0)
 
     class Meta:
+        app_label = "task"
         verbose_name = "节点自动重试策略 AutoRetryNodeStrategy"
         verbose_name_plural = "节点自动重试策略 AutoRetryNodeStrategy"
         index_together = [("root_pipeline_id", "node_id")]
@@ -389,6 +436,7 @@ class TimeoutNodeConfig(models.Model):
     objects = TimeoutNodeConfigManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = "节点超时配置 TimeoutNodeConfig"
         verbose_name_plural = "节点超时配置 TimeoutNodeConfig"
         index_together = [("root_pipeline_id", "node_id")]
@@ -399,6 +447,7 @@ class TimeoutNodesRecord(models.Model):
     timeout_nodes = models.TextField(verbose_name="超时节点信息")
 
     class Meta:
+        app_label = "task"
         verbose_name = "超时节点数据记录 TimeoutNodesRecord"
         verbose_name_plural = "超时节点数据记录 TimeoutNodesRecord"
 
@@ -415,6 +464,7 @@ class TaskOperationRecord(BaseOperateRecord):
     )
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务操作记录 TaskOperationRecord"
         verbose_name_plural = "任务操作记录 TaskOperationRecord"
         indexes = [models.Index(fields=["instance_id", "node_id"])]
@@ -429,6 +479,7 @@ class TaskMockData(models.Model):
     create_time = models.DateTimeField("创建时间", auto_now_add=True, db_index=True)
 
     class Meta:
+        app_label = "task"
         verbose_name = "任务Mock数据 TaskMockData"
         verbose_name_plural = "任务Mock数据 TaskMockData"
 
@@ -481,6 +532,9 @@ class EngineSpaceConfig(models.Model):
             return {}
         instance = qs.first()
         return instance.json_value
+
+    class Meta:
+        app_label = "task"
 
 
 def default_cron():
@@ -548,6 +602,7 @@ class PeriodicTask(models.Model):
     objects = PeriodicTaskManager()
 
     class Meta:
+        app_label = "task"
         verbose_name = _("周期任务")
         verbose_name_plural = _("周期任务")
 
@@ -601,6 +656,7 @@ class TaskFlowRelation(models.Model):
     extra_info = models.JSONField(verbose_name=_("额外信息"), null=True)
 
     class Meta:
+        app_label = "task"
         verbose_name = verbose_name_plural = _("任务关系")
 
 

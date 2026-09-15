@@ -11,18 +11,20 @@
 
 #### 接口参数
 
-| 字段              | 类型     | 必选 | 描述                           |
-|-----------------|--------|----|------------------------------|
-| limit           | int    | 否  | 每页的数量, limit 最大数量为200        |
-| offset          | int    | 否  | 偏移量                          |
-| name            | string | 否  | 流程名   模糊匹配                   |
-| creator         | string | 否  | 创建者   精确匹配                   |
-| updated_by      | string | 否  | 更新人   精确匹配                   |
-| scope_type      | string | 否  | 流程范围   精确匹配                  |
-| scope_value     | string | 否  | 流程范围值   精确匹配                 |
-| create_at_start | string | 否  | 创建起始时间，如 2023-08-25 07:49:45 |
-| create_at_end   | string | 否  | 创建结束时间，如 2023-08-25 07:49:46 |
-| order_by        | string | 否  | 排序字段，默认按照创建时间降序              |
+| 字段                | 类型     | 必选 | 描述                           |
+|-------------------|--------|----|------------------------------|
+| limit             | int    | 否  | 每页的数量, limit 最大数量为200        |
+| offset            | int    | 否  | 偏移量                          |
+| id                | string | 否  | 模板ID，多个以逗号分割                 |
+| name              | string | 否  | 流程名   模糊匹配                   |
+| label             | string | 否  | 标签名称                         |
+| creator           | string | 否  | 创建者   精确匹配                   |
+| updated_by        | string | 否  | 更新人   精确匹配                   |
+| scope_type        | string | 否  | 流程范围   精确匹配                  |
+| scope_value       | string | 否  | 流程范围值   精确匹配                 |
+| create_at_start   | string | 否  | 创建起始时间，如 2023-08-25 07:49:45 |
+| create_at_end     | string | 否  | 创建结束时间，如 2023-08-25 07:49:46 |
+| order_by          | string | 否  | 排序字段，默认按照创建时间降序              |
 
 ### 返回结果示例
 
@@ -45,7 +47,8 @@
             "creator": "",
             "create_at": "2024-07-30T06:27:52.642Z",
             "update_at": "2024-07-30T07:30:28.005Z",
-            "updated_by": ""
+            "updated_by": "",
+            "labels": []
         }
     ],
     "count": 10,
@@ -81,3 +84,4 @@
 | create_at     | string | 流程创建时间 |
 | update_at     | string | 流程更新时间 |
 | updated_by    | string | 流程更新者  |
+| labels        | list   | 标签信息   |

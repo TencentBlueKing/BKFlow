@@ -19,6 +19,7 @@
 | parent_id | int | 否 | 父标签ID。不传时，接口会返回根标签（并兼容把子标签的父节点也包含在返回结果中） |
 | name | string | 否 | 标签名称，模糊匹配 |
 | is_default | bool | 否 | 是否默认标签 |
+| include_children | bool | 否 | 是否包含子标签 |
 | order_by | string | 否 | 排序字段，默认 `-updated_at`，允许值：`created_at`、`updated_at`、`name`、`-created_at`、`-updated_at`、`-name` |
 
 ### 请求参数示例

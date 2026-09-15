@@ -49,10 +49,21 @@ class TestSystemStatisticsViewSet(TestCase):
             task_id=1,
             space_id=100,
             component_code="bk_http",
+            plugin_source="builtin",
             node_id="n1",
             started_time=now,
             status=True,
             state="FINISHED",
+        )
+        TaskflowExecutedNodeStatistics.objects.create(
+            task_id=1,
+            space_id=100,
+            component_code="bk_http",
+            plugin_source="builtin",
+            node_id="n2",
+            started_time=now,
+            status=False,
+            state="FAILED",
         )
 
         DailyStatisticsSummary.objects.create(
@@ -72,11 +83,24 @@ class TestSystemStatisticsViewSet(TestCase):
             period_start=yesterday,
             space_id=100,
             component_code="bk_http",
+            plugin_source="builtin",
             version="v1",
             execution_count=100,
             success_count=90,
             failed_count=10,
             avg_elapsed_time=2.5,
+        )
+        PluginExecutionSummary.objects.create(
+            period_type="day",
+            period_start=yesterday,
+            space_id=100,
+            component_code="bk_http",
+            plugin_source="third_party",
+            version="v1",
+            execution_count=40,
+            success_count=32,
+            failed_count=8,
+            avg_elapsed_time=3.0,
         )
 
     def test_overview(self):
@@ -109,6 +133,7 @@ class TestSystemStatisticsViewSet(TestCase):
         view = self.view_set.as_view({"get": "plugin_ranking"})
         response = view(request)
         assert response.status_code == 200
+        assert {item["plugin_source"] for item in response.data} == {"builtin", "third_party"}
 
     def test_failure_analysis(self):
         request = self.factory.get("/api/statistics/system/failure-analysis/", {"date_range": "30d"})
@@ -116,6 +141,7 @@ class TestSystemStatisticsViewSet(TestCase):
         view = self.view_set.as_view({"get": "failure_analysis"})
         response = view(request)
         assert response.status_code == 200
+        assert response.data[0]["plugin_source"] == "builtin"
 
 
 class TestSpaceStatisticsViewSet(TestCase):

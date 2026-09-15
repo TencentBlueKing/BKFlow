@@ -17,6 +17,7 @@ const task = {
   state: {
     subActivities: {},
     nodeDetailActivityPanel: 'record',
+    taskExtraInfoById: {},
   },
   actions: {
     /**
@@ -208,10 +209,17 @@ const task = {
      * 获取任务实例详细数据
      * @param {String} instanceId 实例id
      */
-    getTaskInstanceData({}, instanceId) {
+    getTaskInstanceData({ commit }, instanceId) {
       return axios.get(`task/get_task_detail/${instanceId}/`, {
         params: { space_id: store.state.spaceId },
-      }).then(response => response.data.data);
+      }).then((response) => {
+        const data = response.data.data;
+        commit('setTaskExtraInfo', {
+          taskId: instanceId,
+          extraInfo: (data && data.extra_info) || {},
+        });
+        return data;
+      });
     },
     /**
      * 职能化认领
@@ -524,6 +532,18 @@ const task = {
     createMockTask({}, data) {
       return axios.post(`api/template/${data.id}/create_mock_task/`, data.params).then(response => response.data);
     },
+    // 批量节点输出参数
+    getBatchNodeOutput({}, params) {
+      return axios.post('task/get_node_outputs/', params).then(response => response.data);
+    },
+    // 批量获取任务执行实例pipeline
+    getBatchTaskPipeline({}, params) {
+      return axios.get('task/get_tasks_pipeline/', {params}).then(response => response.data);
+    },
+    // 批量获取任务实例状态
+    getBatchTaskStates({}, params) {
+      return axios.get('task/batch_get_task_states/', {params}).then(response => response.data);
+    },
   },
   mutations: {
     setSubActivities(state, data) {
@@ -531,6 +551,12 @@ const task = {
     },
     setNodeDetailActivityPanel(state, data) {
       state.nodeDetailActivityPanel = data;
+    },
+    setTaskExtraInfo(state, { taskId, extraInfo }) {
+      state.taskExtraInfoById = {
+        ...state.taskExtraInfoById,
+        [taskId]: extraInfo || {},
+      };
     },
   },
 };

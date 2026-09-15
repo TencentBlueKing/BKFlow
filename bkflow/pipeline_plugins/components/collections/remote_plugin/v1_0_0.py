@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 import logging
 
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.core.flow.io import StringItemSchema
@@ -29,6 +30,7 @@ from bkflow.pipeline_plugins.components.collections.base import (
 )
 from bkflow.pipeline_plugins.utils import get_node_callback_url
 from bkflow.utils.handlers import handle_plain_log
+from bkflow.utils.tenant import get_task_tenant_id
 from plugin_service.conf import PLUGIN_LOGGER
 from plugin_service.exceptions import PluginServiceException
 from plugin_service.plugin_client import PluginServiceApiClient
@@ -74,7 +76,7 @@ class RemotePluginService(BKFlowBaseService):
         plugin_version = data.get_one_of_inputs("plugin_version")
         space_id = parent_data.get_one_of_inputs("task_space_id")
         task_id = parent_data.get_one_of_inputs("task_id")
-        tenant_id = parent_data.get_one_of_inputs("tenant_id")
+        tenant_id = get_task_tenant_id(parent_data) if settings.ENABLE_MULTI_TENANT_MODE else None
         try:
             plugin_client = PluginServiceApiClient(plugin_code, tenant_id=tenant_id)
         except PluginServiceException as e:
@@ -143,7 +145,7 @@ class RemotePluginService(BKFlowBaseService):
                 "ex_data", message="reach max count of schedule, please ensure the task can be finished in one day"
             )
             return False
-        tenant_id = parent_data.get_one_of_inputs("tenant_id")
+        tenant_id = get_task_tenant_id(parent_data) if settings.ENABLE_MULTI_TENANT_MODE else None
         try:
             plugin_client = PluginServiceApiClient(plugin_code, tenant_id=tenant_id)
         except PluginServiceException as e:

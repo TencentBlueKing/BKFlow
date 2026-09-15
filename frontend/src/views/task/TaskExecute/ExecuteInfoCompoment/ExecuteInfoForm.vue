@@ -23,11 +23,11 @@
         </span>
       </li>
       <template v-else>
-        <li>
+        <li v-if="!isSubCanvasNode">
           <span class="th">{{ $t('标准插件') }}</span>
           <span class="td">{{ currentExecuteInfo.plugin_name || '--' }}</span>
         </li>
-        <li>
+        <li v-if="!isSubCanvasNode">
           <span class="th">{{ $t('插件版本') }}</span>
           <span class="td">{{ currentExecuteInfo.plugin_version || '--' }}</span>
         </li>
@@ -44,7 +44,7 @@
         <span class="th">{{ $t('是否可选') }}</span>
         <span class="td">{{ templateConfig.optional ? $t('是') : $t('否') }}</span>
       </li>
-      <li>
+      <li v-if="!isSubCanvasNode">
         <span class="th">{{ $t('失败处理') }}</span>
         <span
           v-if="isAutoOperate"
@@ -148,7 +148,7 @@
               ref="renderForm"
               :scheme="inputs"
               :hooked="hooked"
-              :constants="isSubProcessNode || isTemSubflowNode ? subflowForms : constants"
+              :constants="isTemSubflowNode ? subflowForms : currentConstants"
               :form-option="option"
               :form-data="inputsFormData"
               :render-config="inputsRenderConfig" />
@@ -239,6 +239,12 @@
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import {
+    buildV4PluginDetailRequest,
+    isV4OpenPlugin,
+    resolveUniformApiPluginVersion,
+    resolveV4OpenPluginVersion,
+  } from '@/utils/uniformApi.js';
   import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
 
   export default {
@@ -261,6 +267,10 @@
         type: Object,
         default: () => ({}),
       },
+      pipelineData: {
+        type: Object,
+        default: () => ({}),
+      },
       nodeDetailConfig: {
         type: Object,
         default: () => ({}),
@@ -273,10 +283,6 @@
         type: String,
         default: '',
       },
-      // isSubProcessNode: {
-      //   type: Boolean,
-      //   default: false,
-      // },
       spaceId: {
         type: Number,
         default: 0,
@@ -319,6 +325,8 @@
         subflowLoading: false,
         constantsLoading: false,
         isTemSubflowNode: false,
+        pluginFormRequestId: 0,
+        isDestroyed: false,
         currentExecuteInfo: tools.deepClone(this.executeInfo),
         currentNodeDetailConfig: tools.deepClone(this.nodeDetailConfig),
       };
@@ -355,14 +363,11 @@
       outputList() {
         return this.getOutputsList();
       },
-
-      // inputAndOutputWrapShow() {
-      //   const { original_template_id: originTplId } = this.nodeActivity;
-      //   // 普通任务节点展示/该功能上线后的独立子流程任务展示
-      //   return originTplId && !this.templateConfig.isOldData;
-      // },
       isSubProcessNode() {
         return this.nodeActivity?.component?.code === 'subprocess_plugin' || this.nodeActivity.type === 'SubProcess';
+      },
+      isSubCanvasNode() {
+        return this.nodeActivity?.component?.code === 'subcanvas_plugin';
       },
       isAutoOperate() {
         const { ignorable, skippable, retryable, auto_retry: autoRetry } = this.templateConfig;
@@ -375,16 +380,20 @@
       isSpecialPlugin() {
         return ['dmn_plugin', 'value_assign'].includes(this.pluginCode);
       },
+      currentConstants() {
+        if (this.isSubProcessNode) return this.subflowForms;
+        if (this.isSubCanvasNode) return this.pipelineData.constants;
+        return this.constants;
+      },
       variableList() {
-        const constants = this.isSubProcessNode ? this.subflowForms : this.constants;
-        return [...Object.values(constants)];
+        return [...Object.values(this.currentConstants)];
       },
       loopConfig() {
         const { loop_config: loopConfig } = this.nodeActivity || {};
         return loopConfig || null;
       },
       loopTypeText() {
-        if (this.loopConfig?.enable) {
+        if (this.loopConfig?.enable || this.isSubCanvasNode) {
           return i18n.t('循环执行');
         }
         return i18n.t('单次执行');
@@ -414,15 +423,25 @@
         deep: true,
         immediate: true,
       },
+      atomFormInfo: {
+        handler(val) {
+          if (val && Object.keys(val).length && this.currentNodeDetailConfig.component_code) {
+            this.getThirdpluginNameAndVersion();
+          }
+        },
+        deep: true,
+      },
     },
     mounted() {
       $.context.exec_env = 'NODE_EXEC_DETAIL';
-      this.initData();
       if (this.nodeActivity.type === 'SubProcess') {
         this.isTemSubflowNode = true;
       }
+      this.initData();
     },
     beforeDestroy() {
+      this.isDestroyed = true;
+      this.pluginFormRequestId += 1;
       $.context.exec_env = '';
     },
     methods: {
@@ -441,6 +460,7 @@
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
         'loadSubprocessOutput',
+        'loadV4OpenPluginForm',
       ]),
       // 初始化节点数据
       async initData() {
@@ -486,7 +506,9 @@
             await this.getPluginDetail();
           }
           // 获取输入参数的勾选状态
-          this.hooked = !this.isApiPlugin && this.getFormsHookState();
+          if (Array.isArray(this.inputs)) {
+            this.hooked = this.getFormsHookState();
+          }
         } catch (error) {
           console.warn(error);
         }
@@ -549,7 +571,7 @@
           // 输出变量
           if (this.loopConfig?.enable) {
             try {
-              const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: '' });
+              const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: '', code: 'subprocess_plugin' });
               const loopOutput = res.data.output.find(item => item.key === 'outputs');
               if (loopOutput) {
                 this.outputs = [{
@@ -679,11 +701,39 @@
        */
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
+        this.pluginFormRequestId += 1;
+        const requestId = this.pluginFormRequestId;
         try {
           // 先取标准节点缓存的数据
-          const pluginGroup = this.pluginConfigs[plugin];
-          if (pluginGroup && pluginGroup[version]) {
+          const { [plugin]: pluginGroup } = this.pluginConfigs;
+          if (pluginGroup && pluginGroup[version]
+            && !(this.isApiPlugin && isV4OpenPlugin(this.nodeActivity.component))) {
             return pluginGroup[version];
+          }
+          if (this.isApiPlugin && isV4OpenPlugin(this.nodeActivity.component)) {
+            const { component } = this.nodeActivity;
+            const result = await this.loadV4OpenPluginForm({
+              request: buildV4PluginDetailRequest({
+                component,
+                spaceId: this.spaceId,
+                templateId: this.templateId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+              }),
+              readOnly: true,
+              taskId: this.nodeDetailConfig.instance_id,
+              nodeId: this.nodeDetailConfig.node_id,
+              templateNodeId: this.nodeActivity && this.nodeActivity.template_node_id,
+              isCurrent: () => !this.isDestroyed && requestId === this.pluginFormRequestId,
+              runtimeContext: {
+                inputs: this.executeInfo.inputs || {},
+                outputs: this.executeInfo.outputs || [],
+                state: this.executeInfo.state,
+              },
+            });
+            if (this.isDestroyed || requestId !== this.pluginFormRequestId) return null;
+            this.outputs = result.detail.outputs || [];
+            return result.input;
           }
           // api插件输入输出
           if (this.isApiPlugin) {
@@ -696,13 +746,18 @@
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,
+              meta_url_template: apiMeta.meta_url_template,
+              source_key: apiMeta.source_key,
+              version: resolveUniformApiPluginVersion(this.nodeActivity.component),
               api_name: apiMeta.api_key,
             });
             if (!resp.result) return;
             // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
             const apiVersion = resp.data.version || 'v2.0.0';
+            // 使用meta API返回的version加载统一api基础配置
+            await this.loadAtomConfig({ atom: plugin, version: apiVersion, space_id: this.spaceId });
             // 输出参数
-            const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
+            const storeOutputs = this.pluginOutput.uniform_api[apiVersion] || [];
             const outputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs, ...outputs];
             const renderConfig = jsonFormSchema(resp.data, { disabled: true });
@@ -719,7 +774,14 @@
           const config = $.atoms[plugin];
           return config;
         } catch (e) {
-          console.log(e);
+          if (this.isDestroyed || requestId !== this.pluginFormRequestId) return null;
+          if (this.isApiPlugin && isV4OpenPlugin(this.nodeActivity.component)) {
+            const errorCode = e && e.code ? e.code : 'FORM_LOAD_FAILED';
+            const pluginVersion = resolveV4OpenPluginVersion(this.nodeActivity.component) || version || '--';
+            this.$bkMessage({ message: `${errorCode}: ${pluginVersion}`, theme: 'error' });
+          } else {
+            console.log(e);
+          }
         }
       },
       // 第三方插件输入输出配置
@@ -813,7 +875,7 @@
             version = componentData.plugin_version.value;
           }
           this.inputs = await this.getAtomConfig({ plugin, version, isThird: this.isThirdPartyNode }) || [];
-          if (!this.isThirdPartyNode) {
+          if (!this.isThirdPartyNode && !this.isApiPlugin) {
             this.outputs = this.pluginOutput[plugin][version];
           }
         } catch (e) {
@@ -824,32 +886,32 @@
       },
       // 获取输出变量列表
       getOutputsList() {
-        const list = [];
-        const varKeys = Object.keys(this.constants);
-        this.outputs.forEach((param) => {
-          let { key: varKey } = param;
-          const isHooked = varKeys.some((item) => {
-            let result = false;
-            const varItem = this.constants[item];
-            if (varItem.source_type === 'component_outputs') {
-              const sourceInfo = varItem.source_info[this.nodeActivity.id];
-              if (sourceInfo && sourceInfo.includes(param.key)) {
-                varKey = item;
-                result = true;
-              }
-            }
-            return result;
+        const nodeId = this.nodeActivity.id;
+        const constKeys = Object.keys(this.constants);
+
+        let list = this.outputs.map((param) => {
+          // 找出引用当前输出变量的常量 key
+          const hookedKey = constKeys.find((key) => {
+            const item = this.constants[key];
+            if (item.source_type !== 'component_outputs') return false;
+            const sourceInfo = item.source_info[nodeId];
+            return sourceInfo && sourceInfo.includes(param.key);
           });
-          list.push({
+
+          return {
             key: param.key,
-            varKey,
+            varKey: hookedKey || param.key,
             name: param.name,
             description: param.schema ? param.schema.description : '--',
             version: param.version,
             status: param.status,
-            hooked: isHooked,
-          });
+            hooked: !!hookedKey,
+          };
         });
+
+        if (this.isSubCanvasNode) {
+          list = list.filter(item => item.key === 'task_id' || item.key === 'outputs');
+        }
         return list;
       },
       getRowClassName({ row }) {

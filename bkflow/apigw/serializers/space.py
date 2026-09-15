@@ -23,6 +23,7 @@ from rest_framework import serializers
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import SpaceConfigHandler
 from bkflow.space.models import Space
+from bkflow.utils.tenant import TenantIDField
 
 
 class CreateSpaceSerializer(serializers.Serializer):
@@ -34,7 +35,7 @@ class CreateSpaceSerializer(serializers.Serializer):
     desc = serializers.CharField(help_text=_("空间描述"), max_length=128, required=False, allow_blank=True, allow_null=True)
     platform_url = serializers.URLField(help_text=_("平台提供服务的地址"), max_length=256, required=True)
     app_code = serializers.CharField(help_text=_("app id"), max_length=32, required=True)
-    tenant_id = serializers.CharField(help_text=_("租户ID"), max_length=32, required=True)
+    tenant_id = TenantIDField(help_text=_("租户ID"), max_length=32, required=True)
 
     config = serializers.DictField(help_text=_("配置信息"), required=False)
 

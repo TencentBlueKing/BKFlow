@@ -53,23 +53,6 @@
       slot="expand"
       class="operation-container">
       <div
-        v-show="isTaskOperationBtnsShow"
-        class="task-operation-btns">
-        <template v-for="operation in taskOperationBtns">
-          <div
-            v-if="!operation.disabled && instanceActions.includes('OPERATE')"
-            :key="operation.action"
-            :class="['action-button', 'operate-btn-item', operation.action]"
-            :data-test-id="`taskExcute_form_${operation.action}Btn`"
-            @click="onOperationClick(operation.action)">
-            <i :class="['common-icon', operation.icon]" />
-            <div class="operate-btn-item-text">
-              {{ operation.text }}
-            </div>
-          </div>
-        </template>
-      </div>
-      <div
         v-if="triggerMethod === 'subprocess' "
         class="sub-task-btns">
         <i class="common-icon-box-top-right-corner icon-link-to-father" />
@@ -87,7 +70,23 @@
         <span class="dividing-line" />
         <span :class="statusMap[parentTaskInfo.state].icon" />
         <span class="state-text">{{ statusMap[parentTaskInfo.state].text }}</span>
-        <span class="dividing-line" />
+      </div>
+      <div
+        v-show="isTaskOperationBtnsShow"
+        class="task-operation-btns">
+        <template v-for="operation in taskOperationBtns">
+          <div
+            v-if="!operation.disabled && instanceActions.includes('OPERATE')"
+            :key="operation.action"
+            :class="['action-button', 'operate-btn-item', operation.action]"
+            :data-test-id="`taskExcute_form_${operation.action}Btn`"
+            @click="onOperationClick(operation.action)">
+            <i :class="['common-icon', operation.icon]" />
+            <div class="operate-btn-item-text">
+              {{ operation.text }}
+            </div>
+          </div>
+        </template>
       </div>
       <div
         class="task-params-btns">
@@ -140,7 +139,6 @@
 </template>
 <script>
   import permission from '@/mixins/permission.js';
-  // import PageHeader from '@/components/layout/PageHeader.vue'
   import { mapState } from 'vuex';
   import i18n from '@/config/i18n/index.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
@@ -148,7 +146,6 @@
   export default {
     name: 'TaskOperationHeader',
     components: {
-      // PageHeader,
       JumpLinkBKFlowOrExternal,
     },
     mixins: [permission],
@@ -438,8 +435,11 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 0 12px;
-        min-width: 72px;
+        box-sizing: border-box;
+        padding: 0 8px;
+        width: 80px;
+        min-width: 80px;
+        flex-shrink: 0;
         height: 100%;
         color: #313238;
         cursor: pointer;
@@ -470,6 +470,7 @@
                 .operate-btn-item-text {
                     font-size: 12px;
                     line-height: 20px;
+                    white-space: nowrap;
                 }
             }
         }
@@ -479,7 +480,6 @@
             height: 100%;
             border-left: 1px solid #dde4eb;
             .view-node-details-btn {
-                width: 72px;
                 cursor: pointer;
                 i {
                     margin: 2px 0;
@@ -488,6 +488,7 @@
                 .view-node-details-btn-text {
                     font-size: 12px;
                     line-height: 20px;
+                    white-space: nowrap;
                 }
             }
             ::v-deep .bk-tooltip,
@@ -503,6 +504,7 @@
             .more-action-btn-text {
                 font-size: 12px;
                 line-height: 20px;
+                white-space: nowrap;
             }
         }
     }
@@ -516,6 +518,7 @@
 .sub-task-btns{
   margin-top: 2px;
   text-align: left;
+  padding-right: 12px;
   .icon-clock-shape {
     @include status-icon-style(#979ba5);
   }

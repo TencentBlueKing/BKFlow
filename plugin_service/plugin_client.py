@@ -22,6 +22,7 @@ import logging
 import os
 
 import requests
+from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from requests import HTTPError
 
@@ -233,12 +234,12 @@ class PluginServiceApiClient:
         **kwargs,
     ):
         """可支持通过PaaS平台请求获取插件服务列表或插件详情"""
-        url, headers = PluginServiceApiClient._prepare_paas_api_request(
+        url, auth_params, headers = PluginServiceApiClient._prepare_paas_request(
             path_params=["system/bk_plugins", plugin_code if plugin_code else ""],
             environment=environment,
             tenant_id=tenant_id,
         )
-        params = {}
+        params = auth_params
         if not plugin_code:
             # list接口相关参数
             params.update({"limit": limit, "offset": offset, "has_deployed": True})
@@ -247,7 +248,7 @@ class PluginServiceApiClient:
             if distributor_code_name:
                 params.update({"distributor_code_name": distributor_code_name})
         return PluginServiceApiClient._request_api_and_error_retry(
-            url, method="get", params={**params, **kwargs}, headers=headers
+            url, method="get", params={**params, **kwargs}, **({"headers": headers} if headers else {})
         )
 
     @staticmethod
@@ -256,37 +257,43 @@ class PluginServiceApiClient:
         environment=None, search_term=None, distributor_code_name=None, tenant_id=None, **kwargs
     ):
         """通过PaaS平台批量请求插件服务列表及对应详情"""
-        url, headers = PluginServiceApiClient._prepare_paas_api_request(
+        url, auth_params, headers = PluginServiceApiClient._prepare_paas_request(
             path_params=["system/bk_plugins/batch/detailed"], environment=environment, tenant_id=tenant_id
         )
-        params = {"has_deployed": True, **kwargs}
+        params = {**auth_params, "has_deployed": True, **kwargs}
         if search_term:
             params.update({"search_term": search_term})
         if distributor_code_name:
             params.update({"distributor_code_name": distributor_code_name})
-        return PluginServiceApiClient._request_api_and_error_retry(url, method="get", params=params, headers=headers)
+        return PluginServiceApiClient._request_api_and_error_retry(
+            url, method="get", params=params, **({"headers": headers} if headers else {})
+        )
 
     @staticmethod
     @json_response_decoder
     def get_paas_logs(plugin_code, trace_id, scroll_id=None, environment=None, tenant_id=None):
         """通过PaaS平台查询插件服务日志"""
-        url, headers = PluginServiceApiClient._prepare_paas_api_request(
+        url, auth_params, headers = PluginServiceApiClient._prepare_paas_request(
             path_params=["system/bk_plugins", plugin_code, "logs"], environment=environment, tenant_id=tenant_id
         )
-        data = {"trace_id": trace_id}
+        data = {**auth_params, "trace_id": trace_id}
         if scroll_id:
             data.update({"scroll_id": scroll_id})
 
-        return PluginServiceApiClient._request_api_and_error_retry(url, method="post", data=data, headers=headers)
+        return PluginServiceApiClient._request_api_and_error_retry(
+            url, method="post", data=data, **({"headers": headers} if headers else {})
+        )
 
     @staticmethod
     @json_response_decoder
     def get_paas_plugin_tags(environment=None, tenant_id=None, **kwargs):
         """通过PaaS获取插件分类列表"""
-        url, headers = PluginServiceApiClient._prepare_paas_api_request(
-            path_params=["system/bk_plugin_tags"], environment=environment, tenant_id=tenant_id
+        url, auth_params, headers = PluginServiceApiClient._prepare_paas_request(
+            path_params=["system/bk_plugin_tags"], environment=environment, tenant_id=tenant_id, force_add_app_info=True
         )
-        return PluginServiceApiClient._request_api_and_error_retry(url, method="get", headers=headers)
+        return PluginServiceApiClient._request_api_and_error_retry(
+            url, method="get", **({"headers": headers} if headers else {"params": auth_params})
+        )
 
     def _prepare_apigw_api_request(self, path_params: list, inject_authorization: dict = None, tenant_id=None):
         """插件服务APIGW接口请求信息准备"""
@@ -312,7 +319,29 @@ class PluginServiceApiClient:
         return url, headers
 
     @staticmethod
-    def _prepare_paas_api_request(path_params: list, environment=None, tenant_id=None):
+    def _prepare_paas_api_request(path_params: list, environment=None, force_add_app_info=False):
+        """PaaS平台服务接口请求信息准备"""
+        url = os.path.join(
+            env.PAASV3_APIGW_API_HOST or f"{env.APIGW_NETWORK_PROTOCAL}://paasv3.{env.APIGW_URL_SUFFIX}",
+            environment or env.APIGW_ENVIRONMENT,
+            *path_params,
+        )
+        params = (
+            {"private_token": env.PAASV3_APIGW_API_TOKEN}
+            if env.PAASV3_APIGW_API_TOKEN
+            else {
+                "bk_app_code": env.PLUGIN_SERVICE_APIGW_APP_CODE,
+                "bk_app_secret": env.PLUGIN_SERVICE_APIGW_APP_SECRET,
+            }
+        )
+        if force_add_app_info:
+            params.update(
+                {"bk_app_code": env.PLUGIN_SERVICE_APIGW_APP_CODE, "bk_app_secret": env.PLUGIN_SERVICE_APIGW_APP_SECRET}
+            )
+        return url, params
+
+    @staticmethod
+    def _prepare_tenant_paas_api_request(path_params: list, environment=None, tenant_id=None):
         """PaaS平台服务接口请求信息准备"""
         url = os.path.join(
             env.PAASV3_APIGW_API_HOST or f"{env.APIGW_NETWORK_PROTOCAL}://paasv3.{env.APIGW_URL_SUFFIX}",
@@ -329,6 +358,19 @@ class PluginServiceApiClient:
             headers["X-Bk-Tenant-Id"] = tenant_id
 
         return url, headers
+
+    @staticmethod
+    def _prepare_paas_request(path_params, environment=None, tenant_id=None, force_add_app_info=False):
+        """返回 URL、旧协议业务认证参数和新协议认证头。"""
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            url, headers = PluginServiceApiClient._prepare_tenant_paas_api_request(
+                path_params, environment=environment, tenant_id=tenant_id
+            )
+            return url, {}, headers
+        url, params = PluginServiceApiClient._prepare_paas_api_request(
+            path_params=path_params, environment=environment, force_add_app_info=force_add_app_info
+        )
+        return url, params, {}
 
     @staticmethod
     def _request_api_and_error_retry(url, method, **kwargs):

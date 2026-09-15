@@ -41,6 +41,7 @@ jobs:
     - name: Run Tests
       env:
         USER_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        PYTEST_ADDOPTS: "-o faulthandler_timeout=60"
       run: |
         set -e
         echo "Creating database..."

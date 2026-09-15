@@ -20,7 +20,10 @@ to the current version of the project delivered to anyone in the future.
 import functools
 import logging
 import traceback
+from contextlib import nullcontext
 from copy import deepcopy
+from datetime import datetime
+from types import SimpleNamespace
 from typing import Any, List, Optional
 
 from bamboo_engine import api as bamboo_engine_api
@@ -29,14 +32,16 @@ from bamboo_engine import exceptions as bamboo_exceptions
 from bamboo_engine import states as bamboo_engine_states
 from bamboo_engine.api import EngineAPIResult
 from bamboo_engine.context import Context
-from bamboo_engine.eri import ContextValue, ContextValueType
+from bamboo_engine.eri import ContextValue, ContextValueType, ScheduleType
 from bamboo_engine.template import Template
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 from pipeline.component_framework.library import ComponentLibrary
 from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.eri.imp.serializer import SerializerMixin
 from pipeline.eri.models import ExecutionData as DBExecutionData
+from pipeline.eri.models import Schedule as DBSchedule
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.parser.context import get_pipeline_context
 from pydantic import BaseModel, validator
@@ -47,13 +52,29 @@ from bkflow.constants import (
     TaskOperationSource,
     TaskOperationType,
     TaskStates,
+    TaskTriggerMethod,
 )
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
+from bkflow.pipeline_plugins.components.collections.uniform_api.credential_handlers import (
+    CredentialKeySpaceConfigHandler,
+    DefaultCredentialHandler,
+    SpaceCredentialHandler,
+)
+from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
+from bkflow.plugin.services.open_plugin_detect import (
+    get_reference_snapshot,
+    needs_start_validation,
+)
 from bkflow.task.context import SystemObject
-from bkflow.task.models import TaskInstance
+from bkflow.task.models import OpenPluginRunCallbackRef, TaskFlowRelation, TaskInstance
+from bkflow.task.open_plugin_callback import (
+    callback_token_digest,
+    parse_open_plugin_callback_token,
+)
+from bkflow.task.signals.context import suppress_node_failure_side_effects
 from bkflow.task.signals.signals import taskflow_started
 from bkflow.task.utils import format_bamboo_engine_status
 from bkflow.utils.canvas import get_variable_mapping
@@ -138,6 +159,161 @@ def trace_task_operation(operation_name: str, operation_type: str = "task"):
     return decorator
 
 
+def _get_open_plugin_callback_ref_model():
+    return OpenPluginRunCallbackRef
+
+
+def _is_open_plugin_callback_data(data):
+    return isinstance(data, dict) and bool(data.get("_callback_token"))
+
+
+def _build_open_plugin_callback_payload(data):
+    callback_payload = {
+        "open_plugin_run_id": data["open_plugin_run_id"],
+        "status": data["status"],
+    }
+    for key in ("outputs", "error_message", "truncated", "truncated_fields"):
+        if key in data:
+            callback_payload[key] = data[key]
+    return callback_payload
+
+
+def _parse_open_plugin_callback_expire_at(token_payload):
+    expire_at = datetime.fromisoformat(token_payload["expire_at"])
+    if timezone.is_naive(expire_at):
+        expire_at = timezone.make_aware(expire_at, timezone.get_current_timezone())
+    return expire_at
+
+
+def _get_open_plugin_space_configs(task_instance: TaskInstance):
+    interface_client = InterfaceModuleClient()
+    params = {
+        "space_id": task_instance.space_id,
+        "config_names": "uniform_api,credential,api_gateway_credential_name",
+    }
+    if task_instance.scope_type and task_instance.scope_value:
+        params["scope"] = f"{task_instance.scope_type}_{task_instance.scope_value}"
+    space_infos_result = interface_client.get_space_infos(params)
+    if not space_infos_result.get("result"):
+        logger.warning(
+            "[open_plugin cancel] get_space_infos failed for task(%s): %s",
+            task_instance.id,
+            space_infos_result.get("message"),
+        )
+        return None
+    return space_infos_result.get("data", {}).get("configs", {})
+
+
+def _get_open_plugin_cancel_credential(task_instance: TaskInstance, space_configs: dict, credential_key: str = ""):
+    handlers = [
+        CredentialKeySpaceConfigHandler(
+            logger=logger,
+            scope_type=task_instance.scope_type,
+            scope_id=task_instance.scope_value,
+            parent_data=SimpleNamespace(inputs={}),
+            space_configs=space_configs,
+        ),
+        SpaceCredentialHandler(
+            logger=logger,
+            scope_type=task_instance.scope_type,
+            scope_id=task_instance.scope_value,
+            parent_data=SimpleNamespace(inputs={}),
+            space_configs=space_configs,
+        ),
+        DefaultCredentialHandler(
+            logger=logger,
+            scope_type=task_instance.scope_type,
+            scope_id=task_instance.scope_value,
+            parent_data=SimpleNamespace(inputs={}),
+            space_configs=space_configs,
+        ),
+    ]
+
+    for handler in handlers:
+        try:
+            if handler.can_handle(credential_key):
+                app_code, app_secret = handler.get_credential(credential_key)
+                if app_code and app_secret:
+                    return app_code, app_secret
+        except Exception as e:
+            logger.warning("[open_plugin cancel] credential handler(%s) failed: %s", handler.get_name(), e)
+
+    return None, None
+
+
+def _cancel_open_plugin_run(task_instance: TaskInstance, callback_ref, operator: str, space_configs: dict):
+    if not callback_ref.cancel_url:
+        logger.warning(
+            "[open_plugin cancel] missing cancel_url for task(%s) node(%s) run(%s)",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+        )
+        return
+
+    app_code, app_secret = _get_open_plugin_cancel_credential(
+        task_instance=task_instance,
+        space_configs=space_configs,
+        credential_key=getattr(callback_ref, "credential_key", ""),
+    )
+    if not app_code or not app_secret:
+        logger.warning(
+            "[open_plugin cancel] no credential for task(%s) node(%s) run(%s)",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+        )
+        return
+
+    client = UniformAPIClient()
+    headers = client.gen_default_apigw_header(app_code=app_code, app_secret=app_secret, username=operator)
+
+    try:
+        request_result = client.request(
+            url=callback_ref.cancel_url,
+            method="POST",
+            data={},
+            headers=headers,
+            timeout=settings.BKAPP_API_PLUGIN_REQUEST_TIMEOUT,
+        )
+    except Exception as e:
+        logger.warning(
+            "[open_plugin cancel] request failed for task(%s) node(%s) run(%s): %s",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+            e,
+        )
+        return
+
+    json_resp = request_result.json_resp or {}
+    if request_result.resp.status_code >= 400 or (isinstance(json_resp, dict) and json_resp.get("result") is False):
+        logger.warning(
+            "[open_plugin cancel] cancel failed for task(%s) node(%s) run(%s): status=%s, message=%s",
+            task_instance.id,
+            callback_ref.node_id,
+            callback_ref.open_plugin_run_id,
+            request_result.resp.status_code,
+            json_resp.get("message") or request_result.message,
+        )
+
+
+def _dispatch_open_plugin_cancellation(task_id: int, operator: str, node_id: str = None):
+    try:
+        from bkflow.task.celery.tasks import cancel_open_plugin_runs
+
+        kwargs = {"task_id": task_id, "operator": operator}
+        if node_id:
+            kwargs["node_id"] = node_id
+        cancel_open_plugin_runs.delay(**kwargs)
+    except Exception:
+        logger.exception(
+            "[open_plugin cancel] dispatch failed for task(%s) node(%s)",
+            task_id,
+            node_id or "all",
+        )
+
+
 class TaskOperation:
     CREATED_STATUS = {
         "start_time": None,
@@ -153,10 +329,87 @@ class TaskOperation:
         self.task_instance = task_instance
         self.queue = queue
 
+    def _revoke_debug_descendants(self, operator: str, node_id: str = None):
+        """撤销 DEBUG 根任务创建的子画布/子流程任务，最深层子任务优先。"""
+        if self.task_instance.create_method != "DEBUG":
+            return
+
+        relations = list(
+            TaskFlowRelation.objects.filter(root_task_id=self.task_instance.id).values(
+                "task_id", "parent_task_id", "extra_info"
+            )
+        )
+        children_by_parent = {}
+        for relation in relations:
+            children_by_parent.setdefault(relation["parent_task_id"], []).append(relation)
+
+        direct_relations = children_by_parent.get(self.task_instance.id, [])
+        if node_id:
+            direct_relations = [
+                relation
+                for relation in direct_relations
+                if (relation.get("extra_info") or {}).get("node_id") == node_id
+            ]
+
+        descendants = []
+        pending = [(relation, 1) for relation in direct_relations]
+        visited = set()
+        while pending:
+            relation, depth = pending.pop(0)
+            task_id = relation["task_id"]
+            if task_id in visited:
+                continue
+            visited.add(task_id)
+            descendants.append((task_id, depth))
+            pending.extend((child, depth + 1) for child in children_by_parent.get(task_id, []))
+
+        active_tasks = {
+            task.id: task
+            for task in TaskInstance.objects.filter(
+                id__in=[task_id for task_id, _ in descendants],
+                is_finished=False,
+                is_revoked=False,
+                is_expired=False,
+                is_deleted=False,
+            )
+        }
+        for task_id, _ in sorted(descendants, key=lambda item: item[1], reverse=True):
+            child_task = active_tasks.get(task_id)
+            if child_task is None:
+                continue
+            result = TaskOperation(task_instance=child_task, queue=self.queue).revoke(
+                operator=operator,
+                cascade_debug_descendants=False,
+            )
+            if not result.result:
+                logger.warning(
+                    "[debug revoke] revoke child task failed, root_task_id=%s, child_task_id=%s, message=%s",
+                    self.task_instance.id,
+                    task_id,
+                    result.message,
+                )
+
+    def _ensure_open_plugins_ready_for_start(self):
+        """仅对包含开放插件快照或 V4 节点的任务请求 Interface 做启动预检。"""
+        extra_info = self.task_instance.extra_info or {}
+        pipeline_tree = self.task_instance.execution_data or {}
+        if not needs_start_validation(extra_info=extra_info, pipeline_tree=pipeline_tree):
+            return
+        snapshot = get_reference_snapshot(extra_info)
+        payload = {"space_id": self.task_instance.space_id}
+        if snapshot:
+            payload["snapshot"] = snapshot
+        else:
+            payload["pipeline_tree"] = pipeline_tree
+        result = InterfaceModuleClient().validate_open_plugins_for_start(payload)
+        if not result.get("result"):
+            raise ValidationError(result.get("message") or "开放插件启动预检失败")
+
     @trace_task_operation("start")
     @record_operation(RecordType.task.name, TaskOperationType.start.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def start(self, operator: str, *args, **kwargs) -> OperationResult:
+        self._ensure_open_plugins_ready_for_start()
         # CAS
         update_success = TaskInstance.objects.filter(id=self.task_instance.id, is_started=False).update(
             start_time=timezone.now(), is_started=True, executor=operator
@@ -170,20 +423,21 @@ class TaskOperation:
             self.task_instance.refresh_from_db()
             # convert web pipeline to pipeline
             pipeline = format_web_data_to_pipeline(self.task_instance.execution_data)
-
+            root_pipeline_context = {}
             root_pipeline_data = get_pipeline_context(
                 self.task_instance, obj_type=PipelineContextObjType.instance.value, username=operator
             )
-            system_obj = SystemObject(root_pipeline_data)
-            root_pipeline_context = {"${_system}": system_obj}
-            # 获取空间变量
-            space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
-            if not space_var.get("result"):
-                logger.error("get space variable failed: %s", space_var.get("message"))
-                space_var_data = {}
-            else:
-                space_var_data = space_var.get("data", {})
-            root_pipeline_context.update(space_var_data)
+            if self.task_instance.trigger_method != TaskTriggerMethod.sub_canvas.name:
+                system_obj = SystemObject(root_pipeline_data)
+                root_pipeline_context.update({"${_system}": system_obj})
+                # 获取空间变量
+                space_var = InterfaceModuleClient().get_variable(self.task_instance.space_id)
+                if not space_var.get("result"):
+                    logger.error("get space variable failed: %s", space_var.get("message"))
+                    space_var_data = {}
+                else:
+                    space_var_data = space_var.get("data", {})
+                root_pipeline_context.update(space_var_data)
 
             # 创建执行级根 Span，将 trace context 注入 pipeline data，
             # 后续插件 Span 通过这些 ID 建立父子关系
@@ -258,13 +512,23 @@ class TaskOperation:
     @record_operation(RecordType.task.name, TaskOperationType.revoke.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def revoke(self, operator: str, *args, **kwargs) -> OperationResult:
-        return bamboo_engine_api.revoke_pipeline(
+        result = bamboo_engine_api.revoke_pipeline(
             runtime=BambooDjangoRuntime(), pipeline_id=self.task_instance.instance_id
         )
+        if result.result:
+            _dispatch_open_plugin_cancellation(task_id=self.task_instance.id, operator=operator)
+            if kwargs.get("cascade_debug_descendants", True):
+                self._revoke_debug_descendants(operator=operator)
+        return result
 
     @uniform_task_operation_result
     def get_task_states(
-        self, subprocess_id: str = None, with_ex_data: bool = False, *args, **kwargs
+        self,
+        subprocess_id: str = None,
+        with_ex_data: bool = False,
+        include_schedule: bool = False,
+        *args,
+        **kwargs,
     ) -> OperationResult:
         if self.task_instance.is_expired:
             return OperationResult(result=True, data={"state": TaskStates.EXPIRED.value})
@@ -331,6 +595,53 @@ class TaskOperation:
                     status_tree["state"] = "NODE_SUSPENDED"
 
         format_bamboo_engine_status(task_states)
+
+        if include_schedule:
+            nodes = []
+
+            def collect_nodes(status_tree):
+                for child in status_tree.get("children", {}).values():
+                    nodes.append(child)
+                    collect_nodes(child)
+
+            collect_nodes(task_states)
+            node_versions = {(node.get("id"), node.get("version")) for node in nodes}
+            node_ids = {node_id for node_id, _ in node_versions if node_id}
+            schedules = DBSchedule.objects.filter(node_id__in=node_ids, finished=False, expired=False).values(
+                "node_id", "version", "type"
+            )
+            schedule_types = {}
+            for schedule in schedules:
+                try:
+                    schedule_type = ScheduleType(schedule["type"]).name
+                except ValueError:
+                    continue
+                schedule_types[(schedule["node_id"], schedule["version"])] = schedule_type
+            for node in nodes:
+                schedule_type = schedule_types.get((node.get("id"), node.get("version")))
+                if schedule_type:
+                    node["schedule_type"] = schedule_type
+                    continue
+                if node.get("state") != bamboo_engine_states.RUNNING or not node.get("id"):
+                    continue
+                try:
+                    if not runtime.get_sleep_process_info_with_current_node_id(node["id"]):
+                        continue
+                    engine_node = runtime.get_node(node["id"])
+                    service = runtime.get_service(
+                        code=engine_node.code,
+                        version=engine_node.version,
+                        name=engine_node.name,
+                    )
+                    inferred_type = service.schedule_type()
+                    if inferred_type:
+                        node["schedule_type"] = inferred_type.name
+                except Exception:
+                    logger.warning(
+                        "[get_task_states] infer schedule type failed, node_id=%s",
+                        node["id"],
+                        exc_info=True,
+                    )
 
         def collect_fail_nodes(task_status: dict) -> list:
             task_status["ex_data"] = {}
@@ -469,10 +780,77 @@ class TaskNodeOperation:
         loop_skip = kwargs.get("loop", False)
         return bamboo_engine_api.skip_node(runtime=self.runtime, node_id=self.node_id, loop_skip=loop_skip)
 
+    def _handle_open_plugin_callback(self, data) -> OperationResult:
+        callback_data = deepcopy(data)
+        callback_token = callback_data.pop("_callback_token", "")
+        if not callback_token:
+            return OperationResult(result=False, message="missing callback token")
+
+        try:
+            token_payload = parse_open_plugin_callback_token(callback_token)
+            expire_at = _parse_open_plugin_callback_expire_at(token_payload)
+        except Exception:
+            return OperationResult(result=False, message="invalid callback token")
+
+        if expire_at <= timezone.now():
+            return OperationResult(result=False, message="callback token expired")
+
+        with transaction.atomic():
+            callback_ref = (
+                OpenPluginRunCallbackRef.objects.select_for_update()
+                .filter(
+                    task_id=self.task_instance.id,
+                    node_id=self.node_id,
+                    open_plugin_run_id=callback_data["open_plugin_run_id"],
+                )
+                .first()
+            )
+            if callback_ref is None:
+                return OperationResult(result=False, message="callback token does not match open plugin run")
+
+            if callback_ref.callback_token_digest != callback_token_digest(callback_token):
+                return OperationResult(result=False, message="callback token verification failed")
+            if callback_ref.callback_expire_at <= timezone.now():
+                return OperationResult(result=False, message="callback token expired")
+            if int(token_payload["task_id"]) != int(self.task_instance.id) or token_payload["node_id"] != self.node_id:
+                return OperationResult(result=False, message="callback token does not match task node")
+            if token_payload["client_request_id"] != callback_ref.client_request_id:
+                return OperationResult(result=False, message="callback token does not match client request")
+            if token_payload.get("node_version", "") != callback_ref.node_version:
+                return OperationResult(result=False, message="callback token does not match node version")
+            if callback_ref.consumed_at:
+                return OperationResult(result=True, message="open plugin callback already consumed")
+
+            runtime = BambooDjangoRuntime()
+            node_state = runtime.get_state(self.node_id)
+            if node_state.name not in [bamboo_engine_states.RUNNING, bamboo_engine_states.FAILED]:
+                callback_ref.consumed_at = timezone.now()
+                callback_ref.save(update_fields=["consumed_at", "update_time"])
+                return OperationResult(result=True, message="node already in terminal state")
+            if node_state.version != callback_ref.node_version:
+                callback_ref.consumed_at = timezone.now()
+                callback_ref.save(update_fields=["consumed_at", "update_time"])
+                return OperationResult(result=True, message="node version already changed")
+
+            result = bamboo_engine_api.callback(
+                runtime=runtime,
+                node_id=self.node_id,
+                version=callback_ref.node_version,
+                data=_build_open_plugin_callback_payload(callback_data),
+            )
+            if result.result:
+                callback_ref.consumed_at = timezone.now()
+                callback_ref.save(update_fields=["consumed_at", "update_time"])
+            return result
+
     @trace_task_operation("callback", operation_type="task_node")
     @record_operation(RecordType.task_node.name, TaskOperationType.callback.name, TaskOperationSource.api.name)
     @uniform_task_operation_result
     def callback(self, operator: str, *args, **kwargs) -> OperationResult:
+        callback_data = kwargs["data"]
+        if _is_open_plugin_callback_data(callback_data):
+            return self._handle_open_plugin_callback(callback_data)
+
         runtime = BambooDjangoRuntime()
         version = kwargs.get("version")
         if not version:
@@ -502,12 +880,33 @@ class TaskNodeOperation:
     @record_operation(RecordType.task_node.name, TaskOperationType.forced_fail.name, TaskOperationSource.app.name)
     @uniform_task_operation_result
     def forced_fail(self, operator: str, *args, **kwargs) -> OperationResult:
-        return bamboo_engine_api.forced_fail_activity(
-            runtime=self.runtime,
-            node_id=self.node_id,
-            ex_data=kwargs.get("ex_data", f"forced fail by {operator}"),
-            send_post_set_state_signal=kwargs.get("send_post_set_state_signal", True),
-        )
+        suppress_side_effects = kwargs.get("suppress_failure_side_effects", False)
+        if suppress_side_effects and self.task_instance.create_method != "DEBUG":
+            suppress_side_effects = False
+
+        if suppress_side_effects:
+            suppression = suppress_node_failure_side_effects(self.task_instance.instance_id, self.node_id)
+        else:
+            suppression = nullcontext()
+
+        with suppression:
+            result = bamboo_engine_api.forced_fail_activity(
+                runtime=self.runtime,
+                node_id=self.node_id,
+                ex_data=kwargs.get("ex_data", f"forced fail by {operator}"),
+                send_post_set_state_signal=kwargs.get("send_post_set_state_signal", True),
+            )
+        if result.result:
+            _dispatch_open_plugin_cancellation(
+                task_id=self.task_instance.id,
+                node_id=self.node_id,
+                operator=operator,
+            )
+            TaskOperation(task_instance=self.task_instance)._revoke_debug_descendants(
+                operator=operator,
+                node_id=self.node_id,
+            )
+        return result
 
     @trace_task_operation("get_node_detail", operation_type="task_node")
     @uniform_task_operation_result
@@ -616,12 +1015,32 @@ class TaskNodeOperation:
         return outputs_result
 
     @uniform_task_operation_result
+    def get_node_outputs(self, *args, **kwargs):
+        runtime = BambooDjangoRuntime()
+        outputs_data = []
+        outputs_result = bamboo_engine_api.get_execution_data_outputs(runtime=runtime, node_id=self.node_id)
+        if not outputs_result.result:
+            logger.error(f"get_outputs failed: {outputs_result.message}, exc: {outputs_result.exc}")
+            return outputs_result
+        if settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_result.data:
+            outputs_result.data.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
+        outputs_data.append(outputs_result.data)
+        hist_result = bamboo_engine_api.get_node_histories(runtime=runtime, node_id=self.node_id)
+        for hist in hist_result.data:
+            his_outputs = hist["outputs"]
+            if settings.PLUGIN_LOOP_OUTPUTS_KEY in his_outputs:
+                his_outputs.pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
+            outputs_data.append(his_outputs)
+        return outputs_data
+
+    @uniform_task_operation_result
     def get_node_data(
         self,
         username: str,
         subprocess_stack: List[str],
         component_code: Optional[str] = None,
         loop: Optional[int] = None,
+        include_loop_outputs: bool = False,
         *args,
         **kwargs,
     ) -> OperationResult:
@@ -676,7 +1095,7 @@ class TaskNodeOperation:
                     raw_outputs = hist[-1]["outputs"]
                     outputs_wrapper = {"outputs": raw_outputs, "ex_data": raw_outputs.get("ex_data")}
 
-            if settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_wrapper["outputs"]:
+            if not include_loop_outputs and settings.PLUGIN_LOOP_OUTPUTS_KEY in outputs_wrapper["outputs"]:
                 outputs_wrapper["outputs"].pop(settings.PLUGIN_LOOP_OUTPUTS_KEY)
 
         # 未执行节点需要实时渲染

@@ -44,6 +44,7 @@ class TestPluginRankingSerializer:
     def test_valid_data(self):
         data = {
             "component_code": "bk_http",
+            "plugin_source": "builtin",
             "version": "v1",
             "plugin_type": "component",
             "execution_count": 100,
@@ -54,6 +55,7 @@ class TestPluginRankingSerializer:
         }
         s = PluginRankingSerializer(data=data)
         assert s.is_valid(), s.errors
+        assert s.validated_data["plugin_source"] == "builtin"
 
 
 class TestTemplateRankingSerializer:
@@ -89,6 +91,7 @@ class TestFailureAnalysisSerializer:
     def test_valid_data(self):
         data = {
             "component_code": "bk_http",
+            "plugin_source": "builtin",
             "version": "v1",
             "plugin_type": "component",
             "failed_count": 10,
@@ -98,6 +101,7 @@ class TestFailureAnalysisSerializer:
         }
         s = FailureAnalysisSerializer(data=data)
         assert s.is_valid(), s.errors
+        assert s.validated_data["plugin_source"] == "builtin"
 
 
 class TestDateRangeParamSerializer:

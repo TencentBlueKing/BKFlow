@@ -17,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import django_filters
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Count, Exists, OuterRef
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status
 from rest_framework.decorators import action
@@ -31,7 +31,7 @@ from bkflow.utils.mixins import BKFLOWNoMaxLimitPagination
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import AdminModelViewSet
 
-from .models import Label
+from .models import Label, build_label_scope_filter
 from .serializers import LabelRefSerializer, LabelSerializer
 
 
@@ -52,7 +52,7 @@ class LabelFilter(django_filters.FilterSet):
         return queryset.filter(space_id__in=[-1, value])
 
     def filter_label_scope(self, queryset, name, value):
-        return queryset.filter(Q(label_scope__contains=[value]) | Q(label_scope__contains=["common"]))
+        return queryset.filter(build_label_scope_filter(value, "common"))
 
     def filter_parent_id(self, queryset, name, value):
         return queryset.filter(parent_id=value)

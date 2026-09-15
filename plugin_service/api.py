@@ -51,6 +51,13 @@ SYSTEM_TENANT_ID = "system"
 logger = logging.getLogger(PLUGIN_LOGGER)
 
 
+def _get_request_tenant_id(request):
+    """关闭多租户时维持旧请求，不向旧 PaaS 注入租户头。"""
+    if not getattr(settings, "ENABLE_MULTI_TENANT_MODE", False):
+        return None
+    return getattr(request.user, "tenant_id", SYSTEM_TENANT_ID)
+
+
 def _fetch_all_plugins_for_tenant(tenant_id, search_term=None, distributor_code_name=None, **extra_kwargs):
     """从指定租户拉取全量已部署插件（自动翻页）"""
     all_plugins = []
@@ -91,7 +98,7 @@ def get_plugin_list(request: Request):
     limit = request.validated_data.get("limit")
     offset = request.validated_data.get("offset")
     tag_id = request.validated_data.get("tag_id")
-    tenant_id = getattr(request.user, "tenant_id", SYSTEM_TENANT_ID)
+    tenant_id = _get_request_tenant_id(request)
     extra_kwargs = {}
     if tag_id is not None:
         extra_kwargs["tag_id"] = tag_id
@@ -115,7 +122,7 @@ def get_plugin_list(request: Request):
 @api_view(["GET"])
 def get_plugin_tags(request: Request):
     """获取插件tag列表信息"""
-    tenant_id = getattr(request.user, "tenant_id", SYSTEM_TENANT_ID)
+    tenant_id = _get_request_tenant_id(request)
     result = PluginServiceApiClient.get_plugin_tags_list(tenant_id=tenant_id)
     if request.query_params.get("with_unknown_tag") and result.get("result") and isinstance(result["data"], list):
         result["data"].append({"code_name": "OTHER", "name": "未分类", "id": -1})
@@ -294,7 +301,7 @@ def get_plugin_detail(request: Request):
     if not plugin_detail["result"]:
         return JsonResponse(plugin_detail)
     if with_app_detail:
-        tenant_id = getattr(request.user, "tenant_id", SYSTEM_TENANT_ID)
+        tenant_id = _get_request_tenant_id(request)
         app_detail = PluginServiceApiClient.get_plugin_app_detail(
             request.validated_data.get("plugin_code"), tenant_id=tenant_id
         )
@@ -331,7 +338,7 @@ def get_logs(request: Request):
     trace_id = request.validated_data.get("trace_id")
     scroll_id = request.validated_data.get("scroll_id")
     plugin_code = request.validated_data.get("plugin_code")
-    tenant_id = getattr(request.user, "tenant_id", SYSTEM_TENANT_ID)
+    tenant_id = _get_request_tenant_id(request)
     result = PluginServiceApiClient.get_plugin_logs(plugin_code, trace_id, scroll_id, tenant_id=tenant_id)
     if result["result"]:
         logs = [
@@ -353,7 +360,7 @@ def get_logs(request: Request):
 @validate_params(PluginCodeQuerySerializer)
 def get_plugin_app_detail(request: Request):
     """获取插件服务App详情"""
-    tenant_id = getattr(request.user, "tenant_id", SYSTEM_TENANT_ID)
+    tenant_id = _get_request_tenant_id(request)
     result = PluginServiceApiClient.get_plugin_app_detail(
         request.validated_data.get("plugin_code"), tenant_id=tenant_id
     )
@@ -368,7 +375,7 @@ def get_plugin_app_detail(request: Request):
 @api_view(["GET", "POST", "PUT", "PATCH", "DELETE"])
 def get_plugin_api_data(request: Request, plugin_code: str, data_api_path: str):
     """获取插件服务提供的数据接口数据"""
-    tenant_id = getattr(request.user, "tenant_id", SYSTEM_TENANT_ID)
+    tenant_id = _get_request_tenant_id(request)
     try:
         client = PluginServiceApiClient(plugin_code, tenant_id=tenant_id)
     except PluginServiceException as e:

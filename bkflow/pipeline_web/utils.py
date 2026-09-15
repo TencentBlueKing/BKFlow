@@ -57,7 +57,7 @@ def pre_handle_pipeline_tree(pipeline_tree):
     :params pipeline_tree 流程树
     """
     for pipeline_node in pipeline_tree["activities"].values():
-        if pipeline_node["type"] == "SubProcess":
+        if pipeline_node["type"] in ["SubProcess", "SubCanvas"]:
             continue
         if pipeline_node["component"]["code"] == ValueAssignComponent.code:
             data = pipeline_node["component"]["data"]
@@ -73,7 +73,7 @@ def post_handle_pipeline_tree(pipeline_tree):
     :params pipeline_tree 流程树
     """
     for pipeline_node in pipeline_tree["activities"].values():
-        if pipeline_node["type"] == "SubProcess":
+        if pipeline_node["type"] in ["SubProcess", "SubCanvas"]:
             continue
         if pipeline_node["component"]["code"] == ValueAssignComponent.code:
             data = pipeline_node["component"]["data"]

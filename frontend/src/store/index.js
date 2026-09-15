@@ -92,7 +92,7 @@ const store = new Vuex.Store({
       i18n: {},
     },
     isIframe: false,
-    isMultiTenantMode: window.ENABLE_MULTI_TENANT_MODE,
+    isMultiTenantMode: window.ENABLE_MULTI_TENANT_MODE === true,
   },
   // 公共 getters
   getters: {

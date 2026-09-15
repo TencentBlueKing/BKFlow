@@ -112,23 +112,47 @@ result = json.dumps({"key": "value"})
 
 ## 配置选项
 
-可以通过Django设置配置以下参数：
+可以通过同名部署环境变量配置以下参数（均为整数）：
 
 ```python
-# 执行超时时间（秒）
+# 准备阶段和 main 执行阶段各自的超时时间（秒）
 PYTHON_CODE_PLUGIN_TIMEOUT = 30
+
+# 等待并发名额的超时时间（秒）；未配置时跟随 PYTHON_CODE_PLUGIN_TIMEOUT
+PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT = 30
 
 # 最大代码长度（字符）
 PYTHON_CODE_PLUGIN_MAX_LENGTH = 10240
+
+# 单个代码执行子进程的内存限制（MB）
+PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB = 256
+
+# 每个 Worker 同时运行的代码执行子进程数
+PYTHON_CODE_PLUGIN_MAX_CONCURRENT_PROCESSES = 4
+
+# 子进程返回给 Worker 的跨进程编码后最大响应大小（字节）；0 表示不额外限制
+PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES = 0
 ```
 
 ## 注意事项
 
 1. **代码长度限制**：代码不能超过配置的最大长度（默认10KB）
-2. **执行超时**：代码执行时间不能超过配置的超时时间（默认30秒）
-3. **变量映射**：输入变量映射必须是有效的JSON格式
-4. **返回值**：建议使用`result`或`output`变量来返回结果
-5. **错误处理**：代码执行错误会在`bk_execution_output`中显示
+2. **执行超时**：排队使用独立的 `PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT`；获取名额后，输入编码、子进程启动和编译共用准备阶段预算；`main` 开始后获得独立执行预算（包含返回结果编码和传输）。准备和执行阶段各使用 `PYTHON_CODE_PLUGIN_TIMEOUT`（默认各30秒），因此节点总耗时可能超过30秒。父进程同时读写子进程管道，收到执行开始标记后切换期限；`main` 未开始时报告执行等待超时
+3. **进程隔离**：代码在独立子进程内执行，超时后子进程会被终止
+4. **并发限制**：每个 Worker 默认4个执行名额，从输入编码开始持有，直到子进程回收及父进程 JSON/协议解码完成后释放；超出额度的任务等待可用名额。这不等于修改 Celery Worker 的线程并发数
+5. **变量映射**：输入变量映射必须是有效的JSON格式
+6. **返回值**：支持 JSON 基础类型，以及 `complex`、`datetime`、`date`、`time`、`timedelta`、`Decimal`、`Fraction`、`UUID`、`set`、`frozenset`、`bytes`、`bytearray`、`tuple`、`range`、`deque`、`Counter`、`OrderedDict` 和 `defaultdict`。`defaultdict` 的默认工厂支持 `None`、`bool/int/float/complex/str/bytes/bytearray/list/dict/tuple/set/frozenset`，以及 `collections.Counter/OrderedDict/defaultdict/deque`、`decimal.Decimal`、`fractions.Fraction`、`datetime.timedelta`。未知工厂仅在整个选定输出可被旧引擎 JSON 保存时降级为普通字典；输入或需要 pickle 保型的输出仍明确报错，不传输任意 callable。其他容器子类仍按对应基础类型返回，不支持任意自定义对象
+7. **输出筛选和响应大小**：配置 `bk_output_key` 时，先在子进程中取出选定字段，再编码和检查响应大小，未选中的字段不参与编码。默认不新增响应大小门槛，以兼容存量大结果；内存限制、执行超时和并发限制仍生效。如需设置10MB响应上限，配置 `PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES=10485760`，超限错误会显示完整响应编码后的实际大小与上限
+8. **成功日志**：记录结果类型和可获取的长度；字符串/字节只预览前128个元素，容器不展开。节点实际输出保持完整
+9. **错误处理**：代码执行错误会在`bk_execution_output`中显示
+
+发布前需在实际 Engine Pod 中验证突发并发、队列等待时间和内存水位。默认4个执行名额仍可能使等待超过队列期限的节点失败；并发数和队列期限应结合存量流量调整。响应上限默认关闭时，大结果的编码、传输和父进程解析会增加内存消耗，启用上限前应先核查存量结果大小。被旧实现降低进程资源硬限制的 Worker 无法自行恢复，部署后需滚动重启现有 er-e Pod。
+
+## 父子进程协议与引擎存储
+
+上述类型支持说明的是父子进程边界。引擎持久化继续使用原来的“先 JSON、失败后 pickle”规则：例如字符串键的 `Counter/defaultdict` 通常存为 JSON，下游恢复为普通 `dict`；元组键等使 JSON 无法编码的场景才走 pickle，可能保留容器类型和工厂。本 PR 不承诺所有结果经引擎存储后仍保型。
+
+日期/时间支持保留 `datetime.timezone` 的自定义名称、标准库 `ZoneInfo` 的时区标识和夏令时规则，以及 `pytz` 已定位的时差和时区类型；其他自定义时区明确报错。协议保留正常中文的 UTF-8 紧凑编码，对含代理字符的参数/返回值使用受控字符串标记保留原始码点，对诊断信息中的代理字符使用 JSON 转义，避免编码失败、字符合并或子进程响应异常退出。
 
 ## 常见问题
 
@@ -159,11 +183,6 @@ A: 不可以。为了安全考虑，插件不允许访问数据库或其他外�
 ## 技术支持
 
 如有问题或建议，请联系开发团队。
-
-
-
-
-
 
 
 

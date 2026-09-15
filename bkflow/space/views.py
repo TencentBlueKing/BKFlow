@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 import django_filters
@@ -42,9 +43,12 @@ from bkflow.apigw.serializers.credential import (
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
 from bkflow.exceptions import APIRequestError
+from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
     SpaceConfigHandler,
+    SpaceConfigVerifyNotSupported,
+    SpacePluginConfig,
     SuperusersConfig,
 )
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
@@ -68,6 +72,12 @@ from bkflow.space.serializers import (
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
     SpaceConfigSerializer,
+    SpaceConfigVerifySerializer,
+    SpaceOpenPluginBulkActionSerializer,
+    SpaceOpenPluginDisableSourceSerializer,
+    SpaceOpenPluginListQuerySerializer,
+    SpaceOpenPluginToggleSerializer,
+    SpacePluginConfigQuerySerializer,
     SpaceSerializer,
 )
 from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
@@ -259,7 +269,10 @@ class SpaceViewSet(AdminModelViewSet):
             try:
                 tenant_id = serializer.validated_data["tenant_id"]
                 query_data: HttpRequestResult = client.request(
-                    url, method="GET", data={"id": app_code}, headers={"X-Bk-Tenant-Id": tenant_id}
+                    url,
+                    method="GET",
+                    data={"id": app_code},
+                    headers={"X-Bk-Tenant-Id": tenant_id} if settings.ENABLE_MULTI_TENANT_MODE else {},
                 )
             except APIRequestError as e:
                 logger.exception(f"SpaceViewSet 创建空间异常, app_code={app_code}, err={e}")
@@ -345,7 +358,7 @@ class SpaceInternalViewSet(AdminModelViewSet):
     def get_space_infos(self, request, *args, **kwargs):
         data = request.query_params
         configs = {}
-        for config_name in data.get("config_names", "").split(","):
+        for config_name in filter(None, data.get("config_names", "").split(",")):
             if config_name == "credential":
                 value = SpaceConfig.get_config(data["space_id"], ApiGatewayCredentialConfig.name)
                 scope = data.get("scope", self.CREDENTIAL_CONFIG_KEY)
@@ -357,6 +370,8 @@ class SpaceInternalViewSet(AdminModelViewSet):
             "configs": configs,
         }
 
+        if data.get("include_tenant") == "1":
+            infos["tenant_id"] = Space.objects.get(id=data["space_id"]).tenant_id
         return Response(infos)
 
 
@@ -385,7 +400,7 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
     @swagger_auto_schema(method="get", operation_summary="获取所有空间配置元信息", query_serializer=SpaceConfigBaseQuerySerializer)
     @action(detail=False, methods=["GET"])
     def config_meta(self, request, *args, **kwargs):
-        configs = SpaceConfigHandler.get_all_configs()
+        configs = SpaceConfigHandler.get_all_configs(only_public=True)
         return Response({name: self.process_config(config.to_dict()) for name, config in configs.items()})
 
     @swagger_auto_schema(
@@ -409,6 +424,82 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
         return Response(
             SpaceConfig.objects.get_space_config_info(space_id=ser.validated_data["space_id"], simplified=False)
         )
+
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="验证空间配置",
+        request_body=SpaceConfigVerifySerializer,
+    )
+    @action(detail=False, methods=["POST"])
+    def verify(self, request, *args, **kwargs):
+        ser = SpaceConfigVerifySerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        try:
+            config_cls = SpaceConfigHandler.get_config(data["name"])
+        except Exception as e:
+            return Response({"ok": False, "error": {"message": str(e)}})
+        try:
+            # 注入操作人
+            params = dict(data.get("params", {}))
+            params["operator"] = request.user.username
+            params.pop("space_id", None)
+            params.pop("value", None)
+            verify_data = config_cls.verify(space_id=data["space_id"], value=data.get("value"), **params)
+            return Response({"ok": True, "data": verify_data})
+        except SpaceConfigVerifyNotSupported as e:
+            return Response({"ok": False, "error": {"message": str(e), "not_supported": True}})
+        except Exception as e:
+            logger.error(f"[space_config verify] name={data['name']} error: {e}")
+            return Response({"ok": False, "error": {"message": str(e)}})
+
+    @swagger_auto_schema(
+        method="get", operation_summary="获取空间开放插件列表", query_serializer=SpaceOpenPluginListQuerySerializer
+    )
+    @action(detail=False, methods=["GET"], url_path="open_plugins")
+    def list_open_plugins(self, request, *args, **kwargs):
+        ser = SpaceOpenPluginListQuerySerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        return Response(OpenPluginCatalogService.list_space_plugins(**ser.validated_data))
+
+    @swagger_auto_schema(method="post", operation_summary="切换空间开放插件状态", request_body=SpaceOpenPluginToggleSerializer)
+    @action(detail=False, methods=["POST"], url_path="open_plugins/toggle")
+    def toggle_open_plugin(self, request, *args, **kwargs):
+        ser = SpaceOpenPluginToggleSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        availability = OpenPluginCatalogService.toggle_plugin(**ser.validated_data)
+        return Response(
+            {
+                "space_id": availability.space_id,
+                "source_key": availability.source_key,
+                "plugin_id": availability.plugin_id,
+                "enabled": availability.enabled,
+            }
+        )
+
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="开启当前可见开放插件",
+        request_body=SpaceOpenPluginBulkActionSerializer,
+    )
+    @action(detail=False, methods=["POST"], url_path="open_plugins/enable_all")
+    def enable_all_open_plugins(self, request, *args, **kwargs):
+        ser = SpaceOpenPluginBulkActionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        updated = OpenPluginCatalogService.enable_all_visible_plugins(**ser.validated_data)
+        return Response({"updated_count": len(updated)})
+
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="按来源关闭开放插件",
+        request_body=SpaceOpenPluginDisableSourceSerializer,
+    )
+    @action(detail=False, methods=["POST"], url_path="open_plugins/disable_source")
+    def disable_source_open_plugins(self, request, *args, **kwargs):
+        ser = SpaceOpenPluginDisableSourceSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        OpenPluginCatalogService.disable_source_plugins(**ser.validated_data)
+        return Response({"source_key": ser.validated_data["source_key"], "enabled": False})
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -487,3 +578,11 @@ class SpaceConfigViewSet(ModelViewSet, SimpleGenericViewSet):
             err_msg = f"检查空间配置失败：space_id: {space_id}, name: {name}, error: {str(e)}"
             logger.error(err_msg)
             return Response(exception=True, data={"detail": err_msg})
+
+    @swagger_auto_schema(method="get", operation_summary="获取空间插件配置", query_serializer=SpacePluginConfigQuerySerializer)
+    @action(detail=False, methods=["GET"])
+    def get_space_plugin_config(self, request, *args, **kwargs):
+        ser = SpacePluginConfigQuerySerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        value = SpaceConfig.get_config(space_id=ser.validated_data["space_id"], config_name=SpacePluginConfig.name)
+        return Response({"value": value})

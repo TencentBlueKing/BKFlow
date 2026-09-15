@@ -16,7 +16,6 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from functools import partial
 
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
@@ -24,12 +23,10 @@ from pipeline.conf import settings
 from pipeline.core.flow.io import ArrayItemSchema, BooleanItemSchema, StringItemSchema
 
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
-from bkflow.utils.handlers import handle_api_error
-from bkflow.utils.message_cmsi import normalize_msg_type, send_cmsi_message
-from packages.bkapi.bk_cmsi.shortcuts import get_client_by_username
+from bkflow.utils.message import send_message
+from bkflow.utils.tenant import get_task_tenant_id
 
 __group_name__ = _("蓝鲸服务(BK)")
-bk_handle_api_error = partial(handle_api_error, __group_name__)
 
 
 class NotifyService(BKFlowBaseService):
@@ -42,7 +39,8 @@ class NotifyService(BKFlowBaseService):
                 key="bk_notify_types",
                 type="array",
                 schema=ArrayItemSchema(
-                    description=_("需要使用的通知方式，从 API 网关自动获取已实现的通知渠道"), item_schema=StringItemSchema(description=_("通知方式"))
+                    description=_("需要使用的通知方式，从 API 网关自动获取已实现的通知渠道"),
+                    item_schema=StringItemSchema(description=_("通知方式")),
                 ),
             ),
             self.InputItem(
@@ -52,10 +50,16 @@ class NotifyService(BKFlowBaseService):
                 schema=StringItemSchema(description=_("接收通知的用户")),
             ),
             self.InputItem(
-                name=_("通知标题"), key="bk_notify_title", type="string", schema=StringItemSchema(description=_("通知的标题"))
+                name=_("通知标题"),
+                key="bk_notify_title",
+                type="string",
+                schema=StringItemSchema(description=_("通知的标题")),
             ),
             self.InputItem(
-                name=_("通知内容"), key="bk_notify_content", type="string", schema=StringItemSchema(description=_("通知的内容"))
+                name=_("通知内容"),
+                key="bk_notify_content",
+                type="string",
+                schema=StringItemSchema(description=_("通知的内容")),
             ),
             self.InputItem(
                 name=_("通知执行人"),
@@ -80,8 +84,6 @@ class NotifyService(BKFlowBaseService):
 
         notify_types = data.inputs.bk_notify_types
         title = data.inputs.bk_notify_title
-        tenant_id = parent_data.get_one_of_inputs("tenant_id")
-        client = get_client_by_username(executor, stage=settings.BK_APIGW_STAGE_NAME)
         content = data.inputs.bk_notify_content
         receivers = data.inputs.bk_notify_receivers.split(",")
         notify_executor = data.inputs.notify_executor
@@ -91,30 +93,18 @@ class NotifyService(BKFlowBaseService):
             receivers.insert(0, executor)
         unique_receivers = sorted(set(receivers), key=receivers.index)
 
-        error_flag = False
-        error = ""
-        for msg_type in notify_types:
-            kwargs = {}
-            result = {"result": False, "message": "消息发送失败"}
-            operation_name = "v1_send_{}".format(normalize_msg_type(msg_type))
-            try:
-                operation_name, kwargs, result = send_cmsi_message(
-                    client=client,
-                    tenant_id=tenant_id,
-                    msg_type=msg_type,
-                    receivers=unique_receivers,
-                    title=title,
-                    content=content,
-                )
-            except Exception:
-                message = bk_handle_api_error("cmsi.{}".format(operation_name), kwargs, result)
-                self.logger.error(message)
-                error_flag = True
-                error += "%s;" % message
+        has_error, error_message = send_message(
+            executor=executor,
+            notify_types=notify_types,
+            receivers=",".join(unique_receivers),
+            title=title,
+            content=content,
+            tenant_id=get_task_tenant_id(parent_data),
+        )
 
-        if error_flag:
+        if has_error:
             # 这里不需要返回 html 格式到前端，避免导致异常信息展示格式错乱
-            data.set_outputs("ex_data", error.replace("<", "|").replace(">", "|"))
+            data.set_outputs("ex_data", error_message.replace("<", "|").replace(">", "|"))
             return False
 
         return True

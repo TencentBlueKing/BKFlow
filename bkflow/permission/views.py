@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,8 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from datetime import datetime
-
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import action
@@ -31,7 +29,11 @@ from bkflow.utils.views import ReadOnlyViewSet
 
 
 class TokenViewSet(ReadOnlyViewSet):
-    queryset = Token.objects.filter(expired_time__gte=datetime.now())
+    queryset = Token.objects.all()
+
+    def get_queryset(self):
+        """每次请求按当前时刻筛选有效票据。"""
+        return super().get_queryset().filter(expired_time__gt=timezone.now())
 
     @swagger_auto_schema(
         method="POST",
@@ -45,5 +47,8 @@ class TokenViewSet(ReadOnlyViewSet):
             raise TokenRenewalException(_("Token 续期失败，当前续期的用户与正在登录的用户不一致"))
 
         result, message = obj.renewal()
+        expired_time = obj.expired_time
+        if result and timezone.is_aware(expired_time):
+            expired_time = timezone.make_naive(expired_time, timezone.get_default_timezone())
 
-        return Response({"result": result, "message": message, "expired_time": obj.expired_time})
+        return Response({"result": result, "message": message, "expired_time": expired_time})

@@ -16,9 +16,11 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from bkflow.apigw.serializers.plugin import (
@@ -26,6 +28,31 @@ from bkflow.apigw.serializers.plugin import (
     ListPluginsSerializer,
 )
 from bkflow.apigw.views.list_plugins import list_plugins
+from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+
+
+def create_open_plugin_catalog(space_id=1, source_key="sops"):
+    OpenPluginCatalogIndex.objects.create(
+        space_id=space_id,
+        source_key=source_key,
+        plugin_id="open_plugin_001",
+        plugin_code="job_execute_task",
+        plugin_name="JOB 执行作业",
+        plugin_source="builtin",
+        group_name="作业平台",
+        default_version="1.2.0",
+        latest_version="1.3.0",
+        wrapper_version="v4.0.0",
+        versions=["1.2.0", "1.3.0"],
+        meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
+        status=OpenPluginCatalogIndex.Status.AVAILABLE,
+    )
+    SpaceOpenPluginAvailability.objects.create(
+        space_id=space_id,
+        source_key=source_key,
+        plugin_id="open_plugin_001",
+        enabled=True,
+    )
 
 
 class TestListPluginsSerializer:
@@ -47,10 +74,14 @@ class TestListPluginsSerializer:
 
 
 class TestGetPluginSchemaSerializer:
-    def test_code_required(self):
+    def test_code_or_plugin_id_required(self):
         ser = GetPluginSchemaSerializer(data={})
         assert not ser.is_valid()
-        assert "code" in ser.errors
+
+    def test_plugin_id_only_is_valid(self):
+        ser = GetPluginSchemaSerializer(data={"plugin_id": "open_plugin_001"})
+        assert ser.is_valid()
+        assert ser.validated_data["plugin_id"] == "open_plugin_001"
 
     def test_valid(self):
         ser = GetPluginSchemaSerializer(data={"code": "test_code"})
@@ -93,3 +124,46 @@ class TestListPluginsView(SimpleTestCase):
         assert data["result"] is True
         assert data["count"] == 1
         assert data["data"][0]["code"] == "test_plugin"
+
+    @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
+    @patch("bkflow.apigw.views.list_plugins.PluginSchemaService")
+    def test_list_plugins_forwards_plugin_source(self, mock_service_cls):
+        """plugin_source 需传到 PluginSchemaService，而不是只停在序列化器。"""
+        mock_service = MagicMock()
+        mock_service.list_plugins.return_value = ([], 0)
+        mock_service_cls.return_value = mock_service
+
+        request = self.factory.get(
+            "/space/1/list_plugins/",
+            {"plugin_type": "uniform_api", "plugin_source": "builtin"},
+        )
+        request.user = MagicMock(username="admin")
+        response = list_plugins(request, space_id="1")
+
+        data = json.loads(response.content)
+        assert data["result"] is True
+        mock_service.list_plugins.assert_called_once_with(
+            keyword=None,
+            plugin_type="uniform_api",
+            with_detail=False,
+            limit=100,
+            offset=0,
+            plugin_source="builtin",
+        )
+
+
+@pytest.mark.django_db
+@override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
+def test_list_plugins_returns_enabled_uniform_api_source():
+    create_open_plugin_catalog(space_id=1, source_key="sops")
+
+    factory = RequestFactory()
+    request = factory.get("/space/1/list_plugins/", {"plugin_type": "uniform_api"})
+    request.user = MagicMock(username="admin")
+    response = list_plugins(request, space_id="1")
+
+    data = json.loads(response.content)
+    assert data["result"] is True
+    assert data["count"] == 1
+    assert data["data"][0]["code"] == "open_plugin_001"
+    assert data["data"][0]["source_key"] == "sops"

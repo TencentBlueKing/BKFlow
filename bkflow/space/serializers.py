@@ -80,4 +80,52 @@ class SpaceConfigBatchApplySerializer(serializers.Serializer):
         except ValidationError as e:
             logger.exception(f"[validate_configs] error: {e}")
             raise serializers.ValidationError(e.message)
+
+        # 批量入口不处理 REF 类型配置，避免只更新 Interface 而漏掉引擎同步
+        for name in configs:
+            if SpaceConfigHandler.get_config(name).value_type == SpaceConfigValueType.REF.value:
+                raise serializers.ValidationError(
+                    _("批量应用暂不支持引用类型配置: {name}").format(name=name)
+                )
         return configs
+
+
+class SpaceConfigVerifySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    name = serializers.CharField(help_text=_("配置项名称"))
+    value = serializers.JSONField(help_text=_("待验证的配置值"), required=False)
+    params = serializers.DictField(help_text=_("验证参数"), required=False, default=dict)
+
+
+class SpaceOpenPluginListQuerySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    source_key = serializers.CharField(help_text=_("开放插件来源标识"), required=False, allow_blank=False)
+
+
+class SpaceOpenPluginToggleSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    source_key = serializers.CharField(help_text=_("开放插件来源标识"))
+    plugin_id = serializers.CharField(help_text=_("开放插件ID"))
+    enabled = serializers.BooleanField(help_text=_("是否开启"))
+
+
+class SpaceOpenPluginBulkActionSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    source_key = serializers.CharField(help_text=_("开放插件来源标识"), required=False, allow_blank=False)
+
+
+class SpaceOpenPluginDisableSourceSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    source_key = serializers.CharField(help_text=_("开放插件来源标识"))
+
+
+class SpacePluginConfigQuerySerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    config_name = serializers.CharField(help_text=_("配置名称，仅支持 space_plugin_config"))
+
+    def validate_config_name(self, value):
+        from bkflow.space.configs import SpacePluginConfig
+
+        if value != SpacePluginConfig.name:
+            raise serializers.ValidationError(_("只能查询空间插件配置"))
+        return value

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -52,9 +53,11 @@ def get_plugin_schema(request, space_id):
 
     try:
         result = service.get_plugin_schema(
-            code=params["code"],
-            version=params.get("version"),
+            code=params.get("plugin_id") or params.get("code"),
+            version=params.get("plugin_version") or params.get("version"),
             plugin_type=params.get("plugin_type"),
+            plugin_source=params.get("plugin_source"),
+            source_key=params.get("source_key"),
         )
     except ValueError as e:
         return {

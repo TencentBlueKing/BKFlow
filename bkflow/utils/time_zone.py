@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 import pytz
@@ -37,6 +38,8 @@ def get_user_timezone(request, use_cache=True):
             return internal_time_zone
         except pytz.exceptions.UnknownTimeZoneError:
             logger.warning(f"invalid timezone from header: {internal_time_zone}")
+    if not settings.ENABLE_MULTI_TENANT_MODE:
+        return settings.TIME_ZONE
     user_time_zone_cache_key = f"{request.user.username}_time_zone"
     if use_cache:
         time_zone_cache = cache.get(user_time_zone_cache_key, default=NOT_FOUND)

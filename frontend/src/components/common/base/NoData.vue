@@ -34,6 +34,8 @@
   </div>
 </template>
 <script>
+  import notDataUrl from '@/assets/images/not-data.png';
+  import searchEmptyUrl from '@/assets/images/search-empty.png';
   export default {
     name: 'NoData',
     props: {
@@ -48,8 +50,8 @@
     },
     data() {
       return {
-        notDataUrl: require('@/assets/images/not-data.png'),
-        searchEmptyUrl: require('@/assets/images/search-empty.png'),
+        notDataUrl,
+        searchEmptyUrl,
       };
     },
   };

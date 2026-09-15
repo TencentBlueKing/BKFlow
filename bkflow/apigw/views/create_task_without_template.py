@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -27,6 +28,8 @@ from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import CreateTaskWithoutTemplateSerializer
 from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.space.models import Space
 
 
 @login_exempt
@@ -42,6 +45,7 @@ def create_task_without_template(request, space_id):
 
     create_task_data = dict(ser.validated_data)
     create_task_data["space_id"] = space_id
+    create_task_data["tenant_id"] = Space.objects.get(id=space_id).tenant_id
     create_task_data["trigger_method"] = TaskTriggerMethod.api.name
     DEFAULT_NOTIFY_CONFIG = {
         "notify_type": {"fail": [], "success": []},
@@ -63,6 +67,15 @@ def create_task_without_template(request, space_id):
         create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
             "custom_span_attributes"
         ] = custom_span_attributes
+
+    create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+        space_id=int(space_id),
+        pipeline_tree=create_task_data["pipeline_tree"],
+        extra_info=create_task_data.get("extra_info"),
+        username=request.user.username,
+        scope_type=create_task_data.get("scope_type"),
+        scope_id=create_task_data.get("scope_value"),
+    )
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -24,6 +25,17 @@ from bkflow.api_plugin_demo.plugins import (
     get_api_list,
     get_category_list,
 )
+
+
+def _demo_response(result=True, data=None, message=""):
+    """构建 demo API 标准三段响应。"""
+    return Response(
+        {
+            "result": result,
+            "message": message,
+            "data": data if data is not None else {},
+        }
+    )
 
 
 @api_view(["GET"])

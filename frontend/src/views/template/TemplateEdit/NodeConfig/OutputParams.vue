@@ -48,7 +48,7 @@
         </div>
       </bk-table-column>
       <bk-table-column
-        :label="$t('勾选为全局变量')"
+        :label="isInLoopGroupOrLoopNode ? $t('保存为流程变量') : $t('勾选为全局变量')"
         :width="120">
         <i
           slot-scope="props"
@@ -112,6 +112,10 @@
         type: String,
         default: '',
       }, // 循环输出变量key，存储在loopConfig中
+      isInLoopGroupOrLoopNode: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       const list = this.getOutputsList(this.params);

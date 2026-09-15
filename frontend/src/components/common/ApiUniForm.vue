@@ -338,6 +338,9 @@
             spaceId: this.spaceId,
             meta_url: config.meta_url,
             ...this.scopeInfo,
+            meta_url_template: config.meta_url_template,
+            version: config.version,
+            source_key: config.source_key,
             api_name: config.api_key,
           });
           const { methods, url } = resp.data;

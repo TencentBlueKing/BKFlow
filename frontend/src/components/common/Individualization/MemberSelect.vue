@@ -23,6 +23,7 @@
       :multiple="multiple" />
     <bk-user-selector
       v-else
+      class="tag-member-selector-wrap"
       v-model="setValue"
       :api="api"
       :placeholder="placeholder"
@@ -139,8 +140,7 @@
         }
     }
     .tag-member-selector-wrap {
-        .user-selector {
-            width: 100%;
-        }
+      max-width: 600px;
+      width: 100%;
     }
 </style>

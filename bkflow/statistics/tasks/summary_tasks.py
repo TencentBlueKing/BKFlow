@@ -165,7 +165,7 @@ def _generate_plugin_summary(period_type: str, period_start: date):
     node_stats = (
         TaskflowExecutedNodeStatistics.objects.using(db_alias)
         .filter(started_time__gte=range_start, started_time__lt=range_end, is_retry=False)
-        .values("space_id", "component_code", "version", "plugin_type")
+        .values("space_id", "plugin_source", "component_code", "version", "plugin_type")
         .annotate(
             execution=Count("id"),
             success=Count("id", filter=Q(status=True)),
@@ -180,6 +180,7 @@ def _generate_plugin_summary(period_type: str, period_start: date):
             period_type=period_type,
             period_start=period_start,
             space_id=stat["space_id"],
+            plugin_source=stat["plugin_source"],
             component_code=stat["component_code"],
             version=stat["version"],
             defaults={

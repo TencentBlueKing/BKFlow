@@ -47,6 +47,7 @@ class TaskTrendSerializer(serializers.Serializer):
 
 class PluginRankingSerializer(serializers.Serializer):
     component_code = serializers.CharField()
+    plugin_source = serializers.CharField()
     version = serializers.CharField()
     plugin_type = serializers.CharField()
     execution_count = serializers.IntegerField()
@@ -77,6 +78,7 @@ class SpaceRankingSerializer(serializers.Serializer):
 
 class FailureAnalysisSerializer(serializers.Serializer):
     component_code = serializers.CharField()
+    plugin_source = serializers.CharField()
     version = serializers.CharField()
     plugin_type = serializers.CharField()
     failed_count = serializers.IntegerField()

@@ -16,9 +16,11 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import logging
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -103,41 +105,8 @@ def _get_common_data(request):
     return None, serializer_data, node_outputs
 
 
-@csrf_exempt
-@require_POST
-def itsm_approve(request):
-    data = json.loads(request.body)
-    if "is_passed" not in data:
-        return JsonResponse({"result": False, "message": "is_passed 该字段是必填项"})
+def _approve_legacy(request, serializer_data, node_outputs):
     operator = request.user.username
-    serializer = ITSMViewRequestSerializer(data=data)
-    serializer.is_valid(raise_exception=True)
-
-    serializer_data = serializer.data
-
-    space_id = serializer_data["space_id"]
-
-    # 判断是否是拒绝,如果是拒绝并且没有填写备注则失败
-    if not serializer_data["is_passed"] and not serializer_data["message"]:
-        return JsonResponse({"result": False, "message": "审批拒绝后需填入备注"})
-
-    client = TaskComponentClient(space_id=space_id)
-
-    # 获取当前任务id以及节点id查询目前的itsm单据sn
-    node_detail = client.get_task_node_detail(
-        task_id=serializer_data["task_id"], node_id=serializer_data["node_id"], username=operator
-    )
-
-    if not node_detail["result"]:
-        message = node_detail["message"]
-        logger.error(message)
-        result = {"result": False, "message": message}
-        return JsonResponse(result)
-
-    # 获取节点输出
-    node_outputs = node_detail["data"]["outputs"]
-    if not node_outputs:
-        return JsonResponse({"result": False, "message": "获取该节点输出参数为空"})
 
     # 从node_outputs中获取单号
     sn = ""
@@ -154,7 +123,7 @@ def itsm_approve(request):
     # 获取单据信息查询节点id
     ticket_info_result = client.get_ticket_info(sn)
     if not ticket_info_result["result"]:
-        message = handle_api_error("itsm", "get_ticket_info", request.data, ticket_info_result)
+        message = handle_api_error("itsm", "get_ticket_info", serializer_data, ticket_info_result)
         logger.error(message)
         result = {"result": False, "message": message}
         return JsonResponse(result)
@@ -215,14 +184,14 @@ def itsm_approve_new(request):
         return error_response
 
     operator = request.user.username
-    tenant_id = request.user.tenant_id
 
     # 从节点输出中获取 itsm 工单 id
     ticket_id = _extract_output_value(node_outputs, "id")
     if not ticket_id:
-        return JsonResponse({"result": False, "message": "该审批节点输出参数中没有itsm工单id"})
+        return _approve_legacy(request, serializer_data, node_outputs)
 
-    client = get_client_by_username(username=operator)
+    tenant_id = request.user.tenant_id
+    client = get_client_by_username(username=operator, stage=settings.BK_APIGW_STAGE_NAME)
 
     # 拉取工单详情，先校验 result 再读 data，避免接口失败时直接 KeyError
     ticket_info_result = client.api.ticket_detail({"id": ticket_id}, headers={"X-Bk-Tenant-Id": tenant_id})
@@ -257,3 +226,7 @@ def itsm_approve_new(request):
         return JsonResponse({"result": False, "message": message})
 
     return JsonResponse({"result": True, "data": None})
+
+
+# 保留旧路由供已发布的客户端调用。
+itsm_approve = itsm_approve_new

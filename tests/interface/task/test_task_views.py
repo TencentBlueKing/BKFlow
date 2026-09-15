@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -30,13 +31,9 @@ from bkflow.interface.task.view import (
     TaskInterfaceSystemSuperuserViewSet,
     TaskInterfaceViewSet,
 )
-from bkflow.permission.models import (
-    TASK_PERMISSION_TYPE,
-    PermissionType,
-    ResourceType,
-    Token,
-)
+from bkflow.permission.models import ResourceType, TokenPermissionType
 from bkflow.space.models import Space
+from tests.utils.token import create_token
 
 
 @pytest.mark.django_db
@@ -68,7 +65,7 @@ class TestTaskInterfaceAdminViewSet:
 
         assert response.status_code == 200
         mock_client.task_list.assert_called_once()
-        mock_client_class.assert_called_once_with(space_id=self.space.id)
+        mock_client_class.assert_called_once_with(space_id=self.space.id, time_zone="Asia/Shanghai")
 
     @mock.patch("bkflow.interface.task.view.Label.objects.get_labels_map")
     @mock.patch("bkflow.interface.task.view.Label.get_label_ids_by_names")
@@ -240,7 +237,7 @@ class TestTaskInterfaceViewSet:
 
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
-        assert data["data"]["auth"] == TASK_PERMISSION_TYPE
+        assert data["data"]["auth"] == ["VIEW", "OPERATE", "FLOW_VIEW", "FLOW_EDIT", "FLOW_MOCK"]
 
     def test_inject_user_task_auth_space_superuser(self):
         """Test _inject_user_task_auth when user is space superuser"""
@@ -253,27 +250,27 @@ class TestTaskInterfaceViewSet:
 
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
-        assert data["data"]["auth"] == TASK_PERMISSION_TYPE
+        assert data["data"]["auth"] == ["VIEW", "OPERATE", "FLOW_VIEW", "FLOW_EDIT", "FLOW_MOCK"]
 
     def test_inject_user_task_auth_with_token_permissions(self):
         """Test _inject_user_task_auth with token permissions"""
         # Create tokens with different permissions
-        Token.objects.create(
+        create_token(
             token="token1",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
-        Token.objects.create(
+        create_token(
             token="token2",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -296,18 +293,19 @@ class TestTaskInterfaceViewSet:
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
         assert "auth" in data["data"]
-        assert PermissionType.VIEW.value in data["data"]["auth"]
-        assert PermissionType.OPERATE.value in data["data"]["auth"]
+        assert TokenPermissionType.VIEW.value in data["data"]["auth"]
+        assert TokenPermissionType.OPERATE.value in data["data"]["auth"]
 
-    def test_inject_user_task_auth_with_scope_permissions(self):
-        """Test _inject_user_task_auth with scope permissions"""
-        Token.objects.create(
+    @pytest.mark.parametrize("permission_type", ["VIEW", "EDIT", "OPERATE", "MOCK"])
+    def test_inject_user_task_auth_with_scope_permissions(self, permission_type):
+        """作用域的四种操作在任务 auth 中保留原值，不加模板前缀。"""
+        create_token(
             token="token_scope",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.SCOPE.value,
             resource_id="project_456",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=permission_type,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -329,18 +327,17 @@ class TestTaskInterfaceViewSet:
 
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
-        assert "auth" in data["data"]
-        assert PermissionType.VIEW.value in data["data"]["auth"]
+        assert data["data"]["auth"] == [permission_type]
 
     def test_inject_user_task_auth_mock_task_with_template_permission(self):
         """Test _inject_user_task_auth for MOCK task, should include TEMPLATE permission query"""
-        Token.objects.create(
+        create_token(
             token="token_template_mock",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TEMPLATE.value,
             resource_id="456",
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -363,7 +360,43 @@ class TestTaskInterfaceViewSet:
 
         TaskInterfaceViewSet._inject_user_task_auth(request, data)
 
-        assert PermissionType.FLOW_MOCK.value in data["data"]["auth"]
+        assert "FLOW_MOCK" in data["data"]["auth"]
+
+    @pytest.mark.parametrize(
+        ("template_permission", "expected_auth"),
+        [("VIEW", "FLOW_VIEW"), ("EDIT", "FLOW_EDIT"), ("MOCK", "FLOW_MOCK"), ("OPERATE", "FLOW_OPERATE")],
+    )
+    def test_inject_user_task_auth_keeps_resource_namespaces(self, template_permission, expected_auth):
+        """同一数值 ID 的任务和模板不混淆，历史模板操作标记保留原响应。"""
+        for index, (resource_type, permission_type) in enumerate(
+            [("TASK", "VIEW"), ("TASK", "OPERATE"), ("TEMPLATE", template_permission)]
+        ):
+            create_token(
+                token=f"auth_projection_{index}",
+                space_id=self.space.id,
+                user="normaluser",
+                resource_type=resource_type,
+                resource_id="123",
+                permission_type=permission_type,
+                expired_time=timezone.now() + timezone.timedelta(hours=1),
+            )
+
+        request = self.factory.get("/task/get_task_detail/123/")
+        request.user = self.normal_user
+        data = {
+            "result": True,
+            "data": {
+                "id": "123",
+                "template_id": "123",
+                "space_id": self.space.id,
+                "scope_type": "project",
+                "scope_value": "456",
+            },
+        }
+
+        TaskInterfaceViewSet._inject_user_task_auth(request, data)
+
+        assert set(data["data"]["auth"]) == {"VIEW", "OPERATE", expected_auth}
 
     def test_inject_user_task_auth_result_false(self):
         """Test _inject_user_task_auth when result is False"""
@@ -409,13 +442,13 @@ class TestTaskInterfaceViewSet:
 
     def test_get_space_id_with_token(self):
         """Test get_space_id when using token"""
-        Token.objects.create(
+        create_token(
             token="test_token_valid",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -446,13 +479,13 @@ class TestTaskInterfaceViewSet:
 
     def test_get_space_id_from_data(self):
         """Test get_space_id when space_id comes from request.data"""
-        Token.objects.create(
+        create_token(
             token="test_token_data",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -471,13 +504,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_detail(self, mock_client_class):
         """Test get_task_detail method"""
-        Token.objects.create(
+        create_token(
             token="test_token_detail",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -510,13 +543,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_states(self, mock_client_class):
         """Test get_task_states method"""
-        Token.objects.create(
+        create_token(
             token="test_token_states",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -557,13 +590,13 @@ class TestTaskInterfaceViewSet:
         )
 
         # Create token with MOCK permission for template
-        Token.objects.create(
+        create_token(
             token="test_token_mock",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TEMPLATE.value,
             resource_id="456",
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -600,13 +633,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.start_trace")
     def test_operate_task(self, mock_start_trace, mock_client_class):
         """Test operate_task method"""
-        Token.objects.create(
+        create_token(
             token="test_token_operate",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -630,6 +663,7 @@ class TestTaskInterfaceViewSet:
         response = view(request, task_id="123", operation="start")
 
         assert response.status_code == 200
+        mock_client.get_task_detail.assert_not_called()
         mock_client.operate_task.assert_called_once()
         # operator is added in the view, check it was called with operator
         call_args = mock_client.operate_task.call_args
@@ -639,15 +673,48 @@ class TestTaskInterfaceViewSet:
         assert call_args[0][2].get("operator") == "normaluser"
 
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
+    @mock.patch("bkflow.interface.task.view.start_trace")
+    def test_start_task_does_not_prefetch_task_detail(self, mock_start_trace, mock_client_class):
+        """Web 启动入口不再无条件拉取完整任务详情。"""
+        create_token(
+            token="test_token_open_plugin_start",
+            space_id=self.space.id,
+            user="normaluser",
+            resource_type=ResourceType.TASK.value,
+            resource_id="123",
+            permission_type=TokenPermissionType.OPERATE.value,
+            expired_time=timezone.now() + timezone.timedelta(hours=1),
+        )
+        mock_client = mock_client_class.return_value
+        mock_client.operate_task.return_value = {"result": True, "data": {"status": "success"}}
+        mock_start_trace.return_value.__enter__ = MagicMock()
+        mock_start_trace.return_value.__exit__ = MagicMock(return_value=False)
+
+        view = TaskInterfaceViewSet.as_view({"post": "operate_task"})
+        request = self.factory.post(
+            "/tasks/operate_task/123/start/?space_id={}".format(self.space.id), {}, format="json"
+        )
+        request.user = self.normal_user
+        request.token = "test_token_open_plugin_start"
+        request.query_params = {"space_id": str(self.space.id)}
+        request.data = {}
+
+        response = view(request, task_id="123", operation="start")
+
+        assert response.status_code == 200
+        mock_client.get_task_detail.assert_not_called()
+        mock_client.operate_task.assert_called_once()
+
+    @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_node_detail(self, mock_client_class):
         """Test get_task_node_detail method"""
-        Token.objects.create(
+        create_token(
             token="test_token_node",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -675,13 +742,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.start_trace")
     def test_operate_node(self, mock_start_trace, mock_client_class):
         """Test operate_node method"""
-        Token.objects.create(
+        create_token(
             token="test_token_node_operate",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.OPERATE.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -718,13 +785,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_node_log(self, mock_client_class):
         """Test get_task_node_log method"""
-        Token.objects.create(
+        create_token(
             token="test_token_log",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -750,13 +817,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_render_current_constants(self, mock_client_class):
         """Test render_current_constants method"""
-        Token.objects.create(
+        create_token(
             token="test_token_constants",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -782,13 +849,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_task_operation_record(self, mock_client_class):
         """Test get_task_operation_record method"""
-        Token.objects.create(
+        create_token(
             token="test_token_record",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -814,13 +881,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.TaskComponentClient")
     def test_get_node_snapshot_config(self, mock_client_class):
         """Test get_node_snapshot_config method"""
-        Token.objects.create(
+        create_token(
             token="test_token_snapshot",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -852,13 +919,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.StageJobStateHandler")
     def test_get_stage_and_job_states(self, mock_handler_class):
         """Test get_stage_and_job_states method"""
-        Token.objects.create(
+        create_token(
             token="test_token_stage",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
@@ -881,13 +948,13 @@ class TestTaskInterfaceViewSet:
     @mock.patch("bkflow.interface.task.view.StageConstantHandler")
     def test_render_stage_constants(self, mock_handler_class):
         """Test render_stage_constants method"""
-        Token.objects.create(
+        create_token(
             token="test_token_render",
             space_id=self.space.id,
             user="normaluser",
             resource_type=ResourceType.TASK.value,
             resource_id="123",
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.VIEW.value,
             expired_time=timezone.now() + timezone.timedelta(hours=1),
         )
 
