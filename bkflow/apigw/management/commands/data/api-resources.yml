@@ -2488,7 +2488,7 @@ paths:
   /space/{space_id}/create_template/:
     post:
       operationId: create_template
-      description: 创建模版
+      description: 创建模版；多租户下嵌套子流程仅可引用当前空间模板，单租户保留原有引用行为。
       tags: []
       responses:
         '200':
@@ -4168,7 +4168,7 @@ paths:
   /space/{space_id}/update_template/{template_id}/:
     post:
       operationId: update_template
-      description: 更新模板
+      description: 更新模板；多租户下嵌套子流程仅可引用当前空间模板，单租户保留原有引用行为。
       tags: []
       responses:
         '200':
@@ -4816,6 +4816,84 @@ paths:
           name: sdk
           method: get
           path: /{env.api_sub_path}api/plugin/{plugin_id}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/plugin/detail/:
+    post:
+      operationId: sdk_get_plugin_all_types_detail
+      description: 获取三类插件配置详情
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/plugin/detail/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/plugin_query/uniform_api/list/{space_id}/:
+    get:
+      operationId: sdk_get_api_plugin_list
+      description: 获取uniform_api插件列表
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/plugin_query/uniform_api/list/{space_id}/
           matchSubpath: false
           timeout: 0
         authConfig:
