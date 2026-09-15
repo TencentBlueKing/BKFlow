@@ -4468,6 +4468,69 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
+  /sdk/plugin/detail/:
+    post:
+      operationId: sdk_get_plugin_all_types_detail
+      description: 获取三类插件配置详情
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/plugin/detail/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/plugin_query/uniform_api/list/{space_id}/:
+    get:
+      operationId: sdk_get_api_plugin_list
+      description: 获取uniform_api插件列表
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/plugin_query/uniform_api/list/{space_id}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin_query/uniform_api/category_list/{space_id}/:
     get:
       operationId: sdk_get_api_plugin_category_list
