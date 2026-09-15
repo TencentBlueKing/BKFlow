@@ -22,7 +22,8 @@ from pipeline.component_framework.models import ComponentModel
 from pipeline.exceptions import ComponentNotExistException
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied
 
-from bkflow.bk_plugin.models import BKPluginAuthorization
+from bkflow.bk_plugin.models import BKPlugin, BKPluginAuthorization
+from bkflow.bk_plugin.tenant import get_plugin_tenant_id
 from bkflow.exceptions import APIResponseError
 from bkflow.pipeline_plugins.query.uniform_api.uniform_api import _get_api_credential
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
@@ -230,12 +231,15 @@ class PluginDetailService:
 
     def _get_remote_plugin_detail(self, plugin_code, plugin_version, source_key):
         """构建空间已授权远程插件的原生表单详情。"""
+        tenant_id = get_plugin_tenant_id(self.space_id)
+        if tenant_id and not BKPlugin.objects.for_space(self.space_id).filter(code=plugin_code).exists():
+            raise PermissionDenied("插件不存在或不属于当前租户")
         authorized_codes = BKPluginAuthorization.objects.get_codes_by_space_id(str(self.space_id))
         if plugin_code not in authorized_codes:
             raise PermissionDenied("插件未授权给当前空间")
 
         try:
-            client = PluginServiceApiClient(plugin_code)
+            client = PluginServiceApiClient(plugin_code, **({"tenant_id": tenant_id} if tenant_id else {}))
             meta_data = _require_remote_data(client.get_meta(), "查询插件版本")
         except PluginServiceException as exc:
             raise APIException("插件服务上游故障：查询插件版本") from exc

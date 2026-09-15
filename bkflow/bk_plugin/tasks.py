@@ -21,6 +21,7 @@ import logging
 
 from celery.app import shared_task
 from django.conf import settings
+from django.db import transaction
 from rest_framework.exceptions import APIException
 
 from bkflow.bk_plugin.models import BKPlugin
@@ -38,10 +39,16 @@ BK_PLUGIN_SYNC_TENANTS = getattr(settings, "BK_PLUGIN_SYNC_TENANTS", ["system"])
 def sync_bk_plugins():
     plugins_dict = {}
     try:
-        tenant_ids = BK_PLUGIN_SYNC_TENANTS if settings.ENABLE_MULTI_TENANT_MODE else [None]
-        for tenant_id in tenant_ids:
-            plugins_dict.update(fetch_newest_plugins_dict(tenant_id))
-        BKPlugin.objects.sync_bk_plugins(plugins_dict)
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            tenant_ids = list(dict.fromkeys(["system", *BK_PLUGIN_SYNC_TENANTS]))
+            # 外部请求放在事务外；任一租户拉取失败都不应用本轮结果。
+            snapshots = {tenant_id: fetch_newest_plugins_dict(tenant_id) for tenant_id in tenant_ids}
+            with transaction.atomic():
+                for tenant_id, plugins in snapshots.items():
+                    BKPlugin.objects.sync_bk_plugins(plugins, tenant_id=tenant_id)
+        else:
+            plugins_dict.update(fetch_newest_plugins_dict(None))
+            BKPlugin.objects.sync_bk_plugins(plugins_dict)
     except APIException as e:
         logger.exception(f"同步蓝鲸插件列表时失败: {e}")
 
