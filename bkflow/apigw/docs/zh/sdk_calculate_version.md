@@ -13,7 +13,7 @@
 
 | 参数名称          | 参数类型   | 必须 | 参数说明                                                       |
 |---------------|--------|----|------------------------------------------------------------|
-| HTTP_BKFLOW_TOKEN | string | 是  | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 接口申请。该 token 用于验证用户对指定空间资源的访问权限（需要提供 template_id 或 task_id） |
+| BKFLOW_TOKEN | string | 是  | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 接口申请。该 token 用于验证用户对指定空间资源的访问权限（需要提供 template_id 或 task_id） |
 
 ### 路径参数
 

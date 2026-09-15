@@ -11,9 +11,9 @@
 
 ### HTTP Header 参数说明
 
-| 参数名称          | 参数类型   | 必须 | 参数说明                                                       |
-|---------------|--------|----|------------------------------------------------------------|
-| HTTP_BKFLOW_TOKEN | string | 是  | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 接口申请。该 token 用于验证用户对指定空间资源的访问权限（需要提供 template_id 或 task_id） |
+| 参数名称         | 参数类型   | 必须 | 参数说明                                                       |
+|--------------|--------|----|------------------------------------------------------------|
+| BKFLOW_TOKEN | string | 是  | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 接口申请。该 token 用于验证用户对指定空间资源的访问权限（需要提供 template_id 或 task_id） |
 
 ### 路径参数
 
@@ -45,42 +45,79 @@ GET /sdk/plugin_query/uniform_api/list/{space_id}/?template_id=10&category=model
 
 ### 返回结果示例
 
+本接口的返回结构取决于统一API接入平台配置的 `catalog_mode`，存在两种形态：
+
+- **远端透传模式（remote，默认模式）**：后端直接透传上游统一API返回的数据，结构由接入平台决定。`display_content` 等扩展字段依赖上游实现；
+- **缓存模式（cache_first / cache_only 且目录缓存已初始化）**：后端返回本地开放插件目录的缓存数据，字段为固定的插件目录结构（见下文缓存模式示例）。
+
+> 说明：当前默认模式为 remote，仅当接入平台将 `catalog_mode` 配置为 `cache_first` 或 `cache_only`、且目录缓存已初始化时，才会走缓存模式，并非所有请求都会自动切换。实际响应外层会包裹标准网关结构 `{ "result": true, "code": "0", "message": "", "data": {...} }`，下文说明均以 data 内结构为准。
+
+#### 远端透传模式示例
+
 ```json
 {
-     "result": true,
-     "code": "0",
-     "message": "",
-     "data": {
-         "total": 1,
-         "apis": [
-              {
-                   "id": "model-65",
-                   "name": "test",
-                   "alias": "test",
-                   "meta_url": "xxx",
-                   "category": "model",
-                   "group": "llm",
-                   "plugin_type": "uniform_api",
-                   "version": "v3.0.0",
-                   "display_content": {
-                        "llm_code": "test",
-                        "llm_name": "test",
-                        "base_model": "qwen",
-                        "context_length": "128K",
-                        "created_at": "2026-04-15 21:35:10",
-                        "created_by": "xxx",
-                        "description": "基于模型能力与资源情况推荐的大语言模型，当前指向 qwen3-5-397B",
-                        "icon": "xxx",
-                        "tag_names": [["工具调用"],["图生文"],["多轮会话"],["知识摘要"]]
-                   },
-                   "source_key": "aidev"
-              }
-         ]
-     }
+  "result": true,
+  "code": "0",
+  "message": "",
+  "data": {
+    "total": 1,
+    "apis": [
+      {
+        "id": "model-65",
+        "name": "test",
+        "alias": "test",
+        "meta_url": "xxx",
+        "category": "model",
+        "group": "llm",
+        "plugin_type": "uniform_api",
+        "version": "v3.0.0",
+        "display_content": {
+          "llm_code": "test",
+          "llm_name": "test",
+          "base_model": "qwen",
+          "context_length": "128K",
+          "created_at": "2026-04-15 21:35:10",
+          "created_by": "xxx",
+          "description": "基于模型能力与资源情况推荐的大语言模型，当前指向 qwen3-5-397B",
+          "icon": "xxx",
+          "tag_names": [["工具调用"],["图生文"],["多轮会话"],["知识摘要"]]
+        },
+        "source_key": "aidev"
+      }
+    ]
+  }
 }
 ```
 
-> 说明：实际响应会在外层包裹标准网关结构 `{ "result": true, "code": "0", "message": "", "data": {...} }`，下文 data 字段说明以 data 内结构为准。
+#### 缓存模式示例
+
+```json
+{
+  "result": true,
+  "code": "0",
+  "message": "",
+  "data": {
+    "total": 1,
+    "apis": [
+      {
+        "id": "plugin-xxx",
+        "name": "通用HTTP请求",
+        "plugin_source": "builtin",
+        "plugin_code": "http_request",
+        "wrapper_version": "1.0.0",
+        "default_version": "1.0.0",
+        "latest_version": "1.2.0",
+        "versions": ["1.0.0", "1.1.0", "1.2.0"],
+        "meta_url_template": "http://example.com/meta/{plugin_code}",
+        "source_key": "aidev",
+        "category": "network",
+        "category_name": "网络",
+        "description": "通用HTTP请求插件"
+      }
+    ]
+  }
+}
+```
 
 ### 返回结果参数说明
 
@@ -96,9 +133,11 @@ GET /sdk/plugin_query/uniform_api/list/{space_id}/?template_id=10&category=model
 | 字段   | 类型  | 描述            |
 |------|-----|---------------|
 | total | int | 插件总数          |
-| apis | list | 统一API插件列表（详见 apis[item]） |
+| apis | list | 统一API插件列表（详见下方各模式字段说明） |
 
-#### apis[item] 字段说明
+#### 远端透传模式 apis[item] 字段说明
+
+> 结构由上游接入平台决定，以下为示例字段，实际以接入平台返回为准；`display_content` 等扩展字段依赖上游实现，不同 category 的字段可能不同。
 
 | 字段             | 类型     | 描述                                   |
 |----------------|--------|--------------------------------------|
@@ -110,10 +149,10 @@ GET /sdk/plugin_query/uniform_api/list/{space_id}/?template_id=10&category=model
 | group          | string | 分组标识                                 |
 | plugin_type    | string | 插件类型，固定为 uniform_api                  |
 | version        | string | 插件版本                                 |
-| display_content | dict  | 展示内容（详见 display_content 字段说明）         |
+| display_content | dict  | 展示内容，由上游实现决定，字段可变（详见 display_content 示例字段说明） |
 | source_key     | string | 统一API来源标识，对应接入平台配置的 source_key         |
 
-#### display_content 字段说明
+#### display_content 示例字段说明（依赖上游实现）
 
 | 字段             | 类型      | 描述                                   |
 |----------------|---------|--------------------------------------|
@@ -126,3 +165,25 @@ GET /sdk/plugin_query/uniform_api/list/{space_id}/?template_id=10&category=model
 | description     | string  | 插件描述                                 |
 | icon            | string  | 图标地址                                 |
 | tag_names       | list   | 标签列表，每项为单元素数组（如 `[["工具调用"],["图生文"]]`） |
+
+#### 缓存模式 apis[item] 字段说明
+
+> 仅在 `catalog_mode` 为 `cache_first` / `cache_only` 且目录缓存已初始化时返回，固定为本地开放插件目录结构（对应 `_build_cached_catalog_data`）。
+
+| 字段              | 类型     | 描述                                       |
+|-----------------|--------|------------------------------------------|
+| id              | string | 插件ID（对应 plugin_id）                         |
+| name            | string | 插件名称（对应 plugin_name）                     |
+| plugin_source   | string | 插件来源（如 builtin）                            |
+| plugin_code     | string | 插件code                                  |
+| wrapper_version | string | 包装版本                                     |
+| default_version | string | 默认版本                                     |
+| latest_version  | string | 最新版本                                     |
+| versions        | list   | 可用版本列表                                   |
+| meta_url_template | string | 元数据地址模板（含 `{plugin_code}` 占位符）           |
+| source_key      | string | 统一API来源标识                              |
+| category        | string | 分类标识（对应 group_name）                       |
+| category_name   | string | 分类名称（对应 group_display_name）                 |
+| description     | string | 插件描述                                     |
+
+> 注意：缓存模式**不包含** `alias`、`meta_url`、`group`、`plugin_type`、`version`、`display_content` 等字段。SDK 若按远端透传示例读取这些字段，在缓存模式下会取到空值/缺失；调用前请确认目标空间的 `catalog_mode` 配置。

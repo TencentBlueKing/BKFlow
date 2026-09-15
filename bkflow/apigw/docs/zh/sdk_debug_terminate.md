@@ -6,7 +6,7 @@
 
 | 参数名称 | 参数类型 | 必须 | 参数说明 |
 | --- | --- | --- | --- |
-| HTTP_BKFLOW_TOKEN | string | 是 | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 申请，权限类型为 `MOCK` |
+| BKFLOW_TOKEN | string | 是 | 访问令牌，需要通过 `/space/{space_id}/apply_token/` 申请，权限类型为 `MOCK` |
 
 ### 接口参数
 
