@@ -72,12 +72,17 @@ def test_old_periodic_resolves_tenant_via_interface():
 
 
 @pytest.mark.django_db
-def test_nested_subtasks_inherit_tenant_and_preserve_snapshots():
+@pytest.mark.parametrize("enabled, tenant_id", [(False, "default"), (True, "tenant-a")])
+def test_nested_subtasks_inherit_tenant_and_preserve_snapshots(settings, enabled, tenant_id):
     from bkflow.pipeline_plugins.components.collections.base import LoopBaseService
 
+    settings.ENABLE_MULTI_TENANT_MODE = enabled
     parent = TaskInstance.objects.create_instance(
-        space_id=1, tenant_id="tenant-a", creator="user", pipeline_tree=build_default_pipeline_tree()
+        space_id=1, tenant_id=tenant_id, creator="user", pipeline_tree=build_default_pipeline_tree()
     )
+    tree = build_default_pipeline_tree()
+    activity = next(iter(tree["activities"].values()))
+    activity.update(type="ServiceActivity", component={"code": "uniform_api", "version": "v4.0.0", "data": {}})
     service = LoopBaseService()
     service.id, service.version = "node", "v1.0.0"
     with patch("bkflow.pipeline_plugins.components.collections.base.InterfaceModuleClient") as interface:
@@ -85,12 +90,14 @@ def test_nested_subtasks_inherit_tenant_and_preserve_snapshots():
             "result": True,
             "data": {"extra_info": {"open_plugin_snapshot_marker": "preserved"}},
         }
-        child = service._create_subprocess_task_instance("child", build_default_pipeline_tree(), parent, "subprocess")
-        grandchild = service._create_subprocess_task_instance(
-            "grandchild", build_default_pipeline_tree(), child, "subprocess"
-        )
-        assert child.tenant_id == grandchild.tenant_id == "tenant-a"
-        assert child.extra_info["open_plugin_snapshot_marker"] == "preserved"
+        child = service._create_subprocess_task_instance("child", tree, parent, "subprocess")
+        grandchild = service._create_subprocess_task_instance("grandchild", tree, child, "subprocess")
+        child.refresh_from_db()
+        grandchild.refresh_from_db()
+        assert child.tenant_id == grandchild.tenant_id == tenant_id
+        assert child.extra_info["open_plugin_snapshot_marker"] == grandchild.extra_info["open_plugin_snapshot_marker"]
+        assert grandchild.extra_info["open_plugin_snapshot_marker"] == "preserved"
+        assert interface.return_value.prepare_task_extra_info.call_count == 2
 
 
 @override_settings(ENABLE_MULTI_TENANT_MODE=True, BK_APIGW_STAGE_NAME="stage")
