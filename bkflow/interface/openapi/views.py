@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from blueapps.account.decorators import login_exempt
 from django.conf import settings
 from django.http import JsonResponse
@@ -33,6 +34,10 @@ def get_msg_types(request):
     获取消息类型列表
     该接口允许跨域访问，供其他平台使用SDK对接时调用
     """
+    if not settings.ENABLE_MULTI_TENANT_MODE:
+        from blueapps.utils import get_client_by_request
+
+        return JsonResponse(get_client_by_request(request).cmsi.get_msg_type())
     client = get_client_by_username(request.user.username, stage=settings.BK_APIGW_STAGE_NAME)
     result = client.api.v1_channels_list(headers={"X-Bk-Tenant-Id": request.user.tenant_id})
     if not result["data"]:

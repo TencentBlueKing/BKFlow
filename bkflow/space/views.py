@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 import django_filters
@@ -50,7 +51,6 @@ from bkflow.space.configs import (
     SpacePluginConfig,
     SuperusersConfig,
 )
-
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import (
     Credential,
@@ -72,13 +72,12 @@ from bkflow.space.serializers import (
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
     SpaceConfigSerializer,
-    SpacePluginConfigQuerySerializer,
-
+    SpaceConfigVerifySerializer,
     SpaceOpenPluginBulkActionSerializer,
     SpaceOpenPluginDisableSourceSerializer,
     SpaceOpenPluginListQuerySerializer,
     SpaceOpenPluginToggleSerializer,
-    SpaceConfigVerifySerializer,
+    SpacePluginConfigQuerySerializer,
     SpaceSerializer,
 )
 from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
@@ -270,7 +269,10 @@ class SpaceViewSet(AdminModelViewSet):
             try:
                 tenant_id = serializer.validated_data["tenant_id"]
                 query_data: HttpRequestResult = client.request(
-                    url, method="GET", data={"id": app_code}, headers={"X-Bk-Tenant-Id": tenant_id}
+                    url,
+                    method="GET",
+                    data={"id": app_code},
+                    headers={"X-Bk-Tenant-Id": tenant_id} if settings.ENABLE_MULTI_TENANT_MODE else {},
                 )
             except APIRequestError as e:
                 logger.exception(f"SpaceViewSet 创建空间异常, app_code={app_code}, err={e}")
@@ -356,7 +358,7 @@ class SpaceInternalViewSet(AdminModelViewSet):
     def get_space_infos(self, request, *args, **kwargs):
         data = request.query_params
         configs = {}
-        for config_name in data.get("config_names", "").split(","):
+        for config_name in filter(None, data.get("config_names", "").split(",")):
             if config_name == "credential":
                 value = SpaceConfig.get_config(data["space_id"], ApiGatewayCredentialConfig.name)
                 scope = data.get("scope", self.CREDENTIAL_CONFIG_KEY)
@@ -368,6 +370,8 @@ class SpaceInternalViewSet(AdminModelViewSet):
             "configs": configs,
         }
 
+        if data.get("include_tenant") == "1":
+            infos["tenant_id"] = Space.objects.get(id=data["space_id"]).tenant_id
         return Response(infos)
 
 
@@ -441,9 +445,7 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
             params["operator"] = request.user.username
             params.pop("space_id", None)
             params.pop("value", None)
-            verify_data = config_cls.verify(
-                space_id=data["space_id"], value=data.get("value"), **params
-            )
+            verify_data = config_cls.verify(space_id=data["space_id"], value=data.get("value"), **params)
             return Response({"ok": True, "data": verify_data})
         except SpaceConfigVerifyNotSupported as e:
             return Response({"ok": False, "error": {"message": str(e), "not_supported": True}})
@@ -577,14 +579,10 @@ class SpaceConfigViewSet(ModelViewSet, SimpleGenericViewSet):
             logger.error(err_msg)
             return Response(exception=True, data={"detail": err_msg})
 
-    @swagger_auto_schema(
-        method="get", operation_summary="获取空间插件配置", query_serializer=SpacePluginConfigQuerySerializer
-    )
+    @swagger_auto_schema(method="get", operation_summary="获取空间插件配置", query_serializer=SpacePluginConfigQuerySerializer)
     @action(detail=False, methods=["GET"])
     def get_space_plugin_config(self, request, *args, **kwargs):
         ser = SpacePluginConfigQuerySerializer(data=request.query_params)
         ser.is_valid(raise_exception=True)
-        value = SpaceConfig.get_config(
-            space_id=ser.validated_data["space_id"], config_name=SpacePluginConfig.name
-        )
+        value = SpaceConfig.get_config(space_id=ser.validated_data["space_id"], config_name=SpacePluginConfig.name)
         return Response({"value": value})

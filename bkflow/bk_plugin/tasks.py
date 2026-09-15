@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from celery.app import shared_task
@@ -37,14 +38,15 @@ BK_PLUGIN_SYNC_TENANTS = getattr(settings, "BK_PLUGIN_SYNC_TENANTS", ["system"])
 def sync_bk_plugins():
     plugins_dict = {}
     try:
-        for tenant_id in BK_PLUGIN_SYNC_TENANTS:
+        tenant_ids = BK_PLUGIN_SYNC_TENANTS if settings.ENABLE_MULTI_TENANT_MODE else [None]
+        for tenant_id in tenant_ids:
             plugins_dict.update(fetch_newest_plugins_dict(tenant_id))
         BKPlugin.objects.sync_bk_plugins(plugins_dict)
     except APIException as e:
         logger.exception(f"同步蓝鲸插件列表时失败: {e}")
 
 
-def fetch_newest_plugins_dict(tenant_id):
+def fetch_newest_plugins_dict(tenant_id=None):
     """通过部署环境和授权app_code过滤蓝鲸插件，获取授权给bkflow的插件列表"""
     plugins_dict = {}
     offset = 0

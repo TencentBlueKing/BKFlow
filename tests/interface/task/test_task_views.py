@@ -65,7 +65,7 @@ class TestTaskInterfaceAdminViewSet:
 
         assert response.status_code == 200
         mock_client.task_list.assert_called_once()
-        mock_client_class.assert_called_once_with(space_id=self.space.id)
+        mock_client_class.assert_called_once_with(space_id=self.space.id, time_zone="Asia/Shanghai")
 
     @mock.patch("bkflow.interface.task.view.Label.objects.get_labels_map")
     @mock.patch("bkflow.interface.task.view.Label.get_label_ids_by_names")

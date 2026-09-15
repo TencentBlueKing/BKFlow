@@ -35,6 +35,7 @@ from bkflow.plugin.models import (
     SpaceOpenPluginAvailability,
 )
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
+from bkflow.plugin.services.uniform_api_headers import get_source_headers
 from bkflow.plugin.services.uniform_api_meta import (
     UniformAPIMetaError,
     extract_uniform_api_meta_data,
@@ -334,6 +335,7 @@ class PluginSchemaService:
                 app_code=credential.content["bk_app_code"],
                 app_secret=credential.content["bk_app_secret"],
                 username=self.username or "admin",
+                headers=api_entry.headers or {},
             )
             list_result = client.request(
                 url=meta_apis_url,
@@ -451,6 +453,7 @@ class PluginSchemaService:
             app_code=credential.content["bk_app_code"],
             app_secret=credential.content["bk_app_secret"],
             username=self.username or "admin",
+            headers=get_source_headers(self.space_id, api_item.get("source_key") or resolved_source_key),
         )
         meta_result = client.request(
             url=api_item["_meta_url"],

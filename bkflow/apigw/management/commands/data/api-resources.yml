@@ -9,7 +9,37 @@ paths:
   /create_space:
     post:
       operationId: create_space
-      description: 创建空间
+      description: 创建空间；多租户模式开启时 tenant_id 必填，关闭时省略使用 default。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, platform_url, app_code]
+              properties:
+                name:
+                  type: string
+                  maxLength: 32
+                platform_url:
+                  type: string
+                  format: uri
+                  maxLength: 256
+                app_code:
+                  type: string
+                  maxLength: 32
+                desc:
+                  type: string
+                  maxLength: 128
+                  nullable: true
+                tenant_id:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+                  description: 多租户模式开启时必填；关闭时可省略并使用 default。
+                config:
+                  type: object
+                  additionalProperties: true
       tags: []
       responses:
         default:
@@ -1393,7 +1423,7 @@ paths:
   /space/{space_id}/create_task_without_template/:
     post:
       operationId: create_task_without_template
-      description: 创建无模版任务
+      description: 任务租户由服务端按目标空间补齐，不接受请求体覆盖。创建无模版任务
       tags: []
       responses:
         '200':

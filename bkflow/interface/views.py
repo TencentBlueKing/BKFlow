@@ -99,6 +99,10 @@ def is_admin_or_current_space_superuser(request):
 
 @require_GET
 def get_msg_types(request):
+    if not settings.ENABLE_MULTI_TENANT_MODE:
+        from blueapps.utils import get_client_by_request
+
+        return JsonResponse(get_client_by_request(request).cmsi.get_msg_type())
     client = get_client_by_username(request.user.username, stage=settings.BK_APIGW_STAGE_NAME)
     result = client.api.v1_channels_list(headers={"X-Bk-Tenant-Id": request.user.tenant_id})
     return JsonResponse(result)

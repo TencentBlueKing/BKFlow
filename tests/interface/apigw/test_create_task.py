@@ -254,6 +254,8 @@ class TestCreateTask(TestCase):
     @mock.patch("bkflow.apigw.views.create_task_without_template.TaskComponentClient")
     def test_create_task_without_template_with_custom_span_attributes(self, mock_client_class):
         """Test create_task_without_template with custom_span_attributes parameter"""
+        self.space.tenant_id = "tenant-a"
+        self.space.save(update_fields=["tenant_id"])
         pipeline_tree = build_pipeline_tree()
 
         mock_client = mock.Mock()
@@ -266,6 +268,7 @@ class TestCreateTask(TestCase):
         custom_span_attributes = {"env": "prod", "region": "us-east-1"}
         data = {
             "name": "测试任务",
+            "tenant_id": "ignored-input",
             "creator": "test_user",
             "pipeline_tree": pipeline_tree,
             "custom_span_attributes": custom_span_attributes,
@@ -280,6 +283,7 @@ class TestCreateTask(TestCase):
 
         # 验证 custom_span_attributes 被传递到 create_task_data 中
         call_args = mock_client.create_task.call_args[0][0]
+        self.assertEqual(call_args["tenant_id"], "tenant-a")
         self.assertIn("extra_info", call_args)
         self.assertIn("custom_context", call_args["extra_info"])
         self.assertEqual(call_args["extra_info"]["custom_context"]["custom_span_attributes"], custom_span_attributes)

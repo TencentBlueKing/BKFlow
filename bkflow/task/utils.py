@@ -136,11 +136,13 @@ def send_task_instance_message(task_instance, msg_type):
     executor = task_instance.executor
     tenant_id = task_instance.tenant_id
     receivers = notify_info["receivers"]
-    client = get_client_by_username(executor, stage=settings.BK_APIGW_STAGE_NAME)
-    display_info = client.api.display_info({"bk_usernames": executor}, headers={"X-Bk-Tenant-Id": tenant_id})
-    user_list = display_info.get("data") or []
-    display_names = [user.get("display_name") for user in user_list]
-    executor_display_name = ",".join(display_names)
+    executor_display_name = executor
+    if settings.ENABLE_MULTI_TENANT_MODE:
+        client = get_client_by_username(executor, stage=settings.BK_APIGW_STAGE_NAME)
+        display_info = client.api.display_info({"bk_usernames": executor}, headers={"X-Bk-Tenant-Id": tenant_id})
+        user_list = display_info.get("data") or []
+        display_names = [user.get("display_name") for user in user_list]
+        executor_display_name = ",".join(display_names)
 
     types = notify_info["types"]
     msg_format = notify_info["format"]

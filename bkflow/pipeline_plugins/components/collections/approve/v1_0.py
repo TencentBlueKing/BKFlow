@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
 import traceback
 
 from django.conf import settings
@@ -25,8 +24,11 @@ from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.core.flow.io import StringItemSchema
 
+from bkflow.utils.tenant import get_task_tenant_id
+
 __group_name__ = _("蓝鲸服务(BK)")
 
+from bkflow.contrib.api.collections.itsm import BKItsmClient
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 from bkflow.pipeline_plugins.utils import get_node_callback_url
 from bkflow.utils.handlers import handle_api_error
@@ -70,12 +72,57 @@ class ApproveService(BKFlowBaseService):
             ),
         ]
 
+    def _get_span_attributes(self, data, parent_data):
+        """覆盖基类方法，添加审批插件特有的属性"""
+        attributes = super()._get_span_attributes(data, parent_data)
+        attributes.update(
+            {
+                "executor": parent_data.get_one_of_inputs("executor"),
+                "verifier": data.get_one_of_inputs("bk_verifier"),
+            }
+        )
+        return attributes
+
+    def _execute_legacy(self, data, parent_data):
+        executor = parent_data.get_one_of_inputs("executor")
+        space_id = parent_data.get_one_of_inputs("task_space_id")
+        task_id = parent_data.get_one_of_inputs("task_id")
+
+        client = BKItsmClient(username=executor)
+
+        verifier = data.get_one_of_inputs("bk_verifier")
+        title = data.get_one_of_inputs("bk_approve_title")
+        approve_content = data.get_one_of_inputs("bk_approve_content")
+
+        kwargs = {
+            "creator": executor,
+            "fields": [
+                {"key": "title", "value": title},
+                {"key": "APPROVER", "value": verifier.replace(" ", "")},
+                {"key": "APPROVAL_CONTENT", "value": approve_content},
+            ],
+            "fast_approval": True,
+            "meta": {"callback_url": get_node_callback_url(space_id, task_id, self.id, getattr(self, "version", ""))},
+        }
+        result = client.create_ticket(**kwargs)
+        if not result["result"]:
+            message = handle_api_error(__group_name__, "itsm.create_ticket", kwargs, result)
+            self.logger.error(message)
+            data.outputs.ex_data = message
+            return False
+
+        data.outputs.sn = result["data"]["sn"]
+        return True
+
     def plugin_execute(self, data, parent_data):
+        if not settings.ENABLE_MULTI_TENANT_MODE:
+            return self._execute_legacy(data, parent_data)
+
         from bkflow.task.celery.tasks import send_task_message
         from bkflow.task.utils import PENDING_PROCESSING
 
         executor = parent_data.get_one_of_inputs("executor")
-        tenant_id = parent_data.get_one_of_inputs("tenant_id")
+        tenant_id = get_task_tenant_id(parent_data)
         space_id = parent_data.get_one_of_inputs("task_space_id")
         task_id = parent_data.get_one_of_inputs("task_id")
         client = get_client_by_username(username=executor, stage=settings.BK_APIGW_STAGE_NAME)
@@ -121,7 +168,11 @@ class ApproveService(BKFlowBaseService):
     def plugin_schedule(self, data, parent_data, callback_data=None):
         try:
             rejected_block = data.get_one_of_inputs("rejected_block", True)
-            approve_result = callback_data["ticket"]["approve_result"]
+            approve_result = (
+                callback_data["approve_result"]
+                if "approve_result" in callback_data
+                else callback_data["ticket"]["approve_result"]
+            )
             data.outputs.approve_result = "通过" if approve_result else "拒绝"
             # 审核拒绝不阻塞
             if not approve_result and not rejected_block:

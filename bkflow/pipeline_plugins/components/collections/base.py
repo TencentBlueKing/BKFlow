@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import copy
 import datetime
 
@@ -398,6 +399,7 @@ class LoopBaseService(BKFlowBaseService):
                 "name": f"{template_name}_子流程_{time_stamp}",
                 "template_id": template_id,
                 "creator": parent_task.creator,
+                "tenant_id": parent_task.tenant_id,
                 "scope_type": parent_task.scope_type,
                 "scope_value": parent_task.scope_value,
                 "space_id": parent_task.space_id,

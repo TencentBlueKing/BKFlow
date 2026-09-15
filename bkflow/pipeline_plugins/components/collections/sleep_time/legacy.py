@@ -17,7 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
 import datetime
 import os
 import re
@@ -51,7 +50,7 @@ class SleepTimerService(BKFlowBaseService):
         )
     )
     data_tz_regex = re.compile(
-        r"{} {}".format(r"^\d{4}-\d{2}-\d{2}", r"((0|[1])\d|2[0-3]):(0|[1-5])\d:(0|[1-5])\d(\+\d{4})$")
+        r"{} {}".format(r"^\d{4}-\d{2}-\d{2}", r"((0|[1])\d|2[0-3]):(0|[1-5])\d:(0|[1-5])\d([+-]\d{4})$")
     )
 
     seconds_regex = re.compile(r"^\d+$")
@@ -94,6 +93,9 @@ class SleepTimerService(BKFlowBaseService):
                 data.set_outputs("ex_data", message)
                 return False
             data.outputs.business_tz = tz
+
+        elif self.seconds_regex.match(str(timing)):
+            eta = now + datetime.timedelta(seconds=int(timing))
 
         elif self.data_tz_regex.match(str(timing)):
             eta = datetime.datetime.strptime(timing, "%Y-%m-%d %H:%M:%S%z")

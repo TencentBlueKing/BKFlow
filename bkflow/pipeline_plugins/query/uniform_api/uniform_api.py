@@ -77,11 +77,11 @@ class UniformAPIListSerializer(UniformAPIBaseSerializer):
 class UniformAPIMetaSerializer(UniformAPIBaseSerializer):
     scope_type = serializers.CharField(required=False)
     scope_value = serializers.CharField(required=False)
+    api_name = serializers.CharField(required=False)
     meta_url = serializers.CharField(required=False, allow_blank=True)
     meta_url_template = serializers.CharField(required=False, allow_blank=True)
     version = serializers.CharField(required=False, allow_blank=True)
     source_key = serializers.CharField(required=False, allow_blank=True)
-    api_name = serializers.CharField(required=False)
 
     def validate(self, attrs: dict) -> dict:
         attrs = super().validate(attrs)
@@ -235,6 +235,7 @@ def _request_remote_uniform_api_data(
     template_id=None,
     task_id=None,
     request_scope=None,
+    extra_headers=None,
 ):
     client = UniformAPIClient()
     credential_kwargs = {
@@ -249,7 +250,7 @@ def _request_remote_uniform_api_data(
         app_code=credential_content["bk_app_code"],
         app_secret=credential_content["bk_app_secret"],
         username=username,
-        headers=uniform_api_config.api.get(api_name, {}).get("headers", {}),
+        headers=extra_headers,
     )
     request_result: HttpRequestResult = client.request(
         url=url, method="GET", data=request_data, headers=headers, username=username
@@ -315,6 +316,7 @@ def _get_space_uniform_api_list_info(
             config_key=config_key,
             username=username,
             url=url,
+            extra_headers=api_entry.headers,
             template_id=template_id,
             task_id=task_id,
         )
@@ -347,6 +349,7 @@ def _get_space_uniform_api_list_info(
         config_key=config_key,
         username=username,
         url=url,
+        extra_headers=api_entry.headers,
         template_id=template_id,
         task_id=task_id,
         request_scope=request_scope,

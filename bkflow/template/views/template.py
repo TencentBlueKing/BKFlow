@@ -22,6 +22,7 @@ from copy import deepcopy
 
 import django_filters
 from blueapps.account.decorators import login_exempt
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Subquery
 from django.utils.decorators import method_decorator
@@ -263,7 +264,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         except drf_serializers.ValidationError as error:
             detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
             raise ValidationError(str(detail))
-        create_task_data["tenant_id"] = request.user.tenant_id
+        create_task_data["tenant_id"] = request.user.tenant_id if settings.ENABLE_MULTI_TENANT_MODE else "default"
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
@@ -690,7 +691,7 @@ class TemplateViewSet(UserModelViewSet):
         except drf_serializers.ValidationError as error:
             detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
             raise ValidationError(str(detail))
-        create_task_data["tenant_id"] = request.user.tenant_id
+        create_task_data["tenant_id"] = request.user.tenant_id if settings.ENABLE_MULTI_TENANT_MODE else "default"
 
         client = TaskComponentClient(space_id=template.space_id)
         result = client.create_task(create_task_data)

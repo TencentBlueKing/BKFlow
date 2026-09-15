@@ -27,6 +27,7 @@ from bkflow.exceptions import APIResponseError
 from bkflow.pipeline_plugins.query.uniform_api.uniform_api import _get_api_credential
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
+from bkflow.plugin.services.uniform_api_headers import get_source_headers
 from bkflow.plugin.services.uniform_api_meta import (
     UniformAPIMetaError,
     extract_uniform_api_meta_data,
@@ -317,6 +318,7 @@ class PluginDetailService:
             app_code=credential["bk_app_code"],
             app_secret=credential["bk_app_secret"],
             username=self.operator,
+            headers=get_source_headers(self.space_id, source_key),
         )
         result = client.request(
             url=meta_url,

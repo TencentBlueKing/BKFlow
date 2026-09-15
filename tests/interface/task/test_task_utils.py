@@ -36,7 +36,7 @@ class TestStageJobStateHandler:
         assert handler.space_id == 1
         assert handler.is_superuser is True
         assert handler.client is not None
-        mock_client_class.assert_called_once_with(space_id=1, from_superuser=True)
+        mock_client_class.assert_called_once_with(space_id=1, from_superuser=True, time_zone=None)
 
     @mock.patch("bkflow.interface.task.utils.TaskComponentClient")
     def test_get_task_data(self, mock_client_class):
@@ -254,7 +254,7 @@ class TestStageConstantHandler:
         assert handler.space_id == 1
         assert handler.is_superuser is True
         assert handler.client is not None
-        mock_client_class.assert_called_once_with(space_id=1, from_superuser=True)
+        mock_client_class.assert_called_once_with(space_id=1, from_superuser=True, time_zone=None)
 
     @mock.patch("bkflow.interface.task.utils.TaskComponentClient")
     def test_process_success(self, mock_client_class):

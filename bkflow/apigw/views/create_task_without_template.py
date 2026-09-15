@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -28,6 +29,7 @@ from bkflow.apigw.serializers.task import CreateTaskWithoutTemplateSerializer
 from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.space.models import Space
 
 
 @login_exempt
@@ -43,6 +45,7 @@ def create_task_without_template(request, space_id):
 
     create_task_data = dict(ser.validated_data)
     create_task_data["space_id"] = space_id
+    create_task_data["tenant_id"] = Space.objects.get(id=space_id).tenant_id
     create_task_data["trigger_method"] = TaskTriggerMethod.api.name
     DEFAULT_NOTIFY_CONFIG = {
         "notify_type": {"fail": [], "success": []},

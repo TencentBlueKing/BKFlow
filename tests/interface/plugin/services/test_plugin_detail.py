@@ -658,6 +658,24 @@ def test_remote_adapter_rejects_malformed_detail_data(client_cls, data, authoriz
 class TestUniformApiDetailAdapter:
     """验证 V4 adapter 的可用性、精确版本与 provider 契约。"""
 
+    @pytest.fixture(autouse=True)
+    def configured_source_headers(self):
+        with patch(
+            "bkflow.plugin.services.uniform_api_headers.SpaceConfig.get_config",
+            return_value={
+                "api": {
+                    "provider": {
+                        "meta_apis": "https://example.com/plugins/",
+                        "api_categories": "",
+                        "display_name": "provider",
+                        "source_key": "second-source",
+                        "headers": {"X-Bk-Tenant-Id": "tenant-a"},
+                    }
+                }
+            },
+        ):
+            yield
+
     @patch("bkflow.plugin.services.plugin_detail.PluginSchemaService._get_single_by_type")
     @patch("bkflow.plugin.services.plugin_detail._get_api_credential", create=True)
     @patch("bkflow.plugin.services.plugin_detail.UniformAPIClient", create=True)
@@ -696,6 +714,9 @@ class TestUniformApiDetailAdapter:
             source_key="second-source",
         )
         assert client_cls.return_value.request.call_args.kwargs["url"] == "https://second.example/second-v2"
+        assert client_cls.return_value.gen_default_apigw_header.call_args.kwargs["headers"] == {
+            "X-Bk-Tenant-Id": "tenant-a"
+        }
 
     @patch("bkflow.plugin.services.plugin_detail._get_api_credential", create=True)
     @patch("bkflow.plugin.services.plugin_detail.UniformAPIClient", create=True)
@@ -735,6 +756,7 @@ class TestUniformApiDetailAdapter:
             "app_code": "bkflow",
             "app_secret": "secret",
             "username": "dannydeng",
+            "headers": {},
         }
         request_kwargs = client_cls.return_value.request.call_args.kwargs
         assert request_kwargs["url"] == "https://bksops.example.com/meta/v2.0/"

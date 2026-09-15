@@ -50,7 +50,7 @@ class TestInjectPluginClient:
             result = view_func(request)
             assert result["result"] is True
             assert result["plugin_client"] == mock_client_instance
-            mock_client_class.assert_called_once_with("test_plugin")
+            mock_client_class.assert_called_once_with("test_plugin", tenant_id=None)
 
     @mock.patch("plugin_service.api_decorators.PluginServiceApiClient")
     def test_inject_plugin_client_exception(self, mock_client_class):

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.conf import settings
 
 import env
@@ -62,7 +63,7 @@ def bkflow_settings(request):
         f"{settings.BK_APIGW_STAGE_NAME}",
         "BKPAAS_USER_URL": settings.BKPAAS_USER_URL,
         "BK_IAM_SAAS_HOST": settings.BKPAAS_IAM_URL,
-        "ENABLE_MULTI_TENANT_MODE": 1,
+        "ENABLE_MULTI_TENANT_MODE": settings.ENABLE_MULTI_TENANT_MODE,
         "TIMEZONE": time_zone,
     }
     return ctx

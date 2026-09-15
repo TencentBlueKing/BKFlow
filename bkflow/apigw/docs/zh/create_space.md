@@ -11,12 +11,15 @@
 
 #### 接口参数
 
+多租户模式开启时必须传入已核实归属的 `tenant_id`；关闭时旧请求可省略，使用 `default`。
+
 | 字段  | 类型  | 必选  | 描述                                                                 |
 | --- | --- | --- |--------------------------------------------------------------------|
 |  name   |  string   |  是   | 空间名                                                                |
 |  platform_url   |  string   |  是   | 空间平台服务地址                                                           |
 |  desc |  string   |  否   | 空间描述                                                               |
 |  app_code   |  string   |  是   | 空间所绑定的app_code, 后续该空间下的资源只有该app_code有权限操作和访问，目前仅允许使用发起请求的 app_code |
+| tenant_id | string | 条件必填 | 租户 ID，最多 32 位；多租户模式开启时必填 |
 |  config   |  dict   |  否  | 空间创建时所携带的配置信息                                                      |
 
 
@@ -50,6 +53,7 @@ config 允许传入空间下的配置，现阶段支持的配置有:
     "platform_url": "http://www.tencent.com",
     "desc": "这是一段默认描述",
     "app_code": "bksops",
+    "tenant_id": "tenant-a",
     "config": {}
 }
 ```
@@ -89,3 +93,4 @@ config 允许传入空间下的配置，现阶段支持的配置有:
 | platform_url | string | 空间服务地址                  |
 | app_code    | string  | 空间描述     |
 | create_type    | string  | 空间创建方式     |
+| tenant_id | string | 空间所属租户 ID |
