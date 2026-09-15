@@ -112,7 +112,12 @@ def test_legacy_timezone_avoids_user_service():
         client.assert_not_called()
 
 
-@override_settings(ENABLE_MULTI_TENANT_MODE=True)
+@override_settings(
+    ENABLE_MULTI_TENANT_MODE=True,
+    CACHES={
+        "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "tenant-timezone-test"}
+    },
+)
 def test_timezone_cache_isolated_and_reused():
     """同名用户在两个租户有独立缓存，重复读取不增加外部请求。"""
     from django.core.cache import cache
