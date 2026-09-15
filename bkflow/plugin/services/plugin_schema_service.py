@@ -27,6 +27,7 @@ from pipeline.component_framework.library import ComponentLibrary
 from pipeline.component_framework.models import ComponentModel
 
 from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
+from bkflow.bk_plugin.tenant import get_plugin_tenant_id
 from bkflow.constants import ALL_SPACE
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.plugin.models import (
@@ -35,6 +36,7 @@ from bkflow.plugin.models import (
     SpaceOpenPluginAvailability,
 )
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
+from bkflow.plugin.services.uniform_api_headers import get_source_headers
 from bkflow.plugin.services.uniform_api_meta import (
     UniformAPIMetaError,
     extract_uniform_api_meta_data,
@@ -233,7 +235,7 @@ class PluginSchemaService:
         return result
 
     def _list_remote_plugins(self, keyword=None):
-        plugins = BKPlugin.objects.filter()
+        plugins = BKPlugin.objects.for_space(self.space_id)
         authorized = BKPluginAuthorization.objects.filter(status=AuthStatus.authorized.value)
         auth_map = {a.code: a.white_list for a in authorized}
 
@@ -262,12 +264,15 @@ class PluginSchemaService:
 
     def _get_remote_plugin_schema(self, code):
         """从 PluginServiceApiClient.get_meta() 提取 schema，带缓存"""
+        tenant_id = get_plugin_tenant_id(self.space_id)
+        if tenant_id and not BKPlugin.objects.for_space(self.space_id).filter(code=code).exists():
+            raise ValueError("插件不存在或不属于当前租户")
         cache_key = "plugin_schema:remote_plugin:{}".format(code)
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
-        client = PluginServiceApiClient(code)
+        client = PluginServiceApiClient(code, **({"tenant_id": tenant_id} if tenant_id else {}))
         result = client.get_meta()
         if not result.get("result"):
             raise ValueError("查询蓝鲸标准插件 '{}' meta 失败: {}".format(code, result.get("message")))
@@ -334,6 +339,7 @@ class PluginSchemaService:
                 app_code=credential.content["bk_app_code"],
                 app_secret=credential.content["bk_app_secret"],
                 username=self.username or "admin",
+                headers=api_entry.headers or {},
             )
             list_result = client.request(
                 url=meta_apis_url,
@@ -451,6 +457,7 @@ class PluginSchemaService:
             app_code=credential.content["bk_app_code"],
             app_secret=credential.content["bk_app_secret"],
             username=self.username or "admin",
+            headers=get_source_headers(self.space_id, api_item.get("source_key") or resolved_source_key),
         )
         meta_result = client.request(
             url=api_item["_meta_url"],
@@ -509,7 +516,7 @@ class PluginSchemaService:
                 "_component_version": version or obj.version,
             }
         elif plugin_type == "remote_plugin":
-            obj = BKPlugin.objects.filter(code=code).first()
+            obj = BKPlugin.objects.for_space(self.space_id).filter(code=code).first()
             if not obj:
                 raise ValueError("未找到蓝鲸标准插件 '{}'".format(code))
             return {
@@ -546,7 +553,7 @@ class PluginSchemaService:
 
     def _get_single_auto_resolve(self, code, version=None, plugin_source=None, source_key=None):
         is_component = ComponentModel.objects.filter(code=code, status=True).exists()
-        is_bk_plugin = BKPlugin.objects.filter(code=code).exists()
+        is_bk_plugin = BKPlugin.objects.for_space(self.space_id).filter(code=code).exists()
 
         is_uniform_api = False
         api_item = None

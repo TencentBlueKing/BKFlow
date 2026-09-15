@@ -41,6 +41,7 @@ class TaskContext:
         self.is_mock = taskflow.create_method in ("MOCK", "DEBUG")
         tz = timezone.pytz.timezone(settings.TIME_ZONE)
         self.task_start_time = datetime.datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
+        self.tenant_id = taskflow.tenant_id
 
         # 从extra_info中提取custom_context，使其可以通过parent_data.inputs访问
         extra_info = getattr(taskflow, "extra_info", {}) or {}

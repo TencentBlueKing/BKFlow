@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from blueapps.account.decorators import login_exempt
 from django.utils.decorators import method_decorator
 from django_filters import FilterSet
@@ -25,6 +26,7 @@ from rest_framework.response import Response
 
 from bkflow.constants import VariableType
 from bkflow.space.permissions import SpaceSuperuserPermission
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
 from bkflow.utils.views import AdminModelViewSet
 from bkflow.variable_manager.models import VariableManager
@@ -44,7 +46,7 @@ class VariableFilterSet(FilterSet):
         }
 
 
-class VariableViewSet(AdminModelViewSet):
+class VariableViewSet(TenantScopeMixin, AdminModelViewSet):
     queryset = VariableManager.objects.filter(is_deleted=False)
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
     serializer_class = VariableManagerSerializer
@@ -53,7 +55,8 @@ class VariableViewSet(AdminModelViewSet):
 
 
 @method_decorator(login_exempt, name="dispatch")
-class VariableInternalViewSet(AdminModelViewSet):
+class VariableInternalViewSet(TenantScopeMixin, AdminModelViewSet):
+    tenant_internal_api = True
     queryset = VariableManager.objects.all()
     permission_classes = [AdminPermission | AppInternalPermission]
 

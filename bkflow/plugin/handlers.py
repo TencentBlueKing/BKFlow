@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -123,7 +122,7 @@ class BluekingPluginHandler:
         plugin_codes = [plugin["plugin_code"] for plugin in self.data.get(PluginType.BLUEKING.value, [])]
         target_fields = self.data.get("target_fields", [])
 
-        plugins = BKPlugin.objects.filter(code__in=plugin_codes)
+        plugins = BKPlugin.objects.for_space(self.data["space_id"]).filter(code__in=plugin_codes)
         if not plugins.exists():
             raise NotFound(_("Plugin {} not found.").format(plugin_codes))
         authorized_plugins = BKPluginAuthorization.objects.filter(

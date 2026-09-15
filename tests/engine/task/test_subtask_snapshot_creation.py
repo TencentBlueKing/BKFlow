@@ -45,9 +45,15 @@ from bkflow.utils.pipeline import build_default_pipeline_tree
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
+@pytest.fixture(params=[(False, {}), (True, {"tenant_id": "tenant-a"})], ids=["single", "multi"])
+def tenant_context(request, settings):
+    settings.ENABLE_MULTI_TENANT_MODE = request.param[0]
+    return request.param[1]
+
+
 @pytest.fixture(params=[SubprocessPluginService, SubcanvasPluginService])
-def subtask_context(request):
-    """为两个调用入口创建真实父任务。"""
+def subtask_context(request, tenant_context):
+    """在单、多租户模式下为两个调用入口创建真实父任务。"""
     service = request.param()
     service.id = "parent_node"
     service.version = "v1.0.0"
@@ -63,6 +69,7 @@ def subtask_context(request):
         scope_type="biz",
         scope_value="2",
         pipeline_tree=build_default_pipeline_tree(),
+        **tenant_context,
     )
     return service, parent, trigger
 
@@ -107,6 +114,8 @@ def test_plain_subtask_has_no_snapshot_request(subtask_context, mocker, componen
     child = create_child(subtask_context, component)
 
     prepare.assert_not_called()
+    child.refresh_from_db()
+    assert child.tenant_id == subtask_context[1].tenant_id
     assert child.extra_info == {"notify_config": {"notify_type": {"fail": ["weixin"]}}}
     assert task_record_counts() == (2, 1, 1, 2, 2)
     relation = TaskFlowRelation.objects.get(task_id=child.id)
@@ -153,6 +162,8 @@ def test_open_subtask_retries_before_atomic_creation(subtask_context, mocker, co
     child = create_child(subtask_context, component)
 
     assert prepare_request.call_count == 2
+    child.refresh_from_db()
+    assert child.tenant_id == subtask_context[1].tenant_id
     assert task_record_counts() == (2, 1, 1, 2, 2)
     assert child.extra_info["plugin_reference_snapshot"] == [{"plugin_id": "plugin1"}]
     assert child.extra_info["plugin_schema_snapshot"] == {"node1": {}}

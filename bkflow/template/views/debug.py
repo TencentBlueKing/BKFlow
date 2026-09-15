@@ -22,6 +22,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from bkflow.space.permissions import SpaceSuperuserPermission
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.template.debug.serializers import (
     ContextVarSerializer,
     GlobalRunSerializer,
@@ -45,7 +46,7 @@ def _err(exc, code):
     return Response(exception=True, data={"detail": str(exc)}, status=code)
 
 
-class DebugViewSet(SimpleGenericViewSet):
+class DebugViewSet(TenantScopeMixin, SimpleGenericViewSet):
     permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
     # 只读操作既是查看能力，也是调试链路的一部分；写操作需 mock 权限，
     # 因为它们会创建/启动/撤销真实的引擎 TaskInstance。

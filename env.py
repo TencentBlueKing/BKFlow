@@ -20,6 +20,9 @@ to the current version of the project delivered to anyone in the future.
 import json
 import os
 
+# 在 blueapps 加载登录策略前归一开关；平台变量优先，兼容历史别名。
+os.environ.setdefault("BKPAAS_MULTI_TENANT_MODE", os.getenv("ENABLE_MULTI_TENANT_MODE", "false"))
+
 # 部署模块相关变量
 # 是否开启部分调试日志
 ENABLE_DEBUG_LOG = bool(int(os.getenv("ENABLE_DEBUG_LOG", 0)))
@@ -252,3 +255,15 @@ MAX_WEBHOOK_RETRY_INTERVAL = int(os.getenv("MAX_WEBHOOK_RETRY_INTERVAL", 600))
 MAX_WEBHOOK_TIMEOUT = int(os.getenv("MAX_WEBHOOK_TIMEOUT", 10))
 
 PLUGIN_LOOP_OUTPUTS_KEY = os.getenv("PLUGIN_LOOP_OUTPUTS_KEY", "outputs")
+
+BKPAAS_USER_URL = os.getenv("BKPAAS_USER_URL")
+BKPAAS_IAM_URL = os.getenv("BKPAAS_IAM_URL")
+
+ENABLE_MULTI_TENANT_MODE = (
+    os.getenv("BKPAAS_MULTI_TENANT_MODE", os.getenv("ENABLE_MULTI_TENANT_MODE", "false")).lower() == "true"
+)
+BK_PLUGIN_SYNC_TENANTS = list(
+    dict.fromkeys(
+        tenant.strip() for tenant in os.getenv("BK_PLUGIN_SYNC_TENANTS", "system").split(",") if tenant.strip()
+    )
+) or ["system"]

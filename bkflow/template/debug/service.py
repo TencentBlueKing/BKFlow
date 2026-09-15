@@ -96,6 +96,10 @@ class DebugService:
                 ).data
             except TemplateSnapshot.DoesNotExist:
                 self._pipeline_tree = Template.objects.get(id=self.template_id).pipeline_tree
+        from bkflow.template.tenant import validate_template_references
+
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            validate_template_references(self.space_id, self._pipeline_tree)
         return self._pipeline_tree
 
     def get_or_create_context(self) -> DebugContext:

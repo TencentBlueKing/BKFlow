@@ -26,8 +26,8 @@ from bkflow.space.serializers import CredentialScopeSerializer
 
 
 class CredentialSerializer(serializers.ModelSerializer):
-    create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
-    update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+    create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S %z")
+    update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S %z")
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

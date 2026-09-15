@@ -27,10 +27,10 @@
                                 show_msg(resp.message, 'error');
                             } else {
                                 let data = resp.data.filter(function (item) {
-                                    return item.is_active
+                                    return item.enabled !== undefined ? item.enabled : item.is_active
                                 });
                                 let items = data.map(function (item) {
-                                    return {"name": item.label, "value": item.type}
+                                    return {"name": item.name || item.label, "value": item.type}
                                 });
                                 if (items.length > 0) {
                                     self.items = items;

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from django.db.models import Q
@@ -30,6 +31,7 @@ from bkflow.space.configs import GatewayExpressionConfig, TemplateTriggerConfig
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import Template, Trigger
 from bkflow.template.serializers.trigger import TriggerSerializer
+from bkflow.template.tenant import validate_template_references
 from bkflow.template.utils import validate_pipeline_tree_gateway_expression
 
 logger = logging.getLogger("root")
@@ -118,6 +120,8 @@ class CreateTemplateSerializer(serializers.Serializer):
         if not creator and not self.context.get("request").user.username:
             raise serializers.ValidationError(_("网关用户和creator都为空，请检查"))
 
+        if pipeline_tree:
+            validate_template_references(self.context.get("space_id"), pipeline_tree)
         _validate_template_label_ids(attrs.get("label_ids") or [], self.context.get("space_id"))
 
         return attrs
@@ -206,6 +210,9 @@ class UpdateTemplateSerializer(serializers.Serializer):
 
         if "label_ids" in attrs:
             _validate_template_label_ids(attrs.get("label_ids") or [], self.context.get("space_id"))
+
+        if pipeline_tree:
+            validate_template_references(self.context.get("space_id"), pipeline_tree)
 
         return attrs
 

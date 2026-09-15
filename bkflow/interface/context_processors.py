@@ -16,10 +16,12 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.conf import settings
 
 import env
 from bkflow.interface.models import EnvironmentVariables
+from bkflow.utils.time_zone import get_user_timezone
 
 
 def bkflow_settings(request):
@@ -28,6 +30,9 @@ def bkflow_settings(request):
     language = request.COOKIES.get("blueking_language", "zh-cn")
     doc_lang_mappings = {"zh-cn": "ZH", "en": "EN"}
     run_ver_key = "BKAPP_RUN_VER_NAME" if language == "zh-cn" else "BKAPP_RUN_VER_NAME_{}".format(language.upper())
+    time_zone = get_user_timezone(request)
+    if not time_zone:
+        time_zone = request.session.get("blueking_timezone", settings.TIME_ZONE)
 
     ctx = {
         "STATIC_URL": settings.STATIC_URL,
@@ -52,5 +57,13 @@ def bkflow_settings(request):
         "BKVISION_SPACE_DASHBOARD_UID": env.BKAPP_BKVISION_SPACE_DASHBOARD_UID,
         "BKVISION_BASE_URL": env.BKAPP_BKVISION_BASE_URL,
         "BKVISION_MAIN_JS_SRC_URL": env.BKAPP_BKVISION_MAIN_JS_SRC_URL,
+        "TENANT_ID": getattr(request.user, "tenant_id", ""),
+        "DISPLAY_NAME": getattr(request.user, "display_name", request.user.username),
+        "BK_USER_WEB_APIGW_URL": f"{settings.BK_API_URL_TMPL.format(api_name='bk-user-web')}/"
+        f"{settings.BK_APIGW_STAGE_NAME}",
+        "BKPAAS_USER_URL": settings.BKPAAS_USER_URL,
+        "BK_IAM_SAAS_HOST": settings.BKPAAS_IAM_URL,
+        "ENABLE_MULTI_TENANT_MODE": settings.ENABLE_MULTI_TENANT_MODE,
+        "TIMEZONE": time_zone,
     }
     return ctx

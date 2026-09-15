@@ -1350,6 +1350,9 @@ const en = {
   'MAKO 无独立语法站点，以本页与分支条件侧滑说明为准。': 'MAKO has no standalone syntax site; please refer to this page and the branch condition side panel for details.',
   表单结构: 'Form Structure',
   JSON源码: 'JSON Source',
+  权限中心: 'Permission Center',
+  个人中心: 'Personal Center',
+  个人设置: 'Personal Settings',
 };
 
 export default en;

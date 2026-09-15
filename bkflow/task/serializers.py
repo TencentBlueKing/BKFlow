@@ -16,10 +16,12 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import copy
 import logging
 
 import jsonschema
+from django.utils.translation import ugettext_lazy as _
 from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
@@ -36,6 +38,7 @@ from bkflow.task.models import (
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
 from bkflow.utils.handlers import mask_sensitive_data_for_display
 from bkflow.utils.strings import standardize_pipeline_node_name
+from bkflow.utils.tenant import TenantIDField
 
 logger = logging.getLogger("root")
 
@@ -78,6 +81,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
     constants = serializers.JSONField(required=False, default={})
     mock_data = CreateTaskMockDataSerializer(required=False, default=dict)
     label_ids = serializers.ListField(required=False, child=serializers.IntegerField())
+    tenant_id = TenantIDField(help_text=_("租户ID"), max_length=32, required=True)
 
     def validate(self, value):
         if value.get("extra_info", {}).get("notify_config") is not None:
@@ -131,6 +135,7 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
             "constants",
             "extra_info",
             "label_ids",
+            "tenant_id",
         ]
 
 
@@ -258,6 +263,7 @@ class PeriodicTaskConfigSerializer(serializers.Serializer):
     pipeline_tree = serializers.JSONField(help_text="流程树", required=False, allow_null=True)
     scope_type = serializers.CharField(help_text="流程所属作用域类型", required=False, allow_null=True)
     scope_value = serializers.CharField(help_text="流程所属作用域值", required=False, allow_null=True)
+    tenant_id = TenantIDField(help_text="流程所属租户", required=True)
 
 
 class CreatePeriodicTaskSerializer(serializers.Serializer):
