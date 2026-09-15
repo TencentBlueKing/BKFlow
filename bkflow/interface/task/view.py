@@ -55,6 +55,7 @@ from bkflow.permission.services import get_valid_token, iter_user_grants
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
+from bkflow.space.tenant import TenantScopeMixin, ensure_space_tenant
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.renderers import get_node_detail_renderer_classes
 from bkflow.utils.time_zone import get_user_timezone
@@ -64,7 +65,7 @@ from bkflow.utils.webhook import get_webhook_delivery_history_by_delivery_id
 logger = logging.getLogger("root")
 
 
-class TaskInterfaceAdminViewSet(GenericViewSet):
+class TaskInterfaceAdminViewSet(TenantScopeMixin, GenericViewSet):
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
 
     @action(methods=["GET"], detail=False, url_path="get_task_list/(?P<space_id>\\d+)")
@@ -123,7 +124,7 @@ class TaskInterfaceAdminViewSet(GenericViewSet):
         return Response(result)
 
 
-class TaskInterfaceSystemSuperuserViewSet(GenericViewSet):
+class TaskInterfaceSystemSuperuserViewSet(TenantScopeMixin, GenericViewSet):
     permission_classes = [AdminPermission]
 
     @swagger_auto_schema(methods=["post"], operation_description="触发引擎管理操作", request_body=TaskEngineAdminSerializer)
@@ -143,7 +144,7 @@ class TaskInterfaceSystemSuperuserViewSet(GenericViewSet):
         return Response(result)
 
 
-class TaskInterfaceViewSet(GenericViewSet):
+class TaskInterfaceViewSet(TenantScopeMixin, GenericViewSet):
     OPERATE_ABOVE_ACTIONS = ["operate_node", "operate_task"]
     MOCK_ABOVE_ACTIONS = ["get_task_mock_data"]
     permission_classes = [
@@ -185,10 +186,12 @@ class TaskInterfaceViewSet(GenericViewSet):
         if request.user.is_superuser or request.user.username in SpaceConfig.get_config(
             request_space_id, SuperusersConfig.name
         ):
+            ensure_space_tenant(request, request_space_id)
             return request_space_id
 
         token = get_valid_token(request.token, request.user.username, request_space_id, request)
         if token is not None:
+            ensure_space_tenant(request, token.space_id)
             return token.space_id
         logger.warning("find token is not exist")
         raise APIRequestError(

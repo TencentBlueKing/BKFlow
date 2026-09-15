@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 import uuid
 
@@ -25,6 +26,7 @@ from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from bkflow.exceptions import BKFLOWException, ValidationError
 from bkflow.utils import err_code
@@ -42,8 +44,19 @@ class AppInfoInjectMiddleware(MiddlewareMixin):
         request.app_internal_token = request.META.get(settings.APP_INTERNAL_TOKEN_REQUEST_META_KEY, "")
 
 
+class TenantAdminBoundaryMiddleware(MiddlewareMixin):
+    """原生 Django 后台不具备租户范围，租户管理员使用业务管理入口。"""
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        match = request.resolver_match
+        if settings.ENABLE_MULTI_TENANT_MODE and match and "admin" in match.app_names:
+            return JsonResponse({"result": False, "message": "多租户模式请使用当前租户的业务管理入口", "data": None}, status=403)
+
+
 class ExceptionMiddleware(MiddlewareMixin):
     def process_exception(self, request, exception):
+        if isinstance(exception, PermissionDenied):
+            return JsonResponse({"result": False, "message": str(exception), "data": None}, status=403)
         if isinstance(exception, BKFLOWException):
             return JsonResponse(
                 {

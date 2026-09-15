@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,12 +22,13 @@ from rest_framework.viewsets import ModelViewSet
 
 from bkflow.admin.models import ModuleInfo
 from bkflow.admin.serializers import ModuleInfoSerializer
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.mixins import BKFLOWDefaultPagination
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import SimpleGenericViewSet
 
 
-class ModuleInfoAdminViewSet(ModelViewSet, SimpleGenericViewSet):
+class ModuleInfoAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewSet):
     queryset = ModuleInfo.objects.all()
     serializer_class = ModuleInfoSerializer
     pagination_class = BKFLOWDefaultPagination

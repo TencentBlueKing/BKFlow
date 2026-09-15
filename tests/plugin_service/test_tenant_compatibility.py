@@ -36,3 +36,13 @@ def test_paas_auth_switch(enabled):
         else:
             assert params == {"private_token": "legacy-token"}
             assert headers == {}
+
+
+@override_settings(ENABLE_MULTI_TENANT_MODE=True)
+@pytest.mark.parametrize("tenant_id", [None, "", "  "])
+def test_plugin_client_rejects_missing_tenant_before_network(tenant_id):
+    """客户端不能把遗漏的租户参数变成无租户头的 PaaS 请求。"""
+    from plugin_service.exceptions import PluginServiceException
+
+    with pytest.raises(PluginServiceException, match="tenant_id"):
+        PluginServiceApiClient._prepare_paas_request(["system", "bk_plugins"], tenant_id=tenant_id)

@@ -26,6 +26,7 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from bkflow.utils.tenant import get_request_tenant_id
 from plugin_service import env
 from plugin_service.api_decorators import inject_plugin_client, validate_params
 from plugin_service.conf import PLUGIN_DISTRIBUTOR_NAME, PLUGIN_LOGGER
@@ -55,7 +56,7 @@ def _get_request_tenant_id(request):
     """关闭多租户时维持旧请求，不向旧 PaaS 注入租户头。"""
     if not getattr(settings, "ENABLE_MULTI_TENANT_MODE", False):
         return None
-    return getattr(request.user, "tenant_id", SYSTEM_TENANT_ID)
+    return get_request_tenant_id(request)
 
 
 def _fetch_all_plugins_for_tenant(tenant_id, search_term=None, distributor_code_name=None, **extra_kwargs):
@@ -147,7 +148,7 @@ def get_plugin_detail_list(request: Request):
         extra_kwargs["tag_id"] = tag_id
 
     enable_multi_tenant = getattr(settings, "ENABLE_MULTI_TENANT_MODE", False)
-    user_tenant_id = getattr(request.user, "tenant_id", None)
+    user_tenant_id = _get_request_tenant_id(request)
 
     if enable_multi_tenant and user_tenant_id:
         return _get_plugin_detail_list_multi_tenant(

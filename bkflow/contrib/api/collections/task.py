@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.conf import settings
 
 from bkflow.admin.models import ModuleInfo
@@ -28,7 +29,7 @@ class TaskComponentClient(BaseComponentClient):
     def __init__(self, space_id=0, from_superuser=False, time_zone=None):
         # space_id 等于0时表示默认配置
         super().__init__()
-        self.from_superuser = from_superuser
+        self.from_superuser = from_superuser and not settings.ENABLE_MULTI_TENANT_MODE
         self.space_id = space_id
         self.module_info = self.get_module_info()
         self.time_zone = time_zone

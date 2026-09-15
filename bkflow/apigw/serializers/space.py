@@ -37,6 +37,8 @@ class CreateSpaceSerializer(serializers.Serializer):
     app_code = serializers.CharField(help_text=_("app id"), max_length=32, required=True)
     tenant_id = TenantIDField(help_text=_("租户ID"), max_length=32, required=True)
 
+    tenant_mode = serializers.ChoiceField(choices=["single"], default="single")
+
     config = serializers.DictField(help_text=_("配置信息"), required=False)
 
     def validate_name(self, name):

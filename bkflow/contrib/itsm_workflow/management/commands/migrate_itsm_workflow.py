@@ -9,51 +9,50 @@ Unless required by applicable law or agreed to in writing, software distributed 
 an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 """
-import logging
+
 import os
 from io import BytesIO
 
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from packages.bkapi.bk_itsm4.shortcuts import get_client_by_username
-
-logger = logging.getLogger("root")
 
 
 class Command(BaseCommand):
     def add_arguments(self, parser):
-        parser.add_argument("-t", "--tenant_id", help="租户ID", type=str)
+        parser.add_argument("-t", "--tenant_id", help="租户ID", type=str, required=True)
 
     def handle(self, *args, **options):
-        tenant_id = options.get("tenant_id")
-
+        tenant_id = (options.get("tenant_id") or "").strip()
+        if not tenant_id:
+            raise CommandError("必须指定非空 tenant_id")
+        if not settings.ENABLE_MULTI_TENANT_MODE:
+            raise CommandError("单租户模式不需要初始化 ITSM4 租户")
         client = get_client_by_username("bk_admin", stage=settings.BK_APIGW_STAGE_NAME)
-        # 注册itsm system
-        try:
-            client.api.system_create(
-                {"name": settings.APP_CODE, "code": settings.APP_CODE, "token": settings.SECRET_KEY},
-                headers={"X-Bk-Tenant-Id": tenant_id},
-            )
-        except Exception as e:
-            print(e)
-            logger.error(e)
-
-        # migrate itsm workflow
         template_path = os.path.join(
             settings.BASE_DIR, "bkflow/contrib/itsm_workflow/template/itsm_migrate_template.json"
         )
         try:
-            with open(template_path) as file:
-                template = file.read()
-                tenant_template = template.replace("__tenant_id__", tenant_id)
+            # 先验证本地模板，再产生外部写入。
+            with open(template_path, encoding="utf-8") as template_file:
+                tenant_template = template_file.read().replace("__tenant_id__", tenant_id)
+            result = client.api.system_create(
+                {"name": settings.APP_CODE, "code": settings.APP_CODE, "token": settings.SECRET_KEY},
+                headers={"X-Bk-Tenant-Id": tenant_id},
+            )
+            self._check_result("注册 ITSM 系统", result)
+            with BytesIO(tenant_template.encode("utf-8")) as file_obj:
+                result = client.api.system_migrate(headers={"X-Bk-Tenant-Id": tenant_id}, files={"file": file_obj})
+            self._check_result("导入 ITSM 工作流", result)
+        except CommandError:
+            raise
+        except Exception as exc:
+            raise CommandError(f"租户 {tenant_id} 初始化失败，请检查 ITSM 服务和模板") from exc
 
-                file_obj = BytesIO(tenant_template.encode("utf-8"))
-                files = {"file": file_obj}
-                client.api.system_migrate(
-                    headers={"X-Bk-Tenant-Id": tenant_id},
-                    files=files,
-                )
-        except Exception as e:
-            print(e)
-            logger.error(e)
+    @staticmethod
+    def _check_result(operation, result):
+        """业务失败和传输失败均使命令返回非零退出码。"""
+        if not isinstance(result, dict) or result.get("result") is not True:
+            message = result.get("message", "响应无成功标志") if isinstance(result, dict) else "响应为空或格式错误"
+            raise CommandError(f"{operation}失败: {message}")

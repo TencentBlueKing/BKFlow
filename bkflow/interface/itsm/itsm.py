@@ -28,6 +28,7 @@ from rest_framework import serializers
 
 from bkflow.contrib.api.collections.itsm import BKItsmClient
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.space.tenant import ensure_space_tenant
 from bkflow.utils.handlers import handle_api_error
 from packages.bkapi.bk_itsm4.shortcuts import get_client_by_username
 
@@ -79,6 +80,7 @@ def _get_common_data(request):
     serializer = ITSMViewRequestSerializer(data=data)
     serializer.is_valid(raise_exception=True)
     serializer_data = serializer.data
+    ensure_space_tenant(request, serializer_data["space_id"])
 
     # 判断是否是拒绝，如果是拒绝并且没有填写备注则失败
     if not serializer_data["is_passed"] and not serializer_data["message"]:

@@ -41,7 +41,7 @@ export default {
       }
       const params = {
         ...data,
-        tenant_id: window.TENANT_ID,
+        ...(window.ENABLE_MULTI_TENANT_MODE === true ? { tenant_id: window.TENANT_ID } : {}),
       };
       return axios[method](url, params).then(response => response.data);
     },

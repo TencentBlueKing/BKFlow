@@ -9,6 +9,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 """
+
 import logging
 
 from django.core.management import call_command
@@ -19,7 +20,7 @@ logger = logging.getLogger("root")
 
 class Command(BaseCommand):
     def add_arguments(self, parser):
-        parser.add_argument("-t", "--tenant_id", help="租户ID", type=str, default="default")
+        parser.add_argument("-t", "--tenant_id", help="租户ID", type=str, required=True)
 
     def handle(self, *args, **options):
         tenant_id = options.get("tenant_id")

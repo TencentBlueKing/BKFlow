@@ -80,6 +80,7 @@ from bkflow.space.serializers import (
     SpacePluginConfigQuerySerializer,
     SpaceSerializer,
 )
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
 from bkflow.utils.mixins import BKFLOWDefaultPagination, BKFlowOrderingFilter
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
@@ -88,7 +89,7 @@ from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet
 logger = logging.getLogger("root")
 
 
-class CredentialConfigViewSet(AdminModelViewSet):
+class CredentialConfigViewSet(TenantScopeMixin, AdminModelViewSet):
     """
     凭证接口
     """
@@ -250,7 +251,7 @@ class SpaceFilterSet(FilterSet):
         return queryset
 
 
-class SpaceViewSet(AdminModelViewSet):
+class SpaceViewSet(TenantScopeMixin, AdminModelViewSet):
     queryset = Space.objects.filter(is_deleted=False)
     serializer_class = SpaceSerializer
     filter_backends = [DjangoFilterBackend]
@@ -261,6 +262,11 @@ class SpaceViewSet(AdminModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = CreateSpaceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            from bkflow.utils.tenant import get_request_tenant_id
+
+            if serializer.validated_data["tenant_id"] != get_request_tenant_id(request):
+                raise PermissionDenied("空间租户必须与当前用户租户一致")
 
         if not request.user.is_superuser:
             app_code = serializer.validated_data["app_code"]
@@ -319,7 +325,8 @@ class SpaceViewSet(AdminModelViewSet):
 
 
 @method_decorator(login_exempt, name="dispatch")
-class SpaceInternalViewSet(AdminModelViewSet):
+class SpaceInternalViewSet(TenantScopeMixin, AdminModelViewSet):
+    tenant_internal_api = True
     queryset = Space.objects.filter(is_deleted=False)
     serializer_class = SpaceSerializer
     permission_classes = [AdminPermission | AppInternalPermission]
@@ -381,7 +388,7 @@ class SpaceConfigFilterSet(FilterSet):
         fields = {"space_id": ["exact"], "name": ["exact"]}
 
 
-class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
+class SpaceConfigAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewSet):
     queryset = SpaceConfig.objects.all()
     serializer_class = SpaceConfigSerializer
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
@@ -539,7 +546,7 @@ class SpaceConfigAdminViewSet(ModelViewSet, SimpleGenericViewSet):
             return Response(exception=True, data={"detail": err_msg})
 
 
-class SpaceConfigViewSet(ModelViewSet, SimpleGenericViewSet):
+class SpaceConfigViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewSet):
     queryset = SpaceConfig.objects.all()
     serializer_class = SpaceConfigSerializer
     permission_classes = [SpaceConfigExemptionPermission | AdminPermission | SpaceSuperuserPermission]

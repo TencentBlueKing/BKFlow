@@ -47,6 +47,7 @@ def test_space_backfill_preview_repeat_and_conflict(tmp_path):
     assert space.tenant_id == "tenant-a"
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize("view", [itsm_approve, itsm_approve_new])
 @override_settings(ENABLE_MULTI_TENANT_MODE=True)
 def test_old_ticket_uses_legacy_service_after_upgrade(view):
@@ -55,8 +56,9 @@ def test_old_ticket_uses_legacy_service_after_upgrade(view):
         data=json.dumps({"space_id": 1, "task_id": 2, "node_id": "node", "is_passed": True, "message": ""}),
         content_type="application/json",
     )
-    # Legacy users need not have a tenant attribute when their ticket only contains sn.
-    request.user = SimpleNamespace(username="user")
+    # 旧单据继续走旧服务，但用户身份和空间仍必须属于同一租户。
+    Space.objects.create(id=1, name="old-ticket-space", tenant_id="tenant-a")
+    request.user = SimpleNamespace(username="user", tenant_id="tenant-a")
     with patch("bkflow.interface.itsm.itsm.TaskComponentClient") as task_client, patch(
         "bkflow.interface.itsm.itsm.BKItsmClient"
     ) as legacy, patch("bkflow.interface.itsm.itsm.get_client_by_username") as modern:
@@ -75,8 +77,10 @@ def test_old_ticket_uses_legacy_service_after_upgrade(view):
         task_client.return_value.get_task_node_detail.assert_called_once()
 
 
+@pytest.mark.django_db
 @override_settings(ENABLE_MULTI_TENANT_MODE=True, BK_APIGW_STAGE_NAME="stag")
 def test_new_ticket_uses_itsm4():
+    Space.objects.create(id=1, name="new-ticket-space", tenant_id="tenant-a")
     request = RequestFactory().post(
         "/itsm_approve/",
         data=json.dumps({"space_id": 1, "task_id": 2, "node_id": "node", "is_passed": False, "message": "拒绝"}),

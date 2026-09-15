@@ -297,6 +297,7 @@ class PluginServiceApiClient:
 
     def _prepare_apigw_api_request(self, path_params: list, inject_authorization: dict = None, tenant_id=None):
         """插件服务APIGW接口请求信息准备"""
+        self._validate_tenant_id(tenant_id)
         try:
             base_url = env.PLUGIN_APIGW_API_HOST_FORMAT.format(self.plugin_apigw_name)
         except KeyError:
@@ -343,6 +344,7 @@ class PluginServiceApiClient:
     @staticmethod
     def _prepare_tenant_paas_api_request(path_params: list, environment=None, tenant_id=None):
         """PaaS平台服务接口请求信息准备"""
+        PluginServiceApiClient._validate_tenant_id(tenant_id)
         url = os.path.join(
             env.PAASV3_APIGW_API_HOST or f"{env.APIGW_NETWORK_PROTOCAL}://paasv3.{env.APIGW_URL_SUFFIX}",
             environment or env.APIGW_ENVIRONMENT,
@@ -358,6 +360,12 @@ class PluginServiceApiClient:
             headers["X-Bk-Tenant-Id"] = tenant_id
 
         return url, headers
+
+    @staticmethod
+    def _validate_tenant_id(tenant_id):
+        """多租户调用在发出请求前拒绝缺失的租户上下文。"""
+        if settings.ENABLE_MULTI_TENANT_MODE and (not isinstance(tenant_id, str) or not tenant_id.strip()):
+            raise PluginServiceException("多租户插件请求缺少 tenant_id")
 
     @staticmethod
     def _prepare_paas_request(path_params, environment=None, tenant_id=None, force_add_app_info=False):

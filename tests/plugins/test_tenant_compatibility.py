@@ -101,7 +101,7 @@ def test_tenant_field_old_request_mode(enabled):
         assert supplied.is_valid()
         assert supplied.validated_data["tenant_id"] == "tenant-a"
         invalid = InputSerializer(data={"tenant_id": ""})
-        assert not invalid.is_valid()
+        assert invalid.is_valid() is (not enabled)
 
 
 @override_settings(ENABLE_MULTI_TENANT_MODE=False)
@@ -110,3 +110,33 @@ def test_legacy_timezone_avoids_user_service():
     with patch("bkflow.utils.time_zone.get_client_by_request") as client:
         assert get_user_timezone(request)
         client.assert_not_called()
+
+
+@override_settings(ENABLE_MULTI_TENANT_MODE=True)
+def test_timezone_cache_isolated_and_reused():
+    """同名用户在两个租户有独立缓存，重复读取不增加外部请求。"""
+    from django.core.cache import cache
+
+    cache.clear()
+
+    def request(tenant):
+        return SimpleNamespace(user=SimpleNamespace(username="same-user", tenant_id=tenant), headers={}, COOKIES={})
+
+    with patch("bkflow.utils.time_zone.get_client_by_request") as client:
+        api = client.return_value.api.get_bk_token_userinfo
+        api.side_effect = [{"data": {"time_zone": "Asia/Shanghai"}}, {"data": {"time_zone": "UTC"}}]
+        assert get_user_timezone(request("a")) == "Asia/Shanghai"
+        assert get_user_timezone(request("b")) == "UTC"
+        assert get_user_timezone(request("a")) == "Asia/Shanghai"
+        assert api.call_count == 2
+
+
+@override_settings(ENABLE_MULTI_TENANT_MODE=True)
+def test_plugin_missing_tenant_cannot_select_legacy_or_system():
+    """模式开启后，列表和详情都拒绝空租户，并且不访问 PaaS。"""
+    from rest_framework.exceptions import PermissionDenied
+
+    from plugin_service.api import _get_request_tenant_id
+
+    with pytest.raises(PermissionDenied):
+        _get_request_tenant_id(SimpleNamespace(user=SimpleNamespace(username="user", tenant_id="")))

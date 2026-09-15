@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import django_filters
 from django.db.models import Count, Exists, OuterRef
 from django_filters.rest_framework import DjangoFilterBackend
@@ -27,6 +28,7 @@ from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.label.models import TemplateLabelRelation
 from bkflow.label.permissions import LabelPermission
 from bkflow.space.permissions import SpaceSuperuserPermission
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.mixins import BKFLOWNoMaxLimitPagination
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import AdminModelViewSet
@@ -79,11 +81,12 @@ class LabelFilter(django_filters.FilterSet):
         return queryset
 
 
-class LabelViewSet(AdminModelViewSet):
+class LabelViewSet(TenantScopeMixin, AdminModelViewSet):
     """
     标签管理 ViewSet
     """
 
+    tenant_allow_global_labels = True
     swagger_tags = ["label"]
     queryset = Label.objects.all().order_by("-updated_at")
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]

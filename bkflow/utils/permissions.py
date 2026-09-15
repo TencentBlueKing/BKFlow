@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,10 +22,10 @@ from rest_framework import permissions
 
 class AdminPermission(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_superuser and not settings.BLOCK_ADMIN_PERMISSION
+        return request.user.is_superuser and not getattr(settings, "BLOCK_ADMIN_PERMISSION", False)
 
     def has_object_permission(self, request, view, obj):
-        return request.user.is_superuser and not settings.BLOCK_ADMIN_PERMISSION
+        return request.user.is_superuser and not getattr(settings, "BLOCK_ADMIN_PERMISSION", False)
 
 
 class AppInternalPermission(permissions.BasePermission):

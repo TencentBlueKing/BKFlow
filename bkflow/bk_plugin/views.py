@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -45,6 +44,7 @@ from bkflow.bk_plugin.serializer import (
 from bkflow.constants import ALL_SPACE, WHITE_LIST
 from bkflow.exceptions import ValidationError
 from bkflow.space.models import Space
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWDefaultPagination
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import SimpleGenericViewSet
@@ -78,7 +78,7 @@ class BKPluginFilterSet(FilterSet):
 
     @staticmethod
     def filter_by_search_term(queryset, name, value):
-        return queryset.filter((Q(name__icontains=value) | Q(code__icontains=value)))
+        return queryset.filter(Q(name__icontains=value) | Q(code__icontains=value))
 
 
 class BKPluginAuthFilterSet(FilterSet):
@@ -90,7 +90,7 @@ class BKPluginAuthFilterSet(FilterSet):
         }
 
 
-class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.UpdateModelMixin):
+class BKPluginManagerViewSet(TenantScopeMixin, BKFLOWCommonMixin, mixins.ListModelMixin, mixins.UpdateModelMixin):
     queryset = BKPlugin.objects.all()
     serializer_class = BKPluginSerializer
     list_serializer_class = BKPluginAuthSerializer
@@ -110,7 +110,7 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
         ).qs
         authorization_dict = {auth.code: auth for auth in filtered_authorization}
         result_data = []
-        space_queryset = Space.objects.all()
+        space_queryset = self._tenant_queryset(Space.objects.all())
         for plugin in filtered_plugins:
             status_param = query_serializer.validated_data.get("status")
             updator_param = query_serializer.validated_data.get("status_updator")
@@ -132,11 +132,11 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
                     {
                         "status": authorization.status,
                         "status_updator": authorization.status_updator,
-                        "status_update_time": localtime(authorization.status_update_time).strftime(
-                            "%Y-%m-%d %H:%M:%S%z"
-                        )
-                        if authorization.status_update_time
-                        else authorization.status_update_time,
+                        "status_update_time": (
+                            localtime(authorization.status_update_time).strftime("%Y-%m-%d %H:%M:%S%z")
+                            if authorization.status_update_time
+                            else authorization.status_update_time
+                        ),
                     }
                 ),
             }
@@ -158,6 +158,12 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
 
     def update(self, request, *args, **kwargs):
         code = kwargs["code"]
+        if self._tenant_enabled():
+            from rest_framework.exceptions import PermissionDenied
+
+            plugin = BKPlugin.objects.filter(code=code).first()
+            if not plugin or request.user.username not in plugin.managers:
+                raise PermissionDenied("只有插件负责人可以修改共享插件授权，租户管理员不能代管其他身份的插件")
         authorization, _ = BKPluginAuthorization.objects.get_or_create(code=code)
         ser = self.get_serializer(authorization, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
@@ -170,7 +176,7 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
         return Response({"result": True, "message": None, "data": ser.data})
 
 
-class BKPluginViewSet(SimpleGenericViewSet):
+class BKPluginViewSet(TenantScopeMixin, SimpleGenericViewSet):
     queryset = BKPlugin.objects.all()
     serializer_class = BKPluginSerializer
     pagination_class = BKFLOWDefaultPagination
