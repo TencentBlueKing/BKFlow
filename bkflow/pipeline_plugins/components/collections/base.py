@@ -34,6 +34,7 @@ from pipeline.eri.runtime import BambooDjangoRuntime
 from bkflow.constants import TaskOperationSource, TaskOperationType
 from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.exceptions import ValidationError
+from bkflow.plugin.services.open_plugin_detect import has_open_plugin_nodes
 from bkflow.utils.handlers import mask_sensitive_data_for_display
 from bkflow.utils.trace import (
     PLUGIN_SCHEDULE_COUNT_KEY,
@@ -391,28 +392,26 @@ class LoopBaseService(BKFlowBaseService):
         )
         from bkflow.task.utils import extract_extra_info
 
-        with transaction.atomic():
-            time_zone = timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai"
-            time_stamp = datetime.datetime.now(tz=time_zone).strftime("%Y%m%d%H%M%S")
-            create_task_data = {
-                "name": f"{template_name}_子流程_{time_stamp}",
-                "template_id": template_id,
-                "creator": parent_task.creator,
-                "scope_type": parent_task.scope_type,
-                "scope_value": parent_task.scope_value,
-                "space_id": parent_task.space_id,
-                "pipeline_tree": pipeline_tree,
-                "trigger_method": trigger_method,
-                "mock_data": {},
-            }
-            DEFAULT_NOTIFY_CONFIG = {
-                "notify_type": {"fail": [], "success": []},
-                "notify_receivers": {"more_receiver": "", "receiver_group": []},
-            }
-            create_task_data.setdefault("extra_info", {}).update(
-                {"notify_config": notify_config or DEFAULT_NOTIFY_CONFIG}
-            )
+        time_zone = timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai"
+        time_stamp = datetime.datetime.now(tz=time_zone).strftime("%Y%m%d%H%M%S")
+        create_task_data = {
+            "name": f"{template_name}_子流程_{time_stamp}",
+            "template_id": template_id,
+            "creator": parent_task.creator,
+            "scope_type": parent_task.scope_type,
+            "scope_value": parent_task.scope_value,
+            "space_id": parent_task.space_id,
+            "pipeline_tree": pipeline_tree,
+            "trigger_method": trigger_method,
+            "mock_data": {},
+        }
+        DEFAULT_NOTIFY_CONFIG = {
+            "notify_type": {"fail": [], "success": []},
+            "notify_receivers": {"more_receiver": "", "receiver_group": []},
+        }
+        create_task_data.setdefault("extra_info", {}).update({"notify_config": notify_config or DEFAULT_NOTIFY_CONFIG})
 
+        if has_open_plugin_nodes(pipeline_tree):
             interface_client = InterfaceModuleClient()
             prepare_result = interface_client.prepare_task_extra_info(
                 data={
@@ -428,6 +427,7 @@ class LoopBaseService(BKFlowBaseService):
                 raise ValidationError(f"生成开放插件快照失败: {prepare_result.get('message')}")
             create_task_data["extra_info"] = prepare_result["data"]["extra_info"]
 
+        with transaction.atomic():
             task_instance = TaskInstance.objects.create_instance(**create_task_data)
 
             # 记录操作流水

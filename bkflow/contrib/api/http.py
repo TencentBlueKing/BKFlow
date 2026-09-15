@@ -133,7 +133,13 @@ def _http_request(
             return {"result": False, "message": "Unsupported http method %s" % method}
     except Exception as e:
         logger.exception("Error occurred when requesting method={} url={}".format(method, url))
-        return {"result": False, "message": "Request API error, exception: %s" % str(e)}
+        return {
+            "result": False,
+            "message": "Request API error, exception: %s" % str(e),
+            "error_type": "request",
+            "retryable": isinstance(e, (requests.ConnectionError, requests.Timeout))
+            and not isinstance(e, requests.exceptions.SSLError),
+        }
     else:
         if not resp.ok:
             try:
@@ -152,7 +158,13 @@ def _http_request(
                 _sanitize_sensitive_data(data),
                 resp_message,
             )
-            return {"result": False, "message": message}
+            return {
+                "result": False,
+                "message": message,
+                "error_type": "http",
+                "status_code": resp.status_code,
+                "retryable": resp.status_code in (502, 503, 504),
+            }
 
         log_message = (
             "API return: message: %(message)s, request_id=%(request_id)s, "
@@ -188,7 +200,12 @@ def _http_request(
                 )
         except Exception:
             logger.exception("Return data format is incorrect, which shall be unified as json: %s", resp.content[200:])
-            return {"result": False, "message": "API return is not a valid json"}
+            return {
+                "result": False,
+                "message": "API return is not a valid json",
+                "error_type": "invalid_response",
+                "retryable": False,
+            }
 
         return json_resp
     finally:
