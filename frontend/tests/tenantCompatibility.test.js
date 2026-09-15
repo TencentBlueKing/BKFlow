@@ -5,6 +5,19 @@ const vm = require('vm');
 const createLoader = require('./helpers/loadSourceModule');
 
 async function run() {
+  const { buildUserNavigationActions } = createLoader()('utils/userNavigation.js');
+  const logout = () => {};
+  for (const value of [undefined, null, '', 'None', 'undefined', 'javascript:alert(1)', '/relative']) {
+    const actions = buildUserNavigationActions({iamUrl: value, userUrl: value, translate: x => x, logout});
+    assert.strictEqual(actions.length, 1);
+    assert.strictEqual(actions[0].handle, logout);
+  }
+  const configured = buildUserNavigationActions({
+    iamUrl: 'https://iam.example/', userUrl: 'https://user.example/', translate: x => x, logout,
+  });
+  assert.deepStrictEqual(configured.map(action => action.href), [
+    'https://iam.example', 'https://user.example/personal-center', undefined,
+  ]);
   const calls = [];
   const axios = {
     post: async (url, data) => { calls.push({url, data}); return {data: {result: true}}; },

@@ -69,6 +69,7 @@
 <script>
   import { mapActions, mapMutations, mapState } from 'vuex';
   import VersionLog from './VersionLog.vue';
+  import { buildUserNavigationActions } from '@/utils/userNavigation';
   import BkLoginUserinfo from '@blueking/login-userinfo/vue2';
   import '@blueking/login-userinfo/vue2/vue2.css';
   import Cookies from 'js-cookie';
@@ -109,26 +110,12 @@
         username: state => state.username,
       }),
       actionList() {
-          return [
-              {
-                  text: this.$t('权限中心'),
-                  icon: 'common-icon-authority',
-                  href: window.BK_IAM_SAAS_HOST,
-                  target: '_blank',
-              },
-              {
-                  text: this.$t('个人设置'),
-                  icon: 'bk-icon icon-user',
-                  href: `${window.BKPAAS_USER_URL || ''}/personal-center`,
-                  target: '_blank',
-              },
-              {
-                  text: this.$t('退出登录'),
-                  icon: 'common-icon-export',
-                  theme: 'danger',
-                  handle: this.handleLogout,
-              },
-          ];
+        return buildUserNavigationActions({
+          iamUrl: window.BK_IAM_SAAS_HOST,
+          userUrl: window.BKPAAS_USER_URL,
+          translate: text => this.$t(text),
+          logout: this.handleLogout,
+        });
       },
     },
     watch: {
