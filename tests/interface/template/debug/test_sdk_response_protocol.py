@@ -26,11 +26,23 @@ APIGW_RESOURCE_SOURCE = PROJECT_ROOT / "bkflow" / "apigw" / "management" / "comm
 
 
 def test_debug_viewset_uses_standard_response_wrapper():
-    source = DEBUG_VIEW_SOURCE.read_text()
+    """权限 mixin 调整后，实际响应仍由统一视图包装。"""
+    from types import SimpleNamespace
+    from unittest.mock import patch
 
-    assert "from bkflow.utils.views import SimpleGenericViewSet" in source
-    assert "class DebugViewSet(SimpleGenericViewSet):" in source
-    assert "class DebugSdkViewSet" not in source
+    from django.test import override_settings
+    from rest_framework.test import APIRequestFactory, force_authenticate
+
+    from bkflow.template.views.debug import DebugViewSet
+
+    request = APIRequestFactory().get("/debug/context/", {"template_id": 1})
+    force_authenticate(request, user=SimpleNamespace(is_superuser=True, is_authenticated=True))
+    with override_settings(ENABLE_MULTI_TENANT_MODE=False, BLOCK_ADMIN_PERMISSION=False), patch(
+        "bkflow.template.views.debug.DebugService"
+    ) as service:
+        service.return_value.build_context_view.return_value = {"context": "test"}
+        response = DebugViewSet.as_view({"get": "context"})(request)
+    assert response.data == {"result": True, "data": {"context": "test"}, "code": "0", "message": ""}
 
 
 def test_debug_viewset_has_single_internal_route():

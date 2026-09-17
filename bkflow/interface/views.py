@@ -24,7 +24,6 @@ import traceback
 from blueapps.account import ConfFixture
 from blueapps.account.decorators import login_exempt
 from blueapps.account.handlers.response import ResponseHandler
-from blueapps.utils import get_client_by_request
 from cryptography.fernet import Fernet
 from django.conf import settings
 from django.contrib.auth import logout
@@ -37,7 +36,9 @@ from django.views.decorators.http import require_GET, require_POST
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import Space, SpaceConfig
+from bkflow.space.tenant import ensure_space_tenant, tenant_space_ids
 from bkflow.task.open_plugin_callback import OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY
+from packages.bkapi.bk_cmsi.shortcuts import get_client_by_username
 
 logger = logging.getLogger("root")
 
@@ -62,7 +63,14 @@ def is_admin_or_space_superuser(request):
     """
     space_ids = SpaceConfig.objects.get_space_ids_of_superuser(request.user.username)
     is_space_superuser = (
-        True if (space_ids and Space.objects.filter(id__in=space_ids, is_deleted=False).exists()) else False
+        True
+        if (
+            space_ids
+            and Space.objects.filter(id__in=tenant_space_ids(request))
+            .filter(id__in=space_ids, is_deleted=False)
+            .exists()
+        )
+        else False
     )
 
     return JsonResponse(
@@ -84,6 +92,7 @@ def is_admin_or_current_space_superuser(request):
     if space_id is None:
         return JsonResponse({"result": False, "data": None, "message": "space_id is required"})
 
+    ensure_space_tenant(request, space_id)
     is_space_superuser = SpaceConfig.objects.filter(
         space_id=space_id, name=SuperusersConfig.name, json_value__contains=request.user.username
     ).exists()
@@ -99,8 +108,12 @@ def is_admin_or_current_space_superuser(request):
 
 @require_GET
 def get_msg_types(request):
-    client = get_client_by_request(request)
-    result = client.cmsi.get_msg_type()
+    if not settings.ENABLE_MULTI_TENANT_MODE:
+        from blueapps.utils import get_client_by_request
+
+        return JsonResponse(get_client_by_request(request).cmsi.get_msg_type())
+    client = get_client_by_username(request.user.username, stage=settings.BK_APIGW_STAGE_NAME)
+    result = client.api.v1_channels_list(headers={"X-Bk-Tenant-Id": request.user.tenant_id})
     return JsonResponse(result)
 
 

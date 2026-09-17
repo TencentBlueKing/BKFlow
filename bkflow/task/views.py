@@ -83,6 +83,7 @@ from bkflow.utils.handlers import handle_plain_log
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
 from bkflow.utils.renderers import get_node_detail_renderer_classes
+from bkflow.utils.tenant import EngineTenantScopeMixin
 from bkflow.utils.trace import start_trace
 from bkflow.utils.views import SimpleGenericViewSet
 
@@ -144,7 +145,7 @@ def validate_task_info(func):
         space_id, from_superuser = request.headers.get(settings.APP_INTERNAL_SPACE_ID_HEADER_KEY), request.headers.get(
             settings.APP_INTERNAL_FROM_SUPERUSER_HEADER_KEY, "0"
         )
-        from_superuser = True if from_superuser == "1" else False
+        from_superuser = from_superuser == "1" and not settings.ENABLE_MULTI_TENANT_MODE
         task_instance = self.get_object()
         if not from_superuser and not (space_id and str(space_id) == str(task_instance.space_id)):
             return Response({"result": False, "data": None, "message": "space_id is invalid"}, status=403)
@@ -159,6 +160,7 @@ def validate_task_info(func):
 
 @method_decorator(login_exempt, name="dispatch")
 class TaskInstanceViewSet(
+    EngineTenantScopeMixin,
     BKFLOWCommonMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
@@ -759,6 +761,7 @@ class TaskInstanceViewSet(
 
 @method_decorator(login_exempt, name="dispatch")
 class PeriodicTaskViewSet(
+    EngineTenantScopeMixin,
     BKFLOWCommonMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,

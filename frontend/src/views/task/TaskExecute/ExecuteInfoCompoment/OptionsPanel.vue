@@ -338,9 +338,6 @@
         'getInstanceStatus',
         'getTaskInstanceData',
       ]),
-      ...mapActions('template/', [
-        'loadUniformApiMeta',
-      ]),
       ...mapActions('atomForm/', [
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',

@@ -25,10 +25,11 @@ from rest_framework.response import Response
 
 from bkflow.permission.exceptions import TokenRenewalException
 from bkflow.permission.models import Token
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.views import ReadOnlyViewSet
 
 
-class TokenViewSet(ReadOnlyViewSet):
+class TokenViewSet(TenantScopeMixin, ReadOnlyViewSet):
     queryset = Token.objects.all()
 
     def get_queryset(self):

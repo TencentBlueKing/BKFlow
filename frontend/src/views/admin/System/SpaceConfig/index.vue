@@ -24,7 +24,10 @@
         :prop="field.key"
         show-overflow-tooltip>
         <template slot-scope="{ row }">
-          <span>{{ row[field.key] || '--' }}</span>
+          <UserDisplayName
+            v-if="['creator', 'updated_by'].includes(field.key)"
+            :name="row[field.key]" />
+          <span v-else>{{ row[field.key] || '--' }}</span>
         </template>
       </bk-table-column>
       <bk-table-column
@@ -70,11 +73,13 @@
   import tableCommon from '../../Space/mixins/tableCommon.js';
   import bus from '@/utils/bus.js';
   import SpaceDialog from '../../common/SpaceDialog.vue';
+  import UserDisplayName from '@/components/common/Individualization/UserDisplayName.vue';
   export default {
     name: 'SpaceConfigList',
     components: {
       NoData,
       SpaceDialog,
+      UserDisplayName,
     },
     mixins: [tableCommon],
     data() {

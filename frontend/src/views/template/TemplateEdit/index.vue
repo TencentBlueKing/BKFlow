@@ -1571,6 +1571,7 @@
               meta_url_template: api_meta.meta_url_template,
               source_key: api_meta.source_key,
               version: pluginVersion,
+              api_name: api_meta.api_key,
             });
             if (resp.result) {
               this.apiExistMap[id] = { code, version: pluginVersion };
@@ -1702,6 +1703,7 @@
                     meta_url_template: apiMeta.meta_url_template,
                     source_key: apiMeta.source_key,
                     version: apiMeta.version,
+                    api_name: apiMeta.api_key,
                   });
                   const { url, methods, version, credential_key: credentialKey } = resp.data;
                   const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中

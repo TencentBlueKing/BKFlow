@@ -30,6 +30,7 @@ from bkflow.apigw.serializers.task import CreateTaskByAppSerializer
 from bkflow.constants import TaskTriggerMethod, WebhookEventType, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.space.models import Space
 from bkflow.utils.trace import CallFrom, trace_view
 
 
@@ -85,6 +86,7 @@ def create_task_by_app(request, template_id):
         create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
             "custom_span_attributes"
         ] = custom_span_attributes
+    create_task_data["tenant_id"] = Space.objects.get(id=space_id).tenant_id
 
     create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
         space_id=int(space_id),

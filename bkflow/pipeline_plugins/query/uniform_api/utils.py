@@ -23,6 +23,7 @@ from functools import wraps
 from django.conf import settings
 
 from bkflow.exceptions import APIRequestError, ValidationError
+from bkflow.space.tenant import ensure_space_tenant
 from bkflow.utils.api_client import (
     ApigwClientMixin,
     HttpRequestMixin,
@@ -58,6 +59,7 @@ def check_resource_token(func: callable) -> callable:
         from bkflow.space.models import SpaceConfig
 
         space_id = kwargs.get("space_id")
+        ensure_space_tenant(request, space_id)
         space_superusers = SpaceConfig.get_config(space_id, SuperusersConfig.name)
         is_space_superuser = request.user.username in space_superusers
 

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import keyword
 
 from django.conf import settings
@@ -25,13 +26,14 @@ from rest_framework.response import Response
 
 from bkflow.constants import formatted_key_pattern
 from bkflow.exceptions import ValidationError
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.template.context import get_constant_values
 from bkflow.template.serializers.variable import VariableSerializer
 from bkflow.utils.context import TaskContext
 from bkflow.utils.views import ReadOnlyViewSet
 
 
-class VariableViewSet(ReadOnlyViewSet):
+class VariableViewSet(TenantScopeMixin, ReadOnlyViewSet):
     serializer_class = VariableSerializer
     queryset = VariableModel.objects.filter(status=True)
     lookup_field = "code"

@@ -50,6 +50,7 @@ from bkflow.plugin.services.plugin_detail import PluginDetailService
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.space.configs import SpacePluginConfig
 from bkflow.space.models import SpaceConfig
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import ReadOnlyViewSet
@@ -57,7 +58,7 @@ from bkflow.utils.views import ReadOnlyViewSet
 logger = logging.getLogger("root")
 
 
-class PluginDetailView(APIView):
+class PluginDetailView(TenantScopeMixin, APIView):
     """返回三类插件统一的原生表单详情。"""
 
     permission_classes = [
@@ -92,7 +93,7 @@ class ComponentModelFilter(FilterSet):
         fields = ["version"]
 
 
-class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
+class ComponentModelSetViewSet(TenantScopeMixin, BKFLOWCommonMixin, ReadOnlyViewSet):
     queryset = ComponentModel.objects.filter(status=True).exclude(code__in=["remote_plugin", "uniform_api"])
     retrieve_queryset = ComponentModel.objects.filter(status=True).order_by("name")
     serializer_class = ComponentModelListSerializer
@@ -120,8 +121,7 @@ class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
         if validated.get("skip_space_config", False):
             # skip_space_config 仅允许系统管理员或空间管理员使用，防止普通 Token 绕过插件过滤
             if not (
-                self.request.user.is_superuser
-                or PluginSpaceSuperuserPermission().has_permission(self.request, self)
+                self.request.user.is_superuser or PluginSpaceSuperuserPermission().has_permission(self.request, self)
             ):
                 raise PermissionDenied(_("仅系统管理员或空间管理员可使用 skip_space_config 参数"))
         else:
@@ -148,7 +148,7 @@ class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
         return super().retrieve(request, *args, **kwargs)
 
 
-class UniformPluginViewSet(ViewSet):
+class UniformPluginViewSet(TenantScopeMixin, ViewSet):
     @action(detail=False, methods=["post"])
     def get_plugin_detail(self, request, *args, **kwargs):
         serializer = UniformPluginSerializer(data=request.data)

@@ -9,6 +9,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 """
+
 from django.conf import settings
 from pipeline.component_framework.component import Component
 from pipeline.eri.runtime import BambooDjangoRuntime
@@ -33,7 +34,7 @@ class SubprocessPluginService(LoopBaseService):
     __need_schedule__ = True
     runtime = BambooDjangoRuntime()
 
-    def _get_subprocess_template(self, data):
+    def _get_subprocess_template(self, data, space_id=None):
         """获取子流程模板数据"""
         subprocess_data = data.get_one_of_inputs("subprocess") or {}
         subprocess = Subprocess(**subprocess_data)
@@ -44,7 +45,13 @@ class SubprocessPluginService(LoopBaseService):
         else:
             version = subprocess.version
         interface_client = InterfaceModuleClient()
-        template = interface_client.get_template_data(template_id=template_id, data={"version": version})
+        query = {"version": version}
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            if not space_id:
+                data.set_outputs("ex_data", "子流程缺少父任务空间")
+                return None, None
+            query["space_id"] = space_id
+        template = interface_client.get_template_data(template_id=template_id, data=query)
 
         # 检查API调用是否成功
         if not template.get("result"):
@@ -84,7 +91,7 @@ class SubprocessPluginService(LoopBaseService):
             data.set_outputs("ex_data", f"parent task {parent_task_id} not found")
             return False
 
-        template, subprocess = self._get_subprocess_template(data)
+        template, subprocess = self._get_subprocess_template(data, space_id=parent_task.space_id)
         if not template:
             return False
 

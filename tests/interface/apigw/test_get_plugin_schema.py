@@ -89,7 +89,7 @@ class TestGetPluginSchemaView(SimpleTestCase):
         """测试插件不存在"""
         mock_cm.objects.filter.return_value.values_list.return_value = []
         mock_cm.objects.filter.return_value.exists.return_value = False
-        mock_bp.objects.filter.return_value.exists.return_value = False
+        mock_bp.objects.for_space.return_value.filter.return_value.exists.return_value = False
 
         request = self.factory.get("/space/1/get_plugin_schema/", {"code": "nonexistent"})
         request.user = MagicMock(username="admin")

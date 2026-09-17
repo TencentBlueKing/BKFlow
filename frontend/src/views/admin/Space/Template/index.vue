@@ -158,6 +158,9 @@
               </div>
             </bk-popover>
           </div>
+          <template v-else-if="['creator', 'updated_by'].includes(item.id)">
+            <UserDisplayName :name="props.row[item.id]" />
+          </template>
           <!-- 其他 -->
           <template v-else>
             <span>{{ props.row[item.id] || "--" }}</span>
@@ -336,6 +339,7 @@ import CreateTaskSideslider from './CreateTaskSideslider.vue';
 import CreateTemplateDialog from './CreateTemplateDialog.vue';
 import LabelCascade from '../common/LabelCascade.vue';
 import LabelCell from './label-cell.vue';
+import UserDisplayName from '@/components/common/Individualization/UserDisplayName.vue';
 import i18n from '@/config/i18n/index.js';
 
 const TABLE_FIELDS = [
@@ -445,6 +449,7 @@ export default {
         CreateTaskSideslider,
         LabelCascade,
         LabelCell,
+        UserDisplayName,
     },
     mixins: [tableHeader, tableCommon],
     data() {

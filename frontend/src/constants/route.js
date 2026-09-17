@@ -1,4 +1,18 @@
 import i18n from '@/config/i18n/index.js';
+// 运营统计菜单项
+const STATISTICS_MENU = {
+  name: i18n.t('运营统计'),
+  icon: 'common-icon-sys-monitor',
+  id: 'statistics',
+  disabled: false,
+};
+// 根据 BKVISION_MAIN_JS_SRC_URL 判断是否显示运营统计
+const getStatisticsMenu = () => {
+  if (window.BKVISION_MAIN_JS_SRC_URL) {
+    return [STATISTICS_MENU];
+  }
+  return [];
+};
 
 export const SPACE_LIST = [
   {
@@ -40,12 +54,7 @@ export const SPACE_LIST = [
     id: 'credential',
     disabled: false,
   },
-  {
-    name: i18n.t('运营统计'),
-    icon: 'common-icon-sys-monitor',
-    id: 'statistics',
-    disabled: false,
-  },
+  ...getStatisticsMenu(),
   {
     name: i18n.t('标签管理'),
     icon: 'common-icon-credential',
@@ -67,12 +76,7 @@ export const MODULES_LIST = [
     id: 'module',
     disabled: false,
   },
-  {
-    name: i18n.t('运营统计'),
-    icon: 'common-icon-sys-monitor',
-    id: 'statistics',
-    disabled: false,
-  },
+  ...getStatisticsMenu(),
 ];
 
 export const PLUGIN_LIST = [

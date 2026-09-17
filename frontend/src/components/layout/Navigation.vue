@@ -119,5 +119,9 @@
         height: 100% !important;
       }
     }
+    ::v-deep .bk-navigation-header {
+      overflow: visible !important;
+      z-index: 999;
+    }
   }
 </style>

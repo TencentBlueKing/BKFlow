@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import copy
 import logging
 from typing import Optional
@@ -437,11 +438,13 @@ def replace_subprocess_version(pipeline_tree, flow_version_config) -> dict:
     from bkflow.template.models import TemplateSnapshot
 
     md5sum_list = []
+    md5_template_ids = []
     version_list = []
     for key, value in pipeline_tree["activities"].items():
         if value["type"] == "SubProcess":
             if flow_version_config and len(value["version"]) == TEMPLATE_MD5SUM_LENGTH:
                 md5sum_list.append(value["version"])
+                md5_template_ids.append(value["template_id"])
             elif not flow_version_config and len(value["version"]) != TEMPLATE_MD5SUM_LENGTH:
                 version_list.append(value["template_id"])
             else:
@@ -450,8 +453,10 @@ def replace_subprocess_version(pipeline_tree, flow_version_config) -> dict:
     snapshot_map = {}
     template_map = {}
     if md5sum_list:
-        snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sum_list, draft=False).order_by("id")
-        snapshot_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
+        snapshots = TemplateSnapshot.objects.filter(
+            template_id__in=md5_template_ids, md5sum__in=md5sum_list, draft=False
+        ).order_by("id")
+        snapshot_map = {(str(snapshot.template_id), snapshot.md5sum): snapshot.version for snapshot in snapshots}
     if version_list:
         templates = TemplateSnapshot.objects.filter(template_id__in=version_list, draft=False).order_by("id")
         for template in templates:
@@ -460,7 +465,7 @@ def replace_subprocess_version(pipeline_tree, flow_version_config) -> dict:
     for key, value in pipeline_tree["activities"].items():
         if value["type"] == "SubProcess":
             if flow_version_config and len(value["version"]) == TEMPLATE_MD5SUM_LENGTH:
-                value["version"] = snapshot_map.get(value["version"], value["version"])
+                value["version"] = snapshot_map.get((str(value["template_id"]), value["version"]), value["version"])
             elif not flow_version_config and len(value["version"]) != TEMPLATE_MD5SUM_LENGTH:
                 value["version"] = template_map.get(value["template_id"], {}).get(value["version"], value["version"])
             else:

@@ -146,7 +146,7 @@ class TestAutoRetryNode:
         """每个测试方法执行前的设置"""
         self.pipeline_tree = build_default_pipeline_tree()
 
-    @patch("bkflow.task.celery.tasks.settings.redis_inst")
+    @patch("bkflow.task.celery.tasks.settings.redis_inst", create=True)
     @patch("bkflow.task.celery.tasks._ensure_node_can_retry")
     @patch("bkflow.task.celery.tasks.TaskNodeOperation")
     def test_auto_retry_node_success(self, mock_node_operation, mock_ensure_retry, mock_redis):
@@ -193,7 +193,7 @@ class TestAutoRetryNode:
         strategy = AutoRetryNodeStrategy.objects.get(root_pipeline_id=task_instance.instance_id, node_id=node_id)
         assert strategy.retry_times == retry_times + 1
 
-    @patch("bkflow.task.celery.tasks.settings.redis_inst")
+    @patch("bkflow.task.celery.tasks.settings.redis_inst", create=True)
     def test_auto_retry_node_lock_failed(self, mock_redis):
         """测试自动重试节点（获取锁失败）"""
         task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=self.pipeline_tree)
@@ -207,7 +207,7 @@ class TestAutoRetryNode:
         # 验证没有调用 delete
         mock_redis.delete.assert_not_called()
 
-    @patch("bkflow.task.celery.tasks.settings.redis_inst")
+    @patch("bkflow.task.celery.tasks.settings.redis_inst", create=True)
     @patch("bkflow.task.celery.tasks._ensure_node_can_retry")
     def test_auto_retry_node_ensure_timeout(self, mock_ensure_retry, mock_redis):
         """测试自动重试节点（ensure_node_can_retry 超时）"""
@@ -239,7 +239,7 @@ class TestAutoRetryNode:
         # 验证仍然会删除锁
         mock_redis_instance.delete.assert_called_once()
 
-    @patch("bkflow.task.celery.tasks.settings.redis_inst")
+    @patch("bkflow.task.celery.tasks.settings.redis_inst", create=True)
     @patch("bkflow.task.celery.tasks._ensure_node_can_retry")
     def test_auto_retry_node_task_not_found(self, mock_ensure_retry, mock_redis):
         """测试自动重试节点（任务不存在）"""
@@ -254,7 +254,7 @@ class TestAutoRetryNode:
         # 验证没有报错，正常返回
         mock_redis.delete.assert_not_called()
 
-    @patch("bkflow.task.celery.tasks.settings.redis_inst")
+    @patch("bkflow.task.celery.tasks.settings.redis_inst", create=True)
     @patch("bkflow.task.celery.tasks._ensure_node_can_retry")
     @patch("bkflow.task.celery.tasks.TaskNodeOperation")
     def test_auto_retry_node_retry_failed(self, mock_node_operation, mock_ensure_retry, mock_redis):

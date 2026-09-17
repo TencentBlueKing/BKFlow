@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -37,6 +36,7 @@ from bkflow.decision_table.serializers import (
 )
 from bkflow.decision_table.table_parser import DecisionTableParser
 from bkflow.space.permissions import SpaceSuperuserPermission
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
 from bkflow.utils.views import AdminModelViewSet, UserModelViewSet
@@ -62,7 +62,8 @@ class AdminDecisionTableFilterSet(FilterSet):
 
 
 @method_decorator(login_exempt, name="dispatch")
-class DecisionTableInternalViewSet(AdminModelViewSet):
+class DecisionTableInternalViewSet(TenantScopeMixin, AdminModelViewSet):
+    tenant_internal_api = True
     queryset = DecisionTable.objects.filter(is_deleted=False)
     serializer_class = DecisionTableSerializer
     permission_classes = [AdminPermission | AppInternalPermission]
@@ -78,7 +79,12 @@ class DecisionTableFilterSet(FilterSet):
 
 
 class DecisionTableViewSet(
-    BKFLOWCommonMixin, UserModelViewSet, mixins.ListModelMixin, mixins.DestroyModelMixin, mixins.CreateModelMixin
+    TenantScopeMixin,
+    BKFLOWCommonMixin,
+    UserModelViewSet,
+    mixins.ListModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.CreateModelMixin,
 ):
     queryset = DecisionTable.objects.filter(is_deleted=False)
     serializer_class = DecisionTableSerializer

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 import django_filters
@@ -45,8 +45,10 @@ from bkflow.bk_plugin.serializer import (
 from bkflow.constants import ALL_SPACE, WHITE_LIST
 from bkflow.exceptions import ValidationError
 from bkflow.space.models import Space
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWDefaultPagination
 from bkflow.utils.permissions import AdminPermission
+from bkflow.utils.tenant import get_request_tenant_id
 from bkflow.utils.views import SimpleGenericViewSet
 
 logger = logging.getLogger("root")
@@ -78,7 +80,7 @@ class BKPluginFilterSet(FilterSet):
 
     @staticmethod
     def filter_by_search_term(queryset, name, value):
-        return queryset.filter((Q(name__icontains=value) | Q(code__icontains=value)))
+        return queryset.filter(Q(name__icontains=value) | Q(code__icontains=value))
 
 
 class BKPluginAuthFilterSet(FilterSet):
@@ -90,7 +92,23 @@ class BKPluginAuthFilterSet(FilterSet):
         }
 
 
-class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.UpdateModelMixin):
+class BKPluginTenantMixin(TenantScopeMixin):
+    """插件编码全局唯一，使用范围与负责人管理范围分别受租户约束。"""
+
+    tenant_plugin_management = False
+
+    def _tenant_queryset(self, queryset):
+        queryset = super()._tenant_queryset(queryset)
+        if self._tenant_enabled() and queryset.model is BKPlugin:
+            tenant_ids = [get_request_tenant_id(self.request)]
+            if not self.tenant_plugin_management:
+                tenant_ids.append("system")
+            queryset = queryset.filter(tenant_id__in=tenant_ids)
+        return queryset
+
+
+class BKPluginManagerViewSet(BKPluginTenantMixin, BKFLOWCommonMixin, mixins.ListModelMixin, mixins.UpdateModelMixin):
+    tenant_plugin_management = True
     queryset = BKPlugin.objects.all()
     serializer_class = BKPluginSerializer
     list_serializer_class = BKPluginAuthSerializer
@@ -110,7 +128,7 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
         ).qs
         authorization_dict = {auth.code: auth for auth in filtered_authorization}
         result_data = []
-        space_queryset = Space.objects.all()
+        space_queryset = self._tenant_queryset(Space.objects.all())
         for plugin in filtered_plugins:
             status_param = query_serializer.validated_data.get("status")
             updator_param = query_serializer.validated_data.get("status_updator")
@@ -132,11 +150,11 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
                     {
                         "status": authorization.status,
                         "status_updator": authorization.status_updator,
-                        "status_update_time": localtime(authorization.status_update_time).strftime(
-                            "%Y-%m-%d %H:%M:%S%z"
-                        )
-                        if authorization.status_update_time
-                        else authorization.status_update_time,
+                        "status_update_time": (
+                            localtime(authorization.status_update_time).strftime("%Y-%m-%d %H:%M:%S%z")
+                            if authorization.status_update_time
+                            else authorization.status_update_time
+                        ),
                     }
                 ),
             }
@@ -158,6 +176,12 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
 
     def update(self, request, *args, **kwargs):
         code = kwargs["code"]
+        if self._tenant_enabled():
+            from rest_framework.exceptions import PermissionDenied
+
+            plugin = self.get_queryset().filter(code=code).first()
+            if not plugin or request.user.username not in plugin.managers:
+                raise PermissionDenied("只有插件负责人可以修改共享插件授权，租户管理员不能代管其他身份的插件")
         authorization, _ = BKPluginAuthorization.objects.get_or_create(code=code)
         ser = self.get_serializer(authorization, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
@@ -170,7 +194,7 @@ class BKPluginManagerViewSet(BKFLOWCommonMixin, mixins.ListModelMixin, mixins.Up
         return Response({"result": True, "message": None, "data": ser.data})
 
 
-class BKPluginViewSet(SimpleGenericViewSet):
+class BKPluginViewSet(BKPluginTenantMixin, SimpleGenericViewSet):
     queryset = BKPlugin.objects.all()
     serializer_class = BKPluginSerializer
     pagination_class = BKFLOWDefaultPagination
@@ -188,5 +212,8 @@ class BKPluginViewSet(SimpleGenericViewSet):
 
     @action(detail=False, methods=["GET"], url_path="is_manager", pagination_class=None)
     def is_manager(self, request):
-        is_manager = self.get_queryset().filter(managers__contains=request.user.username).exists()
+        queryset = self.get_queryset()
+        if self._tenant_enabled():
+            queryset = queryset.filter(tenant_id=get_request_tenant_id(request))
+        is_manager = queryset.filter(managers__contains=request.user.username).exists()
         return Response({"result": True, "message": None, "data": {"is_manager": is_manager}})

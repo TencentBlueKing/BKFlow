@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 from apigw_manager.apigw.authentication import UserModelBackend
 from blueapps.account import get_user_model
+from django.conf import settings
 
 
 class APIGWUserModelBackend(UserModelBackend):
@@ -29,7 +30,15 @@ class APIGWUserModelBackend(UserModelBackend):
         user, _ = self.user_model.objects.get_or_create(username=username)
         return user
 
-    def authenticate(self, request, gateway_name, bk_username, verified, **credentials):
+    def authenticate(self, request, gateway_name, bk_username, verified, tenant_id="", **credentials):
         if not verified:
             return self.make_anonymous_user(bk_username=bk_username)
-        return self.make_user(bk_username)
+        if not settings.ENABLE_MULTI_TENANT_MODE:
+            return self.make_user(bk_username)
+        if not tenant_id:
+            return self.make_anonymous_user(bk_username=bk_username)
+        user, _ = self.user_model.objects.get_or_create(username=bk_username, defaults={"tenant_id": tenant_id})
+        if user.tenant_id != tenant_id:
+            # 不复用另一租户或未完成归属确认的历史管理员身份。
+            return self.make_anonymous_user(bk_username=bk_username)
+        return user

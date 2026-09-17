@@ -671,6 +671,7 @@
                 templateId: this.templateId,
                 spaceId: this.spaceId,
                 meta_url: metaUrl,
+                api_name: apiMeta.api_key,
                 ...this.scopeInfo,
                 meta_url_template: apiMeta.meta_url_template,
                 source_key: apiMeta.source_key,

@@ -189,6 +189,7 @@ class OpenPluginCatalogService:
             app_code=credential.content["bk_app_code"],
             app_secret=credential.content["bk_app_secret"],
             username=username,
+            headers=api_entry.get("headers") or {},
         )
         list_result = client.request(
             url=api_entry.meta_apis if hasattr(api_entry, "meta_apis") else api_entry.get("meta_apis"),

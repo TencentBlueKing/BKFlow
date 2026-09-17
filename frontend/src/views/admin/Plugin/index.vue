@@ -27,7 +27,11 @@
           <span v-if="item.id === 'managers'">
             <MoreTags
               :tags="row.managers"
-              :width="columnWidth.managers - 30" />
+              :width="columnWidth.managers - 30">
+              <template #tag="{ tag }">
+                <UserDisplayName :name="tag" />
+              </template>
+            </MoreTags>
           </span>
           <span
             v-else-if="item.id === 'status'"
@@ -38,6 +42,9 @@
             <MoreTags
               :tags="getWhiteListTags(row.config)"
               :width="columnWidth.config - 30" />
+          </span>
+          <span v-else-if="item.id === 'status_updator'">
+            <UserDisplayName :name="row.status_updator" />
           </span>
           <span
             v-else
@@ -83,6 +90,7 @@
   import MoreTags from '@/components/common/MoreTags.vue';
   import AuthorizeBtn from './AuthorizeBtn.vue';
   import RangEditDialog from './RangEditDialog.vue';
+  import UserDisplayName from '@/components/common/Individualization/UserDisplayName.vue';
   import tableCommon from '../Space/mixins/tableCommon.js';
   import { mapState, mapActions } from 'vuex';
   import i18n from '@/config/i18n/index.js';
@@ -162,6 +170,7 @@
       MoreTags,
       AuthorizeBtn,
       RangEditDialog,
+      UserDisplayName,
     },
     mixins: [tableCommon],
     props: {},
