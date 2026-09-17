@@ -1474,3 +1474,72 @@ msgstr "BlueKing All Rights Reserved"
 
 #~ msgid "APP Code"
 #~ msgstr "App code"
+
+msgid "当前用户缺少租户身份"
+msgstr "The current user has no tenant identity"
+
+msgid "登录身份与网关用户租户不一致"
+msgstr "The login identity and gateway user belong to different tenants"
+
+msgid "用户租户与应用本次请求租户不一致"
+msgstr "The user tenant does not match the application request tenant"
+
+msgid "缺少已认证的网关应用身份"
+msgstr "An authenticated gateway application identity is required"
+
+msgid "请求租户与应用所属租户不一致"
+msgstr "The requested tenant does not match the application tenant"
+
+msgid "应用缺少有效的租户模式"
+msgstr "The application has no valid tenant mode"
+
+msgid "应用请求缺少有效的租户 ID"
+msgstr "The application request has no valid tenant ID"
+
+msgid "网关用户租户与应用本次请求租户不一致"
+msgstr "The gateway user tenant does not match the application request tenant"
+
+msgid "任务缺少租户归属，请先完成存量数据回填"
+msgstr "The task has no tenant; complete the historical data backfill first"
+
+msgid "多租户 Engine 接口仅接受已认证的模块调用"
+msgstr "Multi-tenant Engine APIs only accept authenticated module calls"
+
+msgid "模块调用缺少有效的空间 ID"
+msgstr "The module call has no valid space ID"
+
+msgid "请求空间与内部调用空间不一致"
+msgstr "The requested space does not match the internal call space"
+
+msgid "空间不存在或不属于当前租户"
+msgstr "The space does not exist or belongs to a different tenant"
+
+msgid "资源不属于当前租户"
+msgstr "The resource belongs to a different tenant"
+
+msgid "请求中的空间 ID 不一致"
+msgstr "The space IDs in the request do not match"
+
+msgid "资源不存在或不属于当前租户"
+msgstr "The resource does not exist or belongs to a different tenant"
+
+msgid "插件查询空间缺少有效租户"
+msgstr "The plugin query space has no valid tenant"
+
+msgid "子流程必须指定固定的模板引用"
+msgstr "A subprocess must specify a fixed template reference"
+
+msgid "子流程模板 ID 无效"
+msgstr "Invalid subprocess template ID"
+
+msgid "子流程模板不存在或不属于当前空间"
+msgstr ""
+"The subprocess template does not exist or belongs to a different space"
+
+msgid "多租户模式请使用当前租户的业务管理入口"
+msgstr ""
+"Use the current tenant business management interface in multi-tenant mode"
+
+msgid "多租户引擎配置由部署运维管理"
+msgstr ""
+"Multi-tenant Engine configuration is managed by deployment administrators"

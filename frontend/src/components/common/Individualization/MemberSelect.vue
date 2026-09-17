@@ -12,7 +12,7 @@
 <template>
   <div class="user-selector-wrap">
     <BKMultiTenantUserSelector
-      v-if="isMultiTenantMode"
+      v-if="useApigw"
       v-model="setValue"
       :api-base-url="apiBaseUrl"
       :tenant-id="tenantId"
@@ -87,18 +87,18 @@
       return {
         fixedHeight: false,
         api: `${window.MEMBER_SELECTOR_DATA_HOST}/api/c/compapi/v2/usermanage/fs_list_users/`,
-        tenantId: window.TENANT_ID,
+        tenantId: window.TENANT_ID || 'default',
         apiBaseUrl: window.BK_USER_WEB_APIGW_URL,
       };
     },
     computed: {
       ...mapState({
-          isMultiTenantMode: state => state.isMultiTenantMode,
+          useApigw: () => window.USE_APIGW === true,
           username: state => state.username,
       }),
       setValue: {
         get() {
-          if (this.isMultiTenantMode) {
+          if (this.useApigw) {
               return this.value;
           }
           if (Array.isArray(this.value)) {
@@ -107,7 +107,7 @@
           return this.value ? [this.value] : [];
         },
         set(val) {
-          if (this.isMultiTenantMode) {
+          if (this.useApigw) {
               this.$emit('change', val);
               return;
           }

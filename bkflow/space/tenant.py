@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.db.models import Q
+from django.utils.translation import ugettext_lazy as _
 from rest_framework.exceptions import PermissionDenied
 
 from bkflow.utils.tenant import get_request_tenant_id
@@ -25,7 +26,7 @@ def ensure_space_tenant(request, space_id):
 
     tenant_id = get_request_tenant_id(request)
     if not Space.objects.filter(id=space_id, tenant_id=tenant_id, is_deleted=False).exists():
-        raise PermissionDenied("空间不存在或不属于当前租户")
+        raise PermissionDenied(_("空间不存在或不属于当前租户"))
     return tenant_id
 
 
@@ -77,7 +78,7 @@ class TenantScopeMixin:
             if queryset is not None and lookup is not None:
                 targets = queryset.filter(**{lookup_field: lookup})
                 if targets.exists() and not self._tenant_queryset(targets).exists():
-                    raise PermissionDenied("资源不属于当前租户")
+                    raise PermissionDenied(_("资源不属于当前租户"))
         super().check_permissions(request)
 
     def _check_tenant_parameters(self, request):
@@ -86,7 +87,7 @@ class TenantScopeMixin:
         sources = [self.kwargs, request.query_params, request.data]
         space_ids = {str(data["space_id"]) for data in sources if data.get("space_id") is not None}
         if len(space_ids) > 1:
-            raise PermissionDenied("请求中的空间 ID 不一致")
+            raise PermissionDenied(_("请求中的空间 ID 不一致"))
         for space_id in space_ids:
             ensure_space_tenant(request, space_id)
         for field, model in (("template_id", Template), ("snapshot_id", TemplateSnapshot)):
@@ -108,7 +109,7 @@ class TenantScopeMixin:
                             template_id__in=Template.objects.filter(space_id__in=space_ids).values("id")
                         )
                 if targets.count() != len({str(value) for value in values}):
-                    raise PermissionDenied("资源不存在或不属于当前租户")
+                    raise PermissionDenied(_("资源不存在或不属于当前租户"))
 
     def _tenant_queryset(self, queryset):
         if not self._tenant_enabled():
@@ -124,5 +125,5 @@ class TenantScopeMixin:
 
     def check_object_permissions(self, request, obj):
         if self._tenant_enabled() and not self._tenant_queryset(type(obj).objects.filter(pk=obj.pk)).exists():
-            raise PermissionDenied("资源不属于当前租户")
+            raise PermissionDenied(_("资源不属于当前租户"))
         super().check_object_permissions(request, obj)

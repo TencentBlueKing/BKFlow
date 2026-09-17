@@ -61,3 +61,36 @@ class BaseCrypt:
 
     def __parse_key(self):
         return self.INSTANCE_KEY[:24].encode()
+
+
+class CredentialCrypt(BaseCrypt):
+    """按部署配置写入 SM4-GCM，始终兼容无前缀的历史 AES 密文。"""
+
+    SM4_PREFIX = "bkflow:sm4:gcm:v1:"
+
+    def _sm4_cipher(self):
+        """用 SM3 从稳定的部署密钥派生 SM4 密钥，由 SDK 生成随机 nonce 和认证标签。"""
+        from bkcrypto.constants import SymmetricMode
+        from bkcrypto.contrib.basic.ciphers import get_symmetric_cipher
+        from bkcrypto.symmetric.options import SM4SymmetricOptions
+        from tongsuopy.crypto import hashes
+
+        digest = hashes.Hash(hashes.SM3())
+        digest.update(b"bkflow-credential-sm4-v1\x00" + self.INSTANCE_KEY.encode("utf-8"))
+        return get_symmetric_cipher(
+            "SM4",
+            common={"key": digest.finalize()[:16]},
+            cipher_options={"SM4": SM4SymmetricOptions(mode=SymmetricMode.GCM)},
+        )
+
+    def encrypt(self, plaintext):
+        """算法配置只影响新写入；AES 模式保留旧版本可读的原始格式。"""
+        if settings.BKFLOW_CREDENTIAL_CIPHER == "SM4":
+            return self.SM4_PREFIX + self._sm4_cipher().encrypt(plaintext)
+        return super().encrypt(plaintext)
+
+    def decrypt(self, ciphertext):
+        """根据密文自身标识选择算法，切换写入配置后仍能读回两种格式。"""
+        if isinstance(ciphertext, str) and ciphertext.startswith(self.SM4_PREFIX):
+            return self._sm4_cipher().decrypt(ciphertext[len(self.SM4_PREFIX) :])
+        return super().decrypt(ciphertext)

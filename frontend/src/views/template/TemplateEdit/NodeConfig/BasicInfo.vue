@@ -940,7 +940,6 @@
           content: '#html-always-use-latest-tootip',
           placement: 'top-start',
         },
-        userApi: `${window.MEMBER_SELECTOR_DATA_HOST}/api/c/compapi/v2/usermanage/fs_list_users/`,
         subflowVersion: '',
         subVersionSelectValue: '',
         subVersionlistData: [],

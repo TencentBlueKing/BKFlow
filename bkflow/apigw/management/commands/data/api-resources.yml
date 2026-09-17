@@ -4168,7 +4168,7 @@ paths:
   /space/{space_id}/update_template/{template_id}/:
     post:
       operationId: update_template
-      description: 更新模板；多租户下嵌套子流程仅可引用当前空间模板，单租户保留原有引用行为。
+      description: 更新模板；多租户下嵌套子流程仅可引用当前空间模板，单租户保留原有引用行为。定时触发器 config.timezone 支持 IANA 时区，新建默认请求时区，编辑省略时保留计划原时区。
       tags: []
       responses:
         '200':
@@ -5559,7 +5559,7 @@ paths:
         pluginConfigs: []
     put:
       operationId: sdk_update_template
-      description: 保存流程
+      description: 保存流程；定时触发器 config.timezone 支持 IANA 时区，新建默认请求时区，编辑省略时保留计划原时区。
       tags: []
       responses:
         default:

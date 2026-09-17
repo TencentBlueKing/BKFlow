@@ -67,6 +67,7 @@
   </div>
 </template>
 <script>
+  import { updatePlatformLanguage } from '@/utils/platformLanguage';
   import { mapActions, mapMutations, mapState } from 'vuex';
   import VersionLog from './VersionLog.vue';
   import { buildUserNavigationActions } from '@/utils/userNavigation';
@@ -100,7 +101,7 @@
         },
         userinfo: {
             name: window.DISPLAY_NAME || window.USERNAME || '',
-            organization: window.TENANT_ID,
+            organization: window.ENABLE_MULTI_TENANT_MODE ? window.TENANT_ID : '',
             timezone: window.TIMEZONE,
         },
       };
@@ -140,27 +141,23 @@
         'setProjectId',
       ]),
       async toggleLanguage(language) {
-        this.curLanguage = language;
         const local = language === 'chinese' ? 'zh-cn' : 'en';
         const domain = window.BK_DOMAIN || window.location.hostname.replace(/^[^.]+(.*)$/, '$1');
+        try {
+          await updatePlatformLanguage(axios, window, local);
+        } catch (error) {
+          console.warn(error);
+          this.$bkMessage({ theme: 'error', message: this.$t('语言偏好保存失败') });
+          return;
+        }
+        this.curLanguage = language;
         Cookies.set('blueking_language', local, {
           expires: 1,
           domain,
           path: '/',
         });
-        if (window.BK_PAAS_ESB_HOST) {
-            const url = `${window.BK_PAAS_ESB_HOST}/api/c/compapi/v2/usermanage/fe_update_user_language/`;
-            try {
-              await axios.jsonp(url, { language: local });
-            } catch (error) {
-              console.warn(error);
-            } finally {
-              window.location.reload();
-            }
-        } else {
-            window.location.reload();
-        }
-    },
+        window.location.reload();
+      },
       goToHelpDoc() {
         window.open(this.bkDocUrl, '_blank');
       },
