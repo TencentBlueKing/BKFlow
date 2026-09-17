@@ -158,7 +158,7 @@ class TestRemotePlugins:
         mock_plugin.name = "我的插件"
         mock_plugin.introduction = "自定义插件"
 
-        mock_bp.objects.filter.return_value = [mock_plugin]
+        mock_bp.objects.for_space.return_value = [mock_plugin]
 
         mock_auth_obj = MagicMock()
         mock_auth_obj.code = "my_plugin"
@@ -182,7 +182,7 @@ class TestRemotePlugins:
         mock_plugin.name = "受限插件"
         mock_plugin.introduction = ""
 
-        mock_bp.objects.filter.return_value = [mock_plugin]
+        mock_bp.objects.for_space.return_value = [mock_plugin]
 
         mock_auth_obj = MagicMock()
         mock_auth_obj.code = "restricted_plugin"
@@ -750,7 +750,7 @@ class TestGetPluginSchema:
         """测试自动解析失败 — 所有注册表未命中"""
         mock_cm.objects.filter.return_value.values_list.return_value = []
         mock_cm.objects.filter.return_value.exists.return_value = False
-        mock_bp.objects.filter.return_value.exists.return_value = False
+        mock_bp.objects.for_space.return_value.filter.return_value.exists.return_value = False
 
         service = PluginSchemaService(space_id=1)
         with pytest.raises(ValueError, match="未找到插件"):
@@ -762,7 +762,7 @@ class TestGetPluginSchema:
         """测试自动解析歧义"""
         mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0"]
         mock_cm.objects.filter.return_value.exists.return_value = True
-        mock_bp.objects.filter.return_value.exists.return_value = True
+        mock_bp.objects.for_space.return_value.filter.return_value.exists.return_value = True
 
         service = PluginSchemaService(space_id=1)
         with pytest.raises(ValueError, match="请指定 plugin_type"):

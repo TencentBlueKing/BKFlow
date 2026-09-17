@@ -16,7 +16,7 @@ import 'bk-magic-vue/dist/bk-magic-vue.min.css';
 import './api/ajax.js';
 import i18n from './config/i18n/index.js';
 import './directives/index.js';
-
+import BkUserDisplayName from '@blueking/bk-user-display-name';
 import {
   Input, InputNumber, Select, Radio, RadioGroup, RadioButton, Checkbox,
   CheckboxGroup, Button, Option, OptionGroup, Table, TableColumn,
@@ -232,6 +232,13 @@ Validator.localize({
     },
   },
 });
+
+if (store.state.isMultiTenantMode) {
+  BkUserDisplayName.configure({
+    tenantId: window.TENANT_ID,
+    apiBaseUrl: window.BK_USER_WEB_APIGW_URL,
+  });
+}
 
 const app = new Vue({
   el: '#app',

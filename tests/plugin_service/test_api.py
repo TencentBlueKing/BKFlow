@@ -58,6 +58,7 @@ class TestGetPluginList:
             limit=10,
             offset=0,
             distributor_code_name="test_distributor",
+            tenant_id=None,
         )
 
     @mock.patch("plugin_service.api.PluginServiceApiClient.get_plugin_list")
@@ -81,6 +82,7 @@ class TestGetPluginList:
             limit=20,
             offset=5,
             distributor_code_name="test_distributor",
+            tenant_id=None,
             tag_id=3,
         )
 
@@ -627,7 +629,7 @@ class TestGetLogs:
         assert "logs" in data["data"]
         assert isinstance(data["data"]["logs"], str)
         assert "[2024-01-01 00:00:00]INFO-test_func: Test log message 1" in data["data"]["logs"]
-        mock_get_logs.assert_called_once_with("test_plugin", "trace123", "scroll456")
+        mock_get_logs.assert_called_once_with("test_plugin", "trace123", "scroll456", tenant_id=None)
 
     @mock.patch("plugin_service.api.PluginServiceApiClient.get_plugin_logs")
     def test_get_logs_failure(self, mock_get_logs):
@@ -679,7 +681,7 @@ class TestGetPluginAppDetail:
         data = json.loads(response.content)
         assert data["result"] is True
         assert data["data"]["code"] == "test_app"
-        mock_get_app_detail.assert_called_once_with("test_plugin")
+        mock_get_app_detail.assert_called_once_with("test_plugin", tenant_id=None)
 
 
 class TestGetPluginApiData:

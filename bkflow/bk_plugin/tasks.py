@@ -16,9 +16,12 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from celery.app import shared_task
+from django.conf import settings
+from django.db import transaction
 from rest_framework.exceptions import APIException
 
 from bkflow.bk_plugin.models import BKPlugin
@@ -28,6 +31,7 @@ from plugin_service.conf import PLUGIN_DISTRIBUTOR_NAME
 from plugin_service.plugin_client import PluginServiceApiClient
 
 logger = logging.getLogger("celery")
+BK_PLUGIN_SYNC_TENANTS = getattr(settings, "BK_PLUGIN_SYNC_TENANTS", ["system"])
 
 
 # 每十分钟执行一次增量同步
@@ -35,13 +39,21 @@ logger = logging.getLogger("celery")
 def sync_bk_plugins():
     plugins_dict = {}
     try:
-        plugins_dict = fetch_newest_plugins_dict()
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            tenant_ids = list(dict.fromkeys(["system", *BK_PLUGIN_SYNC_TENANTS]))
+            # 外部请求放在事务外；任一租户拉取失败都不应用本轮结果。
+            snapshots = {tenant_id: fetch_newest_plugins_dict(tenant_id) for tenant_id in tenant_ids}
+            with transaction.atomic():
+                for tenant_id, plugins in snapshots.items():
+                    BKPlugin.objects.sync_bk_plugins(plugins, tenant_id=tenant_id)
+        else:
+            plugins_dict.update(fetch_newest_plugins_dict(None))
+            BKPlugin.objects.sync_bk_plugins(plugins_dict)
     except APIException as e:
         logger.exception(f"同步蓝鲸插件列表时失败: {e}")
-    BKPlugin.objects.sync_bk_plugins(plugins_dict)
 
 
-def fetch_newest_plugins_dict():
+def fetch_newest_plugins_dict(tenant_id=None):
     """通过部署环境和授权app_code过滤蓝鲸插件，获取授权给bkflow的插件列表"""
     plugins_dict = {}
     offset = 0
@@ -53,6 +65,7 @@ def fetch_newest_plugins_dict():
             distributor_code_name=PLUGIN_DISTRIBUTOR_NAME,
             limit=limit,
             offset=offset,
+            tenant_id=tenant_id,
         )
         if not result["result"]:
             logger.exception(result.get("message", "拉取蓝鲸插件列表失败"))

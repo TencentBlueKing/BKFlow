@@ -432,7 +432,7 @@
           let isSame = true;
           if (this.isApiPlugin) {
             // 存在类型相同的全局变量(复用变量)
-            const { metaUrl, meta_url_template, version, sourceKey } = this.$parent.$parent.basicInfo;
+            const { metaUrl, apiKey, meta_url_template, version, sourceKey } = this.$parent.$parent.basicInfo;
             // api插件配置
             const resp = await this.loadUniformApiMeta({
               templateId: this.templateId,
@@ -442,6 +442,7 @@
               meta_url_template,
               version,
               source_key: sourceKey,
+              api_name: apiKey,
             });
             if (!resp.result) return;
             const sourceSchema = (resp.data.inputs || []).find(item => item.key === form);

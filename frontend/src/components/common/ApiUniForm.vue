@@ -341,6 +341,7 @@
             meta_url_template: config.meta_url_template,
             version: config.version,
             source_key: config.source_key,
+            api_name: config.api_key,
           });
           const { methods, url } = resp.data;
           // 请求方法只有一个时，默认选中

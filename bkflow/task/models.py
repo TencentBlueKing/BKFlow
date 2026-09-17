@@ -161,6 +161,7 @@ class TaskInstance(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     space_id = models.IntegerField("空间ID", db_index=True)
+    tenant_id = models.CharField(max_length=255, default="default", verbose_name="租户ID")
     scope_type = models.CharField("空间域类型", max_length=128, null=True, blank=True)
     scope_value = models.CharField("空间域值", max_length=128, null=True, blank=True)
     instance_id = models.CharField("实例ID", max_length=33, unique=True, db_index=True)

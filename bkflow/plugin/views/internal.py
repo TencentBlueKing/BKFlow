@@ -24,12 +24,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
 from bkflow.utils.views import SimpleGenericViewSet
 
 
 @method_decorator(login_exempt, name="dispatch")
-class PluginInternalViewSet(SimpleGenericViewSet):
+class PluginInternalViewSet(TenantScopeMixin, SimpleGenericViewSet):
+    tenant_internal_api = True
     """Engine 调用的开放插件内部接口。"""
 
     permission_classes = [AdminPermission | AppInternalPermission]

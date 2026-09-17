@@ -293,6 +293,13 @@ def bkflow_periodic_task_start(*args, **kwargs):
             "trigger_method": TaskTriggerMethod.timing.name,
             **periodic_task.config,
         }
+        if settings.ENABLE_MULTI_TENANT_MODE and not task_data.get("tenant_id"):
+            space_info = interface_client.get_space_infos(
+                data={"space_id": task_data["space_id"], "include_tenant": "1"}
+            )
+            if not space_info.get("result") or not space_info.get("data", {}).get("tenant_id"):
+                raise ValidationError("历史周期任务缺少租户，请先完成空间和周期任务租户回填")
+            task_data["tenant_id"] = space_info["data"]["tenant_id"]
         serializer = CreateTaskInstanceSerializer(data=task_data)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data

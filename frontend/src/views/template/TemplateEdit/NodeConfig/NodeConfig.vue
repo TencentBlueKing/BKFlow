@@ -954,6 +954,7 @@
               meta_url_template: currentBasicInfo.meta_url_template,
               version: currentBasicInfo.version,
               source_key: currentBasicInfo.sourceKey,
+              api_name: currentBasicInfo.apiKey,
             });
             if (!resp.result) return;
             // component.version 保存 uniform_api 包装器版本，业务版本独立保存在隐藏字段中。

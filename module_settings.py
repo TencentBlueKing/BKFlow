@@ -111,6 +111,17 @@ class BKFLOWModule(BaseModel):
 def check_engine_admin_permission(request, *args, **kwargs):
     from django.conf import settings  # noqa
 
+    if settings.ENABLE_MULTI_TENANT_MODE:
+        token = getattr(request, "app_internal_token", None)
+        if not token or token != settings.APP_INTERNAL_TOKEN:
+            return False
+        space_id = request.headers.get(settings.APP_INTERNAL_SPACE_ID_HEADER_KEY)
+        if not space_id or space_id == "0":
+            return False
+        from bkflow.task.models import TaskInstance
+
+        return TaskInstance.objects.filter(instance_id=kwargs.get("instance_id"), space_id=space_id).exists()
+
     if (
         request.user.is_superuser
         or (request.app_internal_token and request.app_internal_token == settings.APP_INTERNAL_TOKEN)
@@ -179,6 +190,8 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
         "bkflow.contrib.expired_cleaner",
+        "bkflow.contrib.itsm_workflow",
+        "bkflow.contrib.init_tenant",
         "bkflow.statistics",
     )
 
@@ -284,6 +297,8 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.api_plugin_demo",
         "plugin_service",
         "bkflow.contrib.operation_record",
+        "bkflow.contrib.itsm_workflow",
+        "bkflow.contrib.init_tenant",
         "django_dbconn_retry",
         "webhook",
         "version_log",

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -30,6 +31,7 @@ from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.space.models import Space
 from bkflow.template.models import Template, TemplateSnapshot
 
 
@@ -113,6 +115,7 @@ def create_mock_task(request, space_id):
         create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
             "custom_span_attributes"
         ] = custom_span_attributes
+    create_task_data["tenant_id"] = Space.objects.get(id=space_id).tenant_id
 
     create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
         space_id=int(space_id),

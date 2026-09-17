@@ -749,6 +749,7 @@
               meta_url_template: apiMeta.meta_url_template,
               source_key: apiMeta.source_key,
               version: resolveUniformApiPluginVersion(this.nodeActivity.component),
+              api_name: apiMeta.api_key,
             });
             if (!resp.result) return;
             // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0

@@ -219,6 +219,18 @@ async function main() {
     assert.equal(resolveUniformApiPluginVersion({ version: 'v3.0.0' }), 'v3.0.0');
   });
 
+  test('buildUniformApiMetaParams keeps configured API key alongside source and version', () => {
+    assert.deepEqual(buildUniformApiMetaParams({
+      api_name: 'tenant_provider', meta_url: 'https://example.com/meta',
+      meta_url_template: 'https://example.com/{version}', version: '1.2', source_key: 'source-a',
+      scope_type: 'biz', scope_value: '2',
+    }), {
+      api_name: 'tenant_provider', meta_url: 'https://example.com/meta',
+      meta_url_template: 'https://example.com/{version}', version: '1.2', source_key: 'source-a',
+      scope_type: 'biz', scope_value: '2',
+    });
+  });
+
   test('buildUniformApiMetaParams preserves opaque plugin versions', () => {
     assert.deepEqual(buildUniformApiMetaParams({
       meta_url: '',

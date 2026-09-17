@@ -50,24 +50,11 @@
         {{ $t('版本日志') }}
       </div>
     </div>
-    <!-- 用户icon -->
-    <div
-      v-bk-tooltips="{
-        ...basicTipsConfig,
-        distance: 25,
-        extCls: 'logout-tips',
-        content: '#logout-html'
-      }"
-      class="user-avatar">
-      {{ username }}
-      <i class="bk-icon icon-down-shape" />
-    </div>
-    <div id="logout-html">
-      <div
-        class="operate-item"
-        @click="handleLogout">
-        {{ $t('退出登录') }}
-      </div>
+    <!-- 用户信息 -->
+    <div class="user-info">
+      <BkLoginUserinfo
+        :userinfo="userinfo"
+        :action-list="actionList" />
     </div>
     <!-- 日志组件 -->
     <version-log
@@ -82,13 +69,17 @@
 <script>
   import { mapActions, mapMutations, mapState } from 'vuex';
   import VersionLog from './VersionLog.vue';
+  import { buildUserNavigationActions } from '@/utils/userNavigation';
+  import BkLoginUserinfo from '@blueking/login-userinfo/vue2';
+  import '@blueking/login-userinfo/vue2/vue2.css';
   import Cookies from 'js-cookie';
-    import axios from 'axios';
+  import axios from 'axios';
 
   export default {
     name: 'NavigationHeadRight',
     components: {
       VersionLog,
+      BkLoginUserinfo,
     },
     data() {
       return {
@@ -107,12 +98,25 @@
           theme: 'light',
           hideOnClick: false,
         },
+        userinfo: {
+            name: window.DISPLAY_NAME || window.USERNAME || '',
+            organization: window.TENANT_ID,
+            timezone: window.TIMEZONE,
+        },
       };
     },
     computed: {
       ...mapState({
         username: state => state.username,
       }),
+      actionList() {
+        return buildUserNavigationActions({
+          iamUrl: window.BK_IAM_SAAS_HOST,
+          userUrl: window.BKPAAS_USER_URL,
+          translate: text => this.$t(text),
+          logout: this.handleLogout,
+        });
+      },
     },
     watch: {
 
@@ -258,6 +262,10 @@
     }
     ::v-deep .bk-select.is-disabled {
       background: none;
+    }
+    .user-info {
+      color: #768197;
+      margin-top: -4px;
     }
   }
 </style>

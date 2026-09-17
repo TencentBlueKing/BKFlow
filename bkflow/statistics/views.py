@@ -26,6 +26,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.statistics.conf import StatisticsSettings, date_to_datetime_range
 from bkflow.statistics.models import (
     DailyStatisticsSummary,
@@ -106,7 +107,7 @@ def _get_limit(request, max_val=100):
     return min(max(limit, 1), max_val)
 
 
-class SystemStatisticsViewSet(GenericViewSet):
+class SystemStatisticsViewSet(TenantScopeMixin, GenericViewSet):
     """全局维度的运营统计接口，需要管理员或内部应用权限"""
 
     permission_classes = [AdminPermission | AppInternalPermission]
@@ -116,9 +117,11 @@ class SystemStatisticsViewSet(GenericViewSet):
         dt_start, dt_end = _get_datetime_range(request)
         db_alias = StatisticsSettings.get_db_alias()
 
-        total_templates = TemplateStatistics.objects.using(db_alias).count()
+        total_templates = self._tenant_queryset(TemplateStatistics.objects.using(db_alias)).count()
 
-        task_qs = TaskflowStatistics.objects.using(db_alias).filter(create_time__gte=dt_start, create_time__lt=dt_end)
+        task_qs = self._tenant_queryset(TaskflowStatistics.objects.using(db_alias)).filter(
+            create_time__gte=dt_start, create_time__lt=dt_end
+        )
         task_agg = task_qs.aggregate(
             total_tasks=Count("id"),
             total_finished=Count("id", filter=Q(is_finished=True)),
@@ -127,7 +130,7 @@ class SystemStatisticsViewSet(GenericViewSet):
         )
 
         node_agg = (
-            TaskflowExecutedNodeStatistics.objects.using(db_alias)
+            self._tenant_queryset(TaskflowExecutedNodeStatistics.objects.using(db_alias))
             .filter(
                 started_time__gte=dt_start,
                 started_time__lt=dt_end,
@@ -158,7 +161,7 @@ class SystemStatisticsViewSet(GenericViewSet):
         db_alias = StatisticsSettings.get_db_alias()
 
         summaries = (
-            DailyStatisticsSummary.objects.using(db_alias)
+            self._tenant_queryset(DailyStatisticsSummary.objects.using(db_alias))
             .filter(date__gte=date_start, date__lte=date_end)
             .values("date")
             .annotate(
@@ -184,14 +187,14 @@ class SystemStatisticsViewSet(GenericViewSet):
         )
 
         template_counts = dict(
-            TemplateStatistics.objects.using(db_alias)
+            self._tenant_queryset(TemplateStatistics.objects.using(db_alias))
             .values("space_id")
             .annotate(cnt=Count("id"))
             .values_list("space_id", "cnt")
         )
 
         summaries = (
-            DailyStatisticsSummary.objects.using(db_alias)
+            self._tenant_queryset(DailyStatisticsSummary.objects.using(db_alias))
             .filter(date__gte=date_start, date__lte=date_end)
             .values("space_id", "scope_type", "scope_value")
             .annotate(
@@ -232,7 +235,7 @@ class SystemStatisticsViewSet(GenericViewSet):
         )
 
         stats = (
-            PluginExecutionSummary.objects.using(db_alias)
+            self._tenant_queryset(PluginExecutionSummary.objects.using(db_alias))
             .filter(period_type="day", period_start__gte=date_start, period_start__lte=date_end)
             .values("component_code", "plugin_source", "version", "plugin_type")
             .annotate(
@@ -265,7 +268,7 @@ class SystemStatisticsViewSet(GenericViewSet):
         limit = _get_limit(request)
 
         stats = (
-            TaskflowExecutedNodeStatistics.objects.using(db_alias)
+            self._tenant_queryset(TaskflowExecutedNodeStatistics.objects.using(db_alias))
             .filter(started_time__gte=dt_start, started_time__lt=dt_end, is_retry=False)
             .values("component_code", "plugin_source", "version", "plugin_type")
             .annotate(
@@ -292,7 +295,7 @@ class SystemStatisticsViewSet(GenericViewSet):
         return Response(FailureAnalysisSerializer(result, many=True).data)
 
 
-class SpaceStatisticsViewSet(GenericViewSet):
+class SpaceStatisticsViewSet(TenantScopeMixin, GenericViewSet):
     """空间维度的运营统计接口，按 space_id 过滤数据"""
 
     permission_classes = [AdminPermission | AppInternalPermission]

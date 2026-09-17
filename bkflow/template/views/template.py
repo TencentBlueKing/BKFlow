@@ -22,6 +22,7 @@ from copy import deepcopy
 
 import django_filters
 from blueapps.account.decorators import login_exempt
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Subquery
 from django.utils.decorators import method_decorator
@@ -70,6 +71,7 @@ from bkflow.space.credential.scope_validator import filter_credentials_by_scope
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import Credential, SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
+from bkflow.space.tenant import TenantScopeMixin, ensure_space_tenant
 from bkflow.space.utils import build_default_pipeline_tree_with_space_id
 from bkflow.template.exceptions import AnalysisConstantsRefException
 from bkflow.template.models import (
@@ -163,7 +165,7 @@ class TemplateSnapshotFilterSet(FilterSet):
         }
 
 
-class AdminTemplateViewSet(AdminModelViewSet):
+class AdminTemplateViewSet(TenantScopeMixin, AdminModelViewSet):
     queryset = Template.objects.filter(is_deleted=False).order_by("-id")
     serializer_class = AdminTemplateSerializer
     filter_backends = [DjangoFilterBackend]
@@ -263,6 +265,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
         except drf_serializers.ValidationError as error:
             detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
             raise ValidationError(str(detail))
+        create_task_data["tenant_id"] = ensure_space_tenant(request, template.space_id)
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
@@ -397,6 +400,7 @@ class AdminTemplateViewSet(AdminModelViewSet):
 
 
 class TemplateVersionViewSet(
+    TenantScopeMixin,
     SimpleGenericViewSet,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
@@ -449,7 +453,7 @@ class TemplateVersionViewSet(
         return Response({"detail": f"版本 {instance.version} 快照已成功删除"})
 
 
-class TemplateViewSet(UserModelViewSet):
+class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     queryset = Template.objects.filter(is_deleted=False)
     serializer_class = TemplateSerializer
     filter_backends = [DjangoFilterBackend]
@@ -689,6 +693,7 @@ class TemplateViewSet(UserModelViewSet):
         except drf_serializers.ValidationError as error:
             detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
             raise ValidationError(str(detail))
+        create_task_data["tenant_id"] = ensure_space_tenant(request, template.space_id)
 
         client = TaskComponentClient(space_id=template.space_id)
         result = client.create_task(create_task_data)
@@ -860,10 +865,23 @@ class TemplateViewSet(UserModelViewSet):
 
 
 @method_decorator(login_exempt, name="dispatch")
-class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, SimpleGenericViewSet):
+class TemplateInternalViewSet(TenantScopeMixin, BKFLOWCommonMixin, mixins.RetrieveModelMixin, SimpleGenericViewSet):
+    tenant_internal_api = True
     queryset = Template.objects.filter()
     serializer_class = TemplateSerializer
     permission_classes = [AdminPermission | AppInternalPermission]
+
+    def get_queryset(self):
+        """模板内部读取绑定调用空间；单租户兼容旧 Engine 不传空间的请求。"""
+        queryset = super().get_queryset()
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            from rest_framework.exceptions import PermissionDenied
+
+            space_id = self.request.query_params.get("space_id")
+            if not space_id or not str(space_id).isdigit() or int(space_id) <= 0:
+                raise PermissionDenied("内部模板读取缺少有效的空间 ID")
+            queryset = queryset.filter(space_id=int(space_id), is_deleted=False)
+        return queryset
 
     @action(methods=["GET"], detail=True)
     def get_template_data(self, request, *args, **kwargs):
@@ -898,6 +916,7 @@ class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, Simp
 
 
 class TemplateMockDataViewSet(
+    TenantScopeMixin,
     BKFLOWCommonMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
@@ -967,6 +986,7 @@ class TemplateMockSchemeFilterSet(FilterSet):
 
 
 class TemplateMockSchemeViewSet(
+    TenantScopeMixin,
     BKFLOWCommonMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
@@ -999,7 +1019,7 @@ class TemplateMockSchemeViewSet(
         serializer.save(operator=user.username)
 
 
-class TemplateMockTaskViewSet(mixins.ListModelMixin, GenericViewSet):
+class TemplateMockTaskViewSet(TenantScopeMixin, mixins.ListModelMixin, GenericViewSet):
     DEFAULT_PERMISSION = TemplateRelatedResourcePermission.MOCK_PERMISSION
     permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
 

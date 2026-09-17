@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 from functools import wraps
 
@@ -23,12 +24,14 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.space.models import Space
 from bkflow.template.models import Template
 from bkflow.utils import err_code
 from bkflow.utils.drf_error_handler import format_drf_serializers_exception
+from bkflow.utils.tenant import get_apigw_request_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,8 @@ def return_json_response(view_func):
     def _wrapped_view(request, *args, **kwargs):
         try:
             result = view_func(request, *args, **kwargs)
+        except PermissionDenied as e:
+            return JsonResponse({"result": False, "message": str(e), "code": 403, "data": None}, status=403)
         except serializers.ValidationError as e:
             logger.exception(f"[return_json_response] validation error: {e}")
             result = {
@@ -72,6 +77,15 @@ def return_json_response(view_func):
     return _wrapped_view
 
 
+def check_apigw_space_tenant(request, space_id):
+    """租户约束独立于应用授权及本地鉴权豁免；应用态不要求用户身份。"""
+    if not settings.ENABLE_MULTI_TENANT_MODE:
+        return
+    tenant_id = get_apigw_request_tenant_id(request)
+    if not Space.objects.filter(id=space_id, tenant_id=tenant_id, is_deleted=False).exists():
+        raise PermissionDenied("空间不存在或不属于本次请求租户")
+
+
 def check_jwt_and_space(view_func):
     """
     检查请求的app_code 和 space_id 是否一致
@@ -82,10 +96,17 @@ def check_jwt_and_space(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
         exempt = getattr(settings, "BK_APIGW_REQUIRE_EXEMPT", False)
+        if exempt and not settings.ENABLE_MULTI_TENANT_MODE:
+            return view_func(request, *args, **kwargs)
+        route_kwargs = getattr(getattr(request, "resolver_match", None), "kwargs", {})
+        space_id = kwargs.get("space_id", route_kwargs.get("space_id"))
+        if space_id is not None:
+            check_apigw_space_tenant(request, space_id)
+        elif settings.ENABLE_MULTI_TENANT_MODE:
+            get_apigw_request_tenant_id(request)
         if exempt:
             return view_func(request, *args, **kwargs)
 
-        space_id = request.resolver_match.kwargs.get("space_id")
         if space_id is not None:
             space = Space.objects.filter(id=space_id).first()
             if space is None:
@@ -145,6 +166,7 @@ def check_template_bk_app_code(view_func):
         # 将 template 和 space_id 挂载到 request 上，方便后续使用
         request.template = template
         request.space_id = template.space_id
+        check_apigw_space_tenant(request, template.space_id)
 
         # 如果 exempt，跳过权限检查，直接执行视图函数
         if exempt:
@@ -187,8 +209,10 @@ def check_task_bk_app_code(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
         exempt = getattr(settings, "BK_APIGW_REQUIRE_EXEMPT", False)
-        if exempt:
+        if exempt and not settings.ENABLE_MULTI_TENANT_MODE:
             return view_func(request, *args, **kwargs)
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            get_apigw_request_tenant_id(request)
 
         task_id = request.resolver_match.kwargs.get("task_id")
         if task_id is None:
@@ -226,6 +250,7 @@ def check_task_bk_app_code(view_func):
         task_data = task_result.get("data", {})
         task_template_id = task_data.get("template_id")
         task_space_id = task_data.get("space_id")
+        check_apigw_space_tenant(request, task_space_id)
 
         # 获取任务关联的模板
         if not task_template_id:
@@ -246,6 +271,9 @@ def check_task_bk_app_code(view_func):
                     "message": _("任务关联的模板不存在，task_id={}，template_id={}").format(task_id, task_template_id),
                 },
             )
+
+        if settings.ENABLE_MULTI_TENANT_MODE and template.space_id != task_space_id:
+            raise PermissionDenied("任务与关联模板的空间不一致")
 
         # 检查模板是否绑定了 bk_app_code
         if not template.bk_app_code:
