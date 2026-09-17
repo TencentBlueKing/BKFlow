@@ -41,6 +41,7 @@ BKFlow 提供三大核心功能服务：
 - [体验 & 快速接入](./docs/guide/quick_start.md)
 - [接入系统业务拓展](./docs/guide/system_extensions.md)
 - [空间配置说明](./docs/guide/space_config.md)
+- [APP_Code 规范与上云存量部署兼容](./docs/specs/2026-09-17-app-code-compatibility-design.md)
 
 
 # Support
