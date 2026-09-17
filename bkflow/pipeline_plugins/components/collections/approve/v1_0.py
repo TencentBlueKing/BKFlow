@@ -32,6 +32,7 @@ from bkflow.contrib.api.collections.itsm import BKItsmClient
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 from bkflow.pipeline_plugins.utils import get_node_callback_url
 from bkflow.utils.handlers import handle_api_error
+from bkflow.utils.platform import use_apigw
 from packages.bkapi.bk_itsm4.shortcuts import get_client_by_username
 
 
@@ -115,7 +116,7 @@ class ApproveService(BKFlowBaseService):
         return True
 
     def plugin_execute(self, data, parent_data):
-        if not settings.ENABLE_MULTI_TENANT_MODE:
+        if not use_apigw():
             return self._execute_legacy(data, parent_data)
 
         from bkflow.task.celery.tasks import send_task_message

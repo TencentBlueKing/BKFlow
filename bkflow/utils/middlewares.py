@@ -25,6 +25,7 @@ from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 
@@ -50,7 +51,7 @@ class TenantAdminBoundaryMiddleware(MiddlewareMixin):
     def process_view(self, request, view_func, view_args, view_kwargs):
         match = request.resolver_match
         if settings.ENABLE_MULTI_TENANT_MODE and match and "admin" in match.app_names:
-            return JsonResponse({"result": False, "message": "多租户模式请使用当前租户的业务管理入口", "data": None}, status=403)
+            return JsonResponse({"result": False, "message": _("多租户模式请使用当前租户的业务管理入口"), "data": None}, status=403)
 
 
 class ExceptionMiddleware(MiddlewareMixin):

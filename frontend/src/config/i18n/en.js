@@ -1,4 +1,6 @@
 const en = {
+  部署时区: 'Deployment timezone',
+  语言偏好保存失败: 'Failed to save language preference',
   '1. 若子流程中增加了新的变量，在未手动更新子流程版本的情况下，将使用新变量默认值。': '1. If new variables are added to the subprocess and the subprocess version is not manually updated, the default value of the new variables will be used.',
   '2. 若子流程中修改了变量的默认值，在未手动更新子流程版本的情况下，将继续使用修改前变量的原有值。': '2. If the default values of variables are modified in the subprocess and the subprocess version is not manually updated, the original values of the variables before modification will continue to be used.',
   接口数据返回为空: 'Interface data is empty',

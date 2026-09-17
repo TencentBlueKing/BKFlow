@@ -247,3 +247,6 @@
 | inputs               | object | 输入参数 JSON Schema，从 pipeline_tree 解析       |
 | outputs              | object | 输出参数 JSON Schema，从 pipeline_tree 解析       |
 | context_inputs       | object | 上下文输入参数 JSON Schema                       |
+### 定时触发器时区
+
+`triggers[].config.timezone` 可指定有效的 IANA 时区（例如 `Europe/Paris`）。新建时省略则保存当前请求的有效用户时区；编辑时省略则保留既有计划时区。历史未标时区的计划继续使用其已保存的 Engine 调度时区，不随编辑者切换。返回的 config 保留新计划的 timezone，界面按此显示和预览。

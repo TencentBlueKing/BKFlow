@@ -38,6 +38,8 @@ from bkflow.space.configs import SuperusersConfig
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.space.tenant import ensure_space_tenant, tenant_space_ids
 from bkflow.task.open_plugin_callback import OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY
+from bkflow.utils.platform import use_apigw
+from bkflow.utils.tenant import get_request_tenant_id
 from packages.bkapi.bk_cmsi.shortcuts import get_client_by_username
 
 logger = logging.getLogger("root")
@@ -108,12 +110,12 @@ def is_admin_or_current_space_superuser(request):
 
 @require_GET
 def get_msg_types(request):
-    if not settings.ENABLE_MULTI_TENANT_MODE:
+    if not use_apigw():
         from blueapps.utils import get_client_by_request
 
         return JsonResponse(get_client_by_request(request).cmsi.get_msg_type())
     client = get_client_by_username(request.user.username, stage=settings.BK_APIGW_STAGE_NAME)
-    result = client.api.v1_channels_list(headers={"X-Bk-Tenant-Id": request.user.tenant_id})
+    result = client.api.v1_channels_list(headers={"X-Bk-Tenant-Id": get_request_tenant_id(request)})
     return JsonResponse(result)
 
 

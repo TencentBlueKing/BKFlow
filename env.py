@@ -23,6 +23,17 @@ import os
 # 在 blueapps 加载登录策略前归一开关；平台变量优先，兼容历史别名。
 os.environ.setdefault("BKPAAS_MULTI_TENANT_MODE", os.getenv("ENABLE_MULTI_TENANT_MODE", "false"))
 
+# 新平台默认使用 APIGW；上云旧平台单租户可显式保留 legacy 协议。
+BKFLOW_PLATFORM_API_MODE = os.getenv("BKFLOW_PLATFORM_API_MODE", "apigw").lower()
+if BKFLOW_PLATFORM_API_MODE not in {"apigw", "legacy"}:
+    raise ValueError("BKFLOW_PLATFORM_API_MODE must be apigw or legacy")
+BKFLOW_CREDENTIAL_CIPHER = os.getenv("BKFLOW_CREDENTIAL_CIPHER", "AES").upper()
+if BKFLOW_CREDENTIAL_CIPHER not in {"AES", "SM4"}:
+    raise ValueError("BKFLOW_CREDENTIAL_CIPHER must be AES or SM4")
+BKFLOW_DOC_VERSION = os.getenv("BKFLOW_DOC_VERSION", "")
+BKFLOW_DOC_URL_ZH = os.getenv("BKFLOW_DOC_URL_ZH", "")
+BKFLOW_DOC_URL_EN = os.getenv("BKFLOW_DOC_URL_EN", "")
+
 # 部署模块相关变量
 # 是否开启部分调试日志
 ENABLE_DEBUG_LOG = bool(int(os.getenv("ENABLE_DEBUG_LOG", 0)))
