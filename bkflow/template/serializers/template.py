@@ -33,6 +33,7 @@ from bkflow.constants import (
     TemplateOperationSource,
     TemplateOperationType,
     ValidateType,
+    ValidatorCode,
     WebhookEventType,
     WebhookScopeType,
 )
@@ -148,12 +149,6 @@ class TemplateSerializer(serializers.ModelSerializer):
     def validate_pipeline_tree(self, pipeline_tree):
         # 校验树的合法性
 
-        try:
-            ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
-        except Exception as e:
-            logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
-            raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
-
         if self.context["request"].method == "POST":
             space_id = self.initial_data.get("space_id")
             scope_type = self.initial_data.get("scope_type")
@@ -162,6 +157,22 @@ class TemplateSerializer(serializers.ModelSerializer):
             space_id = getattr(self.instance, "space_id", None)
             scope_type = getattr(self.instance, "scope_type", None)
             scope_value = getattr(self.instance, "scope_value", None)
+
+        try:
+            if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+                ValidatorHandler.validate_by_codes(
+                    pipeline_tree,
+                    [
+                        ValidatorCode.GENERAL_PIPELINE_TREE.value,
+                        ValidatorCode.GENERAL_CONSTANTS.value,
+                        ValidatorCode.TEMPLATE_SCHEMA.value,
+                    ],
+                )
+            else:
+                ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
+        except Exception as e:
+            logger.exception(f"TemplateSerializer pipeline validate error, err = {e}")
+            raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
 
         template_id = getattr(self.instance, "id", None)
         data = PipelineTemplateWebPreviewer.is_circular_reference(
@@ -174,10 +185,6 @@ class TemplateSerializer(serializers.ModelSerializer):
 
         if space_id:
             OpenPluginSnapshotService.validate_pipeline_tree(space_id=space_id, pipeline_tree=pipeline_tree)
-
-        validate_data = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        if not validate_data["has_loop"]:
-            raise serializers.ValidationError(_(validate_data["error_message"]))
 
         return pipeline_tree
 

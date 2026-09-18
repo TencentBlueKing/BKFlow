@@ -28,7 +28,7 @@ class ValidatorResult:
 
 
 class BasePipelineValidator:
-    name = None
+    code = None
     validate_type = None
 
     def __init_subclass__(cls, *args, **kwargs):
@@ -38,7 +38,7 @@ class BasePipelineValidator:
         if not hasattr(cls, "validate"):
             raise ValueError(f"[{cls.__name__}] Missing required method: validate")
 
-        necessary_attrs = ["name", "validate_type"]
+        necessary_attrs = ["code", "validate_type"]
         for attr in necessary_attrs:
             if not hasattr(cls, attr) or getattr(cls, attr) is None:
                 raise ValueError(f"[{cls.__name__}] Missing required attribute: {attr}")

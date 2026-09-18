@@ -16,9 +16,10 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from django.conf import settings
 from jsonschema import Draft4Validator
 
-from bkflow.constants import ValidateType
+from bkflow.constants import ValidateType, ValidatorCode
 from bkflow.pipeline_validate.validators.base import (
     BasePipelineValidator,
     ValidatorResult,
@@ -29,7 +30,7 @@ from bkflow.pipeline_web.parser.schemas import KEY_PATTERN_RE, WEB_PIPELINE_SCHE
 
 
 class SchemaValidator(BasePipelineValidator):
-    name = "schema_validator"
+    code = ValidatorCode.TEMPLATE_SCHEMA.value
     validate_type = ValidateType.TEMPLATE.value
 
     @classmethod
@@ -47,7 +48,7 @@ class SchemaValidator(BasePipelineValidator):
 
 
 class ConstantsKeyPatternValidator(BasePipelineValidator):
-    name = "constants_key_pattern_validator"
+    code = ValidatorCode.TEMPLATE_CONSTANTS_KEY_PATTERN.value
     validate_type = ValidateType.TEMPLATE.value
 
     @classmethod
@@ -73,7 +74,7 @@ class ConstantsKeyPatternValidator(BasePipelineValidator):
 
 
 class ConstantsSourceInfoValidator(BasePipelineValidator):
-    name = "constants_source_info_validator"
+    code = ValidatorCode.TEMPLATE_CONSTANTS_SOURCE_INFO.value
     validate_type = ValidateType.TEMPLATE.value
 
     @classmethod
@@ -105,7 +106,7 @@ class ConstantsSourceInfoValidator(BasePipelineValidator):
 
 
 class OutputsKeyPatternValidator(BasePipelineValidator):
-    name = "outputs_key_pattern_validator"
+    code = ValidatorCode.TEMPLATE_OUTPUTS_KEY_PATTERN.value
     validate_type = ValidateType.TEMPLATE.value
 
     @classmethod
@@ -123,7 +124,7 @@ class OutputsKeyPatternValidator(BasePipelineValidator):
 
 
 class MutualExclusionValidator(BasePipelineValidator):
-    name = "mutual_exclusion_validator"
+    code = ValidatorCode.TEMPLATE_MUTUAL_EXCLUSION.value
     validate_type = ValidateType.TEMPLATE.value
 
     @classmethod
@@ -145,5 +146,76 @@ class MutualExclusionValidator(BasePipelineValidator):
         if error_nodes:
             error_message = "节点 {} 配置不合法：自动跳过、自动重试和超时控制不能同时开启两个或两个以上".format(", ".join(error_nodes))
             return ValidatorResult(is_valid=False, error=error_message)
+
+        return ValidatorResult(is_valid=True)
+
+
+class LoopVariableValidator(BasePipelineValidator):
+    code = ValidatorCode.TEMPLATE_LOOP_VARIABLE.value
+    validate_type = ValidateType.TEMPLATE.value
+
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
+        """校验循环变量使用情况
+
+        - 循环次数不能超过最大值
+        - 数组循环时，循环次数需与各循环变量参数数量匹配
+        - 同一循环变量不能被多个节点使用
+        - 循环变量不能与全局变量冲突
+        """
+        loop_variable_usage = {}
+        global_variable_keys = set(web_pipeline_tree.get("constants", {}).keys())
+
+        conflicting_variables = []
+        conflicting_global_variables = []
+        loop_variables = []
+        exceeded_loop_times_nodes = []
+
+        for node_id, activity in web_pipeline_tree["activities"].items():
+            loop_config = activity.get("loop_config", {})
+            if not loop_config.get("enable", False):
+                continue
+
+            loop_times = loop_config.get("loop_times")
+            # 校验循环次数是否超过最大值
+            if loop_times and loop_times > settings.MAX_LOOP_TIMES:
+                exceeded_loop_times_nodes.append(activity["name"])
+
+            if loop_config.get("type") != "array_loop":
+                continue
+
+            loop_params = loop_config.get("loop_params", {})
+
+            if loop_times:
+                # 统计当前节点的循环变量（各参数值按逗号分隔后的元素数量）
+                valid_loop_params = [
+                    len([item for item in param_value.split(",") if item.strip()])
+                    for param_value in loop_params.values()
+                ]
+                # 验证循环次数与循环变量数量匹配（取最短值列表长度）
+                if valid_loop_params and loop_times != min(valid_loop_params):
+                    loop_variables.append(activity["name"])
+
+            # 统计循环变量使用情况
+            for param_key in loop_params:
+                # 检查是否与全局变量冲突
+                if param_key in global_variable_keys:
+                    conflicting_global_variables.append(param_key)
+
+                # 检查是否被多个节点使用
+                if param_key in loop_variable_usage:
+                    conflicting_variables.append(param_key)
+                else:
+                    loop_variable_usage[param_key] = node_id
+
+        if exceeded_loop_times_nodes:
+            return ValidatorResult(
+                is_valid=False, error=f"节点 {'; '.join(exceeded_loop_times_nodes)} 的循环次数超过最大值{settings.MAX_LOOP_TIMES}"
+            )
+
+        if loop_variables:
+            return ValidatorResult(is_valid=False, error=f"节点 {'; '.join(loop_variables)} 的循环次数与循环变量参数不匹配")
+        if conflicting_global_variables:
+            return ValidatorResult(is_valid=False, error=f"循环变量与全局变量冲突: {'; '.join(conflicting_global_variables)}")
 
         return ValidatorResult(is_valid=True)

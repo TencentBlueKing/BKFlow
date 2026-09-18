@@ -21,7 +21,7 @@ from bamboo_engine.eri import ContextValue, ContextValueType
 from pipeline.eri.runtime import BambooDjangoRuntime
 from pipeline.eri.utils import CONTEXT_VALUE_TYPE_MAP
 
-from bkflow.constants import ValidateType
+from bkflow.constants import ValidateType, ValidatorCode
 from bkflow.pipeline_validate.validators.base import (
     BasePipelineValidator,
     ValidatorResult,
@@ -30,7 +30,7 @@ from bkflow.pipeline_web.parser.format import classify_constants
 
 
 class ContextHydrateValidator(BasePipelineValidator):
-    name = "context_hydrate_validator"
+    code = ValidatorCode.TASK_CONTEXT_HYDRATE.value
     validate_type = ValidateType.TASK.value
 
     @classmethod
