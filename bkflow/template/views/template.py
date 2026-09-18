@@ -231,6 +231,9 @@ class AdminTemplateViewSet(AdminModelViewSet):
                     space_id=space_id, template_id=ser.data["template_id"]
                 )
             )
+        if not template.has_published_version():
+            return Response(exception=True, data={"message": _("模板没有正式版本，无法创建任务")})
+
         create_task_data = dict(ser.data)
         create_task_data["scope_type"] = template.scope_type
         create_task_data["scope_value"] = template.scope_value
@@ -742,11 +745,14 @@ class TemplateViewSet(UserModelViewSet):
             logger.error(str(e))
             return Response(exception=True, data={"detail": f"版本号不符合规范: {str(e)}"})
 
-        with transaction.atomic():
-            data = {"username": request.user.username, **ser.validated_data}
-            snapshot = instance.release_template(data)
-            instance.snapshot_id = snapshot.id
-            instance.save()
+        try:
+            with transaction.atomic():
+                data = {"username": request.user.username, "is_validate": True, **ser.validated_data}
+                snapshot = instance.release_template(data)
+                instance.snapshot_id = snapshot.id
+                instance.save()
+        except ValidationError as e:
+            return Response(exception=True, data={"detail": str(e)})
 
         TemplateOperationRecord.objects.create(
             operate_source=TemplateOperationSource.app.name,
@@ -853,6 +859,10 @@ class TemplateInternalViewSet(BKFLOWCommonMixin, mixins.RetrieveModelMixin, Simp
     def get_template_data(self, request, *args, **kwargs):
         version = request.query_params.get("version")
         template = self.get_object()
+        # 模板仅存在草稿版本、没有正式版本时返回空，避免基于未发布的草稿创建任务
+        if not template.has_published_version():
+            logger.warning("[get_template_data] 模板(%s)没有正式版本，无法获取数据", template.id)
+            return Response({})
         subproc_data = self.get_serializer(template).data
         # 去除子流程中未被引用的变量
         pipeline_tree = template.get_pipeline_tree_by_version(version)

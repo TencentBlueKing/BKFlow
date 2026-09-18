@@ -21,6 +21,7 @@ import json
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
+from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from webhook.signals import event_broadcast_signal
@@ -29,6 +30,7 @@ from bkflow.apigw.decorators import check_template_bk_app_code, return_json_resp
 from bkflow.apigw.serializers.task import CreateTaskByAppSerializer
 from bkflow.constants import TaskTriggerMethod, WebhookEventType, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
+from bkflow.exceptions import ValidationError
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.utils.trace import CallFrom, trace_view
 
@@ -55,6 +57,10 @@ def create_task_by_app(request, template_id):
     # template 和 space_id 已经在装饰器中挂载到 request 上
     template = request.template
     space_id = request.space_id
+
+    # 模板仅存在草稿版本、没有正式版本时不允许创建任务
+    if not template.has_published_version():
+        raise ValidationError(_("模版没有正式版本，不允许创建任务"))
 
     create_task_data = dict(ser.data)
     # 从网关认证的用户信息中获取创建者

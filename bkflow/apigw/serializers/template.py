@@ -26,10 +26,11 @@ from bkflow.constants import (
     MAX_LEN_OF_TEMPLATE_NAME,
     USER_NAME_MAX_LENGTH,
     ValidateType,
+    ValidatorCode,
 )
 from bkflow.label.models import Label
 from bkflow.pipeline_validate.handler import ValidatorHandler
-from bkflow.space.configs import TemplateTriggerConfig
+from bkflow.space.configs import FlowVersioning, TemplateTriggerConfig
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import Template, Trigger
 from bkflow.template.serializers.trigger import TriggerSerializer
@@ -91,6 +92,7 @@ class CreateTemplateSerializer(serializers.Serializer):
 
         scope_type = attrs.get("scope_type")
         scope_value = attrs.get("scope_value")
+        space_id = self.context.get("space_id")
 
         if (scope_type is not None) != (scope_value is not None):
             raise serializers.ValidationError(_("作用域类型和作用域值必须同时填写，或同时不填写"))
@@ -108,10 +110,20 @@ class CreateTemplateSerializer(serializers.Serializer):
                 )
 
         pipeline_tree = attrs.get("pipeline_tree")
-
+        validate_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
         if pipeline_tree:
             try:
-                ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
+                if validate_config:
+                    ValidatorHandler.validate_by_codes(
+                        pipeline_tree,
+                        [
+                            ValidatorCode.GENERAL_PIPELINE_TREE.value,
+                            ValidatorCode.GENERAL_CONSTANTS.value,
+                            ValidatorCode.TEMPLATE_SCHEMA.value,
+                        ],
+                    )
+                else:
+                    ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
             except Exception as e:
                 logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
                 raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
@@ -183,6 +195,8 @@ class UpdateTemplateSerializer(serializers.Serializer):
         operator = attrs.get("operator")
         scope_type = attrs.get("scope_type")
         scope_value = attrs.get("scope_value")
+        auto_release = attrs.get("auto_release")
+        space_id = self.context.get("space_id")
 
         if (scope_type is not None) != (scope_value is not None):
             raise serializers.ValidationError(_("作用域类型和作用域值必须同时填写，或同时不填写"))
@@ -192,11 +206,25 @@ class UpdateTemplateSerializer(serializers.Serializer):
 
         pipeline_tree = attrs.get("pipeline_tree")
 
+        validate_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
+
         if pipeline_tree:
             try:
-                ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
+                # 开启版本管理且未自动发布（仅保存草稿）时只做基础结构校验，
+                # 其余情况（未开启版本管理，或开启后自动发布）做完整模板校验
+                if validate_config and not auto_release:
+                    ValidatorHandler.validate_by_codes(
+                        pipeline_tree,
+                        [
+                            ValidatorCode.GENERAL_PIPELINE_TREE.value,
+                            ValidatorCode.GENERAL_CONSTANTS.value,
+                            ValidatorCode.TEMPLATE_SCHEMA.value,
+                        ],
+                    )
+                else:
+                    ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
             except Exception as e:
-                logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
+                logger.exception(f"UpdateTemplateSerializer pipeline validate error, err = {e}")
                 raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
 
         if "label_ids" in attrs:

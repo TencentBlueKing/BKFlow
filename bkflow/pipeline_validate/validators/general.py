@@ -20,7 +20,7 @@ from mako.codegen import RESERVED_NAMES
 from pipeline.exceptions import PipelineException
 from pipeline.validators import validate_pipeline_tree
 
-from bkflow.constants import ValidateType
+from bkflow.constants import ValidateType, ValidatorCode
 from bkflow.pipeline_validate.validators.base import (
     BasePipelineValidator,
     ValidatorResult,
@@ -30,7 +30,7 @@ from bkflow.utils.pipeline import validate_pipeline_tree_constants
 
 
 class PipelineTreeValidator(BasePipelineValidator):
-    name = "pipeline_tree_validator"
+    code = ValidatorCode.GENERAL_PIPELINE_TREE.value
     validate_type = ValidateType.GENERAL.value
 
     @classmethod
@@ -46,7 +46,7 @@ class PipelineTreeValidator(BasePipelineValidator):
 class ConstantsValidator(BasePipelineValidator):
     """变量引用校验器，校验 pipeline tree 中 constants 的引用是否合法"""
 
-    name = "constants_validator"
+    code = ValidatorCode.GENERAL_CONSTANTS.value
     validate_type = ValidateType.GENERAL.value
 
     @classmethod
@@ -60,7 +60,7 @@ class ConstantsValidator(BasePipelineValidator):
 
 
 class MakoKeywordValidator(BasePipelineValidator):
-    name = "mako_keyword_validator"
+    code = ValidatorCode.TASK_MAKO_KEYWORD.value
     validate_type = ValidateType.TASK.value
 
     @classmethod
