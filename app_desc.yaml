@@ -2,7 +2,7 @@ spec_version: 2
 app_version: "1.11.14"
 app:
   region: default
-  bk_app_code: &APP_CODE bk_flow
+  bk_app_code: &APP_CODE bk_flow_engine
   bk_app_name: 蓝鲸流程引擎服务
   bk_app_name_en: BKFlow
   market:

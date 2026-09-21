@@ -131,7 +131,7 @@ def test_render_smart_description_keeps_application_and_module_references_consis
     )
     assert result.returncode == 0, result.stderr
     description = yaml.safe_load(output.read_text())
-    expected_code = app_code or "bk_flow"
+    expected_code = app_code or "bk_flow_engine"
     assert description["app"]["bk_app_code"] == expected_code
     assert source_path.read_bytes() == source
     interface = description["modules"]["default"]
