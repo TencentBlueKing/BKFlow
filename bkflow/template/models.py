@@ -22,6 +22,7 @@ import logging
 from copy import deepcopy
 
 from django.db import models, transaction
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.core.constants import PE
 from pipeline.parser.utils import replace_all_id
@@ -540,13 +541,17 @@ class BaseTriggerHandler:
 class PeriodicTriggerHandler(BaseTriggerHandler):
     """定时触发器处理器"""
 
+    @staticmethod
+    def _timezone_config(config):
+        return {"timezone": config["timezone"]} if config.get("timezone") else {}
+
     def create(self, trigger, template):
         client = TaskComponentClient(space_id=trigger.space_id)
         data = {
             "name": template.name,
             "trigger_id": trigger.id,
             "template_id": trigger.template_id,
-            "cron": trigger.config.get("cron"),
+            "cron": {**trigger.config.get("cron", {}), **self._timezone_config(trigger.config)},
             "config": {
                 "space_id": trigger.space_id,
                 "constants": trigger.config.get("constants"),
@@ -566,7 +571,7 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
         update_data = {
             "name": template.name,
             "trigger_id": trigger.id,
-            "cron": data["config"].get("cron"),
+            "cron": {**data["config"].get("cron", {}), **self._timezone_config(data["config"])},
             "config": {
                 "space_id": trigger.space_id,
                 "constants": data["config"].get("constants"),
@@ -591,6 +596,8 @@ class TriggerManager(models.Manager):
             "scope_value": template.scope_value,
         }
         data["config"] = {**data["config"], **config}
+        if data.get("type", Trigger.TYPE_PERIODIC) == Trigger.TYPE_PERIODIC:
+            data["config"].setdefault("timezone", timezone.get_current_timezone_name())
         data["creator"] = username
         data["space_id"] = template.space_id
         data["template_id"] = template.id
@@ -607,6 +614,9 @@ class TriggerManager(models.Manager):
             "scope_value": template.scope_value,
         }
         data["config"] = {**data["config"], **config}
+        # 编辑者切换时区不应隐式改变既有计划；未标时区的旧计划由 Engine 保留原 crontab 时区。
+        if trigger.config.get("timezone"):
+            data["config"].setdefault("timezone", trigger.config["timezone"])
         data["updated_by"] = username
         data["space_id"] = template.space_id
         data["template_id"] = template.id

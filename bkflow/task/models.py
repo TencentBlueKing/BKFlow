@@ -566,7 +566,7 @@ class PeriodicTaskManager(models.Manager):
                 day_of_week=cron.get("day_of_week", "*"),
                 day_of_month=cron.get("day_of_month", "*"),
                 month_of_year=cron.get("month_of_year", "*"),
-                timezone=timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai",
+                timezone=timezone.pytz.timezone(cron.get("timezone") or settings.TIME_ZONE),
             )
             _ = schedule.schedule  # noqa
             celery_task = DjangoCeleryBeatPeriodicTask.objects.create(
@@ -630,7 +630,7 @@ class PeriodicTask(models.Model):
             day_of_week=cron.get("day_of_week", "*"),
             day_of_month=cron.get("day_of_month", "*"),
             month_of_year=cron.get("month_of_year", "*"),
-            timezone=timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai",
+            timezone=timezone.pytz.timezone(cron.get("timezone") or str(self.celery_task.crontab.timezone)),
         )
         _ = schedule.schedule  # noqa
         self.cron = schedule.__str__()

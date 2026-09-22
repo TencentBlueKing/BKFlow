@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -20,17 +19,23 @@ to the current version of the project delivered to anyone in the future.
 
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
 import env
 from bkflow.contrib.api.client import BKComponentClient
+from bkflow.utils.platform import use_apigw
 
-ITSM_API_ENTRY = env.BK_ITSM_API_ENTRY or "{}/{}".format(settings.BK_PAAS_ESB_HOST, "api/c/compapi/v2/itsm")
 NEED_PROCESSORS_ACTION_TYPE = ["DISTRIBUTE", "DELIVER"]
 NEED_ACTION_MESSAGE_ACTION_TYPE = ["DELIVER", "TERMINATE"]
 
 
 def _get_itsm_api(api_name):
-    return "{}/{}/".format(ITSM_API_ENTRY, api_name)
+    entry = env.BK_ITSM_API_ENTRY
+    if not entry:
+        if use_apigw():
+            raise ImproperlyConfigured("Existing ITSM tickets require an explicit BK_ITSM_API_ENTRY")
+        entry = "{}/api/c/compapi/v2/itsm".format(settings.BK_PAAS_ESB_HOST)
+    return "{}/{}/".format(entry.rstrip("/"), api_name)
 
 
 class BKItsmClient(BKComponentClient):

@@ -24,6 +24,7 @@
             placement="right-end">
             <div>
               {{ joinCron(row.config.cron) }}
+              <small>{{ getTriggerTimezone(row) || $t('部署时区') }}</small>
             </div>
           </bk-popover>
         </template>
@@ -96,6 +97,7 @@
           <CronRuleSelect
             ref="cronRuleSelect"
             v-model="currentJoinIcon"
+            :timezone="getTriggerTimezone(currentTriggerConfig)"
             class="loop-rule" />
         </bk-form-item>
         <bk-form-item
@@ -276,6 +278,9 @@ export default {
         },
     },
     methods: {
+      getTriggerTimezone(trigger) {
+        return trigger.config.timezone || (trigger.id ? '' : window.TIMEZONE);
+      },
        joinCron(cron) {
           const afterCron = [
             cron.minute,

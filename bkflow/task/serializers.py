@@ -275,6 +275,13 @@ class CreatePeriodicTaskSerializer(serializers.Serializer):
     config = PeriodicTaskConfigSerializer(help_text="流程相关信息", required=True)
     extra_info = serializers.JSONField(help_text="额外信息", required=False)
 
+    def validate_cron(self, value):
+        from bkflow.utils.time_zone import _valid_timezone
+
+        if "timezone" in value and not _valid_timezone(value["timezone"]):
+            raise serializers.ValidationError("Invalid IANA timezone")
+        return value
+
     def validate_trigger_id(self, value):
         if PeriodicTask.objects.filter(trigger_id=value).exists():
             raise serializers.ValidationError(f"periodic_task with trigger_id {value} already exists")
@@ -309,6 +316,10 @@ class UpdatePeriodicTaskSerializer(serializers.Serializer):
         return instance
 
     def validate_cron(self, cron_data):
+        from bkflow.utils.time_zone import _valid_timezone
+
+        if "timezone" in cron_data and not _valid_timezone(cron_data["timezone"]):
+            raise serializers.ValidationError("Invalid IANA timezone")
         required_fields = ["minute", "hour", "day_of_month", "month_of_year", "day_of_week"]
         if not all(field in cron_data for field in required_fields):
             raise serializers.ValidationError("Cron expression is missing required fields")
