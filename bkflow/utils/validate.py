@@ -14,6 +14,8 @@ import logging
 
 import tldextract
 from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
+from rest_framework import serializers
 
 logger = logging.getLogger("root")
 
@@ -48,3 +50,33 @@ class DomainValidator(object):
                 return True, []
 
         return False, allowed_domains
+
+
+def validate_password_variable_enabled(pipeline_tree):
+    """
+    校验流程树中是否包含已关闭的密码变量
+    当 ENABLE_PASSWORD_VARIABLE 为 False 时，若 constants 中存在 custom_type="password" 的变量则直接报错
+    """
+    if settings.ENABLE_PASSWORD_VARIABLE:
+        return
+
+    constants = pipeline_tree.get("constants", {}) if isinstance(pipeline_tree, dict) else {}
+    for key, info in constants.items():
+        if isinstance(info, dict) and info.get("custom_type") == "password":
+            raise serializers.ValidationError(
+                _("密码变量功能已关闭，流程树中不允许使用 custom_type=password 的变量(key={key})").format(key=key)
+            )
+
+
+def validate_no_password_variable_in_apigw(pipeline_tree):
+    """
+    开放 API 创建任务时禁止包含密码变量。
+    密码变量依赖前端使用公钥加密，接入方无法通过开放 API 获取公钥，若传入明文会被原样落库
+    并经由 get_task_node_detail 等接口回显，因此显式拒绝含密码变量的任务创建。
+    """
+    constants = pipeline_tree.get("constants", {}) if isinstance(pipeline_tree, dict) else {}
+    for key, info in constants.items():
+        if isinstance(info, dict) and info.get("custom_type") == "password":
+            raise serializers.ValidationError(
+                _("开放API不支持密码变量，请通过页面填写，或移除密码变量 {key} 后重试").format(key=key)
+            )

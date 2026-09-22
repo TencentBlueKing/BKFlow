@@ -31,6 +31,7 @@ from bkflow.label.models import Label
 from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
 from bkflow.template.models import TemplateMockData
 from bkflow.utils.strings import standardize_pipeline_node_name
+from bkflow.utils.validate import validate_password_variable_enabled
 
 
 def _validate_task_label_ids(label_ids, space_id):
@@ -200,6 +201,7 @@ class PipelineTreeSerializer(serializers.Serializer):
 
     def validate_pipeline_tree(self, pipeline_tree):
         try:
+            validate_password_variable_enabled(pipeline_tree)
             standardize_pipeline_node_name(pipeline_tree)
             validate_web_pipeline_tree(pipeline_tree)
         except PipelineException as e:
