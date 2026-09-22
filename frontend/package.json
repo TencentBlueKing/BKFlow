@@ -12,7 +12,8 @@
     "test:static-image-imports": "node tests/staticImageImports.test.js",
     "test:render-form-schema": "node tests/renderFormSchema.test.js",
     "test:tenant": "node tests/tenantCompatibility.test.js",
-    "test:plugin-form": "node tests/renderFormSchema.test.js && node tests/pluginFormLoader.test.js && node tests/uniformApi.test.mjs && node tests/atomForm.test.js && node tests/legacyApiPluginCompatibility.test.js && node tests/legacyApiVariableForm.test.js && node tests/createTaskSideslider.test.js && node tests/staticImageImports.test.js && node tests/tenantCompatibility.test.js",
+    "test:release-compatibility": "node tests/releaseCompatibility.test.js",
+    "test:plugin-form": "node tests/renderFormSchema.test.js && node tests/pluginFormLoader.test.js && node tests/uniformApi.test.mjs && node tests/atomForm.test.js && node tests/legacyApiPluginCompatibility.test.js && node tests/legacyApiVariableForm.test.js && node tests/createTaskSideslider.test.js && node tests/staticImageImports.test.js && node tests/tenantCompatibility.test.js && node tests/releaseCompatibility.test.js",
     "lint": "eslint --ext .js,.vue src/",
     "fix": "eslint --fix --ext .js,.vue src/"
   },

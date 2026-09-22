@@ -100,8 +100,11 @@ def test_nested_subtasks_inherit_tenant_and_preserve_snapshots(settings, enabled
         assert interface.return_value.prepare_task_extra_info.call_count == 2
 
 
-@override_settings(ENABLE_MULTI_TENANT_MODE=True, BK_APIGW_STAGE_NAME="stage")
-def test_itsm4_execution_preserves_tenant_and_ticket_id():
+@pytest.mark.parametrize("multi,tenant", [(True, "tenant-a"), (False, "default")])
+def test_itsm4_execution_preserves_tenant_and_ticket_id(multi, tenant, settings):
+    settings.ENABLE_MULTI_TENANT_MODE = multi
+    settings.BKFLOW_PLATFORM_API_MODE = "apigw"
+    settings.BK_APIGW_STAGE_NAME = "stage"
     from bkflow.pipeline_plugins.components.collections.approve.v1_0 import (
         ApproveService,
     )
@@ -119,5 +122,5 @@ def test_itsm4_execution_preserves_tenant_and_ticket_id():
         assert data.outputs.sn == "NEW-1"
         assert data.outputs.id == 17
         kwargs = client.return_value.api.create_ticket.call_args
-        assert kwargs.kwargs["headers"]["X-Bk-Tenant-Id"] == "tenant-a"
-        assert kwargs.args[0]["workflow_key"].startswith("tenant-a_")
+        assert kwargs.kwargs["headers"]["X-Bk-Tenant-Id"] == tenant
+        assert kwargs.args[0]["workflow_key"] == f"{tenant}_bk_flow_engine_workflows_key_100001_v1"

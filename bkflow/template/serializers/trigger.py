@@ -1,3 +1,4 @@
+import pytz
 from rest_framework import serializers
 
 from bkflow.constants import TriggerConstantsMode
@@ -8,8 +9,14 @@ class ConfigSerializer(serializers.Serializer):
     """触发器配置序列化器"""
 
     constants = serializers.JSONField(help_text="流程入参", required=True, allow_null=True)
+    timezone = serializers.CharField(required=False)
     cron = serializers.JSONField(help_text="cron表达式", required=False)
     mode = serializers.ChoiceField(choices=[(mode.value, mode.value) for mode in TriggerConstantsMode], required=True)
+
+    def validate_timezone(self, value):
+        if value not in pytz.all_timezones_set:
+            raise serializers.ValidationError("Invalid IANA timezone")
+        return value
 
     def validate_cron(self, cron_data):
         required_fields = ["minute", "hour", "day_of_month", "month_of_year", "day_of_week"]
