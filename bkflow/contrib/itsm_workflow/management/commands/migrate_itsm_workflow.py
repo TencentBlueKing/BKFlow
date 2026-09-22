@@ -16,6 +16,7 @@ from io import BytesIO
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from bkflow.utils.platform import use_apigw
 from packages.bkapi.bk_itsm4.shortcuts import get_client_by_username
 
 
@@ -27,8 +28,10 @@ class Command(BaseCommand):
         tenant_id = (options.get("tenant_id") or "").strip()
         if not tenant_id:
             raise CommandError("必须指定非空 tenant_id")
-        if not settings.ENABLE_MULTI_TENANT_MODE:
-            raise CommandError("单租户模式不需要初始化 ITSM4 租户")
+        if not use_apigw():
+            raise CommandError("Legacy platform mode does not initialize ITSM4 tenants")
+        if not settings.ENABLE_MULTI_TENANT_MODE and tenant_id != "default":
+            raise CommandError("Single-tenant mode only initializes the default tenant")
         client = get_client_by_username("bk_admin", stage=settings.BK_APIGW_STAGE_NAME)
         template_path = os.path.join(
             settings.BASE_DIR, "bkflow/contrib/itsm_workflow/template/itsm_migrate_template.json"

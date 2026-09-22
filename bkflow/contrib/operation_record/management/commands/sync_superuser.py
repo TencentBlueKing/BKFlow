@@ -20,17 +20,34 @@ to the current version of the project delivered to anyone in the future.
 import os
 
 from django.apps import apps
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
 
 class Command(BaseCommand):
+    def add_arguments(self, parser):
+        """支持显式授权用户，发布时仍兼容原有环境变量。"""
+        parser.add_argument("--usernames", help="Comma-separated usernames; defaults to BKFLOW_INIT_SUPERUSERS")
+
+    @transaction.atomic
     def handle(self, *args, **kwargs):
         User = apps.get_model("account", "User")
-        INIT_SUPERUSERS = os.getenv("BKFLOW_INIT_SUPERUSERS", "")
-        if not INIT_SUPERUSERS:
+        usernames = kwargs.get("usernames") or os.getenv("BKFLOW_INIT_SUPERUSERS", "")
+        usernames = list(dict.fromkeys(name.strip() for name in usernames.split(",") if name.strip()))
+        if not usernames:
             return
 
-        for username in INIT_SUPERUSERS.split(","):
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            users = list(User.objects.select_for_update().filter(username__in=usernames))
+            if len(users) != len(usernames) or any(user.tenant_id != "system" for user in users):
+                raise CommandError("Multi-tenant superusers must be existing users of the system tenant; log in first")
+            User.objects.filter(pk__in=[user.pk for user in users]).update(
+                is_staff=True, is_active=True, is_superuser=True
+            )
+            return
+
+        for username in usernames:
             User.objects.update_or_create(
                 username=username, defaults={"is_staff": True, "is_active": True, "is_superuser": True}
             )

@@ -2,8 +2,10 @@
 
 ---
 [![license](https://img.shields.io/badge/license-mit-brightgreen.svg?style=flat)](https://github.com/TencentBlueKing/bkflow/blob/master/LICENSE)
-[![Release Version](https://img.shields.io/badge/release-1.8.0-brightgreen.svg)](https://github.com/TencentBlueKing/bkflow/releases)
+[![Release Version](https://img.shields.io/github/v/release/TencentBlueKing/BKFlow)](https://github.com/TencentBlueKing/bkflow/releases)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/TencentBlueKing/bkflow/pulls)
+
+[English](./README_en.md) | 简体中文
 
 蓝鲸流程引擎服务 BKFlow 是一款基于 Python 实现的面向平台、高效灵活的流程引擎平台，旨在助力接入系统快速获取流程执行能力。
 
@@ -31,7 +33,7 @@ BKFlow 提供三大核心功能服务：
 - **支持多种集成方式**：BKFlow 已开源部分核心模块，接入系统可以根据需要采用不同的集成方式，包括 Web 服务集成和 SDK 集成。
 - **数据管理能力**：BKFlow 为接入系统提供了 Admin 管理端，方便接入系统管理员进行数据管理；同时，BKFlow 提供了 Webhook 订阅机制，方便接入系统进行流程任务感知和自动化。
 
-了解更多功能，请参考[产品白皮书](https://bk.tencent.com/docs/markdown/ZH/BKFlow/1.8/UserGuide/Introduce/introduce.md)
+了解更多功能，请参考[产品白皮书](./docs/guide/introduction.md)
 
 ## Getting started
 
@@ -41,6 +43,7 @@ BKFlow 提供三大核心功能服务：
 - [体验 & 快速接入](./docs/guide/quick_start.md)
 - [接入系统业务拓展](./docs/guide/system_extensions.md)
 - [空间配置说明](./docs/guide/space_config.md)
+- [出包规范整改与上云存量部署兼容](./docs/specs/2026-09-17-app-code-compatibility-design.md)
 
 
 # Support

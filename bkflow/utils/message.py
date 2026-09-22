@@ -23,6 +23,7 @@ import logging
 from bkflow.conf import settings
 from bkflow.utils.handlers import handle_api_error
 from bkflow.utils.message_cmsi import send_cmsi_message
+from bkflow.utils.platform import use_apigw
 from packages.bkapi.bk_cmsi.shortcuts import get_client_by_username
 
 get_client_by_user = settings.ESB_GET_CLIENT_BY_USER
@@ -33,7 +34,7 @@ logger = logging.getLogger("root")
 def send_message(
     executor: str, notify_types: list, receivers: str, title: str, content: str, tenant_id: str = "default"
 ):
-    if not settings.ENABLE_MULTI_TENANT_MODE:
+    if not use_apigw():
         return _send_legacy_message(executor, notify_types, receivers, title, content)
     client = get_client_by_username(executor, stage=settings.BK_APIGW_STAGE_NAME)
 

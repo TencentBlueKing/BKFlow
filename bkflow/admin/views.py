@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 
 from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -40,7 +41,7 @@ class ModuleInfoAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewSe
     def check_permissions(self, request):
         """多租户管理员不管理部署级凭证；单租户保留原有管理入口。"""
         if settings.ENABLE_MULTI_TENANT_MODE:
-            raise PermissionDenied("多租户引擎配置由部署运维管理")
+            raise PermissionDenied(_("多租户引擎配置由部署运维管理"))
         super().check_permissions(request)
 
     @action(methods=["get"], detail=False)

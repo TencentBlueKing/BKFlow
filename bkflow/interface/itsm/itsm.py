@@ -30,6 +30,7 @@ from bkflow.contrib.api.collections.itsm import BKItsmClient
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.space.tenant import ensure_space_tenant
 from bkflow.utils.handlers import handle_api_error
+from bkflow.utils.tenant import get_request_tenant_id
 from packages.bkapi.bk_itsm4.shortcuts import get_client_by_username
 
 logger = logging.getLogger("root")
@@ -192,7 +193,7 @@ def itsm_approve_new(request):
     if not ticket_id:
         return _approve_legacy(request, serializer_data, node_outputs)
 
-    tenant_id = request.user.tenant_id
+    tenant_id = get_request_tenant_id(request)
     client = get_client_by_username(username=operator, stage=settings.BK_APIGW_STAGE_NAME)
 
     # 拉取工单详情，先校验 result 再读 data，避免接口失败时直接 KeyError
