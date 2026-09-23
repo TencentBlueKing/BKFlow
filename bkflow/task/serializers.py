@@ -16,10 +16,13 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import copy
 import logging
 
 import jsonschema
+from django.utils.translation import ugettext_lazy as _
+from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
@@ -28,11 +31,14 @@ from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
 from bkflow.task.models import (
     EngineSpaceConfigValueType,
     PeriodicTask,
+    TaskFlowRelation,
     TaskInstance,
     TaskOperationRecord,
 )
-from bkflow.task.operations import TaskNodeOperation
+from bkflow.task.operations import TaskNodeOperation, TaskOperation
+from bkflow.utils.handlers import mask_sensitive_data_for_display
 from bkflow.utils.strings import standardize_pipeline_node_name
+from bkflow.utils.tenant import TenantIDField
 
 logger = logging.getLogger("root")
 
@@ -62,10 +68,20 @@ NOTIFY_CONFIG_SCHEMA = {
 }
 
 
+class CreateTaskMockDataSerializer(serializers.Serializer):
+    nodes = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    outputs = serializers.JSONField(required=False, default=dict)
+    mock_data_ids = serializers.JSONField(required=False, default=dict)
+    fail_nodes = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    errors = serializers.JSONField(required=False, default=dict)
+
+
 class CreateTaskInstanceSerializer(serializers.ModelSerializer):
     pipeline_tree = serializers.JSONField(required=True)
     constants = serializers.JSONField(required=False, default={})
-    mock_data = serializers.JSONField(required=False, default={})
+    mock_data = CreateTaskMockDataSerializer(required=False, default=dict)
+    label_ids = serializers.ListField(required=False, child=serializers.IntegerField())
+    tenant_id = TenantIDField(help_text=_("租户ID"), max_length=32, required=True)
 
     def validate(self, value):
         if value.get("extra_info", {}).get("notify_config") is not None:
@@ -76,8 +92,10 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(str(e))
 
         constants = value.pop("constants", {})
+        credentials = value.pop("credentials", {})
         pipeline_tree = value.get("pipeline_tree")
         try:
+            # 处理constants
             for key, c_value in constants.items():
                 if key not in pipeline_tree.get("constants", {}):
                     continue
@@ -85,12 +103,18 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
                     meta = copy.deepcopy(pipeline_tree["constants"][key])
                     pipeline_tree["constants"][key]["meta"] = meta
                 pipeline_tree["constants"][key]["value"] = c_value
+
+            # 处理credentials - 如果有credentials参数但pipeline_tree中还没有credentials字段，添加它
+            # 注意：在apigw视图中已经解析了credentials，这里只是确保它们被保留
+            if credentials and "credentials" not in pipeline_tree:
+                pipeline_tree["credentials"] = credentials
+
             standardize_pipeline_node_name(pipeline_tree)
             validate_web_pipeline_tree(pipeline_tree)
         except PipelineException as e:
             msg = f"[API] create_task get invalid pipeline_tree: {e}"
             logger.exception(msg)
-            raise serializers.ValidationError(str(e))
+            raise serializers.ValidationError({"pipeline_tree": str(e)})
 
         return value
 
@@ -110,6 +134,8 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
             "scope_value",
             "constants",
             "extra_info",
+            "label_ids",
+            "tenant_id",
         ]
 
 
@@ -117,6 +143,11 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
     create_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     start_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     finish_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
+    extra_info = serializers.SerializerMethodField()
+
+    def get_extra_info(self, obj):
+        """对 extra_info 中的敏感信息（如 credentials）进行脱敏处理"""
+        return mask_sensitive_data_for_display(obj.extra_info)
 
     class Meta:
         model = TaskInstance
@@ -144,6 +175,7 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
 class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
     pipeline_tree = serializers.SerializerMethodField()
     outputs = serializers.SerializerMethodField()
+    elapsed_time = serializers.SerializerMethodField()
 
     def get_pipeline_tree(self, obj):
         return obj.pipeline_tree
@@ -151,6 +183,21 @@ class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
     def get_outputs(self, obj):
         outputs_result = TaskNodeOperation(task_instance=obj, node_id=obj.instance_id).get_outputs()
         return [{"key": key, "value": value} for key, value in outputs_result.data.items()]
+
+    def get_elapsed_time(self, obj):
+        return calculate_elapsed_time(obj.start_time, obj.finish_time)
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.trigger_method == "subprocess":
+            task_flow_relation = TaskFlowRelation.objects.get(task_id=instance.id)
+            parent_task_id = task_flow_relation.parent_task_id
+            task_instance = TaskInstance.objects.get(id=parent_task_id)
+            operation = TaskOperation(task_instance=task_instance).get_task_states()
+            stare = operation.data.get("state") if operation.result is True else None
+
+            representation["parent_task_info"] = {"task_id": parent_task_id, "state": stare}
+        return representation
 
 
 class GetTaskOperationRecordSerializer(serializers.Serializer):
@@ -199,6 +246,12 @@ class GetEngineSpaceConfigSerializer(serializers.Serializer):
 
 
 class PeriodicTaskSerializer(serializers.ModelSerializer):
+    extra_info = serializers.SerializerMethodField()
+
+    def get_extra_info(self, obj):
+        """对 extra_info 中的敏感信息（如 credentials）进行脱敏处理"""
+        return mask_sensitive_data_for_display(obj.extra_info)
+
     class Meta:
         model = PeriodicTask
         fields = "__all__"
@@ -210,6 +263,7 @@ class PeriodicTaskConfigSerializer(serializers.Serializer):
     pipeline_tree = serializers.JSONField(help_text="流程树", required=False, allow_null=True)
     scope_type = serializers.CharField(help_text="流程所属作用域类型", required=False, allow_null=True)
     scope_value = serializers.CharField(help_text="流程所属作用域值", required=False, allow_null=True)
+    tenant_id = TenantIDField(help_text="流程所属租户", required=True)
 
 
 class CreatePeriodicTaskSerializer(serializers.Serializer):
@@ -220,6 +274,13 @@ class CreatePeriodicTaskSerializer(serializers.Serializer):
     creator = serializers.CharField(max_length=100, help_text="创建人", required=True)
     config = PeriodicTaskConfigSerializer(help_text="流程相关信息", required=True)
     extra_info = serializers.JSONField(help_text="额外信息", required=False)
+
+    def validate_cron(self, value):
+        from bkflow.utils.time_zone import _valid_timezone
+
+        if "timezone" in value and not _valid_timezone(value["timezone"]):
+            raise serializers.ValidationError("Invalid IANA timezone")
+        return value
 
     def validate_trigger_id(self, value):
         if PeriodicTask.objects.filter(trigger_id=value).exists():
@@ -255,6 +316,10 @@ class UpdatePeriodicTaskSerializer(serializers.Serializer):
         return instance
 
     def validate_cron(self, cron_data):
+        from bkflow.utils.time_zone import _valid_timezone
+
+        if "timezone" in cron_data and not _valid_timezone(cron_data["timezone"]):
+            raise serializers.ValidationError("Invalid IANA timezone")
         required_fields = ["minute", "hour", "day_of_month", "month_of_year", "day_of_week"]
         if not all(field in cron_data for field in required_fields):
             raise serializers.ValidationError("Cron expression is missing required fields")
@@ -263,3 +328,16 @@ class UpdatePeriodicTaskSerializer(serializers.Serializer):
 
 class BatchDeletePeriodicTaskSerializer(serializers.Serializer):
     trigger_ids = serializers.ListField(child=serializers.IntegerField(), help_text="触发器ID列表", required=True)
+
+
+class LabelRefSerializer(serializers.Serializer):
+    label_ids = serializers.CharField(help_text="标签ID", required=True)
+    space_id = serializers.IntegerField(help_text="空间ID", required=True)
+
+
+class TaskUpdateLabelSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(child=serializers.IntegerField(), help_text="标签ID", required=True)
+
+
+class DeleteTaskLabelRelationSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(child=serializers.IntegerField(), help_text="标签ID", required=True)

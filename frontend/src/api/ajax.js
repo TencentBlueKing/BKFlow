@@ -34,7 +34,9 @@ axios.interceptors.response.use(
         traceId: response.headers['bkflow-engine-trace-id'],
         errorSource: 'result',
       };
-      bus.$emit('showErrMessage', info);
+      if (!response.config.url.includes('template/admin/batch_delete/')) {
+        bus.$emit('showErrMessage', info);
+      }
     }
     return response;
   },
@@ -46,7 +48,6 @@ axios.interceptors.response.use(
     }
 
     const { response } = error;
-    console.log(response);
     if (response.data.message) {
       response.data.msg = response.data.message;
     }

@@ -61,12 +61,16 @@
           :key="node.id"
           :node="node"
           :nodes="job.nodes"
+          :plugins-detail="pluginsDetail"
           :editable="editable"
+          :active-node="activeNode"
           :show-not-allow-move="notAllowMoveIndex === nodeIndex"
           :is-execute="isExecute"
+          :activities="activities"
+          :if-show-step-tool="ifShowStepTool"
           @deleteNode="deletStepNode(nodeIndex)"
           @handleNode="handleNode"
-          @addNewStep="addNewStep(nodeIndex)"
+          @addNewStep="(type)=>addNewStep(nodeIndex,type)"
           @handleOperateNode="handleOperateNode"
           @copyNode="handleCopyStepNode(node,nodeIndex)" />
       </div>
@@ -91,7 +95,6 @@
   </div>
 </template>
 <script>
-import { mapState } from 'vuex';
 import { copyStepNode, transformNodeConfigToRenderItems } from '../utils';
 import ValueRender from './valueRender.vue';
 import StepNode from './StepNode.vue';
@@ -131,6 +134,22 @@ export default {
           type: Boolean,
           default: false,
         },
+        pluginsDetail: {
+          type: Object,
+          default: () => ({}),
+        },
+        activities: {
+          type: Object,
+          default: () => ({}),
+        },
+        activeNode: {
+          type: Object,
+          default: null,
+        },
+        ifShowStepTool: {
+          type: Boolean,
+          default: true,
+        },
     },
     data() {
         return {
@@ -163,9 +182,6 @@ export default {
         };
       },
     computed: {
-      ...mapState({
-        activeNode: state => state.stageCanvas.activeNode,
-      }),
       status() {
         return this.job.state || ETaskStatusType.PENDING;
       },
@@ -186,14 +202,13 @@ export default {
     methods: {
         transformNodeConfigToRenderItems,
         setActiveItem(node) {
-          this.$store.commit('stageCanvas/setActiveNode', node);
+          this.$emit('setActiveNode', node);
         },
         addJob() {
           this.$emit('addNewJob');
         },
-        addNewStep(index) {
-          const newStage = getDefaultNewStep();
-
+        addNewStep(index, type = 'Node') {
+          const newStage = getDefaultNewStep(type);
           this.job.nodes.splice(index + 1, 0,  newStage);
           this.refreshPPLT();
         },

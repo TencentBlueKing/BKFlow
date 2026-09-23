@@ -3,12 +3,12 @@
     theme="light"
     placement="bottom-end"
     ext-cls="custom-node-popover"
-    :disabled="node.mode !== 'execute' || node.task_state === 'REVOKED'"
+    :disabled="node.mode !== 'execute' || node.task_state === 'REVOKED' || node.isSubflowCanvas"
     :distance="5"
     :arrow="false">
     <div class="custom-node">
       <Configs
-        v-if="['task', 'tasknode', 'subprocess'].includes(node.type)"
+        v-if="['task', 'tasknode', 'subflow'].includes(node.type)"
         :node="node"
         @onNodeCheckClick="onNodeCheckClick" />
       <ExecuteStatus
@@ -36,11 +36,12 @@
   import Start from './start.vue';
   import End from './end.vue';
   import Task from './task.vue';
-  // import Subprocess from './subprocess.vue';
+  import Subprocess from './subprocess.vue';
   import BranchGateway from './branch-gateway.vue';
   import ParallelGateway from './parallel-gateway.vue';
   import ConditionalParallelGateway from './conditional-parallel-gateway.vue';
   import ConvergeGateway from './converge-gateway.vue';
+  import LoopNode from './loop.vue';
   import Configs from './setting-flags/configs.vue';
   import ExecuteStatus from './setting-flags/execute-status.vue';
   import Actions from './setting-flags/actions.vue';
@@ -50,11 +51,12 @@
     end: End,
     task: Task,
     tasknode: Task,
-    // subprocess: Subprocess,
+    subflow: Subprocess,
     'branch-gateway': BranchGateway,
     'parallel-gateway': ParallelGateway,
     'conditional-parallel-gateway': ConditionalParallelGateway,
     'converge-gateway': ConvergeGateway,
+    SubCanvas: LoopNode,
   };
 
   export default {
@@ -73,7 +75,11 @@
     computed: {
       comp() {
         const node = this.getNode();
-        const { type } = node.getData();
+        const { type, code } = node.getData();
+        // 独立任务下子流程节点的判断
+        if (code === 'subprocess_plugin' || type === 'SubProcess') {
+          return NODE_COMP_MAP.subflow;
+        }
         return NODE_COMP_MAP[type];
       },
     },
@@ -157,7 +163,6 @@
       transform: rotate(0);
     }
   }
-
   .custom-node {
     width: 100%;
     height: 100%;
@@ -168,6 +173,17 @@
   }
   :deep(.task-node),
   :deep(.subprocess-node) {
+    .node-status-block {
+      .stage-name {
+          padding: 0 4px;
+          width: 170px;
+          font-size: 12px;
+          color: #ffffff;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          overflow: hidden;
+      }
+    }
     .node-name {
       display: flex;
       align-items: center;

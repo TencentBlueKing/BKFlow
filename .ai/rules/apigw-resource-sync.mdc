@@ -1,0 +1,83 @@
+---
+description: 新增或修改 APIGW 接口时，必须同步更新 api-resources.yml 和 apigw-docs.zip
+globs: bkflow/apigw/**/*.py
+alwaysApply: false
+---
+
+# APIGW 资源同步（强制）
+
+新增或修改 `bkflow/apigw/` 下的视图、序列化器、URL 路由时，**必须**同步完成以下三项，缺一不可：
+
+## 必须同步的文件
+
+| 文件 | 说明 |
+|------|------|
+| `bkflow/apigw/management/commands/data/api-resources.yml` | 网关资源定义（OpenAPI 3.0 格式） |
+| `bkflow/apigw/docs/zh/{api_name}.md` | 接口中文文档 |
+| `bkflow/apigw/docs/apigw-docs.zip` | 文档压缩包（由脚本生成） |
+
+## 操作步骤
+
+1. **更新 `api-resources.yml`**：在 `paths` 下新增/修改对应资源，包含完整的 `operationId`、`description`、`parameters`（path/query）、`requestBody`（POST）、`responses`、`x-bk-apigateway-resource` 配置
+2. **更新接口文档**：在 `bkflow/apigw/docs/zh/` 下创建或更新对应的 `.md` 文件（遵循 `api-doc-sync` skill 的格式规范）
+3. **重新生成 zip**：执行 `bash scripts/apigw_docs.sh`，将更新后的 `apigw-docs.zip` 纳入同一次 commit
+
+## api-resources.yml 格式参考
+
+GET 接口查询参数用 `parameters[].in: query`，POST 接口用 `requestBody`。每个资源必须包含：
+
+```yaml
+/space/{space_id}/your_api_name/:
+  get:  # 或 post
+    operationId: your_api_name
+    description: 接口中文描述
+    tags: []
+    responses:
+      '200':
+        description: ''
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                result:
+                  type: boolean
+                data: ...
+                message:
+                  type: string
+                code:
+                  type: integer
+                trace_id:
+                  type: string
+    parameters:
+    - in: path
+      name: space_id
+      schema:
+        type: string
+      required: true
+      description: ''
+    x-bk-apigateway-resource:
+      isPublic: true
+      allowApplyPermission: true
+      matchSubpath: false
+      backend:
+        method: get
+        path: /{env.api_sub_path}apigw/space/{space_id}/your_api_name/
+        matchSubpath: false
+        timeout: 0
+        name: default
+      authConfig:
+        userVerifiedRequired: false
+        appVerifiedRequired: true
+        resourcePermissionRequired: true
+      disabledStages: []
+      descriptionEn: English description
+      enableWebsocket: false
+      pluginConfigs: []
+```
+
+## 禁止事项
+
+- **禁止**只提交视图/序列化器代码而不更新 `api-resources.yml`
+- **禁止**更新文档后不重新生成 `apigw-docs.zip`
+- **禁止**手动编辑 `apigw-docs.zip`，必须通过 `bash scripts/apigw_docs.sh` 生成

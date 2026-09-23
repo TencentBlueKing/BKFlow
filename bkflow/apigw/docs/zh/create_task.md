@@ -1,3 +1,9 @@
+### 租户访问约束
+
+开启多租户时，全租户应用必须通过 `X-Bk-Tenant-Id` 指定本次请求租户；单租户应用可省略该头，使用 JWT 中已认证的应用租户，显式传入时必须一致。本次请求租户必须与资源所属空间租户一致；同一个全租户应用应在各租户分别创建空间。原有应用与空间/模板绑定仍需满足。若 JWT 包含已认证用户，其租户也必须一致。缺少或不匹配时拒绝请求。
+
+应用态接口不要求额外用户身份。SDK 用户态接口仍要求已认证用户，平台管理员和空间管理员同样不能跨租户。关闭多租户模式时保持单租户行为。
+
 ### 资源描述
 
 创建任务
@@ -11,14 +17,95 @@
 
 #### 接口参数
 
-| 字段          | 类型     | 必选 | 描述     |
-|-------------|--------|----|--------|
-| template_id | int    | 是  | 模板id   |
-| name        | string | 否  | 任务名    |
-| creator     | string | 是  | 创建者    |
-| description | string | 否  | 描述     |
-| constants   | json   | 否  | 任务启动参数 |
+| 字段                    | 类型     | 必选 | 描述                                                       |
+|----------------------|--------|----|--------------------------------------------------------|
+| template_id           | int    | 是  | 模板id                                                   |
+| name                  | string | 否  | 任务名                                                    |
+| creator               | string | 是  | 创建者                                                    |
+| description           | string | 否  | 描述                                                     |
+| constants             | json   | 否  | 任务启动参数                                                 |
+| credentials           | dict   | 否  | 凭证字典，用于传递API调用所需的凭证信息，详见下方说明                            |
+| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到执行级根 Span 和所有节点上报的 Span 中，详见下方说明                    |
+| label_ids             | list   | 否  | 标签ID列表 |
 
+### 开放插件治理说明
+
+当模板中包含标准运维开放插件（`uniform_api v4.0.0`）时，创建任务前会做服务端治理校验：
+
+- 插件必须仍存在于当前空间的开放插件目录中
+- 插件状态必须为可用
+- 插件业务版本必须仍在目录可用版本列表中
+- 插件必须已在当前空间开启
+
+校验通过后，BKFlow 会在任务 `extra_info` 中写入开放插件引用快照与 schema 快照，供后续执行与历史回看使用。
+
+
+### credentials 参数说明
+
+`credentials` 参数用于在创建任务时传递 API 调用所需的凭证信息。该参数是一个字典类型，字典的 key 为凭证的标识名称，value 为 base64 编码的 JSON 字符串。
+
+**凭证格式要求：**
+- key：凭证的标识名称
+- value：base64 编码的 JSON 字符串，解码后必须是一个包含 `bk_app_code` 和 `bk_app_secret` 字段的字典对象
+
+**对于API插件凭证使用优先级：**
+1. 如果任务创建时传入了 `credentials` 参数，且凭证 key 与空间配置中的 `api_gateway_credential_name` 匹配，则优先使用用户传入的凭证
+2. 如果用户未提供凭证或凭证 key 不匹配，则使用空间配置中的 `credential` 配置
+
+**凭证示例：**
+```json
+{
+    "credentials": {
+        "my_credential": "eyJia19hcHBfY29kZSI6ICJteV9hcHAiLCAiYmtfYXBwX3NlY3JldCI6ICJteV9zZWNyZXQifQ=="
+    }
+}
+```
+
+其中，base64 解码后的内容为：
+```json
+{
+    "bk_app_code": "my_app",
+    "bk_app_secret": "my_secret"
+}
+```
+
+**注意事项：**
+- 凭证信息会被存储在任务的 `extra_info.custom_context.credentials` 中，供流程执行时使用
+- 凭证信息仅用于统一 API 插件（uniform_api）的 API 调用认证
+- 如果空间配置中设置了 `api_gateway_credential_name` 为字典格式（支持按 scope 配置不同凭证），系统会根据任务的 scope_type 和 scope_value 匹配对应的凭证名称
+
+### custom_span_attributes 参数说明
+
+`custom_span_attributes` 参数用于在创建任务时传递自定义属性到执行级根 Span 和所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
+
+**参数格式要求：**
+- 类型：字典（dict）
+- key：自定义属性名称（字符串）
+- value：自定义属性值（字符串、数字等可序列化的值）
+
+**使用场景：**
+- 业务埋点：传入业务ID、订单ID等业务标识进行埋点上报
+- 请求埋点：传入请求ID、调用链ID等请求标识进行埋点上报
+- 环境埋点：传入环境类型、区域等环境信息进行埋点上报
+
+**参数示例：**
+```json
+{
+    "custom_span_attributes": {
+        "business_id": "12345",
+        "request_id": "req-abc-123",
+        "user_type": "vip",
+        "env": "prod"
+    }
+}
+```
+
+**注意事项：**
+- 自定义属性会被存储在任务的 `extra_info.custom_context.custom_span_attributes` 中
+- 这些属性会添加到执行级根 Span 中，属性名格式为 `bkflow.<key>`
+- 这些属性会通过 `TaskContext` 传递到所有节点的 Span 中
+- 节点 Span 中自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
+- 执行级根 Span 会保留 `task_id`、`space_id`、`pipeline_instance_id`、`operator` 等内置属性，不会被自定义属性覆盖
 
 ### 请求参数示例
 
@@ -26,7 +113,33 @@
 {
     "name": "空间名",
     "template_id": 4,
-    "creator": "创建者"
+    "creator": "创建者",
+    "label_ids": [1, 2, 3]
+}
+```
+
+带凭证的请求参数示例：
+```json
+{
+    "name": "空间名",
+    "template_id": 4,
+    "creator": "创建者",
+    "credentials": {
+        "my_credential": "eyJia19hcHBfY29kZSI6ICJteV9hcHAiLCAiYmtfYXBwX3NlY3JldCI6ICJteV9zZWNyZXQifQ=="
+    }
+}
+```
+
+带自定义 Span 属性的请求参数示例：
+```json
+{
+    "name": "空间名",
+    "template_id": 4,
+    "creator": "创建者",
+    "custom_span_attributes": {
+        "business_id": "12345",
+        "request_id": "req-abc-123"
+    }
 }
 ```
 
@@ -57,12 +170,24 @@
 		"snapshot_id": 3,
 		"execution_snapshot_id": 8,
 		"tree_info_id": null,
-		"extra_info": {}
+		"extra_info": {},
+		"labels": []
 		},
 	"code": "0",
 	"message": ""
 }
 
+```
+
+开放插件未开放时的失败示例：
+
+```json
+{
+    "result": false,
+    "code": 400,
+    "data": null,
+    "message": "开放插件 [open_plugin_001] 在当前空间未开放"
+}
 ```
 ### 返回结果参数说明
 
@@ -99,3 +224,4 @@
 | execution_snapshot_id | int    | 执行快照ID   |
 | tree_info_id          | int    | 任务拓扑信息ID |
 | extra_info            | dict   | 任务额外信息   |
+| labels                | list   | 标签列表（标签对象数组） |

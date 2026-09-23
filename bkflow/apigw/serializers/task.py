@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,38 +16,139 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
+import base64
+import binascii
+import json
+
+from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 
 from bkflow.constants import MAX_LEN_OF_TASK_NAME, USER_NAME_MAX_LENGTH
+from bkflow.label.models import Label
 from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
 from bkflow.template.models import TemplateMockData
 from bkflow.utils.strings import standardize_pipeline_node_name
 
 
-class CreateTaskSerializer(serializers.Serializer):
+def _validate_task_label_ids(label_ids, space_id):
+    if not label_ids:
+        return
+
+    if space_id is None:
+        raise serializers.ValidationError(_("space_id 不能为空"))
+
+    if not Label.objects.check_label_ids(label_ids):
+        raise serializers.ValidationError(_("标签不存在，请检查 label_ids"))
+
+    invalid_scope_label_ids = list(
+        Label.objects.filter(id__in=label_ids)
+        .exclude(Q(label_scope__contains=["task"]) | Q(label_scope__contains=["common"]))
+        .values_list("id", flat=True)
+    )
+    if invalid_scope_label_ids:
+        raise serializers.ValidationError(_("标签范围校验失败，请选择 task 或 common 范围的标签"))
+
+    parent_label_ids = list(
+        Label.objects.filter(space_id=int(space_id), parent_id__in=label_ids)
+        .values_list("parent_id", flat=True)
+        .distinct()
+    )
+    if parent_label_ids:
+        raise serializers.ValidationError(_("父标签不能单独作为标签使用，请选择具体的子标签"))
+
+
+class CredentialsValidationMixin(serializers.Serializer):
+    """凭证验证 Mixin，提供 credentials 字段和验证逻辑"""
+
+    credentials = serializers.DictField(
+        help_text=_("凭证字典，key为凭证的key，value为base64 encode的json序列化的字典"),
+        required=False,
+        default={},
+    )
+
+    def validate_credentials(self, value):
+        """验证并反序列化credentials中的base64编码的json字符串"""
+        if not value:
+            return {}
+
+        decoded_credentials = {}
+        for cred_key, cred_value in value.items():
+            if not isinstance(cred_value, str):
+                raise serializers.ValidationError(_("凭证 {key} 的值必须是base64编码的json字符串").format(key=cred_key))
+
+            try:
+                # 解码base64
+                credential_json = base64.b64decode(cred_value).decode("utf-8")
+                # 解析json
+                credential_dict = json.loads(credential_json)
+
+                # 验证是否为字典类型
+                if not isinstance(credential_dict, dict):
+                    raise serializers.ValidationError(_("凭证 {key} 解码后的内容必须是json对象").format(key=cred_key))
+
+                decoded_credentials[cred_key] = credential_dict
+            except binascii.Error:
+                raise serializers.ValidationError(_("凭证 {key} 的值不是有效的base64编码").format(key=cred_key))
+            except json.JSONDecodeError as e:
+                raise serializers.ValidationError(
+                    _("凭证 {key} 解码后的内容不是有效的json格式: {error}").format(key=cred_key, error=str(e))
+                )
+            except UnicodeDecodeError:
+                raise serializers.ValidationError(_("凭证 {key} 解码后的内容不是有效的UTF-8编码").format(key=cred_key))
+
+        return decoded_credentials
+
+
+class CreateTaskSerializer(CredentialsValidationMixin, serializers.Serializer):
     template_id = serializers.IntegerField(help_text=_("模版ID"))
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
-    description = serializers.CharField(help_text=_("任务描述"), required=False)
+    description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    custom_span_attributes = serializers.DictField(
+        help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
+    )
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), child=serializers.IntegerField(), required=False)
+
+    def validate(self, attrs):
+        if "label_ids" in attrs:
+            _validate_task_label_ids(attrs.get("label_ids") or [], self.context.get("space_id"))
+        return attrs
+
+
+class CreateTaskByAppSerializer(serializers.Serializer):
+    """创建任务序列化器（用于基于 bk_app_code 的接口，creator 从网关认证用户获取）"""
+
+    template_id = serializers.IntegerField(help_text=_("模版ID"))
+    name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
+    description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
+    constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    custom_span_attributes = serializers.DictField(
+        help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
+    )
 
 
 class TaskMockDataSerializer(serializers.Serializer):
     nodes = serializers.ListSerializer(help_text=_("要 Mock 执行的节点 ID 列表"), child=serializers.CharField(), default=[])
     outputs = serializers.JSONField(help_text=_('节点 Mock 输出, 形如{"node_id": {"output1": "output_value1"}}'), default={})
     mock_data_ids = serializers.JSONField(
-        help_text=_("节点 Mock 数据，当 outputs 为空时会提取对应 mock_data_ids 设置 outputs，否则仅记录作用"), default={}
+        help_text=_("节点 Mock 数据，当 outputs 为空时会提取对应 mock_data_ids 设置 outputs，否则仅记录作用"),
+        default={},
     )
 
 
-class CreateMockTaskBaseSerializer(serializers.Serializer):
+class CreateMockTaskBaseSerializer(CredentialsValidationMixin, serializers.Serializer):
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=True)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     mock_data = TaskMockDataSerializer(help_text=_("Mock 数据"), default=TaskMockDataSerializer())
-    description = serializers.CharField(help_text=_("任务描述"), required=False)
+    description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), default={})
+    custom_span_attributes = serializers.DictField(
+        help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
+    )
 
 
 class CreateMockTaskWithPipelineTreeSerializer(CreateMockTaskBaseSerializer):
@@ -80,15 +180,19 @@ class CreateMockTaskWithTemplateIdSerializer(CreateMockTaskBaseSerializer):
         return attrs
 
 
-class CreateTaskWithoutTemplateSerializer(serializers.Serializer):
+class CreateTaskWithoutTemplateSerializer(CredentialsValidationMixin, serializers.Serializer):
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=True)
     scope_type = serializers.CharField(help_text=_("任务范围类型"), max_length=128, required=False)
     scope_value = serializers.CharField(help_text=_("任务范围值"), max_length=128, required=False)
-    description = serializers.CharField(help_text=_("任务描述"), required=False)
+    description = serializers.CharField(help_text=_("任务描述"), required=False, allow_blank=True)
     constants = serializers.JSONField(help_text=_("任务启动参数"), required=False, default={})
+    credentials = serializers.JSONField(help_text=_("任务凭证"), required=False, default={})
     pipeline_tree = serializers.JSONField(help_text=_("任务树"), required=True)
     notify_config = serializers.JSONField(help_text=_("通知配置"), required=False, default={})
+    custom_span_attributes = serializers.DictField(
+        help_text=_("自定义 Span 属性，会添加到所有节点上报的 Span 中"), required=False, default={}
+    )
 
 
 class PipelineTreeSerializer(serializers.Serializer):
@@ -99,7 +203,7 @@ class PipelineTreeSerializer(serializers.Serializer):
             standardize_pipeline_node_name(pipeline_tree)
             validate_web_pipeline_tree(pipeline_tree)
         except PipelineException as e:
-            raise serializers.ValidationError(str(e))
+            raise serializers.ValidationError(_("流程树校验失败: {}").format(str(e)))
 
 
 class GetTaskListSerializer(serializers.Serializer):
@@ -111,6 +215,25 @@ class GetTaskListSerializer(serializers.Serializer):
     create_at_end = serializers.DateTimeField(help_text=_("创建时间结束"), required=False)
     creator = serializers.CharField(help_text=_("创建者"), max_length=USER_NAME_MAX_LENGTH, required=False)
     name = serializers.CharField(help_text=_("任务名"), max_length=MAX_LEN_OF_TASK_NAME, required=False)
+    id = serializers.IntegerField(help_text=_("任务ID"), required=False)
+    task_id_list = serializers.ListField(
+        help_text=_("任务ID列表，按列表精确过滤；GET 重复 key 传参，例如 ?task_id_list=1&task_id_list=3"),
+        child=serializers.IntegerField(),
+        required=False,
+        min_length=1,
+        max_length=50,
+        error_messages={
+            "min_length": _("task_id_list 不能为空，至少需要包含一个任务ID"),
+            "max_length": _("task_id_list 不能超过50个长度"),
+        },
+    )
+    executor = serializers.CharField(help_text=_("执行者"), max_length=USER_NAME_MAX_LENGTH, required=False)
+    template_id = serializers.IntegerField(help_text=_("流程ID"), required=False)
+    label = serializers.CharField(help_text=_("标签名称"), required=False)
+    is_child_taskflow = serializers.CharField(help_text=_("过滤子任务"), required=False, default="false")
+
+    def validate_task_id_list(self, value):
+        return ",".join(str(i) for i in value)
 
 
 class GetTasksStatesSerializer(serializers.Serializer):
@@ -125,6 +248,42 @@ class OperateTaskNodeSerializer(serializers.Serializer):
     operator = serializers.CharField(help_text=_("操作人"), max_length=USER_NAME_MAX_LENGTH, required=True)
 
 
+class OpenPluginCallbackSerializer(serializers.Serializer):
+    open_plugin_run_id = serializers.CharField(help_text=_("开放插件运行实例 ID"), required=True)
+    status = serializers.CharField(help_text=_("开放插件运行状态"), required=True)
+    outputs = serializers.DictField(help_text=_("开放插件输出"), required=False)
+    error_message = serializers.CharField(help_text=_("失败原因"), required=False, allow_blank=True)
+    truncated = serializers.BooleanField(help_text=_("输出是否被截断"), required=False)
+    truncated_fields = serializers.ListField(
+        help_text=_("被截断的字段列表"),
+        child=serializers.CharField(),
+        required=False,
+    )
+
+
 class GetTaskNodeDetailSerializer(serializers.Serializer):
     loop = serializers.IntegerField(help_text=_("循环次数"), required=False)
     component_code = serializers.CharField(help_text=_("组件code"), max_length=128, required=False)
+    include_snapshot_config = serializers.BooleanField(
+        help_text=_("是否在返回结果中包含节点配置快照(snapshot_config)，默认不返回"), required=False, default=False
+    )
+
+
+class BatchTaskSerializer(serializers.Serializer):
+    is_full = serializers.BooleanField(required=False, default=False)
+    is_mock = serializers.BooleanField(required=False)
+    task_ids = serializers.ListField(required=False, child=serializers.IntegerField(), default=[])
+
+    def validate(self, attrs):
+        if attrs.get("is_full") and "is_mock" not in attrs:
+            raise serializers.ValidationError("is_mock must exist when delete all tasks")
+
+        return attrs
+
+
+class UpdateTaskLabelsSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), required=True, child=serializers.IntegerField())
+
+    def validate_label_ids(self, value):
+        _validate_task_label_ids(value, self.context.get("space_id"))
+        return value

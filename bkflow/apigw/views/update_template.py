@@ -19,18 +19,35 @@ to the current version of the project delivered to anyone in the future.
 import json
 
 from blueapps.account.decorators import login_exempt
+from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.exceptions import UpdateTemplateException
-from bkflow.apigw.serializers.template import UpdateTemplateSerializer
-from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
-from bkflow.contrib.operation_record.decorators import record_operation
+from bkflow.apigw.serializers.template import (
+    UpdateTemplateLabelsSerializer,
+    UpdateTemplateSerializer,
+)
+from bkflow.constants import TemplateOperationSource, TemplateOperationType
 from bkflow.exceptions import ValidationError
-from bkflow.template.models import Template
+from bkflow.label.models import Label, TemplateLabelRelation
+from bkflow.label.serializers import LabelSerializer
+from bkflow.space.configs import FlowVersioning
+from bkflow.space.models import SpaceConfig
+from bkflow.template.models import (
+    Template,
+    TemplateOperationRecord,
+    TemplateSnapshot,
+    Trigger,
+)
+from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.utils import err_code
+from bkflow.utils.canvas import OperateType
+from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
+from bkflow.utils.version import bump_custom
+from bkflow.utils.webhook import apply_webhook_configs, clear_scope_webhooks
 
 
 @login_exempt
@@ -38,16 +55,10 @@ from bkflow.utils import err_code
 @require_POST
 @check_jwt_and_space
 @return_json_response
-@record_operation(
-    RecordType.template.name,
-    TemplateOperationType.update.name,
-    TemplateOperationSource.api.name,
-    extra_info={"tag": "apigw"},
-)
 def update_template(request, space_id, template_id):
     data = json.loads(request.body)
 
-    ser = UpdateTemplateSerializer(data=data, context={"request": request})
+    ser = UpdateTemplateSerializer(data=data, context={"request": request, "space_id": int(space_id)})
 
     try:
         ser.is_valid(raise_exception=True)
@@ -56,15 +67,148 @@ def update_template(request, space_id, template_id):
 
     validated_data_dict = dict(ser.data)
 
+    auto_release = validated_data_dict.pop("auto_release", False)
+    version = validated_data_dict.pop("version", None)
+    triggers = validated_data_dict.pop("triggers", None)
+
+    pipeline_tree = validated_data_dict.pop("pipeline_tree", None)
+    if pipeline_tree:
+        replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
+
+    label_ids = validated_data_dict.pop("label_ids", None)
+    if label_ids is not None:
+        label_ids = list(set(label_ids))
+
     validated_data_dict["updated_by"] = validated_data_dict.pop("operator", None) or request.user.username
-    template = Template.objects.filter(id=template_id, space_id=space_id, is_deleted=False)
-    if not template.exists():
-        raise UpdateTemplateException(_(f"模板不存在，template_id:{template_id}"))
-    success = template.update(**validated_data_dict)
-    # 表示更新失败
-    if not success:
-        raise UpdateTemplateException(_(f"请检查参数，params:{validated_data_dict}"))
+    with transaction.atomic():
+        try:
+            template = Template.objects.get(id=template_id, space_id=space_id, is_deleted=False)
+        except Template.DoesNotExist:
+            raise UpdateTemplateException(_(f"模板不存在，template_id:{template_id}"))
+
+        # 添加更新记录
+        TemplateOperationRecord.objects.create(
+            operate_source=TemplateOperationSource.api.name,
+            operate_type=TemplateOperationType.update.name,
+            instance_id=template.id,
+            operator=validated_data_dict["updated_by"],
+        )
+
+        if pipeline_tree:
+            if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+                try:
+                    TemplateSnapshot.objects.get(template_id=template_id, draft=True)
+                    template_version = None
+                except TemplateSnapshot.DoesNotExist:
+                    template_version = template.version
+                # 更新草稿数据
+                template.update_draft_snapshot(pipeline_tree, validated_data_dict["updated_by"], template_version)
+
+                if auto_release:
+                    if version:
+                        release_version = version
+                    elif template.snapshot_version:
+                        release_version = bump_custom(template.snapshot_version)
+                    else:
+                        release_version = "1.0.0"
+
+                    if TemplateSnapshot.objects.filter(template_id=template.id, version=release_version).exists():
+                        raise UpdateTemplateException(_(f"版本号已存在: {version}"))
+                    try:
+                        bump_custom(release_version, template.snapshot_version)
+                    except Exception as e:
+                        raise UpdateTemplateException(_(f"版本号不符合规范: {str(e)}"))
+
+                    snapshot = template.release_template(
+                        {"version": release_version, "username": validated_data_dict["updated_by"]}
+                    )
+                    template.snapshot_id = snapshot.id
+
+                    # 添加发布记录
+                    TemplateOperationRecord.objects.create(
+                        operate_source=TemplateOperationSource.api.name,
+                        operate_type=TemplateOperationType.release.name,
+                        instance_id=template.id,
+                        operator=validated_data_dict["updated_by"],
+                        extra_info={"version": release_version},
+                    )
+            else:
+                if not template.snapshot_version:
+                    current_version = "1.0.0"
+                else:
+                    current_version = bump_custom(template.snapshot_version)
+                snapshot = TemplateSnapshot.create_snapshot(
+                    pipeline_tree, validated_data_dict["updated_by"], current_version
+                )
+                validated_data_dict["snapshot_id"] = snapshot.id
+                snapshot.template_id = template.id
+                snapshot.save(update_fields=["template_id"])
+
+        for key, value in validated_data_dict.items():
+            setattr(template, key, value)
+        try:
+            template.save()
+        except Exception as e:
+            raise UpdateTemplateException(_(f"保存模板失败，错误: {str(e)}"))
+
+        # 批量修改流程绑定的触发器:
+        try:
+            if triggers is not None:
+                Trigger.objects.compare_constants(
+                    template.pipeline_tree.get("constants", {}),
+                    (pipeline_tree or template.pipeline_tree).get("constants", {}),
+                    triggers,
+                )
+                Trigger.objects.batch_modify_triggers(template, triggers, validated_data_dict["updated_by"])
+        except Exception as e:
+            raise UpdateTemplateException(_(f"更新失败，错误: {str(e)}"))
+
+        enable_webhook = validated_data_dict.pop("enable_webhook", None)
+        webhook_configs = validated_data_dict.pop("webhook_configs", [])
+        if enable_webhook is True and webhook_configs:
+            apply_result = apply_webhook_configs(webhook_configs, str(template.id))
+            if not apply_result["result"]:
+                message = apply_result["message"]
+                raise UpdateTemplateException(_(f"保存模板失败，错误: {str(message)}"))
+        elif enable_webhook is False:
+            clear_scope_webhooks([str(template.id)])
+
+        if label_ids is not None:
+            TemplateLabelRelation.objects.set_labels(template.id, label_ids)
 
     template = Template.objects.get(id=template_id)
 
-    return {"result": True, "data": template.to_json(), "code": err_code.SUCCESS.code}
+    resp_data = template.to_json()
+    template_triggers = Trigger.objects.filter(template_id=template.id, is_deleted=False)
+    resp_data["triggers"] = TriggerSerializer(template_triggers, many=True).data
+
+    current_label_ids = list(
+        TemplateLabelRelation.objects.filter(template_id=template.id).values_list("label_id", flat=True)
+    )
+    resp_data["labels"] = (
+        LabelSerializer(Label.objects.filter(id__in=current_label_ids), many=True).data if current_label_ids else []
+    )
+
+    return {"result": True, "data": resp_data, "code": err_code.SUCCESS.code}
+
+
+@login_exempt
+@csrf_exempt
+@require_POST
+@check_jwt_and_space
+@return_json_response
+def update_template_labels(request, space_id, template_id):
+    data = json.loads(request.body or "{}")
+    ser = UpdateTemplateLabelsSerializer(data=data, context={"space_id": int(space_id)})
+    ser.is_valid(raise_exception=True)
+
+    label_ids = list(set(ser.validated_data.get("label_ids", [])))
+
+    with transaction.atomic():
+        try:
+            template = Template.objects.get(id=template_id, space_id=space_id, is_deleted=False)
+        except Template.DoesNotExist:
+            raise UpdateTemplateException(_(f"模板不存在，template_id:{template_id}"))
+        TemplateLabelRelation.objects.set_labels(template.id, label_ids)
+
+    return {"result": True, "data": label_ids, "code": err_code.SUCCESS.code}

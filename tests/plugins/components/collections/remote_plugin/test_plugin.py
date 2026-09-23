@@ -10,7 +10,7 @@ an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express o
 specific language governing permissions and limitations under the License.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 from pipeline.component_framework.test import (
@@ -28,6 +28,16 @@ from bkflow.pipeline_plugins.components.collections.remote_plugin.v1_0_0 import 
 
 
 class RemotePluginComponentTest(TestCase, ComponentTestMixin):
+    def setUp(self):
+        # 默认关闭trace开关
+        self.trace_patcher = patch("django.conf.settings.ENABLE_OTEL_TRACE", False)
+        self.trace_patcher.start()
+        super().setUp()
+
+    def tearDown(self):
+        self.trace_patcher.stop()
+        super().tearDown()
+
     def component_cls(self):
         # return the component class which should be tested
         return RemotePluginComponent

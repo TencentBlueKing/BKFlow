@@ -170,26 +170,42 @@
 </template>
 
 <script>
+  import titleBgBlueUrl from '@/assets/images/home/title-bg-blue.png';
+  import titleBgOrangeUrl from '@/assets/images/home/title-bg-orange.png';
+  import bkFlowUrl from '@/assets/images/home/bk-flow.png';
+  import illustration1Url from '@/assets/images/home/illustration-1.png';
+  import functionBgUrl from '@/assets/images/home/function-bg.png';
+  import function1Url from '@/assets/images/home/function-1.png';
+  import function2Url from '@/assets/images/home/function-2.png';
+  import function3Url from '@/assets/images/home/function-3.png';
+  import accessBgUrl from '@/assets/images/home/access-bg.png';
+  import illustration2Url from '@/assets/images/home/illustration-2.png';
+  import accessTitleUrl from '@/assets/images/home/access-title.png';
+  import plugin1Url from '@/assets/images/home/plugin-1.png';
+  import plugin2Url from '@/assets/images/home/plugin-2.png';
+  import plugin3Url from '@/assets/images/home/plugin-3.png';
+  import plugin4Url from '@/assets/images/home/plugin-4.png';
+  import accessTitleEnUrl from '@/assets/images/home/access-title-en.png';
   export default {
     name: 'Home',
     data() {
       return {
-        image1: require('@/assets/images/home/title-bg-blue.png'),
-        image2: require('@/assets/images/home/title-bg-orange.png'),
-        image3: require('@/assets/images/home/bk-flow.png'),
-        image4: require('@/assets/images/home/illustration-1.png'),
-        image5: require('@/assets/images/home/function-bg.png'),
-        image6: require('@/assets/images/home/function-1.png'),
-        image7: require('@/assets/images/home/function-2.png'),
-        image8: require('@/assets/images/home/function-3.png'),
-        image9: require('@/assets/images/home/access-bg.png'),
-        image10: require('@/assets/images/home/illustration-2.png'),
-        image11: require('@/assets/images/home/access-title.png'),
-        image12: require('@/assets/images/home/plugin-1.png'),
-        image13: require('@/assets/images/home/plugin-2.png'),
-        image14: require('@/assets/images/home/plugin-3.png'),
-        image15: require('@/assets/images/home/plugin-4.png'),
-        image16: require('@/assets/images/home/access-title-en.png'),
+        image1: titleBgBlueUrl,
+        image2: titleBgOrangeUrl,
+        image3: bkFlowUrl,
+        image4: illustration1Url,
+        image5: functionBgUrl,
+        image6: function1Url,
+        image7: function2Url,
+        image8: function3Url,
+        image9: accessBgUrl,
+        image10: illustration2Url,
+        image11: accessTitleUrl,
+        image12: plugin1Url,
+        image13: plugin2Url,
+        image14: plugin3Url,
+        image15: plugin4Url,
+        image16: accessTitleEnUrl,
         isEnglish: false,
       };
     },

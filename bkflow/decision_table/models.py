@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -62,12 +61,15 @@ class DecisionTable(CommonModel):
             raise ValueError(f"Template {self.template_id} does not exist")
 
         try:
-            matched_node_ids = [
-                node["id"]
-                for node in template.pipeline_tree[PE.activities].values()
-                if node["component"]["code"] == DmnPluginComponent.code
-                and node["component"]["data"]["table_id"]["value"] == self.id
-            ]
+            matched_node_ids = []
+            for node in template.pipeline_tree[PE.activities].values():
+                if node["type"] == "SubProcess":
+                    continue
+                if (
+                    node["component"]["code"] == DmnPluginComponent.code
+                    and node["component"]["data"]["table_id"]["value"] == self.id
+                ):
+                    matched_node_ids.append(node["id"])
         except KeyError as e:
             msg = f"template {template.id} nodes parsing error: {e}"
             logger.exception(msg)

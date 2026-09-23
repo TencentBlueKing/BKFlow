@@ -24,6 +24,15 @@
         <bk-table-column
           show-overflow-tooltip
           :render-header="renderTableHeader"
+          :label="$t('版本')"
+          prop="version">
+          <template slot-scope="{ row }">
+            <span>{{ row.version || '--' }}</span>
+          </template>
+        </bk-table-column>
+        <bk-table-column
+          show-overflow-tooltip
+          :render-header="renderTableHeader"
           :label="$t('操作来源')"
           prop="operate_source_name" />
         <bk-table-column

@@ -28,6 +28,7 @@ USER_NAME_MAX_LENGTH = 32
 ALL_SPACE = "*"
 WHITE_LIST = "white_list"
 BK_PLUGIN_SYNC_NUM = 100
+TEMPLATE_MD5SUM_LENGTH = 32
 
 formatted_key_pattern = re.compile(r"^\${(.*?)}$")
 
@@ -58,7 +59,9 @@ class TaskOperationType(Enum):
     # 任务节点操作
     callback = _("回调")
     retry = _("重试")
+    loop_retry = _("循环重试")
     skip = _("跳过")
+    loop_skip = _("循环跳过")
     skip_exg = _("跳过失败网关")
     skip_cpg = _("跳过并行条件网关")
     pause_subproc = _("暂停节点")
@@ -80,6 +83,8 @@ class TemplateOperationType(Enum):
     create = _("创建")
     delete = _("删除")
     update = _("修改")
+    release = _("发布")
+    rollback = _("回滚")
 
 
 class TaskTriggerMethod(Enum):
@@ -88,6 +93,8 @@ class TaskTriggerMethod(Enum):
     api = _("api")
     manual = _("手动")
     timing = _("定时")
+    subprocess = _("子流程")
+    sub_canvas = _("子画布")
 
 
 class TemplateOperationSource(Enum):
@@ -95,6 +102,7 @@ class TemplateOperationSource(Enum):
 
     app = _("app 页面")
     api = _("api 接口")
+    parent = _("父任务")
 
 
 class RecordType(Enum):
@@ -109,6 +117,7 @@ class WebhookScopeType(Enum):
     """webhook作用域类型"""
 
     SPACE = "space"
+    TEMPLATE = "template"
 
 
 class WebhookEventType(Enum):
@@ -116,9 +125,20 @@ class WebhookEventType(Enum):
 
     TEMPLATE_UPDATE = "template_update"
     TEMPLATE_CREATE = "template_create"
+    TEMPLATE_RELEASE = "template_release"
     TASK_FAILED = "task_failed"
     TASK_FINISHED = "task_finished"
     TASK_CREATE = "task_create"
+    TASK_PAUSED = "task_paused"
+    TASK_RESUMED = "task_resumed"
+    TASK_REVOKED = "task_revoked"
+
+
+OPERATE_EVENT_MAP = {
+    "pause": WebhookEventType.TASK_PAUSED.value,
+    "resume": WebhookEventType.TASK_RESUMED.value,
+    "revoke": WebhookEventType.TASK_REVOKED.value,
+}
 
 
 class TriggerConstantsMode(Enum):
@@ -126,3 +146,13 @@ class TriggerConstantsMode(Enum):
 
     FORM = "form"
     JSON = "json"
+
+
+class VariableType(Enum):
+    """变量类型"""
+
+    SPACE = "space"
+    SCOPE = "scope"
+
+
+VARIABLE_TYPES = [VariableType.SPACE.value, VariableType.SCOPE.value]

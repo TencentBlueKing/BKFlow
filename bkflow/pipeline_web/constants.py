@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -32,6 +31,7 @@ class PipelineWebElement(PipelineElement):
     endpoint = "endpoint"
     tasknode = "tasknode"
     subflow = "subflow"
+    subcanvas = "subcanvas"
     branchgateway = "branchgateway"
     parallelgateway = "parallelgateway"
     convergegateway = "convergegateway"

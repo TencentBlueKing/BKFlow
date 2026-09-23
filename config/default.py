@@ -29,6 +29,11 @@ from blueapps.opentelemetry.utils import inject_logging_trace_info
 import env
 from bkflow.utils.pipeline import pipeline_gateway_expr_func
 
+# 平台代码
+PLATFORM_CODE = "bkflow"
+BKFLOW_PLATFORM_API_MODE = env.BKFLOW_PLATFORM_API_MODE
+BKFLOW_CREDENTIAL_CIPHER = env.BKFLOW_CREDENTIAL_CIPHER
+
 # 这里是默认的 INSTALLED_APPS，大部分情况下，不需要改动
 # 如果你已经了解每个默认 APP 的作用，确实需要去掉某些 APP，请去掉下面的注释，然后修改
 # INSTALLED_APPS = (
@@ -75,6 +80,8 @@ MIDDLEWARE = (
     "bkflow.utils.middlewares.TraceIDInjectMiddleware",
     "bkflow.utils.middlewares.ExceptionMiddleware",
     "bkflow.utils.middlewares.AppInfoInjectMiddleware",
+    "bkflow.utils.middlewares.TenantAdminBoundaryMiddleware",
+    "bkflow.utils.middlewares.TimezoneMiddleware",
 ) + MIDDLEWARE
 
 if env.USE_PYINSTRUMENT:
@@ -83,14 +90,27 @@ if env.USE_PYINSTRUMENT:
 # 是否开启调试日志
 ENABLE_DEBUG_LOG = env.ENABLE_DEBUG_LOG
 
+# OTEL Trace配置
+ENABLE_OTEL_TRACE = env.ENABLE_OTEL_TRACE
+
 # 模块间调用相关配置
 APP_INTERNAL_VALIDATION_SKIP = env.APP_INTERNAL_VALIDATION_SKIP
 APP_INTERNAL_TOKEN = env.APP_INTERNAL_TOKEN
 APP_INTERNAL_TOKEN_HEADER_KEY = "Bkflow-Internal-Token"
 APP_INTERNAL_SPACE_ID_HEADER_KEY = "Bkflow-Internal-Space-Id"
 APP_INTERNAL_FROM_SUPERUSER_HEADER_KEY = "Bkflow-Internal-From-SuperUser"
+APP_INTERNAL_TIME_ZONE_HEADER_KEY = "Bkflow-Internal-Time-Zone"
 APP_INTERNAL_TOKEN_REQUEST_META_KEY = "HTTP_BKFLOW_INTERNAL_TOKEN"
 TOKEN_RETENTION_TIME = env.TOKEN_RETENTION_TIME
+TOKEN_COMPOSITE_ENABLED = env.TOKEN_COMPOSITE_ENABLED
+# Token 过期时间允许设置的最大值（秒），默认 30 天
+TOKEN_EXPIRATION_MAX_EXPIRATION = env.BKAPP_TOKEN_EXPIRATION_MAX_EXPIRATION
+
+# UniformApiConfig 一键验证接口资源/时间上限
+UNIFORM_API_VERIFY_MAX_CATEGORIES = env.BKAPP_UNIFORM_API_VERIFY_MAX_CATEGORIES
+UNIFORM_API_VERIFY_MAX_LIST_REQUESTS = env.BKAPP_UNIFORM_API_VERIFY_MAX_LIST_REQUESTS
+UNIFORM_API_VERIFY_MAX_META_SAMPLES = env.BKAPP_UNIFORM_API_VERIFY_MAX_META_SAMPLES
+UNIFORM_API_VERIFY_MAX_TOTAL_TIMEOUT = env.BKAPP_UNIFORM_API_VERIFY_MAX_TOTAL_TIMEOUT
 
 APP_WHITE_LIST = env.APP_WHITE_LIST_STR.split(",") if env.APP_WHITE_LIST_STR else []
 
@@ -123,11 +143,17 @@ BKAPP_DEFAULT_ENGINE_MODULE_ENTRY = env.BKAPP_DEFAULT_ENGINE_MODULE_ENTRY or BK_
 # 节点超时最长配置时间
 MAX_NODE_EXECUTE_TIMEOUT = 60 * 60 * 24
 
+# 开放插件回调 token 有效期，默认与节点最长执行时间一致
+OPEN_PLUGIN_CALLBACK_TOKEN_TTL = env.OPEN_PLUGIN_CALLBACK_TOKEN_TTL or MAX_NODE_EXECUTE_TIMEOUT
+
 # 人员选择起拉取数据的host
 MEMBER_SELECTOR_DATA_HOST = env.MEMBER_SELECTOR_DATA_HOST
 
 # 蓝鲸插件授权过滤 APP
 PLUGIN_DISTRIBUTOR_NAME = env.PLUGIN_DISTRIBUTOR_NAME or APP_CODE
+
+# 开放插件目录同步请求超时
+OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT = env.OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT
 
 # 默认数据库AUTO字段类型
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
@@ -137,6 +163,8 @@ PIPELINE_TEMPLATE_CONTEXT = "bkflow.template.context.get_template_context"
 PIPELINE_INSTANCE_CONTEXT = "bkflow.task.context.get_task_context"
 UUID_DIGIT_STARTS_SENSITIVE = True
 PIPELINE_EXCLUSIVE_GATEWAY_EXPR_FUNC = pipeline_gateway_expr_func
+PIPELINE_RERUN_MAX_TIMES = env.PIPELINE_RERUN_MAX_TIMES
+BAMBOO_DJANGO_ERI_NODE_RERUN_LIMIT = env.BAMBOO_DJANGO_ERI_NODE_RERUN_LIMIT
 
 # pipeline mako render settings
 MAKO_SANDBOX_SHIELD_WORDS = [
@@ -180,6 +208,8 @@ MAKO_SANDBOX_SHIELD_WORDS = [
     "vars",
     "__import__",
 ]
+LOOP_OUTPUTS_INNER_KEY = env.PIPELINE_LOOP_OUTPUTS_INNER_KEY
+BambooSettings.LOOP_OUTPUTS_INNER_KEY = LOOP_OUTPUTS_INNER_KEY
 BambooSettings.MAKO_SANDBOX_SHIELD_WORDS = MAKO_SANDBOX_SHIELD_WORDS
 MAKO_SANDBOX_IMPORT_MODULES = {
     "datetime": "datetime",
@@ -193,6 +223,28 @@ MAKO_SANDBOX_IMPORT_MODULES = {
 BambooSettings.MAKO_SANDBOX_IMPORT_MODULES = MAKO_SANDBOX_IMPORT_MODULES
 # 支持 mako 表达式在 dict/list/tuple 情况下嵌套索引
 BambooSettings.ENABLE_RENDER_OBJ_BY_MAKO_STRING = True
+
+# Mako 模板根标识符白名单（详见 bamboo_engine.utils.mako_safety）：
+#   - off     -> 关闭白名单，回退到历史 deny-list（兼容旧用法）
+#   - warn    -> 仅打日志不拦截（灰度阶段使用，线上灰度若干天确认无误伤再切 enforce）
+#   - enforce -> 命中即按 ForbiddenMakoTemplateException 风格 inert 掉模板片段
+# 通过 ``BKFLOW_MAKO_WHITELIST_MODE`` 环境变量覆盖（默认 enforce）。
+MAKO_TEMPLATE_NAME_WHITELIST_MODE = env.BKFLOW_MAKO_WHITELIST_MODE
+if MAKO_TEMPLATE_NAME_WHITELIST_MODE not in {"off", "warn", "enforce"}:
+    raise ValueError(
+        "invalid BKFLOW_MAKO_WHITELIST_MODE: %r (must be one of 'off' / 'warn' / 'enforce')"
+        % MAKO_TEMPLATE_NAME_WHITELIST_MODE
+    )
+
+# 渲染期注入到 Mako context 的特殊根名（不会出现在 user-defined context keys 里）：
+# - ``_system``：``TaskContext`` / ``SystemObject``，承载 ``executor / task_id /
+#   task_start_time / task_name`` 等。详见 ``bkflow/utils/context.py``。
+# - ``_loop`` / ``_inner_loop``：循环节点的迭代序号，详见
+#   ``docs/apidoc/zh/sdk_get_task_node_detail.md``。
+MAKO_TEMPLATE_NAME_EXTRA_WHITELIST = frozenset({"_system", "_loop", "_inner_loop"})
+
+BambooSettings.MAKO_TEMPLATE_NAME_WHITELIST_MODE = MAKO_TEMPLATE_NAME_WHITELIST_MODE
+BambooSettings.MAKO_TEMPLATE_NAME_EXTRA_WHITELIST = MAKO_TEMPLATE_NAME_EXTRA_WHITELIST
 
 # 所有环境的日志级别可以在这里配置
 # LOG_LEVEL = 'INFO'
@@ -308,20 +360,20 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
         "propagate": True,
     }
 
-    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": True}
+    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": False}
 
     logging_dict["loggers"]["pipeline.eri.log"] = {"handlers": ["pipeline_eri"], "level": "INFO", "propagate": True}
 
     logging_dict["loggers"]["bamboo_engine"] = {
         "handlers": ["root", "bamboo_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["pipeline_engine"] = {
         "handlers": ["root", "pipeline_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["bk-monitor-report"] = {
@@ -338,8 +390,6 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
                 for handler in logger_config["handlers"]
                 if handler not in ["pipeline_engine_context", "bamboo_engine_context", "pipeline_eri"]
             ]
-            if not logger_config["handlers"]:
-                logger_config["handlers"] = ["root"]
 
     def handler_filter_injection(filters: list):
         for _, handler in logging_dict["handlers"].items():
@@ -351,7 +401,7 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
     handler_filter_injection(["bamboo_engine_node_info_filter"])
 
     # 日志中添加trace_id
-    if env.ENABLE_OTEL_TRACE:
+    if ENABLE_OTEL_TRACE:
         trace_format = (
             "[trace_id]: %(otelTraceID)s [span_id]: %(otelSpanID)s [resource.service.name]: %(otelServiceName)s"
         )
@@ -370,8 +420,6 @@ INIT_SUPERUSER = ["admin"]
 
 # AJAX 请求弹窗续期登陆设置
 IS_AJAX_PLAIN_MODE = True
-
-TEMPLATES[0]["OPTIONS"]["context_processors"] += ("bkflow.interface.context_processors.bkflow_settings",)
 
 PAGE_NOT_FOUND_URL_KEY = "page_not_found"
 BLUEAPPS_SPECIFIC_REDIRECT_KEY = "page_not_found"
@@ -398,6 +446,28 @@ LANGUAGES = (
 # OTEL配置
 BK_APP_OTEL_INSTRUMENT_DB_API = True
 INSTALLED_APPS += ("blueapps.opentelemetry.instrument_app",)
+
+# 由于其他平台使用SDK对接时，可能需要访问内置插件的静态文件和依赖的接口，因此特殊开放这类接口允许跨域访问
+INSTALLED_APPS += ("corsheaders",)
+if "corsheaders.middleware.CorsMiddleware" not in MIDDLEWARE:
+    MIDDLEWARE = ("corsheaders.middleware.CorsMiddleware",) + MIDDLEWARE
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = ["GET", "OPTIONS"]
+# 允许 static、openapi 路径跨域访问
+CORS_URLS_REGEX = r"^/(static\/components|openapi)/.*$"
+
+# BK-Vision 仪表盘嵌入 SDK (仅腾讯内部 PyPI 源提供，未安装时自动跳过)
+try:
+    import django_bkvision  # noqa: F401
+
+    INSTALLED_APPS += ("django_bkvision",)
+    BKAPP_BKVISION_APIGW_URL = env.BKAPP_BKVISION_APIGW_URL
+except ImportError:
+    pass
+
+# 加密字段配置
+PRIVATE_SECRET = env.PRIVATE_SECRET or SECRET_KEY
 
 """
 以下为框架代码 请勿修改
@@ -433,3 +503,20 @@ if locals().get("DISABLED_APPS"):
         if locals().get(_key) is None:
             continue
         locals()[_key] = tuple([_item for _item in locals()[_key] if not _item.startswith(_app + ".")])
+
+TEMPLATE_MAX_RECURSIVE_NUMBER = env.TEMPLATE_MAX_RECURSIVE_NUMBER
+REQUEST_RETRY_NUMBER = env.REQUEST_RETRY_NUMBER
+
+MAX_LOOP_TIMES = env.MAX_LOOP_TIMES
+
+# webhook配置
+MAX_WEBHOOK_RETRY_TIMES = env.MAX_WEBHOOK_RETRY_TIMES
+MAX_WEBHOOK_RETRY_INTERVAL = env.MAX_WEBHOOK_RETRY_INTERVAL
+MAX_WEBHOOK_TIMEOUT = env.MAX_WEBHOOK_TIMEOUT
+
+PLUGIN_LOOP_OUTPUTS_KEY = env.PLUGIN_LOOP_OUTPUTS_KEY
+
+BKPAAS_USER_URL = env.BKPAAS_USER_URL
+BKPAAS_IAM_URL = env.BKPAAS_IAM_URL
+ENABLE_MULTI_TENANT_MODE = env.ENABLE_MULTI_TENANT_MODE
+BK_PLUGIN_SYNC_TENANTS = env.BK_PLUGIN_SYNC_TENANTS

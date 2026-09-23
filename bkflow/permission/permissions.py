@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,7 +21,7 @@ import abc
 from rest_framework import permissions
 from rest_framework.request import Request
 
-from bkflow.permission.models import PermissionType, Token
+from bkflow.permission.models import Token, TokenPermissionType
 
 
 class BaseTokenPermission(permissions.BasePermission):
@@ -30,24 +29,52 @@ class BaseTokenPermission(permissions.BasePermission):
     def get_resource_type(self):
         pass
 
-    def has_edit_permission(self, username, space_id, resource_id, token):
+    def has_operate_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
         return Token.verify(
             space_id,
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.EDIT.value,
+            permission_type=TokenPermissionType.OPERATE.value,
             token=token,
+            request=request,
+            target_resource_type=target_resource_type,
         )
 
-    def has_view_permission(self, username, space_id, resource_id, token):
+    def has_edit_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
         return Token.verify(
             space_id,
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.VIEW.value,
+            permission_type=TokenPermissionType.EDIT.value,
             token=token,
+            request=request,
+            target_resource_type=target_resource_type,
+        )
+
+    def has_view_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
+        return Token.verify(
+            space_id,
+            username,
+            resource_type=self.get_resource_type(),
+            resource_id=resource_id,
+            permission_type=TokenPermissionType.VIEW.value,
+            token=token,
+            request=request,
+            target_resource_type=target_resource_type,
+        )
+
+    def has_mock_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
+        return Token.verify(
+            space_id,
+            username,
+            resource_type=self.get_resource_type(),
+            resource_id=resource_id,
+            permission_type=TokenPermissionType.MOCK.value,
+            token=token,
+            request=request,
+            target_resource_type=target_resource_type,
         )
 
 
@@ -57,14 +84,30 @@ class BaseMockTokenPermission(BaseTokenPermission):
 
     @staticmethod
     def get_space_id(request: Request):
-        return request.query_params.get("space_id", None) or request.data.get("space_id", None)
+        return getattr(request, "query_params", {}).get("space_id") or getattr(request, "data", {}).get("space_id")
 
-    def has_mock_permission(self, username, space_id, resource_id, token):
+    def has_mock_permission(self, username, space_id, resource_id, token, request=None, target_resource_type=None):
         return Token.verify(
             space_id,
             username,
             resource_type=self.get_resource_type(),
             resource_id=resource_id,
-            permission_type=PermissionType.MOCK.value,
+            permission_type=TokenPermissionType.MOCK.value,
             token=token,
+            request=request,
+            target_resource_type=target_resource_type,
+        )
+
+    def has_scope_mock_permission(
+        self, username, space_id, resource_id, token, request=None, target_resource_type=None
+    ):
+        return Token.verify(
+            space_id,
+            username,
+            resource_type="SCOPE",
+            resource_id=resource_id,
+            permission_type=TokenPermissionType.MOCK.value,
+            token=token,
+            request=request,
+            target_resource_type=target_resource_type,
         )

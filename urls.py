@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -51,9 +50,9 @@ handler404 = page_not_found
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="BK-SOPS API",
+        title="BK-FLOW API",
         default_version="v1",
-        description="标准运维API文档，接口返回中默认带有result、data、message等字段，如果响应体中没有体现，则说明响应体只展示了其中data字段的内容。",
+        description="BKFlow API文档，接口返回中默认带有result、data、message等字段，如果响应体中没有体现，则说明响应体只展示了其中data字段的内容。",
     ),
     public=True,
     permission_classes=(permissions.IsAdminUser,),

@@ -2,9 +2,9 @@ name: Unittest
 
 on:
   push:
-    branches: [ master, develop, release*, feature*, feat* ]
+    branches: [ master, develop, release*, feature* ]
   pull_request:
-    branches: [ master, develop, release*, feature*, feat* ]
+    branches: [ master, develop, release*, feature* ]
 
 jobs:
   build:
@@ -16,20 +16,23 @@ jobs:
         python-version: [3.9]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Install Dependencies
       run: |
         python -m pip install pip==24.0
+        # django-bkvision 仅腾讯内部 PyPI 源提供，CI 环境跳过安装
+        sed -i '/django-bkvision/d' requirements.txt
         pip install -r tests/requirements_test.txt
+        git checkout requirements.txt
 
     - name: Setup MySQL
       uses: shogo82148/actions-setup-mysql@v1
-      id: setup-mysql # Add an ID to reference outputs
+      id: setup-mysql
       with:
         mysql-version: '8.0'
         user: 'test_user'
@@ -38,20 +41,21 @@ jobs:
     - name: Run Tests
       env:
         USER_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        PYTEST_ADDOPTS: "-o faulthandler_timeout=60"
       run: |
         set -e
         echo "Creating database..."
         mysql -h"127.0.0.1" -P"3306" -u"test_user" -p"$USER_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
         cat << EOF > local_settings.py
-        # -*- coding: utf-8 -*-  
-        
+        # -*- coding: utf-8 -*-
+
         DATABASES = {
             "default": {
-                "ENGINE": "django.db.backends.mysql", 
+                "ENGINE": "django.db.backends.mysql",
                 "NAME": "test",
                 "USER": "test_user",
                 "PASSWORD": "$USER_PASSWORD",
-                "HOST": "127.0.0.1", 
+                "HOST": "127.0.0.1",
                 "PORT": "3306",
             }
         }
@@ -61,3 +65,11 @@ jobs:
         sh scripts/run_interface_unit_test.sh
         echo "run engine unit test"
         sh scripts/run_engine_unit_test.sh
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        fail_ci_if_error: false
+        verbose: true

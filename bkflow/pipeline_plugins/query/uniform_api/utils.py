@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,12 +16,14 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 from functools import wraps
 
 from django.conf import settings
 
 from bkflow.exceptions import APIRequestError, ValidationError
+from bkflow.space.tenant import ensure_space_tenant
 from bkflow.utils.api_client import (
     ApigwClientMixin,
     HttpRequestMixin,
@@ -32,19 +33,33 @@ from bkflow.utils.api_client import (
 logger = logging.getLogger("root")
 
 
+def resolve_meta_url(meta_url: str = "", meta_url_template: str = "", version: str = "") -> str:
+    if meta_url:
+        return meta_url
+
+    if meta_url_template:
+        if not version:
+            raise ValidationError("meta_url_template 存在时 version 不能为空")
+        return meta_url_template.format(version=version)
+
+    raise ValidationError("meta_url 和 meta_url_template 至少有一个")
+
+
 def check_resource_token(func: callable) -> callable:
     """检查资源 token.
 
     :param func: 被装饰的函数
     :return: 装饰后的函数
     """
+
     @wraps(func)
     def wrapper(request, *args, **kwargs):
+        from bkflow.permission.models import Token
         from bkflow.space.configs import SuperusersConfig
         from bkflow.space.models import SpaceConfig
-        from bkflow.permission.models import Token
 
         space_id = kwargs.get("space_id")
+        ensure_space_tenant(request, space_id)
         space_superusers = SpaceConfig.get_config(space_id, SuperusersConfig.name)
         is_space_superuser = request.user.username in space_superusers
 
@@ -54,7 +69,9 @@ def check_resource_token(func: callable) -> callable:
         if not request.token:
             raise ValidationError("不存在访问 token")
 
-        token = Token.objects.get_resource_token(request.token, kwargs)
+        token = Token.objects.get_resource_tokens(
+            request.token, request.query_params, user=request.user.username, space_id=space_id
+        )
         if not token.exists():
             if settings.ENABLE_DEBUG_LOG:
                 logger.error(f"token 不存在或有误: {request.token}")
@@ -86,12 +103,38 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "required": ["id", "meta_url", "name"],
                     "properties": {
                         "id": {"type": "string"},
                         "meta_url": {"type": "string"},
+                        "meta_url_template": {"type": "string"},
                         "name": {"type": "string"},
+                        "plugin_source": {"type": "string"},
+                        "plugin_code": {"type": "string"},
+                        "wrapper_version": {"type": "string"},
+                        "default_version": {"type": "string"},
+                        "latest_version": {"type": "string"},
+                        "versions": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 1,
+                        },
                     },
+                    "anyOf": [
+                        {"required": ["id", "meta_url", "name"]},
+                        {
+                            "required": [
+                                "id",
+                                "name",
+                                "plugin_source",
+                                "plugin_code",
+                                "wrapper_version",
+                                "default_version",
+                                "latest_version",
+                                "versions",
+                                "meta_url_template",
+                            ]
+                        },
+                    ],
                 },
             },
         },
@@ -100,10 +143,78 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
     UNIFORM_API_META_RESPONSE_DATA_SCHEMA = {
         "type": "object",
         "required": ["id", "name", "url", "methods", "inputs"],
+        "anyOf": [
+            {
+                # v4.0.0 协议：要求完整的插件元信息；polling 缺省或空对象表示不轮询，非空时校验完整性
+                "properties": {
+                    "wrapper_version": {"enum": ["v4.0.0"]},
+                    "polling": {
+                        "type": "object",
+                        "anyOf": [
+                            {"maxProperties": 0},
+                            {"required": ["url", "task_tag_key", "success_tag", "fail_tag", "running_tag"]},
+                        ],
+                        "properties": {
+                            "url": {"type": "string"},
+                            "task_tag_key": {"type": "string"},
+                            "success_tag": {
+                                "type": "object",
+                                "required": ["key", "value"],
+                                "properties": {
+                                    "key": {"type": "string"},
+                                    "value": {"type": ["string", "integer"]},
+                                    "data_key": {"type": "string"},
+                                    "msg_key": {"type": "string"},
+                                },
+                            },
+                            "fail_tag": {
+                                "type": "object",
+                                "required": ["key", "value"],
+                                "properties": {
+                                    "key": {"type": "string"},
+                                    "value": {"type": ["string", "integer"]},
+                                    "data_key": {"type": "string"},
+                                    "msg_key": {"type": "string"},
+                                },
+                            },
+                            "running_tag": {
+                                "type": "object",
+                                "required": ["key", "value"],
+                                "properties": {
+                                    "key": {"type": "string"},
+                                    "value": {"type": ["string", "integer"]},
+                                    "data_key": {"type": "string"},
+                                    "msg_key": {"type": "string"},
+                                },
+                            },
+                        },
+                    },
+                },
+                "required": [
+                    "wrapper_version",
+                    "plugin_source",
+                    "plugin_code",
+                    "plugin_version",
+                    "outputs",
+                ],
+            },
+            {
+                # 非 v4.0.0 协议（或未携带 wrapper_version）：polling 字段不约束内容
+                "not": {
+                    "properties": {"wrapper_version": {"enum": ["v4.0.0"]}},
+                    "required": ["wrapper_version"],
+                }
+            },
+        ],
         "properties": {
             "id": {"type": "string"},
             "name": {"type": "string"},
             "desc": {"type": "string"},
+            "version": {"type": "string"},  # 可选：指定使用的uniform_api插件版本，如 "v2.0.0", "v3.0.0"
+            "wrapper_version": {"type": "string"},
+            "plugin_version": {"type": "string"},
+            "plugin_source": {"type": "string"},
+            "plugin_code": {"type": "string"},
             "url": {"type": "string"},
             "methods": {
                 "type": "array",
@@ -126,12 +237,37 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
                     },
                 },
             },
+            "form_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string"},
+                    "properties": {"type": "object"},
+                    "required": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+            "forms": {
+                "type": "object",
+                "required": ["input", "output"],
+                "properties": {
+                    "input": {"type": ["object", "null"]},
+                    "output": {"type": ["object", "null"]},
+                },
+            },
+            "form_context": {"type": "object"},
+            "outputs": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["name", "key"],
+                },
+            },
+            "polling": {"type": "object"},
         },
     }
 
     def __init__(self, from_apigw_check=True, *args, **kwargs):
         self.from_apigw_check = from_apigw_check
-        super(UniformAPIClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def request(self, url: str, method: str, data=None, headers=None, *args, **kwargs) -> HttpRequestResult:
         """
@@ -144,9 +280,10 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
         if self.from_apigw_check and self.check_url_from_apigw(url) is False:
             raise APIRequestError(f"check url from apigw fail: {url}")
 
+        username = kwargs.pop("username", None)
         if headers is None:
             headers = self.gen_default_apigw_header(
-                app_code=settings.BK_APP_CODE, app_secret=settings.BK_APP_SECRET, username=kwargs.get("username")
+                app_code=settings.BK_APP_CODE, app_secret=settings.BK_APP_SECRET, username=username
             )
 
         timeout = kwargs.pop("timeout", self.TIMEOUT)

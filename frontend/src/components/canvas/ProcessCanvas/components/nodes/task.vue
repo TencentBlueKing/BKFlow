@@ -6,16 +6,10 @@
       { 'fail-skip': node.status === 'FINISHED' && (node.skip || node.error_ignored) },
       { 'ready': node.ready },
       { 'active': node.isActived },
-      { 'active': node.isActived },
       { 'unchecked ': node.mode === 'select' && node.optional && !node.checked }
     ]">
     <div class="node-status-block">
-      <img
-        v-if="node.icon"
-        class="node-icon"
-        :src="node.icon">
       <i
-        v-else
         :class="['node-icon-font', getIconCls(node)]" />
       <div
         v-if="node.stage_name"
@@ -27,6 +21,11 @@
       <div class="name-text">
         {{ node.name }}
       </div>
+    </div>
+    <div
+      v-if="node.hasUpdated"
+      class="updated-dot">
+      <div class="ripple" />
     </div>
   </div>
 </template>

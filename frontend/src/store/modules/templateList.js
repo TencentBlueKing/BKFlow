@@ -21,7 +21,12 @@ const templateList = {
         delete data.cancelToken;
       }
       delete data.new;
-      return axios.get('api/template/admin/', {
+      const { isSelectSubTemplate = false } = data;
+      if (data.isSelectSubTemplate) {
+        delete data.isSelectSubTemplate;
+      }
+      const url = isSelectSubTemplate ? 'api/template/list_template/' : 'api/template/admin/';
+      return axios.get(url, {
         params: data,
         ...config,
       }).then(response => response.data);
@@ -32,13 +37,8 @@ const templateList = {
     copyTemplate({}, data) {
       return axios.post('/api/template/admin/template_copy/', data).then(response => response.data);
     },
-    // 检测上传模板合法性
-    templateUploadCheck({ }, data) {
-      return axios.post('api/template/admin_only/upload_template_file/', data, {
-        headers: {
-          'content-type': 'multipart/form-data',
-        },
-      }).then(response => response.data);
+    updateTemplateLabel({}, data) {
+      return axios.post(`/api/template/${data.template_id}/update_labels/`, { label_ids: data.label_ids }).then(response => response.data);
     },
   },
 };

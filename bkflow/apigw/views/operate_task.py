@@ -16,15 +16,21 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.apigw.serializers.task import OperateTaskSerializer
+from bkflow.apigw.serializers.task import (
+    OperateTaskSerializer,
+    UpdateTaskLabelsSerializer,
+)
+from bkflow.constants import OPERATE_EVENT_MAP, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.utils.trace import CallFrom, append_attributes, start_trace
 
@@ -45,4 +51,26 @@ def operate_task(request, space_id, task_id, operation):
         append_attributes({"operation": operation})
         client = TaskComponentClient(space_id=space_id)
         result = client.operate_task(task_id, operation, data=ser.data)
+
+        if operation in ["pause", "resume", "revoke"]:
+            event_broadcast_signal.send(
+                sender=OPERATE_EVENT_MAP[operation],
+                scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
+                extra_info={"task_id": task_id, "operation": operation, "username": request.user.username},
+            )
         return result
+
+
+@login_exempt
+@csrf_exempt
+@require_POST
+@apigw_require
+@check_jwt_and_space
+@return_json_response
+def update_task_labels(request, space_id, task_id):
+    data = json.loads(request.body or "{}")
+    ser = UpdateTaskLabelsSerializer(data=data, context={"space_id": int(space_id)})
+    ser.is_valid(raise_exception=True)
+
+    client = TaskComponentClient(space_id=space_id)
+    return client.update_labels(task_id, data={**ser.data, "space_id": space_id})

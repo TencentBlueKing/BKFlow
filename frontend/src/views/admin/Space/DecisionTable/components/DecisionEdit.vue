@@ -38,6 +38,7 @@
             :required="true"
             :rules="rules.required">
             <template-select
+              :key="decisionSelectRandomKey"
               v-model="decisionData.template_id"
               :space-id="spaceId"
               :readonly="isPartiallyEdited" />
@@ -163,6 +164,7 @@
         isDataChange: false,
         isDebugDialogShow: false,
         isPartiallyEdited: false, // 半编辑（决策表关联了流程并且被使用了）
+        decisionSelectRandomKey: '',
       };
     },
     computed: {
@@ -204,6 +206,7 @@
           });
           this.decisionData = resp.data;
           this.initData = tools.deepClone(this.decisionData);
+          this.decisionSelectRandomKey = new Date().getTime();
           // 判断是否为半编辑
           this.judgePartiallyEdited();
         } catch (error) {

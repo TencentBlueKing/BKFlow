@@ -26,9 +26,11 @@
       :state="state"
       :is-breadcrumb-show="isBreadcrumbShow"
       :is-show-view-process="isShowViewProcess"
+      :is-show-callback-history-and-view-tpl="isShowCallbackHistoryAndViewTpl"
       :is-task-operation-btns-show="isTaskOperationBtnsShow"
       :params-can-be-modify="paramsCanBeModify"
-      @onSelectSubflow="onSelectSubflow"
+      :trigger-method="triggerMethod"
+      :parent-task-info="parentTaskInfo"
       @onOperationClick="onOperationClick"
       @onTaskParamsClick="onTaskParamsClick"
       @onInjectGlobalVariable="onInjectGlobalVariable" />
@@ -48,9 +50,23 @@
     </bk-alert>
     <div class="task-container">
       <div class="pipeline-nodes">
+        <FlowExecuteBridge
+          v-if="useCanvasEditor"
+          :pipeline-tree="instanceFlow"
+          :node-states="canvasEditorNodeStates"
+          :api-config="canvasEditorApiConfig"
+          :show-header="false"
+          @node-click="onCanvasEditorNodeClick"
+          @retry="onRetryClick"
+          @skip="onSkipClick"
+          @forceFail="onForceFailClick"
+          @gatewaySkip="onGatewaySelectionClick"
+          @resume="onTaskNodeResumeClick"
+          @approve="onApprovalClick" />
         <component
           :is="templateComponentName"
-          v-if="!nodeSwitching"
+          v-else-if="!nodeSwitching"
+          :key="subcanvasPipelineChangeKey"
           ref="processCanvas"
           class="canvas-comp-wrapper"
           :editable="false"
@@ -98,13 +114,14 @@
           :params-can-be-modify="paramsCanBeModify"
           :instance-actions="instanceActions"
           :instance-name="instanceName"
-          :instance_id="instanceId"
+          :instance-id="instanceId"
           :template-id="templateId"
           :retry-node-id="retryNodeId"
           @nodeTaskRetry="nodeTaskRetry"
           @packUp="packUp" />
         <ExecuteInfo
           v-if="nodeInfoType === 'executeInfo' || nodeInfoType === 'viewNodeDetails'"
+          ref="executeInfo"
           :state="state"
           :node-data="nodeData"
           :node-nav="nodeNav"
@@ -116,7 +133,6 @@
           :is-condition="isCondition"
           :node-detail-config="nodeDetailConfig"
           :is-readonly="true"
-          :is-show.sync="isShowConditionEdit"
           :constants="pipelineData.constants"
           :gateways="pipelineData.gateways"
           :condition-data="conditionData"
@@ -125,21 +141,24 @@
           :scope-info="scopeInfo"
           :template-id="templateId"
           :instance-actions="instanceActions"
-          @onOpenGatewayInfo="onOpenConditionEdit"
-          @close="onCloseConfigPanel"
+          :canvas-mode="canvasMode"
+          :is-enable-version-manage="isEnableVersionManage"
+          @onOpenConditionInfo="onOpenConditionInfo"
           @onRetryClick="onRetryClick"
           @onSkipClick="onSkipClick"
-          @onTaskNodeResumeClick="onTaskNodeResumeClick"
-          @onModifyTimeClick="onModifyTimeClick"
           @onForceFail="onForceFailClick"
+          @onModifyTimeClick="onModifyTimeClick"
+          @onTaskNodeResumeClick="onTaskNodeResumeClick"
           @onApprovalClick="onApprovalClick"
-          @onNodeClick="onNodeClick"
           @onClickTreeNode="onClickTreeNode" />
         <RetryNode
           v-if="nodeInfoType === 'retryNode'"
           ref="retryNode"
           :node-detail-config="nodeDetailConfig"
           :node-info="nodeInfo"
+          :space-id="spaceId"
+          :template-id="templateId"
+          :scope-info="scopeInfo"
           :retrying="pending.retry"
           :node-inputs="nodeInputs"
           @retrySuccess="onRetrySuccess"
@@ -164,6 +183,10 @@
           v-if="nodeInfoType === 'templateData'"
           :template-data="templateData"
           @onshutDown="onshutDown" />
+        <WebhookCallback
+          v-if="nodeInfoType === 'webhook'"
+          :webhook-history="webhookHistory"
+          class="wehhook-callback" />
       </div>
     </bk-sideslider>
     <gatewaySelectDialog
@@ -176,15 +199,6 @@
       :is-inject-var-dialog-show="isInjectVarDialogShow"
       @onConfirmInjectVar="onConfirmInjectVar"
       @onCancelInjectVar="onCancelInjectVar" />
-    <!-- <condition-edit
-            v-if="isShowConditionEdit"
-            ref="conditionEdit"
-            :is-readonly="true"
-            :is-show.sync="isShowConditionEdit"
-            :gateways="pipelineData.gateways"
-            :condition-data="conditionData"
-            @close="onCloseConfigPanel">
-        </condition-edit> -->
     <bk-dialog
       width="600"
       :theme="'primary'"
@@ -236,7 +250,7 @@
   import tools from '@/utils/tools.js';
   import { TASK_STATE_DICT, NODE_DICT } from '@/constants/index.js';
   import ModifyParams from './ModifyParams.vue';
-  import ExecuteInfo from './ExecuteInfo.vue';
+  import ExecuteInfo from './SideDrawerExecuteInfo.vue';
   import RetryNode from './RetryNode.vue';
   import ModifyTime from './ModifyTime.vue';
   import OperationFlow from './OperationFlow.vue';
@@ -251,7 +265,11 @@
   import { graphToJson } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
-  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
+  import StageCanvas from '@/components/canvas/StageCanvas/MainStageCanvas.vue';
+  import { checkConditionLoop, findLoopTarget, findNearestGatewayByIncoming } from '@/utils/orderCanvasNodeToNodeTree.js';
+  import { FlowExecuteBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-execute';
+  import '@blueking/bkflow-canvas-editor-vue2/style';
+  import WebhookCallback from './WebhookCallback.vue';
 
   const { CancelToken } = axios;
   let source = CancelToken.source();
@@ -259,17 +277,17 @@
   const TASK_OPERATIONS = {
     execute: {
       action: 'execute',
-      icon: 'common-icon-right-triangle',
+      icon: 'common-icon-next-triangle-shape',
       text: i18n.t('执行'),
     },
     pause: {
       action: 'pause',
-      icon: 'common-icon-double-vertical-line',
+      icon: 'common-icon-zanting',
       text: i18n.t('暂停'),
     },
     resume: {
       action: 'resume',
-      icon: 'common-icon-right-triangle',
+      icon: 'common-icon-next-triangle-shape',
       text: i18n.t('继续'),
     },
     revoke: {
@@ -302,6 +320,8 @@
       ProcessCanvas,
       VerticalCanvas,
       StageCanvas,
+      FlowExecuteBridge,
+      WebhookCallback,
     },
     mixins: [permission, tplPerspective],
     props: {
@@ -357,6 +377,18 @@
         type: [Number, String],
         default: '',
       },
+      triggerMethod: {
+        type: String,
+        default: '',
+      },
+      parentTaskInfo: {
+        type: Object,
+        default: () => ({}),
+      },
+      isEnableVersionManage: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       const $this = this;
@@ -386,6 +418,7 @@
         instanceStatus: {},
         taskParamsType: '',
         timer: null,
+        isTaskOperationDestroyed: false,
         pipelineData,
         treeNodeConfig: {},
         nodeDetailConfig: {},
@@ -409,7 +442,6 @@
         operateLoading: false,
         retrievedCovergeGateways: [], // 遍历过的汇聚节点
         pollErrorTimes: 0, // 任务状态查询异常连续三次后，停止轮询
-        isShowConditionEdit: false, // 条件分支侧栏
         conditionData: {},
         tabIconState: '',
         approval: { // 节点审批
@@ -437,21 +469,42 @@
         nodeExecRecordInfo: {},
         isInjectVarDialogShow: false,
         nodeIds: [],
+        copyOrdered: [],
+        nodeData: [],
         nodeDisplayStatus: {},
         showNodeList: [0, 1, 2],
         converNodeList: [],
         isCondition: false,
         conditionOutgoing: [],
+        translateNodeType: {
+          ParallelGateway: 'parallel-gateway',
+          ConvergeGateway: 'converge-gateway',
+          ExclusiveGateway: 'branch-gateway',
+          ConditionalParallelGateway: 'conditional-parallel-gateway',
+          ServiceActivity: 'task',
+          EmptyEndEvent: 'empty-end-event',
+          EmptyStartEvent: 'empty-start-event',
+          SubProcess: 'task',
+          SubCanvas: 'task',
+          tasknode: 'task',
+        },
+        subflowInfo: {}, // 子流程根节点id和任务id
+        webhookHistory: [],
+        subcanvasPipelineChangeKey: '',
       };
     },
     computed: {
       ...mapState({
         view_mode: state => state.view_mode,
+        isIframe: state => state.isIframe,
         infoBasicConfig: state => state.infoBasicConfig,
         locations: state => state.template.location,
       }),
       ...mapState('project', {
         projectName: state => state.projectName,
+      }),
+      ...mapState('task', {
+        subActivities: state => state.subActivities,
       }),
       completePipelineData() {
         return { ...this.instanceFlow };
@@ -459,8 +512,15 @@
       isBreadcrumbShow() {
         return this.completePipelineData.location.some(item => item.type === 'subflow');
       },
+      useCanvasEditor() {
+        if (this.isIframe) {
+            return this.$route.query.useCanvasEditor === 'true';
+        }
+        return false;
+      },
       canvasData() {
-        const { line, location, activities } = this.pipelineData;
+        const { line, location } = { ... tools.deepClone(this.instanceFlow) };
+        const { activities } = tools.deepClone(this.pipelineData);
         const locations = location.map((item) => {
           const code = item.type === 'tasknode' ? activities[item.id].component.code : '';
           const mode = this.hasOperatePerm ? 'execute' : '';
@@ -469,6 +529,7 @@
         return graphToJson({
           locations,
           lines: line,
+          activities,
         });
       },
       previewData() {
@@ -476,16 +537,6 @@
       },
       common() {
         return this.templateSource !== 'project';
-      },
-      nodeData() {
-        const data = this.getOrderedTree(this.completePipelineData);
-        return [{
-          id: this.instanceId,
-          name: this.instanceName,
-          title: this.instanceName,
-          expanded: true,
-          children: data,
-        }];
       },
       taskState() {
         return TASK_STATE_DICT[this.state];
@@ -522,9 +573,11 @@
       paramsCanBeModify() {
         return this.isTopTask && !['FINISHED', 'REVOKED'].includes(this.state);
       },
-      // 只有mock任务才可以跳转到流程
       isShowViewProcess() {
-        return this.createMethod === 'MOCK';
+        return this.createMethod === 'MOCK' || this.isShowCallbackHistoryAndViewTpl;
+      },
+      isShowCallbackHistoryAndViewTpl() {
+        return ['FLOW_EDIT', 'FLOW_VIEW', 'FLOW_MOCK'].some(perm => this.instanceActions.includes(perm));
       },
       adminView() {
         return false;
@@ -539,6 +592,39 @@
             stage: 'StageCanvas',
           };
           return canvasModeToComponentMap[this.canvasMode] || canvasModeToComponentMap.horizontal;
+      },
+      canvasEditorNodeStates() {
+        const children = this.instanceStatus?.children;
+        if (!children) return {};
+        const result = {};
+        Object.keys(children).forEach((id) => {
+          result[id] = { status: children[id].state };
+        });
+        return result;
+      },
+      canvasEditorApiConfig() {
+        return {
+          baseURL: '/api',
+          scopeData: {
+            scope_type: 'space',
+            scope_value: this.spaceId,
+          },
+        };
+      },
+    },
+    watch: {
+      instanceFlow: {
+        handler() {
+          this.loadTaskStatus();
+        },
+        deep: true,
+      },
+      completePipelineData: {
+        handler() {
+          this.buildNodeData();
+        },
+        deep: true,
+        immediate: true,
       },
     },
     mounted() {
@@ -557,6 +643,8 @@
         source.cancel('cancelled');
       }
       this.cancelTaskStatusTimer();
+      // 标记组件已销毁，防止正在执行的异步链路继续设置新的轮询定时器
+      this.isTaskOperationDestroyed = true;
     },
     methods: {
       ...mapActions('task/', [
@@ -580,6 +668,11 @@
         'getNodeExecutionRecord',
         'instanceRetry',
         'subflowNodeRetry',
+        'getNodeActDetail',
+        'getTaskInstanceData',
+        'getBatchNodeOutput',
+        'getBatchTaskPipeline',
+        'getBatchTaskStates'
       ]),
       ...mapActions('atomForm/', [
         'loadSingleAtomList',
@@ -587,6 +680,35 @@
       ...mapActions('admin/', [
         'taskFlowUpdateContext',
       ]),
+      buildNodeData() {
+        this.nodeIds = [];
+        this.copyOrdered = [];
+        this.converNodeList = [];
+        this.conditionOutgoing = [];
+        const data = this.getOrderedTree(this.completePipelineData);// 外层无子流程的节点pipelineTree
+        data.forEach((item) => {
+          if (['subprocess_plugin', 'subcanvas_plugin'].includes(item?.component?.code)) {
+            this.addUnexecued(item);
+          }
+        });
+        this.nodeData = [{
+          id: this.instanceId,
+          name: this.instanceName,
+          title: this.instanceName,
+          expanded: true,
+          children: data,
+        }];
+      },
+      addUnexecued(node) {
+        if (node.children) {
+          node.children.forEach((item) => {
+              item.isFirstSubUnexecuted = true; // 顶层子流程是否未执行
+              if (item.children) {
+                this.addUnexecued(item);
+              }
+          });
+        }
+      },
       async loadMockData() {
         try {
           if (this.createMethod !== 'MOCK') return;
@@ -600,6 +722,7 @@
         }
       },
       async loadTaskStatus() {
+        if (this.isTaskOperationDestroyed) return;
         try {
           let instanceStatus = {};
           if (['FINISHED', 'REVOKED'].includes(this.state) && this.cacheStatus && this.cacheStatus.children[this.taskId]) { // 总任务：完成/终止时,取实例缓存数据
@@ -632,6 +755,13 @@
             this.state = instanceStatus.data.state;
             this.instanceStatus = instanceStatus.data;
             this.pollErrorTimes = 0;
+            // 收集已执行 subcanvas_plugin 的子节点执行状态
+            await this.collectSubCanvasChildrenStatus();
+            // 请求获取回调记录
+            if (['FINISHED', 'FAILED'].includes(this.state)) {
+                const instanceData = await this.getTaskInstanceData(this.taskId);
+                this.webhookHistory = instanceData.webhook_delivery_history;
+            }
             if (this.isTopTask) {
               this.rootState = this.state;
             }
@@ -692,6 +822,79 @@
         }
       },
       /**
+       * 收集已执行 subcanvas_plugin 的子节点执行状态，合并到 this.instanceStatus.children
+       */
+      async collectSubCanvasChildrenStatus() {
+        if (this.isTaskOperationDestroyed) return;
+        const allSubCanvasNodes = Object.values(this.pipelineData.activities).filter(item => item?.component?.code === 'subcanvas_plugin');
+        if (allSubCanvasNodes.length === 0) return;
+
+        let pipelineUpdated = false;
+        try {
+          const batchOutputRes = await this.getBatchNodeOutput({
+            task_id: this.instanceId,
+            space_id: this.spaceId,
+            node_ids: allSubCanvasNodes.map(n => n.id),
+          });
+          const outputDataList = batchOutputRes?.data || [];
+          const nodeTaskMap = allSubCanvasNodes.map((nodeItem) => {
+            const outputs = outputDataList.find(item => Object.prototype.hasOwnProperty.call(item, nodeItem.id));
+            const taskId = outputs?.[nodeItem.id] ? outputs[nodeItem.id][0]['task_id'] : null;
+            if (taskId) {
+              this.$set(this.pipelineData.activities[nodeItem.id], 'subcanvasTaskId', taskId);
+            }
+            return { nodeItem, taskId };
+          });
+          // 收集所有有效 taskId
+          const validTaskIds = nodeTaskMap.filter(item => item.taskId).map(item => item.taskId);
+          if (validTaskIds.length === 0) {
+            return;
+          }
+          const batchPipelineRes = await this.getBatchTaskPipeline({
+            task_ids: validTaskIds.join(','),
+            space_id: this.spaceId,
+          });
+          if (batchPipelineRes?.result && batchPipelineRes.data) {
+            nodeTaskMap.forEach(({ nodeItem, taskId }) => {
+              if (!taskId) return;
+              const taskData = batchPipelineRes.data[taskId];
+              if (taskData) {
+                const oldPipeline = this.pipelineData.activities[nodeItem.id].pipeline;
+                if (!tools.isDataEqual(oldPipeline, taskData)) {
+                  this.$set(this.pipelineData.activities[nodeItem.id], 'pipeline', taskData);
+                  pipelineUpdated = true;
+                }
+              }
+            });
+          }
+          const batchStatesRes = await this.getBatchTaskStates({
+            task_ids: validTaskIds.join(','),
+            space_id: this.spaceId,
+          });
+          if (batchStatesRes?.result && batchStatesRes.data) {
+            const mergedChildren = {};
+            Object.values(batchStatesRes.data).forEach((taskState) => {
+              if (taskState?.children) {
+                Object.assign(mergedChildren, taskState.children);
+              }
+            });
+            if (Object.keys(mergedChildren).length > 0) {
+              this.instanceStatus.children = Object.assign(
+                {},
+                this.instanceStatus.children || {},
+                mergedChildren,
+              );
+            }
+          }
+        } catch (e) {
+          console.warn(e);
+        }
+
+        if (pipelineUpdated) {
+          this.subcanvasPipelineChangeKey = new Date().getTime();
+        }
+      },
+      /**
        * 加载标准插件列表
        */
       async getSingleAtomList() {
@@ -730,6 +933,7 @@
        * 标记任务节点的生命周期
        */
       markNodesPhase() {
+        if (this.useCanvasEditor) return;
         Object.keys(this.pipelineData.activities).forEach((id) => {
           const node = this.pipelineData.activities[id];
           if (node.type === 'ServiceActivity') {
@@ -888,7 +1092,23 @@
           this.pending.task = false;
         }
       },
-      async nodeTaskSkip(id) {
+      async updateExecuteInfo() {
+        const execInfoInstance = this.$refs.executeInfo;
+        if (!execInfoInstance) {
+          return;
+        }
+        try {
+          execInfoInstance.loading = true;
+          await execInfoInstance.refreshSubCanvasState();
+          // 刷新 TaskOperation 自身的主任务状态和主画布节点状态
+          await this.loadTaskStatus();
+          this.updateNodeInfo();
+          execInfoInstance.setTaskStatusTimer();
+        } catch (error) {
+          execInfoInstance.loading = false;
+        }
+      },
+      async nodeTaskSkip(id, subflowInfo, isTopSubflow, isLoopOperate) {
         if (this.pending.skip) {
           return;
         }
@@ -897,21 +1117,28 @@
         this.isFailedSubproceeNodeInfo = null;
         try {
           const data = {
-            instance_id: this.instanceId,
+            instance_id: subflowInfo?.taskId || this.getSubCanvasTaskId(id),
             node_id: id,
             operation: 'skip',
+            data: {
+              loop: isLoopOperate,
+            },
           };
           const res = await this.instanceNodeOperate(data);
           if (res.result) {
-            this.isNodeInfoPanelShow = false;
-            this.nodeInfoType = '';
             this.$bkMessage({
               message: i18n.t('跳过成功'),
               theme: 'success',
             });
+            if (subflowInfo?.taskId || isTopSubflow || this.isNodeInSubCanvas(id)) {
+              this.updateExecuteInfo();
+            } else {
+              this.nodeInfoType = '';
+              this.isNodeInfoPanelShow = false;
+            }
             setTimeout(() => {
-              this.setTaskStatusTimer();
-            }, 1000);
+                this.setTaskStatusTimer();
+              }, 1000);
           }
         } catch (e) {
           console.log(e);
@@ -919,14 +1146,14 @@
           this.pending.skip = false;
         }
       },
-      async nodeForceFail(id) {
+      async nodeForceFail(id, subflowInfo) {
         if (this.pending.forceFail) {
           return;
         }
         this.pending.forceFail = true;
         try {
           const params = {
-            instance_id: this.instanceId,
+            instance_id: subflowInfo?.taskId || this.getSubCanvasTaskId(id),
             node_id: id,
             operation: 'forced_fail',
           };
@@ -936,8 +1163,13 @@
               message: i18n.t('强制终止执行成功'),
               theme: 'success',
             });
-            this.isNodeInfoPanelShow = false;
-            this.nodeInfoType = '';
+            // this.nodeInfoType = '';
+            if (subflowInfo?.taskId || this.isNodeInSubCanvas(id)) {
+              this.updateExecuteInfo();
+            } else {
+              this.nodeInfoType = '';
+              this.isNodeInfoPanelShow = false;
+            }
             setTimeout(() => {
               this.setTaskStatusTimer();
             }, 1000);
@@ -967,14 +1199,33 @@
           this.pending.selectGateway = false;
         }
       },
-      async nodeResume(id) {
+      findSubCanvasParentActivity(nodeId) {
+        return Object.values(this.pipelineData.activities).find(
+          act => act?.component?.code === 'subcanvas_plugin'
+            && act.pipeline?.location?.some(loc => loc.id === nodeId)
+        );
+      },
+      isNodeInSubCanvas(id) {
+        return !!this.findSubCanvasParentActivity(id);
+      },
+      /**
+       * 若节点为循环节点（subcanvas_plugin）的子节点，返回对应循环实例的 taskId；否则返回顶层实例 id
+       */
+      getSubCanvasTaskId(id) {
+        const subCanvasParentActivity = this.findSubCanvasParentActivity(id);
+        if (subCanvasParentActivity) {
+          return subCanvasParentActivity?.taskId || subCanvasParentActivity?.subcanvasTaskId;
+        }
+        return this.instanceId;
+      },
+      async nodeResume(id, subflowInfo) {
         if (this.pending.parseNodeResume) {
           return;
         }
         this.pending.parseNodeResume = true;
         try {
           const data = {
-            instance_id: this.instanceId,
+            instance_id: subflowInfo?.taskId || this.getSubCanvasTaskId(id),
             node_id: id,
             operation: 'callback',
             data: { data: {} },
@@ -985,8 +1236,13 @@
               message: i18n.t('继续成功'),
               theme: 'success',
             });
-            this.isNodeInfoPanelShow = false;
-            this.nodeInfoType = '';
+            // this.nodeInfoType = '';
+            if (subflowInfo?.taskId || this.isNodeInSubCanvas(id)) {
+              this.updateExecuteInfo();
+            } else {
+              this.nodeInfoType = '';
+              this.isNodeInfoPanelShow = false;
+            }
             setTimeout(() => {
               this.setTaskStatusTimer();
             }, 1000);
@@ -999,10 +1255,11 @@
       },
       setTaskStatusTimer(time = 2000) {
         this.cancelTaskStatusTimer();
+        if (this.isTaskOperationDestroyed) return;
         this.timer = setTimeout(() => {
           this.loadTaskStatus();
         }, time);
-        this.canvasMode === 'stage' && this.$refs.processCanvas.setRefreshTaskStageCanvasData();
+        !this.useCanvasEditor && this.canvasMode === 'stage' && this.$refs.processCanvas.setRefreshTaskStageCanvasData();
       },
       cancelTaskStatusTimer() {
         if (this.timer) {
@@ -1017,12 +1274,20 @@
       },
       // 更新节点状态
       updateNodeInfo() {
+        if (this.useCanvasEditor) return;
         const nodes = this.instanceStatus.children;
+        const allActivities = Object.assign({}, this.pipelineData.activities);
+        Object.keys(this.pipelineData.activities || {}).forEach((key) => {
+          const activity = this.pipelineData.activities[key];
+          if (activity?.component?.code === 'subcanvas_plugin' && activity.pipeline?.activities) {
+            Object.assign(allActivities, activity.pipeline.activities);
+          }
+        });
 
         nodes && Object.keys(nodes).forEach((id) => {
           let code; let skippable; let retryable; let errorIgnorable; let autoRetry;
           const currentNode = nodes[id];
-          const nodeActivities = this.pipelineData.activities[id];
+          const nodeActivities = allActivities[id];
 
           if (nodeActivities) {
             code = nodeActivities.component ? nodeActivities.component.code : '';
@@ -1052,29 +1317,125 @@
       setTaskNodeStatus(id, data) {
         this.$refs.processCanvas && this.$refs.processCanvas.onUpdateNodeInfo(id, data);
       },
-      async setNodeDetailConfig(id, rootNode) {
+
+      /**
+       * 设置节点详细配置
+       * @param {string} id - 当前节点ID
+       * @param {boolean} rootNode - 是否根节点
+       * @param {object} subflowNode - 当前节点信息
+       * @param {string} nodeType - 当前节点类型
+       * @param {object} conditionData - 当前节点条件数据
+       */
+      async setNodeDetailConfig(id, rootNode, subflowNode, nodeType, conditionData) {
         let code; let version; let componentData;
-        const node = this.pipelineData.activities[id];
+        const allActivities = Object.assign({}, this.pipelineData.activities, this.subActivities);
+        const allGateways = Object.assign({}, this.pipelineData.gateways || {});
+        Object.keys(this.pipelineData.activities || {}).forEach((key) => {
+          const activity = this.pipelineData.activities[key];
+          if (activity?.component?.code === 'subcanvas_plugin' && activity.pipeline) {
+            if (activity.pipeline.activities) {
+              Object.assign(allActivities, activity.pipeline.activities);
+            }
+            if (activity.pipeline.gateways) {
+              Object.assign(allGateways, activity.pipeline.gateways);
+            }
+          }
+        });
+        const node = allActivities[id] || allGateways[id];
+        // 从pipelineData中获取当前节点信息
+        // 如果是ServiceActivity类型节点，提取组件数据和代码
         if (node) {
           componentData = node.type === 'ServiceActivity' ? node.component.data : {};
-          code = node.type === 'ServiceActivity' ? node.component.code : '';
-          version = (node.type === 'ServiceActivity' ? node.component.version : node.version) || 'legacy';
+          if (node.type === 'subprocess') {
+            code = 'SubProcess';
+          } else if (node.type === 'ServiceActivity') {
+            code = node.component.code || '';
+          }
+          if (node?.component?.code === 'subprocess_plugin') {
+            version = node.component.data.subprocess.value.version || 'legacy';
+          } else {
+            version = (node.type === 'ServiceActivity' ? node.component.version : node.version) || 'legacy';
+          }
         }
-        let subprocessStack = [];
-        if (this.selectedFlowPath.length > 1) {
-          subprocessStack = this.selectedFlowPath.map(item => item.nodeId).slice(1);
+        // 检测是否为subcanvas_plugin 子节点
+        let subCanvasParentActivity = null;
+        subCanvasParentActivity = Object.values(this.pipelineData.activities).find(act => act?.component?.code === 'subcanvas_plugin'
+            && act.pipeline?.location?.some(loc => loc.id === id));
+        const isSubprocessChild = subflowNode?.parent?.component?.code === 'subprocess_plugin' || (subflowNode?.parent && !!subflowNode?.taskId);
+        const isSubcanvasChild = !!subCanvasParentActivity;
+        const isNodeInSubflow = isSubprocessChild || isSubcanvasChild;
+        // 构建 subflowNodeParent
+        let subflowNodeParent;
+        if (isSubprocessChild) {
+          subflowNodeParent = subflowNode?.parent;
+        } else if (isSubcanvasChild) {
+          const parentState = this.instanceStatus?.children?.[subCanvasParentActivity.id]?.state;
+          subflowNodeParent = {
+            id: subCanvasParentActivity.id,
+            component: subCanvasParentActivity.component,
+            state: parentState,
+            taskId: subCanvasParentActivity?.taskId || subCanvasParentActivity?.subcanvasTaskId,
+            subcanvasTaskId: subCanvasParentActivity?.subcanvasTaskId,
+          };
         }
+        let instanceIdValue;
+        if (isNodeInSubflow) {
+          if (isSubprocessChild && subflowNode?.taskId) {
+            // subprocess_plugin子节点：使用 taskId（通过 addTaskId 设置）
+            instanceIdValue = subflowNode.taskId;
+          } else if (isSubcanvasChild) {
+            instanceIdValue = subCanvasParentActivity.subcanvasTaskId;
+          }
+        } else {
+          instanceIdValue = subflowNode?.parent ? (subflowNode?.taskId || subflowNode.subcanvasTaskId) : this.instanceId;
+        }
+        let nodeState;
+        let isFirstSubUnexecuted;
+        if (subCanvasParentActivity) {
+          const parentState = this.instanceStatus?.children?.[subCanvasParentActivity.id]?.state;
+          nodeState = !parentState || ['READY', 'WAIT'].includes(parentState) ? 'READY' : undefined;
+          isFirstSubUnexecuted = !parentState || ['READY', 'WAIT'].includes(parentState);
+        } else if (subflowNode) {
+          nodeState = subflowNode.state;
+          isFirstSubUnexecuted = subflowNode.isFirstSubUnexecuted;
+        } else {
+          nodeState = undefined;
+          isFirstSubUnexecuted = false;
+        }
+
+        // 设置节点详细配置对象
         this.nodeDetailConfig = {
-          component_code: code,
+          component_code: code,       // 组件代码
           version,
           node_id: id,
-          instance_id: this.instanceId,
-          root_node: rootNode,
-          subprocess_stack: JSON.stringify(subprocessStack),
+          instance_id: instanceIdValue || this.instanceId, // 实例ID
+          root_node: rootNode,        // 是否根节点
+          subprocess_stack: [], // JSON.stringify(subprocessStack)
           componentData,
+          subflowNodeParent: isNodeInSubflow ? subflowNodeParent : undefined, // 如果父节点为子流程才需要添加
+          isNodeInSubflow,
+          state: nodeState,
+          isFirstSubUnexecuted,
         };
+        if (nodeType) {
+          this.nodeDetailConfig.nodeType = nodeType;
+        }
+        if (conditionData) {
+          this.nodeDetailConfig.conditionData = conditionData;
+          if (conditionData.taskId) {
+            this.nodeDetailConfig.isNodeInSubflow = true;
+          }
+        }
+        const subcanvasTaskIdValue = subflowNodeParent?.taskId || subflowNodeParent?.subcanvasTaskId;
+        if (subCanvasParentActivity && subcanvasTaskIdValue) {
+          const instanceResp = await this.getTaskInstanceData(subcanvasTaskIdValue);
+          if (instanceResp?.['pipeline_tree']) {
+            this.nodeDetailConfig.executedSubCanvasPipelineTree = instanceResp.pipeline_tree;
+          }
+        }
       },
-      async onRetryClick(id) {
+      // eslint-disable-next-line no-unused-vars
+      async onRetryClick(id, subflowInfo, isTopSubflow = false, isLoopOperate) {
         try {
           const h = this.$createElement;
           this.$bkInfo({
@@ -1097,10 +1458,12 @@
             confirmLoading: true,
             confirmFn: async () => {
               const resp = await this.instanceNodeOperate({
-                instance_id: this.instanceId,
+                instance_id: subflowInfo?.taskId || this.getSubCanvasTaskId(id),
                 node_id: id,
                 operation: 'retry',
-                data: {},
+                data: {
+                  loop: isLoopOperate,
+                },
               });
               if (resp.result) {
                 this.$bkMessage({
@@ -1111,20 +1474,10 @@
                 this.isFailedSubproceeNodeInfo = null;
                 this.setTaskStatusTimer();
                 this.updateNodeActived(id, false);
+                this.updateExecuteInfo();
               }
             },
           });
-          // const resp = await this.getInstanceRetryParams({ id: this.instanceId })
-          // if (resp.data.enable) {
-          //   this.openNodeInfoPanel('retryNode', i18n.t('重试'))
-          //   this.setNodeDetailConfig(id)
-          //   if (this.nodeDetailConfig.component_code) {
-          //     await this.loadNodeInfo(id)
-          //   }
-          // } else {
-          //   this.openNodeInfoPanel('modifyParams', i18n.t('重试'))
-          //   this.retryNodeId = id
-          // }
         } catch (error) {
           console.warn(error);
         }
@@ -1142,8 +1495,8 @@
                   const nodeConfig = this.pipelineData.activities[id];
                   const { subprocess } = nodeConfig.component.data;
                   nodeInfo.data.inputs[key] = subprocess.value;
-                  Object.keys(value.pipeline.constants).forEach((key) => {
-                    const data = value.pipeline.constants[key];
+                  Object.keys(value.constants).forEach((key) => {
+                    const data = value.constants[key];
                     nodeInputs[key] = data.value;
                   });
                 } else {
@@ -1187,14 +1540,14 @@
           console.warn(e);
         }
       },
-      onSkipClick(id) {
+      onSkipClick(id, subflowInfo, isTopSubflow, isLoopOperate) {
         this.$bkInfo({
           title: i18n.t('确定跳过当前节点?'),
           subTitle: i18n.t('跳过节点将忽略当前失败节点继续往后执行'),
           maskClose: false,
           confirmLoading: true,
           confirmFn: async () => {
-            await this.nodeTaskSkip(id);
+            await this.nodeTaskSkip(id, subflowInfo, isTopSubflow, isLoopOperate);
           },
         });
       },
@@ -1247,18 +1600,19 @@
           this.pending.retry = false;
         }
       },
-      onForceFailClick(id) {
+      onForceFailClick(id, subflowInfo) {
         this.$bkInfo({
           title: i18n.t('确定强制终止当前节点?'),
           subTitle: i18n.t('强制终止将强行修改节点状态为失败，但不会中断已经发送到其它系统的请求'),
           maskClose: false,
           confirmLoading: true,
           confirmFn: async () => {
-            await this.nodeForceFail(id);
+            await this.nodeForceFail(id, subflowInfo);
           },
         });
       },
-      onModifyTimeClick(id) {
+      onModifyTimeClick(id, subflowInfo) {
+        this.subflowInfo = subflowInfo;
         this.openNodeInfoPanel('modifyTime', i18n.t('修改时间'));
         this.setNodeDetailConfig(id);
       },
@@ -1285,17 +1639,18 @@
         this.gatewayBranches = branches;
         this.isGatewaySelectDialogShow = true;
       },
-      onTaskNodeResumeClick(id) {
+      onTaskNodeResumeClick(id, subflowInfo) {
         this.$bkInfo({
           title: i18n.t('确定继续往后执行?'),
           maskClose: false,
           confirmLoading: true,
           confirmFn: async () => {
-            await this.nodeResume(id);
+            await this.nodeResume(id, subflowInfo);
           },
         });
       },
-      onApprovalClick(id) {
+      onApprovalClick(id, subflowInfo) {
+        this.subflowInfo = subflowInfo;
         this.approval.id = id;
         this.approval.dialogShow = true;
       },
@@ -1312,7 +1667,7 @@
               is_passed,
               message,
               project_id: this.project_id,
-              task_id: this.instanceId,
+              task_id: this.subflowInfo?.taskId || this.instanceId,
               node_id: id,
               space_id: this.spaceId,
             };
@@ -1325,7 +1680,15 @@
               });
               params.subprocess_id = selectedFlowIds;
             }
-            await this.itsmTransition(params);
+            const res = await this.itsmTransition(params);
+            if (res.result) {
+              if (this.subflowInfo?.taskId) {
+                this.updateExecuteInfo();
+              }
+              setTimeout(() => {
+                  this.setTaskStatusTimer();
+                }, 1000);
+            }
             this.approval.id = '';
             this.approval.is_passed = true;
             this.approval.message = '';
@@ -1342,9 +1705,6 @@
         this.approval.is_passed = true;
         this.approval.message = '';
         this.approval.dialogShow = false;
-      },
-      onCloseConfigPanel() {
-        this.isShowConditionEdit = false;
       },
       onSubprocessPauseResumeClick(id, value) {
         if (this.pending.subflowPause) return;
@@ -1387,7 +1747,7 @@
           name: this.$t('结束节点'),
           expanded: false,
         });
-        this.retrieveLines(data, fstLine, orderedData);
+        this.retrieveLines(data, fstLine, orderedData, false);
         orderedData.push(endEvent);
         // 过滤root最上层汇聚网关
         return orderedData;
@@ -1400,65 +1760,111 @@
        * @param {Boolean} isLoop 条件网关节点是否有循环
        *
        */
-      retrieveLines(data, lineId, ordered, isLoop = false) {
+      async retrieveLines(data, lineId, ordered, isLoop = false, isNoDirectLoopCondition = false) {
         const { end_event, activities, gateways, flows } = data;
         const currentNode = flows[lineId].target;
         const endEvent = end_event.id === currentNode ? tools.deepClone(end_event) : undefined;
         const activity = tools.deepClone(activities[currentNode]);
         const gateway = tools.deepClone(gateways[currentNode]);
         const node = endEvent || activity || gateway;
+        // 如果是循环处理且当前节点已经在ordered列表中,则停止递归避免无限循环
+        if (ordered.findIndex(item => item.id === node.id) !== -1 || this.nodeIds.includes(node.id)) {
+          return;
+        }
+        // 如果节点存在且尚未添加到有序数组中
         if (node && ordered.findIndex(item => item.id === node.id) === -1) {
+          // 处理出线（outgoing），确保为数组格式
           let outgoing;
           if (Array.isArray(node.outgoing)) {
             outgoing = node.outgoing;
           } else {
             outgoing = node.outgoing ? [node.outgoing] : [];
           }
-          // 当前tree是否已存在
+          // 检查当前节点是否已存在于节点ID列表中（避免重复处理）
+          if (this.copyOrdered.some(item => item.id === node.id)) {
+            return;
+          }
           const isAt = !this.nodeIds.includes(node.id);
-          if (gateway) { // 网关节点
+          // 网关节点处理
+          if (gateway) {
+            const gatewayClone = tools.deepClone(gateway);
+            this.copyOrdered.push(gatewayClone);
             const name = NODE_DICT[gateway.type.toLowerCase()];
             gateway.title = name;
             gateway.name = name;
             gateway.expanded = false;
             gateway.children = [];
+            // 条件网关处理（包含条件分支和默认分支）
             if (isAt && (gateway.conditions || gateway.default_condition)) {
-              const loopList = []; // 需要打回的node的incoming
-              outgoing.forEach((item) => {
+              const conditions = Object.keys(gateway.conditions).map((item, index) => {
+                const conditionInfo = gateway.conditions[item];
+                // 检查当前条件连线是否回退到已处理节点
+                let isLoopCondition = false;
                 const curNode = activities[flows[item].target] || gateways[flows[item].target];
-                if (curNode
-                  && (ordered.find(ite => ite.id === curNode.id || this.nodeIds.find(ite => ite === curNode.id)))) {
-                  loopList.push(...curNode.incoming);
+                // 获取回退目标节点信息
+                let callback = '';
+                let callbackData = {}; // 条件的节点详情数据需要callbackData包含的数据
+                let targetNode = [];
+                let isNoDirectLoopCondition = false;
+
+                // 判断是否为回退连线: 回退直连、非直连
+                if (curNode && (ordered.find(ite => ite.id === curNode.id || this.nodeIds.find(ite => ite === curNode.id)))) {
+                  isLoopCondition = true;
+                  isNoDirectLoopCondition = false;
+                  targetNode = [activities[flows[item].target]];
+                } else { // 非直连
+                   isLoopCondition = checkConditionLoop(item, flows, activities, gateways, isLoop ? this.copyOrdered : ordered, this.nodeIds);
+                   isNoDirectLoopCondition = isLoopCondition;
+                   if (isLoopCondition) {
+                    targetNode = findLoopTarget(item, flows, activities, gateways, isLoop ? this.copyOrdered : ordered, this.nodeIds);
+                   }
                 }
-              });
-              const conditions = Object.keys(gateway.conditions).map((item) => {
-                // 给需要打回的条件添加节点id
-                const callback = loopList.includes(item) ? activities[flows[item].target] : '';
-                const { evaluate, tag } = gateway.conditions[item];
-                const callbackData = {
-                  id: callback.id,
-                  name: gateway.conditions[item].name,
-                  nodeId: gateway.id,
-                  overlayId: `condition${item}`,
-                  tag,
-                  value: evaluate,
-                };
+
+                // 回退相关数据处理-callbackData
+                if (isLoopCondition) {
+                  if (targetNode.length === 1) {
+                    [callback] = targetNode;
+                  } else if (targetNode.length > 1) {
+                    callback = targetNode[index];
+                  }
+                  if (callback) {
+                    callbackData = {
+                      id: callback.id,
+                      name: conditionInfo.name,
+                      nodeId: gateway.id,
+                      overlayId: `condition${item}`,
+                      tag: conditionInfo.tag,
+                      value: conditionInfo.evaluate,
+                    };
+                  }
+                } else {
+                  // const callback = loopList.includes(item) ? activities[flows[item].target] : '';
+                  callbackData = {
+                    id: null,
+                    name: conditionInfo.name,
+                    nodeId: gateway.id,
+                    overlayId: `condition${item}`,
+                    tag: conditionInfo.tag,
+                    value: conditionInfo.evaluate,
+                  };
+                }
                 return {
-                  id: `${gateway.conditions[item].name}-${item}`,
+                  id: `${conditionInfo.name}-${item}`,
                   conditionsId: '',
-                  callbackName: callback.name,
-                  name: `${gateway.conditions[item].name}-${item}`,
-                  title: gateway.conditions[item].name,
+                  callbackName: callback?.name || '',
+                  name: `${conditionInfo.name}-${item}`,
+                  title: conditionInfo.name,
                   isGateway: true,
                   conditionType: 'condition', // 条件、条件并行网关
                   expanded: false,
                   outgoing: item,
                   children: [],
-                  isLoop: loopList.includes(item),
+                  isLoop: isLoopCondition,
                   callbackData,
+                  isNoDirectLoopCondition,
                 };
               });
-              // 添加条件分支默认节点
+              // 添加默认条件分支（当所有条件都不满足时执行）
               if (gateway.default_condition) {
                 const defaultCondition = [
                   {
@@ -1472,36 +1878,38 @@
                     children: [],
                   },
                 ];
-                conditions.unshift(...defaultCondition);
+                conditions.unshift(...defaultCondition); // 默认分支放在最前面
               }
-              conditions.forEach((item) => {
-                this.retrieveLines(data, item.outgoing, item.children, item.isLoop);
+              gateway.children.push(...conditions);
+              // 递归处理条件
+              gateway.children = gateway.children.map((item) => {
+                this.retrieveLines(data, item.outgoing, item.children, item.isLoop, item.isNoDirectLoopCondition);
                 if (item.children.length === 0) this.conditionOutgoing.push(item.outgoing);
                 item.children.forEach((i) => {
                   if (!this.nodeIds.includes(i.id)) {
                     this.nodeIds.push(i.id);
                   }
                 });
+                return item;
               });
-              gateway.children.push(...conditions);
               ordered.push(gateway);
               outgoing.forEach((line) => {
                 this.retrieveLines(data, line, ordered);
               });
-            } else if (isAt && gateway.type === 'ParallelGateway') {
-              // 添加并行默认条件
+            } else if (isAt && gateway.type === 'ParallelGateway') { // 并行网关处理
+              // 为每个并行分支创建默认条件节点
               const defaultCondition = gateway.outgoing.map((item, index) => ({
                 name: this.$t('并行') + (index + 1),
                 title: this.$t('并行'),
                 isGateway: true,
                 expanded: false,
-                conditionType: 'parallel',
+                conditionType: 'parallel', // 并行分支类型
                 outgoing: item,
                 children: [],
               }));
               gateway.children.push(...defaultCondition);
               defaultCondition.forEach((item) => {
-                this.retrieveLines(data, item.outgoing, item.children);
+                this.retrieveLines(data, item.outgoing, item.children, false, false);
                 item.children.forEach((i) => {
                   if (!this.nodeIds.includes(i.id)) {
                     this.nodeIds.push(i.id);
@@ -1513,6 +1921,7 @@
                 this.retrieveLines(data, line, ordered);
               });
             }
+            // 汇聚网关处理
             if (gateway.type === 'ConvergeGateway') {
               // 判断ordered中 汇聚网关的incoming是否存在
               const list = [];
@@ -1532,41 +1941,81 @@
                   outgoingList.push(item.outgoing);
                 }
               });
-
-              if (gateway.incoming.every(item => outgoingList.concat(this.conditionOutgoing).includes(item))) {
-                // 汇聚网关push在最近的条件网关下
-                const prev = ordered[ordered.findLastIndex(order => order.type !== 'ServiceActivity' || order.type !== 'ConvergeGateway')];
-                // 独立子流程的children为 subChildren
-                if (prev
-                  && prev.children
-                  && !prev.children.find(item => item.id === gateway.id)
-                  && !this.converNodeList.includes(gateway.id)) {
-                  this.converNodeList.push(gateway.id);
-                  gateway.gatewayType = 'converge';
-                  prev.children.push(gateway);
-                }
-                if (!this.nodeIds.includes(gateway.id)) {
-                  this.nodeIds.push(gateway.id);
-                }
-                outgoing.forEach((line) => {
-                  this.retrieveLines(data, line, ordered);
-                });
-              }
-            }
-          } else if (activity) { // 任务节点
-            if (isLoop) return;
-            if (isAt) {
-              if (activity.type === 'SubProcess') {
-                if (activity.pipeline) {
-                  activity.subChildren = this.getOrderedTree(activity.pipeline);
-                } else {
-                  if (activity.component.data && activity.component.data.subprocess) {
-                    activity.subChildren = this.getOrderedTree(activity.component.data.subprocess.value.pipeline);
+              let prev = ordered[ordered.findLastIndex(order => order.type !== 'ServiceActivity' && order.type !== 'ConvergeGateway')];
+              if (!prev) {
+                const nearestGateway = findNearestGatewayByIncoming(gateway, flows, activities, gateways);
+                if (nearestGateway) {
+                  prev = tools.deepClone(this.copyOrdered.find(item => item.id === nearestGateway.id));
+                  if (!prev) {
+                    prev = nearestGateway;
+                  }
+                  if (!prev.children) {
+                      prev.children = [];
                   }
                 }
               }
+              gateway.gatewayType = 'converge';
+              // 独立子流程的children为 subChildren
+              if (prev
+                && prev.children
+                && !prev.children.find(item => item.id === gateway.id)
+                && !this.converNodeList.includes(gateway.id)) {
+                this.converNodeList.push(gateway.id);
+                prev.children.push(gateway);
+                this.copyOrdered.forEach((item) => {
+                  if (item.id === prev.id) {
+                    item.children = tools.deepClone(prev.children);
+                  }
+                });
+              }
+              ordered.push(gateway);
+              if (!this.nodeIds.includes(gateway.id)) {
+                this.nodeIds.push(gateway.id);
+              }
+              outgoing.forEach((line) => {
+                this.retrieveLines(data, line, ordered);
+              });
+            }
+          } else if (activity) { // 任务节点
+            // 循环路径中的任务节点
+            if (isLoop) {
+              if (isNoDirectLoopCondition) {
+                if (!this.nodeIds.includes(activity.id)) {
+                    this.nodeIds.push(activity.id);
+                }
+                activity.title = activity.name;
+                activity.expanded = !(activity.type === 'SubProcess' || ['subprocess_plugin', 'subcanvas_plugin'].includes(activity.component.code) || activity.type === 'loopGroupNode');
+                ordered.push(activity);
+                if (!this.nodeIds.includes(activity.id)) {
+                  this.nodeIds.push(activity.id);
+                }
+                this.retrieveLines(data, activity.outgoing, ordered, isLoop, isNoDirectLoopCondition);
+              }
+              return;
+            }
+            if (isAt) { // 节点不存在于节点ID列表（nodeIds）
+              if (!this.nodeIds.includes(activity.id)) {
+                  this.nodeIds.push(activity.id);
+              }
+              this.copyOrdered.push(activity);
+              // 处理子流程节点和循环流节点
+              if (activity.type === 'SubProcess' || activity.component?.code === 'subprocess_plugin') {
+                // 只递归第一层 子流程的子流程不递归
+                // const  recursionDepth = 0;
+                if (activity.pipeline) {
+                  activity.children = this.getOrderedTree(activity.pipeline);
+                } else {
+                  if (activity.component?.data && activity.component.data?.subprocess && activity.component.data?.subprocess?.value?.pipeline) {
+                    activity.children = this.getOrderedTree(activity.component.data.subprocess.value.pipeline);
+                  }
+                }
+              } else if (activity.component?.code === 'subcanvas_plugin') {
+                if (activity.pipeline) {
+                  activity.children = this.getOrderedTree(activity.pipeline);
+                }
+              }
               activity.title = activity.name;
-              activity.expanded = activity.pipeline;
+              activity.expanded = !(activity.type === 'SubProcess' || ['subprocess_plugin', 'subcanvas_plugin'].includes(activity.component?.code));
               ordered.push(activity);
             }
             outgoing.forEach((line) => {
@@ -1576,6 +2025,7 @@
         }
       },
       updateNodeActived(id, isActived) {
+        if (this.useCanvasEditor) return;
         this.$refs.processCanvas.onUpdateNodeInfo(id, { isActived });
       },
       // 查看参数、修改参数 （侧滑面板 标题 点击遮罩关闭）
@@ -1589,7 +2039,14 @@
           return;
         }
         if (type === 'templateData') {
-          this.templateData = JSON.stringify(this.pipelineData, null, 4);
+          const pipelineData = tools.deepClone(this.pipelineData);
+          for (const key of Object.keys(pipelineData.activities)) {
+            const { code } = pipelineData.activities[key]?.component;
+            if (code !== 'subcanvas_plugin' && 'pipeline' in pipelineData.activities[key]) {
+               delete pipelineData.activities[key].pipeline;
+            }
+          }
+          this.templateData = JSON.stringify(pipelineData, null, 4);
         }
         this.openNodeInfoPanel(type, name);
       },
@@ -1627,6 +2084,9 @@
             confirmLoading: true,
             confirmFn: async () => {
               await this.taskRevoke();
+              if (window.parent) {
+                window.parent.postMessage({ eventName: 'bk-flow-task-operation-click', actionType: 'revoke' }, '*');
+              }
             },
           });
           return;
@@ -1634,45 +2094,64 @@
         this.pending.task = true;
         this.activeOperation = action;
         const actionType = `task${action.charAt(0).toUpperCase()}${action.slice(1)}`;
+        if (window.parent) {
+          window.parent.postMessage({ eventName: 'bk-flow-task-operation-click', actionType: action }, '*');
+        }
         this[actionType]();
       },
-      onNodeClick(id) {
+      onCanvasEditorNodeClick(event) {
+        const { nodeId } = event || {};
+        if (!nodeId) return;
+        const location = this.instanceFlow.location?.find(item => item.id === nodeId);
+        const nodeType = location?.type;
+        this.onNodeClick(nodeId, nodeType);
+      },
+      // type表示第一个节点的类型
+      async onNodeClick(id, type, conditionData) {
         this.defaultActiveId = id;
-        this.setNodeDetailConfig(id);
+        await this.setNodeDetailConfig(id, null, null, this.translateNodeType[type] ?? type, conditionData);
+        // 如果存在node_id 当前可能是点击网关条件 node_id此时指向网关节点
         if (this.nodeDetailConfig.node_id) {
           this.updateNodeActived(this.nodeDetailConfig.node_id, false);
         }
         this.updateNodeActived(id, true);
         // 如果为子流程节点则需要重置pipelineData的constants
-        this.nodePipelineData = { ...this.pipelineData };
+        const { subflowNodeParent, executedSubCanvasPipelineTree } = this.nodeDetailConfig;
+        const isCurrentInSubCanvas = subflowNodeParent?.component?.code === 'subcanvas_plugin';
+        const hasExistingSubCanvasData = this.nodePipelineData?.activities?.[subflowNodeParent?.id]?.pipeline;
+        if (isCurrentInSubCanvas && hasExistingSubCanvasData) {
+          // subcanvas 子画布内切换节点时：保留当前nodePipelineData（含内嵌pipeline）
+          if (executedSubCanvasPipelineTree && this.nodePipelineData.activities[subflowNodeParent.id]) {
+            this.nodePipelineData.activities[subflowNodeParent.id].pipeline = executedSubCanvasPipelineTree;
+          }
+        } else {
+          this.nodePipelineData = { ...this.pipelineData };
+          // 如果 subcanvas_plugin 已执行，将nodePipelineData中的模板pipeline替换为执行后的pipeline_tree
+          if (executedSubCanvasPipelineTree && subflowNodeParent?.id && this.nodePipelineData.activities[subflowNodeParent.id]) {
+            this.nodePipelineData.activities[subflowNodeParent.id].pipeline = executedSubCanvasPipelineTree;
+          }
+        }
         this.openNodeInfoPanel('executeInfo', i18n.t('节点详情'));
       },
-      onOpenConditionEdit(data, isCondition = true) {
-        if (isCondition && data) {
-          this.onNodeClick(data.nodeId);
+      // 外层画布点击网关条件
+      onOpenConditionEdit(data) {
+        if (data) {
+          this.onNodeClick(data.nodeId, undefined, data);
           // 生成网关添加id 条件name + 分支条件outgoning
+          // 条件1-l290bdc11dad31349270ecae3d37eb85
           this.defaultActiveId = `${data.name}-${data.id}`;
-          this.isCondition = true;
-          this.isShowConditionEdit = true;
-          this.conditionData = { ...data };
         }
-        this.isCondition = isCondition;
       },
-      /**
-       * 切换为子流程画布
-       */
-      handleSubflowCanvasChange(id) {
-        this.cancelTaskStatusTimer();
-        const nodeActivities = this.pipelineData.activities[id];
-        this.nodeSwitching = true;
-        this.selectedFlowPath.push({
-          id: nodeActivities.id,
-          name: nodeActivities.name,
-          nodeId: nodeActivities.id,
-          type: 'SubProcess',
-        });
-        this.pipelineData = this.pipelineData.activities[id].pipeline;
-        this.updateTaskStatus(id);
+      // nodeTree或者子流程画布点击网关条件
+      onOpenConditionInfo(data) {
+        if (data) {
+          this.onNodeClick(data.nodeId, undefined, data);
+          // 生成网关添加id 条件name + 分支条件outgoning
+          this.defaultActiveId = `${data.name}-${data.outgoing}`;
+          // this.isCondition = true;
+          // this.conditionData = { ...data };
+        }
+        // this.isCondition = isCondition;
       },
       // 获取节点执行记录
       async onNodeExecRecord(nodeId) {
@@ -1702,7 +2181,7 @@
               state: execNodeConfig.state,
               count,
             };
-          } else {
+          } else if (this.$refs.processCanvas) {
             this.$refs.processCanvas.closeNodeExecRecord();
           }
         } catch (error) {
@@ -1737,107 +2216,40 @@
         this.isExecRecordOpen = false;
         this.nodeExecRecordInfo = {};
       },
-      // 面包屑点击
-      onSelectSubflow(id) {
-        let nodeIndex = 0;
-        this.selectedFlowPath.some((item, index) => {
-          let result = false;
-          if (id === item.id) {
-            nodeIndex = index;
-            result = true;
+      async onClickTreeNode(selectNodeId, nodeType, node) {
+          const nodePath = [{
+            id: this.instanceId,
+            name: this.instanceName,
+            nodeId: this.completePipelineData.id,
+          }];
+
+          if (this.nodeDetailConfig.node_id) {
+            this.updateNodeActived(this.nodeDetailConfig.node_id, false);
           }
-          return result;
-        });
-        if (nodeIndex === (this.selectedFlowPath.length - 1)) return; // the last level node
-        this.nodeSwitching = true;
-        this.selectedFlowPath.splice(nodeIndex + 1);
-        if (nodeIndex === 0) {
-          this.pipelineData = this.completePipelineData;
-        } else {
-          const pathList = this.selectedFlowPath.slice(1);
-          let nodeActivities = this.completePipelineData.activities;
-          pathList.forEach((item, index) => {
-            nodeActivities = index ? nodeActivities.pipeline.activities[item.id] : nodeActivities[item.id];
-          });
-          this.pipelineData = nodeActivities.pipeline;
-        }
-        // this.isNodeInfoPanelShow = false
-        this.nodeDetailConfig = {};
-        this.cancelTaskStatusTimer();
-        this.updateTaskStatus(id);
-      },
-      async onClickTreeNode(nodeHeirarchy, selectNodeId) {
-        const nodePath = [{
-          id: this.instanceId,
-          name: this.instanceName,
-          nodeId: this.completePipelineData.id,
-        }];
-        if (this.nodeDetailConfig.node_id) {
-          this.updateNodeActived(this.nodeDetailConfig.node_id, false);
-        }
-        this.selectedFlowPath = nodePath;
-        this.setNodeDetailConfig(selectNodeId, false);
-        // 节点树切换时，如果为子流程节点则需要重置pipelineData的constants
-        this.nodePipelineData = { ...this.pipelineData };
-        this.updateNodeActived(selectNodeId, true);
-      },
-      // 切换画布视图
-      async switchCanvasView(nodeActivities, isRootNode = false) {
-        const id = isRootNode ? this.instanceId : nodeActivities.id;
-        this.nodeSwitching = true;
-        this.pipelineData = isRootNode ? nodeActivities : nodeActivities.pipeline;
-        this.cancelTaskStatusTimer();
-        await this.updateTaskStatus(id);
-      },
-      // 更新节点的参数面板信息
-      updataNodeParamsInfo(nodeActivities) {
-        let subprocessStack = [];
-        if (this.selectedFlowPath.length > 1) {
-          subprocessStack = this.selectedFlowPath.map(item => item.nodeId).slice(1, -1);
-        }
-        this.treeNodeConfig = {
-          component_code: nodeActivities.component.code,
-          version: nodeActivities.component.version || 'legacy',
-          node_id: nodeActivities.id,
-          instance_id: this.instanceId,
-          subprocess_stack: JSON.stringify(subprocessStack),
-          name: nodeActivities.name,
-        };
-        this.cancelSelectedNode(this.selectedNodeId);
-        // this.addSelectedNode(nodeActivities.id)
-      },
-      // 添加选中节点
-      addSelectedNode(nodeId) {
-        this.selectedNodeId = nodeId;
-        if (this.$refs.templateCanvas && this.nodeSwitching === false) {
-          this.$refs.templateCanvas.toggleSelectedNode(nodeId, true);
-          return;
-        }
-        this.addToCanvasQueues(() => {
-          this.$refs.templateCanvas.toggleSelectedNode(nodeId, true);
-        }, [nodeId]);
-      },
-      cancelSelectedNode(nodeId) {
-        const canvasTempalte = this.$refs.templateCanvas;
-        canvasTempalte && canvasTempalte.toggleSelectedNode(nodeId, false);
-      },
-      /**
-       * 往画布组件队列中添加待执行事件
-       * @param {Function} func -事件
-       * @param {Array} params -事件参数
-       */
-      addToCanvasQueues(func, params) {
-        this.canvasMountedQueues.push({
-          params,
-          func,
-        });
-      },
-      // 下次画布组件更新后执行队列
-      onTemplateCanvasMounted() {
-        this.canvasMountedQueues.forEach((action) => {
-          action.func.apply(this, action.params);
-        });
-        this.canvasMountedQueues = [];
+          this.selectedFlowPath = nodePath;
+          // 如果为子流程的节点 添加子流程信息
+          if (nodeType === 'callback') {
+            const allActivities = Object.assign({}, this.pipelineData.activities, this.subActivities);
+            // 收集循环流节点内嵌pipeline的activities
+            Object.keys(this.pipelineData.activities || {}).forEach((key) => {
+              const activity = this.pipelineData.activities[key];
+              if (activity?.component?.code === 'subcanvas_plugin' && activity.pipeline?.activities) {
+                Object.assign(allActivities, activity.pipeline.activities);
+              }
+            });
+            const activitiesNode = allActivities[selectNodeId];
+            this.setNodeDetailConfig(selectNodeId, false, node, this.translateNodeType[activitiesNode.type]);
+          } else if (node?.conditionType === 'condition') {
+            this.setNodeDetailConfig(selectNodeId, false, node, undefined, node.callbackData);
+          } else {
+            this.setNodeDetailConfig(selectNodeId, false, node, this.translateNodeType[node.type]);
+          }
+          // 当前节点激活id
+          this.defaultActiveId = selectNodeId;
+          // 节点树切换时，如果为子流程节点则需要重置pipelineData的constants
+          // this.pipelineData 外部任务的流程树
+          this.nodePipelineData = { ...this.pipelineData };
+          this.updateNodeActived(selectNodeId, true);
       },
       async onRetrySuccess(data) {
         try {
@@ -2074,7 +2486,9 @@
 }
 .node-info-panel {
     height: 100%;
-    .operation-flow {
+    min-height: 0;
+    overflow: hidden;
+    .operation-flow, .wehhook-callback{
         padding: 20px 30px;
     }
 }

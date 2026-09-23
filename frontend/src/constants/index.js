@@ -13,20 +13,20 @@ import i18n from '@/config/i18n/index.js';
 const TASK_STATE_DICT = {
   EXPIRED: i18n.t('已过期'),
   CREATED: i18n.t('未执行'),
-  RUNNING: i18n.t('执行中'),
+  RUNNING: i18n.t('正在执行'),
   READY: i18n.t('排队中'),
   SUSPENDED: i18n.t('暂停'),
   NODE_SUSPENDED: i18n.t('节点暂停'),
-  FAILED: i18n.t('失败'),
-  FINISHED: i18n.t('完成'),
+  FAILED: i18n.t('执行失败'),
+  FINISHED: i18n.t('执行成功'),
   REVOKED: i18n.t('终止'),
 };
 
 const NODE_DICT = {
   startpoint: i18n.t('开始节点'),
   endpoint: i18n.t('结束节点'),
-  // 'startPoint': i18n.t('开始节点'),
-  // 'endPoint': i18n.t('结束节点'),
+  start: i18n.t('开始节点'),
+  end: i18n.t('结束节点'),
   parallelgateway: i18n.t('并行网关'),
   conditionalparallelgateway: i18n.t('条件并行网关'),
   branchgateway: i18n.t('分支网关'),
@@ -34,6 +34,7 @@ const NODE_DICT = {
   convergegateway: i18n.t('汇聚网关'),
   tasknode: i18n.t('标准插件节点'),
   subflow: i18n.t('子流程节点'),
+  SubCanvas: i18n.t('循环节点'),
 };
 
 const INVALID_NAME_CHAR = '\'‘"”$&<>';
@@ -165,6 +166,48 @@ const COLOR_BLOCK_LIST = [
   },
 ];
 
+// 凭证类型
+const CREDENTIAL_TYPE_LIST = [
+  {
+    text: i18n.t('蓝鲸应用认证'),
+    value: 'BK_APP',
+  },
+  {
+    text: i18n.t('蓝鲸 Access Token 认证'),
+    value: 'BK_ACCESS_TOKEN',
+  },
+  {
+    text: 'Basic Auth',
+    value: 'BASIC_AUTH',
+  },
+  {
+    text: i18n.t('自定义'),
+    value: 'CUSTOM',
+  },
+];
+
+// 凭证开放范围
+const CREDENTIAL_OPEN_SCOPE_LIST = [
+  {
+    text: i18n.t('全部流程'),
+    value: 'all',
+  },
+  {
+    text: i18n.t('按作用域开放'),
+    value: 'part',
+  },
+  {
+    text: i18n.t('不开放'),
+    value: 'none',
+  },
+];
+
+// 标签范围
+const LABEL_SCOPE = {
+  template: i18n.t('流程'),
+  task: i18n.t('任务'),
+};
+
 const NAME_REG = /^[^'"‘’“”$<>]+$/;
 const PACKAGE_NAME_REG = /^[^\d][\w]*?$/;
 // celery的crontab时间表达式正则表达式（分钟 小时 星期 日 月）（以空格分割）
@@ -176,7 +219,21 @@ const URL_REG = new RegExp('^(https?|ftp|file)://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-
 /* eslint-enable */
 
 export {
-  TASK_STATE_DICT, NODE_DICT, SYSTEM_GROUP_ICON, BK_PLUGIN_ICON, NAME_REG,
-  INVALID_NAME_CHAR, PACKAGE_NAME_REG, URL_REG, PERIODIC_REG, STRING_LENGTH,
-  LABEL_COLOR_LIST, DARK_COLOR_LIST, TASK_CATEGORIES, COLOR_BLOCK_LIST,
+  TASK_STATE_DICT,
+  NODE_DICT,
+  SYSTEM_GROUP_ICON,
+  BK_PLUGIN_ICON,
+  NAME_REG,
+  INVALID_NAME_CHAR,
+  PACKAGE_NAME_REG,
+  URL_REG,
+  PERIODIC_REG,
+  STRING_LENGTH,
+  LABEL_COLOR_LIST,
+  DARK_COLOR_LIST,
+  TASK_CATEGORIES,
+  COLOR_BLOCK_LIST,
+  CREDENTIAL_TYPE_LIST,
+  CREDENTIAL_OPEN_SCOPE_LIST,
+  LABEL_SCOPE,
 };

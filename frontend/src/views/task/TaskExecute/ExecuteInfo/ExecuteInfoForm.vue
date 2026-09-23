@@ -6,7 +6,7 @@
       {{ $t('基础信息') }}
     </h4>
     <ul class="operation-table">
-      <li v-if="isSubProcessNode">
+      <li v-if="isSubProcessNode || isTemSubflowNode">
         <span class="th">{{ $t('流程模板') }}</span>
         <span
           v-if="templateName"
@@ -39,10 +39,6 @@
       <li>
         <span class="th">{{ $t('步骤名称') }}</span>
         <span class="td">{{ templateConfig.stage_name || '--' }}</span>
-      </li>
-      <li v-if="isSubProcessNode">
-        <span class="th">{{ $t('执行方案') }}</span>
-        <span class="td">{{ schemeTextValue || '--' }}</span>
       </li>
       <li>
         <span class="th">{{ $t('是否可选') }}</span>
@@ -79,14 +75,14 @@
                 <span class="th">{{ $t('超时控制') }}</span>
                 <span class="td">{{ timeoutTextValue }}</span>
             </li> -->
-      <li v-if="isSubProcessNode">
+      <li v-if="isSubProcessNode || isTemSubflowNode">
         <span class="th">{{ $t('总是使用最新版本') }}</span>
         <span class="td">
           {{ !('always_use_latest' in componentValue) ? '--' : componentValue.always_use_latest ? $t('是') : $t('否') }}
         </span>
       </li>
     </ul>
-    <template v-if="inputAndOutputWrapShow">
+    <template>
       <h4 class="common-section-title">
         {{ $t('输入参数') }}
       </h4>
@@ -109,7 +105,7 @@
               ref="renderForm"
               :scheme="inputs"
               :hooked="hooked"
-              :constants="isSubProcessNode ? subflowForms : constants"
+              :constants="isSubProcessNode || isTemSubflowNode ? subflowForms : constants"
               :form-option="option"
               :form-data="inputsFormData"
               :render-config="inputsRenderConfig" />
@@ -200,6 +196,12 @@
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
   import NoData from '@/components/common/base/NoData.vue';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import {
+    buildV4PluginDetailRequest,
+    isV4OpenPlugin,
+    resolveUniformApiPluginVersion,
+    resolveV4OpenPluginVersion,
+  } from '@/utils/uniformApi.js';
   import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
 
   export default {
@@ -262,7 +264,6 @@
     data() {
       return {
         templateName: '',
-        schemeTextValue: '',
         templateConfig: {},
         inputs: [],
         outputs: [],
@@ -280,6 +281,9 @@
         taskNodeLoading: false,
         subflowLoading: false,
         constantsLoading: false,
+        isTemSubflowNode: false,
+        pluginFormRequestId: 0,
+        isDestroyed: false,
       };
     },
     computed: {
@@ -300,6 +304,13 @@
       componentValue() {
         if (this.isSubProcessNode) {
           return this.nodeActivity.component.data.subprocess.value;
+        } if (this.isTemSubflowNode) {
+          const { always_use_latest, template_id, template_source } = this.nodeActivity;
+          return {
+            always_use_latest,
+            template_id,
+            template_source,
+          };
         }
         return {};
       },
@@ -311,12 +322,6 @@
       },
       outputList() {
         return this.getOutputsList();
-      },
-      inputAndOutputWrapShow() {
-        const { original_template_id: originTplId, type } = this.nodeActivity;
-        // 普通任务节点展示/该功能上线后的独立子流程任务展示
-        return (!this.isSubProcessNode && type !== 'SubProcess')
-          || (originTplId && !this.templateConfig.isOldData);
       },
       isAutoOperate() {
         const { ignorable, skippable, retryable, auto_retry: autoRetry } = this.templateConfig;
@@ -337,11 +342,16 @@
     mounted() {
       $.context.exec_env = 'NODE_EXEC_DETAIL';
       this.initData();
-      if (this.nodeActivity.original_template_id) {
+      if (this.nodeActivity?.component?.data?.subprocess) {
+        this.getTemplateData();
+      } else if (this.nodeActivity.type === 'SubProcess') {
+        this.isTemSubflowNode = true;
         this.getTemplateData();
       }
     },
     beforeDestroy() {
+      this.isDestroyed = true;
+      this.pluginFormRequestId += 1;
       $.context.exec_env = '';
     },
     methods: {
@@ -349,6 +359,7 @@
         'getTemplatePublicData',
         'getCommonTemplatePublicData',
         'loadUniformApiMeta',
+        'loadTemplateData',
       ]),
       ...mapActions('task', [
         'loadSubflowConfig',
@@ -357,6 +368,7 @@
       ...mapActions('atomForm/', [
         'loadAtomConfig',
         'loadPluginServiceDetail',
+        'loadV4OpenPluginForm',
       ]),
       // 初始化节点数据
       async initData() {
@@ -383,6 +395,7 @@
                 renderConfig[key] = 'need_render' in form ? form.need_render : true;
               }
             });
+            // 加载子流程详情
             await this.getSubflowDetail(this.templateConfig.version);
             this.inputs = await this.getSubflowInputsConfig();
             this.inputsFormData = this.getSubflowInputsValue(forms);
@@ -401,7 +414,9 @@
             await this.getPluginDetail();
           }
           // 获取输入参数的勾选状态
-          this.hooked = !this.isApiPlugin && this.getFormsHookState();
+          if (Array.isArray(this.inputs)) {
+            this.hooked = this.getFormsHookState();
+          }
         } catch (error) {
           console.warn(error);
         }
@@ -435,7 +450,7 @@
         this.subflowLoading = true;
         try {
           const params = {
-            template_id: this.nodeActivity.original_template_id,
+            template_id: this.componentValue.template_id,
             scheme_id_list: this.nodeActivity.schemeIdList || [],
             version,
           };
@@ -568,11 +583,39 @@
        */
       async getAtomConfig(config) {
         const { plugin, version, classify, name, isThird } = config;
+        this.pluginFormRequestId += 1;
+        const requestId = this.pluginFormRequestId;
         try {
           // 先取标准节点缓存的数据
-          const pluginGroup = this.pluginConfigs[plugin];
-          if (pluginGroup && pluginGroup[version]) {
+          const { [plugin]: pluginGroup } = this.pluginConfigs;
+          if (pluginGroup && pluginGroup[version]
+            && !(this.isApiPlugin && isV4OpenPlugin(this.nodeActivity.component))) {
             return pluginGroup[version];
+          }
+          if (this.isApiPlugin && isV4OpenPlugin(this.nodeActivity.component)) {
+            const { component } = this.nodeActivity;
+            const result = await this.loadV4OpenPluginForm({
+              request: buildV4PluginDetailRequest({
+                component,
+                spaceId: this.spaceId,
+                templateId: this.templateId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+              }),
+              readOnly: true,
+              taskId: this.nodeDetailConfig.instance_id,
+              nodeId: this.nodeDetailConfig.node_id,
+              templateNodeId: this.nodeActivity && this.nodeActivity.template_node_id,
+              isCurrent: () => !this.isDestroyed && requestId === this.pluginFormRequestId,
+              runtimeContext: {
+                inputs: this.executeInfo.inputs || {},
+                outputs: this.executeInfo.outputs || [],
+                state: this.executeInfo.state,
+              },
+            });
+            if (this.isDestroyed || requestId !== this.pluginFormRequestId) return null;
+            this.outputs = result.detail.outputs || [];
+            return result.input;
           }
           // api插件输入输出
           if (this.isApiPlugin) {
@@ -585,10 +628,16 @@
               spaceId: this.spaceId,
               meta_url: apiMeta.meta_url,
               ...this.scopeInfo,
+              meta_url_template: apiMeta.meta_url_template,
+              source_key: apiMeta.source_key,
+              version: resolveUniformApiPluginVersion(this.nodeActivity.component),
+              api_name: apiMeta.api_key,
             });
             if (!resp.result) return;
+            // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
+            const apiVersion = resp.data.version || 'v2.0.0';
             // 输出参数
-            const storeOutputs = this.pluginOutput.uniform_api[version];
+            const storeOutputs = this.pluginOutput.uniform_api[apiVersion];
             const outputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs, ...outputs];
             const renderConfig = jsonFormSchema(resp.data, { disabled: true });
@@ -605,7 +654,14 @@
           const config = $.atoms[plugin];
           return config;
         } catch (e) {
-          console.log(e);
+          if (this.isDestroyed || requestId !== this.pluginFormRequestId) return null;
+          if (this.isApiPlugin && isV4OpenPlugin(this.nodeActivity.component)) {
+            const errorCode = e && e.code ? e.code : 'FORM_LOAD_FAILED';
+            const pluginVersion = resolveV4OpenPluginVersion(this.nodeActivity.component) || version || '--';
+            this.$bkMessage({ message: `${errorCode}: ${pluginVersion}`, theme: 'error' });
+          } else {
+            console.log(e);
+          }
         }
       },
       // 第三方插件输入输出配置
@@ -699,7 +755,7 @@
             version = componentData.plugin_version.value;
           }
           this.inputs = await this.getAtomConfig({ plugin, version, isThird: this.isThirdPartyNode }) || [];
-          if (!this.isThirdPartyNode) {
+          if (!this.isThirdPartyNode && !isV4OpenPlugin(this.nodeActivity.component)) {
             this.outputs = this.pluginOutput[plugin][version];
           }
         } catch (e) {
@@ -742,31 +798,21 @@
         return row.status || '';
       },
       async getTemplateData() {
-        const { template_source: templateSource, scheme_id_list: schemeIds } = this.componentValue;
+        const { template_id: templateId } = this.componentValue;
         const data = {
-          templateId: this.nodeActivity.original_template_id,
-          project__id: this.project_id,
+          templateId,
+          common: false,
         };
-        let templateData = {};
-        if (templateSource === 'common') {
-          templateData = await this.getCommonTemplatePublicData(data);
-        } else {
-          templateData = await this.getTemplatePublicData(data);
-        }
-        this.templateName = templateData.data.name;
-        let schemeText = '';
-        templateData.data.schemes.forEach((item) => {
-          if (schemeIds.includes(item.id)) {
-            schemeText = schemeText ? `${schemeText},${item.name}` : item.name;
-          }
-        });
-        this.schemeTextValue = schemeText;
+        const templateData = await this.loadTemplateData(data);
+        this.templateName = templateData.name;
       },
       onSkipSubTemplate() {
         const { href } = this.$router.resolve({
-          name: this.componentValue.template_source === 'common' ? 'projectCommonTemplatePanel' : 'templatePanel',
-          params: { type: 'view' },
-          query: { template_id: this.nodeActivity.original_template_id },
+          name: 'templatePanel',
+          params: {
+            templateId: this.componentValue.template_id,
+            type: 'view',
+          },
         });
         window.open(href, '_blank');
       },

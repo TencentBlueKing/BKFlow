@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.conf import settings
@@ -23,11 +24,14 @@ from pipeline.core.flow.io import ArrayItemSchema, BooleanItemSchema, StringItem
 
 from bkflow.pipeline_plugins.components.collections.base import BKFlowBaseService
 from bkflow.utils.message import send_message
+from bkflow.utils.tenant import get_task_tenant_id
 
 __group_name__ = _("蓝鲸服务(BK)")
 
 
 class NotifyService(BKFlowBaseService):
+    plugin_name = "notify"
+
     def inputs_format(self):
         return [
             self.InputItem(
@@ -35,7 +39,8 @@ class NotifyService(BKFlowBaseService):
                 key="bk_notify_types",
                 type="array",
                 schema=ArrayItemSchema(
-                    description=_("需要使用的通知方式，从 API 网关自动获取已实现的通知渠道"), item_schema=StringItemSchema(description=_("通知方式"))
+                    description=_("需要使用的通知方式，从 API 网关自动获取已实现的通知渠道"),
+                    item_schema=StringItemSchema(description=_("通知方式")),
                 ),
             ),
             self.InputItem(
@@ -45,10 +50,16 @@ class NotifyService(BKFlowBaseService):
                 schema=StringItemSchema(description=_("接收通知的用户")),
             ),
             self.InputItem(
-                name=_("通知标题"), key="bk_notify_title", type="string", schema=StringItemSchema(description=_("通知的标题"))
+                name=_("通知标题"),
+                key="bk_notify_title",
+                type="string",
+                schema=StringItemSchema(description=_("通知的标题")),
             ),
             self.InputItem(
-                name=_("通知内容"), key="bk_notify_content", type="string", schema=StringItemSchema(description=_("通知的内容"))
+                name=_("通知内容"),
+                key="bk_notify_content",
+                type="string",
+                schema=StringItemSchema(description=_("通知的内容")),
             ),
             self.InputItem(
                 name=_("通知执行人"),
@@ -88,6 +99,7 @@ class NotifyService(BKFlowBaseService):
             receivers=",".join(unique_receivers),
             title=title,
             content=content,
+            tenant_id=get_task_tenant_id(parent_data),
         )
 
         if has_error:

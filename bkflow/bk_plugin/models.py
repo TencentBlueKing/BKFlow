@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,12 +16,15 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 from enum import Enum
 
+from django.conf import settings
 from django.db import models, transaction
 from django.utils.timezone import localtime
 from django.utils.translation import ugettext_lazy as _
+from rest_framework.exceptions import ValidationError
 
 import env
 from bkflow.constants import ALL_SPACE, WHITE_LIST
@@ -32,6 +34,14 @@ logger = logging.getLogger("root")
 
 
 class BKPluginManager(models.Manager):
+    def for_space(self, space_id):
+        """统一目录和详情入口的租户范围，system 插件可共享。"""
+        if not settings.ENABLE_MULTI_TENANT_MODE:
+            return self.all()
+        from bkflow.bk_plugin.tenant import get_plugin_tenant_id
+
+        return self.filter(tenant_id__in=[get_plugin_tenant_id(space_id), "system"])
+
     def fill_plugin_info(self, remote_plugin):
         """
         将最新插件信息封装为本地蓝鲸插件
@@ -46,7 +56,7 @@ class BKPluginManager(models.Manager):
             code=remote_plugin["plugin"]["code"],
             name=remote_plugin["plugin"]["name"],
             logo_url=remote_plugin["plugin"]["logo_url"],
-            tag=remote_plugin["profile"]["tag"],
+            tag=remote_plugin["profile"]["tag"] or 0,
             created_time=remote_plugin["plugin"]["created"],
             updated_time=remote_plugin["plugin"]["updated"],
             introduction=remote_plugin["profile"]["introduction"],
@@ -59,10 +69,12 @@ class BKPluginManager(models.Manager):
                 return False
         return True
 
-    def sync_bk_plugins(self, remote_plugins_dict):
+    def sync_bk_plugins(self, remote_plugins_dict, tenant_id=None):
         """
         批量更新插件信息
         """
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            return self._sync_tenant_plugins(remote_plugins_dict, tenant_id)
         if not remote_plugins_dict:
             return
         # 比较插件code和更新时间
@@ -73,7 +85,8 @@ class BKPluginManager(models.Manager):
         codes_to_delete = set(local_plugin_codes - remote_plugin_codes)
         codes_to_compare = set(local_plugin_codes & remote_plugin_codes)
         plugins_to_update = set()
-        fields_to_compare = [f.name for f in BKPlugin._meta.fields if not f.primary_key]
+        # 单租户同步不改变已记录的租户归属，也不依赖远端新字段。
+        fields_to_compare = [f.name for f in BKPlugin._meta.fields if not f.primary_key and f.name != "tenant_id"]
         for code in codes_to_compare:
             remote_plugin = self.fill_plugin_info(remote_plugins_dict[code])
             local_plugin = local_plugins[code]
@@ -93,6 +106,40 @@ class BKPluginManager(models.Manager):
         logger.info("本次蓝鲸插件同步，新增{}个".format(len(codes_to_add)))
         logger.info("本次蓝鲸插件同步，更新{}个".format(len(plugins_to_update)))
 
+    @transaction.atomic
+    def _sync_tenant_plugins(self, remote_plugins_dict, tenant_id):
+        """完整拉取成功后更新一个租户；空结果也只清理该租户，未知归属留待重同步。"""
+        if not isinstance(tenant_id, str) or not tenant_id.strip() or len(tenant_id) > 64:
+            raise ValidationError("插件同步缺少有效租户")
+        remote_plugins = {}
+        for info in remote_plugins_dict.values():
+            # 当前 PaaS 目录 API 按 Application.tenant_id 精确过滤，返回体不含租户字段。
+            declared_tenant = info["plugin"].get("tenant_id")
+            if declared_tenant is not None and declared_tenant != tenant_id:
+                raise ValidationError("插件目录返回的租户与同步范围不一致")
+            plugin = self.fill_plugin_info(info)
+            plugin.tenant_id = tenant_id
+            remote_plugins[plugin.code] = plugin
+        local_plugins = {
+            plugin.code: plugin
+            for plugin in self.select_for_update().filter(
+                models.Q(tenant_id=tenant_id) | models.Q(code__in=remote_plugins)
+            )
+        }
+        for code in remote_plugins:
+            if code in local_plugins and local_plugins[code].tenant_id not in ("", tenant_id):
+                raise ValidationError("同一插件 code 出现在不同租户，拒绝覆盖已有归属")
+        to_delete = set(local_plugins) - set(remote_plugins)
+        if to_delete:
+            self.filter(tenant_id=tenant_id, code__in=to_delete).delete()
+        to_create = [plugin for code, plugin in remote_plugins.items() if code not in local_plugins]
+        to_update = [plugin for code, plugin in remote_plugins.items() if code in local_plugins]
+        if to_create:
+            self.bulk_create(to_create)
+        if to_update:
+            self.bulk_update(to_update, fields=[f.name for f in BKPlugin._meta.fields if not f.primary_key])
+        logger.info("租户插件同步完成 tenant_id=%s count=%s", tenant_id, len(remote_plugins))
+
 
 class BKPlugin(models.Model):
     """
@@ -108,6 +155,7 @@ class BKPlugin(models.Model):
     introduction = models.CharField(_("插件简介"), max_length=255)
     managers = models.JSONField(_("插件管理员列表"), default=list)
     extra_info = models.JSONField(_("额外信息"), default=dict)
+    tenant_id = models.CharField(_("插件所属租户"), max_length=64, default="", blank=True, db_index=True)
 
     objects = BKPluginManager()
 
@@ -186,9 +234,9 @@ class BKPluginAuthorization(models.Model):
         return {
             "code": self.code,
             "status": self.status,
-            "status_update_time": localtime(self.status_update_time).strftime("%Y-%m-%d %H:%M:%S")
-            if self.status_update_time
-            else "",
+            "status_update_time": (
+                localtime(self.status_update_time).strftime("%Y-%m-%d %H:%M:%S") if self.status_update_time else ""
+            ),
             "config": self.config,
             "status_updator": self.status_updator,
         }

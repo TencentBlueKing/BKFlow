@@ -10,9 +10,105 @@
 */
 <template>
   <div class="basic-info">
+    <!-- 循环流节点 -->
+    <bk-form
+      v-if="isLoopGroupNode"
+      ref="loopGroupForm"
+      :label-width="130"
+      :model="formData"
+      :rules="loopGroupRules">
+      <bk-form-item
+        :label="$t('节点名称')"
+        :required="true"
+        property="nodeName">
+        <bk-input
+          v-model="formData.nodeName"
+          :readonly="isViewMode"
+          @change="updateData" />
+      </bk-form-item>
+      <bk-form-item
+        :label="$t('步骤名称')"
+        property="stageName">
+        <bk-input
+          v-model="formData.stageName"
+          :readonly="isViewMode"
+          @change="updateData" />
+      </bk-form-item>
+      <bk-form-item
+        :label="$t('执行控制')"
+        :required="true"
+        property="executeControl">
+        <bk-form
+          ref="loopForm"
+          :model="formData.loopConfig">
+          <bk-form-item
+            :label="$t('循环类型')"
+            ext-cls="loop-type"
+            :required="true"
+            :label-width="74"
+            property="loopType">
+            <div class="execute-control-config">
+              <bk-radio-group
+                v-model="formData.loopConfig.type"
+                ext-cls="loop-radio-group"
+                @change="onLoopTypeChange">
+                <bk-radio
+                  value="array_loop"
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
+                  {{ $t('按数组变量循环') }}
+                </bk-radio>
+                <bk-radio
+                  value="time_loop"
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
+                  {{ $t('固定循环次数') }}
+                </bk-radio>
+              </bk-radio-group>
+            </div>
+          </bk-form-item>
+          <LoopExecutionConfig
+            ref="loopExecutionConfigRef"
+            :loop-config="formData.loopConfig"
+            :is-view-mode="isViewMode"
+            :subflow-forms="subflowForms"
+            @change="onLoopConfigChange" />
+          <bk-form-item
+            :label="$t('循环失败控制')"
+            :label-width="96">
+            <div class="loop-error-handle">
+              <bk-checkbox
+                v-model="formData.loopConfig.fail_skip"
+                :disabled="isViewMode || formData.loopConfig.skippable"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'fail_skip')">
+                <span class="error-handle-icon"><span class="text">AS</span></span>
+                {{ $t('自动跳过') }}
+              </bk-checkbox>
+              <bk-checkbox
+                v-model="formData.loopConfig.skippable"
+                :disabled="isViewMode || formData.loopConfig.fail_skip"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'skippable')">
+                <span class="error-handle-icon"><span class="text">MS</span></span>
+                {{ $t('手动跳过') }}
+              </bk-checkbox>
+              <bk-checkbox
+                v-model="formData.loopConfig.retryable"
+                :disabled="isViewMode || formData.loopConfig.fail_skip"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'retryable')">
+                <span class="error-handle-icon"><span class="text">MR</span></span>
+                {{ $t('手动重试') }}
+              </bk-checkbox>
+            </div>
+          </bk-form-item>
+        </bk-form>
+      </bk-form-item>
+    </bk-form>
     <!-- 普通插件 -->
     <bk-form
-      v-if="!isSubflow"
+      v-else-if="!isSubflow"
       ref="pluginForm"
       :label-width="130"
       :model="formData"
@@ -60,7 +156,7 @@
         </bk-select>
       </bk-form-item>
       <bk-form-item
-        v-else
+        v-if="showPluginVersion"
         :label="$t('插件版本')"
         data-test-id="templateEdit_form_pluginVersion"
         :required="true"
@@ -269,10 +365,13 @@
           readonly>
           <template slot="append">
             <div
-              v-if="basicInfo.tpl"
-              class="view-subflow"
-              @click="$emit('viewSubflow', basicInfo.tpl)">
-              <i class="bk-icon common-icon-box-top-right-corner" />
+              class="view-subflow">
+              <JumpLinkBKFlowOrExternal
+                v-if="basicInfo.tpl"
+                :query="{ id:basicInfo.tpl, type:'template' }"
+                :get-target-url="() => onViewSubflow(basicInfo.tpl)">
+                <i class="bk-icon common-icon-box-top-right-corner" />
+              </JumpLinkBKFlowOrExternal>
             </div>
             <div
               :class="['operate-btn', { 'is-disabled': isViewMode }]"
@@ -285,7 +384,10 @@
         <p
           v-if="!inputLoading && subflowHasUpdate && !subflowUpdated"
           class="update-tooltip">
-          {{ $t('子流程有更新，更新时若存在相同表单数据则获取原表单的值。') }}
+          <bk-icon
+            type="exclamation-circle"
+            class="icon-tip" />
+          <span>{{ $t('子流程有更新，更新时若存在相同表单数据则获取原表单的值。') }}</span>
           <bk-button
             :text="true"
             title="primary"
@@ -304,40 +406,65 @@
           :readonly="isViewMode"
           @change="updateData" />
       </bk-form-item>
-      <!-- <bk-form-item :label="$t('步骤名称')" property="stageName">
-        <bk-input :readonly="isViewMode" v-model="formData.stageName" @change="updateData"></bk-input>
-      </bk-form-item> -->
-      <bk-form-item>
-        <div
-          slot="tip"
-          class="bk-label slot-bk-label">
-          <span
-            v-bk-tooltips="{
-              theme: 'light',
-              extCls: 'info-label-tips',
-              placement: 'top-start',
-              content: $t('每次创建任务会使用选中执行方案的最新版本且不会提示该节点需要更新')
-            }"
-            class="form-item-tips">
-            {{ $t('执行方案') }}
-          </span>
-        </div>
+      <bk-form-item
+        v-if="isEnableVersionManage"
+        :label="$t('版本号')"
+        :required="true"
+        property="version">
         <bk-select
-          :value="formData.schemeIdList"
+          ref="versionSelect"
+          v-model="subVersionSelectValue"
+          :disabled="isViewMode"
+          ext-popover-cls="select-sub-version-popover-custom"
+          :popover-min-width="577"
+          :popover-width="577"
           :clearable="false"
-          :multiple="true"
-          :loading="schemeListLoading"
-          :placeholder="inputLoading || schemeListLoading || schemeList.length ? $t('请选择') : $t('此流程无执行方案，无需选择')"
-          :disabled="isViewMode || inputLoading || schemeListLoading || !schemeList.length"
-          @selected="onSelectTaskScheme">
+          :placeholder="$t('请选择版本')"
+          ext-cls="subflow-select"
+          :searchable="subVersionlistData.length>0"
+          @change="changeSubNodeVersion">
           <bk-option
-            v-for="item in schemeList"
-            :id="item.id"
-            :key="item.id"
-            :name="item.name" />
+            v-for="option in subVersionlistData"
+            :id="option.version"
+            :key="option.id"
+            :name="option.version ?? '--'"
+            :disabled="!(option.version == formData.latestVersion || option.version == initVersion)">
+            <div class="option-title">
+              <span>{{ option.version ? option.version : option.desc }}</span>
+              <div
+                v-if="option.version === formData.latestVersion"
+                class="latest-version">
+                <div class="text">
+                  {{ $t('最新') }}
+                </div>
+              </div>
+            </div>
+            <div class="version-desc">
+              <p
+                v-bk-overflow-tips
+                class="version-desc-text">
+                {{ option.desc }}
+              </p>
+            </div>
+          </bk-option>
         </bk-select>
+        <div
+          v-if="formData.latestVersion === formData.version "
+          class="sub-latest-version">
+          <div class="text">
+            {{ $t('最新') }}
+          </div>
+        </div>
       </bk-form-item>
-      <template v-if="isShowFailTimeoutHandle">
+      <bk-form-item
+        :label="$t('步骤名称')"
+        property="stageName">
+        <bk-input
+          v-model="formData.stageName"
+          :readonly="isViewMode"
+          @change="updateData" />
+      </bk-form-item>
+      <template>
         <bk-form-item>
           <div
             slot="tip"
@@ -387,7 +514,6 @@
                   style="width: 68px;"
                   :placeholder="' '"
                   :disabled="isViewMode || !formData.autoRetry.enable"
-                  :max="10"
                   :min="0"
                   :precision="0"
                   @change="updateData" />
@@ -403,8 +529,7 @@
                   style="width: 68px;"
                   :placeholder="' '"
                   :disabled="isViewMode || !formData.autoRetry.enable"
-                  :max="10"
-                  :min="1"
+                  :min="0"
                   :precision="0"
                   @change="updateData" />
                 <span class="unit">{{ $t('次') }}</span>
@@ -503,6 +628,121 @@
           <p>{{ $t('2. 若子流程中修改了变量的默认值，在未手动更新子流程版本的情况下，将继续使用修改前变量的原有值。') }}</p>
         </div>
       </bk-form-item>
+      <bk-form-item
+        :label="$t('执行控制')"
+        :required="true"
+        property="executeControl">
+        <div class="bk-button-group">
+          <bk-button
+            :class="executeControlActive === 'single' ? 'is-selected' : ''"
+            :disabled="isViewMode"
+            @click="onExecuteControlChange('single')">
+            {{ $t('单次执行') }}
+          </bk-button>
+          <bk-button
+            :class="executeControlActive === 'loop' ? 'is-selected' : ''"
+            :disabled="isViewMode || isInLoopGroup"
+            @click="onExecuteControlChange('loop')">
+            {{ $t('循环执行') }}
+          </bk-button>
+          <!-- 一期先不做 -->
+          <!-- <bk-button
+            :class="executeControlActive === 'batch' ? 'is-selected' : ''"
+            :disabled="isViewMode"
+            @click="onExecuteControlChange('batch')">
+            {{ $t('批量执行') }}
+          </bk-button> -->
+        </div>
+        <bk-form
+          ref="loopForm"
+          :model="formData.loopConfig">
+          <bk-form-item
+            v-if="executeControlActive !== 'single'"
+            :label="$t('循环类型')"
+            ext-cls="loop-type"
+            :required="true"
+            :label-width="74"
+            property="loopType">
+            <div class="execute-control-config">
+              <bk-radio-group
+                v-model="formData.loopConfig.type"
+                ext-cls="loop-radio-group"
+                @change="onLoopTypeChange">
+                <bk-radio
+                  value="array_loop"
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
+                  {{ $t('按数组变量循环') }}
+                </bk-radio>
+                <!-- <bk-radio
+                    value="condition"
+                    ext-cls="loop-radio">
+                    {{ $t('按条件循环') }}
+                  </bk-radio> -->
+                <bk-radio
+                  value="time_loop"
+                  ext-cls="loop-radio"
+                  :disabled="isViewMode">
+                  {{ $t('固定循环次数') }}
+                </bk-radio>
+              </bk-radio-group>
+              <!-- <div
+                  v-if="executeControlActive === 'batch'"
+                  class="batch-config">
+                  <div class="batch-config-count">
+                    <span class="count-label">{{ $t('最大并行数') }}</span>
+                    <bk-slider
+                      v-model="formData.loopConfig"
+                      class="count-slider"
+                      :show-input="true" />
+                  </div>
+                  <LoopVar
+                    :is-view-mode="isViewMode"
+                    :var-list="formData.loopConfig"
+                    @change="onBatchVarListChange" />
+                </div> -->
+            </div>
+          </bk-form-item>
+          <LoopExecutionConfig
+            v-if="executeControlActive === 'loop'"
+            ref="loopExecutionConfigRef"
+            :loop-config="formData.loopConfig"
+            :is-view-mode="isViewMode"
+            :subflow-forms="subflowForms"
+            @change="onLoopConfigChange" />
+          <bk-form-item
+            v-if="executeControlActive === 'loop'"
+            :label="$t('循环失败控制')"
+            :label-width="96">
+            <div class="loop-error-handle">
+              <bk-checkbox
+                v-model="formData.loopConfig.fail_skip"
+                :disabled="isViewMode || formData.loopConfig.skippable"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'fail_skip')">
+                <span class="error-handle-icon"><span class="text">AS</span></span>
+                {{ $t('自动跳过') }}
+              </bk-checkbox>
+              <bk-checkbox
+                v-model="formData.loopConfig.skippable"
+                :disabled="isViewMode || formData.loopConfig.fail_skip"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'skippable')">
+                <span class="error-handle-icon"><span class="text">MS</span></span>
+                {{ $t('手动跳过') }}
+              </bk-checkbox>
+              <bk-checkbox
+                v-model="formData.loopConfig.retryable"
+                :disabled="isViewMode || formData.loopConfig.fail_skip"
+                ext-cls="loop-error-checkbox"
+                @change="onLoopErrorControlChange($event, 'retryable')">
+                <span class="error-handle-icon"><span class="text">MR</span></span>
+                {{ $t('手动重试') }}
+              </bk-checkbox>
+            </div>
+          </bk-form-item>
+        </bk-form>
+      </bk-form-item>
       <!-- <bk-form-item v-if="common" :label="$t('执行代理人')" data-test-id="templateEdit_form_executor_proxy">
         <bk-user-selector
           :disabled="isViewMode"
@@ -522,11 +762,17 @@
   // import BkUserSelector from '@blueking/user-selector'
   import { mapState, mapActions, mapMutations, mapGetters } from 'vuex';
   import { NAME_REG, STRING_LENGTH, INVALID_NAME_CHAR } from '@/constants/index.js';
+  import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
+  import LoopExecutionConfig from './LoopTypeInfo/LoopExecutionConfig.vue';
+  // import LoopVar from './LoopTypeInfo/LoopVar.vue';
 
   export default {
     name: 'BasicInfo',
     components: {
       // BkUserSelector,
+      JumpLinkBKFlowOrExternal,
+      LoopExecutionConfig,
+      // LoopVar,
     },
     props: {
       projectId: {
@@ -545,7 +791,13 @@
         type: Array,
         default: () => ([]),
       },
+      isSubflowNeedToUpdate: {
+        type: Boolean,
+        default: false,
+      },
       isSubflow: Boolean,
+      isLoopGroupNode: Boolean,
+      isInLoopGroup: Boolean,
       inputLoading: Boolean,
       subflowUpdated: Boolean,
       common: {
@@ -554,15 +806,24 @@
       },
       isViewMode: Boolean,
       isApiPlugin: Boolean,
+      isEnableVersionManage: Boolean,
+      spaceId: {
+        type: [String, Number],
+        default: '',
+      },
+      subflowForms: {
+        type: Object,
+        default: () => ({}),
+      }, // 子流程模板输入参数
     },
     data() {
       return {
-        isShowFailTimeoutHandle: false,
         labelData: [],
         labelLoading: false,
         subflowLoading: false,
         version: this.basicInfo.version,
         formData: tools.deepClone(this.basicInfo),
+        initVersion: tools.deepClone(this.basicInfo.version),
         maxNodeExecuteTimeout: window.MAX_NODE_EXECUTE_TIMEOUT,
         schemeList: [],
         schemeListLoading: true,
@@ -639,6 +900,32 @@
             },
           ],
         },
+        loopGroupRules: {
+          nodeName: [
+            {
+              required: true,
+              message: i18n.t('节点名称不能为空'),
+              trigger: 'blur',
+            },
+            {
+              regex: NAME_REG,
+              message: i18n.t('节点名称不能包含') + INVALID_NAME_CHAR + i18n.t('非法字符'),
+              trigger: 'blur',
+            },
+            {
+              max: STRING_LENGTH.TEMPLATE_NODE_NAME_MAX_LENGTH,
+              message: i18n.t('节点名称长度不能超过') + STRING_LENGTH.TEMPLATE_NODE_NAME_MAX_LENGTH + i18n.t('个字符'),
+              trigger: 'blur',
+            },
+          ],
+          stageName: [
+            {
+              max: STRING_LENGTH.STAGE_NAME_MAX_LENGTH,
+              message: i18n.t('步骤名称长度不能超过') + STRING_LENGTH.STAGE_NAME_MAX_LENGTH + i18n.t('个字符'),
+              trigger: 'blur',
+            },
+          ],
+        },
         errorHandleTipsConfig: {
           allowHtml: true,
           theme: 'light',
@@ -653,20 +940,26 @@
           content: '#html-always-use-latest-tootip',
           placement: 'top-start',
         },
-        userApi: `${window.MEMBER_SELECTOR_DATA_HOST}/api/c/compapi/v2/usermanage/fs_list_users/`,
+        subflowVersion: '',
+        subVersionSelectValue: '',
+        subVersionlistData: [],
+        executeControlActive: 'single',
       };
     },
     computed: {
       ...mapState({
         subprocessInfo: state => state.template.subprocess_info,
       }),
+      showPluginVersion() {
+        return !this.isApiPlugin || Boolean(this.basicInfo.isOpenPlugin);
+      },
       subflowHasUpdate() {
         if (!this.formData.alwaysUseLatest) {
-          return this.version !== this.basicInfo.version || this.subprocessInfo.details.some((subflow) => {
+          return this.version !== this.basicInfo.version || this.subprocessInfo.some((subflow) => {
             let result = false;
             if (
               subflow.expired
-              && subflow.template_id === Number(this.formData.tpl)
+              && subflow.subprocess_template_id === Number(this.formData.tpl)
               && subflow.subprocess_node_id === this.nodeConfig.id
             ) {
               result = true;
@@ -684,25 +977,64 @@
       },
     },
     watch: {
-      basicInfo(val, oldVal) {
-        this.formData = tools.deepClone(val);
-        // 如果有执行方案，默认选中<不使用执行方案>
-        if (this.schemeList.length && !this.formData.schemeIdList.length) {
-          this.formData.schemeIdList = [0];
-        }
-        if (val.tpl !== oldVal.tpl) {
-          this.getSubflowSchemeList();
-        }
+      basicInfo: {
+        handler(val) {
+          this.formData = tools.deepClone(val);
+          if (this.formData.loopConfig && Object.keys(this.formData.loopConfig).length > 0) {
+            if (this.formData.loopConfig.enable || this.isLoopGroupNode) {
+              this.executeControlActive = 'loop';
+            } else {
+              this.executeControlActive = 'single';
+            }
+          } else {
+            // 初始化执行控制数据结构
+            this.formData.loopConfig = {
+              enable: this.isLoopGroupNode,
+              type: 'array_loop', // 数组循环array_loop 次数循环time_loop
+              loop_times: 3, // 默认为3
+              loop_params: [{ name: '', value: '' }],
+              fail_skip: false,
+              retryable: false,
+              skippable: false,
+            };
+            this.executeControlActive = this.isLoopGroupNode ? 'loop' : 'single';
+          }
+          // 兼容处理：undefined/null/空对象{}/空数组[]
+          const loopParams = this.formData.loopConfig.loop_params;
+          if (!loopParams
+              || (Array.isArray(loopParams) && loopParams.length === 0)
+              || (!Array.isArray(loopParams) && typeof loopParams === 'object' && Object.keys(loopParams).length === 0)) {
+            this.formData.loopConfig.loop_params = [{ name: '', value: '' }];
+          } else if (!Array.isArray(loopParams)) {
+            // 非空对象转数组
+            this.formData.loopConfig.loop_params = Object.entries(loopParams).map(([key, value]) => ({
+              name: key,
+              value,
+            }));
+          }
+          this.subVersionSelectValue = this.basicInfo.version;
+          // 如果有执行方案，默认选中<不使用执行方案>
+          if (this.schemeList.length && !this.formData.schemeIdList.length) {
+            this.formData.schemeIdList = [0];
+          }
+          if (this.isSubflow && !this.isLoopGroupNode) {
+            this.version = this.basicInfo.latestVersion;
+          }
+        },
+        deep: true,
+        immediate: true,
       },
+      // 'formData.loopConfig.batch.batchLoopCount': {
+      //   handler(newVal, oldVal) {
+      //     if (newVal !== oldVal) {
+      //       this.updateData();
+      //     }
+      //   },
+      // },
     },
-    created() {
-      if (!this.isSubflow) { // 子流程节点不展示节点标签表单
-        // this.getNodeLabelList()
-      } else {
-        if (this.basicInfo.tpl) {
-          this.getSubflowSchemeList();
-          this.judgeFailTimeoutShow();
-        }
+    mounted() {
+      if (this.isSubflow && !this.isLoopGroupNode) {
+        this.getSubVersionList();
       }
     },
     methods: {
@@ -716,25 +1048,32 @@
       ...mapActions('template/', [
         'getLabels',
         'getProcessOpenRetryAndTimeout',
+        'getTemplateVersionSnapshotList',
       ]),
       ...mapGetters('template/', [
         'getPipelineTree',
       ]),
+      // 修改子流程版本
+      changeSubNodeVersion(val) {
+        this.$emit('changeSubNodeVersion', { id: this.formData.tpl, version: val });
+      },
+      async getSubVersionList() {
+        try {
+          const res = await this.getTemplateVersionSnapshotList({ template_id: this.formData.tpl, space_id: this.spaceId });
+          this.subVersionlistData = res.data.results.filter(item => item.version);
+        } catch (e) {
+          console.log(e);
+          this.subVersionlistData = [];
+        }
+      },
       // 加载子流程详情，拿到最新版本子流程的version字段
       async getSubflowDetail() {
         this.subflowLoading = true;
         try {
           const data = {
-            project_id: this.projectId,
-            template_id: this.basicInfo.tpl,
-            scheme_id_list: this.basicInfo.schemeIdList,
-            version: '',
+              templateId: this.basicInfo.tpl,
+              is_all_nodes: true,
           };
-          if (this.common || this.nodeConfig.template_source === 'common') {
-            data.template_source = 'common';
-          } else {
-            data.project_id = this.projectId;
-          }
           const resp = await this.loadSubflowConfig(data);
           this.version = resp.data.version;
         } catch (e) {
@@ -755,33 +1094,7 @@
           this.labelLoading = false;
         }
       },
-      // 加载子流程对应的执行方案列表
-      async getSubflowSchemeList() {
-        try {
-          const data = {
-            project_id: this.projectId,
-            template_id: this.basicInfo.tpl,
-            isCommon: this.common || this.nodeConfig.template_source === 'common',
-          };
-          this.schemeList = await this.loadTaskScheme(data);
-          // 添加<不使用执行方案>,如果没有选择方案时默认选中
-          const { activities = {} } = this.getPipelineTree();
-          const nodeList = Object.keys(activities);
-          if (this.schemeList.length) {
-            this.schemeList.unshift({
-              data: JSON.stringify(nodeList),
-              id: 0,
-              name: `<${i18n.t('不使用执行方案')}>`,
-            });
-            if (!this.formData.schemeIdList.length) {
-              this.formData.schemeIdList = [0];
-            }
-          }
-          this.schemeListLoading = false;
-        } catch (e) {
-          console.log(e);
-        }
-      },
+
       // 标签分组
       transLabelListToGroup(list) {
         const data = [];
@@ -904,23 +1217,24 @@
         }
         this.updateData();
       },
-      // 选择执行方案，需要更新子流程输入、输出参数
-      onSelectTaskScheme(val, options) {
-        // 切换执行方案时取消<不使用执行方案>
-        const lastId = options.length ? options[options.length - 1].id : undefined;
-        let value = lastId ? val.filter(id => id) : val;
-        value = lastId === 0 ? [0] : value;
-        this.formData.schemeIdList = value;
-        this.updateData();
-        this.$emit('selectScheme', value);
-      },
       updateData() {
         const {
           version, nodeName, stageName, nodeLabel, ignorable, skippable, retryable,
           selectable, alwaysUseLatest, autoRetry, timeoutConfig, schemeIdList, executor_proxy,
+          loopConfig,
         } = this.formData;
         let data;
-        if (this.isSubflow) {
+        if (this.isLoopGroupNode) {
+          data = {
+            nodeName,
+            stageName,
+            nodeLabel,
+            selectable,
+            autoRetry,
+            timeoutConfig,
+            loopConfig,
+          };
+        } else if (this.isSubflow) {
           data = {
             nodeName,
             stageName,
@@ -930,10 +1244,12 @@
             schemeIdList,
             latestVersion: this.version,
             executor_proxy,
+            ignorable,
             retryable,
             autoRetry,
             timeoutConfig,
             skippable,
+            loopConfig,
           };
         } else {
           data = {
@@ -963,20 +1279,22 @@
         this.$emit('updateSubflowVersion');
       },
       validate() {
-        const comp = this.isSubflow ? this.$refs.subflowForm : this.$refs.pluginForm;
-        comp.clearError();
-        return comp.validate();
-      },
-      async judgeFailTimeoutShow() {
-        try {
-          const res = await this.getProcessOpenRetryAndTimeout({
-            project_id: this.projectId,
-            id: this.basicInfo.tpl,
-          });
-          this.isShowFailTimeoutHandle = res.data.enable;
-        } catch (error) {
-          console.warn(error);
+        if (this.isLoopGroupNode) {
+          this.$refs.loopGroupForm.clearError();
+          if (this.$refs.loopExecutionConfigRef) {
+            return this.$refs.loopGroupForm.validate() && this.$refs.loopExecutionConfigRef.validate();
+          }
+          return this.$refs.loopGroupForm.validate();
         }
+        if (this.isSubflow) {
+          this.$refs.subflowForm.clearError();
+          if (this.$refs.loopExecutionConfigRef) {
+            return this.$refs.subflowForm.validate() && this.$refs.loopExecutionConfigRef.validate();
+          }
+          return this.$refs.subflowForm.validate();
+        }
+        this.$refs.pluginForm.clearError();
+        return this.$refs.pluginForm.validate();
       },
       transformPluginDesc(data) {
         const info = data.replace(/\n/g, '<br>');
@@ -986,6 +1304,55 @@
           },
         });
       },
+      onViewSubflow(id) {
+        const pathData = {
+          name: 'templatePanel',
+          params: {
+            templateId: id,
+            type: 'view',
+          },
+        };
+        const { href } = this.$router.resolve(pathData);
+        return href;
+      },
+      // 执行控制类型变化处理
+      onExecuteControlChange(type) {
+        if (this.isViewMode) return;
+        this.executeControlActive = type;
+        if (type === 'loop') {
+          this.formData.loopConfig.enable = true;
+        } else {
+          this.formData.loopConfig.enable = false;
+        }
+        this.updateData();
+      },
+      onLoopTypeChange(val) {
+        if (val === 'time_loop' && !this.formData.loopConfig.loop_times) {
+          this.formData.loopConfig.loop_times = 3;
+        }
+        this.updateData();
+      },
+      // 循环执行配置变化
+      onLoopConfigChange(newConfig) {
+        this.formData.loopConfig = newConfig;
+        this.updateData();
+      },
+      onLoopErrorControlChange(val, type) {
+        if (val && type === 'fail_skip') {
+          // 选择自动跳过时，取消手动跳过
+          this.formData.loopConfig.skippable = false;
+        }
+        if (val && type === 'skippable') {
+          // 选择手动跳过时，取消自动跳过
+          this.formData.loopConfig.fail_skip = false;
+        }
+        this.updateData();
+      },
+      // 批量执行配置变化
+      // onBatchVarListChange(list) {
+      //   this.formData.loopConfig.batch.params = list;
+      //   this.updateData();
+      // },
     },
   };
 </script>
@@ -1164,11 +1531,14 @@
         .update-tooltip {
             position: relative;
             top: 5px;
-            color: #979ba5;
+            color: #EA3636;
             font-size: 12px;
             line-height: 12px;
             .bk-button-text {
                 font-size: 12px;
+            }
+            .icon-tip{
+                font-size: 14px !important;
             }
         }
         .user-selector {
@@ -1183,7 +1553,84 @@
                 cursor: not-allowed;
             }
         }
+        .loop-error-handle {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            height: 32px;
+            .loop-error-checkbox{
+              margin-right: 8px;
+            }
+            .error-handle-icon {
+                display: inline-block;
+                line-height: 12px;
+                color: #ffffff;
+                background: #979ba5;
+                border-radius: 2px;
+                .text {
+                    display: inline-block;
+                    font-size: 12px;
+                    transform: scale(0.8);
+                }
+            }
+        }
     }
+
+    .bk-button-group {
+        display: inline-flex;
+        margin-bottom: 16px;
+        .bk-button {
+            border-radius: 0;
+            margin-left: -1px;
+            width: 120px;
+            font-size: 12px;
+
+            &:first-child {
+                border-top-left-radius: 2px;
+                border-bottom-left-radius: 2px;
+                margin-left: 0;
+            }
+
+            &:last-child {
+                border-top-right-radius: 2px;
+                border-bottom-right-radius: 2px;
+            }
+        }
+    }
+    .loop-type{
+      &::before {
+        clear: unset;
+      }
+      .bk-form-content{
+        min-height: 26px;
+        line-height: 26px;
+      }
+    }
+    .execute-control-config {
+        .batch-config {
+          .batch-config-count {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            color: #63656E;
+            .count-label{
+              font-size: 12px;
+              margin-right: 8px;
+            }
+            .count-slider{
+              flex: 1;
+            }
+          }
+        }
+        .loop-radio-group{
+          margin-bottom: 16px;
+        }
+        .loop-radio{
+          margin-right: 24px;
+          font-size: 12px;
+        }
+    }
+
     .bk-option-content {
         &:hover {
             .open-link-icon {
@@ -1196,4 +1643,51 @@
             margin-top: 10px;
         }
     }
+    .select-sub-version-popover-custom{
+    .bk-options-wrapper{
+        max-height: 261px !important;
+    }
+    .option-title{
+       display: flex;
+       align-items: center;
+    }
+    .latest-version{
+        font-size: 10px;
+        color: #14A568;
+        line-height: 16px;
+        background: #E4FAF0;
+        border: 1px solid #A5E0C6;
+        border-radius: 2px;
+        margin-left: 15px;
+        .text{
+            padding: 0px 4px;
+        }
+    }
+    .bottom-view-btn{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px 0;
+      cursor: pointer;
+      .common-icon-box-top-right-corner{
+        margin-right: 8px;
+        margin-top: 3px;
+      }
+    }
+}
+.sub-latest-version{
+  position: absolute;
+  left: 40px;
+  top: 7px;
+  font-size: 10px;
+  color: #14A568;
+  line-height: 16px;
+  background: #E4FAF0;
+  border: 1px solid #A5E0C6;
+  border-radius: 2px;
+  margin-left: 8px;
+  .text{
+      padding: 0px 4px;
+  }
+}
 </style>

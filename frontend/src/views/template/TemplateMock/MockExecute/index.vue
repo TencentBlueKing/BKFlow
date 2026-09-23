@@ -4,6 +4,30 @@
     class="mock-execute">
     <div class="left-wrapper">
       <div class="form-wrapper">
+        <!-- 一期先不做：流程凭证变量 -->
+        <!-- <div class="credential-wrap">
+          <p class="wrap-title">
+            {{ $t('选择调试凭证') }}
+          </p>
+          <bk-form
+            :label-width="200"
+            form-type="vertical">
+            <bk-form-item
+              :label="$t('凭证')">
+              <bk-select
+                v-model="mockCredentialValue"
+                ext-cls="select-credential"
+                :placeholder="$t('请选择调试凭证')"
+                @change="onChangeMockCredential">
+                <bk-option
+                  v-for="option in credentialList"
+                  :id="option.id"
+                  :key="option.id"
+                  :name="option.name" />
+              </bk-select>
+            </bk-form-item>
+          </bk-form>
+        </div> -->
         <div class="variable-wrap">
           <p class="wrap-title">
             {{ $t('填写调试入参') }}
@@ -148,11 +172,15 @@
         rules: {},
         unMockNodes: [],
         unMockExpend: false,
+        // mockCredentialValue: '',
+        // credentialList: [],
       };
     },
     computed: {
       ...mapState({
         creator: state => state.username,
+        // spaceId: state => state.template.spaceId,
+        // scopeInfo: state => state.template.scopeInfo,
       }),
       isUnreferencedShow() {
         if (this.isLoading) return false;
@@ -163,19 +191,29 @@
     },
     created() {
       this.loadData();
+      // this.loadCredentialList();
     },
     methods: {
       ...mapActions('template/', [
         'gerTemplatePreviewData',
+        // 'getCredentialList'
       ]),
       ...mapActions('task/', [
         'createMockTask',
       ]),
+      // async loadCredentialList() {
+      //   this.listLoading = true;
+      //   const res = await this.getCredentialList({ space_id: this.spaceId, ...this.scopeInfo });
+      //   this.credentialList = res.data.results || [];
+      //   this.listLoading = false;
+      // },
       async loadData() {
         try {
           const resp = await this.gerTemplatePreviewData({
             templateId: this.templateId,
             selectedNodes: this.selectedNodes,
+            is_draft: this.$route.params.isEnableVersionManage === 'true' || this.$route.params.isEnableVersionManage === true,
+            isInMock: true,
           });
           const {
             constants_not_referred: unReferencedConstants,
@@ -242,7 +280,7 @@
           const { taskParamEdit: paramEditComp, mockForm } = this.$refs;
           let validate = true;
           if (paramEditComp) {
-            validate = paramEditComp.validate();
+            validate = await paramEditComp.validate();
           }
           if (!validate) return;
           if (mockForm) {
@@ -251,7 +289,7 @@
           this.createLoading = true;
           const pipelineTree = tools.deepClone(this.pipelineTree);
           if (paramEditComp) {
-            pipelineTree.constants = paramEditComp.getVariableData();
+            pipelineTree.constants = await paramEditComp.getVariableData();
           }
           const mockData = Object.keys(this.mockFormData).reduce((acc, cur) => {
             const value = this.mockFormData[cur];
@@ -303,14 +341,16 @@
           this.createLoading = false;
         }
       },
-      judgeDataEqual() {
+      async judgeDataEqual() {
         const { taskParamEdit: paramEditComp } = this.$refs;
-        let isEqual = paramEditComp ? paramEditComp.judgeDataEqual() : true;
+        let isEqual = paramEditComp ? await paramEditComp.judgeDataEqual() : true;
         if (isEqual) {
           isEqual = tools.isDataEqual(this.initMockData, this.mockFormData);
         }
         return isEqual;
       },
+      // onChangeMockCredential() {
+      // },
     },
   };
 </script>
@@ -341,6 +381,15 @@
       line-height: 22px;
       font-weight: Bold;
       margin-bottom: 16px;
+    }
+    .credential-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 12px 24px 25px 24px;
+      margin-bottom: 16px;
+      background: #fff;
+      box-shadow: 0 2px 4px 0 #1919290d;
     }
     .variable-wrap {
       flex: 1;

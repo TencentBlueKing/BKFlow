@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import copy
 from typing import Optional, Union
 
@@ -31,6 +31,10 @@ from bkflow.contrib.api.collections.interface import InterfaceModuleClient
 from bkflow.pipeline_plugins.components.collections.base import (
     BKFlowBaseService,
     StepIntervalGenerator,
+)
+from bkflow.pipeline_plugins.components.collections.uniform_api.span import (
+    UNIFORM_API_PLUGIN_API_META_INPUT_KEY,
+    get_uniform_api_span_attributes,
 )
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
 from bkflow.pipeline_plugins.utils import convert_dict_value
@@ -60,6 +64,7 @@ class CallbackConfig(BaseModel):
 
 
 class UniformAPIService(BKFlowBaseService):
+    plugin_name = "uniform_api"
     __need_schedule__ = True
     interval = StepIntervalGenerator(init_interval=0)
 
@@ -81,6 +86,12 @@ class UniformAPIService(BKFlowBaseService):
                 schema=IntItemSchema(description=_("HTTP 请求响应状态码")),
             ),
         ]
+
+    def _get_span_attributes(self, data, parent_data):
+        """覆盖基类方法，添加API插件特有的属性"""
+        attributes = super()._get_span_attributes(data, parent_data)
+        attributes.update(get_uniform_api_span_attributes(data))
+        return attributes
 
     def plugin_execute(self, data, parent_data):
         # callback 的情况需要在 execute 中进行调用
@@ -122,6 +133,7 @@ class UniformAPIService(BKFlowBaseService):
         polling = api_data.pop("uniform_api_plugin_polling", None)
         callback = api_data.pop("uniform_api_plugin_callback", None)
         method = api_data.pop("uniform_api_plugin_method")
+        api_data.pop(UNIFORM_API_PLUGIN_API_META_INPUT_KEY, None)
         resp_data_path: str = api_data.pop("response_data_path", None)
         # 获取空间相关配置信息
         interface_client = InterfaceModuleClient()
@@ -236,11 +248,11 @@ class UniformAPIService(BKFlowBaseService):
 
     def _dispatch_schedule_polling(self, data, parent_data, callback_data=None):
         if self.interval.reach_limit():
-            data.set_outputs(
-                "ex_data",
-                message="[uniform_api polling] reach max count of schedule, "
-                "please ensure the task can be finished in one day",
+            message = (
+                "[uniform_api polling] reach max count of schedule, "
+                "please ensure the task can be finished in one day"
             )
+            data.set_outputs("ex_data", message)
             return False
 
         operator, space_id, extra_data = self._load_parent_data(parent_data)
@@ -259,7 +271,7 @@ class UniformAPIService(BKFlowBaseService):
         scope_type, scope_id = parent_data.get_one_of_inputs("task_scope_type"), parent_data.get_one_of_inputs(
             "task_scope_value"
         )
-        space_infos_params = {"space_id": space_id, "config_names": "credential"}
+        space_infos_params = {"space_id": space_id, "config_names": "uniform_api,credential"}
         if scope_type and scope_id:
             space_infos_params["scope"] = f"{scope_type}_{scope_id}"
         self.logger.info(f"get_space_info params: {space_infos_params}")
@@ -347,11 +359,12 @@ class UniformAPIService(BKFlowBaseService):
         if jmespath.search(polling_config.fail_tag.key, status_data) == polling_config.fail_tag.value:
             default_msg = f"[uniform_api polling] get fail status: {status_data}"
             self.logger.info(default_msg)
-            data.outputs.ex_data = (
+            error_msg = (
                 jmespath.search(polling_config.fail_tag.msg_key, status_data)
                 if polling_config.fail_tag.msg_key
                 else default_msg
             )
+            data.outputs.ex_data = error_msg
             return False
 
         if jmespath.search(polling_config.running_tag.key, status_data) == polling_config.running_tag.value:
@@ -384,11 +397,12 @@ class UniformAPIService(BKFlowBaseService):
         if jmespath.search(callback_config.fail_tag.key, callback_data) == callback_config.fail_tag.value:
             default_msg = f"[uniform_api callback] get fail status: {callback_data}"
             self.logger.info(default_msg)
-            data.outputs.ex_data = (
+            error_msg = (
                 jmespath.search(callback_config.fail_tag.msg_key, callback_data)
                 if callback_config.fail_tag.msg_key
                 else default_msg
             )
+            data.outputs.ex_data = error_msg
             return False
 
         message = f"[uniform_api callback] get status fail: {callback_data}"

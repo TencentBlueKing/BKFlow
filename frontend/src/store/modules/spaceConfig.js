@@ -6,10 +6,27 @@ export default {
   state: {},
   mutations: {},
   actions: {
+    // 检查空间配置
+    checkSpaceConfig({}, data) {
+      return axios.get(`/api/space/config/${data.id}/check_space_config/`, { params: data }).then(response => response.data);
+    },
+    // 无鉴权获取空间基本配置信息
+    getNotAuthSpaceConfig({}) {
+      return axios.get('/api/space/config/get_control_config/').then(response => response.data);
+    },
     getSpaceConfigData({}, data) {
       return axios.get('api/space/admin/space_config/get_all_space_configs/', {
         params: {
           space_id: data.space_id,
+        },
+      }).then(response => response.data);
+    },
+    // 按 config_name 获取单条空间插件配置
+    getSpacePluginConfig({}, data) {
+      return axios.get('api/space/config/get_space_plugin_config/', {
+        params: {
+          space_id: data.space_id,
+          config_name: data.config_name,
         },
       }).then(response => response.data);
     },
@@ -32,6 +49,10 @@ export default {
           space_id: data.space_id,
         },
       }).then(response => response.data);
+    },
+    // 目前仅支持 uniform_api 配置项的校验配置项验证
+    verifySpaceConfig({}, data) {
+      return axios.post('api/space/admin/space_config/verify/', data).then(response => response.data.data);
     },
   },
 };

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,19 +16,24 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
 from django_filters import FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from pipeline.component_framework.models import ComponentModel
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 
 from bkflow.plugin.handlers import PluginQueryDispatcher
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
 from bkflow.plugin.permissions import (
+    PluginSpaceConsistencyPermission,
     PluginSpaceSuperuserPermission,
     PluginTokenPermissions,
 )
@@ -41,14 +45,46 @@ from bkflow.plugin.serializers.comonent import (
     PluginType,
     UniformPluginSerializer,
 )
+from bkflow.plugin.serializers.plugin_detail import PluginDetailRequestSerializer
+from bkflow.plugin.services.plugin_detail import PluginDetailService
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.space.configs import SpacePluginConfig
 from bkflow.space.models import SpaceConfig
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.mixins import BKFLOWCommonMixin
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import ReadOnlyViewSet
 
 logger = logging.getLogger("root")
+
+
+class PluginDetailView(TenantScopeMixin, APIView):
+    """返回三类插件统一的原生表单详情。"""
+
+    permission_classes = [
+        PluginSpaceConsistencyPermission,
+        AdminPermission | PluginSpaceSuperuserPermission | PluginTokenPermissions,
+    ]
+
+    def post(self, request):
+        """按认证用户和请求上下文查询插件详情。"""
+        serializer = PluginDetailRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        service = PluginDetailService(
+            space_id=data["space_id"],
+            template_id=data["template_id"],
+            operator=request.user.username,
+            scope_type=data["scope_type"],
+            scope_value=data["scope_value"],
+        )
+        detail = service.get_detail(
+            plugin_type=data["plugin_type"],
+            plugin_code=data["plugin_code"],
+            plugin_version=data["plugin_version"],
+            source_key=data["source_key"],
+        )
+        return Response({"result": True, "message": "", "data": detail})
 
 
 class ComponentModelFilter(FilterSet):
@@ -57,7 +93,7 @@ class ComponentModelFilter(FilterSet):
         fields = ["version"]
 
 
-class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
+class ComponentModelSetViewSet(TenantScopeMixin, BKFLOWCommonMixin, ReadOnlyViewSet):
     queryset = ComponentModel.objects.filter(status=True).exclude(code__in=["remote_plugin", "uniform_api"])
     retrieve_queryset = ComponentModel.objects.filter(status=True).order_by("name")
     serializer_class = ComponentModelListSerializer
@@ -70,27 +106,37 @@ class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
 
+        # 通过 serializer 统一解析入参，复用 BooleanField 校验逻辑
+        params_ser = ComponentListQuerySerializer(data=self.request.query_params)
+        params_ser.is_valid(raise_exception=True)
+        validated = params_ser.validated_data
+
         # 过滤系统配置插件
-        space_id = self.request.query_params.get("space_id")
+        space_id = validated["space_id"]
         system_allow_list = SpacePluginConfigModel.objects.get_space_allow_list(space_id)
         space_plugins = set(settings.SPACE_PLUGIN_LIST) - set(system_allow_list)
         if space_plugins:
             queryset = queryset.exclude(code__in=list(space_plugins))
 
-        # 过滤空间配置插件
-        scope_type = self.request.query_params.get("scope_type")
-        scope_id = self.request.query_params.get("scope_id")
-        scope_code = f"{scope_type}_{scope_id}"
-        space_plugin_config = SpaceConfig.get_config(space_id=space_id, config_name=SpacePluginConfig.name)
-        if space_plugin_config:
-            parser = SpacePluginConfigParser(space_plugin_config)
-            queryset = parser.get_filtered_plugin_qs(scope_code, queryset)
+        if validated.get("skip_space_config", False):
+            # skip_space_config 仅允许系统管理员或空间管理员使用，防止普通 Token 绕过插件过滤
+            if not (
+                self.request.user.is_superuser or PluginSpaceSuperuserPermission().has_permission(self.request, self)
+            ):
+                raise PermissionDenied(_("仅系统管理员或空间管理员可使用 skip_space_config 参数"))
+        else:
+            # 过滤空间配置插件
+            scope_type = validated.get("scope_type")
+            scope_id = validated.get("scope_id")
+            scope_code = f"{scope_type}_{scope_id}"
+            space_plugin_config = SpaceConfig.get_config(space_id=space_id, config_name=SpacePluginConfig.name)
+            if space_plugin_config:
+                parser = SpacePluginConfigParser(space_plugin_config)
+                queryset = parser.get_filtered_plugin_qs(scope_code, queryset)
         return queryset
 
     @swagger_auto_schema(query_serializer=ComponentListQuerySerializer)
     def list(self, request, *args, **kwargs):
-        query_ser = ComponentListQuerySerializer(data=request.query_params)
-        query_ser.is_valid(raise_exception=True)
         return super().list(request, *args, **kwargs)
 
     @swagger_auto_schema(query_serializer=ComponentDetailQuerySerializer)
@@ -102,7 +148,7 @@ class ComponentModelSetViewSet(BKFLOWCommonMixin, ReadOnlyViewSet):
         return super().retrieve(request, *args, **kwargs)
 
 
-class UniformPluginViewSet(ViewSet):
+class UniformPluginViewSet(TenantScopeMixin, ViewSet):
     @action(detail=False, methods=["post"])
     def get_plugin_detail(self, request, *args, **kwargs):
         serializer = UniformPluginSerializer(data=request.data)

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -23,12 +24,17 @@ from blueapps.account.decorators import login_exempt
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import CreateTaskSerializer
-from bkflow.constants import TaskTriggerMethod
+from bkflow.constants import TaskTriggerMethod, WebhookEventType, WebhookScopeType
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
+from bkflow.label.models import Label
+from bkflow.label.serializers import LabelSerializer
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.space.models import Space
 from bkflow.template.models import Template
 from bkflow.utils.trace import CallFrom, trace_view
 
@@ -42,8 +48,9 @@ from bkflow.utils.trace import CallFrom, trace_view
 @return_json_response
 def create_task(request, space_id):
     data = json.loads(request.body)
-    ser = CreateTaskSerializer(data=data)
+    ser = CreateTaskSerializer(data=data, context={"space_id": int(space_id)})
     ser.is_valid(raise_exception=True)
+
     try:
         template = Template.objects.get(id=ser.data["template_id"], space_id=space_id, is_deleted=False)
     except Template.DoesNotExist:
@@ -66,7 +73,52 @@ def create_task(request, space_id):
     create_task_data.setdefault("extra_info", {}).update(
         {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
     )
+    create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+        space_id=int(space_id),
+        pipeline_tree=template.pipeline_tree,
+        extra_info=create_task_data.get("extra_info"),
+        username=request.user.username,
+        scope_type=template.scope_type,
+        scope_id=template.scope_value,
+    )
+
+    # 将credentials放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
+    # custom_context用于统一管理自定义上下文数据
+    credentials = ser.data.get("credentials", {})
+    if credentials:
+        create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})["credentials"] = credentials
+
+    # 将custom_span_attributes放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
+    # 用于传递到节点Span中
+    custom_span_attributes = ser.data.get("custom_span_attributes", {})
+    if custom_span_attributes:
+        create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
+            "custom_span_attributes"
+        ] = custom_span_attributes
+    create_task_data["tenant_id"] = Space.objects.get(id=space_id).tenant_id
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)
+
+    if result.get("result") and isinstance(result.get("data"), dict):
+        label_ids = ser.data.get("label_ids") or []
+        label_ids = list(dict.fromkeys(label_ids))
+        if label_ids:
+            labels = Label.objects.filter(id__in=label_ids)
+            result["data"]["labels"] = LabelSerializer(labels, many=True).data
+        else:
+            result["data"]["labels"] = []
+
+        task_data = result["data"]
+        event_broadcast_signal.send(
+            sender=WebhookEventType.TASK_CREATE.value,
+            scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
+            extra_info={
+                "task_id": task_data["id"],
+                "task_name": task_data["name"],
+                "template_id": task_data["template_id"],
+                "parameters": task_data["parameters"],
+                "trigger_source": TaskTriggerMethod.api.name,
+            },
+        )
     return result

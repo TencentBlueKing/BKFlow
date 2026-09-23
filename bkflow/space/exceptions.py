@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -46,3 +45,14 @@ class CredentialTypeNotSupport(BKFLOWException):
 class SpaceNotExists(BKFLOWException):
     CODE = None
     MESSAGE = _("空间不存在")
+
+
+class CredentialScopeValidationError(BKFLOWException):
+    CODE = None
+    MESSAGE = _("凭证作用域验证失败")
+
+
+class CredentialNotFoundError(BKFLOWException):
+    CODE = None
+    MESSAGE = _("凭证不存在")
+    STATUS_CODE = 404

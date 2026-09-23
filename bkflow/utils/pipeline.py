@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,13 +16,16 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import copy
 import logging
 from typing import Optional
 
 from bamboo_engine.utils.boolrule import BoolRule
 from bkflow_feel.api import parse_expression
-from pipeline.parser.utils import recursive_replace_id
+from pipeline.core.constants import PE
+from pipeline.parser.utils import replace_all_id
+from pipeline.utils.uniqid import node_uniqid
 
 from bkflow.utils.canvas import OperateType, get_canvas_handler
 from bkflow.utils.mako import parse_mako_expression
@@ -344,7 +346,16 @@ DEFAULT_STAGE_PIPELINE_TREE = {
                     "id": "nodea995a2776eb4fc455df9ca64777f",
                     "name": "Job-1",
                     "config": [],
-                    "nodes": [{"id": "nodec4b13c772ce97fc184a2612247cc", "type": "Node"}],
+                    "nodes": [
+                        {
+                            "id": "nodec4b13c772ce97fc184a2612247cc",
+                            "type": "Node",
+                            "option": {
+                                "id": "nodec4b13c772ce97fc184a2612247cc",
+                                "nodeType": "Node",
+                            },
+                        }
+                    ],
                     "type": "Job",
                 }
             ],
@@ -394,7 +405,7 @@ def replace_pipeline_tree_node_ids(
     # 生成节点映射
     if handler.should_generate_node_map(pipeline_tree, node_map):
         try:
-            node_map_raw = recursive_replace_id(pipeline_tree)
+            node_map_raw = _recursive_replace_id_without_subprocess(pipeline_tree)
             first_pipeline = next(iter(node_map_raw.values()), {})
             node_map = first_pipeline.get("activities", {})
         except Exception as e:
@@ -404,5 +415,60 @@ def replace_pipeline_tree_node_ids(
     # 处理节点替换
     if node_map:
         handler.handle_node_replacement(pipeline_tree, node_map)
+
+    return pipeline_tree
+
+
+def _recursive_replace_id_without_subprocess(pipeline_data, subprocess_id=None):
+    """
+    替换pipeline_id 并返回 对应的 node_map 映射
+    备注：这里之所以没有引用bamboo-engine里的_recursive_replace_id_with_node_map
+         是因为独立子流程模式下不需要展开子流程
+    """
+    pipeline_data[PE.id] = node_uniqid()
+    node_map = {}
+    replace_result_map = replace_all_id(pipeline_data)
+    pipeline_id = subprocess_id or pipeline_data[PE.id]
+    node_map[pipeline_id] = replace_result_map
+    return node_map
+
+
+def replace_subprocess_version(pipeline_tree, flow_version_config) -> dict:
+    from bkflow.constants import TEMPLATE_MD5SUM_LENGTH
+    from bkflow.template.models import TemplateSnapshot
+
+    md5sum_list = []
+    md5_template_ids = []
+    version_list = []
+    for key, value in pipeline_tree["activities"].items():
+        if value["type"] == "SubProcess":
+            if flow_version_config and len(value["version"]) == TEMPLATE_MD5SUM_LENGTH:
+                md5sum_list.append(value["version"])
+                md5_template_ids.append(value["template_id"])
+            elif not flow_version_config and len(value["version"]) != TEMPLATE_MD5SUM_LENGTH:
+                version_list.append(value["template_id"])
+            else:
+                continue
+
+    snapshot_map = {}
+    template_map = {}
+    if md5sum_list:
+        snapshots = TemplateSnapshot.objects.filter(
+            template_id__in=md5_template_ids, md5sum__in=md5sum_list, draft=False
+        ).order_by("id")
+        snapshot_map = {(str(snapshot.template_id), snapshot.md5sum): snapshot.version for snapshot in snapshots}
+    if version_list:
+        templates = TemplateSnapshot.objects.filter(template_id__in=version_list, draft=False).order_by("id")
+        for template in templates:
+            template_map.setdefault(template.template_id, {})[template.version] = template.md5sum
+
+    for key, value in pipeline_tree["activities"].items():
+        if value["type"] == "SubProcess":
+            if flow_version_config and len(value["version"]) == TEMPLATE_MD5SUM_LENGTH:
+                value["version"] = snapshot_map.get((str(value["template_id"]), value["version"]), value["version"])
+            elif not flow_version_config and len(value["version"]) != TEMPLATE_MD5SUM_LENGTH:
+                value["version"] = template_map.get(value["template_id"], {}).get(value["version"], value["version"])
+            else:
+                continue
 
     return pipeline_tree

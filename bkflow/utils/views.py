@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -24,6 +23,7 @@ from rest_framework.exceptions import ErrorDetail
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
+from bkflow.utils.handlers import handle_plain_log
 from bkflow.utils.mixins import CustomViewSetMixin
 from bkflow.utils.permissions import AdminPermission
 
@@ -50,8 +50,10 @@ class SimpleGenericViewSet(GenericViewSet):
                 error = response.data.get("detail") or response.data or ErrorDetail("Error from API exception")
                 error_code = getattr(error, "code", 500)
                 logger.error(
-                    f"[ApiMixin response exception] request: {request.path}, "
-                    f"params: {request.query_params or request.data}, response: {response.data}"
+                    handle_plain_log(
+                        f"[ApiMixin response exception] request: {request.path}, "
+                        f"params: {request.query_params or request.data}, response: {response.data}"
+                    )
                 )
                 response.status_code = 200
                 response.data = {"result": False, "data": response.data, "code": error_code, "message": str(error)}
@@ -60,7 +62,7 @@ class SimpleGenericViewSet(GenericViewSet):
             elif response.status_code not in self.EXEMPT_STATUS_CODES:
                 response.data = self.default_response_wrapper(response.data)
 
-        return super(SimpleGenericViewSet, self).finalize_response(request, response, *args, **kwargs)
+        return super().finalize_response(request, response, *args, **kwargs)
 
 
 class UserModelViewSet(CustomViewSetMixin, SimpleGenericViewSet, mixins.RetrieveModelMixin, mixins.UpdateModelMixin):

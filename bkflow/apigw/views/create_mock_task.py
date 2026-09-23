@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -29,7 +30,9 @@ from bkflow.apigw.serializers.task import CreateMockTaskWithTemplateIdSerializer
 from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.exceptions import ValidationError
-from bkflow.template.models import Template
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.space.models import Space
+from bkflow.template.models import Template, TemplateSnapshot
 
 
 @login_exempt
@@ -50,6 +53,14 @@ def create_mock_task(request, space_id):
                 space_id=space_id, template_id=ser.data["template_id"]
             )
         )
+
+    # 优先使用草稿版本的 pipeline_tree，如果没有草稿版本则使用最新发布版本
+    try:
+        draft_snapshot = TemplateSnapshot.objects.get(template_id=template.id, draft=True, is_deleted=False)
+        pipeline_tree = draft_snapshot.data
+    except TemplateSnapshot.DoesNotExist:
+        # 如果没有草稿版本，使用最新发布版本
+        pipeline_tree = template.pipeline_tree
 
     # 接口侧先忽略 mock scheme 配置，默认走全部节点的执行
     # # 获取当前的 mock scheme
@@ -77,7 +88,7 @@ def create_mock_task(request, space_id):
             "space_id": space_id,
             "scope_type": template.scope_type,
             "scope_value": template.scope_value,
-            "pipeline_tree": template.pipeline_tree,
+            "pipeline_tree": pipeline_tree,
             "mock_data": ser.validated_data["mock_data"],
             "create_method": "MOCK",
             "trigger_method": TaskTriggerMethod.api.name,
@@ -89,6 +100,30 @@ def create_mock_task(request, space_id):
     }
     create_task_data.setdefault("extra_info", {}).update(
         {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
+    )
+
+    # 将credentials放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
+    # custom_context用于统一管理自定义上下文数据
+    credentials = ser.data.get("credentials", {})
+    if credentials:
+        create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})["credentials"] = credentials
+
+    # 将custom_span_attributes放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
+    # 用于传递到节点Span中
+    custom_span_attributes = ser.data.get("custom_span_attributes", {})
+    if custom_span_attributes:
+        create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
+            "custom_span_attributes"
+        ] = custom_span_attributes
+    create_task_data["tenant_id"] = Space.objects.get(id=space_id).tenant_id
+
+    create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+        space_id=int(space_id),
+        pipeline_tree=pipeline_tree,
+        extra_info=create_task_data.get("extra_info"),
+        username=request.user.username,
+        scope_type=template.scope_type,
+        scope_id=template.scope_value,
     )
 
     client = TaskComponentClient(space_id=space_id)

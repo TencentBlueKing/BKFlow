@@ -1,24 +1,30 @@
 <template>
   <div
     class="node"
-    :class="{ active:activeNode?.id === node.id,isPreview:!editable,isExecute,[ETaskStatusTypeMap[status].class]:true, isSkip }"
+    :class="{ active:activeNode?.id === currentNode?.id,isPreview:!editable,isExecute,[ETaskStatusTypeMap[status].class]:true, isSkip }"
     @click="handleNode(currentNode)">
     <div class="node-icon">
       <span
         v-if="editable"
         class="node-move-icon commonicon-icon common-icon-drawable" />
       <template v-if="!isExecute||(status === ETaskStatusType.PENDING)">
-        <i
-          v-if="pluginType === 'component'"
-          :class="`logo-icon ${getIconCls(currentNode.component?.code)}`" />
-        <img
-          v-else-if="pluginType==='blueking'||pluginType==='uniform_api'"
-          :src="getLogoByPluginsDetail()"
-          alt="">
-        <img
-          v-else
-          :src="defaultLogo"
-          alt="网格图标">
+        <template v-if="nodeType==='Node'">
+          <i
+            v-if="pluginType === 'component'"
+            :class="`logo-icon ${getIconCls(currentNode.component?.code)}`" />
+          <img
+            v-else-if="pluginType==='blueking'||pluginType==='uniform_api'"
+            :src="getLogoByPluginsDetail()"
+            alt="">
+          <img
+            v-else
+            :src="defaultLogo"
+            alt="网格图标">
+        </template>
+
+        <template v-else-if="nodeType==='SubProcess'">
+          <i class="logo-icon commonicon-icon common-icon-sub-process" />
+        </template>
       </template>
       <span
         v-else
@@ -46,7 +52,9 @@
         <span
           v-if="isExecute"
           class="toolAndTime">
-          <div class="tool">
+          <div
+            v-if="ifShowStepTool"
+            class="tool">
             <bk-button
               v-if="status === ETaskStatusType.RUNNING"
               theme="danger"
@@ -84,8 +92,32 @@
       <div class="add-step-btn">
         <div
           class="cicrle-btn"
-          @click.stop="addStep">
-          <span>+</span>
+          @click.stop="()=>{}">
+          <bk-dropdown-menu
+            ref="dropdown"
+            trigger="click"
+            @show="dropdownShow"
+            @hide="dropdownHide">
+            <div
+              slot="dropdown-trigger"
+              class="dropdown-trigger-text">
+              <span><span class="plus">+</span> 节点 <i class="commonicon-icon common-icon-next-triangle-shape triangleIcon" /></span>
+            </div>
+            <ul
+              slot="dropdown-content"
+              class="bk-dropdown-list">
+              <li>
+                <a
+                  href="javascript:;"
+                  @click="addStep('Node')">节点</a>
+              </li>
+              <li>
+                <a
+                  href="javascript:;"
+                  @click="addStep('SubProcess')">子流程</a>
+              </li>
+            </ul>
+          </bk-dropdown-menu>
         </div>
       </div>
     </div>
@@ -107,7 +139,6 @@
   </div>
 </template>
 <script>
-import { mapState } from 'vuex';
 import { ETaskStatusType, ETaskStatusTypeMap } from '../data';
 import { SYSTEM_GROUP_ICON } from '@/constants/index.js';
 import { getDurationTime } from '../utils';
@@ -132,6 +163,22 @@ export default {
         showNotAllowMove: {
           type: Boolean,
           default: false,
+        },
+        pluginsDetail: {
+          type: Object,
+          default: () => ({}),
+        },
+        activities: {
+          type: Object,
+          default: () => ({}),
+        },
+        ifShowStepTool: {
+          type: Boolean,
+          default: true,
+        },
+        activeNode: {
+          type: Object,
+          default: null,
         },
     },
     data() {
@@ -165,15 +212,11 @@ export default {
               remote_plugin: 'blueking',
               uniform_api: 'uniform_api',
             },
+            isTextDropdownShow: false,
             defaultLogo: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjIiIGhlaWdodD0iMjIiIHZpZXdCb3g9IjAgMCAyMiAyMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHJ4PSIyIiBzdHJva2U9IiNENEU4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjxwYXRoIGQ9Ik02IDYgTDE2IDE2IE02IDE2IEwxNiA2IiBzdHJva2U9IiNENEU4RkYiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg==',
         };
     },
     computed: {
-      ...mapState({
-        activeNode: state => state.stageCanvas.activeNode,
-        activities: state => state.template.activities,
-        pluginsDetail: state => state.stageCanvas.pluginsDetail,
-      }),
       status() {
         return this.node.state || ETaskStatusType.PENDING;
       },
@@ -189,6 +232,9 @@ export default {
         }
           return Object.values(this.activities).find(item => item.template_node_id === this.node.id);
       },
+      nodeType() {
+        return this.node.option?.nodeType || 'Node';
+      },
       pluginType() {
         if (this.currentNode?.component && this.currentNode.component.code) {
           const type = (this.currentNode.component.code === 'uniform_api' || this.currentNode.component.code === 'remote_plugin') ? this.codeMapToType[this.currentNode.component.code]  : 'component';
@@ -202,6 +248,7 @@ export default {
             this.node.state === ETaskStatusType.RUNNING ? new Date().toString() : this.node.finish_time,
           );
       },
+
     },
     methods: {
         handleNode(node) {
@@ -211,8 +258,9 @@ export default {
             this.$emit('handleNode', node);
           }
         },
-        addStep() {
-          this.$emit('addNewStep');
+        addStep(value) {
+          this.$emit('addNewStep', value);
+          this.triggerHandler();
         },
         handleOperateNode(type) {
           this.$emit('handleOperateNode', type, this.currentNode);
@@ -227,6 +275,15 @@ export default {
         getLogoByPluginsDetail() {
           // eslint-disable-next-line camelcase
           return this.pluginsDetail[this.pluginType]?.[this.currentNode.component.data.plugin_code.value]?.logo_url || this.defaultLogo;
+        },
+        dropdownShow() {
+          this.isTextDropdownShow = true;
+        },
+        dropdownHide() {
+          this.isTextDropdownShow = false;
+        },
+        triggerHandler() {
+          this.$refs.dropdown.hide();
         },
     },
 };
@@ -259,6 +316,7 @@ export default {
         }
         .add-step-btn .cicrle-btn{
             display: flex;
+            z-index: 1000;
         }
         .node-icon{
           .node-move-icon{
@@ -270,8 +328,11 @@ export default {
         }
     }
     &.active {
-        border: 1px solid #3A83FF;
-        background-color: rgba(58, 131, 255, 0.05);
+        // border: 1px solid #3A83FF;
+        // background-color: rgba(58, 131, 255, 0.05);
+        .node-title {
+          color: #2050d2;
+        }
     }
     .info-icon{
         .info-icon-item{
@@ -384,20 +445,19 @@ export default {
 .add-step-btn{
   .cicrle-btn{
     display: none;
-    $circleRadius:6px;
-    width: $circleRadius *2;
+    $circleRadius:10px;
+    width: 64px;
     height:  $circleRadius *2;
-    border-radius: 50%;
+    border-radius: $circleRadius  ;
     color: #3A83FF;
     background-color: #fff;
-    font-weight: bold;
     border: 1px solid #3A83FF;
     align-items: center;
     justify-content: center;
     position: absolute;
     bottom: 0 - $circleRadius;
     left: 50%;
-    transform: translateX(-$circleRadius);
+    transform: translateX(-32px);
     z-index: 10;
     line-height: 2 * $circleRadius;
     font-size: 12px;
@@ -405,6 +465,16 @@ export default {
       position: relative;
       top: -0.5px;
       cursor: pointer;
+    }
+    .triangleIcon{
+      font-size: 12px;
+      transform: rotateZ(90deg);
+      display: inline-block;
+      position: relative;
+      top: -1px;
+    }
+    .plus{
+      font-weight: 700;
     }
   }
 }

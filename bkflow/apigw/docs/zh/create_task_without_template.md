@@ -1,6 +1,14 @@
+### 租户访问约束
+
+开启多租户时，全租户应用必须通过 `X-Bk-Tenant-Id` 指定本次请求租户；单租户应用可省略该头，使用 JWT 中已认证的应用租户，显式传入时必须一致。本次请求租户必须与资源所属空间租户一致；同一个全租户应用应在各租户分别创建空间。原有应用与空间/模板绑定仍需满足。若 JWT 包含已认证用户，其租户也必须一致。缺少或不匹配时拒绝请求。
+
+应用态接口不要求额外用户身份。SDK 用户态接口仍要求已认证用户，平台管理员和空间管理员同样不能跨租户。关闭多租户模式时保持单租户行为。
+
 ### 资源描述
 
 创建任务
+
+任务租户由服务端根据目标空间补齐，调用方无需增加 `tenant_id`；请求体中的同名字段不会覆盖空间归属。
 
 ### 输入通用参数说明
 |   参数名称   |    参数类型  |  必须  |     参数说明     |
@@ -11,17 +19,59 @@
 
 #### 接口参数
 
-| 字段            | 类型     | 必选 | 描述     |
-|---------------|--------|----|--------|
-| creator       | string | 是  | 创建者    |
-| pipeline_tree | json   | 是  | 任务结构树  | 
-| name          | string | 否  | 任务名    |
-| scope_type    | string | 否  | 任务范围类型 |
-| scope_value   | string | 否  | 任务范围值  |
-| description   | string | 否  | 描述     |
-| constants     | json   | 否  | 任务启动参数 |
+| 字段                    | 类型     | 必选 | 描述                                    |
+|----------------------|--------|----|---------------------------------------|
+| creator               | string | 是  | 创建者                                    |
+| pipeline_tree         | json   | 是  | 任务结构树                                  |
+| name                  | string | 否  | 任务名                                    |
+| scope_type            | string | 否  | 任务范围类型                                 |
+| scope_value           | string | 否  | 任务范围值                                  |
+| description           | string | 否  | 描述                                    |
+| constants             | json   | 否  | 任务启动参数                                |
+| custom_span_attributes | dict   | 否  | 自定义 Span 属性，会添加到执行级根 Span 和所有节点上报的 Span 中，详见下方说明 |
 
+### 开放插件治理说明
 
+当 `pipeline_tree` 中包含标准运维开放插件（`uniform_api v4.0.0`）时，创建任务前会做服务端治理校验：
+
+- 插件必须仍存在于当前空间的开放插件目录中
+- 插件状态必须为可用
+- 插件业务版本必须仍在目录可用版本列表中
+- 插件必须已在当前空间开启
+
+校验通过后，BKFlow 会在任务 `extra_info` 中写入开放插件引用快照与 schema 快照，供后续执行与历史回看使用。
+
+### custom_span_attributes 参数说明
+
+`custom_span_attributes` 参数用于在创建任务时传递自定义属性到执行级根 Span 和所有节点上报的 Span 中，支持用户通过自定义属性来进行埋点上报。
+
+**参数格式要求：**
+- 类型：字典（dict）
+- key：自定义属性名称（字符串）
+- value：自定义属性值（字符串、数字等可序列化的值）
+
+**使用场景：**
+- 业务埋点：传入业务ID、订单ID等业务标识进行埋点上报
+- 请求埋点：传入请求ID、调用链ID等请求标识进行埋点上报
+- 环境埋点：传入环境类型、区域等环境信息进行埋点上报
+
+**参数示例：**
+```json
+{
+    "custom_span_attributes": {
+        "business_id": "12345",
+        "request_id": "req-abc-123",
+        "env": "prod"
+    }
+}
+```
+
+**注意事项：**
+- 自定义属性会被存储在任务的 `extra_info.custom_context.custom_span_attributes` 中
+- 这些属性会添加到执行级根 Span 中，属性名格式为 `bkflow.<key>`
+- 这些属性会通过 `TaskContext` 传递到所有节点的 Span 中
+- 节点 Span 中自定义属性的优先级高于默认的 Span 属性（如 space_id、task_id 等），如果 key 相同会被覆盖
+- 执行级根 Span 会保留 `task_id`、`space_id`、`pipeline_instance_id`、`operator` 等内置属性，不会被自定义属性覆盖
 
 ### 请求参数示例
 
@@ -246,6 +296,28 @@
 }
 ```
 
+带自定义 Span 属性的请求参数示例：
+```json
+{
+    "creator": "创建者",
+    "pipeline_tree": {
+        "name": "test",
+        "activities": {},
+        "end_event": {},
+        "flows": {},
+        "gateways": {},
+        "start_event": {},
+        "constants": {}
+    },
+    "name": "测试任务",
+    "custom_span_attributes": {
+        "business_id": "12345",
+        "request_id": "req-abc-123",
+        "env": "prod"
+    }
+}
+```
+
 ### 返回结果示例
 
 ```json
@@ -290,6 +362,17 @@
     "message": ""
 }
 
+```
+
+开放插件未开放时的失败示例：
+
+```json
+{
+    "result": false,
+    "code": 400,
+    "data": null,
+    "message": "开放插件 [open_plugin_001] 在当前空间未开放"
+}
 ```
 ### 返回结果参数说明
 

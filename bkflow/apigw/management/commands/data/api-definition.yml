@@ -1,3 +1,5 @@
+spec_version: 2
+
 apigateway:
   description: {{ settings.BK_APP_CODE }} apigw
   is_public: true
@@ -6,29 +8,36 @@ apigateway:
     - "{{ member }}"
     {% endfor %}
 
-stage:
-  name: {{ settings.BK_APIGW_STAGE_NAME }}
-  vars:
-    api_sub_path: "{{ settings.BK_APIGW_API_SERVER_SUB_PATH }}"
-  proxy_http:
-    timeout: 120
-    upstreams:
-      loadbalance: roundrobin
-      hosts:
-        - host: http://{{ settings.BK_APIGW_API_SERVER_HOST }}
-          weight: 100
-  rate_limit:
-    enabled: false
-    rate:
-      tokens: 5000
-      period: 60
+stages:
+  - name: {{ settings.BK_APIGW_STAGE_NAME }}
+    vars:
+      api_sub_path: "{{ settings.BK_APIGW_API_SERVER_SUB_PATH }}"
+    backends:
+      - name: default
+        config:
+          timeout: 120
+          loadbalance: roundrobin
+          hosts:
+            - host: http://{{ settings.BK_APIGW_API_SERVER_HOST }}
+      - name: sdk
+        config:
+          timeout: 120
+          loadbalance: roundrobin
+          hosts:
+            - host: http://{{ settings.BK_APIGW_API_SERVER_HOST }}
+    plugin_configs:
+      - type: bk-rate-limit
+        yaml: |-
+          rates:
+            __default:
+              - tokens: 5000
+                period: 60
 
 grant_permissions:
   {% for app_code in settings.BK_APIGW_GRANT_APPS %}
   - bk_app_code: "{{ app_code }}"
     grant_dimension: "api"
   {% endfor %}
-
 
 resource_docs:
   archivefile: {{ settings.BK_APIGW_RESOURCE_DOCS_ARCHIVE_FILE }}

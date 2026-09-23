@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,13 +21,12 @@ import logging
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
-from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.token import ApiGwTokenRevokeSerializer
-from bkflow.permission.models import Token
+from bkflow.permission.services import revoke_tokens
 from bkflow.utils import err_code
 
 logger = logging.getLogger("root")
@@ -57,9 +55,8 @@ def revoke_token(request, space_id):
 
     filter_kwargs = ser.validated_data
 
-    now_time = timezone.now()
-    revoke_num = Token.objects.filter(space_id=space_id).filter(**filter_kwargs).update(expired_time=now_time)
+    revoke_num = revoke_tokens(space_id, filter_kwargs)
 
-    logger.info(f"[revoke tokens] params: {filter_kwargs}, expired_time: {now_time}, revoke numbers: {revoke_num}")
+    logger.info("[revoke tokens] params: %s, revoke numbers: %s", filter_kwargs, revoke_num)
 
     return {"result": True, "data": f"{revoke_num} tokens revoke success", "message": "", "code": err_code.SUCCESS.code}

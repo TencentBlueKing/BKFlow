@@ -1,3 +1,9 @@
+### 租户访问约束
+
+开启多租户时，全租户应用必须通过 `X-Bk-Tenant-Id` 指定本次请求租户；单租户应用可省略该头，使用 JWT 中已认证的应用租户，显式传入时必须一致。本次请求租户必须与资源所属空间租户一致；同一个全租户应用应在各租户分别创建空间。原有应用与空间/模板绑定仍需满足。若 JWT 包含已认证用户，其租户也必须一致。缺少或不匹配时拒绝请求。
+
+应用态接口不要求额外用户身份。SDK 用户态接口仍要求已认证用户，平台管理员和空间管理员同样不能跨租户。关闭多租户模式时保持单租户行为。
+
 ### 资源描述
 
 获取流程详情
@@ -13,13 +19,14 @@
 | 字段              | 类型     | 必选 | 描述                                                                                                                                           |
 |-----------------|--------|----|----------------------------------------------------------------------------------------------------------------------------------------------|
 | with_mock_data  | bool   | 否  | 是否一起返回 mock 数据，默认为 false。 当设置为 true 时，返回数据中会增加 appoint_node_ids 和 mock_data 两个字段，且如果 appoint_node_ids 有指定 mock 执行节点时，pipeline_tree 会进行对应的精简。 |
+| format          | string | 否  | 返回数据格式，可选值：raw（默认，原始格式）、pipeline_tree（流程树格式，与raw相同）、plugin（插件格式）。当传入 plugin 时，返回插件格式的数据结构。 |
 
 
 路径参数:
 
 | 字段      | 类型     | 必选 | 描述                                              |
 |---------|--------|----|-------------------------------------------------|
-| node_id | string | 是  | 节点 ID，可以通过 get_task_detail 或 get_task_states 获取 |
+| template_id | string | 是  | 节点 ID，可以通过 get_task_detail 或 get_task_states 获取 |
 
 ### 返回结果示例
 
@@ -95,7 +102,8 @@
         "source": null,
         "version": "",
         "is_enabled": true,
-        "extra_info": {}
+        "extra_info": {},
+        "triggers": []
     },
     "code": 0,
     "trace_id": "xxxxxxxxx"
@@ -112,23 +120,133 @@
 
 ### data 包含字段说明
 
-| 字段               | 类型       | 描述                                                             |
-|------------------|----------|----------------------------------------------------------------|
-| id               | int      | 流程 ID                                                          |
-| space_id         | int      | 流程对应的空间 ID                                                     |
-| name             | string   | 流程名称                                                           |
-| desc             | string   | 流程描述                                                           |
-| notify_config    | dict     | 流程通知配置                                                         | 
-| scope_type       | string   | 流程所属领域类型                                                       |
-| scope_value      | string   | 流程所属领域值                                                        | 
-| pipeline_tree    | dict     | 流程树，当 with_mock_data 传参为 true 时，为精简后的流程树 ｜                     |
-| source           | string   | 流程来源，第三方系统对应的资源 ID ｜                                           |
-| version          | string   | 流程版本号，对应第三方系统对应的资源版本 ｜                                         |
-| is_enabled       | bool     | 是否启用                                                           |
-| extra_info       | dict     | 额外信息                                                           |
-| create           | string   | 流程创建人                                                          |
-| create_at        | datetime | 创建时间                                                           |
-| update_by        | string   | 流程更新人                                                          |
-| update_at        | datetime | 更新时间                                                           |
-| appoint_node_ids | list     | 当 with_mock_data 传参为 true 时返回，mock 执行时选中的节点 ID 列表              |
-| mock_data        | list     | 当 with_mock_data 传参为 true 时返回，每个元素包含 node_id，data 和 is_default |
+| 字段                | 类型       | 描述                                                             |
+|-------------------|----------|----------------------------------------------------------------|
+| id                | int      | 流程 ID                                                          |
+| space_id          | int      | 流程对应的空间 ID                                                     |
+| name              | string   | 流程名称                                                           |
+| desc              | string   | 流程描述                                                           |
+| notify_config     | dict     | 流程通知配置                                                         |
+| scope_type        | string   | 流程所属作用域类型                                                      |
+| scope_value       | string   | 流程所属作用域值                                                       |
+| pipeline_tree     | dict     | 流程树，当 with_mock_data 传参为 true 时，为精简后的流程树 ｜                     |
+| source            | string   | 流程来源，第三方系统对应的资源 ID ｜                                           |
+| version           | string   | 流程版本号，对应第三方系统对应的资源版本 ｜                                         |
+| is_enabled        | bool     | 是否启用                                                           |
+| extra_info        | dict     | 额外信息                                                           |
+| create            | string   | 流程创建人                                                          |
+| create_at         | datetime | 创建时间                                                           |
+| update_by         | string   | 流程更新人                                                          |
+| update_at         | datetime | 更新时间                                                           |
+| appoint_node_ids  | list     | 当 with_mock_data 传参为 true 时返回，mock 执行时选中的节点 ID 列表              |
+| mock_data         | list     | 当 with_mock_data 传参为 true 时返回，每个元素包含 node_id，data 和 is_default |
+| triggers          | list     | 触发器配置                                                          |
+
+### data[triggers] 字段说明
+
+| 字段          | 类型       | 描述     |
+|-------------|----------|--------|
+| id          | int      | 触发器 ID |
+| space_id    | int      | 空间 ID  |
+| create_at   | datetime | 创建时间   |
+| update_at   | datetime | 更新时间   |
+| config      | dict     | 时间配置   |
+| updated_by  | string   | 更新人    |
+| creator     | string   | 创建人    |
+| template_id | string   | 模板ID   |
+| is_deleted  | bool     | 是否删除   |
+| is_enabled  | bool     | 是否开启   |
+| name        | string   | 触发器名称  |
+| type        | string   | 触发器类型  |
+
+### format=plugin 时的返回示例
+
+当 format 参数传入 plugin 时，返回插件格式的数据结构：
+
+```json
+{
+    "result": true,
+    "data": {
+        "id": 3,
+        "name": "测试模板",
+        "desc": "模板描述信息",
+        "version": "1.0.0",
+        "space_id": 2,
+        "scope_type": null,
+        "scope_value": null,
+        "creator": "admin",
+        "create_at": "2024-01-01T00:00:00Z",
+        "updated_by": "admin",
+        "update_at": "2024-01-02T00:00:00Z",
+        "inputs": {
+            "type": "object",
+            "properties": {
+                "param1": {
+                    "title": "参数1",
+                    "type": "string"
+                }
+            },
+            "required": ["param1"],
+            "definitions": {}
+        },
+        "outputs": {
+            "type": "object",
+            "properties": {
+                "output1": {
+                    "title": "输出1",
+                    "type": "string"
+                }
+            },
+            "required": ["output1"],
+            "definitions": {}
+        },
+        "context_inputs": {
+            "type": "object",
+            "properties": {
+                "executor": {
+                    "title": "任务执行人",
+                    "type": "string"
+                },
+                "task_name": {
+                    "title": "任务名称",
+                    "type": "string"
+                },
+                "task_id": {
+                    "title": "任务ID",
+                    "type": "string"
+                },
+                "task_space_id": {
+                    "title": "任务空间ID",
+                    "type": "string"
+                }
+            },
+            "required": ["executor", "task_name", "task_id", "task_space_id"],
+            "definitions": {}
+        }
+    },
+    "code": 0,
+    "trace_id": "xxxxxxxxx"
+}
+```
+
+### format=plugin 时 data 字段说明
+
+| 字段                   | 类型     | 描述                                        |
+|----------------------|--------|-------------------------------------------|
+| id                   | int    | 流程 ID                                     |
+| name                 | string | 流程名称                                      |
+| desc                 | string | 流程描述                                      |
+| version              | string | 流程版本号                                     |
+| space_id             | int    | 空间 ID                                     |
+| scope_type           | string | 流程所属作用域类型                                 |
+| scope_value          | string | 流程所属作用域值                                  |
+| creator              | string | 创建人                                       |
+| create_at            | datetime | 创建时间                                    |
+| updated_by           | string | 更新人                                       |
+| update_at            | datetime | 更新时间                                    |
+| inputs               | object | 输入参数 JSON Schema，从 pipeline_tree 解析       |
+| outputs              | object | 输出参数 JSON Schema，从 pipeline_tree 解析       |
+| context_inputs       | object | 上下文输入参数 JSON Schema                       |
+### 定时触发器时区
+
+`triggers[].config.timezone` 可指定有效的 IANA 时区（例如 `Europe/Paris`）。新建时省略则保存当前请求的有效用户时区；编辑时省略则保留既有计划时区。历史未标时区的计划继续使用其已保存的 Engine 调度时区，不随编辑者切换。返回的 config 保留新计划的 timezone，界面按此显示和预览。

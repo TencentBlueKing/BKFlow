@@ -21,6 +21,7 @@ import decisionTable from './modules/decisionTable';
 import credentialConfig from './modules/credentialConfig';
 import plugin from './modules/plugin';
 import stageCanvas from './modules/stageCanvas';
+import label from './modules/label';
 Vue.use(Vuex);
 
 const getAppLang = () => {
@@ -44,6 +45,7 @@ const store = new Vuex.Store({
     credentialConfig,
     plugin,
     stageCanvas,
+    label,
   },
   // 公共 store
   state: {
@@ -90,6 +92,7 @@ const store = new Vuex.Store({
       i18n: {},
     },
     isIframe: false,
+    isMultiTenantMode: window.ENABLE_MULTI_TENANT_MODE === true,
   },
   // 公共 getters
   getters: {
@@ -202,7 +205,7 @@ const store = new Vuex.Store({
       });
     },
     getNotifyTypes() {
-      return axios.get('get_msg_types/').then(response => response.data);
+      return axios.get('openapi/get_msg_types/').then(response => response.data);
     },
     getNotifyGroup(params) {
       return axios.get('api/v3/staff_group/', { params }).then(response => response.data);

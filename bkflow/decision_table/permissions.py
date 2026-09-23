@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,7 +21,8 @@ import logging
 from rest_framework import permissions
 
 from bkflow.contrib.api.collections.task import TaskComponentClient
-from bkflow.permission.models import PermissionType, ResourceType, Token
+from bkflow.permission.models import ResourceType, TokenPermissionType
+from bkflow.permission.services import get_valid_token
 from bkflow.template.serializers.template import TemplateRelatedResourceSerializer
 
 logger = logging.getLogger("root")
@@ -31,36 +31,53 @@ logger = logging.getLogger("root")
 class DecisionTableUserPermission(permissions.BasePermission):
     NEED_TEMPLATE_EDIT_ACTIONS = ["list", "create", "update", "partial_update", "delete", "evaluate"]
 
+    @staticmethod
+    def _matches_template_id(resource_id, template_id):
+        """保留决策表原有的数值模板 ID 比较。"""
+        try:
+            return int(resource_id) == template_id
+        except (TypeError, ValueError):
+            return False
+
     def has_permission(self, request, view):
         data = request.query_params or request.data
         ser = TemplateRelatedResourceSerializer(data=data)
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
-        token = Token.objects.filter(space_id=space_id, token=request.token).first()
-        if not token or token.has_expired():
+        token = get_valid_token(request.token, request.user.username, space_id, request)
+        if token is None:
             return False
 
-        if token.resource_type == ResourceType.TEMPLATE.value and int(token.resource_id) == template_id:
-            return view.action not in self.NEED_TEMPLATE_EDIT_ACTIONS or token.permission_type in [
-                PermissionType.EDIT.value,
-                PermissionType.MOCK.value,
-            ]
-
-        if token.resource_type == ResourceType.TASK.value:
-            client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
-            result = client.get_task_detail(task_id=token.resource_id)
-            if not result.get("result"):
-                logger.error(f"[TaskMockTokenPermission] get_task_detail failed: {result}")
-                return False
-            task_template_id = result["data"].get("template_id")
-            return view.action not in self.NEED_TEMPLATE_EDIT_ACTIONS and int(task_template_id) == template_id
+        for grant in token.get_grants():
+            if grant.resource_type == ResourceType.TEMPLATE.value and self._matches_template_id(
+                grant.resource_id, template_id
+            ):
+                if view.action not in self.NEED_TEMPLATE_EDIT_ACTIONS or grant.permission_type in [
+                    TokenPermissionType.EDIT.value,
+                    TokenPermissionType.MOCK.value,
+                ]:
+                    return True
+            if grant.resource_type == ResourceType.TASK.value and view.action not in self.NEED_TEMPLATE_EDIT_ACTIONS:
+                try:
+                    client = TaskComponentClient(space_id=space_id, from_superuser=request.user.is_superuser)
+                    result = client.get_task_detail(task_id=grant.resource_id)
+                except Exception:
+                    logger.warning(
+                        "[DecisionTableUserPermission] get_task_detail failed, task_id=%s", grant.resource_id
+                    )
+                    continue
+                if not result.get("result"):
+                    continue
+                if self._matches_template_id(result.get("data", {}).get("template_id"), template_id):
+                    return True
+        return False
 
     def has_object_permission(self, request, view, obj):
         data = request.query_params or request.data
         ser = TemplateRelatedResourceSerializer(data=data)
         ser.is_valid(raise_exception=True)
         space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
-        token = Token.objects.filter(space_id=space_id, token=request.token).first()
-        if not token or token.has_expired():
+        token = get_valid_token(request.token, request.user.username, space_id, request)
+        if token is None:
             return False
         return obj.template_id == template_id

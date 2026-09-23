@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,14 +16,17 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+from blueapps.core.exceptions.base import BlueException
 
 
-class BKFLOWException(Exception):
-    CODE = None
+class BKFLOWException(BlueException):
+    ERROR_CODE = None
     MESSAGE = None
     STATUS_CODE = 500
 
-    def __init__(self, message=""):
+    def __init__(self, message="", code=None, errors=None):
+        self.code = code or "0000000"
+        self.data = errors or {}
         self.message = f"{self.MESSAGE}: {message}" if self.MESSAGE else f"{message}"
 
     def __str__(self):

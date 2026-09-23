@@ -20,7 +20,7 @@
       :is-view-mode="isViewMode"
       :template-id="templateId"
       @viewClick="$emit('viewClick', $event)"
-      @templateDataChanged="$emit('templateDataChanged')"
+      @templateDataChanged="$emit('templateDataChanged', 'tabGlobalVariables')"
       @onCitedNodeClick="$emit('onCitedNodeClick', $event)"
       @closeTab="closeTab" />
     <TabTemplateConfig
@@ -29,8 +29,7 @@
       :is-view-mode="isViewMode"
       :project-info-loading="projectInfoLoading"
       :template-label-loading="templateLabelLoading"
-      :template-labels="templateLabels"
-      @templateDataChanged="$emit('templateDataChanged')"
+      @templateDataChanged="$emit('templateDataChanged', 'tabTemplateConfig')"
       @updateTemplateLabelList="$emit('updateTemplateLabelList')"
       @closeTab="closeTab" />
     <TabTemplateSnapshoot
@@ -67,10 +66,10 @@
       isViewMode: Boolean,
       projectInfoLoading: Boolean,
       templateLabelLoading: Boolean,
-      templateLabels: {
-        type: Array,
-        default: () => ([]),
-      },
+    //   templateLabels: {
+    //     type: Array,
+    //     default: () => ([]),
+    //   },
       activeTab: {
         type: String,
         default: '',

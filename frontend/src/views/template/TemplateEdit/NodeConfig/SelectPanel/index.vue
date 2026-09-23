@@ -3,6 +3,7 @@
     <subflow
       v-if="nodeConfig.type === 'SubProcess'"
       :common="common"
+      :space-id="spaceId"
       :node-config="nodeConfig"
       :template-labels="templateLabels"
       @select="$emit('select', $event)" />
@@ -17,6 +18,7 @@
       :scope-info="scopeInfo"
       :space-id="spaceId"
       :space-related-config="spaceRelatedConfig"
+      :is-plugin-scope-hidden="isPluginScopeHidden"
       @select="$emit('select', $event)" />
   </div>
 </template>
@@ -68,6 +70,10 @@
       spaceRelatedConfig: {
         type: Object,
         default: () => ({}),
+      },
+      isPluginScopeHidden: {
+        type: Boolean,
+        default: false,
       },
     },
   };

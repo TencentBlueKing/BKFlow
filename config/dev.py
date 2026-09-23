@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -24,6 +23,8 @@ from config import RUN_VER
 from config.default import FRONTEND_BACKEND_SEPARATION
 
 EnvValidator(RUN_VER).validate()
+
+BK_APIGW_STAGE_NAME = "stage"
 
 if RUN_VER == "open":
     from blueapps.patch.settings_open_saas import *  # noqa

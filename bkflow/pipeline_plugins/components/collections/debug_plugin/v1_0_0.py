@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -37,6 +36,8 @@ __register_ignore__ = settings.ENVIRONMENT == "prod"
 
 
 class DebugPluginService(BKFlowBaseService):
+    plugin_name = "debug_plugin"
+
     def inputs_format(self):
         return [
             self.InputItem(

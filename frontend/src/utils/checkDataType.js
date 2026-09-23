@@ -73,6 +73,12 @@ export const getDefaultValueFormat = (scheme) => {
         value: 0,
       };
       break;
+    case 'switch':
+      valueFormat = {
+        type: 'Boolean',
+        value: false,
+      };
+      break;
     case 'ip_selector':
       valueFormat = {
         type: 'Object',
@@ -125,6 +131,12 @@ export const getDefaultValueFormat = (scheme) => {
           tag: 'value',
           value: '',
         },
+      };
+      break;
+    case 'field_mappings':
+      valueFormat = {
+        type: ['Array', 'Object'],
+        value: {},
       };
       break;
     default:

@@ -136,7 +136,7 @@
       async onModifyTime() {
         let formvalid = true;
         if (this.$refs.renderForm) {
-          formvalid = this.$refs.renderForm.validate();
+          formvalid = await this.$refs.renderForm.validate();
         }
         if (!formvalid || this.modifyTimeLoading) return false;
 

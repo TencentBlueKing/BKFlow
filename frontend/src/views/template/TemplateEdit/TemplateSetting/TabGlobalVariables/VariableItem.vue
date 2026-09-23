@@ -130,6 +130,7 @@
           <i class="bk-icon icon-more" />
           <template slot="content">
             <p
+              v-if="!isLoopNode"
               class="operate-item"
               @click.stop="onCloneVariable()">{{ $t('克隆') }}</p>
             <p
@@ -142,6 +143,8 @@
     <VariableCitedList
       v-if="showCitedList"
       :cited-list="citedList"
+      :is-loop-node="isLoopNode"
+      :pipeline-tree-data="pipelineTreeData"
       @onCitedNodeClick="$emit('onCitedNodeClick', $event)" />
     <VariablePreviewValue
       v-if="showPreviewValue"
@@ -183,6 +186,16 @@
         default: () => ([]),
       },
       isViewMode: Boolean,
+      // 是否为循环流节点上下文
+      isLoopNode: {
+        type: Boolean,
+        default: false,
+      },
+      // 循环流节点pipeline
+      pipelineTreeData: {
+        type: Object,
+        default: null,
+      },
     },
     data() {
       return {
@@ -296,8 +309,11 @@
         if (this.showPreviewValue) {
           this.showPreviewValue = false;
         } else {
+          const constants = (this.isLoopNode && this.pipelineTreeData)
+            ? this.pipelineTreeData.constants
+            : this.$store.state.template.constants;
           this.previewParams = {
-            constants: this.constants,
+            constants,
             extra_data: {
               executor: this.username,
               project_id: this.common ? undefined : this.project_id,

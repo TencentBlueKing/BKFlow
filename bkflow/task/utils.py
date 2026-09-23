@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
+import json
 import logging
 from functools import wraps
 
@@ -31,6 +30,7 @@ from redis.client import Redis
 
 from bkflow.utils.dates import format_datetime
 from bkflow.utils.message import send_message
+from packages.bkapi.bk_user.shortcuts import get_client_by_username
 
 logger = logging.getLogger("root")
 
@@ -107,9 +107,7 @@ def parse_node_timeout_configs(pipeline_tree: dict) -> list:
             timeout_seconds = timeout_config.get("seconds")
             action = timeout_config.get("action")
             if not timeout_seconds or not isinstance(timeout_seconds, int):
-                message = _(
-                    f"节点执行失败: 节点[ID: {act_id}]配置了非法的超时时间: {timeout_seconds}, 请修改配置后重试"
-                )
+                message = _(f"节点执行失败: 节点[ID: {act_id}]配置了非法的超时时间: {timeout_seconds}, 请修改配置后重试")
                 logger.error(message)
                 # 对于不符合格式要求的情况，则不设置对应超时时间
                 continue
@@ -119,6 +117,7 @@ def parse_node_timeout_configs(pipeline_tree: dict) -> list:
 
 ATOM_FAILED = "atom_failed"
 TASK_FINISHED = "task_finished"
+PENDING_PROCESSING = "pending_processing"
 
 DEFAULT_TITLE_TEMPLATE = "【BKFlow引擎服务通知】任务执行{status}"
 DEFAULT_TASK_INSTANCE_MESSAGE_TEMPLATE = "您的任务【{task_name}】执行{status}，操作员是【{executor}】"
@@ -135,21 +134,33 @@ def send_task_instance_message(task_instance, msg_type):
         return True
 
     executor = task_instance.executor
-    receivers = ",".join(notify_info["receivers"])
+    tenant_id = task_instance.tenant_id
+    receivers = notify_info["receivers"]
+    executor_display_name = executor
+    if settings.ENABLE_MULTI_TENANT_MODE:
+        client = get_client_by_username(executor, stage=settings.BK_APIGW_STAGE_NAME)
+        display_info = client.api.display_info({"bk_usernames": executor}, headers={"X-Bk-Tenant-Id": tenant_id})
+        user_list = display_info.get("data") or []
+        display_names = [user.get("display_name") for user in user_list]
+        executor_display_name = ",".join(display_names)
+
     types = notify_info["types"]
     msg_format = notify_info["format"]
 
     if msg_type == ATOM_FAILED:
         status = "失败"
         notify_type = types.get("fail", [])
+    elif msg_type == PENDING_PROCESSING:
+        status = "待处理"
+        notify_type = types.get("pending_processing", [])
     else:
         status = "完成"
         notify_type = types.get("success", [])
     title = (msg_format.get("title", "") or DEFAULT_TITLE_TEMPLATE).format(
-        task_name=task_instance.name, status=status, executor=executor
+        task_name=task_instance.name, status=status, executor=executor_display_name
     )
     content = (msg_format.get("content", "") or DEFAULT_TASK_INSTANCE_MESSAGE_TEMPLATE).format(
-        task_name=task_instance.name, status=status, executor=executor
+        task_name=task_instance.name, status=status, executor=executor_display_name
     )
 
     logger.info(
@@ -157,6 +168,15 @@ def send_task_instance_message(task_instance, msg_type):
             task_instance_id=task_instance.id, msg_type=msg_type, notify_type=notify_type, receivers=receivers
         )
     )
-    send_message(executor, notify_type, receivers, title, content)
+    send_message(executor, notify_type, receivers, title, content, tenant_id)
 
     return True
+
+
+def extract_extra_info(constants, keys=None):
+    extra_info = {}
+    if not constants:
+        return ""
+    for key in list(constants.keys()) if not keys else keys:
+        extra_info.update({key: {"name": constants[key]["name"], "value": constants[key]["value"]}})
+    return json.dumps(extra_info, ensure_ascii=False)

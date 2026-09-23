@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 import datetime
 import time
+from unittest.mock import patch
 
 from django.conf import settings
 from django.test import TestCase
@@ -35,6 +36,16 @@ from bkflow.pipeline_plugins.components.collections.sleep_time.legacy import (
 
 
 class SleepTimerComponentTest(TestCase, ComponentTestMixin):
+    def setUp(self):
+        # 默认关闭trace开关
+        self.trace_patcher = patch("django.conf.settings.ENABLE_OTEL_TRACE", False)
+        self.trace_patcher.start()
+        super().setUp()
+
+    def tearDown(self):
+        self.trace_patcher.stop()
+        super().tearDown()
+
     def component_cls(self):
         return SleepTimerComponent
 
@@ -42,13 +53,16 @@ class SleepTimerComponentTest(TestCase, ComponentTestMixin):
         return [INVALID_SECONDS_TEST_CASE, VALID_DATETIME_TEST_CASE]
 
 
-INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 60, "force_check": True}
+BUSINESS_TIMEZONE = timezone.pytz.timezone(settings.TIME_ZONE)
+
+INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 600, "force_check": True}
 VALID_DATETIME_INPUT = {
-    "bk_timing": (datetime.datetime.now() + datetime.timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M:%S"),
+    "bk_timing": (datetime.datetime.now(tz=BUSINESS_TIMEZONE) + datetime.timedelta(seconds=600)).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    ),
     "force_check": True,
 }
 VALID_SECONDS_INPUT = {"bk_timing": 10, "force_check": True}
-BUSINESS_TIMEZONE = timezone.pytz.timezone(settings.TIME_ZONE)
 
 INVALID_SECONDS_TEST_CASE = ComponentTestCase(
     name="invalid seconds input test case",

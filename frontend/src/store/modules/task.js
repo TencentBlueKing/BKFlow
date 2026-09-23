@@ -14,6 +14,11 @@ import store from '@/store/index.js';
 
 const task = {
   namespaced: true,
+  state: {
+    subActivities: {},
+    nodeDetailActivityPanel: 'record',
+    taskExtraInfoById: {},
+  },
   actions: {
     /**
      * 获取任务可选节点的选择方案
@@ -151,7 +156,7 @@ const task = {
      * @param {Array} data.scheme_id_list 执行方案列表
      */
     loadSubflowConfig({}, data) {
-      return axios.post('/taskflow/api/preview_task_tree_with_schemes/', data).then(response => response.data);
+      return axios.post(`/api/template/${data.templateId}/preview_task_tree/`, data).then(response => response.data);
     },
     /**
      * 获取任务节点预览数据
@@ -204,10 +209,17 @@ const task = {
      * 获取任务实例详细数据
      * @param {String} instanceId 实例id
      */
-    getTaskInstanceData({}, instanceId) {
+    getTaskInstanceData({ commit }, instanceId) {
       return axios.get(`task/get_task_detail/${instanceId}/`, {
         params: { space_id: store.state.spaceId },
-      }).then(response => response.data.data);
+      }).then((response) => {
+        const data = response.data.data;
+        commit('setTaskExtraInfo', {
+          taskId: instanceId,
+          extraInfo: (data && data.extra_info) || {},
+        });
+        return data;
+      });
     },
     /**
      * 职能化认领
@@ -486,7 +498,7 @@ const task = {
     },
     // itsm 节点审批
     itsmTransition({}, params) {
-      return axios.post('itsm_approve/', params).then(response => response.data);
+      return axios.post('itsm_approve_new/', params).then(response => response.data);
     },
     getInstanceRetryParams({}, data) {
       return axios.get(`api/v3/taskflow/${data.id}/enable_fill_retry_params/`).then(response => response.data);
@@ -519,6 +531,32 @@ const task = {
     // 创建mock任务
     createMockTask({}, data) {
       return axios.post(`api/template/${data.id}/create_mock_task/`, data.params).then(response => response.data);
+    },
+    // 批量节点输出参数
+    getBatchNodeOutput({}, params) {
+      return axios.post('task/get_node_outputs/', params).then(response => response.data);
+    },
+    // 批量获取任务执行实例pipeline
+    getBatchTaskPipeline({}, params) {
+      return axios.get('task/get_tasks_pipeline/', {params}).then(response => response.data);
+    },
+    // 批量获取任务实例状态
+    getBatchTaskStates({}, params) {
+      return axios.get('task/batch_get_task_states/', {params}).then(response => response.data);
+    },
+  },
+  mutations: {
+    setSubActivities(state, data) {
+      state.subActivities = data;
+    },
+    setNodeDetailActivityPanel(state, data) {
+      state.nodeDetailActivityPanel = data;
+    },
+    setTaskExtraInfo(state, { taskId, extraInfo }) {
+      state.taskExtraInfoById = {
+        ...state.taskExtraInfoById,
+        [taskId]: extraInfo || {},
+      };
     },
   },
 };

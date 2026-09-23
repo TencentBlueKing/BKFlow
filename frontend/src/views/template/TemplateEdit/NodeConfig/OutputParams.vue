@@ -43,12 +43,12 @@
             <i
               v-if="!isViewMode"
               class="bk-icon icon-edit-line"
-              @click="$emit('openVariablePanel', { key: row.varKey })" />
+              @click="onEditHookKey(row)" />
           </div>
         </div>
       </bk-table-column>
       <bk-table-column
-        :label="$t('勾选为全局变量')"
+        :label="isInLoopGroupOrLoopNode ? $t('保存为流程变量') : $t('勾选为全局变量')"
         :width="120">
         <i
           slot-scope="props"
@@ -108,6 +108,14 @@
         type: Array,
         default: () => ([]),
       }, // api插件输出参数
+      loopOutputsKey: {
+        type: String,
+        default: '',
+      }, // 循环输出变量key，存储在loopConfig中
+      isInLoopGroupOrLoopNode: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       const list = this.getOutputsList(this.params);
@@ -121,6 +129,9 @@
       params(val) {
         this.list = this.getOutputsList(val);
       },
+      loopOutputsKey() {
+        this.list = this.getOutputsList(this.params);
+      },
     },
     methods: {
       getOutputsList() {
@@ -128,13 +139,17 @@
         const varKeys = Object.keys(this.constants);
         this.params.forEach((param) => {
           let { key: varKey } = param;
-          const isHooked = varKeys.some((item) => {
+          let isHooked = false;
+          // 判断当前参数是否已被勾选为全局变量（source_type 为 component_outputs）
+          // 若已勾选，则将 varKey 更新为对应的全局变量 key
+          isHooked = varKeys.some((item) => {
             let result = false;
             const varItem = this.constants[item];
             if (varItem.source_type === 'component_outputs') {
+              // 获取该变量在当前节点下的源信息
               const sourceInfo = varItem.source_info[this.nodeId];
               if (sourceInfo && sourceInfo.includes(param.key)) {
-                varKey = item;
+                varKey = item; // 更新变量key名称
                 result = true;
               }
             }
@@ -150,6 +165,7 @@
             version: param.version,
             status: param.status,
             hooked: isHooked,
+            type: param.type,
           };
           list.push(info);
         });
@@ -158,9 +174,6 @@
       getRowClassName({ row }) {
         return row.status || '';
       },
-      handleBeforeChange() {
-        console.log('111');
-      },
       /**
        * 输出参数勾选切换
        */
@@ -168,6 +181,8 @@
         if (this.isViewMode) return;
         const index = props.$index;
         this.unhookingVarIndex = index;
+        const isLoopOutputs = props.row.key === 'outputs';
+
         if (!props.row.hooked) {
           props.row.hooked = true;
           // 输出选中默认新建不弹窗，直接生成变量。 如果有冲突则key+随机数
@@ -190,11 +205,15 @@
             },
             version,
             plugin_code: this.isSubflow ? pluginCode : (this.thirdPartyCode || ''),
+            custom_type: props.row.type ?? '',
           };
           if (key === 'data' && this.uniformOutputs.length) {
             config.extra_info = this.getUniformExtraInfo();
           }
           this.createVariable(config);
+          if (isLoopOutputs) {
+            this.$emit('outputsHookChange', 'create', setKey);
+          }
         } else {
           const config = ({
             type: 'delete',
@@ -202,9 +221,16 @@
             key: props.row.varKey,
             tagCode: props.row.varKey,
             source: 'output',
+            custom_type: props.row.type ?? '',
           });
           this.$emit('hookChange', 'delete', config);
+          if (isLoopOutputs) {
+            this.$emit('outputsHookChange', 'delete', '');
+          }
         }
+      },
+      onEditHookKey(row) {
+        this.$emit('openVariablePanel', { key: row.varKey, sourceKey: row.key, name: row.name });
       },
       // 变量勾选/取消勾选后，需重新对form进行赋值
       setFormData() {

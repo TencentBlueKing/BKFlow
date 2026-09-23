@@ -1,0 +1,88 @@
+### 租户访问约束
+
+开启多租户时，全租户应用必须通过 `X-Bk-Tenant-Id` 指定本次请求租户；单租户应用可省略该头，使用 JWT 中已认证的应用租户，显式传入时必须一致。本次请求租户必须与资源所属空间租户一致；同一个全租户应用应在各租户分别创建空间。原有应用与空间/模板绑定仍需满足。若 JWT 包含已认证用户，其租户也必须一致。缺少或不匹配时拒绝请求。
+
+应用态接口不要求额外用户身份。SDK 用户态接口仍要求已认证用户，平台管理员和空间管理员同样不能跨租户。关闭多租户模式时保持单租户行为。
+
+### 资源描述
+
+通过 bk_app_code 权限校验执行任务操作
+
+此接口用于对绑定了 bk_app_code 的流程创建的任务进行操作，请求方的 bk_app_code 需要与任务所属模板绑定的 bk_app_code 一致才能操作任务。
+
+**注意：此接口需要用户认证，操作人信息将从网关认证的用户信息中自动获取，无需传入 operator 参数。**
+
+### 输入通用参数说明
+|   参数名称   |    参数类型  |  必须  |     参数说明     |
+| ------------ | ------------ | ------ | ---------------- |
+| bk_app_code   | string | 是 | 应用ID(app id)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取 |
+| bk_app_secret | string | 是 | 安全秘钥(app secret)，可以通过 蓝鲸开发者中心 -> 应用基本设置 -> 基本信息 -> 鉴权信息 获取 |
+| bk_username   | string | 是 | 用户名，用于用户认证 |
+
+
+路径参数:
+
+| 字段  | 类型  | 必选  | 描述  |
+| --- | --- | --- | --- |
+|  task_id   |  int   |  是  |  任务 ID |
+|  operation   |  string   |  是  |  操作，支持 start, pause, resume, revoke |
+
+### 权限说明
+
+- 任务必须是由绑定了 bk_app_code 的流程模板创建
+- 请求方的 bk_app_code 必须与任务所属模板绑定的 bk_app_code 一致
+- 需要用户认证，操作人将使用网关认证的用户
+
+### 开放插件治理说明
+
+当 `operation=start` 且任务执行快照包含标准运维开放插件（`uniform_api v4.0.0`）时，启动前会重新校验插件目录状态和空间启用状态。校验失败时任务不会进入执行态，并返回参数校验错误。
+
+当 `operation=revoke` 成功时，关联开放插件运行实例的取消请求会异步投递；接口成功表示流程引擎已接受撤销，不表示所有远端插件实例已完成取消。
+
+### 请求参数示例
+```json
+{
+    "bk_app_code": "xxxx",
+    "bk_app_secret": "xxxx",
+    "bk_username": "xxxx"
+}
+```
+
+
+### 返回结果示例
+
+```json
+{
+    "result": true,
+    "data": null,
+    "message": "success",
+    "trace_id": "3f16e62e57c543a9be6cff9556e48d07"
+}
+```
+
+### 错误返回示例
+
+任务所属模板未绑定 bk_app_code:
+```json
+{
+    "result": false,
+    "message": "Template associated with task is not bindedto any bk_app_code. task_id=10, template_id=3"
+}
+```
+
+bk_app_code 不匹配:
+```json
+{
+    "result": false,
+    "message": "The current application does not have permission to operate this task, app=other_app, template bindedapp=your_app"
+}
+```
+
+### 返回结果参数说明
+
+| 字段      | 类型     | 描述                    |
+| ------- | ------ | --------------------- |
+| result  | bool   | 返回结果，true为成功，false为失败 |
+| code    | int    | 返回码，0表示成功，其他值表示失败     |
+| message | string | 错误信息                  |
+| data    | dict  | 返回数据                    |

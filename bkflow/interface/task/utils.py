@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -28,10 +27,10 @@ logger = logging.getLogger(__name__)
 class StageJobStateHandler:
     """处理Stage和Job状态的业务逻辑处理器"""
 
-    def __init__(self, space_id: int, is_superuser: bool = False):
+    def __init__(self, space_id: int, is_superuser: bool = False, time_zone=None):
         self.space_id = space_id
         self.is_superuser = is_superuser
-        self.client = TaskComponentClient(space_id=space_id, from_superuser=is_superuser)
+        self.client = TaskComponentClient(space_id=space_id, from_superuser=is_superuser, time_zone=time_zone)
 
     def get_task_data(self, task_id: str) -> dict:
         """获取任务相关的基础数据
@@ -211,10 +210,10 @@ class StageJobStateHandler:
 
 
 class StageConstantHandler:
-    def __init__(self, space_id: int, is_superuser: bool = False):
+    def __init__(self, space_id: int, is_superuser: bool = False, time_zone=None):
         self.space_id = space_id
         self.is_superuser = is_superuser
-        self.client = TaskComponentClient(space_id=space_id, from_superuser=is_superuser)
+        self.client = TaskComponentClient(space_id=space_id, from_superuser=is_superuser, time_zone=time_zone)
 
     def process(self, task_id: str, node_ids: list, stage_constants: list) -> dict:
         to_render_constants = [constant["key"] for constant in stage_constants]

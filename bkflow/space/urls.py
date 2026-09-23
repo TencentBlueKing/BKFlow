@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,21 +21,21 @@ from django.conf.urls import include, url
 from rest_framework.routers import DefaultRouter
 
 from bkflow.space.views import (
-    CredentialConfigAdminViewSet,
-    CredentialViewSet,
+    CredentialConfigViewSet,
     SpaceConfigAdminViewSet,
+    SpaceConfigViewSet,
     SpaceInternalViewSet,
     SpaceViewSet,
 )
 
 router = DefaultRouter()
 router.register(r"", SpaceViewSet)
-router.register("credential", CredentialViewSet)
 router.register(r"internal", SpaceInternalViewSet, basename="internal")
+router.register(r"config", SpaceConfigViewSet, basename="config")
 
 admin_router = DefaultRouter()
 admin_router.register(r"space_config", SpaceConfigAdminViewSet, basename="space_config")
-admin_router.register(r"credential_config", CredentialConfigAdminViewSet, basename="credential_config")
+admin_router.register(r"credential_config", CredentialConfigViewSet, basename="credential_config")
 
 urlpatterns = [
     url(r"^", include(router.urls)),

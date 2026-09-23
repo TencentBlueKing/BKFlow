@@ -26,6 +26,7 @@
         :variable-data="variableData"
         :is-selector-panel-show="isSelectorPanelShow"
         :back-to-variable-panel="backToVariablePanel"
+        :is-in-loop-group-or-loop-node="isInLoopGroupOrLoopNode"
         :is-view-mode="isViewMode"
         :variable-list="variableList"
         @openVariablePanel="openVariablePanel"
@@ -35,7 +36,7 @@
       <template slot="content">
         <!-- 插件/插件版本不存在面板 -->
         <bk-exception
-          v-if="isNotExistAtomOrVersion"
+          v-if="!isLoopGroupNode && isNotExistAtomOrVersion"
           class="exception-wrap"
           type="500">
           <span>{{ $t('未找到可用的插件或插件版本') }}</span>
@@ -47,7 +48,7 @@
         </bk-exception>
         <!-- 插件/子流程选择面板 -->
         <select-panel
-          v-else-if="isSelectorPanelShow"
+          v-else-if="!isLoopGroupNode && isSelectorPanelShow"
           :project_id="projectId"
           :template-labels="templateLabels"
           :node-config="nodeConfig"
@@ -60,6 +61,7 @@
           :scope-info="scopeInfo"
           :space-id="spaceId"
           :space-related-config="spaceRelatedConfig"
+          :is-plugin-scope-hidden="isPluginScopeHidden"
           @back="isSelectorPanelShow = false"
           @viewSubflow="onViewSubflow"
           @select="onPluginOrTplChange" />
@@ -73,6 +75,7 @@
             :common="common"
             :constants="localConstants"
             :template-id="$route.params.templateId"
+            :use-store-directly="!isInLoopGroup"
             @closeEditingPanel="isVariablePanelShow = false"
             @onSaveEditing="onVariableSaveEditing" />
         </div>
@@ -96,21 +99,43 @@
                 :node-config="nodeConfig"
                 :version-list="versionList"
                 :is-subflow="isSubflow"
+                :is-loop-group-node="isLoopGroupNode"
+                :is-in-loop-group="isInLoopGroup"
                 :input-loading="inputLoading"
                 :project-id="projectId"
                 :common="common"
                 :subflow-updated="subflowUpdated"
                 :is-view-mode="isViewMode"
                 :is-api-plugin="isApiPlugin"
+                :is-subflow-need-to-update="isSubflowNeedToUpdate"
+                :is-enable-version-manage="isEnableVersionManage"
+                :space-id="spaceId"
+                :subflow-forms="subflowForms"
                 @openSelectorPanel="isSelectorPanelShow = true"
                 @versionChange="versionChange"
-                @selectScheme="onSelectSubflowScheme"
                 @viewSubflow="onViewSubflow"
                 @updateSubflowVersion="updateSubflowVersion"
-                @update="updateBasicInfo" />
+                @update="updateBasicInfo"
+                @viewAllSubflowVerison="$emit('viewAllSubflowVerison', $event)"
+                @changeSubNodeVersion="onChangeSubNodeVersion" />
+            </section>
+            <section
+              v-if="basicInfo.isHaveCredentials"
+              class="config-section"
+              data-test-id="templateEdit_form_nodeAccessCredential">
+              <h3>{{ $t('访问凭证') }}</h3>
+              <AccessCredential
+                ref="accessCredential"
+                v-bkloading="{ isLoading: credentialLoading, zIndex: 100 }"
+                :is-view-mode="isViewMode"
+                :basic-info="basicInfo"
+                :scope-info="scopeInfo"
+                :space-id="spaceId"
+                @changeCredential="onChangeCredential" />
             </section>
             <!-- 输入参数 -->
             <section
+              v-if="!isLoopGroupNode"
               class="config-section"
               data-test-id="templateEdit_form_inputParamsInfo">
               <h3>{{ $t('输入参数') }}</h3>
@@ -147,19 +172,83 @@
                     :is-view-mode="isViewMode"
                     :constants="localConstants"
                     :is-api-plugin="isApiPlugin"
+                    :api-inputs="apiInputs"
+                    :form-error="formLoadError"
                     :basic-info="basicInfo"
                     :is-third-party="isThirdParty"
+                    :loop-node-loop-vars="loopNodeLoopVars"
+                    :outer-constants="outerConstants"
                     @hookChange="onHookChange"
                     @renderConfigChange="onRenderConfigChange"
                     @update="updateInputsValue" />
                 </template>
               </div>
             </section>
+            <!-- 循环内变量 -->
+            <section
+              v-else
+              class="config-section"
+              data-test-id="templateEdit_form_loopInnerVariables">
+              <h3>{{ $t('循环内变量') }}</h3>
+              <div>
+                <bk-table
+                  v-if="loopInnerVariables.length"
+                  :data="loopInnerVariables"
+                  :col-border="true"
+                  :outer-border="true">
+                  <bk-table-column
+                    :label="$t('名称')"
+                    :width="180"
+                    prop="name" />
+                  <bk-table-column
+                    label="KEY"
+                    prop="key" />
+                  <bk-table-column
+                    :label="$t('来源节点')"
+                    :width="180">
+                    <template slot-scope="{ row }">
+                      {{ getLoopVariableSourceNode(row) }}
+                    </template>
+                  </bk-table-column>
+                  <bk-table-column
+                    :label="$t('输出')"
+                    :width="100">
+                    <template slot-scope="{ row }">
+                      <div @click.stop>
+                        <bk-switcher
+                          size="small"
+                          theme="primary"
+                          :value="loopInnerOutputs.indexOf(row.key) > -1"
+                          :disabled="isViewMode"
+                          @change="onLoopInnerVariableOutputChange(row.key, $event)" />
+                      </div>
+                    </template>
+                  </bk-table-column>
+                </bk-table>
+                <no-data
+                  v-else
+                  :message="$t('暂无参数')" />
+                <div
+                  v-if="loopInnerVariables.length"
+                  class="loop-output-example">
+                  <span>{{ $t('外层引用示例:') }}</span>
+                  <span class="example-text">${outputs[循环次数-1]["result"]}</span>
+                </div>
+              </div>
+            </section>
             <!-- 输出参数 -->
             <section
               class="config-section"
               data-test-id="templateEdit_form_outputParamsInfo">
-              <h3>{{ $t('输出参数') }}</h3>
+              <h3 class="outputs-config-section">
+                {{ isLoopGroupNode ? $t('循环内输出') : $t('输出参数') }}
+                <div
+                  v-if="isSubflow && basicInfo.loopConfig && basicInfo.loopConfig.enable"
+                  class="outputs-tips">
+                  <bk-icon type="info" />
+                  <span>{{ $t('执行控制选择循环执行的状态下只保留 ${outputs} 输出参数') }}</span>
+                </div>
+              </h3>
               <div
                 v-bkloading="{ isLoading: outputLoading, zIndex: 100 }"
                 class="outputs-wrapper">
@@ -169,13 +258,16 @@
                   v-bkloading="{ isLoading: outputLoading, zIndex: 100 }"
                   class="outputs-wrapper"
                   :constants="localConstants"
-                  :params="outputs"
+                  :params="filteredOutputs"
                   :version="basicInfo.version"
                   :node-id="nodeId"
+                  :is-in-loop-group-or-loop-node="isInLoopGroupOrLoopNode"
                   :is-third-party="isThirdParty"
                   :is-view-mode="isViewMode"
                   :uniform-outputs="uniformOutputs"
+                  :loop-outputs-key="basicInfo.loopConfig ? (basicInfo.loopConfig.outputs_key || '') : ''"
                   @hookChange="onHookChange"
+                  @outputsHookChange="onOutputsHookChange"
                   @openVariablePanel="openVariablePanel" />
               </div>
             </section>
@@ -217,7 +309,22 @@
   import permission from '@/mixins/permission.js';
   import formSchema from '@/utils/formSchema.js';
   import jsonFormSchema from '@/utils/jsonFormSchema.js';
+  import {
+    buildLegacyUniformApiMeta,
+    buildUniformApiComponent,
+    buildUniformApiDetailState,
+    buildUniformApiIdentityData,
+    buildUniformApiPluginPipelineComponent,
+    buildV4PluginDetailRequest,
+    canApplyPluginDetailResult,
+    isV4OpenPlugin,
+    resolveNewOpenPluginVersion,
+    resolveUniformApiIdentity,
+    withLoadingState,
+  } from '@/utils/uniformApi.js';
   import copy from '@/mixins/copy.js';
+  import AccessCredential from './AccessCredential.vue';
+  import NoData from '@/components/common/base/NoData.vue';
 
   export default {
     name: 'NodeConfig',
@@ -229,6 +336,8 @@
       VariableEdit,
       SliderHeader,
       SpecialPluginInputForm,
+      AccessCredential,
+      NoData,
     },
     mixins: [permission, copy],
     props: {
@@ -262,6 +371,10 @@
         type: [String, Number],
         default: '',
       },
+      isSubflowNeedToUpdate: {
+        type: Boolean,
+        default: false,
+      },
       subflowListLoading: Boolean,
       backToVariablePanel: Boolean,
       isNotExistAtomOrVersion: Boolean,
@@ -270,6 +383,11 @@
       spaceRelatedConfig: {
         type: Object,
         default: () => ({}),
+      },
+      isEnableVersionManage: Boolean,
+      isPluginScopeHidden: {
+        type: Boolean,
+        default: false,
       },
     },
     data() {
@@ -303,8 +421,14 @@
         unhookingVarForm: {}, // 正被取消勾选的表单配置
         isUpdateConstants: false, // 是否更新输入参数配置
         isDataChange: false, // 数据是否改变
+        loopVarKeyChanges: [], // 循环子节点变量key变更记录,保存时统一更新 pipeline.outputs
         isApiPlugin: false, // 是否为Api插件
         apiInputs: [], // api数据
+        formLoadError: '', // 插件表单加载错误
+        atomConfigRequestId: 0,
+        isDestroyed: false,
+        isInitDecision: true,
+        credentialLoading: false,
       };
     },
     computed: {
@@ -326,7 +450,99 @@
         return [...systemVars, ...userVars];
       },
       isSubflow() {
-        return this.nodeConfig.type !== 'ServiceActivity';
+        return this.nodeConfig.type === 'SubProcess';
+      },
+      isLoopGroupNode() {
+        return this.nodeConfig.type === 'SubCanvas';
+      },
+      isInLoopGroupOrLoopNode() {
+        return this.isLoopGroupNode || this.isInLoopGroup;
+      },
+      // 判断当前节点是否在循环流分组节点内部
+      isInLoopGroup() {
+        const { parent, id } = this.nodeConfig;
+        if (parent && this.activities[parent]?.type === 'SubCanvas') {
+          return true;
+        }
+        return Object.values(this.activities).some((item) => {
+          if (item.type !== 'SubCanvas' || !item.pipeline) return false;
+          const findPipelineTree = item.pipeline;
+          return !!(findPipelineTree.activities && findPipelineTree.activities[id])
+            || !!(findPipelineTree.gateways && findPipelineTree.gateways[id])
+            || (findPipelineTree.start_event && findPipelineTree.start_event.id === id)
+            || (findPipelineTree.end_event && findPipelineTree.end_event.id === id);
+        });
+      },
+      // 当前节点所属的循环流分组节点对象
+      parentLoopNode() {
+        const { id } = this.nodeConfig;
+        return Object.values(this.activities).find((item) => {
+          if (item.type !== 'SubCanvas' || !item.pipeline) return false;
+          const parentPipelineTree = item.pipeline;
+          return !!(parentPipelineTree.activities && parentPipelineTree.activities[id])
+            || !!(parentPipelineTree.gateways && parentPipelineTree.gateways[id]);
+        }) || null;
+      },
+      // 循环流分组节点的循环变量（SubCanvas 或 SubCanvas 子节点时使用）
+      loopNodeLoopVars() {
+        let targetNode = null;
+        if (this.isLoopGroupNode) {
+          targetNode = this.nodeConfig;
+        } else if (this.isInLoopGroup) {
+          targetNode = this.parentLoopNode;
+        }
+        if (!targetNode) return {};
+        let loopParams;
+        // eslint-disable-next-line camelcase
+        if (this.isLoopGroupNode && this.basicInfo.loopConfig?.loop_params) {
+          loopParams = this.basicInfo.loopConfig.loop_params;
+        // eslint-disable-next-line camelcase
+        } else if (targetNode.loop_config?.loop_params) {
+          loopParams = targetNode.loop_config.loop_params;
+        }
+        if (!loopParams) return {};
+        if (Array.isArray(loopParams)) {
+          const result = {};
+          loopParams.forEach((item) => {
+            if (item.name && item.value !== undefined && item.value !== '') {
+              result[item.name] = item.value;
+            }
+          });
+          return result;
+        }
+        if (typeof loopParams === 'object') {
+          const result = {};
+          Object.entries(loopParams).forEach(([key, value]) => {
+            if (key && value !== undefined && value !== '') {
+              result[key] = value;
+            }
+          });
+          return result;
+        }
+        return {};
+      },
+      targetConstants() {
+        if (this.isInLoopGroup && this.parentLoopNode && this.parentLoopNode.pipeline) {
+          return this.parentLoopNode.pipeline.constants || {};
+        }
+        return this.constants;
+      },
+      // 循环流内部节点变量联想时需要补充的外层全局变量
+      outerConstants() {
+        if (this.isInLoopGroup || this.isLoopGroupNode) {
+          return this.constants;
+        }
+        return {};
+      },
+      // 循环执行时只展示循环输出(outputs)，单次执行时只展示节点输出
+      filteredOutputs() {
+        if (this.isLoopGroupNode) {
+           return this.outputs;
+        }
+        if (this.basicInfo.loopConfig?.enable) {
+          return this.outputs.filter(item => item.key === 'outputs');
+        }
+        return this.outputs.filter(item => item.key !== 'outputs');
       },
       atomGroup() { // 某一标准插件下所有版本分组
         return this.atomList.find(item => item.code === this.basicInfo.plugin);
@@ -342,17 +558,25 @@
       outputLoading() {
         return this.isBaseInfoLoading || this.taskNodeLoading || this.subflowLoading;
       },
-      // 子流程节点是否为公共流程
-      isCommonTpl() {
-        return this.common || this.nodeConfig.template_source === 'common';
-      },
       // 特殊输入参数插件
       isSpecialPlugin() {
         return ['dmn_plugin', 'value_assign'].includes(this.basicInfo.plugin);
       },
+      // 循环内变量列表
+      loopInnerVariables() {
+        if (!this.nodeConfig.pipeline || !this.nodeConfig.pipeline.constants) return [];
+        return Object.keys(this.nodeConfig.pipeline.constants)
+          .map(key => this.nodeConfig.pipeline.constants[key])
+          .sort((a, b) => a.index - b.index);
+      },
+      // 循环内变量输出列表
+      loopInnerOutputs() {
+        if (!this.nodeConfig.pipeline || !this.nodeConfig.pipeline.outputs) return [];
+        return this.nodeConfig.pipeline.outputs;
+      },
     },
     watch: {
-      constants(val) {
+      targetConstants(val) {
         this.localConstants = tools.deepClone(val);
       },
       subflowListLoading(val) {
@@ -420,11 +644,17 @@
           this.outputs = outputs;
         }
       });
-      this.localConstants = tools.deepClone(this.constants);
+      this.localConstants = tools.deepClone(this.targetConstants);
+      this.loopVarKeyChanges = [];
+    },
+    beforeDestroy() {
+      this.isDestroyed = true;
+      this.atomConfigRequestId += 1;
     },
     async mounted() {
       try {
         const defaultData = await this.initDefaultData();
+        if (this.isDestroyed) return;
         for (const [key, val] of Object.entries(defaultData)) {
           this[key] = val;
         }
@@ -434,21 +664,24 @@
       } catch (error) {
         console.warn(error);
       } finally {
-        this.initLoading = false;
+        if (!this.isDestroyed) this.initLoading = false;
       }
     },
     methods: {
       ...mapActions('atomForm/', [
         'loadAtomConfig',
+        'loadV4OpenPluginForm',
         'loadPluginServiceMeta',
         'loadPluginServiceDetail',
         'loadPluginServiceAppDetail',
+        'loadSubprocessOutput',
       ]),
       ...mapActions('template/', [
         'loadTemplateData',
         'getVariableCite',
         'getProcessOpenChdProcess',
         'loadUniformApiMeta',
+        'getCredentialList',
       ]),
       ...mapActions('task', [
         'loadSubflowConfig',
@@ -456,30 +689,56 @@
       ...mapMutations('template/', [
         'setSubprocessUpdated',
         'setActivities',
+        'setInnerActivity',
         'addVariable',
         'setConstants',
         'setOutputs',
+        'setLoopInnerConstants',
+        'editLoopInnerVariableOutputKey',
       ]),
       async initDefaultData() {
-        const nodeConfig = tools.deepClone(this.activities[this.nodeId]);
+        // 外层activities优先，如果节点已移入循环分组，则从pipeline读取
+        let nodeConfig = tools.deepClone(this.activities[this.nodeId]);
+        if (!nodeConfig) {
+          nodeConfig = this.getActivityFromPipelineTree(this.nodeId);
+        }
         const isThirdParty = nodeConfig.component && nodeConfig.component.code === 'remote_plugin';
         const isApiPlugin = nodeConfig.component && nodeConfig.component.code === 'uniform_api';
         if (nodeConfig.type === 'ServiceActivity') {
           this.basicInfo = await this.getNodeBasic(nodeConfig);
+        } else if (nodeConfig.type === 'SubCanvas') {
+          // 循环流节点不需要选择插件或流程，直接设置基础信息
+          this.basicInfo = await this.getNodeBasic(nodeConfig);
         } else {
           this.isSelectorPanelShow = !nodeConfig.template_id;
-          this.basicInfo = await this.getNodeBasic(nodeConfig);
         }
+        const basicInfo = await this.getNodeBasic(nodeConfig);
+        if (this.isDestroyed) return;
+        this.basicInfo = basicInfo;
         this.$nextTick(() => {
-          this.isBaseInfoLoading = false;
+          if (!this.isDestroyed) {
+            this.isBaseInfoLoading = false;
+          }
         });
-        const { basicInfo } = this;
         let versionList = [];
         if (nodeConfig.type === 'ServiceActivity') {
           const code = isThirdParty ? nodeConfig.name : nodeConfig.component.code;
-          versionList = isApiPlugin ? [] : this.getAtomVersions(code, isThirdParty);
+          if (isApiPlugin && basicInfo.versions && basicInfo.versions.length > 0) {
+            versionList = basicInfo.versions.map(v => ({ version: v }));
+          } else if (isApiPlugin) {
+            // 旧数据兼容：没有版本信息时使用框架版本作为唯一选项
+            versionList = [{ version: basicInfo.version || 'v2.0.0' }];
+          } else if (!isApiPlugin) {
+            versionList = this.getAtomVersions(code, isThirdParty);
+          }
         }
-        const isSelectorPanelShow = nodeConfig.type === 'ServiceActivity' ? !basicInfo.plugin : !basicInfo.tpl;
+        let isSelectorPanelShow;
+        if (nodeConfig.type === 'SubCanvas') {
+          // 循环流节点不需要显示选择面板
+          isSelectorPanelShow = false;
+        } else {
+          isSelectorPanelShow = nodeConfig.type === 'ServiceActivity' ? !basicInfo.plugin : !basicInfo.tpl;
+        }
         return {
           nodeConfig,
           isThirdParty,
@@ -517,7 +776,12 @@
       },
       // 初始化节点数据
       async initData() {
-        if (!this.basicInfo.plugin && !this.basicInfo.tpl) { // 未选择插件
+        if (!this.basicInfo.plugin && !this.basicInfo.tpl && !this.isLoopGroupNode) { // 未选择插件
+          return;
+        }
+        if (this.isLoopGroupNode) {
+          await this.getLoopGroupOutputs();
+          this.isDataChange = false;
           return;
         }
         if (!this.isSubflow) {
@@ -528,11 +792,23 @@
             paramsVal[key] = val;
             renderConfig[key] = 'need_render' in this.nodeConfig.component.data[key] ? this.nodeConfig.component.data[key].need_render : true;
           });
+          this.inputsParamValue = paramsVal;
           this.inputsRenderConfig = renderConfig;
           await this.getPluginDetail();
+          if (this.isDestroyed) return;
+          if (this.nodeConfig.component.credentials) {
+            const backfillData = this.basicInfo.processCredentials.map((item) => {
+              if (this.nodeConfig.component.credentials[item.key]) {
+                item.value = this.nodeConfig.component.credentials[item.key].value;
+              }
+              return item;
+            });
+            this.updateBasicInfo({ credentials: this.nodeConfig.component.credentials, processCredentials: backfillData });
+          }
           // api插件json字段展示解析优化
           this.handleJsonValueParse(false, paramsVal);
           this.inputsParamValue = paramsVal;
+          this.inputsRenderConfig = renderConfig;
         } else {
           const { tpl, version } = this.basicInfo;
           const forms = {};
@@ -544,8 +820,10 @@
               renderConfig[key] = 'need_render' in form ? form.need_render : true;
             }
           });
-          await this.getSubflowDetail(tpl, version);
+          await this.getSubflowDetail(tpl, version, true);
+          // 加载子流程输入参数表单配置项
           this.inputs = await this.getSubflowInputsConfig();
+          // 获取子流程任务节点输入参数值
           this.inputsParamValue = this.getSubflowInputsValue(forms);
           this.inputsRenderConfig = renderConfig;
         }
@@ -561,83 +839,181 @@
        * 加载标准插件节点输入参数表单配置项，获取输出参数列表
        */
       async getPluginDetail() {
+        if (this.isDestroyed) return;
         const { plugin, version } = this.basicInfo;
+        const requestBasicInfo = { ...this.basicInfo };
+        const requestInputs = tools.deepClone(this.inputsParamValue);
+        const requestOutputs = tools.deepClone(this.outputs);
+        this.atomConfigRequestId += 1;
+        const requestId = this.atomConfigRequestId;
+        this.credentialLoading = false;
+        const component = buildUniformApiComponent(this.basicInfo);
         this.taskNodeLoading = true;
+        this.formLoadError = '';
+        this.inputs = [];
+        this.outputs = [];
+        this.uniformOutputs = [];
+        this.apiInputs = [];
+        this.inputsRenderConfig = {};
         try {
           // 获取输入输出参数
-          this.inputs = await this.getAtomConfig({ plugin, version, isThird: this.isThirdParty });
+          const inputs = await this.getAtomConfig({
+            plugin,
+            version,
+            isThird: this.isThirdParty,
+            isApiPlugin: this.isApiPlugin,
+            requestId,
+            component,
+            requestBasicInfo,
+            requestInputs,
+            requestOutputs,
+          });
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
+          this.inputs = inputs || [];
           if (!this.isThirdParty && !this.isApiPlugin) {
             this.outputs = this.atomGroup.list.find(item => item.version === version)?.output || [];
           }
         } catch (e) {
-          console.log(e);
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
+          if (this.isApiPlugin && isV4OpenPlugin(component)) {
+            this.formLoadError = e.message || this.$t('插件表单加载失败');
+          }
+          console.warn(e);
         } finally {
-          this.taskNodeLoading = false;
+          if (this.isCurrentPluginDetailRequest(requestId)) {
+            this.taskNodeLoading = false;
+          }
         }
       },
+      isCurrentPluginDetailRequest(requestId) {
+        return canApplyPluginDetailResult(requestId, this.atomConfigRequestId, this.isDestroyed);
+      },
       /**
-       * 加载标准插件表单配置项文件
-       * 优先取 store 里的缓存
+       * 插件表单分流入口。
+       * V4 开放插件通过 /api/plugin/detail/ 加载原生表单；V2/V3 API 插件继续使用
+       * loadUniformApiMeta + jsonFormSchema，标准插件和第三方插件沿用原缓存/脚本链路。
+       * requestId 贯穿整个异步过程，保证切换插件或版本后旧响应不会写回当前面板。
        */
       async getAtomConfig(config) {
-        const { plugin, version, classify, name, isThird } = config;
+        if (this.isDestroyed) return;
+        const {
+          plugin,
+          version,
+          classify,
+          name,
+          isThird,
+          isApiPlugin,
+          requestId,
+          component,
+          requestBasicInfo,
+          requestInputs,
+          requestOutputs,
+        } = config;
+        const currentBasicInfo = requestBasicInfo || this.basicInfo;
+        const currentComponent = component || buildUniformApiComponent(currentBasicInfo);
+        const isV4 = isApiPlugin && isV4OpenPlugin(currentComponent);
         try {
           // 先取标准节点缓存的数据
           const pluginGroup = this.pluginConfigs[plugin];
-          if (pluginGroup && pluginGroup[version]) {
+          if (!isV4 && pluginGroup && pluginGroup[version]) {
             return pluginGroup[version];
           }
+          if (isV4) {
+            const result = await this.loadV4OpenPluginForm({
+              request: buildV4PluginDetailRequest({
+                component: currentComponent,
+                selectedVersion: currentBasicInfo.version,
+                spaceId: this.spaceId,
+                templateId: this.$route.params.templateId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+              }),
+              readOnly: this.isViewMode,
+              isCurrent: () => this.isCurrentPluginDetailRequest(requestId),
+              runtimeContext: {
+                inputs: requestInputs || {},
+                outputs: requestOutputs || [],
+              },
+            });
+            if (!this.isCurrentPluginDetailRequest(requestId)) return;
+            const detailState = buildUniformApiDetailState(result.detail, currentBasicInfo);
+            this.apiInputs = Array.isArray(result.detail.inputs) ? result.detail.inputs : [];
+            this.uniformOutputs = Array.isArray(result.detail.outputs) ? result.detail.outputs : [];
+            this.outputs = [...this.uniformOutputs];
+            this.updateBasicInfo(detailState);
+            return result.input;
+          }
           // api插件输入输出
-          if (this.isApiPlugin && this.basicInfo.metaUrl) {
-            // 统一api基础配置
-            await this.loadAtomConfig({ atom: plugin, version, space_id: this.spaceId });
-            // api插件配置
+          if (isApiPlugin && (currentBasicInfo.metaUrl || currentBasicInfo.meta_url_template)) {
+            // 先获取api插件配置，以获取正确的version
             const resp = await this.loadUniformApiMeta({
               templateId: this.$route.params.templateId,
               spaceId: this.spaceId,
-              meta_url: this.basicInfo.metaUrl,
+              meta_url: currentBasicInfo.metaUrl,
               ...this.scopeInfo,
+              meta_url_template: currentBasicInfo.meta_url_template,
+              version: currentBasicInfo.version,
+              source_key: currentBasicInfo.sourceKey,
+              api_name: currentBasicInfo.apiKey,
             });
             if (!resp.result) return;
+            // component.version 保存 uniform_api 包装器版本，业务版本独立保存在隐藏字段中。
+            const wrapperVersion = resp.data.wrapper_version || resp.data.version || 'v2.0.0';
+            if (!this.isCurrentPluginDetailRequest(requestId)) return;
+            await this.loadAtomConfig({ atom: plugin, version: wrapperVersion, space_id: this.spaceId });
+            if (!this.isCurrentPluginDetailRequest(requestId)) return;
             // 输出参数
-            const storeOutputs = this.pluginOutput.uniform_api[version];
+            const storeOutputs = this.pluginOutput.uniform_api[wrapperVersion] || [];
             this.uniformOutputs = resp.data.outputs || [];
             this.outputs = [...storeOutputs];
-            const { url, methods, response_data_path: respDataPath, polling, callback } = resp.data;
-            const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中
-            this.updateBasicInfo({
-              method,
-              methodList: methods,
-              realMetaUrl: url,
-              methodList: resp.data.methods,
-              respDataPath,
-              polling,
-              callback,
-            });
-            this.apiInputs = resp.data.inputs;
+            const detailState = buildUniformApiDetailState(resp.data, currentBasicInfo);
+            detailState.method = detailState.methodList.length === 1 ? detailState.methodList[0] : '';
+            const updateData = {
+              ...detailState,
+              wrapperVersion: detailState.wrapperVersion || wrapperVersion,
+              pluginSource: resp.data.plugin_source || currentBasicInfo.pluginSource,
+              pluginCode: resp.data.plugin_code || currentBasicInfo.pluginCode,
+            };
+            // 有 meta_url_template 时已有业务版本，不覆盖为框架版本
+            // 无 meta_url_template 时（旧数据）用框架版本作为 version
+            if (!currentBasicInfo.meta_url_template) {
+              updateData.version = updateData.wrapperVersion;
+              updateData.uniform_api_plugin_version = updateData.wrapperVersion;
+            }
+            this.updateBasicInfo(updateData);
+            this.apiInputs = Array.isArray(resp.data.inputs) ? resp.data.inputs : [];
             return jsonFormSchema(resp.data, { disabled: this.isViewMode });
           }
           // 第三方插件
           if (isThird) {
-            await this.getThirdConfig(plugin, version);
+          await this.getThirdConfig(plugin, version, requestId);
           } else {
             await this.loadAtomConfig({ atom: plugin, version, classify, name, space_id: this.spaceId });
           }
           const config = $.atoms[plugin];
           return config;
         } catch (e) {
-          console.log(e);
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
+          if (isV4) throw e;
+          console.warn(e);
         }
       },
       // 第三方插件输入输出配置
-      async getThirdConfig(plugin, version) {
+      async getThirdConfig(plugin, version, requestId) {
         try {
-          const resp = await this.loadPluginServiceDetail({
-            plugin_code: plugin,
-            plugin_version: version,
-            with_app_detail: true,
-          });
+          const resp = await withLoadingState(
+            (loading) => {
+              this.credentialLoading = loading;
+            },
+            () => this.loadPluginServiceDetail({
+              plugin_code: plugin,
+              plugin_version: version,
+              with_app_detail: true,
+            }),
+            () => this.isCurrentPluginDetailRequest(requestId),
+          );
           if (!resp.result) return;
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
           // 获取参数
           const { outputs: respOutputs, forms, inputs } = resp.data;
           // 获取不同版本的描述
@@ -646,7 +1022,21 @@
             const descList = desc.split('\n');
             desc = descList.join('<br>');
           }
-          this.updateBasicInfo({ desc });
+          if (Object.prototype.hasOwnProperty.call(resp.data, 'credentials')) {
+            const processCredentials = [];
+            resp.data.credentials.forEach((item) => {
+              processCredentials.push({
+                  key: item.key,
+                  hook: false,
+                  need_render: true,
+                  value: '',
+                  description: item.description || '',
+                });
+            });
+            this.updateBasicInfo({ desc, isHaveCredentials: true, processCredentials });
+          } else {
+            this.updateBasicInfo({ desc });
+          }
           // 获取host
           const { origin } = window.location;
           const hostUrl = `${origin + window.SITE_URL}plugin_service/data_api/${plugin}/`;
@@ -667,6 +1057,7 @@
           if (!this.pluginOutput.remote_plugin) {
             await this.loadAtomConfig({ atom: 'remote_plugin', version: '1.0.0', space_id: this.spaceId });
           }
+          if (!this.isCurrentPluginDetailRequest(requestId)) return;
           const storeOutputs = this.pluginOutput.remote_plugin['1.0.0'];
           for (const [key, val] of Object.entries(respOutputs.properties)) {
             outputs.push({
@@ -684,36 +1075,48 @@
       /**
        * 加载子流程任务节点输入、输出、版本配置项
        */
-      async getSubflowDetail(tpl, version = '') {
+      async getSubflowDetail(tpl, version = '', isInit = false) {
         this.subflowLoading = true;
         try {
-          const schemeIds = this.basicInfo.schemeIdList.filter(item => item);
           const params = {
-            template_id: tpl,
-            scheme_id_list: schemeIds,
-            version,
+            templateId: tpl,
+            is_all_nodes: true,
           };
-          if (this.isCommonTpl) {
-            params.template_source = 'common';
-          } else {
-            params.project_id = this.projectId;
+          if (version) {
+            params.version = version;
           }
           const resp = await this.loadSubflowConfig(params);
           // 子流程的输入参数包括流程引用的变量、自定义变量和未被引用的变量
+          // custom_constants
           this.subflowForms = {
             ...resp.data.pipeline_tree.constants,
-            ...resp.data.custom_constants,
-            ...resp.data.constants_not_referred };
+            ...resp.data.constants_not_referred,
+          };
           this.formsNotReferred = resp.data.constants_not_referred;
           // 子流程模板版本更新时，未带版本信息，需要请求接口后获取最新版本
-          this.updateBasicInfo({ version: resp.data.version });
-
+          if (isInit) {
+            this.updateBasicInfo({ latestVersion: resp.data.version });
+          } else {
+            this.updateBasicInfo({ version: resp.data.version, latestVersion: resp.data.version });
+          }
           // 输出变量
           const has = Object.prototype.hasOwnProperty;
-          this.outputs = Object.keys(resp.data.outputs).map((item) => {
-            const output = resp.data.outputs[item];
+          // 从接口获取子流程标准输出参数
+          const subprocessPlugin = this.atomList.find(item => item.code === 'subprocess_plugin');
+          const subprocessPluginVersion = subprocessPlugin?.list?.[0]?.version || '';
+          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subprocessPluginVersion, code: 'subprocess_plugin' });
+          const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
+            if (item.key === 'outputs') {
+              acc[item.key] = item;
+            }
+            return acc;
+          }, {});
+          const mockOutputs = Object.assign({}, resp.data.outputs, subBuiltInOutputs);
+          this.outputs = Object.keys(mockOutputs).map((item) => {
+            const output = mockOutputs[item];
             return {
-              plugin_code: output.plugin_code,
+              // eslint-disable-next-line camelcase
+              plugin_code: output?.plugin_code || '',
               name: output.name,
               key: output.key,
               version: has.call(output, 'version') ? output.version : 'legacy',
@@ -723,6 +1126,61 @@
           console.log(e);
         } finally {
           this.subflowLoading = false;
+        }
+      },
+      /**
+       * 加载循环流节点输出参数
+       * 从子流程标准插件(subcanvas_plugin)获取内置输出参数
+       */
+      async getLoopGroupOutputs() {
+        try {
+          const has = Object.prototype.hasOwnProperty;
+          const subcanvasPlugin = this.atomList.find(item => item.code === 'subcanvas_plugin');
+          const subcanvasPluginVersion = subcanvasPlugin?.list?.[0]?.version || '';
+          const res = await this.loadSubprocessOutput({ space_id: this.spaceId, version: subcanvasPluginVersion, code: 'subcanvas_plugin' });
+          const subBuiltInOutputs = res.data.output.reduce((acc, item) => {
+            if (item.key === 'outputs') {
+              acc[item.key] = item;
+            }
+            return acc;
+          }, {});
+          this.outputs = Object.keys(subBuiltInOutputs).map((item) => {
+            const output = subBuiltInOutputs[item];
+            return {
+              // eslint-disable-next-line camelcase
+              plugin_code: output?.plugin_code || '',
+              name: output.name,
+              key: output.key,
+              version: has.call(output, 'version') ? output.version : 'legacy',
+            };
+          });
+        } catch (e) {
+          console.log(e);
+        }
+      },
+      // 获取循环内变量的来源节点名称
+      getLoopVariableSourceNode(variable) {
+        const sourceInfo = variable.source_info || {};
+        const nodeId = Object.keys(sourceInfo)[0];
+        if (!nodeId || !this.nodeConfig.pipeline || !this.nodeConfig.pipeline.activities) return '--';
+        const activity = this.nodeConfig.pipeline.activities[nodeId];
+        return activity ? activity.name : '--';
+      },
+      // 循环内变量输出勾选切换
+      onLoopInnerVariableOutputChange(key, checked) {
+        this.isDataChange = true;
+        if (!this.nodeConfig.pipeline) {
+          this.$set(this.nodeConfig, 'pipeline', {});
+        }
+        if (!this.nodeConfig.pipeline.outputs) {
+          this.$set(this.nodeConfig.pipeline, 'outputs', []);
+        }
+        const { outputs } = this.nodeConfig.pipeline;
+        const index = outputs.indexOf(key);
+        if (checked && index === -1) {
+          outputs.push(key);
+        } else if (!checked && index > -1) {
+          outputs.splice(index, 1);
         }
       },
       /**
@@ -747,8 +1205,13 @@
           const isThird = Boolean(variable.plugin_code);
           const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
           let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
-          if (variable.is_meta || formItemConfig.meta_transform) {
-            formItemConfig = formItemConfig.meta_transform(variable.meta || variable);
+          if (!formItemConfig) {
+            return;
+          }
+          // eslint-disable-next-line camelcase
+          const { meta_transform: metaTransform } = formItemConfig || {};
+          if (variable.is_meta || metaTransform) {
+            formItemConfig = metaTransform(variable.meta || variable);
             if (!variable.meta) {
               variable.meta = tools.deepClone(variable);
               variable.value = formItemConfig.attrs.value;
@@ -806,6 +1269,7 @@
           let code = '';
           let desc = '';
           let version = '';
+          let credentials = null;
           // 节点已选择标准插件
           if (component.code && !this.isNotExistAtomOrVersion) { // 节点插件存在
             if (component.code === 'remote_plugin') {
@@ -815,9 +1279,11 @@
               basicInfoName = resp.data.name;
               version = atom.version;
               desc = atom.desc;
+              credentials = resp.data.credentials || null;
             } else if (component.code === 'uniform_api') {
               code = component.code;
               version = component.version;
+              desc = component.api_meta?.desc || '';
             } else {
               const atom = this.atomList.find(item => item.code === component.code);
               code = component.code;
@@ -850,24 +1316,85 @@
             autoRetry: Object.assign({}, { enable: false, interval: 0, times: 1 }, auto_retry),
             timeoutConfig: timeoutConfig || { enable: false, seconds: 10, action: 'forced_fail' },
             executor_proxy: executorProxy ? executorProxy.split(',') : [],
+            credentials,
           };
           if (component.code === 'uniform_api' &&  component.api_meta) { // 新版api插件中component包含api_meta字段
-            const { id, name, api_key: apiKey, meta_url, category = {} } = component.api_meta;
+            const {
+              id,
+              name,
+              api_key: apiKey,
+              meta_url,
+              category = {},
+              plugin_source: pluginSource,
+              plugin_code: pluginCode,
+              wrapper_version: savedWrapperVersion,
+            } = component.api_meta;
+            const savedIdentity = resolveUniformApiIdentity(component);
             const { uniform_api_plugin_method: method, uniform_api_plugin_url: realMetaUrl } = component.data;
+            // 从节点数据中读取uniform_api_plugin_credential_key（如果存在）
+            const credentialKey = component.data.uniform_api_plugin_credential_key?.value;
+            const versions = component.api_meta.versions || [];
+            const latestVersion = component.api_meta.latest_version || '';
+            const defaultVersion = component.api_meta.default_version || '';
+            const metaUrlTemplate = component.api_meta.meta_url_template || '';
+            const savedPluginVersion = savedIdentity.pluginVersion;
+            const isOpenPlugin = versions.length > 0;
+            const isSavedV4 = isV4OpenPlugin(component);
+            let uniformApiPluginVersion = component.version || 'v2.0.0';
+            if (isOpenPlugin) {
+              uniformApiPluginVersion = savedPluginVersion;
+              if (!isSavedV4 && !uniformApiPluginVersion) {
+                uniformApiPluginVersion = latestVersion || defaultVersion;
+              }
+            }
+            // 兼容旧版页面曾把业务版本误存到 component.version 的节点。
+            const wrapperVersion = savedWrapperVersion || (isOpenPlugin ? 'v4.0.0' : component.version || 'v2.0.0');
+            const sourceKey = savedIdentity.sourceKey === undefined ? '' : savedIdentity.sourceKey;
             Object.assign(data, {
               plugin: 'uniform_api',
               name: `${category.name}-${name}`,
-              pluginId: id,
-              method: method.value,
+              apiPluginName: name,
+              pluginId: savedIdentity.pluginId === undefined ? id : savedIdentity.pluginId,
+              method: method?.value || '',
               groupId: category.id,
               groupName: category.name,
               apiKey,
+              sourceKey,
+              pluginSource,
+              pluginCode,
+              wrapperVersion,
+              isOpenPlugin,
               metaUrl: meta_url,
-              realMetaUrl,
+              realMetaUrl: realMetaUrl?.value || realMetaUrl,
+              credentialKey, // 保存credential_key到basicInfo，以便后续使用
               methodList: [],
+              desc,
+              versions, // V4 API插件版本列表
+              latest_version: latestVersion,
+              default_version: defaultVersion,
+              meta_url_template: metaUrlTemplate,
+              uniform_api_plugin_version: uniformApiPluginVersion,
+              version: uniformApiPluginVersion, // 已保存节点回显已选择的版本
             });
           }
           return data;
+        }
+        // 循环流节点基础信息
+        if (config.type === 'SubCanvas') {
+          const {
+            name,
+            stage_name: stageName = '',
+            labels,
+            optional,
+            loop_config: loopConfig,
+          } = config;
+          return {
+            nodeName: name, // 节点名称
+            stageName,
+            nodeLabel: labels || [],
+            selectable: optional,
+            loopConfig: loopConfig || {},
+          };
         }
         const {
           template_id: templateId,
@@ -885,17 +1412,19 @@
           skippable,
           can_retry: canRetry,
           retryable,
+          loop_config: loopConfig,
         } = config;
         let templateName = i18n.t('请选择子流程');
 
+        let templateData = {};
         if (templateId) {
           const subflowInfo = this.atomTypeList.subflow.find(item => item.template_id === Number(templateId));
           if (subflowInfo) {
             templateName = subflowInfo.name;
           } else {
-            const templateData = await this.loadTemplateData({
+            templateData = await this.loadTemplateData({
               templateId,
-              common: this.common || config.template_source === 'common',
+              common: false,
               checkPermission: true })
               .catch((error) => {
                 this.onClosePanel();
@@ -904,6 +1433,8 @@
             templateName = templateData.name;
           }
         }
+        // templateData.version为子流程的最新版本
+        // config.type === 'SubProcess' ? templateData.version :
         const has = Object.prototype.hasOwnProperty;
         const version = has.call(config, 'version') ? config.version : ''; // 子流程版本，区别于标准插件版本
         return {
@@ -922,6 +1453,8 @@
           autoRetry: Object.assign({}, { enable: false, interval: 0, times: 1 }, auto_retry),
           timeoutConfig: timeoutConfig || { enable: false, seconds: 10, action: 'forced_fail' },
           executor_proxy: executorProxy ? executorProxy.split(',') : [],
+          loopConfig: loopConfig || {},
+          subLatestVersion: templateData.version,
         };
       },
       /**
@@ -980,6 +1513,7 @@
       },
       // 由标准插件(子流程)选择面板返回配置面板
       goBackToConfig() {
+        if (this.isLoopGroupNode) return;
         if (this.isSelectorPanelShow && (this.basicInfo.plugin || this.basicInfo.tpl)) {
           this.isSelectorPanelShow = false;
         }
@@ -987,12 +1521,31 @@
       // 变量编辑确认
       onVariableSaveEditing(variable) {
         this.isVariablePanelShow = false;
-
-        const { key } = this.variableData;
-        if (!key || key === variable.key) return;
-
+        const { key, sourceKey } = this.variableData;
+        if (!key) return;
+        // 循环流内部节点（isInLoopGroup）：变量变更只影响循环节点 pipeline 内的 constants
+        if (this.isInLoopGroup) {
+          if (key !== variable.key) {
+            // key 变化：删除旧变量 key，创建新变量 key
+            this.$delete(this.localConstants, key);
+            this.$set(this.localConstants, variable.key, variable);
+            // 记录 key 变更，保存时统一更新 pipeline.outputs
+            this.loopVarKeyChanges.push({ oldKey: key, newKey: variable.key });
+          } else {
+            this.$set(this.localConstants, key, variable);
+          }
+          // 标记数据变更
+          this.randomKey = new Date().getTime();
+          this.variableData = {};
+          return;
+        }
+        if (key === variable.key) return;
         this.onHookChange('delete', this.variableData);
         this.onHookChange('create', variable);
+        if (sourceKey === 'outputs' && this.basicInfo.loopConfig?.enable) {
+          this.onOutputsHookChange('edit', variable.key);
+        }
+
         this.variableData = {};
       },
       // 标准插件（子流程）选择面板切换插件（子流程）
@@ -1011,7 +1564,7 @@
           return;
         }
         this.isApiPlugin = false;
-        let { inputs } = this;
+        let { inputs } = this; // 上一个子流程的输入参数
         if (this.isSubflow) {
           // 重置basicInfo, 避免基础信息面板因监听basicInfo导致重复调取接口，初始化时获取空值
           const { id, name, version } = val;
@@ -1053,11 +1606,25 @@
           group_id: groupId,
           metaUrl,
           apiKey,
+          sourceKey,
+          pluginSource,
+          pluginCode,
+          wrapperVersion,
         } = val;
         let versionList = [];
         if (this.isThirdParty) {
           versionList = list;
-        } else if (!this.isApiPlugin) {
+        } else if (this.isApiPlugin) {
+          // API插件版本列表：val.list 是字符串数组，转换为 [{version}] 格式
+          versionList = Array.isArray(list)
+            ? list.map((item) => {
+              if (typeof item === 'string') {
+                return { version: item };
+              }
+              return item;
+            })
+            : [];
+        } else {
           versionList = this.getAtomVersions(code);
         }
         this.versionList = versionList;
@@ -1066,6 +1633,8 @@
         if (!this.isThirdParty && !this.isApiPlugin) {
           const atom = this.atomList.find(item => item.code === code);
           desc = atom.list.find(item => item.version === list[list.length - 1].version).desc;
+        }  else if (this.isApiPlugin) {
+          desc = val.desc || '';
         } else {
           desc = '';
         }
@@ -1073,9 +1642,19 @@
           const descList = desc.split('\n');
           desc = descList.join('<br>');
         }
+        // 对于API插件，优先使用basicInfo中已存储的version（可能来自meta API返回），否则使用默认值
+        // 新节点默认使用 latest_version，default_version 仅作异常数据兼容
+        let apiPluginVersion = null;
+        if (this.isApiPlugin) {
+          apiPluginVersion = resolveNewOpenPluginVersion({
+            defaultVersion: val.default_version,
+            latestVersion: val.latest_version,
+            versions: versionList,
+          }) || 'v2.0.0';
+        }
         const config = {
           plugin: code,
-          version: this.isApiPlugin ? 'V2.0.0' : list[list.length - 1].version,
+          version: apiPluginVersion || (this.isApiPlugin ? 'v2.0.0' : list[list.length - 1].version),
           name: this.isThirdParty ? name : `${groupName}-${name}`,
           nodeName: name,
           stageName: '',
@@ -1087,13 +1666,27 @@
           selectable: true,
         };
         if (this.isApiPlugin) {
+          // 保存API插件版本信息到basicInfo
+          const versions = Array.isArray(list) ? list : [];
           Object.assign(config, {
             pluginId,
             groupId,
             groupName,
             metaUrl,
             apiKey,
+            sourceKey,
+            pluginSource,
+            pluginCode,
+            wrapperVersion: wrapperVersion || 'v2.0.0',
+            isOpenPlugin: Boolean(wrapperVersion && pluginSource && pluginCode && versions.length),
+            apiPluginName: name,
+            meta_url_template: val.meta_url_template,
+            versions,
+            latest_version: val.latest_version,
+            default_version: val.default_version,
+            uniform_api_plugin_version: apiPluginVersion,
           });
+          config.isOpenPlugin = isV4OpenPlugin(buildUniformApiComponent(config));
         }
         return config;
       },
@@ -1109,6 +1702,7 @@
         this.updateBasicInfo(config);
         this.inputsParamValue = {};
         await this.getPluginDetail();
+        if (this.isDestroyed) return;
         if (Array.isArray(this.inputs)) {
           this.inputsRenderConfig = this.inputs.reduce((acc, crt) => {
             acc[crt.tag_code] = true;
@@ -1123,24 +1717,37 @@
       async versionChange(val) {
         // 获取不同版本的描述
         let { desc } = this.basicInfo;
-        if (!this.isThirdParty) {
+        if (!this.isThirdParty && !this.isApiPlugin) {
           const atom = this.atomList.find(item => item.code === this.basicInfo.plugin);
-          desc = atom.list.find(item => item.version === val).desc;
+          desc = atom.list.find(item => item.version === val)?.desc || '';
         }
         if (desc && desc.includes('\n')) {
           const descList = desc.split('\n');
           desc = descList.join('<br>');
         }
-        this.updateBasicInfo({ version: val, desc });
+        const versionConfig = { version: val, desc };
+        if (this.isApiPlugin
+          && isV4OpenPlugin(buildUniformApiComponent({
+            ...this.basicInfo,
+            version: val,
+            uniform_api_plugin_version: val,
+          }))) {
+          versionConfig.uniform_api_plugin_version = val;
+        }
+        this.updateBasicInfo(versionConfig);
         await this.clearParamsSourceInfo();
         this.inputsParamValue = {};
         await this.getPluginDetail();
+        if (this.isDestroyed) return;
         if (Array.isArray(this.inputs)) {
           this.inputsRenderConfig = this.inputs.reduce((acc, crt) => {
             acc[crt.tag_code] = true;
             return acc;
           }, {});
         }
+      },
+      onChangeSubNodeVersion(data) {
+        this.tplChange(data);
       },
       /**
        * 子流程切换
@@ -1166,12 +1773,26 @@
         });
         this.$refs.basicInfo && this.$refs.basicInfo.validate(); // 清除节点保存报错时的错误信息
       },
+      onChangeCredential(val,) {
+        this.updateBasicInfo({ credentials: val });
+      },
       /**
        * 更新基础信息
        * 填写基础信息表单，切换插件/子流程，选择插件版本，子流程更新
        */
       updateBasicInfo(data) {
         this.isDataChange = true;
+        // 当循环执行切换为单次执行时，清除循环输出变量及 loopConfig.outputs_key
+        if (data.loopConfig
+          && this.basicInfo.loopConfig
+          && !data.loopConfig.enable
+          && this.basicInfo.loopConfig.outputs_key) {
+          const outputsKey = this.basicInfo.loopConfig.outputs_key;
+          if (outputsKey && this.localConstants[outputsKey]) {
+            this.deleteVariable(outputsKey);
+          }
+          data.loopConfig.outputs_key = '';
+        }
         this.basicInfo = Object.assign({}, this.basicInfo, data);
       },
       // 输入参数表单值更新
@@ -1185,8 +1806,10 @@
       async updateSubflowVersion() {
         this.subflowVersionUpdating = true;
         const oldForms = Object.assign({}, this.subflowForms);
+        // 获取最新的子流程输入输出数据
         await this.getSubflowDetail(this.basicInfo.tpl);
         await this.subflowUpdateParamsChange();
+        // 获取子流程输入参数配置
         this.inputs = await this.getSubflowInputsConfig();
         this.subflowVersionUpdating = false;
         this.$nextTick(() => {
@@ -1216,7 +1839,7 @@
           const { source_type: sourceType, source_info } = varItem;
           const sourceInfo = source_info[this.nodeId];
           if (sourceInfo) {
-            if (sourceType === 'component_inputs') {
+            if (sourceType === 'component_inputs' || sourceType === 'custom') {
               sourceInfo.forEach((nodeFormItem) => {
                 const newTplVar = this.subflowForms[nodeFormItem];
 
@@ -1230,7 +1853,7 @@
                 }
               });
             }
-            if (sourceType === 'component_outputs') {
+            if (sourceType === 'component_outputs' || sourceType === 'custom') {
               sourceInfo.forEach((nodeFormItem) => {
                 if (!this.outputs.find(item => item.key === nodeFormItem)) {
                   this.setVariableSourceInfo({
@@ -1293,39 +1916,15 @@
       },
       // 查看子流程模板
       onViewSubflow(id) {
-        const { name } = this.$route;
-        let routerName = this.isCommonTpl ? 'projectCommonTemplatePanel' : 'templatePanel';
-        routerName = name === 'commonTemplatePanel' ? 'commonTemplatePanel' : routerName;
         const pathData = {
-          name: routerName,
+          name: 'templatePanel',
           params: {
+            templateId: id,
             type: 'view',
-            project_id: name === 'commonTemplatePanel' ? undefined : this.projectId,
-          },
-          query: {
-            template_id: id,
-            common: name === 'templatePanel' ? undefined : '1',
           },
         };
         const { href } = this.$router.resolve(pathData);
         window.open(href, '_blank');
-      },
-      // 切换子流程执行方案，需要重新请求输入、输出参数
-      async onSelectSubflowScheme() {
-        const oldForms = Object.assign({}, this.subflowForms);
-        await this.getSubflowDetail(this.basicInfo.tpl, this.basicInfo.version);
-        await this.subflowUpdateParamsChange();
-        this.inputs = await this.getSubflowInputsConfig();
-        this.$nextTick(() => {
-          this.inputsParamValue = this.getSubflowInputsValue(this.subflowForms, oldForms);
-          this.inputsRenderConfig = Object.keys(this.subflowForms).reduce((acc, crt) => {
-            const formItem = this.subflowForms[crt];
-            if (formItem.show_type === 'show') {
-              acc[crt] = 'need_render' in formItem ? formItem.need_render : true;
-            }
-            return acc;
-          }, {});
-        });
       },
       // 是否渲染豁免切换
       onRenderConfigChange(data) {
@@ -1342,6 +1941,19 @@
           this.setVariableSourceInfo(data);
         }
         // 如果全局变量数据有变，需要更新popover
+        this.randomKey = new Date().getTime();
+      },
+      // 循环输出变量勾选/取消勾选/编辑
+      onOutputsHookChange(type, key) {
+        this.isDataChange = true;
+        if (type === 'create') {
+          // 存入 loopConfig.outputs_key
+          this.$set(this.basicInfo.loopConfig, 'outputs_key', key);
+        } else if (type === 'edit') {
+          this.$set(this.basicInfo.loopConfig, 'outputs_key', key);
+        } else if (type === 'delete') {
+          this.$delete(this.basicInfo.loopConfig, 'outputs_key');
+        }
         this.randomKey = new Date().getTime();
       },
       // 更新全局变量的 source_info
@@ -1426,7 +2038,6 @@
       // 删除全局变量
       deleteVariable(key) {
         const constant = this.localConstants[key];
-
         Object.keys(this.localConstants).forEach((key) => {
           const varItem = this.localConstants[key];
           if (varItem.index > constant.index) {
@@ -1438,7 +2049,13 @@
       },
       // 节点配置面板表单校验，基础信息和输入参数
       validate() {
-        return this.$refs.basicInfo.validate().then(() => {
+        return this.$refs.basicInfo.validate().then(async () => {
+          if (this.$refs.accessCredential) {
+            const validations = await this.$refs.accessCredential.validate();
+            if (!validations) {
+              return false;
+            };
+          }
           if (this.$refs.inputParams) {
             let result = this.$refs.inputParams.validate();
             // api插件额外校验json类型
@@ -1464,7 +2081,7 @@
         // api插件json字段展示解析优化
         if (this.isApiPlugin) {
           const jsonFields = [];
-          const { properties = {} } = this.inputs;
+          const properties = this.inputs?.properties || {};
           Object.keys(properties).forEach((key) => {
             if (properties[key].sourceType === 'json') {
               jsonFields.push(key);
@@ -1486,9 +2103,94 @@
         }
         return true;
       },
+      // 从所有 SubCanvas 的 pipeline 中查找节点配置
+      getActivityFromPipelineTree(nodeId) {
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline) continue;
+          const pt = act.pipeline;
+          if (pt.activities && pt.activities[nodeId]) {
+            return tools.deepClone(pt.activities[nodeId]);
+          }
+        }
+        return null;
+      },
+      // 查找节点所属的 SubCanvas id，未找到返回 null
+      findLoopGroupParentId(nodeId) {
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline) continue;
+          const pt = act.pipeline;
+          if ((pt.activities && pt.activities[nodeId])
+            || (pt.gateways && pt.gateways[nodeId])
+            || (pt.start_event && pt.start_event.id === nodeId)
+            || (pt.end_event && pt.end_event.id === nodeId)) {
+            return act.id;
+          }
+        }
+        return null;
+      },
       getNodeFullConfig() {
         let config;
-        if (this.isSubflow) {
+        if (this.isLoopGroupNode) {
+          // 循环流节点配置
+          const {
+            nodeName,
+            stageName,
+            nodeLabel,
+            selectable,
+            autoRetry,
+            timeoutConfig,
+            loopConfig,
+          } = this.basicInfo;
+          // 保存输入参数值到 activity.constants
+          const constants = {};
+          const pipelineTreeConstants = this.nodeConfig.pipeline?.constants || {};
+          Object.keys(this.inputsParamValue).forEach((key) => {
+            if (pipelineTreeConstants[key]) {
+              constants[key] = {
+                ...tools.deepClone(pipelineTreeConstants[key]),
+                value: tools.deepClone(this.inputsParamValue[key]),
+              };
+            }
+          });
+          // 将数组格式的 loop_params 转换为 key-value 对象格式
+          if (Array.isArray(loopConfig.loop_params) && loopConfig.loop_params.length > 0) {
+            const result = loopConfig.loop_params.reduce((obj, item) => {
+              if (item.name?.trim() && item.value?.trim()) {
+                if (!/^\$\{\w+\}$/.test(item.name)) {
+                  item.name = `\${${item.name}}`;
+                }
+                obj[item.name] = item.value || '';
+              }
+              return obj;
+            }, {});
+            loopConfig.loop_params = result;
+          }
+          if (loopConfig.type === 'array_loop' && loopConfig.loop_params) {
+            const varReg = /^\$\{[^}]+\}$/;
+            const loopParamValues = Object.values(loopConfig.loop_params);
+            const hasVarValue = loopParamValues.some(val => varReg.test(String(val)));
+            if (hasVarValue) {
+              loopConfig.loop_times = null;
+            } else {
+              const lengths = loopParamValues.map(val => String(val).split(',').length);
+              if (lengths.length > 0) {
+                loopConfig.loop_times = Math.min(...lengths);
+              }
+            }
+          }
+          config = Object.assign({}, this.nodeConfig, {
+            name: nodeName,
+            stage_name: stageName,
+            labels: nodeLabel,
+            optional: selectable,
+            auto_retry: autoRetry,
+            timeout_config: timeoutConfig,
+            loop_config: loopConfig,
+            constants, // 保存输入参数到 activity.constants
+          });
+        } else if (this.isSubflow) {
           const {
             nodeName,
             stageName,
@@ -1504,8 +2206,37 @@
             ignorable,
             autoRetry,
             timeoutConfig,
+            loopConfig,
           } = this.basicInfo;
           const constants = {};
+          // 将数组格式的 loop_params 转换为 key-value 对象格式
+          if (Array.isArray(loopConfig.loop_params) && loopConfig.loop_params.length > 0) {
+            const result = loopConfig.loop_params.reduce((obj, item) => {
+              if (item.name?.trim() && item.value?.trim()) {
+                if (!/^\$\{\w+\}$/.test(item.name)) {
+                  item.name = `\${${item.name}}`;
+                }
+                obj[item.name] = item.value || '';
+              }
+              return obj;
+            }, {});
+            loopConfig.loop_params = result;
+          }
+          if (loopConfig.type === 'array_loop' && loopConfig.loop_params) {
+            const varReg = /^\$\{[^}]+\}$/;
+            const loopParamValues = Object.values(loopConfig.loop_params);
+            const hasVarValue = loopParamValues.some(val => varReg.test(String(val)));
+            if (hasVarValue) {
+              // 存在变量形式的值，loop_times 设为 null
+              loopConfig.loop_times = null;
+            } else {
+              // 全部为列表形式，计算逗号分割长度的最小值
+              const lengths = loopParamValues.map(val => String(val).split(',').length);
+              if (lengths.length > 0) {
+                loopConfig.loop_times = Math.min(...lengths);
+              }
+            }
+          }
           Object.keys(this.subflowForms).forEach((key) => {
             const constant = tools.deepClone(this.subflowForms[key]);
             if (constant.show_type === 'show') {
@@ -1531,6 +2262,7 @@
             error_ignorable: ignorable,
             auto_retry: autoRetry,
             timeout_config: timeoutConfig,
+            loop_config: loopConfig,
           });
           if (this.common) {
             config.executor_proxy = executor_proxy.join(',');
@@ -1549,35 +2281,77 @@
             autoRetry,
             timeoutConfig,
             executor_proxy,
+            credentials,
           } = this.basicInfo;
           // 设置标准插件节点在 activity 的 component.data 值
           let data = {};
-          if (this.basicInfo.plugin === 'dmn_plugin') {
+          if (this.basicInfo.plugin === 'dmn_plugin') { // 决策插件
             data = this.getDmnNodeComponentData();
+            this.isInitDecision = false;
           } else {
             data = this.getNodeComponentData(plugin, version);
+          }
+          let componentVersion = version;
+          if (this.isThirdParty) {
+            componentVersion = '1.0.0';
+          } else if (this.isApiPlugin) {
+            componentVersion = this.basicInfo.wrapperVersion || 'v2.0.0';
           }
           const component = {
             code: this.isThirdParty ? 'remote_plugin' : plugin,
             data,
-            version: this.isThirdParty ? '1.0.0' : version,
+            version: componentVersion,
           };
-          if (this.isApiPlugin && this.basicInfo.pluginId) { // 新版api插件中component包含pluginId字段
-            const { pluginId, name, metaUrl, groupId, groupName, apiKey } = this.basicInfo;
-            component.api_meta = {
-              id: pluginId,
-              name: name.split('-')[1],
-              meta_url: metaUrl,
-              api_key: apiKey,
-              category: {
-                id: groupId,
-                name: groupName,
-              },
-            };
-            component.version = 'v2.0.0';
+          const isV4 = isV4OpenPlugin(buildUniformApiComponent(this.basicInfo));
+          if (credentials) {
+            component.credentials = credentials;
           }
+          if (this.isApiPlugin && this.basicInfo.pluginId) { // 新版api插件中component包含pluginId字段
+            if (isV4) {
+              // eslint-disable-next-line camelcase
+              const { pluginId, name, apiPluginName, metaUrl, groupId, groupName, apiKey,
+                sourceKey, pluginSource, pluginCode, wrapperVersion,
+                meta_url_template, versions, latest_version, default_version,
+                uniform_api_plugin_version, desc } = this.basicInfo;
+              component.api_meta = {
+                id: pluginId,
+                name: apiPluginName || name.substring(name.indexOf('-') + 1),
+                meta_url: metaUrl,
+                api_key: apiKey,
+                plugin_source: pluginSource,
+                plugin_code: pluginCode,
+                plugin_version: uniform_api_plugin_version,
+                wrapper_version: wrapperVersion,
+                category: {
+                  id: groupId,
+                  name: groupName,
+                },
+                meta_url_template,
+                versions,
+                latest_version,
+                default_version,
+                desc,
+              };
+              component.api_meta.source_key = sourceKey;
+            } else {
+              const legacyApiMeta = buildLegacyUniformApiMeta({
+                basicInfo: this.basicInfo,
+                originalApiMeta: this.nodeConfig.component?.['api_meta'], // eslint-disable-line dot-notation
+              });
+              if (legacyApiMeta) component.api_meta = legacyApiMeta;
+            }
+          }
+          const pipelineComponent = this.isApiPlugin
+            ? buildUniformApiPluginPipelineComponent({
+              originalComponent: this.nodeConfig.component,
+              component,
+              componentData: data,
+              basicInfo: this.basicInfo,
+              credentials,
+            })
+            : component;
           config = Object.assign({}, this.nodeConfig, {
-            component,
+            component: pipelineComponent,
             retryable,
             skippable,
             name: nodeName,
@@ -1596,9 +2370,16 @@
         }
         return config;
       },
-      // 设置标准插件节点在 activity 的 component.data 值
+      /**
+       * 将面板状态序列化回 activity.component.data。
+       * V2/V3 从原节点 data 开始增量更新以保留历史字段；V4 重新组装表单数据，
+       * 并仅在严格识别为 V4 开放插件时写入来源、插件 ID 和业务版本隐藏字段。
+       */
       getNodeComponentData(plugin, version) {
-        const data = {};
+        const isV4 = isV4OpenPlugin(buildUniformApiComponent(this.basicInfo));
+        const data = this.isApiPlugin && !isV4
+          ? tools.deepClone(this.nodeConfig.component?.data || {})
+          : {};
         Object.keys(this.inputsParamValue).forEach((key) => {
           const formVal = this.inputsParamValue[key];
           let hook = false;
@@ -1639,6 +2420,23 @@
               hook: false,
               value: this.basicInfo.respDataPath,
             };
+          }
+          // 如果detail meta返回了credential_key，将其组装为uniform_api_plugin_credential_key
+          if (this.basicInfo.credentialKey) {
+            data.uniform_api_plugin_credential_key = {
+              hook: false,
+              value: this.basicInfo.credentialKey,
+            };
+          }
+          if (isV4) {
+            // 保存 uniform_api_plugin_version 为隐藏字段
+            if (this.basicInfo.uniform_api_plugin_version) {
+              data.uniform_api_plugin_version = {
+                hook: false,
+                value: this.basicInfo.uniform_api_plugin_version,
+              };
+            }
+            Object.assign(data, buildUniformApiIdentityData(this.basicInfo));
           }
         }
         // 第三方插件需手动设置plugin_code和plugin_version
@@ -1690,9 +2488,17 @@
       syncActivity() {
         const config = this.getNodeFullConfig();
         this.nodeConfig = config;
-        this.setActivities({ type: 'edit', location: config });
+        // 如果节点在循环容器内，写入嵌套pipelineTree，否则写入外层activities
+        if (this.findLoopGroupParentId(config.id)) {
+          this.setInnerActivity({ nodeId: config.id, config });
+        } else {
+          this.setActivities({ type: 'edit', location: config });
+        }
       },
+      // 更新全局变量列表、全局变量输出列表、全局变量面板icon小红点
       handleVariableChange() {
+        // 循环流内部节点的变量变化不影响外层 constants/outputs
+        if (this.isInLoopGroup) return;
         // 如果变量已删除，需要删除变量是否输出的勾选状态
         this.$store.state.template.outputs.forEach((key) => {
           if (!(key in this.localConstants)) {
@@ -1756,20 +2562,24 @@
       // 打开全局变量编辑面板
       async openVariablePanel(variable = {}) {
         if (variable.key) {
-          const variableData = this.variableList.find(item => item.key === variable.key);
+          // 不使用variableList，避免混入外层全局变量
+          const sourceConstants = this.isInLoopGroup ? this.targetConstants : this.localConstants;
+          const variableData = sourceConstants[variable.key];
           const variableCited = await this.getVariableCitedData() || {};
           const { activities, conditions, constants } = variableCited[variable.key];
           const cited = activities.length + conditions.length + constants.length;
           this.variableData = {
             ...variableData,
             cited,
+            sourceKey: variable.sourceKey, // 保存原始参数 key，用于判断是否为循环输出变量
           };
         } else {
+          const baseConstants = this.isInLoopGroup ? this.targetConstants : this.constants;
           this.variableData = {
             custom_type: 'input',
             desc: '',
             form_schema: {},
-            index: Object.keys(this.constants).length + 1,
+            index: Object.keys(baseConstants).length + 1,
             key: '',
             name: '',
             show_type: 'show',
@@ -1790,6 +2600,10 @@
           return true;
         }
         if (this.isSelectorPanelShow) { // 当前为插件/子流程选择面板，但没有选择时，支持自动关闭
+          if (this.isLoopGroupNode) {
+            this.onClosePanel();
+            return true;
+          }
           if (!(this.isSubflow ? this.basicInfo.tpl : this.basicInfo.plugin)) {
             this.onClosePanel();
             return true;
@@ -1819,21 +2633,27 @@
               this.basicInfo[item] = this.basicInfo[item].trim();
             });
             const { alwaysUseLatest, latestVersion, version, skippable, retryable, selectable: optional,
-                    desc, nodeName, autoRetry, timeoutConfig, executor_proxy,
+                    desc, nodeName, autoRetry, timeoutConfig, executor_proxy, loopConfig,
             } = this.basicInfo;
-            const nodeData = { status: '', skippable, retryable, optional, auto_retry: autoRetry, timeout_config: timeoutConfig, isActived: false };
+            const nodeData = { status: '', skippable, retryable, optional, auto_retry: autoRetry,
+            timeout_config: timeoutConfig, isActived: false, loop_config: loopConfig };
             if (this.common) {
-              nodeData.executor_proxy = executor_proxy.join(',');
+              // eslint-disable-next-line camelcase
+              nodeData.executor_proxy = executor_proxy ? executor_proxy.join(',') : '';
             }
-            if (!this.isSubflow) {
+            if (this.isLoopGroupNode) {
+              // 循环流节点不需要子流程更新逻辑
+            } else if (!this.isSubflow) {
               const phase = this.getAtomPhase();
               nodeData.phase = phase;
             } else {
               if (this.subflowUpdated || alwaysUseLatest) {
+                // 更新store存储的子流程更新信息
                 this.setSubprocessUpdated({
                   expired: false,
                   subprocess_node_id: this.nodeConfig.id,
                 });
+                this.$emit('updateNodeInfo', this.nodeConfig.id, { hasUpdated: false });
               }
               if (!alwaysUseLatest && latestVersion && latestVersion !== version) {
                 this.setSubprocessUpdated({ expired: true, subprocess_node_id: this.nodeConfig.id });
@@ -1854,6 +2674,22 @@
               });
             }
             this.syncActivity();
+            // 循环流内部节点：将 localConstants 同步回 parentLoopNode.pipeline.constants
+            if (this.isInLoopGroup && this.parentLoopNode) {
+              this.setLoopInnerConstants({
+                loopNodeId: this.parentLoopNode.id,
+                constants: tools.deepClone(this.localConstants),
+              });
+              // 保存时统一更新 pipeline.outputs 中的 key 变更
+              this.loopVarKeyChanges.forEach(({ oldKey, newKey }) => {
+                this.editLoopInnerVariableOutputKey({
+                  loopNodeId: this.parentLoopNode.id,
+                  oldKey,
+                  newKey,
+                });
+              });
+              this.loopVarKeyChanges = [];
+            }
             // 将第三方插件信息传给父级存起来
             if (this.isThirdParty) {
               const params = {
@@ -1864,7 +2700,10 @@
               };
               this.$parent.thirdPartyList[this.nodeId] = params;
             }
-            this.handleVariableChange(); // 更新全局变量列表、全局变量输出列表、全局变量面板icon小红点
+            // 循环流内部节点的变量变化不影响外层constants
+            if (!this.isInLoopGroup) {
+              this.handleVariableChange();
+            }
             this.$emit('updateNodeInfo', this.nodeId, nodeData);
             this.$emit('templateDataChanged');
             this.$emit('close');
@@ -1878,7 +2717,9 @@
       // 决策表插件切换表的时候更新输出参数配置
       async updateOutputs(outputs) {
         try {
-          await this.clearParamsSourceInfo();
+          if (!this.isInitDecision) {
+             await this.clearParamsSourceInfo();
+          }
           this.outputs = this.outputs.filter(item => !item.fromDmn);
           this.outputs.push(...outputs);
         } catch (error) {
@@ -1930,6 +2771,22 @@
             color: #313238;
             border-bottom: 1px solid #cacecb;
         }
+        .outputs-config-section {
+            display: flex;
+            align-items: center;
+            .outputs-tips{
+              display: inline-flex;
+              align-items: center;
+              color: #63656e;
+              margin-left: 8px;
+              font-size: 12px;
+              font-weight: normal;
+              .bk-icon{
+                margin-right: 2px;
+                margin-top: 1px;
+              }
+            }
+        }
         .citations-waivers-guide {
             position: absolute;
             right: 0;
@@ -1947,6 +2804,13 @@
         .inputs-wrapper,
         .outputs-wrapper {
             min-height: 80px;
+        }
+        .loop-output-example {
+            margin-top: 16px;
+            font-size: 12px;
+            .example-text {
+                color: #3a84ff;
+            }
         }
         .section-tips {
             font-size: 16px;

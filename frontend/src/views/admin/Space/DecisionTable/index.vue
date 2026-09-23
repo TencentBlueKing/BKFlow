@@ -38,6 +38,9 @@
             @click="handleNameClick(row)">
             {{ row.name }}
           </a>
+          <template v-else-if="['creator', 'updated_by'].includes(item.id)">
+            <UserDisplayName :name="row[item.id]" />
+          </template>
           <span
             v-else
             class="table-cell">{{ row[item.id] || '--' }}</span>
@@ -100,6 +103,7 @@
   import tableCommon from '../mixins/tableCommon.js';
   import TableOperate from '../common/TableOperate.vue';
   import i18n from '@/config/i18n/index.js';
+  import UserDisplayName from '@/components/common/Individualization/UserDisplayName.vue';
 
   const TABLE_FIELDS = [
     {
@@ -188,6 +192,7 @@
       DecisionView,
       DecisionDelete,
       TableOperate,
+      UserDisplayName,
     },
     mixins: [tableHeader, tableCommon],
     data() {
@@ -206,6 +211,13 @@
         searchList: SEARCH_LIST,
         pageType: 'decisionList', // 页面类型，在mixins中分页表格头显示使用
       };
+    },
+    mounted() {
+      const { id, activeTab } = this.$route.query;
+      if (id && activeTab === 'decisionTable') {
+        this.requestData.id = this.$route.query.id;
+      }
+      this.getDecisionList();
     },
     methods: {
       ...mapActions('decisionTable/', [

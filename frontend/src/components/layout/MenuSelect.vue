@@ -309,12 +309,18 @@
           color: #fff;
           background: #a09e21;
           border-radius: 2px;
+          overflow: hidden;
         }
         .space-name {
           flex: 1;
           overflow: hidden;
           white-space: nowrap;
           text-overflow: ellipsis;
+        }
+      }
+      ::v-deep .tippy-popper{
+        .tippy-content{
+          padding: 0 !important;
         }
       }
     }

@@ -21,6 +21,7 @@
         :is-used-tip-show="(state !== 'CREATED' && !paramsCanBeModify) ? false : true"
         :pre-mako-disabled="(paramsCanBeModify && state === 'CREATED') ? false : true"
         :constants="constants"
+        :activities="activities"
         :template-id="templateId"
         :un-used-constants="unUsedConstants"
         :editable="paramsCanBeModify && !isChildTaskFlow && editable"
@@ -84,7 +85,7 @@
         type: String,
         default: '',
       },
-      instance_id: {
+      instanceId: {
         type: String,
         default: '',
       },
@@ -106,6 +107,7 @@
       return {
         bkMessageInstance: null,
         constants: [],
+        activities: {},
         cntLoading: true, // 全局变量加载
         configLoading: true, // 变量配置项加载
         pending: false, // 提交修改中
@@ -153,24 +155,18 @@
       this.getTaskData();
     },
     mounted() {
-      bus.$on('onCloseErrorNotify', (data) => {
+      this.handleCloseErrorNotify = (data) => {
         const varRegExp = /\${[a-zA-Z_]\w*}/g;
         const matchList = data.match(varRegExp) || [];
         const paramEditComp = this.$refs.TaskParamEdit;
-        if (matchList.length && paramEditComp) {
-          matchList.forEach((key) => {
-            const config = paramEditComp.renderConfig.find(item => item.tag_code === key);
-            if (!config.attrs) {
-              config.attrs = {};
-            }
-            config.attrs.disabled = true;
-            config.attrs.used_tip = i18n.t('参数已被使用，不可修改');
-          });
-          paramEditComp.randomKey = new Date().getTime();
+        if (matchList.length && paramEditComp && typeof paramEditComp.disableFields === 'function') {
+          paramEditComp.disableFields(matchList, i18n.t('参数已被使用，不可修改'));
         }
-      });
+      };
+      bus.$on('onCloseErrorNotify', this.handleCloseErrorNotify);
     },
     beforeDestroy() {
+      bus.$off('onCloseErrorNotify', this.handleCloseErrorNotify);
       $.context.exec_env = '';
     },
     methods: {
@@ -184,7 +180,7 @@
       async getTaskData() {
         this.cntLoading = true;
         try {
-          const instanceData = await this.getTaskInstanceData(this.instance_id);
+          const instanceData = await this.getTaskInstanceData(this.instanceId);
           const pipelineData = JSON.parse(instanceData.pipeline_tree);
           const constants = {};
           Object.keys(pipelineData.constants).forEach((key) => {
@@ -194,6 +190,7 @@
             }
           });
           this.isChildTaskFlow = instanceData.is_child_taskflow;
+          this.activities = pipelineData.activities || {};
           this.constants = constants;
         } catch (e) {
           console.log(e);
@@ -204,7 +201,7 @@
       async getUnUsedConstants() {
         try {
           const resp = await this.getTaskUsedConstants({
-            instance_id: this.instance_id,
+            instance_id: this.instanceId,
           });
           return resp.data.unused_constant_keys || [];
         } catch (error) {
@@ -227,7 +224,7 @@
             // 如果任务正在执行中需要先暂停任务再修改参数
             if (this.state === 'RUNNING') {
               this.pending = true;
-              await this.instancePause(this.instance_id);
+              await this.instancePause(this.instanceId);
               this.$bkMessage({
                 message: i18n.t('任务已暂停执行'),
                 theme: 'success',
@@ -247,7 +244,7 @@
         if (!this.hasSavePermission) {
           const resourceData = {
             task: [{
-              id: this.instance_id,
+              id: this.instanceId,
               name: this.instanceName,
             }],
             project: [{
@@ -274,7 +271,7 @@
         let modifiedKeys = [];
         let formValid = true;
         if (paramEditComp) {
-          formValid = paramEditComp.validate();
+          formValid = await paramEditComp.validate();
           if (!formValid) return false;
           const variables = await paramEditComp.getVariableData();
           Object.keys(variables).forEach((key) => {
@@ -306,7 +303,7 @@
           let theme = 'warning';
           // 节点暂停时提交修改，如果未修改则不继续报错直接继续执行任务
           if (this.state === 'SUSPENDED') {
-            const resp = await this.instanceResume(this.instance_id);
+            const resp = await this.instanceResume(this.instanceId);
             message = i18n.t('参数未修改，任务已继续执行');
             theme = 'success';
             if (resp.result) {
@@ -335,7 +332,7 @@
           return acc;
         }, {});
         const data = {
-          instance_id: this.instance_id,
+          instance_id: this.instanceId,
           constants,
           meta_constants: Object.keys(metaConstants).length ? metaConstants : undefined,
           modified_constant_keys: modifiedKeys.length ? modifiedKeys : undefined,
@@ -384,7 +381,7 @@
             let message = i18n.t('参数修改成功');
             // 暂停的任务继续执行
             if (this.state === 'SUSPENDED') {
-              const resp = await this.instanceResume(this.instance_id);
+              const resp = await this.instanceResume(this.instanceId);
               message = i18n.t('参数修改成功，任务已继续执行');
               if (resp.result) {
                 this.$parent.$parent.state = 'RUNNING';

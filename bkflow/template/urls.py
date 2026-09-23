@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,13 +20,15 @@ to the current version of the project delivered to anyone in the future.
 from django.conf.urls import include, url
 from rest_framework.routers import DefaultRouter
 
+from bkflow.template.views.debug import DebugViewSet
 from bkflow.template.views.template import (
     AdminTemplateViewSet,
+    TemplateInternalViewSet,
     TemplateMockDataViewSet,
     TemplateMockSchemeViewSet,
-    TemplateViewSet,
     TemplateMockTaskViewSet,
-    UploadTemplateFileApiView,
+    TemplateVersionViewSet,
+    TemplateViewSet,
 )
 from bkflow.template.views.variable import VariableViewSet
 
@@ -37,9 +38,11 @@ router.register(r"^admin", AdminTemplateViewSet, basename="admin_template")
 router.register(r"^template_mock_data", TemplateMockDataViewSet, basename="template_mock_data")
 router.register(r"^template_mock_scheme", TemplateMockSchemeViewSet, basename="template_mock_scheme")
 router.register(r"^template_mock_task", TemplateMockTaskViewSet, basename="template_mock_task")
+router.register(r"^snapshot", TemplateVersionViewSet, basename="template_snapshot")
+router.register(r"^debug", DebugViewSet, basename="debug")
 router.register(r"", TemplateViewSet, basename="template")
+router.register(r"^internal", TemplateInternalViewSet, basename="template_id")
 
 urlpatterns = [
     url(r"^", include(router.urls)),
-    url(r"^admin_only/upload_template_file/$", UploadTemplateFileApiView.as_view(), name="upload_template_file"),
 ]

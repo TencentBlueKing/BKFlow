@@ -1,3 +1,9 @@
+### 租户访问约束
+
+开启多租户时，全租户应用必须通过 `X-Bk-Tenant-Id` 指定本次请求租户；单租户应用可省略该头，使用 JWT 中已认证的应用租户，显式传入时必须一致。本次请求租户必须与资源所属空间租户一致；同一个全租户应用应在各租户分别创建空间。原有应用与空间/模板绑定仍需满足。若 JWT 包含已认证用户，其租户也必须一致。缺少或不匹配时拒绝请求。
+
+应用态接口不要求额外用户身份。SDK 用户态接口仍要求已认证用户，平台管理员和空间管理员同样不能跨租户。关闭多租户模式时保持单租户行为。
+
 ### 资源描述
 
 应用空间 webhook 配置
@@ -15,13 +21,13 @@
 | webhooks | list | 是  | webhook 列表，列表中的每个元素对应一份 webhook 配置，每次调用会对当前空间的 webhook 配置进行覆盖 |
 
 #### webhook 配置说明
-| 字段         | 类型     | 必选 | 描述                                                                                 |
-|------------|--------|----|------------------------------------------------------------------------------------|
-| code       | string | 是  | webhook 编码，需唯一                                                                     |
-| name       | string | 是  | webhook 名称                                                                         |
-| endpoint   | string | 是  | webhook 请求地址                                                                       |
-| events     | list   | 是  | webhook 订阅的事件列表, 支持的事件有: template_update，template_create，task_failed，task_finished |
-| extra_info | json   | 否  | 额外扩展信息                                                                             |
+| 字段         | 类型     | 必选 | 描述                                                                                                                                                    |
+|------------|--------|----|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| code       | string | 是  | webhook 编码，需唯一                                                                                                                                        |
+| name       | string | 是  | webhook 名称                                                                                                                                            |
+| endpoint   | string | 是  | webhook 请求地址                                                                                                                                          |
+| events     | list   | 是  | webhook 订阅的事件列表, 支持的事件有: template_update，template_create，template_release，task_failed，task_finished，task_create，task_paused，task_resumed，task_revoked |
+| extra_info | json   | 否  | 额外扩展信息                                                                                                                                                |
 
 ### 请求参数示例
 
@@ -32,16 +38,47 @@
             "code": "webhook1",
             "name": "webhook1",
             "endpoint": "http://webhook1.com",
-            "events": ["template_update", "template_create"]
+            "events": ["template_update", "template_create", "template_release"]
         },
         {
             "code": "webhook2",
             "name": "webhook2",
             "endpoint": "http://webhook2.com",
-            "events": ["task_failed", "task_finished"]
-        
+            "events": ["task_failed", "task_finished", "task_create", "task_paused", "task_resumed", "task_revoked"]
         }
     ]
+}
+```
+
+### 携带额外参数示例
+```json
+{
+     "webhooks": [
+          {
+               "code": "webhook1",
+               "name": "webhook1",
+               "endpoint": "http://webhook1.com",
+               "events": ["template_update","template_create"],
+               "extra_info": {
+                    "authorization": {
+                         "type": "basic",
+                         "username": "123",
+                         "password": "123",
+                         "token": "123"
+                    },
+                    "headers": [
+                         {
+                              "key": "Content-Type",
+                              "value": "application/json",
+                              "doc": ""
+                         }
+                    ],
+                    "timeout": 10,
+                    "retry_times": 2,
+                    "interval": 60
+               }
+          }
+     ]
 }
 ```
 

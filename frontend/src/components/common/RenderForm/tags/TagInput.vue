@@ -20,22 +20,12 @@
           :show-password="showPassword"
           :placeholder="placeholder"
           @input="onInput" />
-        <transition>
-          <div
-            v-show="showVarList && isListOpen"
-            class="rf-select-list">
-            <ul class="rf-select-content">
-              <li
-                v-for="item in varList"
-                :key="item.key"
-                class="rf-select-item"
-                @click.stop="onSelectVal(item.key)">
-                <span class="var-key">{{ item.key }}</span>
-                <span class="var-name">{{ item.name }}</span>
-              </li>
-            </ul>
-          </div>
-        </transition>
+        <VariableList
+          ref="variableListRef"
+          :is-list-open="showVarList && isListOpen"
+          :var-list="varList"
+          :textarea-height="36"
+          @select="onSelectVal" />
       </template>
       <span
         v-else
@@ -49,8 +39,8 @@
 <script>
   import '@/utils/i18n.js';
   import { mapState } from 'vuex';
-  import dom from '@/utils/dom.js';
   import { getFormMixins } from '../formMixins.js';
+  import VariableList from '../VariableList.vue';
 
   const VAR_REG = /\$.*$/;
 
@@ -86,7 +76,24 @@
   };
   export default {
     name: 'TagInput',
+    components: {
+      VariableList,
+    },
     mixins: [getFormMixins(attrs)],
+    props: {
+      isSubflow: {
+        type: Boolean,
+        default: false,
+      },
+      subflowLoopVars: {
+        type: Object,
+        default: () => ({}),
+      },
+      outerConstants: {
+        type: Object,
+        default: () => ({}),
+      },
+    },
     data() {
       return {
         isListOpen: false,
@@ -99,14 +106,7 @@
       }),
       constantArr: {
         get() {
-          let Keylist = [];
-          if (this.constants) {
-            Keylist = [...Object.values(this.constants)];
-          }
-          if (this.internalVariable) {
-            Keylist = [...Keylist, ...Object.values(this.internalVariable)];
-          }
-          return Keylist;
+          return this.buildConstantArray(this.constants, this.internalVariable, this.isSubflow, this.subflowLoopVars, this.outerConstants);
         },
         set(val) {
           this.varList = val;
@@ -135,25 +135,17 @@
       window.removeEventListener('click', this.handleListShow, false);
     },
     methods: {
-      handleListShow(e) {
-        if (!this.isListOpen) {
-          return;
-        }
-        const listPanel = document.querySelector('.rf-select-list');
-        if (listPanel && !dom.nodeContains(listPanel, e.target)) {
-          this.isListOpen = false;
-        }
-      },
       onInput(val) {
-        const matchResult = val.match(VAR_REG);
-        if (matchResult && matchResult[0]) {
-          const regStr = matchResult[0].replace(/\\/g, '\\\\').replace(/[\$\{\}]/g, '\\$&');
-          const inputReg = new RegExp(regStr);
-          this.varList = this.constantArr.filter(item => inputReg.test(item.key));
-        } else {
-          this.varList = [];
-        }
-        this.isListOpen = !!this.varList.length;
+        const result = this.filterVariableList(val, this.constantArr, VAR_REG);
+        this.varList = result.varList;
+        this.isListOpen = result.isListOpen;
+        // 清空当前变量列表的搜索关键词
+        this.$nextTick(() => {
+          const currentVariableList = this.$refs.variableListRef;
+          if (currentVariableList) {
+            currentVariableList.searchKeyword = '';
+          }
+        });
       },
       onSelectVal(val) {
         const replacedValue = this.value.replace(VAR_REG, val);
@@ -164,50 +156,12 @@
   };
 </script>
 <style lang="scss" scoped>
-@import '../../../../scss/mixins/scrollbar.scss';
-
 .tag-input {
     ::v-deep .el-input__inner {
         padding: 0 10px;
     }
     .rf-form-wrapper {
         position: relative;
-        .rf-select-list {
-            position: absolute;
-            top: 40px;
-            right: 0;
-            width: 100%;
-            background: #ffffff;
-            border-radius: 2px;
-            box-shadow: 0 0 8px 1px rgba(0, 0, 0, 0.1);
-            overflow-y: hidden;
-            z-index: 100;
-        }
-        .rf-select-content {
-            max-height: 100px;
-            overflow: auto;
-            @include scrollbar;
-        }
-        .rf-select-item {
-            padding: 0 10px;
-            line-height: 32px;
-            font-size: 12px;
-            cursor: pointer;
-            &:hover {
-                background: #eef6fe;
-                color: #3a84ff;
-            }
-            > span {
-                overflow: hidden;
-                white-space: nowrap;
-                text-overflow: ellipsis;
-            }
-            .var-name {
-                max-width: 250px;
-                color: #c4c6cc;
-                margin-left: 16px;
-            }
-        }
     }
 }
 </style>

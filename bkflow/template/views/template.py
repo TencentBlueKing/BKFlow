@@ -16,20 +16,28 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-import logging
 
+import logging
+from copy import deepcopy
+
+import django_filters
+from blueapps.account.decorators import login_exempt
+from django.conf import settings
 from django.db import transaction
+from django.db.models import Subquery
+from django.utils.decorators import method_decorator
 from django.utils.translation import ugettext_lazy as _
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet
+from django_filters.rest_framework import CharFilter, DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
+from rest_framework import serializers as drf_serializers
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
+from webhook.api import verify_webhook_endpoint
 from webhook.signals import event_broadcast_signal
 
+from bkflow.apigw.serializers.credential import CredentialSerializer
 from bkflow.apigw.serializers.task import (
     CreateMockTaskWithPipelineTreeSerializer,
     CreateTaskSerializer,
@@ -45,22 +53,25 @@ from bkflow.constants import (
 )
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.decorators import record_operation
+from bkflow.decision_table.models import DecisionTable
 from bkflow.exceptions import APIResponseError, ValidationError
-from bkflow.pipeline_converter.constants import DataTypes
-from bkflow.pipeline_converter.file_handlers import FileHandlerDispatcher
-from bkflow.pipeline_converter.hub import CONVERTER_HUB
+from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.pipeline_web.drawing_new.constants import CANVAS_WIDTH, POSITION
 from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeline_tree
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.configs import (
+    FlowVersioning,
     GatewayExpressionConfig,
     UniformApiConfig,
     UniformAPIConfigHandler,
 )
+from bkflow.space.credential.scope_validator import filter_credentials_by_scope
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
-from bkflow.space.models import SpaceConfig
+from bkflow.space.models import Credential, SpaceConfig
 from bkflow.space.permissions import SpaceSuperuserPermission
+from bkflow.space.tenant import TenantScopeMixin, ensure_space_tenant
 from bkflow.space.utils import build_default_pipeline_tree_with_space_id
 from bkflow.template.exceptions import AnalysisConstantsRefException
 from bkflow.template.models import (
@@ -68,19 +79,21 @@ from bkflow.template.models import (
     TemplateMockData,
     TemplateMockScheme,
     TemplateOperationRecord,
+    TemplateReference,
     TemplateSnapshot,
     Trigger,
 )
 from bkflow.template.permissions import (
+    ScopePermission,
     TemplateMockPermission,
     TemplatePermission,
     TemplateRelatedResourcePermission,
 )
 from bkflow.template.serializers.template import (
     AdminTemplateSerializer,
+    BaseTemplateSerializer,
     DrawPipelineSerializer,
     PreviewTaskTreeSerializer,
-    SimplifiedTemplateFileSerializer,
     TemplateBatchDeleteSerializer,
     TemplateCopySerializer,
     TemplateMockDataBatchCreateSerializer,
@@ -89,18 +102,28 @@ from bkflow.template.serializers.template import (
     TemplateMockDataSerializer,
     TemplateMockSchemeSerializer,
     TemplateOperationRecordSerializer,
+    TemplatePrepareExtraInfoSerializer,
     TemplateRelatedResourceSerializer,
+    TemplateReleaseSerializer,
     TemplateSerializer,
+    TemplateSnapshotSerializer,
+    TemplateUpdateLabelSerializer,
+    WebhookConfigQuerySerializer,
 )
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
-from bkflow.utils.permissions import AdminPermission
+from bkflow.utils.permissions import AdminPermission, AppInternalPermission
+from bkflow.utils.pipeline import replace_subprocess_version
+from bkflow.utils.version import bump_custom
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet, UserModelViewSet
+from bkflow.utils.webhook import clear_scope_webhooks
 
 logger = logging.getLogger("root")
 
 
 class TemplateFilterSet(FilterSet):
+    label = CharFilter(method="filter_by_labels")
+
     class Meta:
         model = Template
         fields = {
@@ -116,8 +139,33 @@ class TemplateFilterSet(FilterSet):
             "update_at": ["gte", "lte"],
         }
 
+    def filter_by_labels(self, queryset, name, value):
+        """
+        根据逗号/加号/换行分隔的 label 字符串过滤任务。
+        URL Query Param 示例: ?label=tag1,tag2+tag3\ntag4
+        """
+        space_id = self.request.GET.get("space_id", -1)
+        # 支持逗号、加号或换行分隔，并去除空项与两端空白
+        label_ids = Label.get_label_ids_by_names(value, space_id=space_id)
+        if not label_ids:
+            return queryset.filter(id__in=[])
 
-class AdminTemplateViewSet(AdminModelViewSet):
+        template_ids_subquery = TemplateLabelRelation.objects.filter(label_id__in=label_ids).values("template_id")
+        return queryset.filter(id__in=Subquery(template_ids_subquery))
+
+
+class TemplateSnapshotFilterSet(FilterSet):
+    desc = django_filters.CharFilter(field_name="desc", lookup_expr="icontains")
+
+    class Meta:
+        model = TemplateSnapshot
+        fields = {
+            "version": ["exact"],
+            "operator": ["exact"],
+        }
+
+
+class AdminTemplateViewSet(TenantScopeMixin, AdminModelViewSet):
     queryset = Template.objects.filter(is_deleted=False).order_by("-id")
     serializer_class = AdminTemplateSerializer
     filter_backends = [DjangoFilterBackend]
@@ -132,38 +180,51 @@ class AdminTemplateViewSet(AdminModelViewSet):
         serializer = self.get_serializer(page if page is not None else queryset, many=True)
         data = []
         has_trigger_template_ids = set(Trigger.objects.all().values_list("template_id", flat=True))
+        template_ids = [obj["id"] for obj in serializer.data]
+        templates_labels = TemplateLabelRelation.objects.fetch_objects_labels(template_ids)
         for template in serializer.data:
             if template["id"] in has_trigger_template_ids:
                 template["has_interval_trigger"] = True
             else:
                 template["has_interval_trigger"] = False
+            template["labels"] = templates_labels.get(template["id"], [])
             data.append(template)
         if page is not None:
             return self.get_paginated_response(data)
         return Response(data)
 
     @swagger_auto_schema(method="POST", operation_description="创建流程", request_body=CreateTemplateSerializer)
-    @action(methods=["POST"], detail=False, url_path="create_default_template/(?P<space_id>\\d+)")
+    @action(methods=["POST"], detail=False, url_path=r"create_default_template/(?P<space_id>\d+)")
     def create_template(self, request, space_id, *args, **kwargs):
-        ser = CreateTemplateSerializer(data=request.data, context={"request": request})
+        ser = CreateTemplateSerializer(data=request.data, context={"request": request, "space_id": int(space_id)})
         ser.is_valid(raise_exception=True)
 
         pipeline_tree = build_default_pipeline_tree_with_space_id(space_id)
         # 涉及到两张表的创建，需要那个开启事物，确保两张表全部都创建成功
         with transaction.atomic():
+            label_ids = ser.validated_data.pop("label_ids", [])
             username = request.user.username
-            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+            if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+                snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+            else:
+                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
             template = Template.objects.create(
-                **ser.data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
+                **ser.validated_data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
             )
             snapshot.template_id = template.id
             snapshot.save(update_fields=["template_id"])
+            # 同步标签
+            TemplateLabelRelation.objects.set_labels(template.id, label_ids)
+
         return Response({"result": True, "data": template.to_json()})
 
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
     @swagger_auto_schema(method="POST", operation_description="创建任务", request_body=CreateTaskSerializer)
-    @action(methods=["POST"], detail=False, url_path="create_task/(?P<space_id>\\d+)")
+    @action(methods=["POST"], detail=False, url_path=r"create_task/(?P<space_id>\d+)")
     def create_task(self, request, space_id, *args, **kwargs):
-        ser = CreateTaskSerializer(data=request.data)
+        ser = CreateTaskSerializer(data=request.data, context={"space_id": int(space_id)})
         ser.is_valid(raise_exception=True)
         try:
             template = Template.objects.get(id=ser.data["template_id"], space_id=space_id)
@@ -177,7 +238,13 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data["scope_type"] = template.scope_type
         create_task_data["scope_value"] = template.scope_value
         create_task_data["space_id"] = space_id
-        create_task_data["pipeline_tree"] = template.pipeline_tree
+
+        pre_pipeline_tree = deepcopy(template.pipeline_tree)
+        flow_version_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
+        pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
+
+        PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes(pre_pipeline_tree)
+        create_task_data["pipeline_tree"] = pre_pipeline_tree
         create_task_data["trigger_method"] = TaskTriggerMethod.manual.name
         DEFAULT_NOTIFY_CONFIG = {
             "notify_type": {"fail": [], "success": []},
@@ -186,10 +253,23 @@ class AdminTemplateViewSet(AdminModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
+        try:
+            create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+                space_id=int(space_id),
+                pipeline_tree=pre_pipeline_tree,
+                extra_info=create_task_data.get("extra_info"),
+                username=request.user.username,
+                scope_type=template.scope_type,
+                scope_id=template.scope_value,
+            )
+        except drf_serializers.ValidationError as error:
+            detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
+            raise ValidationError(str(detail))
+        create_task_data["tenant_id"] = ensure_space_tenant(request, template.space_id)
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
         if not result["result"]:
-            raise APIResponseError(result["message"])
+            return Response(exception=True, data=result["data"])
 
         task_data = result["data"]
         event_broadcast_signal.send(
@@ -213,17 +293,81 @@ class AdminTemplateViewSet(AdminModelViewSet):
         ser.is_valid(raise_exception=True)
         space_id = ser.validated_data["space_id"]
         is_full = ser.validated_data["is_full"]
-        if is_full:
-            update_num = Template.objects.filter(space_id=space_id, is_deleted=False).update(is_deleted=True)
-        else:
-            template_ids = ser.validated_data["template_ids"]
-            update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
-                is_deleted=True
+        template_ids = ser.validated_data["template_ids"]
+
+        failed_data = {}
+        decision_templates = list(
+            DecisionTable.objects.filter(template_id__in=template_ids, is_deleted=False).values(
+                "id", "name", "template_id"
             )
-        trigger_ids = Trigger.objects.filter(template_id__in=ser.validated_data["template_ids"]).values_list(
-            "id", flat=True
         )
-        Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids), is_full=is_full)
+        if decision_templates:
+            decision_template_map = {}
+            template_map = dict(
+                Template.objects.filter(id__in=template_ids, is_deleted=False).values_list("id", "name")
+            )
+            for dec in decision_templates:
+                if dec["template_id"] not in decision_template_map:
+                    template_name = template_map.get(dec["template_id"])
+                    decision_template_map[dec["template_id"]] = {"template_name": template_name, "decision_info": []}
+
+                decision_template_map[dec["template_id"]]["decision_info"].append(
+                    {"id": dec["id"], "name": dec["name"]}
+                )
+            if decision_template_map:
+                failed_data["decision_detail"] = decision_template_map
+
+        template_references_obj = TemplateReference.objects.filter(subprocess_template_id__in=template_ids)
+        root_template_ids = list(template_references_obj.values_list("root_template_id", flat=True))
+        template_references = template_references_obj.values("subprocess_template_id", "root_template_id")
+
+        if template_references:
+            sub_root_map = {}
+            all_needed_template_ids = set(map(str, template_ids)) | set(root_template_ids)
+            templates = Template.objects.filter(id__in=list(all_needed_template_ids), is_deleted=False)
+            templates_map = {str(t.id): t.name for t in templates}
+
+            for ref in template_references:
+                template_key = ref["subprocess_template_id"]
+                root_id = ref["root_template_id"]
+                # 如果父流程也在删除列表中或父流程已经被删除了，则跳过
+                if (int(root_id) in template_ids) or (root_id not in templates_map):
+                    continue
+                sub_template_name = templates_map.get(ref["subprocess_template_id"])
+                if template_key not in sub_root_map:
+                    sub_root_map[template_key] = {"sub_template_name": sub_template_name, "referenced": []}
+
+                sub_root_map[template_key]["referenced"].append(
+                    {"root_template_id": root_id, "root_template_name": templates_map.get(str(root_id))}
+                )
+            if sub_root_map:
+                failed_data["sub_root_map"] = dict(sub_root_map)
+
+        if failed_data:
+            return Response(exception=True, data=failed_data)
+
+        with transaction.atomic():
+            if is_full:
+                to_delete_qs = Template.objects.filter(space_id=space_id, is_deleted=False)
+                to_delete_ids = list(to_delete_qs.values_list("id", flat=True))
+                update_num = to_delete_qs.update(is_deleted=True)
+            else:
+                to_delete_ids = template_ids
+                update_num = Template.objects.filter(space_id=space_id, id__in=template_ids, is_deleted=False).update(
+                    is_deleted=True
+                )
+
+            clear_result = clear_scope_webhooks([str(tid) for tid in to_delete_ids])
+            if not clear_result["result"]:
+                message = clear_result["message"]
+                logger.error(message)
+                raise Exception(message)
+            trigger_ids = Trigger.objects.filter(template_id__in=ser.validated_data["template_ids"]).values_list(
+                "id", flat=True
+            )
+            Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids), is_full=is_full)
+            TemplateLabelRelation.objects.filter(template_id__in=template_ids).delete()
+
         return Response({"delete_num": update_num})
 
     @swagger_auto_schema(method="POST", operation_description="流程模版复制", request_body=TemplateCopySerializer)
@@ -231,9 +375,20 @@ class AdminTemplateViewSet(AdminModelViewSet):
     def copy_template(self, request, *args, **kwargs):
         ser = TemplateCopySerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        space_id, template_id = ser.validated_data["space_id"], ser.validated_data["template_id"]
+        space_id = ser.validated_data["space_id"]
+        template_id = ser.validated_data["template_id"]
+        copy_subprocess = ser.validated_data.get("copy_subprocess", False)
+        name = ser.validated_data.get("name")
+        desc = ser.validated_data.get("desc")
         try:
-            template = Template.objects.copy_template(template_id, space_id, request.user.username)
+            template = Template.objects.copy_template(
+                template_id,
+                space_id,
+                request.user.username,
+                name,
+                desc,
+                copy_subprocess,
+            )
         except Template.DoesNotExist:
             err_msg = f"模版不存在, space_id={space_id}, template_id={template_id}"
             logger.error(str(err_msg))
@@ -244,16 +399,120 @@ class AdminTemplateViewSet(AdminModelViewSet):
         return Response(data={"template_id": template.id, "template_name": template.name})
 
 
-class TemplateViewSet(UserModelViewSet):
+class TemplateVersionViewSet(
+    TenantScopeMixin,
+    SimpleGenericViewSet,
+    mixins.RetrieveModelMixin,
+    mixins.ListModelMixin,
+):
+    queryset = TemplateSnapshot.objects.filter(is_deleted=False)
+    serializer_class = TemplateSnapshotSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = TemplateSnapshotFilterSet
+    pagination_class = BKFLOWNoMaxLimitPagination
+    MOCK_ABOVE_ACTIONS = []
+    permission_classes = [
+        AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
+    ]
+
+    def list(self, request, *args, **kwargs):
+        template_id = request.query_params.get("template_id")
+        if not template_id:
+            return Response({"detail": "template_id 参数不能为空"}, status=400)
+        queryset = self.filter_queryset(self.get_queryset().filter(template_id=template_id))
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            return self.get_paginated_response(self.get_serializer(page, many=True).data)
+        return Response(self.get_serializer(queryset, many=True).data)
+
+    @action(methods=["POST"], detail=True, url_path="delete_snapshot")
+    def delete_snapshot(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            template_obj = Template.objects.get(id=instance.template_id)
+        except Template.DoesNotExist:
+            return Response({"detail": "快照所属流程不存在"}, status=400)
+
+        if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"detail": "版本管理功能未开启，无法删除版本快照"})
+        if instance.draft or template_obj.snapshot_id == instance.id:
+            return Response({"detail": "草稿或最新版本无法删除"})
+        referencing_templates = TemplateReference.objects.filter(
+            subprocess_template_id=instance.template_id, version=instance.version
+        )
+        if referencing_templates.exists():
+            root_template_ids = referencing_templates.values_list("root_template_id", flat=True).distinct()
+            referencing_templates = Template.objects.filter(id__in=root_template_ids, is_deleted=False)
+            if referencing_templates.exists():
+                referencing_ids = list(referencing_templates.values_list("id", flat=True))
+                referencing_ids_str = [str(id_) for id_ in referencing_ids]
+                return Response({"detail": f"版本【{instance.version}】被流程 {', '.join(list(referencing_ids_str))} 引用，无法删除"})
+
+        instance.is_deleted = True
+        instance.save()
+        return Response({"detail": f"版本 {instance.version} 快照已成功删除"})
+
+
+class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     queryset = Template.objects.filter(is_deleted=False)
     serializer_class = TemplateSerializer
+    filter_backends = [DjangoFilterBackend]
+    filter_class = TemplateFilterSet
     EDIT_ABOVE_ACTIONS = ["update"]
-    MOCK_ABOVE_ACTIONS = ["preview_task_tree", "create_mock_task"]
-    permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission]
+    MOCK_ABOVE_ACTIONS = ["create_mock_task"]
+    pagination_class = BKFLOWNoMaxLimitPagination
+    permission_classes = [
+        AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
+    ]
+
+    @action(methods=["GET"], detail=False, url_path="list_template")
+    def list_template(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        scope_value = request.query_params.get("scope_value")
+        scope_type = request.query_params.get("scope_type")
+        empty_scope = request.query_params.get("empty_scope")
+        space_id = request.query_params.get("space_id")
+
+        if scope_type is None and scope_value is None and empty_scope:
+            queryset = queryset.filter(scope_type__isnull=True, scope_value__isnull=True)
+
+        if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+            template_snapshot_ids = list(queryset.values_list("snapshot_id", flat=True))
+            draft_snapshot_ids = list(
+                TemplateSnapshot.objects.filter(id__in=template_snapshot_ids, draft=False).values_list("id", flat=True)
+            )
+            queryset = queryset.filter(snapshot_id__in=draft_snapshot_ids)
+
+        page = self.paginate_queryset(queryset)
+
+        serializer = BaseTemplateSerializer(page if page is not None else queryset, many=True)
+        data = serializer.data
+        if page is not None:
+            return self.get_paginated_response(data)
+        return Response(data)
 
     @record_operation(RecordType.template.name, TemplateOperationType.update.name, TemplateOperationSource.app.name)
     def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        labels = TemplateLabelRelation.objects.fetch_labels(instance.id)
+        data = deepcopy(serializer.data)
+        data["labels"] = labels
+        return Response(data)
+
+    @swagger_auto_schema(method="POST", operation_description="更新标签", request_body=TemplateUpdateLabelSerializer)
+    @action(detail=True, methods=["post"], url_path="update_labels")
+    def update_labels(self, request, *args, **kwargs):
+        template = self.get_object()
+        ser = TemplateUpdateLabelSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        label_ids = ser.validated_data["label_ids"]
+        with transaction.atomic():
+            TemplateLabelRelation.objects.set_labels(template.id, label_ids)
+        return Response(label_ids)
 
     @action(methods=["POST"], detail=False)
     def analysis_constants_ref(self, request, *args, **kwargs):
@@ -283,17 +542,17 @@ class TemplateViewSet(UserModelViewSet):
     @swagger_auto_schema(methods=["post"], operation_description="画布排版", request_body=DrawPipelineSerializer)
     @action(methods=["POST"], detail=False)
     def draw_pipeline(self, request, *args, **kwargs):
+        serializer = DrawPipelineSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        pipeline_tree = validated_data["pipeline_tree"]
 
-        pipeline_tree = request.data["pipeline_tree"]
-        canvas_width = int(request.data.get("canvas_width", CANVAS_WIDTH))
-
-        kwargs = {"canvas_width": canvas_width}
-
-        for kw in list(POSITION.keys()):
-            if kw in request.data:
-                kwargs[kw] = request.data[kw]
+        draw_kwargs = {"canvas_width": validated_data.get("canvas_width", CANVAS_WIDTH)}
+        for kw in POSITION.keys():
+            if kw in validated_data:
+                draw_kwargs[kw] = tuple(validated_data[kw])
         try:
-            draw_pipeline_tree(pipeline_tree, **kwargs)
+            draw_pipeline_tree(pipeline_tree, **draw_kwargs)
         except Exception as e:
             message = _(f"流程自动排版失败: 流程排版发生异常: {e}, 请检查流程 | draw_pipeline")
             logger.exception(message)
@@ -341,7 +600,25 @@ class TemplateViewSet(UserModelViewSet):
 
         try:
             appoint_node_ids = serializer.validated_data["appoint_node_ids"]
-            pipeline_tree = template.pipeline_tree
+            is_draft = serializer.validated_data["is_draft"]
+            version = serializer.validated_data.get("version")
+            try:
+                if is_draft:
+                    pipeline_tree = TemplateSnapshot.objects.get(
+                        template_id=template.id, is_deleted=False, draft=True
+                    ).data
+                else:
+                    pipeline_tree = template.get_pipeline_tree_by_version(version)
+            except Exception as e:
+                message = f"[preview task tree] error: {e}"
+                logger.exception(message)
+                return Response(exception=True, data={"detail": str(e)})
+
+            flow_version_config = (
+                SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true"
+            )
+            pipeline_tree = replace_subprocess_version(pipeline_tree, flow_version_config)
+
             if not serializer.validated_data["is_all_nodes"]:
                 exclude_task_nodes_id = PipelineTemplateWebPreviewer.get_template_exclude_task_nodes_with_appoint_nodes(
                     pipeline_tree, appoint_node_ids
@@ -359,6 +636,9 @@ class TemplateViewSet(UserModelViewSet):
         )
         mock_data = TemplateMockDataSerializer(instance=mock_data_instances, many=True)
         data["mock_data"] = mock_data.data
+        data["version"] = template.version
+        data["name"] = template.name
+        data["outputs"] = template.outputs(version)
         return Response(data)
 
     @swagger_auto_schema(
@@ -401,6 +681,19 @@ class TemplateViewSet(UserModelViewSet):
         create_task_data.setdefault("extra_info", {}).update(
             {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
         )
+        try:
+            create_task_data["extra_info"] = OpenPluginSnapshotService.prepare_task_extra_info(
+                space_id=int(template.space_id),
+                pipeline_tree=pipeline_tree,
+                extra_info=create_task_data.get("extra_info"),
+                username=request.user.username,
+                scope_type=template.scope_type,
+                scope_id=template.scope_value,
+            )
+        except drf_serializers.ValidationError as error:
+            detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
+            raise ValidationError(str(detail))
+        create_task_data["tenant_id"] = ensure_space_tenant(request, template.space_id)
 
         client = TaskComponentClient(space_id=template.space_id)
         result = client.create_task(create_task_data)
@@ -408,8 +701,222 @@ class TemplateViewSet(UserModelViewSet):
             raise APIResponseError(result["message"])
         return Response(result["data"])
 
+    @swagger_auto_schema(method="GET", operation_description="批量获取模板版本")
+    @action(methods=["GET"], detail=False, url_path="batch_get_template_version")
+    def batch_get_template_version(self, request, *args, **kwargs):
+        template_ids = request.GET.get("template_ids")
+        space_id = request.GET.get("space_id")
+        if not template_ids:
+            return Response(exception=True, data={"message": "template_ids is required"})
+        template_ids = template_ids.split(",")
+        template_objs = Template.objects.filter(id__in=template_ids, space_id=space_id)
+        data = [
+            {"template_id": template_obj.id, "name": template_obj.name, "version": template_obj.version}
+            for template_obj in template_objs
+        ]
+        return Response(data=data)
+
+    @action(methods=["GET"], detail=True, url_path="get_draft_template")
+    def get_draft_template(self, request, *args, **kwargs):
+        template_obj = self.get_object()
+        if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"message": "当前空间未开启版本管理, 无法获取草稿"})
+        try:
+            draft_snapshot = TemplateSnapshot.objects.get(template_id=template_obj.id, draft=True)
+        except TemplateSnapshot.DoesNotExist:
+            draft_snapshot = template_obj.update_draft_snapshot(
+                template_obj.pipeline_tree, request.user.username, template_obj.version
+            )
+        data = TemplateSnapshotSerializer(draft_snapshot).data
+        flow_version_config = (
+            SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) == "true"
+        )
+        pipeline_tree = replace_subprocess_version(draft_snapshot.data, flow_version_config)
+
+        data["pipeline_tree"] = pipeline_tree
+        return Response(data=data)
+
+    @action(methods=["GET"], detail=True, url_path="calculate_version")
+    def calculate_version(self, request, *args, **kwargs):
+        try:
+            template_version = getattr(self.get_object(), "version", None)
+            new_version = bump_custom(template_version) if template_version else "1.0.0"
+        except ValueError as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": str(e)})
+        return Response({"version": new_version})
+
+    @swagger_auto_schema(method="POST", operation_description="发布模板", request_body=TemplateReleaseSerializer)
+    @action(methods=["POST"], detail=True, url_path="release_template")
+    def release_template(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"detail": "当前空间未开启版本管理，无法发布模板"})
+        ser = TemplateReleaseSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        new_version = ser.validated_data["version"]
+        if TemplateSnapshot.objects.filter(template_id=instance.id, version=new_version).exists():
+            return Response(exception=True, data={"detail": "版本已存在"})
+        try:
+            bump_custom(new_version, instance.version)
+        except ValueError as e:
+            logger.error(str(e))
+            return Response(exception=True, data={"detail": f"版本号不符合规范: {str(e)}"})
+
+        with transaction.atomic():
+            data = {"username": request.user.username, **ser.validated_data}
+            snapshot = instance.release_template(data)
+            instance.snapshot_id = snapshot.id
+            instance.save()
+
+        TemplateOperationRecord.objects.create(
+            operate_source=TemplateOperationSource.app.name,
+            operate_type=TemplateOperationType.release.name,
+            instance_id=instance.id,
+            operator=request.user.username,
+            extra_info={"version": new_version},
+        )
+
+        event_broadcast_signal.send(
+            sender=WebhookEventType.TEMPLATE_RELEASE.value,
+            scopes=[(WebhookScopeType.SPACE.value, str(instance.space_id))],
+            extra_info={
+                "template_id": instance.id,
+                "version": new_version,
+                "username": request.user.username,
+            },
+        )
+
+        return Response(data=self.get_serializer(instance).data)
+
+    @action(methods=["POST"], detail=True, url_path="rollback_template")
+    def rollback_template(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"detail": "当前空间未开启版本管理，无法回滚模板"})
+        version = request.data.get("version")
+        if not version:
+            return Response({"detail": "version 参数不能为空"})
+
+        pipeline_tree = TemplateSnapshot.objects.get(template_id=instance.id, version=version).data
+        draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username, version)
+        TemplateOperationRecord.objects.create(
+            operate_source=TemplateOperationSource.app.name,
+            operate_type=TemplateOperationType.rollback.name,
+            instance_id=instance.id,
+            operator=request.user.username,
+            extra_info={"version": version},
+        )
+        return Response(data=draft_template.data)
+
+    @swagger_auto_schema(
+        method="get",
+        operation_description="获取流程有权限的凭证列表",
+    )
+    @action(methods=["GET"], detail=True, url_path="credentials")
+    def credentials(self, request, *args, **kwargs):
+        """
+        获取当前流程有权限的凭证列表
+        根据 Template 的 scope_type 和 scope_value 来过滤凭证
+        """
+        template = self.get_object()
+
+        # 获取当前空间下的所有凭证
+        credentials_queryset = Credential.objects.filter(space_id=template.space_id, is_deleted=False)
+
+        # 根据模板的作用域过滤凭证
+        filtered_credentials = filter_credentials_by_scope(
+            credentials_queryset, template.scope_type, template.scope_value
+        )
+
+        # 序列化凭证数据
+        serializer = CredentialSerializer(filtered_credentials, many=True)
+
+        return Response({"results": serializer.data, "count": len(serializer.data)})
+
+    @swagger_auto_schema(method="POST", operation_summary="验证Webhook配置", request_body=WebhookConfigQuerySerializer)
+    @action(methods=["POST"], detail=False)
+    def verify_webhook_configuration(self, request, *args, **kwargs):
+        serializer = WebhookConfigQuerySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        verify_data = serializer.validated_data.copy()
+        verify_data["url"] = verify_data.pop("endpoint")
+
+        try:
+            verify_result = verify_webhook_endpoint(verify_data)
+        except Exception as e:
+            message = str(e)
+            return Response({"detail": message}, exception=True)
+
+        if verify_result.exe_data:
+            message = "HTTP请求处理失败：请求URL错误"
+            return Response({"detail": message}, exception=True)
+
+        if verify_result.ok:
+            return Response({"detail": "success"})
+        else:
+            verify_response = verify_result.json_response()
+            error_content = (
+                verify_response.get("message") if isinstance(verify_response, dict) else str(verify_response)
+            )
+            message = f"HTTP请求处理失败：status_code={verify_result.response_status_code}, content={error_content}"
+            return Response({"detail": message}, exception=True)
+
+
+@method_decorator(login_exempt, name="dispatch")
+class TemplateInternalViewSet(TenantScopeMixin, BKFLOWCommonMixin, mixins.RetrieveModelMixin, SimpleGenericViewSet):
+    tenant_internal_api = True
+    queryset = Template.objects.filter()
+    serializer_class = TemplateSerializer
+    permission_classes = [AdminPermission | AppInternalPermission]
+
+    def get_queryset(self):
+        """模板内部读取绑定调用空间；单租户兼容旧 Engine 不传空间的请求。"""
+        queryset = super().get_queryset()
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            from rest_framework.exceptions import PermissionDenied
+
+            space_id = self.request.query_params.get("space_id")
+            if not space_id or not str(space_id).isdigit() or int(space_id) <= 0:
+                raise PermissionDenied("内部模板读取缺少有效的空间 ID")
+            queryset = queryset.filter(space_id=int(space_id), is_deleted=False)
+        return queryset
+
+    @action(methods=["GET"], detail=True)
+    def get_template_data(self, request, *args, **kwargs):
+        version = request.query_params.get("version")
+        template = self.get_object()
+        subproc_data = self.get_serializer(template).data
+        # 去除子流程中未被引用的变量
+        pipeline_tree = template.get_pipeline_tree_by_version(version)
+        pre_pipeline_tree = deepcopy(pipeline_tree)
+        PipelineTemplateWebPreviewer.preview_pipeline_tree_exclude_task_nodes(pre_pipeline_tree)
+        flow_version_config = (
+            SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true"
+        )
+        pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
+        subproc_data["pipeline_tree"] = pre_pipeline_tree
+        return Response(subproc_data)
+
+    @action(methods=["POST"], detail=False)
+    def prepare_task_extra_info(self, request, *args, **kwargs):
+        ser = TemplatePrepareExtraInfoSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        validated = ser.validated_data
+        extra_info = OpenPluginSnapshotService.prepare_task_extra_info(
+            space_id=validated["space_id"],
+            pipeline_tree=validated["pipeline_tree"],
+            extra_info=validated.get("extra_info"),
+            username=validated.get("username"),
+            scope_type=validated.get("scope_type"),
+            scope_id=validated.get("scope_id"),
+        )
+        return Response({"extra_info": extra_info})
+
 
 class TemplateMockDataViewSet(
+    TenantScopeMixin,
     BKFLOWCommonMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
@@ -479,6 +986,7 @@ class TemplateMockSchemeFilterSet(FilterSet):
 
 
 class TemplateMockSchemeViewSet(
+    TenantScopeMixin,
     BKFLOWCommonMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
@@ -511,7 +1019,7 @@ class TemplateMockSchemeViewSet(
         serializer.save(operator=user.username)
 
 
-class TemplateMockTaskViewSet(mixins.ListModelMixin, GenericViewSet):
+class TemplateMockTaskViewSet(TenantScopeMixin, mixins.ListModelMixin, GenericViewSet):
     DEFAULT_PERMISSION = TemplateRelatedResourcePermission.MOCK_PERMISSION
     permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
 
@@ -523,31 +1031,3 @@ class TemplateMockTaskViewSet(mixins.ListModelMixin, GenericViewSet):
         client = TaskComponentClient(space_id=space_id)
         result = client.task_list(data={"template_id": template_id, "space_id": space_id, "create_method": "MOCK"})
         return Response(result)
-
-
-class UploadTemplateFileApiView(APIView):
-    permission_classes = [AdminPermission]
-    parser_classes = [MultiPartParser]
-
-    @swagger_auto_schema(request_body=SimplifiedTemplateFileSerializer())
-    def post(self, request, *args, **kwargs):
-        ser = SimplifiedTemplateFileSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-
-        f = ser.validated_data["file"]
-        try:
-            handler = FileHandlerDispatcher(f).dispatch()
-            simplified_pipeline_tree = handler.handle()
-        except Exception as e:
-            logger.exception("upload template file failed")
-            return Response({"result": False, "message": str(e), "data": None})
-        json_pipeline_cvt = CONVERTER_HUB.get_converter_cls(
-            DataTypes.JSON.value, DataTypes.DATA_MODEL.value, "PipelineConverter"
-        )
-        dm_pipeline = json_pipeline_cvt(simplified_pipeline_tree).convert()
-
-        data_model_pipeline_cvt = CONVERTER_HUB.get_converter_cls(
-            DataTypes.DATA_MODEL.value, DataTypes.WEB_PIPELINE.value, "PipelineConverter"
-        )
-        web_pipeline_tree = data_model_pipeline_cvt(dm_pipeline).convert()
-        return Response({"result": True, "data": {"pipeline_tree": web_pipeline_tree}, "message": ""})

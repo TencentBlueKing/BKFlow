@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -33,6 +32,8 @@ __group_name__ = _("蓝鲸服务(BK)")
 
 
 class UniformAPIService(BKFlowBaseService):
+    plugin_name = "uniform_api"
+
     def inputs_format(self):
         return []
 

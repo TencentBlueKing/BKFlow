@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -27,6 +26,7 @@ class TemplateConfig(AppConfig):
     def ready(self):
         from bkflow.constants import RecordType  # noqa
         from bkflow.contrib.operation_record import OPERATION_RECORDER  # noqa
+        from bkflow.template.handlers import pipeline_template_post_save_handler  # noqa
         from bkflow.template.operation_record import TemplateOperationRecorder  # noqa
 
         OPERATION_RECORDER.register(RecordType.template.name, TemplateOperationRecorder)

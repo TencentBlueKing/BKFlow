@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 import logging
 
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.core.flow.io import StringItemSchema
@@ -29,6 +30,7 @@ from bkflow.pipeline_plugins.components.collections.base import (
 )
 from bkflow.pipeline_plugins.utils import get_node_callback_url
 from bkflow.utils.handlers import handle_plain_log
+from bkflow.utils.tenant import get_task_tenant_id
 from plugin_service.conf import PLUGIN_LOGGER
 from plugin_service.exceptions import PluginServiceException
 from plugin_service.plugin_client import PluginServiceApiClient
@@ -48,6 +50,7 @@ UNFINISHED_STATES = {State.POLL, State.CALLBACK}
 
 
 class RemotePluginService(BKFlowBaseService):
+    plugin_name = "bk_plugin"
     interval = StepIntervalGenerator()
 
     def outputs_format(self):
@@ -57,14 +60,25 @@ class RemotePluginService(BKFlowBaseService):
             ),
         ]
 
+    def _get_span_attributes(self, data, parent_data):
+        """覆盖基类方法，添加第三方插件特有的属性"""
+        attributes = super()._get_span_attributes(data, parent_data)
+        attributes.update(
+            {
+                "plugin_code": data.get_one_of_inputs("plugin_code"),
+                "plugin_version": data.get_one_of_inputs("plugin_version"),
+            }
+        )
+        return attributes
+
     def plugin_execute(self, data, parent_data):
         plugin_code = data.get_one_of_inputs("plugin_code")
         plugin_version = data.get_one_of_inputs("plugin_version")
         space_id = parent_data.get_one_of_inputs("task_space_id")
         task_id = parent_data.get_one_of_inputs("task_id")
-
+        tenant_id = get_task_tenant_id(parent_data) if settings.ENABLE_MULTI_TENANT_MODE else None
         try:
-            plugin_client = PluginServiceApiClient(plugin_code)
+            plugin_client = PluginServiceApiClient(plugin_code, tenant_id=tenant_id)
         except PluginServiceException as e:
             message = _(f"第三方插件client初始化失败, 错误内容: {handle_plain_log(e)}")
             logger.error(message)
@@ -81,7 +95,7 @@ class RemotePluginService(BKFlowBaseService):
         plugin_context = {
             key: parent_data.inputs[key]
             for key in detail_result["data"]["context_inputs"]["properties"].keys()
-            if key in parent_data.inputs
+            if key in parent_data.inputs and key != "_credentials"
         }
 
         # 处理回调的情况
@@ -118,6 +132,7 @@ class RemotePluginService(BKFlowBaseService):
             data.set_outputs("ex_data", result_data["err"])
             return False
         if state in UNFINISHED_STATES:
+            # 需要轮询或回调
             setattr(self, "__need_schedule__", True)
         return True
 
@@ -130,9 +145,9 @@ class RemotePluginService(BKFlowBaseService):
                 "ex_data", message="reach max count of schedule, please ensure the task can be finished in one day"
             )
             return False
-
+        tenant_id = get_task_tenant_id(parent_data) if settings.ENABLE_MULTI_TENANT_MODE else None
         try:
-            plugin_client = PluginServiceApiClient(plugin_code)
+            plugin_client = PluginServiceApiClient(plugin_code, tenant_id=tenant_id)
         except PluginServiceException as e:
             message = _(f"第三方插件client初始化失败, 错误内容: {handle_plain_log(e)}")
             logger.error(message)
@@ -157,9 +172,11 @@ class RemotePluginService(BKFlowBaseService):
             message = _("请通过第三方节点日志查看任务失败原因")
             logger.error(message)
             logger.error(f"[remote plugin service state failed]: {result_data}")
-            data.set_outputs("ex_data", result_data["outputs"].get("err") or message)
+            error_msg = result_data["outputs"].get("err") or str(message)
+            data.set_outputs("ex_data", error_msg)
             return False
         if state in UNFINISHED_STATES:
+            # 仍在执行中，继续等待
             setattr(self, "__need_schedule__", True)
         if state == State.SUCCESS:
             self.finish_schedule()

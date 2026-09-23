@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,22 +16,33 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
+from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from bkflow.admin.models import ModuleInfo
 from bkflow.admin.serializers import ModuleInfoSerializer
+from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.mixins import BKFLOWDefaultPagination
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import SimpleGenericViewSet
 
 
-class ModuleInfoAdminViewSet(ModelViewSet, SimpleGenericViewSet):
+class ModuleInfoAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewSet):
     queryset = ModuleInfo.objects.all()
     serializer_class = ModuleInfoSerializer
     pagination_class = BKFLOWDefaultPagination
     permission_classes = [AdminPermission]
+
+    def check_permissions(self, request):
+        """多租户管理员不管理部署级凭证；单租户保留原有管理入口。"""
+        if settings.ENABLE_MULTI_TENANT_MODE:
+            raise PermissionDenied(_("多租户引擎配置由部署运维管理"))
+        super().check_permissions(request)
 
     @action(methods=["get"], detail=False)
     def get_meta(self, request, *args, **kwargs):

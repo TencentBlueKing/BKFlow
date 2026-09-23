@@ -1,0 +1,18 @@
+{
+  "id": "open_plugin_001",
+  "name": "JOB 执行作业",
+  "plugin_source": "builtin",
+  "plugin_code": "job_execute_task",
+  "plugin_version": "1.2.0",
+  "wrapper_version": "v4.0.0",
+  "url": "https://bk-sops.example/open-plugin-runs",
+  "methods": ["POST"],
+  "inputs": [],
+  "polling": {
+    "url": "https://bk-sops.example/open-plugin-runs/status",
+    "task_tag_key": "open_plugin_run_id",
+    "success_tag": {"key": "status", "value": "SUCCEEDED", "data_key": "data.outputs"},
+    "fail_tag": {"key": "status", "value": "FAILED", "msg_key": "data.error_message"},
+    "running_tag": {"key": "status", "value": "RUNNING"}
+  }
+}

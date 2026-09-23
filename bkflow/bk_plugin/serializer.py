@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 from datetime import datetime
 
+from django.conf import settings
 from rest_framework import serializers
 
 from bkflow.bk_plugin.models import (
@@ -32,6 +32,13 @@ from bkflow.constants import ALL_SPACE, WHITE_LIST
 
 
 class BKPluginSerializer(serializers.ModelSerializer):
+    def get_fields(self):
+        """关闭多租户时保持已有插件列表响应字段。"""
+        fields = super().get_fields()
+        if not settings.ENABLE_MULTI_TENANT_MODE:
+            fields.pop("tenant_id", None)
+        return fields
+
     class Meta:
         model = BKPlugin
         fields = "__all__"

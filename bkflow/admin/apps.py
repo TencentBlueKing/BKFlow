@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,3 +22,11 @@ from django.apps import AppConfig
 class AdminConfig(AppConfig):
     name = "bkflow.admin"
     label = "bkflow_admin"
+
+    def ready(self):
+        from django.contrib import admin
+
+        admin.site.index_template = "admin/bkflow_index.html"
+        admin.site.site_header = "BKFlow 管理后台"
+        admin.site.site_title = "BKFlow Admin"
+        admin.site.index_title = "管理首页"

@@ -16,12 +16,11 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
-from copy import deepcopy
 
 from django.conf import settings
 from django.db import transaction
-from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
@@ -29,13 +28,24 @@ from webhook.signals import event_broadcast_signal
 
 from bkflow.bk_plugin.models import BKPluginAuthorization
 from bkflow.constants import (
+    MAX_LEN_OF_TEMPLATE_NAME,
     TemplateOperationSource,
     TemplateOperationType,
     WebhookEventType,
     WebhookScopeType,
 )
-from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE, Token
-from bkflow.space.models import Space
+from bkflow.exceptions import ValidationError
+from bkflow.label.models import Label, TemplateLabelRelation
+from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE
+from bkflow.permission.services import iter_user_grants
+from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
+from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.space.configs import (
+    FlowVersioning,
+    GatewayExpressionConfig,
+    TemplateTriggerConfig,
+)
+from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import (
     Template,
     TemplateMockData,
@@ -45,12 +55,22 @@ from bkflow.template.models import (
     Trigger,
 )
 from bkflow.template.serializers.trigger import TriggerSerializer
-from bkflow.template.utils import send_callback
+from bkflow.template.utils import (
+    send_callback,
+    validate_pipeline_tree_gateway_expression,
+)
+from bkflow.utils.pipeline import replace_subprocess_version
+from bkflow.utils.version import bump_custom
+from bkflow.utils.webhook import (
+    apply_webhook_configs,
+    clear_scope_webhooks,
+    get_webhook_configs,
+)
 
 logger = logging.getLogger("root")
 
 
-class AdminTemplateSerializer(serializers.ModelSerializer):
+class BaseTemplateSerializer(serializers.ModelSerializer):
     create_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
     update_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
 
@@ -68,9 +88,16 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
             "scope_value",
             "source",
             "is_enabled",
-            "notify_config",
             "version",
             "space_id",
+        )
+
+
+class AdminTemplateSerializer(BaseTemplateSerializer):
+    class Meta(BaseTemplateSerializer.Meta):
+        fields = BaseTemplateSerializer.Meta.fields + (
+            "notify_config",
+            "subprocess_info",
         )
 
 
@@ -79,9 +106,13 @@ class TemplateSerializer(serializers.ModelSerializer):
 
     snapshot_id = serializers.IntegerField(help_text=_("快照ID"), required=False, read_only=True)
     notify_config = serializers.JSONField(help_text=_("配置"), required=False)
-    version = serializers.CharField(help_text=_("版本"), required=False, allow_blank=True)
-    desc = serializers.CharField(help_text=_("流程说明"), required=False, allow_blank=True)
+    version = serializers.CharField(help_text=_("版本"), read_only=True)
+    desc = serializers.CharField(help_text=_("流程说明"), required=False, allow_blank=True, allow_null=True)
     triggers = TriggerSerializer(many=True, required=True, allow_null=True)
+    subprocess_info = serializers.JSONField(help_text=_("子流程信息"), read_only=True)
+    labels = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
+    webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
+    enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
@@ -89,28 +120,104 @@ class TemplateSerializer(serializers.ModelSerializer):
 
         return space_id
 
+    def validate_triggers(self, triggers):
+        request = self.context.get("request")
+        if request.method == "POST":
+            space_id = self.initial_data.get("space_id")
+        else:
+            space_id = self.instance.space_id
+        periodic_triggers = [trigger for trigger in triggers if trigger.get("type") == Trigger.TYPE_PERIODIC]
+        if len(periodic_triggers) > 1 and SpaceConfig.get_config(space_id, TemplateTriggerConfig.name) == "false":
+            raise serializers.ValidationError(_("参数校验失败，该流程只允许有一个定时触发器！"))
+        return triggers
+
+    @staticmethod
+    def _build_open_plugin_extra_info(space_id, pipeline_tree, extra_info, username, scope_type, scope_id):
+        """写入开放插件引用快照和 schema 快照。"""
+        reference_snapshot = OpenPluginSnapshotService.build_reference_snapshot(
+            space_id=space_id, pipeline_tree=pipeline_tree
+        )
+        try:
+            schema_snapshot = OpenPluginSnapshotService.build_schema_snapshot(
+                space_id=space_id,
+                pipeline_tree=pipeline_tree,
+                username=username,
+                scope_type=scope_type,
+                scope_id=scope_id,
+            )
+        except ValueError as e:
+            raise serializers.ValidationError(str(e))
+        return OpenPluginSnapshotService.merge_snapshots(
+            extra_info, reference_snapshot, schema_snapshot=schema_snapshot
+        )
+
     def validate_pipeline_tree(self, pipeline_tree):
         # 校验树的合法性
 
         try:
             validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
         except Exception as e:
-            logger.exception("CreateTemplateSerializer pipeline validate error, err = {}".format(e))
-            raise serializers.ValidationError(_("参数校验失败，pipeline校验不通过, err={}".format(e)))
+            logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
+            raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
+
+        if self.context["request"].method == "POST":
+            space_id = self.initial_data.get("space_id")
+            scope_type = self.initial_data.get("scope_type")
+            scope_value = self.initial_data.get("scope_value")
+        else:
+            space_id = getattr(self.instance, "space_id", None)
+            scope_type = getattr(self.instance, "scope_type", None)
+            scope_value = getattr(self.instance, "scope_value", None)
+
+        try:
+            space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+            validate_pipeline_tree_gateway_expression(pipeline_tree, space_gateway_expression)
+        except ValidationError as e:
+            raise serializers.ValidationError(_(f"参数校验失败，pipeline网关表达式校验不通过, err={e}"))
+
+        template_id = getattr(self.instance, "id", None)
+        data = PipelineTemplateWebPreviewer.is_circular_reference(
+            pipeline_tree, template_id, space_id, scope_type, scope_value
+        )
+        if data["has_cycle"]:
+            raise serializers.ValidationError(
+                _(f"更新失败，子流程节点【{data['node_name']}】引用的模板 {data['template_id']} 与当前流程存在循环引用")
+            )
+
+        if space_id:
+            OpenPluginSnapshotService.validate_pipeline_tree(space_id=space_id, pipeline_tree=pipeline_tree)
+
+        validate_data = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
+        if not validate_data["has_loop"]:
+            raise serializers.ValidationError(_(validate_data["error_message"]))
 
         return pipeline_tree
-
-    def validate_triggers(self, triggers):
-        periodic_triggers = [trigger for trigger in triggers if trigger.get("type") == Trigger.TYPE_PERIODIC]
-        if len(periodic_triggers) > 1:
-            raise serializers.ValidationError(_("参数校验失败，该流程只允许有一个定时触发器！"))
-        return triggers
 
     @transaction.atomic()
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
-        snapshot = TemplateSnapshot.create_snapshot(pipeline_tree)
+        username = self.context["request"].user.username
+        space_id = validated_data.get("space_id") or self.initial_data.get("space_id")
+        if space_id is not None:
+            validated_data["space_id"] = space_id
+        validated_data["extra_info"] = self._build_open_plugin_extra_info(
+            space_id=space_id,
+            pipeline_tree=pipeline_tree,
+            extra_info=validated_data.get("extra_info"),
+            username=username,
+            scope_type=validated_data.get("scope_type") or self.initial_data.get("scope_type"),
+            scope_id=validated_data.get("scope_value") or self.initial_data.get("scope_value"),
+        )
+        if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
+            snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+        else:
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
         validated_data["snapshot_id"] = snapshot.id
+        validated_data.pop("triggers", None)
+        validated_data.pop("labels", None)
+        validated_data.pop("webhook_configs", None)
+        validated_data.pop("enable_webhook", None)
+        validated_data.pop("notify_config", None)
         template = super().create(validated_data)
 
         snapshot.template_id = template.id
@@ -123,25 +230,61 @@ class TemplateSerializer(serializers.ModelSerializer):
         )
         return template
 
+    def _sync_template_labels(self, template_id, label_ids):
+        """
+        创建或更新模板时同步模板标签数据
+        """
+        label_ids = list(set(label_ids))
+        if not Label.objects.check_label_ids(label_ids):
+            message = _("流程保存失败: 流程设置的标签不存在, 请检查配置后重试")
+            logger.error(message)
+            raise serializers.ValidationError(message)
+        try:
+            TemplateLabelRelation.objects.set_labels(template_id, label_ids)
+        except Exception as e:
+            logger.error(f"TemplateLabelRelation set_labels error: {e}")
+            raise serializers.ValidationError(_("流程保存失败: 标签设置失败, 请检查配置后重试"))
+
     @transaction.atomic()
     def update(self, instance, validated_data):
         # TODO: 需要校验哪些字段是不可以更新的
         pipeline_tree = validated_data.pop("pipeline_tree", None)
+        template_labels = validated_data.pop("labels", None)
         # 检查新建任务的流程中是否有未二次授权的蓝鲸插件
         try:
             exist_code_list = [
                 node["component"]["data"]["plugin_code"]["value"]
                 for node in pipeline_tree["activities"].values()
-                if node["component"].get("data", {}).get("plugin_code")
+                if node["type"] == "ServiceActivity" and node["component"].get("data", {}).get("plugin_code")
             ]
             BKPluginAuthorization.objects.batch_check_authorization(exist_code_list, str(instance.space_id))
         except Exception as e:
-            logger.exception("TemplateSerializer update error, err = {}".format(e))
-            raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
+            logger.exception(f"TemplateSerializer update error, err = {e}")
+            raise serializers.ValidationError(detail={"msg": (f"更新失败,{e}")})
         pre_pipeline_tree = instance.pipeline_tree
-        instance_copy = deepcopy(instance)
-        instance.update_snapshot(pipeline_tree)
+        username = self.context["request"].user.username
+        validated_data["extra_info"] = self._build_open_plugin_extra_info(
+            space_id=instance.space_id,
+            pipeline_tree=pipeline_tree,
+            extra_info=validated_data.get("extra_info", instance.extra_info),
+            username=username,
+            scope_type=validated_data.get("scope_type", instance.scope_type),
+            scope_id=validated_data.get("scope_value", instance.scope_value),
+        )
+        if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
+            instance.update_draft_snapshot(pipeline_tree, username)
+        else:
+            if instance.snapshot_version is None:
+                current_version = "1.0.0"
+            else:
+                current_version = bump_custom(instance.snapshot_version)
+            snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, current_version)
+            instance.snapshot_id = snapshot.id
+            snapshot.template_id = instance.id
+            snapshot.save(update_fields=["template_id"])
         instance = super().update(instance, validated_data)
+        if template_labels is not None:
+            self._sync_template_labels(instance.id, template_labels)
         # 批量修改流程绑定的触发器:
         try:
             Trigger.objects.compare_constants(
@@ -149,13 +292,21 @@ class TemplateSerializer(serializers.ModelSerializer):
                 pipeline_tree.get("constants", {}),
                 validated_data.get("triggers"),
             )
-            Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"])
+            Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"], username)
         except Exception as e:
-            logger.exception("Triggers update or create failed,{}".format(e))
-            instance.update_snapshot(pre_pipeline_tree)
-            instance = instance_copy
-            instance.save()
-            raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
+            logger.exception(f"Triggers update or create failed,{e}")
+            raise serializers.ValidationError(detail={"msg": (f"更新失败,{e}")})
+
+        enable_webhook = validated_data.get("enable_webhook")
+        webhook_configs = validated_data.get("webhook_configs", [])
+        if enable_webhook is True and webhook_configs:
+            apply_result = apply_webhook_configs(webhook_configs, str(instance.id))
+            if not apply_result["result"]:
+                message = apply_result["message"]
+                logger.error(message)
+                raise serializers.ValidationError(message)
+        elif enable_webhook is False:
+            clear_scope_webhooks([str(instance.id)])
 
         send_callback(instance.space_id, "template", instance.build_callback_data(operate_type="update"))
         event_broadcast_signal.send(
@@ -171,20 +322,27 @@ class TemplateSerializer(serializers.ModelSerializer):
         ):
             return TEMPLATE_PERMISSION_TYPE
         username = self.context["request"].user.username
-        permissions = Token.objects.filter(
-            space_id=instance.space_id,
-            user=username,
-            resource_id=instance.id,
-            resource_type="TEMPLATE",
-            expired_time__gte=timezone.now(),
-        ).values_list("permission_type", flat=True)
-        return permissions
+        permissions = iter_user_grants(
+            instance.space_id,
+            username,
+            [("SCOPE", f"{instance.scope_type}_{instance.scope_value}"), ("TEMPLATE", instance.id)],
+        )
+        return list({grant.permission_type for grant in permissions})
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        triggers = Trigger.objects.filter(template_id=instance.id)
+        triggers = Trigger.objects.filter(template_id=instance.id, is_deleted=False)
         data["triggers"] = TriggerSerializer(triggers, many=True).data
         data["auth"] = self.get_current_user_auth(instance)
+        pre_pipeline_tree = instance.pipeline_tree
+        flow_version_config = (
+            SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true"
+        )
+        pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
+        data["pipeline_tree"] = pipeline_tree
+        webhook_configs = get_webhook_configs(scope_code=str(instance.id))
+        data["webhook_configs"] = webhook_configs
+        data["enable_webhook"] = True if webhook_configs else False
         return data
 
     class Meta:
@@ -196,12 +354,24 @@ class TemplateSerializer(serializers.ModelSerializer):
 class DrawPipelineSerializer(serializers.Serializer):
     pipeline_tree = serializers.JSONField(help_text=_("pipeline tree"), required=True)
     canvas_width = serializers.IntegerField(help_text=_("画布宽度"), required=False)
+    activity_size = serializers.ListField(
+        child=serializers.IntegerField(), min_length=2, max_length=2, help_text=_("任务节点尺寸"), required=False
+    )
+    event_size = serializers.ListField(
+        child=serializers.IntegerField(), min_length=2, max_length=2, help_text=_("事件节点尺寸"), required=False
+    )
+    gateway_size = serializers.ListField(
+        child=serializers.IntegerField(), min_length=2, max_length=2, help_text=_("网关节点尺寸"), required=False
+    )
+    start = serializers.ListField(
+        child=serializers.IntegerField(), min_length=2, max_length=2, help_text=_("画布起始坐标"), required=False
+    )
 
 
 class TemplateOperationRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = TemplateOperationRecord
-        fields = "__all__"
+        exclude = ["extra_info"]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -209,6 +379,7 @@ class TemplateOperationRecordSerializer(serializers.ModelSerializer):
         data["operate_source_name"] = (
             TemplateOperationSource[instance.operate_source].value if instance.operate_source else ""
         )
+        data["version"] = instance.extra_info.get("version")
         return data
 
 
@@ -268,12 +439,63 @@ class PreviewTaskTreeSerializer(serializers.Serializer):
         child=serializers.CharField(help_text=_("节点ID")), help_text=_("包含的节点ID列表"), default=[]
     )
     is_all_nodes = serializers.BooleanField(required=False, default=False, help_text=_("preview是否需要过滤节点"))
+    version = serializers.CharField(help_text=_("版本号"), required=False)
+    is_draft = serializers.BooleanField(help_text=_("是否为草稿"), required=False, default=False)
 
 
 class TemplateCopySerializer(serializers.Serializer):
     template_id = serializers.IntegerField(help_text=_("模板ID"), required=True)
+    name = serializers.CharField(help_text=_("模版名称"), max_length=MAX_LEN_OF_TEMPLATE_NAME, required=False)
+    desc = serializers.CharField(help_text=_("描述"), max_length=256, required=False, allow_blank=True)
     space_id = serializers.IntegerField(help_text=_("空间ID"), required=True)
+    copy_subprocess = serializers.BooleanField(help_text=_("是否复制子流程"), required=False, default=False)
 
 
-class SimplifiedTemplateFileSerializer(serializers.Serializer):
-    file = serializers.FileField(help_text="uploaded file")
+class TemplateReleaseSerializer(serializers.Serializer):
+    force = serializers.BooleanField(help_text=_("是否强制发布"), required=False, default=False)
+    version = serializers.CharField(help_text=_("版本号"), required=True)
+    desc = serializers.CharField(help_text=_("描述"), required=False, allow_blank=True)
+
+
+class TemplateRollbackSerializer(serializers.Serializer):
+    version = serializers.CharField(help_text=_("需要回滚的版本号"), required=True)
+
+
+class TemplateSnapshotSerializer(serializers.ModelSerializer):
+    create_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
+    update_time = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S%z")
+
+    class Meta:
+        model = TemplateSnapshot
+        fields = [
+            "id",
+            "create_time",
+            "update_time",
+            "version",
+            "template_id",
+            "desc",
+            "draft",
+            "creator",
+            "operator",
+            "md5sum",
+        ]
+
+
+class TemplateUpdateLabelSerializer(serializers.Serializer):
+    label_ids = serializers.ListField(help_text=_("标签ID列表"), required=True, child=serializers.IntegerField())
+
+
+class WebhookConfigQuerySerializer(serializers.Serializer):
+    method = serializers.CharField(help_text=_("webhook method"), max_length=255, required=True)
+    endpoint = serializers.URLField(help_text=_("webhook endpoint"), max_length=255, required=True)
+    headers = serializers.JSONField(help_text=_("webhook headers"), required=False)
+    authorization = serializers.JSONField(help_text=_("webhook authorization"), required=False)
+
+
+class TemplatePrepareExtraInfoSerializer(serializers.Serializer):
+    space_id = serializers.IntegerField(required=True, help_text=_("空间ID"))
+    pipeline_tree = serializers.JSONField(required=True, help_text=_("流程树"))
+    extra_info = serializers.JSONField(required=False, allow_null=True, help_text=_("已有扩展信息"))
+    username = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text=_("操作人"))
+    scope_type = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text=_("作用域类型"))
+    scope_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, help_text=_("作用域ID"))

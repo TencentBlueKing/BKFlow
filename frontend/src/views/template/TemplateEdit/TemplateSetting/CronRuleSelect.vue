@@ -99,7 +99,10 @@
     import i18n from '@/config/i18n/index.js';
     import CronExpression from 'cron-parser-custom';
     import Translate from '@/utils/cron.js';
+    import moment from 'moment-timezone';
     import tools from '@/utils/tools.js';
+    import taskZhUrl from '@/assets/images/task-zh.png';
+    import taskEnUrl from '@/assets/images/task-en.png';
     const labelIndexMap = {
         minute: 0,
         hour: 1,
@@ -115,6 +118,10 @@
     export default {
         name: '',
         props: {
+            timezone: {
+                type: String,
+                default: '',
+            },
             value: {
                 type: String,
                 default: '*/5 * * * *',
@@ -133,7 +140,7 @@
                 errorField: '',
                 isError: false,
                 isTimeMore: false,
-                periodicCronImg: require(`@/assets/images/${i18n.t('task-zh')}.png`),
+                periodicCronImg: { 'task-zh': taskZhUrl, 'task-en': taskEnUrl }[i18n.t('task-zh')],
                 ruleTipsHtmlConfig: {
                     extCls: 'periodic-cron-tips',
                     allowHtml: true,
@@ -147,6 +154,9 @@
             };
         },
         watch: {
+            timezone() {
+                if (this.nativeValue) this.checkAndTranslate(this.nativeValue);
+            },
             nativeValue(val) {
                 // 长度超过100个字符
                 if (val.length > 100) {
@@ -173,11 +183,14 @@
             checkAndTranslate(value) {
                 const interval = CronExpression.parse(`0 ${value.trim()}`, {
                     currentDate: new Date(),
+                    tz: this.timezone || window.DEPLOYMENT_TIMEZONE,
                 });
                 let i = 5;
                 this.nextTime = [];
                 while (i > 0) {
-                    this.nextTime.push(tools.prettyDateTimeFormat(interval.next().toString()));
+                    this.nextTime.push(moment(interval.next().toDate())
+                        .tz(this.timezone || window.DEPLOYMENT_TIMEZONE)
+                        .format('YYYY-MM-DD HH:mm:ss'));
                     i -= 1;
                 }
                 this.errorField = '';

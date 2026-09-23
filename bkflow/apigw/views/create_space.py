@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -17,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -25,12 +25,14 @@ from django.conf import settings
 from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from rest_framework.exceptions import PermissionDenied
 
 from bkflow.apigw.decorators import return_json_response
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.apigw.utils import get_space_config_presentation
 from bkflow.space.models import Space, SpaceConfig, SpaceCreateType
 from bkflow.utils import err_code
+from bkflow.utils.tenant import get_apigw_request_tenant_id
 
 
 @login_exempt
@@ -53,16 +55,25 @@ def create_space(request):
     ser = CreateSpaceSerializer(data=data)
 
     ser.is_valid(raise_exception=True)
+    if settings.ENABLE_MULTI_TENANT_MODE:
+        tenant_id = get_apigw_request_tenant_id(request)
+        if ser.validated_data["tenant_id"] != tenant_id:
+            raise PermissionDenied("空间租户必须与应用本次请求租户一致")
 
     config = ser.validated_data.pop("config", None)
 
     with transaction.atomic():
         username = request.user.username
         space = Space.objects.create(
-            **ser.validated_data, create_type=SpaceCreateType.API.value, creator=username, updated_by=username
+            **ser.validated_data,
+            create_type=SpaceCreateType.API.value,
+            creator=username,
+            updated_by=username,
         )
+        default_config = {"superusers": [request.user.username], "flow_versioning": "true"}
         if config:
-            SpaceConfig.objects.batch_update(space_id=space.id, configs=config)
+            default_config.update(config)
+        SpaceConfig.objects.batch_update(space_id=space.id, configs=default_config)
 
     space_config_presentation = get_space_config_presentation(space.id)
     resp = {"space": space.to_json(), "config": space_config_presentation}

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,12 +18,20 @@ to the current version of the project delivered to anyone in the future.
 """
 from django.utils.translation import ugettext_lazy as _
 
-from bkflow.space.credential.bkapp import BkAppCredential
+from bkflow.space.credential.basic_auth import BasicAuthCredential
+from bkflow.space.credential.bk_access_token import BkAccessTokenCredential
+from bkflow.space.credential.bk_app import BkAppCredential
+from bkflow.space.credential.custom import CustomCredential
 from bkflow.space.exceptions import CredentialTypeNotSupport
 
 
 class CredentialDispatcher:
-    CREDENTIAL_MAP = {"BK_APP": BkAppCredential}
+    CREDENTIAL_MAP = {
+        "BK_APP": BkAppCredential,
+        "BK_ACCESS_TOKEN": BkAccessTokenCredential,
+        "BASIC_AUTH": BasicAuthCredential,
+        "CUSTOM": CustomCredential,
+    }
 
     def __init__(self, credential_type, data):
         credential_cls = self.CREDENTIAL_MAP.get(credential_type)

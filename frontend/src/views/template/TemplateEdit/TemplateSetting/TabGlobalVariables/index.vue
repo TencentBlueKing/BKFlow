@@ -230,7 +230,7 @@
         :common="common"
         :is-view-mode="isViewMode"
         :constants="constants"
-        :templateId="templateId"
+        :template-id="templateId"
         @setNewCloneKeys="setNewCloneKeys"
         @closeEditingPanel="closeEditingPanel"
         @onSaveEditing="onSaveEditing" />

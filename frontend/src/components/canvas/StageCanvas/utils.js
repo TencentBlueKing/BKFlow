@@ -231,6 +231,23 @@ const getDefaultActivitie = (id = `node${uuid()}`) => ({
     action: 'forced_fail',
   },
 });
+const getDefaultSubProcessActivitie = (id = `node${uuid()}`) => ({
+  constants: {},
+  hooked_constants: [],
+  id,
+  incoming: [],
+  loop: null,
+  name: '',
+  optional: true,
+  outgoing: '',
+  stage_name: '',
+  type: 'SubProcess',
+  retryable: true,
+  skippable: true,
+  always_use_latest: false,
+  scheme_id_list: [],
+  template_source: 'business',
+});
 function isKeyFormat(str) {
   return /\$\{[^{}]+\}/.test(str);
 }
@@ -383,7 +400,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   stage_canvas_data: [],
   constants: {},
 }) => {
-  const { activities, stage_canvas_data: stageCanvasData, location, constants } = cloneDeepWith(pipelineTree);
+  const { activities = {}, stage_canvas_data: stageCanvasData = [], location, constants = {}, outputs = [] } = cloneDeepWith(pipelineTree);
   const startPointLocation = {
     id: `node${uuid()}`,
     type: 'startpoint',
@@ -405,6 +422,7 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
     start_event: {},
     canvas_mode: 'stage',
     constants: {},
+    outputs: [],
   };
 
   newPipelineTree.location.push(startPointLocation, endPointLocation);
@@ -517,7 +535,9 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
           target: node.id,
           is_default: false,
         };
-        newPipelineTree.activities[node.id] = activities[node.id] || getDefaultActivitie(node.id);
+
+        const stepNodeType = node.option?.nodeType || 'Node';
+        newPipelineTree.activities[node.id] =  activities[node.id] || (stepNodeType === 'Node' ? getDefaultActivitie(node.id) : getDefaultSubProcessActivitie(node.id));
         newPipelineTree.activities[node.id].incoming = []; // 清空旧连线数据
         newPipelineTree.activities[node.id].outgoing = '';
         newPipelineTree.activities[node.id].incoming.push(newNodeLine.id);
@@ -567,12 +587,24 @@ export const generatePplTreeByCurrentStageCanvasData = (pipelineTree = {
   const activitieIds = Object.keys(newPipelineTree.activities);
   // 遍历全部变量，将变量中source节点被删除的变量删除
   Object.keys(constants).forEach((key) => {
-    const sourceId = Object.keys(constants[key].source_info)[0];
-    if (sourceId && !activitieIds.includes(sourceId)) {
-      delete constants[key].source_info[sourceId];
-    }
+    // 获取所有引用节点
+    const sourceIds = Object.keys(constants[key].source_info);
+    sourceIds.forEach((sourceId) => {
+      // 如果节点被删除，则删除变量
+      if (!activitieIds.includes(sourceId)) {
+        delete constants[key].source_info[sourceId];
+        if (Object.keys(constants[key].source_info).length === 0) {
+          delete constants[key];
+          // 如果变量被删除，则删除输出
+          if (outputs.includes(key)) {
+            outputs.splice(outputs.indexOf(key), 1);
+          }
+        }
+      }
+    });
   });
   newPipelineTree.constants = { ...constants };
+  newPipelineTree.outputs = [...outputs];
   return newPipelineTree;
 };
 

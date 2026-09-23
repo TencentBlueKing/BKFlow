@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -20,14 +19,16 @@ to the current version of the project delivered to anyone in the future.
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
+from django.db import transaction
+from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.constants import RecordType, TemplateOperationSource, TemplateOperationType
-from bkflow.contrib.operation_record.decorators import record_operation
-from bkflow.template.models import Template
+from bkflow.decision_table.models import DecisionTable
+from bkflow.template.models import Template, TemplateReference, Trigger
 from bkflow.utils import err_code
+from bkflow.utils.webhook import clear_scope_webhooks
 
 
 @login_exempt
@@ -36,12 +37,31 @@ from bkflow.utils import err_code
 @apigw_require
 @check_jwt_and_space
 @return_json_response
-@record_operation(
-    RecordType.template.name,
-    TemplateOperationType.delete.name,
-    TemplateOperationSource.api.name,
-    extra_info={"tag": "apigw"},
-)
 def delete_template(request, space_id, template_id):
-    count, _ = Template.objects.filter(space_id=space_id, id=template_id).delete()
-    return {"result": True, "data": {"count": count}, "code": err_code.SUCCESS.code}
+    failed_data = {}
+    decision_templates = DecisionTable.objects.filter(space_id=space_id, template_id=template_id, is_deleted=False)
+    template_references = TemplateReference.objects.filter(subprocess_template_id=template_id)
+
+    if decision_templates.exists():
+        failed_data["decision_templates"] = list(decision_templates.values_list("id", flat=True))
+    if template_references.exists():
+        failed_data["parent_templates"] = list(template_references.values_list("root_template_id", flat=True))
+    # 如果存在任何引用，返回错误信息
+    if failed_data:
+        return {
+            "result": False,
+            "data": failed_data,
+            "code": err_code.VALIDATION_ERROR.code,
+            "message": _("模板被引用，无法删除"),
+        }
+
+    # 如果没有引用，执行删除操作，统一事务控制
+    with transaction.atomic():
+        Template.objects.filter(space_id=space_id, id=template_id).update(is_deleted=True)
+        trigger_ids = Trigger.objects.filter(template_id=template_id).values_list("id", flat=True)
+        Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
+        result = clear_scope_webhooks([str(template_id)])
+        if not result.get("result"):
+            raise Exception(result.get("message", "Failed to clear webhooks"))
+
+    return {"result": True, "data": {}, "code": err_code.SUCCESS.code}

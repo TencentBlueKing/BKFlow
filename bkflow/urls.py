@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -41,8 +40,17 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         url(r"^api/permission/", include("bkflow.permission.urls")),
         url(r"^api/plugin_query/", include("bkflow.pipeline_plugins.query.urls")),
         url(r"^api/plugin_service/", include("plugin_service.urls")),
+        url(r"^api/api_plugin_demo/", include("bkflow.api_plugin_demo.urls")),
+        url(r"^api/statistics/", include("bkflow.statistics.urls")),
+        *(
+            [url(r"^bkvision/", include("django_bkvision.urls"))]
+            if "django_bkvision" in settings.INSTALLED_APPS
+            else []
+        ),
+        url(r"^api/label/", include("bkflow.label.urls")),
         url(r"^notice/", include("bk_notice_sdk.urls")),
         url(r"^version_log/", include("version_log.urls", namespace="version_log")),
+        url(r"^api/variable/", include("bkflow.variable_manager.urls")),
     ]
 elif settings.BKFLOW_MODULE.type == BKFLOWModuleType.engine:
     engine_admin_actions = [

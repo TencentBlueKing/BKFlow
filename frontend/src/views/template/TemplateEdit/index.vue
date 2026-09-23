@@ -34,25 +34,46 @@
         :is-preview-mode="isPreviewMode"
         :exclude-node="excludeNode"
         :execute-scheme-saving="executeSchemeSaving"
+        :lasted-pipeline-tree="lastedPipelineTree"
+        :comp-version="compVersion"
+        :tpl-snapshot-id="tplSnapshotId"
+        :latested-version="latestedVersion"
+        :is-enable-version-manage="isEnableVersionManage"
+        :tpl-info-and-var-change="tplInfoAndVarChange"
         @jumpToTemplateMock="jumpToTemplateMock"
         @goBackViewMode="goBackViewMode"
         @goBackToTplEdit="goBackToTplEdit"
         @onClosePreview="onClosePreview"
         @onOpenExecuteScheme="onOpenExecuteScheme"
         @onChangePanel="onChangeSettingPanel"
-        @onSaveTemplate="onSaveTemplate" />
+        @onSaveTemplate="onSaveTemplate"
+        @viewAllVerison="onViewAllVerison"
+        @selectVersionChange="onSelectVersionChange"
+        @rollbackVersion="onRollbackVersion"
+        @publishTemplate="onPublishTemplate"
+        @editTemplate="onEditTemplate" />
       <template v-if="isEditProcessPage">
+        <!-- 子流程更新提示 -->
+        <SubflowUpdateTips
+          v-if="subflowShouldUpdated.length > 0"
+          class="update-tips"
+          :list="subflowShouldUpdated"
+          :locations="locations"
+          :is-view-mode="isViewMode"
+          @viewClick="viewUpdatedNode"
+          @foldClick="clearDotAnimation" />
         <component
           :is="templateComponentName"
           ref="processCanvas"
-          :key="isViewMode"
+          :key="`${isViewMode}-${isChangeTplVersionTime}-${isNeedToProhibitEdit}`"
           class="canvas-comp-wrapper"
-          :editable="!isViewMode"
-          :show-palette="!isViewMode"
+          :editable="isViewMode ? false : !isNeedToProhibitEdit"
+          :show-palette="isViewMode ? false : !isNeedToProhibitEdit"
           :canvas-data="canvasData"
           :node-variable-info="nodeVariableInfo"
           :template-id="templateId"
           :space-id="spaceId"
+          :space-related-config="spaceRelatedConfig"
           @onLineChange="onLineChange"
           @onLocationChange="onLocationChange"
           @onLocationMoveDone="onLocationMoveDone"
@@ -61,13 +82,15 @@
           @templateDataChanged="templateDataChanged"
           @onConditionClick="onOpenConditionEdit"
           @onShowNodeConfig="onShowNodeConfig"
-          @updateCondition="setBranchCondition($event)" />
+          @updateCondition="setBranchCondition($event)"
+          @onShowLoopVariables="onShowLoopVariables"
+          @onLoopGroupResizeEnd="onLoopGroupResizeEnd" />
       </template>
       <div class="side-content">
         <node-config
           v-if="isNodeConfigPanelShow"
           ref="nodeConfig"
-          :is-view-mode="isViewMode"
+          :is-view-mode="isViewMode || isNeedToProhibitEdit"
           :is-show="isNodeConfigPanelShow"
           :atom-list="atomList"
           :atom-type-list="atomTypeList"
@@ -77,24 +100,39 @@
           :back-to-variable-panel="backToVariablePanel"
           :is-not-exist-atom-or-version="isNotExistAtomOrVersion"
           :space-related-config="spaceRelatedConfig"
+          :is-enable-version-manage="isEnableVersionManage"
+          :is-plugin-scope-hidden="isPluginScopeHidden"
           @globalVariableUpdate="globalVariableUpdate"
           @updateNodeInfo="onUpdateNodeInfo"
           @templateDataChanged="templateDataChanged"
-          @close="closeConfigPanel" />
+          @close="closeConfigPanel"
+          @viewAllSubflowVerison="viewAllSubflowVerison"
+          @closeSubflowVersionPanel="closeSubflowVersionPanel" />
+        <loop-global-variables
+          v-if="isLoopVariablePanelShow"
+          :loop-node-id="loopNodeIdForVariables"
+          :is-view-mode="isViewMode"
+          @close="isLoopVariablePanelShow = false"
+          @updateVariable="onUpdateLoopVariable"
+          @addVariable="onAddLoopVariable"
+          @deleteVariable="onDeleteLoopVariable"
+          @onChangeVariableOutput="onChangeLoopVariableOutput"
+          @onLoopVariableCitedNodeClick="onLoopVariableCitedNodeClick" />
         <condition-edit
           v-if="isShowConditionEdit"
           ref="conditionEdit"
           :is-show="isShowConditionEdit"
-          :is-readonly="isViewMode"
-          :gateways="gateways"
+          :is-readonly="isViewMode || isNeedToProhibitEdit"
+          :gateways="conditionEditGateways"
           :condition-data="conditionData"
+          :loop-node-id="conditionEditLoopNodeId"
           :back-to-variable-panel="backToVariablePanel"
           :space-related-config="spaceRelatedConfig"
           @onBeforeClose="onBeforeClose"
           @updateCanvasCondition="updateCanvasCondition"
           @close="onCloseConfigPanel" />
         <template-setting
-          :is-view-mode="isViewMode"
+          :is-view-mode="isViewMode || isNeedToProhibitEdit"
           :project-info-loading="projectInfoLoading"
           :template-label-loading="templateLabelLoading"
           :template-labels="templateLabels"
@@ -108,8 +146,20 @@
           @modifyTemplateData="modifyTemplateData"
           @createSnapshoot="onCreateSnapshoot"
           @useSnapshoot="onUseSnapshoot"
-          @updateTemplateLabelList="getTemplateLabelList"
           @updateSnapshoot="onUpdateSnapshoot" />
+        <!-- :is-show="isShowVersionList" -->
+        <version-list
+          v-if="isShowVersionList"
+          ref="versionList"
+          :is-view-mode="isViewMode"
+          :sub-template-id="subTemplateId"
+          :tpl-snapshot-id="tplSnapshotId"
+          :space-id="spaceId"
+          :is-subflow-node-config="isSubflowNodeConfig"
+          @refreshVersionList="onRefreshVersionList"
+          @close="onCloseVersionListPanel"
+          @rollbackVersion="onRollbackVersion"
+          @editVersionListItem="onEditVersionListItem" />
       </div>
       <bk-dialog
         width="400"
@@ -174,6 +224,7 @@
   </div>
 </template>
 <script>
+  import nodeDoubleClickGuideUrl from '@/assets/images/node-double-click-guide.gif';
   import i18n from '@/config/i18n/index.js';
   import { mapState, mapGetters, mapActions, mapMutations } from 'vuex';
   // moment用于时区使用
@@ -191,13 +242,17 @@
   import Guide from '@/utils/guide.js';
   import permission from '@/mixins/permission.js';
   import { STRING_LENGTH } from '@/constants/index.js';
+  import { NODES_SIZE_POSITION } from '@/constants/nodes.js';
   import DealVarDirtyData from '@/utils/dealVarDirtyData.js';
   import { graphToJson, generateGraphData } from '@/utils/graphJson.js';
   import VerticalCanvas from '@/components/canvas/VerticalCanvas/index.vue';
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
-  import StageCanvas from '@/components/canvas/StageCanvas/index.vue';
+  import StageCanvas from '@/components/canvas/StageCanvas/MainStageCanvas.vue';
+  import VersionList from './VersionList.vue';
   import bus from '@/utils/bus.js';
-import { cloneDeepWith } from 'lodash';
+  import SubflowUpdateTips from './SubflowUpdateTips.vue';
+  import LoopGlobalVariables from './NodeConfig/LoopGlobalVariables.vue';
+  import { cloneDeepWith } from 'lodash';
 
   export default {
     name: 'TemplateEdit',
@@ -207,11 +262,13 @@ import { cloneDeepWith } from 'lodash';
       NodeConfig,
       ConditionEdit,
       TemplateSetting,
-      // SubflowUpdateTips,
+      SubflowUpdateTips,
       // BatchUpdateDialog,
       VerticalCanvas,
       ProcessCanvas,
       StageCanvas,
+      VersionList,
+      LoopGlobalVariables,
     },
     mixins: [permission],
     props: {
@@ -256,6 +313,7 @@ import { cloneDeepWith } from 'lodash';
         isNodeConfigPanelShow: false, // 右侧模板是否展开
         isSelectorPanelShow: false, // 右侧子流程模板是否展开
         isLeaveDialogShow: false,
+        isShowVersionList: false, // 是否展开右侧版本列表
         activeSettingTab: '',
         allowLeave: false,
         leaveToPath: '',
@@ -265,6 +323,7 @@ import { cloneDeepWith } from 'lodash';
           tasknode: [],
           subflow: [],
         },
+        constructedSubprocessInfo: null, // 非最新已发布版本时，从对应版本的 pipeline_tree 构造的 subprocess_info
         thirdPartyList: {},
         apiExistMap: {}, // api插件是否存在
         snapshoots: [],
@@ -286,7 +345,7 @@ import { cloneDeepWith } from 'lodash';
           arrow: true,
           img: {
             height: 112,
-            url: require('@/assets/images/node-double-click-guide.gif'),
+            url: nodeDoubleClickGuideUrl,
           },
           text: [
             {
@@ -318,6 +377,25 @@ import { cloneDeepWith } from 'lodash';
         tplSpaceId: '', // 模板对应的空间id
         spaceRelatedConfig: {}, // 空间相关配置
         templateMocking: false,
+        isSubflowNeedToUpdate: false,
+        isSubflowNodeConfig: false,
+        lastedPipelineTree: {},
+        subTemplateId: '',
+        tplSnapshotId: '', // 最新版本id
+        isChangeTplVersionTime: '',
+        latestedVersion: '', // 最新版本
+        isNeedToProhibitEdit: false,
+        isEnableVersionManage: false,
+        isPluginScopeHidden: false, // 空间插件配置白名单模式时隐藏第三方/API插件
+        tplInfoAndVarChange: false, // 全局变量和基础信息发生变化
+        isAtPublish: false,
+        draftInfo: {},
+        isManualVersionChange: true,
+        // 循环流全局变量面板
+        isLoopVariablePanelShow: false,
+        loopNodeIdForVariables: '', // 当前打开全局变量面板的循环流节点ID
+        conditionEditGateways: {}, // 条件编辑面板使用的gateways（支持循环流内部）
+        conditionEditLoopNodeId: '',  // 条件编辑面板所属循环流节点ID（若在循环流内部）
       };
     },
     computed: {
@@ -352,18 +430,20 @@ import { cloneDeepWith } from 'lodash';
           const pipelineTree = this.getPipelineTree();
           return generateGraphData(pipelineTree);
         }
-
         const locations = this.locations.map((location) => {
+          // 节点校验失败列表
           this.validateConnectFailList = [...new Set(this.validateConnectFailList)];
           const status = this.validateConnectFailList.includes(location.id) ? 'FAILED' : '';
-
           const data = { ...location, mode: 'edit', status };
+          // 未开启版本管理直接取 store；开启后仅最新已发布版本用 store，其余从 pipeline_tree 构造
+          const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
+            ? this.subprocess_info
+            : this.constructedSubprocessInfo;
           if (
-            this.subprocess_info
-            && this.subprocess_info.details
+            subprocessInfo
             && location.type === 'subflow'
           ) {
-            this.subprocess_info.details.some((subflow) => {
+            subprocessInfo.some((subflow) => {
               if (subflow.subprocess_node_id === location.id) {
                 data.hasUpdated = subflow.expired;
                 return true;
@@ -381,19 +461,24 @@ import { cloneDeepWith } from 'lodash';
         });
       },
       subflowShouldUpdated() {
-        if (this.subprocess_info) {
-          return this.subprocess_info.details.reduce((acc, cur) => {
+        // 未开启版本管理直接取 store；开启后仅最新已发布版本用 store，其余从 pipeline_tree 构造
+        const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
+          ? this.subprocess_info
+          : this.constructedSubprocessInfo;
+        if (subprocessInfo) {
+          const subflowShouldUpdateList = subprocessInfo.reduce((acc, cur) => {
             const nodeId = cur.subprocess_node_id;
             if (!this.activities[nodeId]) {
               return acc;
             }
-            const { scheme_id_list: schemeIdList = [] } = this.activities[nodeId];
+            // const { scheme_id_list: schemeIdList = [] } = this.activities[nodeId];
             acc.push({
               ...cur,
-              scheme_id_list: schemeIdList,
+              // scheme_id_list: schemeIdList,
             });
             return acc;
           }, []);
+          return subflowShouldUpdateList;
         }
         return [];
       },
@@ -444,7 +529,7 @@ import { cloneDeepWith } from 'lodash';
       this.initType = this.type;
       this.initData();
     },
-    mounted() {
+    async mounted() {
       this.openSnapshootTimer();
       window.addEventListener('beforeunload', this.handleBeforeUnload, false);
       window.addEventListener('unload', this.handleUnload.bind(this), false);
@@ -471,11 +556,16 @@ import { cloneDeepWith } from 'lodash';
       ...mapActions('template/', [
         'loadProjectBaseInfo',
         'loadTemplateData',
+        'batchGetTemplateVersion',
         'saveTemplateData',
+        'getLayoutedPipeline',
         'loadInternalVariable',
         'getVariableCite',
         'loadUniformApiMeta',
         'loadSpaceRelatedConfig',
+        'getDraftVersionData',
+        'gerTemplatePreviewData',
+        'getTemplateVersionSnapshotList',
       ]),
       ...mapActions('task', [
         'loadSubflowConfig',
@@ -488,12 +578,18 @@ import { cloneDeepWith } from 'lodash';
       ...mapActions('project/', [
         'getProjectLabelsWithDefault',
       ]),
+      ...mapActions('spaceConfig/', [
+        'getNotAuthSpaceConfig',
+        'checkSpaceConfig',
+        'getSpacePluginConfig',
+      ]),
       ...mapMutations('template/', [
         'initTemplateData',
         'resetTemplateData',
         'setProjectBaseInfo',
         'setTemplateName',
         'setTemplateData',
+        'setInnerLocation',
         'setLocation',
         'setLocationXY',
         'setLine',
@@ -507,6 +603,11 @@ import { cloneDeepWith } from 'lodash';
         'setPipelineTree',
         'setInternalVariable',
         'setConstants',
+        'editLoopInnerVariable',
+        'addLoopInnerVariable',
+        'deleteLoopInnerVariable',
+        'setLoopInnerVariableOutput',
+        'setLoopInnerConstants',
       ]),
       ...mapMutations('atomForm/', [
         'clearAtomForm',
@@ -522,6 +623,114 @@ import { cloneDeepWith } from 'lodash';
         'loadTaskScheme',
         'saveTaskSchemList',
       ]),
+      async getDraftPipelineTree(isNeedRefresh = false) {
+        const draftTplData = await this.getDraftVersionData({
+            templateId: this.templateId,
+            common: this.common,
+            space_id: this.spaceId,
+        });
+        const { pipeline_tree: pipelineTree, ...draftInfo } = draftTplData.data;
+        if (isNeedRefresh) {
+          this.onRefreshVersionList(draftInfo);
+        }
+        this.lastedPipelineTree = tools.deepClone(pipelineTree);
+        this.compVersion = null;
+        this.setPipelineTree(draftTplData.data.pipeline_tree);
+        this.isChangeTplVersionTime = new Date().getTime();
+        // 草稿版本需要构造 subprocess_info
+        this.buildSubprocessInfoFromTree(pipelineTree);
+      },
+      /**
+       * 查询每个子流程模板的最新版本和名称，构造 subprocess_info 数组
+       */
+      async buildSubprocessInfoFromTree(pipelineTree) {
+        if (!pipelineTree || !pipelineTree.activities) {
+          this.constructedSubprocessInfo = [];
+          return;
+        }
+        const { activities } = pipelineTree;
+        const subProcessNodes = Object.values(activities)
+          .filter(act => act.type === 'SubProcess' && act.template_id);
+        if (subProcessNodes.length === 0) {
+          this.constructedSubprocessInfo = [];
+          return;
+        }
+        const uniqueTemplateIds = [...new Set(subProcessNodes.map(n => n.template_id))];
+        const templateDataMap = {};
+        try {
+          const res = await this.batchGetTemplateVersion({
+            templateIds: uniqueTemplateIds.join(','),
+          });
+          if (res.result) {
+            res.data.forEach((item) => {
+              templateDataMap[item.template_id] = {
+                name: item.name,
+                version: item.version,
+              };
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+        // 构造 subprocess_info
+        this.constructedSubprocessInfo = subProcessNodes.map((node) => {
+          const tplData = templateDataMap[node.template_id] || {};
+          const latestVersion = tplData.version || '';
+          return {
+            subprocess_template_id: String(node.template_id),
+            subprocess_node_id: node.id,
+            version: node.version || '',
+            always_use_latest: node.always_use_latest || false,
+            expired: latestVersion ? node.version !== latestVersion : false,
+            subprocess_template_name: tplData.name || '',
+          };
+        });
+        // 同步画布节点的小红点状态
+        this.syncCanvasSubflowHasUpdated();
+      },
+      /**
+       * 根据当前有效的 subprocess_info 更新画布上子流程节点的小红点 (hasUpdated)
+       */
+      syncCanvasSubflowHasUpdated() {
+        const { processCanvas } = this.$refs;
+        if (!processCanvas) return;
+        const subprocessInfo = (!this.isEnableVersionManage || this.compVersion === this.latestedVersion)
+          ? this.subprocess_info
+          : this.constructedSubprocessInfo;
+        if (!subprocessInfo) return;
+        subprocessInfo.forEach((item) => {
+          processCanvas.onUpdateNodeInfo(item.subprocess_node_id, { hasUpdated: item.expired });
+        });
+      },
+      // 判断是否开启版本管理
+      async checkoutSpace(spaceId) {
+        try {
+          const res = await this.getNotAuthSpaceConfig();
+          if (!res.data.flow_versioning || !spaceId) {
+            this.isEnableVersionManage = false;
+            return;
+          }
+          const { name } = res.data.flow_versioning;
+          const result = await this.checkSpaceConfig({ id: spaceId, name });
+          this.isEnableVersionManage = result.data.value === 'true';
+        } catch (error) {
+          this.isEnableVersionManage = false;
+        }
+      },
+      // 判断空间插件配置是否为白名单模式
+      async checkPluginScope(spaceId) {
+        try {
+          if (!spaceId) {
+            this.isPluginScopeHidden = false;
+            return;
+          }
+          const resp = await this.getSpacePluginConfig({ space_id: spaceId, config_name: 'space_plugin_config' });
+          const defaultConfig = resp?.data?.value?.default || {};
+          this.isPluginScopeHidden = defaultConfig.mode === 'allow_list';
+        } catch (error) {
+          this.isPluginScopeHidden = false;
+        }
+      },
       // 轮询更新token
       pollingToken() {
         this.pollingTimer = setTimeout(async () => {
@@ -537,7 +746,9 @@ import { cloneDeepWith } from 'lodash';
         this.templateDataLoading = true;
         if (['edit', 'clone', 'view'].includes(this.type)) {
           await this.getTemplateData();
+          // 加载标准插件列表
           this.getSingleAtomList();
+          // 获取快照列表
           this.snapshoots = this.getTplSnapshoots();
         } else {
           let name = `new${moment.tz(this.timeZone).format('YYYYMMDDHHmmss')}`;
@@ -570,6 +781,9 @@ import { cloneDeepWith } from 'lodash';
           // 内置插件
           const atomList = [];
           data.forEach((item) => {
+            if (['subcanvas_plugin', 'subprocess_plugin'].includes(item.code)) {
+              return;
+            }
             const atom = atomList.find(atom => atom.code === item.code);
             if (atom) {
               atom.list.push(item);
@@ -619,14 +833,34 @@ import { cloneDeepWith } from 'lodash';
             common: this.common,
           };
           const templateData = await this.loadTemplateData(data);
+          await this.checkoutSpace(templateData.space_id);
+          this.checkPluginScope(templateData.space_id);
+          this.lastedPipelineTree = tools.deepClone(templateData.pipeline_tree);
+          // 保存最新版本的流程树数据
           this.tplActions = templateData.auth;
           if (this.type === 'clone') {
             templateData.name = `${templateData.name.slice(0, STRING_LENGTH.TEMPLATE_NAME_MAX_LENGTH - 6)}_clone`;
           }
-          this.compVersion = templateData.version;
+          this.latestedVersion = templateData.version;
           this.tplSpaceId = templateData.space_id;
+          this.tplSnapshotId = templateData.snapshot_id;
           this.setTemplateData(templateData);
           this.setSpaceId(templateData.space_id);
+          if (this.$route.params.isVersionManageQuitMock) {
+            this.getDraftPipelineTree();
+            return;
+          }
+          if (this.isEnableVersionManage) {
+            const res = await this.getTemplateVersionSnapshotList({ template_id: this.templateId, space_id: this.spaceId });
+            const isHaveDraft = res.data.results?.some(item => item.draft) ?? false;
+            if (isHaveDraft) {
+              this.getDraftPipelineTree();
+              return;
+            }
+            this.compVersion = templateData.version;
+          } else {
+            this.compVersion = templateData.version;
+          }
         } catch (e) {
           if (e.status === 404) {
             this.$router.push({ name: 'notFoundPage' });
@@ -722,17 +956,17 @@ import { cloneDeepWith } from 'lodash';
       /**
        * 加载模板标签列表
        */
-      async getTemplateLabelList() {
-        try {
-          this.templateLabelLoading = true;
-          const res = await this.getProjectLabelsWithDefault(this.projectId);
-          this.templateLabels = res.data;
-        } catch (e) {
-          console.log(e);
-        } finally {
-          this.templateLabelLoading = false;
-        }
-      },
+    //   async getTemplateLabelList() {
+    //     try {
+    //       this.templateLabelLoading = true;
+    //       const res = await this.getProjectLabelsWithDefault(this.projectId);
+    //       this.templateLabels = res.data;
+    //     } catch (e) {
+    //       console.log(e);
+    //     } finally {
+    //       this.templateLabelLoading = false;
+    //     }
+    //   },
       checkDirtyData() {
         const ins = new DealVarDirtyData(this.constants);
         const illegalKeys = ins.checkKeys();
@@ -764,6 +998,28 @@ import { cloneDeepWith } from 'lodash';
         }
         return false;
       },
+      // 处理保存后的页面跳转逻辑
+      handleSaveRedirect(templateId) {
+        // 如果开启版本管理，直接刷新草稿数据
+        if (this.isEnableVersionManage) {
+          this.getDraftPipelineTree();
+          return;
+        }
+        // 保存后需要切到查看模式(查看执行方案时不需要)
+        if (this.initType === 'view') {
+          // 从查看模式进入编辑，保存后返回上一页
+          this.$router.back();
+          this.initData();
+        } else {
+          // 从编辑模式保存，跳转到查看模式
+          this.$router.replace({
+            name: 'templatePanel',
+            params: { type: 'view' },
+            query: Object.assign({ templateId }, this.$route.query),
+          });
+          this.initType = 'view';
+        }
+      },
       /**
        * 保存流程模板
        */
@@ -791,6 +1047,8 @@ import { cloneDeepWith } from 'lodash';
               this.$bkMessage({
                 message: resp.message,
                 theme: 'error',
+                ellipsisLine: 2,
+                ellipsisCopy: true,
                 delay: 10000,
               });
               this.isParallelGwErrorMsg = resp.message;
@@ -807,6 +1065,7 @@ import { cloneDeepWith } from 'lodash';
             message: i18n.t('保存成功'),
             theme: 'success',
           });
+          this.tplInfoAndVarChange = false;
           this.isTemplateDataChanged = false;
           // 如果为克隆模式保存模板时需要保存执行方案
           if (this.type === 'clone' && !this.common) {
@@ -848,19 +1107,11 @@ import { cloneDeepWith } from 'lodash';
               query: Object.assign({}, this.$router.query),
             });
           } else if (this.createTaskSaving) {
+            // 保存并创建任务，跳转到任务创建页面
             this.goToTaskUrl(data.id);
-          } else { // 保存后需要切到查看模式(查看执行方案时不需要)
-            if (this.initType === 'view') {
-              this.$router.back();
-              this.initData();
-            } else {
-              this.$router.replace({
-                name: 'templatePanel',
-                params: { type: 'view' },
-                query: Object.assign({ templateId: data.id }, this.$route.query),
-              });
-              this.initType = 'view';
-            }
+          } else {
+            // 普通保存，处理页面跳转逻辑
+            this.handleSaveRedirect(data.id);
           }
         } catch (e) {
           console.log(e);
@@ -1014,8 +1265,11 @@ import { cloneDeepWith } from 'lodash';
       /**
        * 设置流程模板为修改状态
        */
-      templateDataChanged() {
+      templateDataChanged(changeLocation = '') {
         this.isTemplateDataChanged = true;
+        if (['tabTemplateConfig', 'tabGlobalVariables'].includes(changeLocation)) {
+          this.tplInfoAndVarChange = true;
+        }
       },
       /**
        * 任务节点校验
@@ -1041,6 +1295,11 @@ import { cloneDeepWith } from 'lodash';
             } else {
               isNodeValid = false; // 节点标准插件类型为空
             }
+          } else if (node.type === 'SubCanvas') {
+            // 循环容器节点：不需要 template_id，仅校验名称
+            if (!node.name) {
+              isNodeValid = false;
+            }
           } else { // @todo 子流程节点只校验名称和模板id，输入参数未校验
             if (!node.name || node.template_id === undefined) {
               isNodeValid = false;
@@ -1064,6 +1323,8 @@ import { cloneDeepWith } from 'lodash';
           this.$bkMessage({
             message,
             theme: 'error',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
         }
@@ -1200,12 +1461,50 @@ import { cloneDeepWith } from 'lodash';
         });
       },
       /**
+       * 查找节点location
+       */
+      getLocationById(id) {
+        let loc = this.locations.find(item => item.id === id);
+        if (loc) return loc;
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.location) continue;
+          loc = act.pipeline.location.find(item => item.id === id);
+          if (loc) return loc;
+        }
+        return undefined;
+      },
+      /**
+       * 判断节点是否在循环分组内
+       */
+      isNodeInLoopGroup(id) {
+        if (this.locations.some(item => item.id === id)) return false;
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.location) continue;
+          if (act.pipeline.location.some(item => item.id === id)) return true;
+        }
+        return false;
+      },
+      /**
+       * 查找activity数据
+       */
+      getActivityById(id) {
+        if (this.activities[id]) return this.activities[id];
+        const activitiesList = Object.values(this.activities);
+        for (const act of activitiesList) {
+          if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.activities) continue;
+          if (act.pipeline.activities[id]) return act.pipeline.activities[id];
+        }
+        return undefined;
+      },
+      /**
        * 打开节点配置面板
        */
       async onShowNodeConfig(id) {
         // 判断节点配置的插件是否存在
-        const nodeConfig = this.$store.state.template.activities[id];
-        const isDefaultPlugin = !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code);
+        const nodeConfig = this.getActivityById(id);
+        const isDefaultPlugin = nodeConfig && nodeConfig.component ? !['remote_plugin', 'uniform_api'].includes(nodeConfig.component.code) : true ;
         if (nodeConfig && nodeConfig.type === 'ServiceActivity' && nodeConfig.name && isDefaultPlugin) {
           let atom = true;
           atom = this.atomList.find(item => item.code === nodeConfig.component.code);
@@ -1222,10 +1521,12 @@ import { cloneDeepWith } from 'lodash';
         if (index > -1) {
           this.validateConnectFailList.splice(index, 1);
         }
-        const location = this.locations.find(item => item.id === id);
-        if (['tasknode', 'subflow'].includes(location.type)) {
-          // 设置第三发插件缓存
-          const nodeConfig = this.$store.state.template.activities[id];
+        // 获取节点信息
+        const location = this.getLocationById(id);
+        if (location && ['tasknode', 'task', 'subflow', 'SubCanvas'].includes(location.type)) {
+          // 设置第三方插件缓存
+          const nodeConfig = this.getActivityById(id);
+          // 远程插件且未缓存
           if (nodeConfig.component
             && nodeConfig.component.code === 'remote_plugin'
             && !this.thirdPartyList[id]) {
@@ -1257,14 +1558,23 @@ import { cloneDeepWith } from 'lodash';
           // api插件是否存在
           const { code, api_meta, version } = nodeConfig.component || {};
           if (code === 'uniform_api' && !this.apiExistMap[id]) {
+            // eslint-disable-next-line camelcase
+            const { uniform_api_plugin_version: savedPluginVersion } = nodeConfig.component.data || {};
+            const pluginVersion = savedPluginVersion?.value
+              || api_meta.plugin_version
+              || version;
             const resp = await this.loadUniformApiMeta({
               templateId: this.templateId,
               spaceId: this.spaceId,
               meta_url: api_meta.meta_url,
               ...this.scopeInfo,
+              meta_url_template: api_meta.meta_url_template,
+              source_key: api_meta.source_key,
+              version: pluginVersion,
+              api_name: api_meta.api_key,
             });
             if (resp.result) {
-              this.apiExistMap[id] = { code, version };
+              this.apiExistMap[id] = { code, version: pluginVersion };
             }
             this.isNotExistAtomOrVersion = !resp.result;
           }
@@ -1282,47 +1592,104 @@ import { cloneDeepWith } from 'lodash';
       /**
        * 自动排版
        */
-       async onFormatPosition() {
-        try {
-          const pipelineTree = this.getPipelineTree();
-          generateGraphData(pipelineTree);
-
-          this.$nextTick(() => {
-            this.$refs.processCanvas.resetCells();
-            this.$bkMessage({
-              message: this.$t('排版完成，原内容在本地快照中'),
-              theme: 'success',
-            });
+      async onFormatPosition() {
+        const canvasData = {
+          locations: this.locations,
+          activities: this.activities,
+          gateways: this.gateways,
+          start_event: this.start_event,
+          end_event: this.end_event,
+          lines: this.lines,
+        };
+        const validateMessage = validatePipeline.isNodeLineNumValid(canvasData);
+        if (!validateMessage.result) {
+          this.$bkMessage({
+            message: validateMessage.message,
+            theme: 'error',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
+            delay: 10000,
           });
-        } catch (error) {
-          console.warn(error);
+          return;
         }
-       },
+        if (this.canvasDataLoading) {
+          return;
+        }
+        this.canvasDataLoading = true; // @todo 支持画布单独loading
+        try {
+          const { ACTIVITY_SIZE, EVENT_SIZE, GATEWAY_SIZE, START_POSITION } = NODES_SIZE_POSITION;
+          const pipelineTree = this.getPipelineTree();
+          const canvasEl = document.querySelector('.x6-graph');
+          const width = canvasEl.offsetWidth - 200;
+          const res = await this.getLayoutedPipeline({
+            canvas_width: width,
+            pipeline_tree: pipelineTree,
+            activity_size: ACTIVITY_SIZE,
+            event_size: EVENT_SIZE,
+            gateway_size: GATEWAY_SIZE,
+            start: START_POSITION,
+          });
+          if (res.result) {
+            this.setPipelineTree(res.data.pipeline_tree);
+            this.$nextTick(() => {
+              this.$refs.processCanvas.resetCells();
+              this.$bkMessage({
+                message: this.$t('排版完成，原内容在本地快照中'),
+                theme: 'success',
+              });
+            });
+          }
+        } catch (e) {
+          console.log(e);
+        } finally {
+          this.canvasDataLoading = false;
+        }
+      },
       /**
        * 节点变更(添加、删除、编辑)
        * @param {String} changeType 变更类型,添加、删除、编辑
        * @param {Object} location 节点 location 字段
        */
-      async onLocationChange(type, node) {
+      async onLocationChange(type, node, isGroupInner = false, groupParentId = undefined) {
         if (!node) return;
         const { id, data } = node;
+        const typeMap = {
+          task: 'tasknode',
+          subflow: 'subflow',
+          start: 'start',
+          end: 'end',
+          SubCanvas: 'SubCanvas',
+        };
+        const normalizedType = data.type === 'tasknode' ? 'task' : data.type;
         const location = {
           id,
           ...data,
-          type: data.type === 'task' ? 'tasknode' : data.type.split('-').join(''),
+          type: typeMap[normalizedType] ?? normalizedType.split('-').join(''),
           ...node.position(),
+          ...node.size(),
         };
         if (data?.oldSouceId) {
           location.oldSouceId = data.oldSouceId;
         }
+        if (node.getParent()) {
+          location.parent = node.getParent().id;
+        } else if (groupParentId) {
+          // 删除节点时画布已先移除，getParent() 返回 null，使用传入的 groupParentId
+          location.parent = groupParentId;
+        }
         let { apiMeta } = data;
-        this.setLocation({ type, location });
+        // 判断节点是否在循环容器内部
+        const isInLoopGroup = isGroupInner || (location.parent && this.activities[location.parent]?.type === 'SubCanvas');
+        if (!isInLoopGroup) {
+          this.setLocation({ type, location });
+        }
         // 节点编辑时只更新position不更新activities
         if (type === 'edit') return;
-        switch (data.type) {
+        switch (normalizedType) {
           case 'task':
           case 'subflow':
-            location.type = 'tasknode';
+            // 循环容器内的节点由syncLoopGroupInnerNodes写入嵌套pipelineTree
+            if (isInLoopGroup) return;
             // 添加任务节点
             if (type === 'add' && location.atomId) {
               if (location.type === 'tasknode') {
@@ -1333,8 +1700,12 @@ import { cloneDeepWith } from 'lodash';
                     spaceId: this.spaceId,
                     meta_url: apiMeta.meta_url,
                     ...this.scopeInfo,
+                    meta_url_template: apiMeta.meta_url_template,
+                    source_key: apiMeta.source_key,
+                    version: apiMeta.version,
+                    api_name: apiMeta.api_key,
                   });
-                  const { url, methods } = resp.data;
+                  const { url, methods, version, credential_key: credentialKey } = resp.data;
                   const method = methods.length === 1 ? methods[0] : ''; // 请求方法只有一个时，默认选中
                   location.data = {
                     uniform_api_plugin_method: {
@@ -1346,7 +1717,15 @@ import { cloneDeepWith } from 'lodash';
                       value: url,
                     },
                   };
-                  location.version = 'v2.0.0';
+                  // 如果detail meta返回了credential_key，将其组装为uniform_api_plugin_credential_key
+                  if (credentialKey) {
+                    location.data.uniform_api_plugin_credential_key = {
+                      hook: false,
+                      value: credentialKey,
+                    };
+                  }
+                  // 使用meta API返回的version，如果没有则使用默认值
+                  location.version = version || 'v2.0.0';
                   location.api_meta = apiMeta;
                 } else if (location.atomId === 'remote_plugin') {
                   const resp = await this.loadPluginServiceMeta({ plugin_code: location.name });
@@ -1384,15 +1763,95 @@ import { cloneDeepWith } from 'lodash';
           case 'parallel-gateway':
           case 'converge-gateway':
           case 'conditional-parallel-gateway':
+            if (isInLoopGroup) return;
             // 添加语法标识
             location.parseLang = this.spaceRelatedConfig.gateway_expression;
             this.setGateways({ type, location });
             break;
-          case 'startpoint':
-            this.setStartpoint({ type, location });
+          case 'start':
+            if (!isGroupInner) {
+              this.setStartpoint({ type, location });
+            } else {
+              // 循环容器内的开始节点：同步更新对应的 SubCanvas 的 pipeline.start_event
+              const parentId = location.parent;
+              if (parentId && this.activities[parentId] && this.activities[parentId].type === 'SubCanvas') {
+                const loopAct = this.activities[parentId];
+                if (!loopAct.pipeline) {
+                  // 初始化 pipeline
+                  this.setActivities({
+                    type: 'edit',
+                    location: {
+                      ...loopAct,
+                      pipeline: {
+                        activities: {},
+                        constants: {},
+                        flows: {},
+                        gateways: {},
+                        line: [],
+                        location: [],
+                        start_event: {},
+                        end_event: {},
+                        outputs: [],
+                      },
+                    },
+                  });
+                }
+                if (type === 'add') {
+                  loopAct.pipeline.start_event = {
+                    id: location.id,
+                    type: 'EmptyStartEvent',
+                    incoming: '',
+                    outgoing: '',
+                    name: location.name || '',
+                  };
+                } else if (type === 'delete') {
+                  loopAct.pipeline.start_event = {};
+                }
+              }
+            }
             break;
-          case 'endpoint':
-            this.setEndpoint({ type, location });
+          case 'end':
+            if (!isGroupInner) {
+              this.setEndpoint({ type, location });
+            } else {
+              const parentId = location.parent;
+              if (parentId && this.activities[parentId] && this.activities[parentId].type === 'SubCanvas') {
+                const loopAct = this.activities[parentId];
+                if (!loopAct.pipeline) {
+                  this.setActivities({
+                    type: 'edit',
+                    location: {
+                      ...loopAct,
+                      pipeline: {
+                        activities: {},
+                        constants: {},
+                        flows: {},
+                        gateways: {},
+                        line: [],
+                        location: [],
+                        start_event: {},
+                        end_event: {},
+                        outputs: [],
+                      },
+                    },
+                  });
+                }
+                if (type === 'add') {
+                  loopAct.pipeline.end_event = {
+                    id: location.id,
+                    type: 'EmptyEndEvent',
+                    incoming: '',
+                    outgoing: '',
+                    name: location.name || '',
+                  };
+                } else if (type === 'delete') {
+                  loopAct.pipeline.end_event = {};
+                }
+              }
+            }
+            break;
+          case 'SubCanvas':
+            this.setActivities({ type, location });
             break;
         }
         // 异常节点状态处理
@@ -1538,9 +1997,14 @@ import { cloneDeepWith } from 'lodash';
        * 节点位置移动
        */
       onLocationMoveDone(node) {
+        const parent = node.getParent();
+        const position = parent && parent.isNode()
+          ? node.getPosition({ relative: false })
+          : node.position();
+
         this.setLocationXY({
           id: node.id,
-          ...node.position(),
+          ...position,
         });
       },
       /**
@@ -1553,17 +2017,55 @@ import { cloneDeepWith } from 'lodash';
        * 更新单个节点的信息
        */
       onUpdateNodeInfo(id, data) {
-        const location = this.locations.find(item => item.id === id);
-        const updatedLocation = Object.assign(location, data);
-        this.setLocation({ type: 'edit', location: updatedLocation });
-        const { name, stage_name, group, icon, code } = location;
+        const location = this.getLocationById(id);
+        if (!location) return;
+        const isInner = this.isNodeInLoopGroup(id);
+        if (isInner) {
+          // 节点在循环分组内，更新 pipeline.location
+          this.setInnerLocation({ nodeId: id, data });
+        } else {
+          const updatedLocation = Object.assign(location, data);
+          this.setLocation({ type: 'edit', location: updatedLocation });
+        }
+        let { name } = location;
+        let stageName = location.stage_name;
+        let displayType = location.type === 'tasknode' ? 'task' : location.type;
+        let displayIcon = location.icon;
+        let displayCode = location.code;
+        let displayGroup = location.group;
+
+        if (isInner) {
+          const act = this.getActivityById(id);
+          if (act) {
+            name = act.name || name;
+            stageName = act.stage_name || stageName;
+            displayType = act.type === 'SubProcess' ? 'subflow' : 'task';
+            if (act.component) {
+              if (act.component.code === 'remote_plugin') {
+                displayGroup = location.group_name || act.group_name;
+                displayCode = act.name || act.component.code;
+                displayIcon = location.group_icon || act.group_icon;
+              } else {
+                const atom = this.atomList.find(item => act.component.code === item.code);
+                if (atom) {
+                  displayIcon = atom.group_icon;
+                  displayGroup = atom.group_name;
+                  displayCode = atom.code;
+                }
+              }
+            }
+          }
+        }
+
         this.$refs.processCanvas.onUpdateNodeInfo(id, {
           ...data,
           name,
-          stage_name,
-          group,
-          icon,
-          code,
+          stage_name: stageName,
+          group: displayGroup,
+          icon: displayIcon,
+          code: displayCode,
+          type: displayType,
+          mode: displayType === 'subflow' ? 'subflow' : (location.type || this.type),
         });
       },
       async jumpToTemplateMock() {
@@ -1582,6 +2084,8 @@ import { cloneDeepWith } from 'lodash';
                   name: 'templateMock',
                   params: {
                     templateId: this.templateId,
+                    version: this.compVersion,
+                    isEnableVersionManage: this.isEnableVersionManage,
                   },
                 });
               } catch (error) {
@@ -1596,6 +2100,8 @@ import { cloneDeepWith } from 'lodash';
             name: 'templateMock',
             params: {
               templateId: this.templateId,
+              version: this.compVersion,
+              isEnableVersionManage: this.isEnableVersionManage,
             },
           });
         }
@@ -1692,7 +2198,7 @@ import { cloneDeepWith } from 'lodash';
         });
       },
       // 点击保存模板按钮回调
-      onSaveTemplate(saveAndCreate, pid) {
+      async onSaveTemplate(saveAndCreate, pid) {
         if (this.templateSaving || this.createTaskSaving) {
           return;
         }
@@ -1706,7 +2212,11 @@ import { cloneDeepWith } from 'lodash';
             this.isExecuteSchemeDialog = true;
           }
         } else {
-          this.checkNodeAndSaveTemplate();
+          try {
+            await this.checkNodeAndSaveTemplate();
+          } catch (error) {
+            console.warn(error);
+          }
         }
       },
       // 校验节点配置
@@ -1720,6 +2230,21 @@ import { cloneDeepWith } from 'lodash';
           end_event: this.end_event,
           lines: this.lines,
         };
+        // 校验节点是否被循环容器遮挡
+        const overlapResult = validatePipeline.isNodeOverlappedBySubCanvas(canvasData);
+        if (!overlapResult.result) {
+          this.validateConnectFailList = overlapResult.errorId || [];
+          this.$bkMessage({
+            message: overlapResult.message,
+            theme: 'error',
+            ellipsisLine: 2,
+            ellipsisCopy: true,
+            delay: 10000,
+          });
+          throw new Error(overlapResult.message);
+        }
+        // 清空因重叠失败记录的节点,避免status 残留
+        this.validateConnectFailList = [];
         const validateMessage = validatePipeline.isNodeLineNumValid(canvasData);
         if (!validateMessage.result) {
           // 获取检验不合格节点
@@ -1739,9 +2264,10 @@ import { cloneDeepWith } from 'lodash';
             message: validateMessage.message,
             theme: 'error',
             ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
-          return;
+          throw new Error(validateMessage.message);
         }
         // 节点配置是否错误
         const nodeWithErrors = document.querySelectorAll('.canvas-node-item .failed');
@@ -1756,24 +2282,26 @@ import { cloneDeepWith } from 'lodash';
             message,
             theme: 'error',
             ellipsisLine: 2,
+            ellipsisCopy: true,
             delay: 10000,
           });
-          return;
+          throw new Error(message);
         }
         const isAllNodeValid = this.validateAtomNode();
-        if (isAllNodeValid) {
-          if (this.common && this.saveAndCreate && this.pid === undefined) { // 公共流程保存并创建任务，没有选择项目
-            this.$refs.templateHeader.setProjectSelectDialogShow();
-          } else {
-            if (this.isExecuteScheme) {
-              if (this.type === 'clone' || this.isTemplateDataChanged) {
-                this.isExecuteSchemeDialog = true;
-              } else {
-                this.isEditProcessPage = false;
-              }
+        if (!isAllNodeValid) {
+          throw new Error('validateAtomNode failed');
+        }
+        if (this.common && this.saveAndCreate && this.pid === undefined) { // 公共流程保存并创建任务，没有选择项目
+          this.$refs.templateHeader.setProjectSelectDialogShow();
+        } else {
+          if (this.isExecuteScheme) {
+            if (this.type === 'clone' || this.isTemplateDataChanged) {
+              this.isExecuteSchemeDialog = true;
             } else {
-              await this.saveTemplate();
+              this.isEditProcessPage = false;
             }
+          } else {
+            await this.saveTemplate();
           }
         }
       },
@@ -1806,6 +2334,24 @@ import { cloneDeepWith } from 'lodash';
       onOpenConditionEdit(data) {
         this.isShowConditionEdit = true;
         this.conditionData = { ...data };
+        const { nodeId } = data;
+        let gateways = {};
+        let loopNodeId = '';
+        if (this.gateways[nodeId]) {
+          gateways = this.gateways;
+        } else {
+          const activitiesList = Object.values(this.activities);
+          for (const act of activitiesList) {
+            if (act.type !== 'SubCanvas' || !act.pipeline || !act.pipeline.gateways) continue;
+            if (act.pipeline.gateways[nodeId]) {
+              gateways = act.pipeline.gateways;
+              loopNodeId = act.id;
+              break;
+            }
+          }
+        }
+        this.conditionEditGateways = gateways;
+        this.conditionEditLoopNodeId = loopNodeId;
       },
       // 分支条件侧滑点击遮罩事件
       onBeforeClose() {
@@ -1825,7 +2371,7 @@ import { cloneDeepWith } from 'lodash';
       },
       // 更新分支数据
       updateCanvasCondition(data) {
-        // 更新 cavans 页面数据
+        // 更新 canvas 页面数据
         this.$refs.processCanvas.updateConditionCanvasData(data);
       },
       // 流程模板数据编辑更新
@@ -1878,19 +2424,95 @@ import { cloneDeepWith } from 'lodash';
           this.onOpenConditionEdit(conditionData);
         }
       },
+      // 显示循环流全局变量面板
+      onShowLoopVariables(loopNodeId) {
+        const loopNode = this.$store.state.template.activities[loopNodeId];
+        if (!loopNode || loopNode.type !== 'SubCanvas') {
+          return;
+        }
+        this.isLoopVariablePanelShow = true;
+        this.loopNodeIdForVariables = loopNodeId;
+        // 关闭其他面板
+        this.isNodeConfigPanelShow = false;
+        this.isShowConditionEdit = false;
+      },
+      // 循环流容器节点 resize 结束：持久化尺寸到 location 数据
+      onLoopGroupResizeEnd(node) {
+        const { id } = node;
+        const { x, y } = node.position();
+        const { width, height } = node.size();
+        this.setLocationXY({ id, x, y, width, height });
+        this.$emit('templateDataChanged');
+      },
+      // 循环流变量面板引用节点点击回调
+      onLoopVariableCitedNodeClick(data) {
+        const { group, id } = data;
+        // 关闭循环流变量面板
+        this.isLoopVariablePanelShow = false;
+        if (group === 'activities') {
+          // 打开节点配置面板
+          this.showConfigPanel(id);
+        } else if (group === 'conditions') {
+          const loopNode = this.$store.state.template.activities[this.loopNodeIdForVariables];
+          const { gateways, line } = loopNode.pipeline;
+          const curLLine = line.find(l => l.id === id);
+          const nodeId = curLLine.source.id;
+          const lineCondition = gateways[nodeId]?.conditions?.[id];
+          const { evaluate, name } = lineCondition;
+          const conditionData = {
+            id,
+            name,
+            nodeId,
+            overlayId: `condition${id}`,
+            value: evaluate,
+          };
+          this.onOpenConditionEdit(conditionData);
+        }
+      },
+      // 更新循环流内部变量
+      onUpdateLoopVariable(payload) {
+        this.editLoopInnerVariable(payload);
+        this.templateDataChanged();
+      },
+      // 添加循环流内部变量
+      onAddLoopVariable(payload) {
+        const { loopNodeId, variable } = payload;
+        // 生成变量 key
+        const loopNode = this.$store.state.template.activities[loopNodeId];
+        const constants = loopNode && loopNode.pipeline ? loopNode.pipeline.constants : {};
+        const varLen = Object.keys(constants).length;
+        variable.key = `\${${variable.name}_${varLen}}`;
+        variable.index = varLen;
+        this.addLoopInnerVariable({ loopNodeId, variable });
+        this.templateDataChanged();
+      },
+      // 删除循环流内部变量
+      onDeleteLoopVariable(payload) {
+        this.deleteLoopInnerVariable(payload);
+        this.templateDataChanged();
+      },
+      // 改变循环流内部变量输出状态
+      onChangeLoopVariableOutput({ key, checked, loopNodeId }) {
+        this.setLoopInnerVariableOutput({ loopNodeId, key, checked });
+        this.templateDataChanged();
+      },
       /**
        * 移动画布，将节点放到画布左上角
        */
       moveNodeToView(id) {
-        this.$refs.processCanvas.setCanvasPosition(id);
-
-        // 移动画布到选中节点位置的摇晃效果
-        const nodeEl = document.querySelector(`g[data-cell-id="${id}"] .custom-node`);
-        if (nodeEl) {
-          nodeEl.classList.add('node-shake');
-          setTimeout(() => {
-            nodeEl.classList.remove('node-shake');
-          }, 500);
+        if (this.templateComponentName === 'StageCanvas') {
+          // 若为stageCanvas则直接打开编辑窗
+          this.onShowNodeConfig(id);
+        } else {
+          this.$refs.processCanvas.setCanvasPosition(id);
+          // 移动画布到选中节点位置的摇晃效果
+          const nodeEl = document.querySelector(`g[data-cell-id="${id}"] .custom-node`);
+          if (nodeEl) {
+            nodeEl.classList.add('node-shake');
+            setTimeout(() => {
+              nodeEl.classList.remove('node-shake');
+            }, 500);
+          }
         }
       },
       // 开启子流程更新的小红点动画效果
@@ -1909,7 +2531,7 @@ import { cloneDeepWith } from 'lodash';
       },
       // 关闭所有子流程更新的小红点动画效果
       clearDotAnimation() {
-        const updateNodesDot = document.querySelectorAll('.subflow-node .updated-dot');
+        const updateNodesDot = document.querySelectorAll('.subprocess-node .updated-dot');
         updateNodesDot.forEach((item) => {
           item.classList.remove('show-animation');
         });
@@ -2003,9 +2625,13 @@ import { cloneDeepWith } from 'lodash';
         }
       },
       // 多 tab 打开同一流程模板
-      onMultipleTabConfirm() {
-        this.checkNodeAndSaveTemplate();
-        this.multipleTabDialogShow = false;
+      async onMultipleTabConfirm() {
+        try {
+          await this.checkNodeAndSaveTemplate();
+          this.multipleTabDialogShow = false;
+        } catch (error) {
+          console.warn(error);
+        }
       },
       getTplTabData() {
         return {
@@ -2044,6 +2670,81 @@ import { cloneDeepWith } from 'lodash';
         } catch (error) {
           console.warn(error);
         }
+      },
+      // 查看全部版本
+      onViewAllVerison() {
+        this.isSubflowNodeConfig = false;
+        this.isShowVersionList = true;
+      },
+      async onSelectVersionChange(version, isDraftVersion, isLaterVersion, needToProhibitEdit) {
+        if (this.isManualVersionChange && isDraftVersion && !this.isAtPublish) {
+          this.isManualVersionChange = false;
+          try {
+            await this.getDraftPipelineTree();
+          } catch (e) {
+            console.error(e);
+          } finally {
+            this.isManualVersionChange = true;
+          }
+        } else if (version) {
+          const previewData = await this.gerTemplatePreviewData({
+            templateId: this.templateId,
+            version,
+          });
+          const pipelineTree = previewData.data.pipeline_tree;
+          this.setPipelineTree(pipelineTree);
+          this.isChangeTplVersionTime = new Date().getTime();
+          this.compVersion = version;
+          // 开启版本管理且非最新已发布版本时，需要用该版本数据构造 subprocess_info
+          if (this.isEnableVersionManage && version !== this.latestedVersion) {
+            this.buildSubprocessInfoFromTree(pipelineTree);
+          } else {
+            // 最新已发布版本或未开启版本管理，同步 store 的 subprocess_info 到画布节点
+            this.syncCanvasSubflowHasUpdated();
+          }
+        }
+        this.isAtPublish = false;
+        // this.isNeedToProhibitEdit = !isDraftVersion && isLaterVersion;
+        this.isNeedToProhibitEdit = needToProhibitEdit;
+      },
+      async onRollbackVersion() {
+        await this.getDraftPipelineTree();
+        this.onRefreshVersionList();
+      },
+      async onEditVersionListItem(value, isHaveDraftVersion) {
+        await this.getDraftPipelineTree(isHaveDraftVersion);
+      },
+      async onPublishTemplate() {
+        try {
+          this.isAtPublish = true;
+          await this.getTemplateData();
+          await this.onRefreshVersionList();
+        } catch (e) {
+          console.error(e);
+        } finally {
+          this.isAtPublish = false;
+        }
+      },
+      async onEditTemplate() {
+        if (this.isEnableVersionManage) {
+          await this.getDraftPipelineTree(true);
+        }
+      },
+      // 关闭版本列表侧滑
+      onCloseVersionListPanel() {
+        this.isShowVersionList = false;
+      },
+      onRefreshVersionList(draftInfo) {
+        this.$refs.templateHeader.getVersionList(draftInfo);
+      },
+      viewAllSubflowVerison(basicInfo) {
+        this.subTemplateId = basicInfo.tpl;
+        this.isSubflowNodeConfig = true;
+        this.isShowVersionList = true;
+      },
+      // 关闭子流程版本侧滑
+      closeSubflowVersionPanel() {
+        this.isShowVersionList = false;
       },
     },
     beforeRouteLeave(to, from, next) { // leave or reload page
@@ -2088,7 +2789,7 @@ import { cloneDeepWith } from 'lodash';
     .update-tips {
         position: absolute;
         top: 64px;
-        left: 450px;
+        left: 520px;
         min-height: 40px;
         overflow: hidden;
         z-index: 4;

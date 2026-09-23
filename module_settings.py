@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import os
 from enum import Enum
@@ -37,7 +38,20 @@ from config.default import (  # noqa; noqa、
     BKSAAS_DEFAULT_MODULE_NAME,
     INSTALLED_APPS,
     MIDDLEWARE,
+    TEMPLATES,
 )
+
+
+def _parse_crontab(cron_expr: str) -> crontab:
+    """将标准 cron 表达式（minute hour day_of_month month_of_year day_of_week）解析为 celery crontab 对象"""
+    parts = cron_expr.strip().split()
+    return crontab(
+        minute=parts[0] if len(parts) > 0 else "*",
+        hour=parts[1] if len(parts) > 1 else "*",
+        day_of_month=parts[2] if len(parts) > 2 else "*",
+        month_of_year=parts[3] if len(parts) > 3 else "*",
+        day_of_week=parts[4] if len(parts) > 4 else "*",
+    )
 
 
 class BKFLOWModuleType(str, Enum):
@@ -97,6 +111,17 @@ class BKFLOWModule(BaseModel):
 def check_engine_admin_permission(request, *args, **kwargs):
     from django.conf import settings  # noqa
 
+    if settings.ENABLE_MULTI_TENANT_MODE:
+        token = getattr(request, "app_internal_token", None)
+        if not token or token != settings.APP_INTERNAL_TOKEN:
+            return False
+        space_id = request.headers.get(settings.APP_INTERNAL_SPACE_ID_HEADER_KEY)
+        if not space_id or space_id == "0":
+            return False
+        from bkflow.task.models import TaskInstance
+
+        return TaskInstance.objects.filter(instance_id=kwargs.get("instance_id"), space_id=space_id).exists()
+
     if (
         request.user.is_superuser
         or (request.app_internal_token and request.app_internal_token == settings.APP_INTERNAL_TOKEN)
@@ -107,6 +132,14 @@ def check_engine_admin_permission(request, *args, **kwargs):
 
 
 BKFLOW_MODULE = BKFLOWModule.get_module()
+
+# Python 代码节点子进程执行限制
+PYTHON_CODE_PLUGIN_TIMEOUT = env.PYTHON_CODE_PLUGIN_TIMEOUT
+PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT = env.PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT
+PYTHON_CODE_PLUGIN_MAX_LENGTH = env.PYTHON_CODE_PLUGIN_MAX_LENGTH
+PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB = env.PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB
+PYTHON_CODE_PLUGIN_MAX_CONCURRENT_PROCESSES = env.PYTHON_CODE_PLUGIN_MAX_CONCURRENT_PROCESSES
+PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES = env.PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES
 
 if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
 
@@ -125,6 +158,8 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
                 "PORT": db_config.port,
             },
         }
+
+    DATABASE_ROUTERS = ["bkflow.statistics.db_router.StatisticsDBRouter"]
 
     from pipeline.celery.settings import CELERY_QUEUES, CELERY_ROUTES  # noqa
     from pipeline.eri.celery import queues as eri_queues  # noqa
@@ -155,6 +190,9 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
         "bkflow.contrib.expired_cleaner",
+        "bkflow.contrib.itsm_workflow",
+        "bkflow.contrib.init_tenant",
+        "bkflow.statistics",
     )
 
     BKFLOW_CELERY_ROUTES = {
@@ -169,6 +207,28 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "expired_task_cleaning": {
             "task": "bkflow.contrib.expired_cleaner.tasks.clean_task",
             "schedule": crontab(env.CLEAN_TASK_CRONTAB),
+        },
+        "clean_expired_open_plugin_callback_refs": {
+            "task": "bkflow.task.celery.tasks.clean_expired_open_plugin_callback_refs",
+            "schedule": _parse_crontab(env.OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB),
+        },
+        "generate_daily_summary": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_daily_summary_task",
+            "schedule": _parse_crontab(env.STATISTICS_DAILY_SUMMARY_CRONTAB),
+        },
+        "generate_plugin_summary_day": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["day"],
+            "schedule": _parse_crontab(env.STATISTICS_PLUGIN_SUMMARY_DAY_CRONTAB),
+        },
+        "generate_plugin_summary_week": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["week"],
+            "schedule": _parse_crontab(env.STATISTICS_PLUGIN_SUMMARY_WEEK_CRONTAB),
+        },
+        "clean_expired_statistics": {
+            "task": "bkflow.statistics.tasks.summary_tasks.clean_expired_statistics_task",
+            "schedule": _parse_crontab(env.STATISTICS_CLEAN_CRONTAB),
         },
     }
 
@@ -234,14 +294,23 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "apigw_manager.apigw",
         "bkflow.pipeline_plugins",
         "bkflow.admin",
+        "bkflow.api_plugin_demo",
         "plugin_service",
         "bkflow.contrib.operation_record",
+        "bkflow.contrib.itsm_workflow",
+        "bkflow.contrib.init_tenant",
         "django_dbconn_retry",
         "webhook",
         "version_log",
         "bk_notice_sdk",
         "bkflow.bk_plugin",
+        "bkflow.pipeline_web",
+        "bkflow.statistics",
+        "bkflow.variable_manager",
+        "bkflow.label",
     )
+
+    TEMPLATES[0]["OPTIONS"]["context_processors"] += ("bkflow.interface.context_processors.bkflow_settings",)
 
     VARIABLE_KEY_BLACKLIST = (
         env.VARIABLE_KEY_BLACKLIST.strip().strip(",").split(",") if env.VARIABLE_KEY_BLACKLIST else []
@@ -278,11 +347,35 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
     # ban 掉 admin 权限
     BLOCK_ADMIN_PERMISSION = env.BLOCK_ADMIN_PERMISSION
 
+    DATABASE_ROUTERS = ["bkflow.statistics.db_router.StatisticsDBRouter"]
+
     # 添加定时任务
     app.conf.beat_schedule = {
+        "dispatch_open_plugin_catalog_sync": {
+            "task": "bkflow.plugin.tasks.dispatch_open_plugin_catalog_sync",
+            "schedule": _parse_crontab(env.OPEN_PLUGIN_CATALOG_SYNC_CRONTAB),
+        },
         # 同步蓝鲸插件任务
         "sync_bk_plugins": {
             "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",
             "schedule": crontab(env.SYNC_BK_PLUGINS_CRONTAB),
-        }
+        },
+        "generate_daily_summary": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_daily_summary_task",
+            "schedule": _parse_crontab(env.STATISTICS_DAILY_SUMMARY_CRONTAB),
+        },
+        "generate_plugin_summary_day": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["day"],
+            "schedule": _parse_crontab(env.STATISTICS_PLUGIN_SUMMARY_DAY_CRONTAB),
+        },
+        "generate_plugin_summary_week": {
+            "task": "bkflow.statistics.tasks.summary_tasks.generate_plugin_summary_task",
+            "args": ["week"],
+            "schedule": _parse_crontab(env.STATISTICS_PLUGIN_SUMMARY_WEEK_CRONTAB),
+        },
+        "clean_expired_statistics": {
+            "task": "bkflow.statistics.tasks.summary_tasks.clean_expired_statistics_task",
+            "schedule": _parse_crontab(env.STATISTICS_CLEAN_CRONTAB),
+        },
     }

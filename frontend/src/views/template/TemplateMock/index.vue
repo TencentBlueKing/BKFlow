@@ -88,6 +88,14 @@
         type: String,
         default: '',
       },
+      version: {
+        type: [String, null],
+        default: '',
+      },
+      isEnableVersionManage: {
+        type: Boolean,
+        default: false,
+      },
     },
     data() {
       return {
@@ -188,9 +196,11 @@
         'getTemplateMockScheme',
         'updateTplMockScheme',
         'loadSpaceRelatedConfig',
+        'getDraftVersionData',
       ]),
       ...mapMutations('template/', [
         'setTemplateData',
+        'setPipelineTree',
       ]),
       ...mapMutations([
         'setSpaceId',
@@ -228,6 +238,14 @@
           this.tplSpaceId = templateData.space_id;
           this.setTemplateData(templateData);
           this.setSpaceId(templateData.space_id);
+          if (this.isEnableVersionManage && (this.version === null || this.version === '')) {
+            const draftTplData = await this.getDraftVersionData({
+              templateId: this.templateId,
+              common: this.common,
+              space_id: this.spaceId,
+            });
+            await this.setPipelineTree(draftTplData.data.pipeline_tree);
+          }
           this.selectedNodes = [];
           this.allSelectableNodes = this.locations.filter((item) => {
             if (item.optional) {
@@ -367,11 +385,14 @@
       },
       // 打开节点mock面板
       onShowNodeConfig(id) {
+        if (!this.activities[id]) {
+          return;
+        }
         this.isShowMockSetting = true;
         this.curSelectedNodeId = id;
       },
       // 退出调试
-      onReturnMock() {
+      async onReturnMock() {
         if (this.mockStep === 'setting') {
           if (this.$router.history.length > 1) {
             this.$router.back();
@@ -381,13 +402,15 @@
               params: {
                 templateId: this.templateId,
                 type: 'edit',
+                version: this.version,
+                isVersionManageQuitMock: this.isEnableVersionManage,
               },
             });
           }
           return;
         }
         const { mockExecute } = this.$refs;
-        const isEqual = mockExecute ? mockExecute.judgeDataEqual() : true;
+        const isEqual = mockExecute ? await mockExecute.judgeDataEqual() : true;
         const navigateBack = () => {
           this.$router.replace({
             name: 'templateMock',
@@ -449,6 +472,7 @@
           params: {
             templateId: this.templateId,
             step: 'execute',
+            isEnableVersionManage: this.isEnableVersionManage,
           },
         };
 
@@ -526,13 +550,13 @@
         return this.$t('系统不会保存您所做的更改，确认离开？');
       },
     },
-    beforeRouteLeave(to, from, next) {
+    async beforeRouteLeave(to, from, next) {
       let isEqual = true;
       if (this.mockStep === 'setting') {
         isEqual = this.judgeDataEqual();
       } else {
         const { mockExecute } = this.$refs;
-        isEqual = mockExecute ? mockExecute.judgeDataEqual() : true;
+        isEqual = mockExecute ? await mockExecute.judgeDataEqual() : true;
       }
       if (!isEqual) {
         this.$bkInfo({
