@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 
 import copy
 import logging
+import re
 from collections import defaultdict
 from typing import Optional
 
@@ -496,16 +497,19 @@ def validate_pipeline_tree_constants(constants):
         value = const.get("value") if isinstance(const, dict) else const
         constant_values[key] = str(value) if value is not None else ""
 
+    # 用于精确提取变量引用（形如 ${var_name}），避免裸子串匹配导致的误报
+    # 例如：value="${ip_list}" 时，只会提取出 "ip_list"，不会误判 "ip" 被引用
+    reference_pattern = re.compile(r"\$\{([^${}]+)\}")
+
     # 构建依赖关系图
     for key, value in constant_values.items():
         if not value:
             continue
 
-        # 检查当前参数值中引用的所有参数
-        referenced_keys = set()
-        for other_key in constant_values:
-            if other_key in value:
-                referenced_keys.add(other_key)
+        # 从当前参数值中精确提取所有 ${...} 引用的变量名
+        referenced_names = set(reference_pattern.findall(value))
+        # 只保留确实存在于常量集合中的引用（key 形如 "${name}"）
+        referenced_keys = {"${%s}" % name for name in referenced_names} & set(constant_values.keys())
 
         # 分离出自引用和其他引用
         if key in referenced_keys:
