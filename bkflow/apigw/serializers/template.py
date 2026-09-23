@@ -100,6 +100,7 @@ class CreateTemplateSerializer(serializers.Serializer):
 
         scope_type = attrs.get("scope_type")
         scope_value = attrs.get("scope_value")
+        auto_release = attrs.get("auto_release")
         space_id = self.context.get("space_id")
 
         if (scope_type is not None) != (scope_value is not None):
@@ -121,7 +122,10 @@ class CreateTemplateSerializer(serializers.Serializer):
         validate_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
         if pipeline_tree:
             try:
-                if validate_config:
+                # 开启版本管理且未自动发布（仅保存草稿）时只做基础结构校验，
+                # 其余情况（未开启版本管理，或开启后自动发布）做完整模板校验，
+                # 避免 auto_release=True 直接发布时绕过循环变量/互斥/key/source_info/outputs 等业务校验
+                if validate_config and not auto_release:
                     ValidatorHandler.validate_by_codes(
                         pipeline_tree,
                         [
