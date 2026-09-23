@@ -3,8 +3,27 @@
 run_required() {
   "$@" || { status=$?; echo "required release step failed: $*" >&2; exit "$status"; }
 }
+run_cache_table() {
+  # Django 在表已存在时以失败退出。首次发布仍要建表，重复发布跳过这一步。
+  output=$(python manage.py createcachetable django_cache 2>&1)
+  status=$?
+  if [ -n "$output" ]; then
+    printf '%s\n' "$output" >&2
+  fi
+  if [ "$status" -eq 0 ]; then
+    return 0
+  fi
+  case "$output" in
+    *"Cache table 'django_cache' already exists."*)
+      echo "django_cache already exists, skip createcachetable" >&2
+      return 0
+      ;;
+  esac
+  echo "required release step failed: python manage.py createcachetable django_cache" >&2
+  exit "$status"
+}
 run_required python manage.py migrate
-run_required python manage.py createcachetable django_cache
+run_cache_table
 run_required python manage.py update_component_models
 run_required python manage.py update_variable_models
 run_required python manage.py sync_superuser
