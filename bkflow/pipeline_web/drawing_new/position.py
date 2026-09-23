@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -30,6 +29,9 @@ from bkflow.pipeline_web.drawing_new.constants import (
     PIPELINE_ELEMENT_TO_WEB,
     PIPELINE_WEB_TO_ELEMENT,
 )
+
+# 子画布节点在横向占位后追加的固定间距，避免与后续节点贴合
+SUBCANVAS_EXTRA_GAP = 70
 
 
 def upsert_orders(orders, nodes_fill_nums):
@@ -69,8 +71,6 @@ def position(
     @param more_flows: 额外需要获取位置信息的连线，如反向边、被替换的长边
     @return:
     """
-    # 节点之间的平均距离
-    size_x = max(activity_size[0], event_size[0], gateway_size[0])
     shift_y = int(max(activity_size[1], event_size[1], gateway_size[1]) * 2)
     # 开始/结束节点纵坐标偏差
     event_shift_y = int((activity_size[1] - event_size[1]) * 0.5)
@@ -80,6 +80,7 @@ def position(
         DUMMY_NODE_TYPE: 0,
         PWE.ServiceActivity: 0,
         PWE.SubProcess: 0,
+        PWE.SubCanvas: 0,
         PWE.EmptyStartEvent: event_shift_y,
         PWE.EmptyEndEvent: event_shift_y,
         PWE.ExclusiveGateway: gateway_shift_y,
@@ -92,6 +93,7 @@ def position(
         DUMMY_NODE_TYPE: 0,
         PWE.ServiceActivity: activity_size[0] * 1.5,
         PWE.SubProcess: activity_size[0] * 1.5,
+        PWE.SubCanvas: activity_size[0] * 4,
         PWE.EmptyStartEvent: event_size[0] * 2.5,
         PWE.EmptyEndEvent: event_size[0] * 2.5,
         PWE.ExclusiveGateway: gateway_size[0] * 6.5,
@@ -100,49 +102,74 @@ def position(
         PWE.ConvergeGateway: gateway_size[0] * 2.5,
     }
 
-    min_rk = min(list(orders.keys()))
-    max_rk = max(list(orders.keys()))
-    # 之前的位置信息
-    old_locations = {location["id"]: location for location in pipeline.get("location", [])}
-    # 先分配节点位置
+    # 节点之间的平均距离，用于换行判断
+    size_x = max(activity_size[0], event_size[0], gateway_size[0])
+
+    min_rk = min(orders.keys())
+    max_rk = max(orders.keys())
+    old_locations = {loc["id"]: loc for loc in pipeline.get("location", [])}
     locations = {}
     rank_x, rank_y = start
     new_line_y = 0
     for rk in range(min_rk, max_rk + MIN_LEN, MIN_LEN):
-        # 记录当前层节点微调的最大值
-        shift_x = 0
         layer_nodes = orders[rk]
         layer_nodes, dummy_nodes = upsert_orders(layer_nodes, nodes_fill_nums)
         # 当前 rank 首个节点位置
         order_x, order_y = rank_x, rank_y
-        # 记录当前行的最大纵坐标，当需要换行时赋值给下一行起始点
         if new_line_y == 0:
             new_line_y = rank_y + shift_y
+
+        # 当前层横向占位最大值（用于推进 rank_x）
+        layer_shift_x = 0
+        # 当前层最大下边界（用于层内多节点纵向不重叠）
+        layer_max_y = order_y
+
         for node_id in layer_nodes:
-            if node_id in pipeline["all_nodes"]:
-                node = pipeline["all_nodes"][node_id]
-                node_y = int(order_y + pipeline_element_shift_y[node[PWE.type]])
-                node_x = int(order_x)
+            if node_id not in pipeline["all_nodes"]:
+                # 虚拟占位节点，仅占用一个纵向槽位
+                order_y = max(order_y, layer_max_y) + shift_y
+                continue
 
-                shift_x = max(pipeline_element_shift_x[pipeline["all_nodes"][node_id]["type"]], shift_x)
-                if node_id in old_locations:
-                    locations[node_id] = copy.deepcopy(old_locations[node_id])
-                    locations[node_id].update({"x": node_x, "y": node_y})
-                elif node_id not in dummy_nodes:
-                    locations[node_id] = {
-                        "id": node_id,
-                        "type": PIPELINE_ELEMENT_TO_WEB.get(node[PWE.type], node[PWE.type]),
-                        "name": node.get(PWE.name, ""),
-                        "status": "",
-                        "x": node_x,
-                        "y": node_y,
-                    }
-                if node_y >= new_line_y:
-                    new_line_y = node_y + shift_y
-            order_y += shift_y
+            node = pipeline["all_nodes"][node_id]
+            backend_type = PIPELINE_WEB_TO_ELEMENT.get(node[PWE.type], node[PWE.type])
+            node_y = int(max(order_y, layer_max_y) + pipeline_element_shift_y[backend_type])
+            node_x = int(order_x)
 
-        rank_x = rank_x + shift_x
-        # 1)下一个节点最右端 x 坐标超出画布宽度 canvas_width 2)无分支 3)下一个节点非结束节点 ——> 换行
+            # 计算该节点横向占位、下边界，并生成 location 条目
+            if backend_type == PWE.SubCanvas:
+                occupy_x, bottom_y = _place_subcanvas(
+                    node_id=node_id,
+                    node=node,
+                    node_x=node_x,
+                    node_y=node_y,
+                    old_locations=old_locations,
+                    dummy_nodes=dummy_nodes,
+                    locations=locations,
+                    default_width=pipeline_element_shift_x[backend_type],
+                    shift_y=shift_y,
+                )
+            else:
+                occupy_x, bottom_y = _place_normal_node(
+                    node_id=node_id,
+                    node=node,
+                    node_x=node_x,
+                    node_y=node_y,
+                    old_locations=old_locations,
+                    dummy_nodes=dummy_nodes,
+                    locations=locations,
+                    node_shift_x=pipeline_element_shift_x[backend_type],
+                    shift_y=shift_y,
+                )
+
+            layer_shift_x = max(layer_shift_x, occupy_x - node_x)
+            layer_max_y = max(layer_max_y, bottom_y)
+            if node_y >= new_line_y:
+                new_line_y = node_y + shift_y
+
+            order_y = layer_max_y
+
+        rank_x = rank_x + layer_shift_x
+        # 1)下一个节点最右端 x 坐标超出画布宽度 2)无分支 3)下一个节点非结束节点 ——> 换行
         if rank_x + size_x > canvas_width and (len(layer_nodes) - len(dummy_nodes)) == 1 and rk < max_rk - MIN_LEN:
             rank_x = start[0]
             rank_y = new_line_y
@@ -153,6 +180,80 @@ def position(
         flows.update(more_flows)
     lines = position_flows(flows, locations, pipeline_element_shift_y, start[0], shift_y)
     return locations, lines
+
+
+def _place_normal_node(node_id, node, node_x, node_y, old_locations, dummy_nodes, locations, node_shift_x, shift_y):
+    """
+    放置一个普通节点：写入 locations，返回 (occupy_x, bottom_y)
+    - occupy_x: 该节点向右延伸的边界，用于推进下一节点起点
+    - bottom_y: 该节点向下延伸的边界，用于同层其它节点避让
+    """
+    if node_id in old_locations:
+        entry = copy.deepcopy(old_locations[node_id])
+        entry.update({"x": node_x, "y": node_y})
+        locations[node_id] = entry
+    elif node_id not in dummy_nodes:
+        locations[node_id] = {
+            "id": node_id,
+            "type": PIPELINE_ELEMENT_TO_WEB.get(node[PWE.type], node[PWE.type]),
+            "name": node.get(PWE.name, ""),
+            "status": "",
+            "x": node_x,
+            "y": node_y,
+        }
+    return node_x + node_shift_x, node_y + shift_y
+
+
+def _place_subcanvas(node_id, node, node_x, node_y, old_locations, dummy_nodes, locations, default_width, shift_y):
+    """
+    放置一个子画布节点：写入 locations，同步内部子节点坐标，返回 (occupy_x, bottom_y)
+    子画布宽高仅从旧 location 读取，无默认值；无实际宽度时使用 default_width 作为兜底横向占位。
+    """
+    old_loc = old_locations.get(node_id, {})
+    sub_width = int(old_loc["width"]) if old_loc.get("width") is not None else None
+    sub_height = int(old_loc["height"]) if old_loc.get("height") is not None else None
+
+    # 计算移动偏移，用于同步内部节点坐标
+    offset_x = node_x - old_loc["x"] if old_loc.get("x") is not None else 0
+    offset_y = node_y - old_loc["y"] if old_loc.get("y") is not None else 0
+
+    if node_id in old_locations:
+        entry = copy.deepcopy(old_loc)
+        entry.update({"x": node_x, "y": node_y})
+        locations[node_id] = entry
+    elif node_id not in dummy_nodes:
+        entry = {
+            "id": node_id,
+            "type": PIPELINE_ELEMENT_TO_WEB.get(node[PWE.type], node[PWE.type]),
+            "name": node.get(PWE.name, ""),
+            "status": "",
+            "x": node_x,
+            "y": node_y,
+            "parent": True,
+        }
+        if sub_width is not None:
+            entry["width"] = sub_width
+        if sub_height is not None:
+            entry["height"] = sub_height
+        locations[node_id] = entry
+
+    # 副作用：同步子画布内部节点坐标，使其跟随外层容器移动
+    _shift_inner_locations(node, offset_x, offset_y)
+
+    occupy_width = sub_width if sub_width is not None else default_width
+    occupy_x = node_x + occupy_width + SUBCANVAS_EXTRA_GAP
+    bottom_y = node_y + (sub_height if sub_height is not None else 0) + shift_y
+    return occupy_x, bottom_y
+
+
+def _shift_inner_locations(node, offset_x, offset_y):
+    """同步移动子画布内部节点的 x/y 坐标"""
+    if not offset_x and not offset_y:
+        return
+    sub_pipeline = node.get("pipeline") or {}
+    for sub_loc in sub_pipeline.get("location", []):
+        sub_loc["x"] = sub_loc.get("x", 0) + offset_x
+        sub_loc["y"] = sub_loc.get("y", 0) + offset_y
 
 
 def position_flows(flows, locations, pipeline_element_shift_y, start_x, shift_y):
@@ -192,12 +293,15 @@ def arrow_flow(flow, locations, pipeline_element_shift_y):
     source_location = locations[flow[PWE.source]]
     target_location = locations[flow[PWE.target]]
 
+    source_type = PIPELINE_WEB_TO_ELEMENT.get(source_location["type"], source_location["type"])
+    target_type = PIPELINE_WEB_TO_ELEMENT.get(target_location["type"], target_location["type"])
+
     source_location_x = source_location["x"]
-    source_shift_y = pipeline_element_shift_y[PIPELINE_WEB_TO_ELEMENT[source_location["type"]]]
+    source_shift_y = pipeline_element_shift_y[source_type]
     source_location_y = source_location["y"] - source_shift_y
 
     target_location_x = target_location["x"]
-    target_shift_y = pipeline_element_shift_y[PIPELINE_WEB_TO_ELEMENT[target_location["type"]]]
+    target_shift_y = pipeline_element_shift_y[target_type]
     target_location_y = target_location["y"] - target_shift_y
 
     # 起点在终点左侧

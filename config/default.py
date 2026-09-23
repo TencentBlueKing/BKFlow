@@ -31,6 +31,8 @@ from bkflow.utils.pipeline import pipeline_gateway_expr_func
 
 # 平台代码
 PLATFORM_CODE = "bkflow"
+BKFLOW_PLATFORM_API_MODE = env.BKFLOW_PLATFORM_API_MODE
+BKFLOW_CREDENTIAL_CIPHER = env.BKFLOW_CREDENTIAL_CIPHER
 
 # 这里是默认的 INSTALLED_APPS，大部分情况下，不需要改动
 # 如果你已经了解每个默认 APP 的作用，确实需要去掉某些 APP，请去掉下面的注释，然后修改
@@ -78,6 +80,8 @@ MIDDLEWARE = (
     "bkflow.utils.middlewares.TraceIDInjectMiddleware",
     "bkflow.utils.middlewares.ExceptionMiddleware",
     "bkflow.utils.middlewares.AppInfoInjectMiddleware",
+    "bkflow.utils.middlewares.TenantAdminBoundaryMiddleware",
+    "bkflow.utils.middlewares.TimezoneMiddleware",
 ) + MIDDLEWARE
 
 if env.USE_PYINSTRUMENT:
@@ -95,8 +99,18 @@ APP_INTERNAL_TOKEN = env.APP_INTERNAL_TOKEN
 APP_INTERNAL_TOKEN_HEADER_KEY = "Bkflow-Internal-Token"
 APP_INTERNAL_SPACE_ID_HEADER_KEY = "Bkflow-Internal-Space-Id"
 APP_INTERNAL_FROM_SUPERUSER_HEADER_KEY = "Bkflow-Internal-From-SuperUser"
+APP_INTERNAL_TIME_ZONE_HEADER_KEY = "Bkflow-Internal-Time-Zone"
 APP_INTERNAL_TOKEN_REQUEST_META_KEY = "HTTP_BKFLOW_INTERNAL_TOKEN"
 TOKEN_RETENTION_TIME = env.TOKEN_RETENTION_TIME
+TOKEN_COMPOSITE_ENABLED = env.TOKEN_COMPOSITE_ENABLED
+# Token 过期时间允许设置的最大值（秒），默认 30 天
+TOKEN_EXPIRATION_MAX_EXPIRATION = env.BKAPP_TOKEN_EXPIRATION_MAX_EXPIRATION
+
+# UniformApiConfig 一键验证接口资源/时间上限
+UNIFORM_API_VERIFY_MAX_CATEGORIES = env.BKAPP_UNIFORM_API_VERIFY_MAX_CATEGORIES
+UNIFORM_API_VERIFY_MAX_LIST_REQUESTS = env.BKAPP_UNIFORM_API_VERIFY_MAX_LIST_REQUESTS
+UNIFORM_API_VERIFY_MAX_META_SAMPLES = env.BKAPP_UNIFORM_API_VERIFY_MAX_META_SAMPLES
+UNIFORM_API_VERIFY_MAX_TOTAL_TIMEOUT = env.BKAPP_UNIFORM_API_VERIFY_MAX_TOTAL_TIMEOUT
 
 APP_WHITE_LIST = env.APP_WHITE_LIST_STR.split(",") if env.APP_WHITE_LIST_STR else []
 
@@ -129,11 +143,17 @@ BKAPP_DEFAULT_ENGINE_MODULE_ENTRY = env.BKAPP_DEFAULT_ENGINE_MODULE_ENTRY or BK_
 # 节点超时最长配置时间
 MAX_NODE_EXECUTE_TIMEOUT = 60 * 60 * 24
 
+# 开放插件回调 token 有效期，默认与节点最长执行时间一致
+OPEN_PLUGIN_CALLBACK_TOKEN_TTL = env.OPEN_PLUGIN_CALLBACK_TOKEN_TTL or MAX_NODE_EXECUTE_TIMEOUT
+
 # 人员选择起拉取数据的host
 MEMBER_SELECTOR_DATA_HOST = env.MEMBER_SELECTOR_DATA_HOST
 
 # 蓝鲸插件授权过滤 APP
 PLUGIN_DISTRIBUTOR_NAME = env.PLUGIN_DISTRIBUTOR_NAME or APP_CODE
+
+# 开放插件目录同步请求超时
+OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT = env.OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT
 
 # 默认数据库AUTO字段类型
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
@@ -340,20 +360,20 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
         "propagate": True,
     }
 
-    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": True}
+    logging_dict["loggers"]["pipeline"] = {"handlers": ["root"], "level": "INFO", "propagate": False}
 
     logging_dict["loggers"]["pipeline.eri.log"] = {"handlers": ["pipeline_eri"], "level": "INFO", "propagate": True}
 
     logging_dict["loggers"]["bamboo_engine"] = {
         "handlers": ["root", "bamboo_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["pipeline_engine"] = {
         "handlers": ["root", "pipeline_engine_context"],
         "level": "INFO",
-        "propagate": True,
+        "propagate": False,
     }
 
     logging_dict["loggers"]["bk-monitor-report"] = {
@@ -370,8 +390,6 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
                 for handler in logger_config["handlers"]
                 if handler not in ["pipeline_engine_context", "bamboo_engine_context", "pipeline_eri"]
             ]
-            if not logger_config["handlers"]:
-                logger_config["handlers"] = ["root"]
 
     def handler_filter_injection(filters: list):
         for _, handler in logging_dict["handlers"].items():
@@ -497,3 +515,8 @@ MAX_WEBHOOK_RETRY_INTERVAL = env.MAX_WEBHOOK_RETRY_INTERVAL
 MAX_WEBHOOK_TIMEOUT = env.MAX_WEBHOOK_TIMEOUT
 
 PLUGIN_LOOP_OUTPUTS_KEY = env.PLUGIN_LOOP_OUTPUTS_KEY
+
+BKPAAS_USER_URL = env.BKPAAS_USER_URL
+BKPAAS_IAM_URL = env.BKPAAS_IAM_URL
+ENABLE_MULTI_TENANT_MODE = env.ENABLE_MULTI_TENANT_MODE
+BK_PLUGIN_SYNC_TENANTS = env.BK_PLUGIN_SYNC_TENANTS

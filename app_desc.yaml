@@ -1,5 +1,5 @@
 spec_version: 2
-app_version: "1.11.12"
+app_version: "1.11.14"
 app:
   region: default
   bk_app_code: &APP_CODE bk_flow_engine
@@ -40,9 +40,6 @@ modules:
       - key: GUNICORN_THREAD_NUM
         value: 10
         description: GunicornThread数量
-      - key: BK_APIGW_NAME
-        value: *APP_CODE
-        description: APIGW名称
       - &ENV_APP_INTERNAL_TOKEN
         key: APP_INTERNAL_TOKEN
         value: &INTERFACE_INTERNAL_TOKEN df1da1fc5b134858b0743838d7db256b
@@ -94,7 +91,7 @@ modules:
         spec: reusable
     svc_discovery:
       bk_saas:
-        - *APP_CODE
+        - bk_app_code: *APP_CODE
     env_variables:
       - key: BKFLOW_MODULE_TYPE
         value: engine

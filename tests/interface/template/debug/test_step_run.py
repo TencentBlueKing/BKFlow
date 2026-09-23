@@ -17,6 +17,8 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+import copy
+
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIRequestFactory, force_authenticate
@@ -75,9 +77,208 @@ TREE_DEP = {
     },
 }
 
+TREE_GATEWAY = {
+    "activities": {
+        "A": {"id": "A", "type": "ServiceActivity", "component": {"code": "t", "data": {}}},
+    },
+    "flows": {
+        "flow_positive": {"id": "flow_positive", "source": "G", "target": "A"},
+        "flow_default": {"id": "flow_default", "source": "G", "target": "A"},
+    },
+    "gateways": {
+        "G": {
+            "id": "G",
+            "type": "ExclusiveGateway",
+            "conditions": {"flow_positive": {"name": "positive", "evaluate": "${g1} > 0"}},
+            "default_condition": {"flow_id": "flow_default"},
+            "extra_info": {"parse_lang": "boolrule"},
+        }
+    },
+    "constants": {
+        "${g1}": {
+            "key": "${g1}",
+            "name": "g1",
+            "show_type": "hide",
+            "value": "",
+            "source_type": "component_outputs",
+            "source_info": {"A": ["k1"]},
+            "custom_type": "",
+            "source_tag": "",
+        }
+    },
+}
+
+TREE_CONTROL_GATEWAYS = {
+    "activities": {},
+    "flows": {},
+    "gateways": {
+        "PG": {"id": "PG", "type": "ParallelGateway"},
+        "CG": {"id": "CG", "type": "ConvergeGateway"},
+    },
+    "constants": {},
+}
+
+TREE_SUBCANVAS = {
+    "start_event": {"id": "start", "type": "EmptyStartEvent", "incoming": None, "outgoing": "f1"},
+    "end_event": {"id": "end", "type": "EmptyEndEvent", "incoming": "f2", "outgoing": None},
+    "activities": {
+        "S": {
+            "id": "S",
+            "name": "loop canvas",
+            "type": "SubCanvas",
+            "incoming": "f1",
+            "outgoing": "f2",
+            "optional": True,
+            "loop_config": {"enable": True, "type": "time_loop", "loop_times": 2, "loop_params": {}},
+            "pipeline": {
+                "start_event": {
+                    "id": "inner_start",
+                    "type": "EmptyStartEvent",
+                    "incoming": None,
+                    "outgoing": "inner_f1",
+                },
+                "end_event": {
+                    "id": "inner_end",
+                    "type": "EmptyEndEvent",
+                    "incoming": "inner_f2",
+                    "outgoing": None,
+                },
+                "activities": {
+                    "I": {
+                        "id": "I",
+                        "type": "ServiceActivity",
+                        "incoming": "inner_f1",
+                        "outgoing": "inner_f2",
+                        "component": {"code": "t", "data": {}},
+                    }
+                },
+                "flows": {
+                    "inner_f1": {"id": "inner_f1", "source": "inner_start", "target": "I"},
+                    "inner_f2": {"id": "inner_f2", "source": "I", "target": "inner_end"},
+                },
+                "gateways": {},
+                "constants": {},
+                "outputs": [],
+            },
+        }
+    },
+    "flows": {
+        "f1": {"id": "f1", "source": "start", "target": "S"},
+        "f2": {"id": "f2", "source": "S", "target": "end"},
+    },
+    "gateways": {},
+    "constants": {
+        "${outputs}": {
+            "key": "${outputs}",
+            "name": "loop outputs",
+            "show_type": "hide",
+            "value": [],
+            "source_type": "component_outputs",
+            "source_info": {"S": ["outputs"]},
+            "custom_type": "array",
+            "source_tag": "",
+        }
+    },
+    "outputs": [],
+}
+
 
 @pytest.mark.django_db
 class TestStepRunAndMock:
+    def test_step_run_gateway_evaluates_path_without_creating_task(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_GATEWAY)
+        ctx = svc.get_or_create_context()
+        ctx.global_vars = {"${g1}": 1}
+        ctx.save(update_fields=["global_vars"])
+        svc.sync_node_states()
+        client = mocker.MagicMock()
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        result = svc.step_run(node_id="G", operator="admin", mode="real")
+
+        assert result["status"] == "finished"
+        assert result["selected_flow_ids"] == ["flow_positive"]
+        assert result["condition_results"][0]["matched"] is True
+        assert "task_id" not in result
+        client.create_task.assert_not_called()
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+        assert ctx.last_run_type == "step"
+        assert ctx.last_run_status == "finished"
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="G")
+        assert ns.status == "finished"
+        assert ns.outputs["selected_flow_ids"] == ["flow_positive"]
+
+    def test_step_run_gateway_rejects_mock_mode(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_GATEWAY)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError, match="条件网关不支持 Mock"):
+            svc.step_run(node_id="G", operator="admin", mode="mock")
+
+    def test_node_mock_rejects_gateway(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_GATEWAY)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError, match="条件网关不支持 Mock"):
+            svc.node_mock(node_id="G", enable=True)
+
+    @pytest.mark.parametrize("node_id", ["PG", "CG"])
+    def test_control_gateway_rejects_mock(self, node_id):
+        """并行、汇聚网关只记录全局调试状态，不支持 Mock。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_CONTROL_GATEWAYS)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError, match="网关节点不支持 Mock"):
+            svc.node_mock(node_id=node_id, enable=True)
+
+    @pytest.mark.parametrize("node_id", ["PG", "CG"])
+    def test_control_gateway_rejects_step_run(self, node_id):
+        """并行、汇聚网关只记录全局调试状态，不支持单步调试。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_CONTROL_GATEWAYS)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError, match="网关节点不支持单步调试"):
+            svc.step_run(node_id=node_id, operator="admin", mode="real")
+
+    def test_step_run_gateway_is_blocked_when_output_dependency_is_missing(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_GATEWAY)
+        ctx = svc.get_or_create_context()
+        svc.sync_node_states()
+        client = mocker.MagicMock()
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        with pytest.raises(DebugStateError) as exc_info:
+            svc.step_run(node_id="G", operator="admin", mode="real")
+
+        assert exc_info.value.args[0] == {
+            "detail": "依赖未满足",
+            "missing_vars": [{"key": "${g1}", "source_node_id": "A"}],
+        }
+        client.create_task.assert_not_called()
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+
+    def test_step_run_gateway_failure_is_persisted_and_releases_lock(self):
+        tree = copy.deepcopy(TREE_GATEWAY)
+        tree["gateways"]["G"]["conditions"] = {
+            "flow_positive": {"name": "first", "evaluate": "1 == 1"},
+            "flow_default": {"name": "second", "evaluate": "2 == 2"},
+        }
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=tree)
+        ctx = svc.sync_node_states()
+
+        result = svc.step_run(node_id="G", operator="admin", mode="real")
+
+        assert result["status"] == "failed"
+        assert result["error_detail"]["type"] == "gateway"
+        assert "多个分支条件同时满足" in result["error_detail"]["message"]
+        ctx.refresh_from_db()
+        assert ctx.status == "idle"
+        assert ctx.last_run_status == "failed"
+        ns = DebugNodeState.objects.get(debug_context=ctx, node_id="G")
+        assert ns.status == "failed"
+
     def test_step_run_mock_success_writes_global_vars(self):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
         ctx = svc.get_or_create_context()
@@ -91,6 +292,64 @@ class TestStepRunAndMock:
         assert ctx.global_vars["${g1}"] == "produced"
         ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
         assert ns.status == "finished" and ns.log_ref in (None, {})
+
+    def test_subcanvas_step_mock_writes_aggregate_output(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_SUBCANVAS)
+        ctx = svc.sync_node_states()
+        aggregate = [{"result": "first"}, {"result": "second"}]
+
+        result = svc.step_run(
+            node_id="S",
+            operator="admin",
+            mode="mock",
+            mock_result="success",
+            mock_outputs={"outputs": aggregate},
+        )
+
+        assert result["status"] == "finished"
+        assert result["outputs"] == {"outputs": aggregate}
+        ctx.refresh_from_db()
+        assert ctx.global_vars["${outputs}"] == aggregate
+
+    def test_subcanvas_real_step_runs_the_container_as_one_node(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_SUBCANVAS)
+        svc.sync_node_states()
+        client = mocker.MagicMock()
+        client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
+        client.get_node_id_map.return_value = {"result": True, "data": {"S": "rtS"}, "message": ""}
+        client.operate_task.return_value = {"result": True, "data": {}, "message": ""}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+
+        result = svc.step_run(node_id="S", operator="admin", mode="real")
+
+        assert result["status"] == "running"
+        create_payload = client.create_task.call_args.args[0]
+        subcanvas = create_payload["pipeline_tree"]["activities"]["S"]
+        assert subcanvas["type"] == "SubCanvas"
+        assert set(subcanvas["pipeline"]["activities"]) == {"I"}
+        assert create_payload["create_method"] == "DEBUG"
+
+    def test_subcanvas_inner_node_step_is_explicitly_unsupported(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_SUBCANVAS)
+        svc.sync_node_states()
+
+        with pytest.raises(DebugStateError) as exc_info:
+            svc.step_run(node_id="I", operator="admin", mode="real")
+
+        assert exc_info.value.args[0] == {
+            "detail": "暂不支持子画布内部节点单步调试",
+            "node_id": "I",
+            "subcanvas_node_id": "S",
+        }
+
+    def test_subcanvas_context_exposes_only_container_as_debuggable_node(self):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE_SUBCANVAS)
+
+        context_view = svc.build_context_view()
+
+        assert [node["node_id"] for node in context_view["nodes"]] == ["S"]
+        assert context_view["nodes"][0]["supports_step"] is True
+        assert context_view["nodes"][0]["supports_mock"] is True
 
     def test_step_run_mock_fail_sets_failed_no_writeback(self):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
@@ -146,8 +405,8 @@ class TestStepRunAndMock:
         ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
         assert ns.status == "not_run"  # 仅配置，未运行
 
-    def test_step_run_real_targets_activity_and_records_duration(self, mocker):
-        """real 单步应命中活动 runtime id（非 start/end 事件）并落库耗时（评审 #1/#2）"""
+    def test_step_run_real_starts_async_and_tracks_active_task(self, mocker):
+        """real 单步命中活动 runtime id，启动后立即返回并由 context 后续追踪。"""
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
         ctx = svc.get_or_create_context()
         svc.sync_node_states()
@@ -157,31 +416,27 @@ class TestStepRunAndMock:
         client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
         client.operate_task.return_value = {"result": True, "data": {}, "message": ""}
         client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
-        client.get_task_states.return_value = {
-            "result": True,
-            "data": {
-                "state": "FINISHED",
-                "children": {
-                    "start_evt": {"state": "FINISHED", "elapsed_time": 0},
-                    "rtA": {"state": "FINISHED", "elapsed_time": 3},
-                },
-            },
-            "message": "",
-        }
-        client.get_task_node_detail.return_value = {
-            "result": True,
-            "data": {"outputs": [{"key": "k1", "value": "produced"}], "version": "v1"},
-            "message": "",
-        }
         mocker.patch.object(svc, "_task_client", return_value=client)
 
         result = svc.step_run(node_id="A", operator="admin", mode="real")
-        assert result["status"] == "finished"
+        assert result == {
+            "node_id": "A",
+            "task_id": 789,
+            "status": "running",
+            "log_ref": {"instance_id": 789, "node_id": "rtA", "version": "v1"},
+        }
         ns = DebugNodeState.objects.get(debug_context=ctx, node_id="A")
         assert ns.log_ref == {"instance_id": 789, "node_id": "rtA", "version": "v1"}
-        assert ns.duration_ms == 3000
         ctx.refresh_from_db()
-        assert ctx.global_vars["${g1}"] == "produced"
+        assert ctx.status == "running"
+        assert ctx.active_task_id == 789
+        assert ctx.active_run_type == "step"
+        assert ctx.active_node_id == "A"
+        assert ctx.last_task_id == 789
+        assert ctx.last_run_type == "step"
+        assert ctx.last_run_status == "running"
+        client.get_task_states.assert_not_called()
+        client.get_task_node_detail.assert_not_called()
 
     def test_step_run_real_create_failure_raises_and_releases_lock(self, mocker):
         """create 失败：抛 DebugStateError、释放锁、无任务故不清理（I-1）"""
@@ -207,6 +462,7 @@ class TestStepRunAndMock:
 
         client = mocker.MagicMock()
         client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
         client.operate_task.return_value = {"result": False, "message": "no"}
         mocker.patch.object(svc, "_task_client", return_value=client)
 
@@ -234,8 +490,8 @@ class TestStepRunAndMock:
         ctx.refresh_from_db()
         assert ctx.status == "idle"
 
-    def test_step_run_real_failed_node_keeps_task(self, mocker):
-        """引擎正常跑完但节点失败：正常返回 failed，不删任务（log_ref 仍可查日志），不回写全局变量"""
+    def test_step_run_real_missing_runtime_id_cleans_up(self, mocker):
+        """单步任务无法定位 runtime id 时立即清理，不留下无法同步的 active task。"""
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=TREE)
         ctx = svc.get_or_create_context()
         svc.sync_node_states()
@@ -243,26 +499,16 @@ class TestStepRunAndMock:
         client = mocker.MagicMock()
         client.create_task.return_value = {"result": True, "data": {"id": 789}, "message": ""}
         client.operate_task.return_value = {"result": True, "data": {}, "message": ""}
-        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}, "message": ""}
-        client.get_task_states.return_value = {
-            "result": True,
-            "data": {"state": "FAILED", "children": {"rtA": {"state": "FAILED", "elapsed_time": 1}}},
-            "message": "",
-        }
-        client.get_task_node_detail.return_value = {
-            "result": True,
-            "data": {"ex_data": "boom", "version": "v1"},
-            "message": "",
-        }
+        client.get_node_id_map.return_value = {"result": True, "data": {}, "message": ""}
         mocker.patch.object(svc, "_task_client", return_value=client)
 
-        result = svc.step_run(node_id="A", operator="admin", mode="real")
-        assert result["status"] == "failed"
-        assert result["error_detail"]
-        client.delete_task.assert_not_called()
+        with pytest.raises(DebugStateError):
+            svc.step_run(node_id="A", operator="admin", mode="real")
+
+        client.delete_task.assert_called_once_with(789)
         ctx.refresh_from_db()
-        assert "${g1}" not in ctx.global_vars
         assert ctx.status == "idle"
+        assert ctx.active_task_id is None
 
     def test_step_run_bad_node_raises_state_error(self):
         """未知 node_id 收敛为 DebugStateError，而非 DoesNotExist/500（I-5）"""
@@ -281,11 +527,11 @@ class TestStepRunViews:
             username="admin", defaults={"is_superuser": True, "is_staff": True}
         )
 
-    def _patch_tree(self, mocker):
+    def _patch_tree(self, mocker, tree=TREE):
         mocker.patch(
             "bkflow.template.debug.service.DebugService.pipeline_tree",
             new_callable=mocker.PropertyMock,
-            return_value=TREE,
+            return_value=tree,
         )
         mocker.patch(
             "bkflow.template.debug.service.DebugService.space_id",
@@ -293,15 +539,33 @@ class TestStepRunViews:
             return_value=10,
         )
 
-    def test_node_mock_bad_node_returns_400(self, mocker):
-        """node_mock 视图：未知 node_id 返回 400 而非 500（I-5）"""
+    def test_node_mock_bad_node_returns_standard_error(self, mocker):
+        """node_mock 视图：未知 node_id 返回标准错误协议。"""
         self._patch_tree(mocker)
         DebugContext.objects.create(template_id=1, space_id=10)
         view = DebugViewSet.as_view({"post": "node_mock"})
-        request = self.factory.post(
-            "/debug/node_mock/", {"space_id": 10, "template_id": 1, "node_id": "ZZZ"}, format="json"
-        )
+        request = self.factory.post("/debug/node_mock/", {"template_id": 1, "node_id": "ZZZ"}, format="json")
         force_authenticate(request, user=self.user)
         response = view(request)
-        assert response.status_code == 400
-        assert response.data["detail"] == {"detail": "节点不存在", "node_id": "ZZZ"}
+        assert response.status_code == 200
+        assert response.data["result"] is False
+        assert response.data["data"]["detail"] == "{'detail': '节点不存在', 'node_id': 'ZZZ'}"
+
+    def test_step_run_gateway_returns_selected_flows_in_standard_response(self, mocker):
+        self._patch_tree(mocker, tree=TREE_GATEWAY)
+        DebugContext.objects.create(template_id=1, space_id=10, global_vars={"${g1}": 1})
+        view = DebugViewSet.as_view({"post": "step_run"})
+        request = self.factory.post(
+            "/debug/step_run/",
+            {"space_id": 10, "template_id": 1, "node_id": "G", "mode": "real"},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        assert response.status_code == 200
+        assert response.data["result"] is True
+        assert response.data["data"]["status"] == "finished"
+        assert response.data["data"]["selected_flow_ids"] == ["flow_positive"]
+        assert response.data["data"]["condition_results"][0]["matched"] is True

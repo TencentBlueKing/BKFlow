@@ -16,18 +16,75 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import logging
 
 from bkflow.conf import settings
 from bkflow.utils.handlers import handle_api_error
+from bkflow.utils.message_cmsi import send_cmsi_message
+from bkflow.utils.platform import use_apigw
+from packages.bkapi.bk_cmsi.shortcuts import get_client_by_username
 
 get_client_by_user = settings.ESB_GET_CLIENT_BY_USER
 
 logger = logging.getLogger("root")
 
 
-def send_message(executor: str, notify_types: list, receivers: str, title: str, content: str):
+def send_message(
+    executor: str, notify_types: list, receivers: str, title: str, content: str, tenant_id: str = "default"
+):
+    if not use_apigw():
+        return _send_legacy_message(executor, notify_types, receivers, title, content)
+    client = get_client_by_username(executor, stage=settings.BK_APIGW_STAGE_NAME)
+
+    has_error = False
+    error_message = ""
+
+    logger.info(
+        f"taskflow send message, receivers={receivers},title={title} content={content}, "
+        f"tenant_id={tenant_id}, notify_types={notify_types}"
+    )
+    for msg_type in notify_types:
+        kwargs = {}
+        operation_name = ""
+        try:
+            operation_name, kwargs, result = send_cmsi_message(
+                client=client,
+                tenant_id=tenant_id,
+                msg_type=msg_type,
+                receivers=receivers,
+                title=title,
+                content=content,
+            )
+        except Exception as e:
+            err_msg = "taskflow send message failed, msg_type={}, operation={}, kwargs={}, error={}".format(
+                msg_type, operation_name, json.dumps(kwargs), str(e)
+            )
+            logger.exception(err_msg)
+            has_error = True
+            error_message = "{};{}".format(err_msg, error_message) if error_message else err_msg
+            continue
+
+        if not result or not result.get("result"):
+            api_error_msg = handle_api_error(
+                "cmsi",
+                "cmsi.send_voice_msg" if msg_type == "voice" else "cmsi.send_msg",
+                kwargs,
+                result or {},
+            )
+            logger.error(
+                "send message failed, msg_type={}, kwargs={}, result={}".format(
+                    msg_type, json.dumps(kwargs), json.dumps(result)
+                )
+            )
+            has_error = True
+            error_message = "{};{}".format(api_error_msg, error_message) if error_message else api_error_msg
+
+    return has_error, error_message
+
+
+def _send_legacy_message(executor: str, notify_types: list, receivers: str, title: str, content: str):
     client = get_client_by_user(executor)
     base_kwargs = {
         "receiver__username": receivers,

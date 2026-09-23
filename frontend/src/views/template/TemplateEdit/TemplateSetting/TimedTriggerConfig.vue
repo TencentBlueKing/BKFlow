@@ -24,6 +24,7 @@
             placement="right-end">
             <div>
               {{ joinCron(row.config.cron) }}
+              <small>{{ getTriggerTimezone(row) || $t('部署时区') }}</small>
             </div>
           </bk-popover>
         </template>
@@ -96,6 +97,7 @@
           <CronRuleSelect
             ref="cronRuleSelect"
             v-model="currentJoinIcon"
+            :timezone="getTriggerTimezone(currentTriggerConfig)"
             class="loop-rule" />
         </bk-form-item>
         <bk-form-item
@@ -276,6 +278,9 @@ export default {
         },
     },
     methods: {
+      getTriggerTimezone(trigger) {
+        return trigger.config.timezone || (trigger.id ? '' : window.TIMEZONE);
+      },
        joinCron(cron) {
           const afterCron = [
             cron.minute,
@@ -374,9 +379,9 @@ export default {
           this.copyTriggerConstants = {};
           this.isShowTriggerDialog = false;
         },
-        onTriggerConfirm(type) {
+        async onTriggerConfirm(type) {
           const isCronError = this.$refs.cronRuleSelect.isError;
-          const isParamsValid = this.currentTriggerConfig.config.mode === 'json' ? this.isJsonConstantsValid : this.$refs.taskParamEdit.validate();
+          const isParamsValid = this.currentTriggerConfig.config.mode === 'json' ? this.isJsonConstantsValid : await this.$refs.taskParamEdit.validate();
           if (!isParamsValid || isCronError) {
             return;
           }

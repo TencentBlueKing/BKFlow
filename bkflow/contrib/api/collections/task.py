@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.conf import settings
 
 from bkflow.admin.models import ModuleInfo
@@ -25,12 +26,13 @@ from bkflow.contrib.api.client import BaseComponentClient
 class TaskComponentClient(BaseComponentClient):
     MODULE_TYPE = "TASK"
 
-    def __init__(self, space_id=0, from_superuser=False):
+    def __init__(self, space_id=0, from_superuser=False, time_zone=None):
         # space_id 等于0时表示默认配置
         super().__init__()
-        self.from_superuser = from_superuser
+        self.from_superuser = from_superuser and not settings.ENABLE_MULTI_TENANT_MODE
         self.space_id = space_id
         self.module_info = self.get_module_info()
+        self.time_zone = time_zone
 
     def get_module_info(self):
         try:
@@ -50,6 +52,8 @@ class TaskComponentClient(BaseComponentClient):
         if self.space_id is not None:
             headers[settings.APP_INTERNAL_SPACE_ID_HEADER_KEY] = str(self.space_id)
         headers[settings.APP_INTERNAL_FROM_SUPERUSER_HEADER_KEY] = "1" if self.from_superuser else "0"
+        if self.time_zone is not None:
+            headers[settings.APP_INTERNAL_TIME_ZONE_HEADER_KEY] = self.time_zone
 
         return headers
 
@@ -178,3 +182,20 @@ class TaskComponentClient(BaseComponentClient):
 
     def delete_engine_config(self, data):
         return self._request(method="delete", url=self._get_task_url("task/delete_engine_config/"), data=data)
+
+    def list_children_taskflow(self, data):
+        """获取根任务下的所有子任务列表"""
+        return self._request(method="get", url=self._get_task_url("task/list_children_taskflow/"), data=data)
+
+    def root_task_info(self, data):
+        """批量查询任务是否包含子任务"""
+        return self._request(method="get", url=self._get_task_url("task/root_task_info/"), data=data)
+
+    def get_node_outputs(self, data):
+        return self._request(method="post", url=self._get_task_url("task/get_node_outputs/"), data=data)
+
+    def get_tasks_pipeline(self, data):
+        return self._request(method="get", url=self._get_task_url("task/get_tasks_pipeline/"), data=data)
+
+    def batch_get_task_states(self, data):
+        return self._request(method="get", url=self._get_task_url("task/batch_get_task_states/"), data=data)

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import concurrent.futures
 import logging
 import re
@@ -26,11 +27,20 @@ from pipeline.component_framework.library import ComponentLibrary
 from pipeline.component_framework.models import ComponentModel
 
 from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
+from bkflow.bk_plugin.tenant import get_plugin_tenant_id
 from bkflow.constants import ALL_SPACE
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
-from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.models import (
+    OPEN_PLUGIN_WRAPPER_VERSION,
+    OpenPluginCatalogIndex,
+    SpaceOpenPluginAvailability,
+)
 from bkflow.plugin.models import SpacePluginConfig as SpacePluginConfigModel
-from bkflow.plugin.services.open_plugin_grant import OpenPluginGrantService
+from bkflow.plugin.services.uniform_api_headers import get_source_headers
+from bkflow.plugin.services.uniform_api_meta import (
+    UniformAPIMetaError,
+    extract_uniform_api_meta_data,
+)
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
@@ -65,7 +75,7 @@ class PluginSchemaService:
         self.scope_type = scope_type
         self.scope_id = scope_id
 
-    def list_plugins(self, keyword=None, plugin_type=None, with_detail=False, limit=100, offset=0):
+    def list_plugins(self, keyword=None, plugin_type=None, with_detail=False, limit=100, offset=0, plugin_source=None):
         """
         查询空间可用插件列表，聚合三种来源。
 
@@ -74,6 +84,7 @@ class PluginSchemaService:
         :param with_detail: True 返回完整 schema，False 只返回摘要
         :param limit: 分页大小
         :param offset: 分页偏移
+        :param plugin_source: 开放插件来源类型，仅过滤 V4 目录项
         :return: (plugins_list, total_count)
         """
         all_plugins = []
@@ -91,7 +102,10 @@ class PluginSchemaService:
 
         for ptype, handler in handlers.items():
             try:
-                plugins = handler(keyword=keyword)
+                if ptype == "uniform_api":
+                    plugins = handler(keyword=keyword, plugin_source=plugin_source)
+                else:
+                    plugins = handler(keyword=keyword)
                 all_plugins.extend(plugins)
             except Exception:
                 logger.exception("查询 %s 类型插件列表失败", ptype)
@@ -109,20 +123,26 @@ class PluginSchemaService:
         paginated = all_plugins[offset : offset + limit]
         return paginated, total_count
 
-    def get_plugin_schema(self, code, version=None, plugin_type=None):
+    def get_plugin_schema(self, code, version=None, plugin_type=None, plugin_source=None, source_key=None):
         """
         查询单个插件的完整 schema。
 
         :param code: 插件 code
         :param version: 指定版本（仅 component 生效）
         :param plugin_type: 消歧用
+        :param plugin_source: 开放插件来源类型
+        :param source_key: 开放插件来源，同 plugin_id 多来源时消歧
         :return: 统一格式的插件信息 dict
         :raises: ValueError
         """
         if plugin_type:
-            plugin_info = self._get_single_by_type(code, plugin_type, version=version)
+            plugin_info = self._get_single_by_type(
+                code, plugin_type, version=version, source_key=source_key, plugin_source=plugin_source
+            )
         else:
-            plugin_info = self._get_single_auto_resolve(code, version=version)
+            plugin_info = self._get_single_auto_resolve(
+                code, version=version, plugin_source=plugin_source, source_key=source_key
+            )
 
         self._fill_schema_single(plugin_info, strict=True)
         return plugin_info
@@ -215,7 +235,7 @@ class PluginSchemaService:
         return result
 
     def _list_remote_plugins(self, keyword=None):
-        plugins = BKPlugin.objects.filter()
+        plugins = BKPlugin.objects.for_space(self.space_id)
         authorized = BKPluginAuthorization.objects.filter(status=AuthStatus.authorized.value)
         auth_map = {a.code: a.white_list for a in authorized}
 
@@ -244,12 +264,15 @@ class PluginSchemaService:
 
     def _get_remote_plugin_schema(self, code):
         """从 PluginServiceApiClient.get_meta() 提取 schema，带缓存"""
+        tenant_id = get_plugin_tenant_id(self.space_id)
+        if tenant_id and not BKPlugin.objects.for_space(self.space_id).filter(code=code).exists():
+            raise ValueError("插件不存在或不属于当前租户")
         cache_key = "plugin_schema:remote_plugin:{}".format(code)
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
-        client = PluginServiceApiClient(code)
+        client = PluginServiceApiClient(code, **({"tenant_id": tenant_id} if tenant_id else {}))
         result = client.get_meta()
         if not result.get("result"):
             raise ValueError("查询蓝鲸标准插件 '{}' meta 失败: {}".format(code, result.get("message")))
@@ -269,11 +292,26 @@ class PluginSchemaService:
         cache.set(cache_key, schema_result, PLUGIN_SCHEMA_CACHE_TTL)
         return schema_result
 
-    def _list_uniform_api_plugins(self, keyword=None):
-        local_catalog_plugins = self._list_uniform_api_plugins_from_catalog(keyword=keyword)
-        if local_catalog_plugins is not None:
-            return local_catalog_plugins
+    def _list_uniform_api_plugins(self, keyword=None, plugin_source=None):
+        """V4 走本地目录（可用+开启），V2/V3 始终回落远端列表后合并。"""
+        v4_plugins = self._list_uniform_api_plugins_from_catalog(keyword=keyword, plugin_source=plugin_source)
+        if plugin_source:
+            return v4_plugins
 
+        try:
+            remote_plugins = self._list_remote_uniform_api_plugins(keyword=keyword)
+        except Exception:
+            logger.exception("查询远端 uniform_api 列表失败: space_id=%s", self.space_id)
+            remote_plugins = []
+        v4_codes = {item["code"] for item in v4_plugins}
+        legacy_plugins = [
+            item
+            for item in remote_plugins
+            if item.get("wrapper_version") != OPEN_PLUGIN_WRAPPER_VERSION and item["code"] not in v4_codes
+        ]
+        return v4_plugins + legacy_plugins
+
+    def _list_remote_uniform_api_plugins(self, keyword=None):
         cache_key = "plugin_list:uniform_api:{}".format(self.space_id)
         cached = cache.get(cache_key)
         if cached is not None:
@@ -301,6 +339,7 @@ class PluginSchemaService:
                 app_code=credential.content["bk_app_code"],
                 app_secret=credential.content["bk_app_secret"],
                 username=self.username or "admin",
+                headers=api_entry.headers or {},
             )
             list_result = client.request(
                 url=meta_apis_url,
@@ -321,6 +360,7 @@ class PluginSchemaService:
                 "version": "",
                 "description": api_item.get("description", ""),
                 "group_name": api_item.get("category", ""),
+                "wrapper_version": api_item.get("wrapper_version", ""),
                 "_meta_url": api_item.get("meta_url", ""),
             }
             if keyword and not self._match_keyword(info, keyword):
@@ -328,23 +368,22 @@ class PluginSchemaService:
             results.append(info)
         return results
 
-    def _list_uniform_api_plugins_from_catalog(self, keyword=None):
-        catalog_qs = OpenPluginCatalogIndex.objects.filter(space_id=self.space_id)
-        if not catalog_qs.exists():
-            return None
-
-        granted_source_keys = set(OpenPluginGrantService.granted_source_keys(self.space_id))
-        if not granted_source_keys:
-            return []
-        catalog_qs = catalog_qs.filter(source_key__in=granted_source_keys)
+    def _list_uniform_api_plugins_from_catalog(self, keyword=None, plugin_source=None):
+        catalog_qs = OpenPluginCatalogIndex.objects.filter(
+            space_id=self.space_id,
+            wrapper_version=OPEN_PLUGIN_WRAPPER_VERSION,
+            status=OpenPluginCatalogIndex.Status.AVAILABLE,
+        )
+        if plugin_source:
+            catalog_qs = catalog_qs.filter(plugin_source=plugin_source)
 
         enabled_pairs = set(
-            SpaceOpenPluginAvailability.objects.filter(
-                space_id=self.space_id, source_key__in=granted_source_keys, enabled=True
-            ).values_list("source_key", "plugin_id")
+            SpaceOpenPluginAvailability.objects.filter(space_id=self.space_id, enabled=True).values_list(
+                "source_key", "plugin_id"
+            )
         )
         results = []
-        for item in catalog_qs.filter(status=OpenPluginCatalogIndex.Status.AVAILABLE):
+        for item in catalog_qs:
             if (item.source_key, item.plugin_id) not in enabled_pairs:
                 continue
 
@@ -366,25 +405,36 @@ class PluginSchemaService:
                 "versions": item.versions,
                 "source_key": item.source_key,
                 "_meta_url_template": item.meta_url_template,
-                "_meta_url": item.meta_url_template.format(version=version)
-                if version and item.meta_url_template
-                else "",
+                "_meta_url": (
+                    item.meta_url_template.format(version=version) if version and item.meta_url_template else ""
+                ),
             }
             if keyword and not self._match_keyword(info, keyword):
                 continue
             results.append(info)
         return results
 
-    def _get_uniform_api_schema(self, code, version=None, api_item=None):
+    def _get_uniform_api_schema(self, code, version=None, api_item=None, source_key=None):
         """从 meta_url 提取 schema，带缓存"""
-        cache_key = "plugin_schema:uniform_api:{}:{}:{}".format(self.space_id, code, version or "latest")
+        resolved_source_key = source_key or (api_item or {}).get("source_key") or ""
+        cache_key = "plugin_schema:uniform_api:{}:{}:{}:{}".format(
+            self.space_id, resolved_source_key or "-", code, version or "latest"
+        )
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
         if api_item is None:
             api_list = self._list_uniform_api_plugins()
-            api_item = next((a for a in api_list if a["code"] == code), None)
+            api_item = next(
+                (
+                    item
+                    for item in api_list
+                    if item["code"] == code
+                    and (not resolved_source_key or item.get("source_key") == resolved_source_key)
+                ),
+                None,
+            )
         else:
             api_item = dict(api_item)
 
@@ -395,7 +445,7 @@ class PluginSchemaService:
             api_item["_meta_url"] = self._build_uniform_api_meta_url(api_item, version)
 
         if not api_item or not api_item.get("_meta_url"):
-            self._raise_uniform_api_catalog_access_error(code)
+            self._raise_uniform_api_catalog_access_error(code, source_key=resolved_source_key or None)
             raise ValueError("未找到 API 插件 '{}'".format(code))
 
         credential = self._get_apigw_credential()
@@ -407,6 +457,7 @@ class PluginSchemaService:
             app_code=credential.content["bk_app_code"],
             app_secret=credential.content["bk_app_secret"],
             username=self.username or "admin",
+            headers=get_source_headers(self.space_id, api_item.get("source_key") or resolved_source_key),
         )
         meta_result = client.request(
             url=api_item["_meta_url"],
@@ -415,7 +466,14 @@ class PluginSchemaService:
             headers=headers,
             username=self.username or "admin",
         )
-        meta = meta_result.json_resp.get("data", {})
+        try:
+            meta = extract_uniform_api_meta_data(
+                meta_result,
+                requested_version=version or api_item.get("plugin_version") or api_item.get("version"),
+                catalog_wrapper_version=api_item.get("wrapper_version"),
+            )
+        except UniformAPIMetaError as exc:
+            raise ValueError(str(exc)) from exc
 
         inputs = self._normalize_io_fields(meta.get("inputs", []))
         outputs = self._normalize_io_fields(meta.get("outputs", []), is_output=True)
@@ -442,7 +500,7 @@ class PluginSchemaService:
             return None
         return Credential.objects.filter(space_id=self.space_id, name=credential_name).first()
 
-    def _get_single_by_type(self, code, plugin_type, version=None):
+    def _get_single_by_type(self, code, plugin_type, version=None, source_key=None, plugin_source=None):
         if plugin_type == "component":
             obj = ComponentModel.objects.filter(code=code, status=True).first()
             if not obj:
@@ -458,7 +516,7 @@ class PluginSchemaService:
                 "_component_version": version or obj.version,
             }
         elif plugin_type == "remote_plugin":
-            obj = BKPlugin.objects.filter(code=code).first()
+            obj = BKPlugin.objects.for_space(self.space_id).filter(code=code).first()
             if not obj:
                 raise ValueError("未找到蓝鲸标准插件 '{}'".format(code))
             return {
@@ -470,10 +528,17 @@ class PluginSchemaService:
                 "group_name": "",
             }
         elif plugin_type == "uniform_api":
-            api_list = self._list_uniform_api_plugins()
-            api_item = next((a for a in api_list if a["code"] == code), None)
+            api_list = self._list_uniform_api_plugins(plugin_source=plugin_source)
+            api_item = next(
+                (
+                    item
+                    for item in api_list
+                    if item["code"] == code and (source_key is None or item.get("source_key") == source_key)
+                ),
+                None,
+            )
             if not api_item:
-                self._raise_uniform_api_catalog_access_error(code)
+                self._raise_uniform_api_catalog_access_error(code, source_key=source_key)
                 raise ValueError("未找到 API 插件 '{}'".format(code))
             if version:
                 self._validate_uniform_api_plugin_version(api_item, version)
@@ -486,15 +551,22 @@ class PluginSchemaService:
         else:
             raise ValueError("不支持的 plugin_type: {}".format(plugin_type))
 
-    def _get_single_auto_resolve(self, code, version=None):
+    def _get_single_auto_resolve(self, code, version=None, plugin_source=None, source_key=None):
         is_component = ComponentModel.objects.filter(code=code, status=True).exists()
-        is_bk_plugin = BKPlugin.objects.filter(code=code).exists()
+        is_bk_plugin = BKPlugin.objects.for_space(self.space_id).filter(code=code).exists()
 
         is_uniform_api = False
         api_item = None
         try:
-            api_list = self._list_uniform_api_plugins()
-            api_item = next((a for a in api_list if a["code"] == code), None)
+            api_list = self._list_uniform_api_plugins(plugin_source=plugin_source)
+            api_item = next(
+                (
+                    item
+                    for item in api_list
+                    if item["code"] == code and (source_key is None or item.get("source_key") == source_key)
+                ),
+                None,
+            )
             is_uniform_api = api_item is not None
         except Exception:
             pass
@@ -517,16 +589,13 @@ class PluginSchemaService:
             return api_item
         return self._get_single_by_type(code, resolved_type, version=version)
 
-    def _raise_uniform_api_catalog_access_error(self, code):
-        catalog = (
-            OpenPluginCatalogIndex.objects.filter(space_id=self.space_id, plugin_id=code)
-            .order_by("-update_time", "-id")
-            .first()
-        )
-        if not catalog:
+    def _raise_uniform_api_catalog_access_error(self, code, source_key=None):
+        filters = {"space_id": self.space_id, "plugin_id": code}
+        if source_key is not None:
+            filters["source_key"] = source_key
+        catalog = OpenPluginCatalogIndex.objects.filter(**filters).order_by("-update_time", "-id").first()
+        if not catalog or catalog.wrapper_version != OPEN_PLUGIN_WRAPPER_VERSION:
             return
-        if not OpenPluginGrantService.is_granted(self.space_id, catalog.source_key):
-            raise ValueError("开放插件来源未准入: {}".format(catalog.source_key))
         if catalog.status != OpenPluginCatalogIndex.Status.AVAILABLE:
             raise ValueError("开放插件 [{}] 当前不可用".format(code))
         if not SpaceOpenPluginAvailability.objects.filter(

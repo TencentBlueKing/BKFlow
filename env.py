@@ -16,8 +16,23 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import os
+
+# 在 blueapps 加载登录策略前归一开关；平台变量优先，兼容历史别名。
+os.environ.setdefault("BKPAAS_MULTI_TENANT_MODE", os.getenv("ENABLE_MULTI_TENANT_MODE", "false"))
+
+# 新平台默认使用 APIGW；上云旧平台单租户可显式保留 legacy 协议。
+BKFLOW_PLATFORM_API_MODE = os.getenv("BKFLOW_PLATFORM_API_MODE", "apigw").lower()
+if BKFLOW_PLATFORM_API_MODE not in {"apigw", "legacy"}:
+    raise ValueError("BKFLOW_PLATFORM_API_MODE must be apigw or legacy")
+BKFLOW_CREDENTIAL_CIPHER = os.getenv("BKFLOW_CREDENTIAL_CIPHER", "AES").upper()
+if BKFLOW_CREDENTIAL_CIPHER not in {"AES", "SM4"}:
+    raise ValueError("BKFLOW_CREDENTIAL_CIPHER must be AES or SM4")
+BKFLOW_DOC_VERSION = os.getenv("BKFLOW_DOC_VERSION", "")
+BKFLOW_DOC_URL_ZH = os.getenv("BKFLOW_DOC_URL_ZH", "")
+BKFLOW_DOC_URL_EN = os.getenv("BKFLOW_DOC_URL_EN", "")
 
 # 部署模块相关变量
 # 是否开启部分调试日志
@@ -61,13 +76,16 @@ INTERFACE_APP_INTERNAL_TOKEN = os.getenv("INTERFACE_APP_INTERNAL_TOKEN", "")
 INTERFACE_APP_URL = os.getenv("INTERFACE_APP_URL", "")
 # TOKEN保留时间，默认半天
 TOKEN_RETENTION_TIME = int(os.getenv("TOKEN_RETENTION_TIME", 12 * 60 * 60))
+# 默认启用 grants 格式申请；显式配置时仅 true（不区分大小写）启用。
+TOKEN_COMPOSITE_ENABLED = os.getenv("BKAPP_TOKEN_COMPOSITE_ENABLED", "true").lower() == "true"
 
 # 变量名关键字黑名单
 VARIABLE_KEY_BLACKLIST = os.getenv("BKAPP_VARIABLE_KEY_BLACKLIST", "context,")
 
 # APIGW 访问地址
 BK_APIGW_URL_TMPL = os.getenv("BK_API_URL_TMPL") or os.getenv("BK_COMPONENT_API_URL")
-BK_APIGW_NAME = os.getenv("BK_APIGW_NAME", "").replace("_", "-")
+# 显式配置优先，兼容上云存量网关；新部署默认跟随平台实际应用身份。
+BK_APIGW_NAME = (os.getenv("BK_APIGW_NAME") or os.getenv("BKPAAS_APP_ID", "")).replace("_", "-")
 # 用于校验网关地址是否合法，形如^(?P<api_name>[\w-]+)\.xxx.com
 BK_APIGW_NETLOC_PATTERN = os.getenv("BK_APIGW_NETLOC_PATTERN")
 
@@ -81,6 +99,23 @@ BKAPP_DEFAULT_ENGINE_MODULE_ENTRY = os.getenv("BKAPP_DEFAULT_ENGINE_MODULE_ENTRY
 
 # 默认引擎插件超时时间
 BKAPP_API_PLUGIN_REQUEST_TIMEOUT = int(os.getenv("BKAPP_API_PLUGIN_REQUEST_TIMEOUT", 30))
+
+# Python 代码节点子进程执行限制
+PYTHON_CODE_PLUGIN_TIMEOUT = int(os.getenv("PYTHON_CODE_PLUGIN_TIMEOUT", 30))
+PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT = int(os.getenv("PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT", PYTHON_CODE_PLUGIN_TIMEOUT))
+PYTHON_CODE_PLUGIN_MAX_LENGTH = int(os.getenv("PYTHON_CODE_PLUGIN_MAX_LENGTH", 10240))
+PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB = int(os.getenv("PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB", 256))
+PYTHON_CODE_PLUGIN_MAX_CONCURRENT_PROCESSES = int(os.getenv("PYTHON_CODE_PLUGIN_MAX_CONCURRENT_PROCESSES", 4))
+PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES = int(os.getenv("PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES", 0))
+
+# 开放插件目录同步请求超时和同步周期
+OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT = int(os.getenv("BKAPP_OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT", 120))
+OPEN_PLUGIN_CATALOG_SYNC_CRONTAB = os.getenv("BKAPP_OPEN_PLUGIN_CATALOG_SYNC_CRONTAB", "*/30 * * * *")
+
+# 开放插件回调 token 有效期（秒）；未配置时对齐节点最长执行时间
+_OPEN_PLUGIN_CALLBACK_TOKEN_TTL = os.getenv("BKAPP_OPEN_PLUGIN_CALLBACK_TOKEN_TTL")
+OPEN_PLUGIN_CALLBACK_TOKEN_TTL = int(_OPEN_PLUGIN_CALLBACK_TOKEN_TTL) if _OPEN_PLUGIN_CALLBACK_TOKEN_TTL else None
+OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB = os.getenv("BKAPP_OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB", "0 * * * *")
 
 CALLBACK_KEY = os.getenv("BKFLOW_DEFAULT_CALLBACK_KEY", "").encode("utf-8")
 
@@ -125,6 +160,14 @@ BKPAAS_DOMAIN = os.getenv("BKPAAS_BK_DOMAIN", "")
 
 # 空间配置
 MAX_SPACE_NUM_PER_APP = int(os.getenv("BKAPP_MAX_SPACE_NUM_PER_APP", 100))
+# Token 过期时间允许设置的最大值（秒），默认 30 天
+BKAPP_TOKEN_EXPIRATION_MAX_EXPIRATION = os.getenv("BKAPP_TOKEN_EXPIRATION_MAX_EXPIRATION", "2592000")
+
+# UniformApiConfig 一键验证接口资源/时间上限
+BKAPP_UNIFORM_API_VERIFY_MAX_CATEGORIES = int(os.getenv("BKAPP_UNIFORM_API_VERIFY_MAX_CATEGORIES", 50))
+BKAPP_UNIFORM_API_VERIFY_MAX_LIST_REQUESTS = int(os.getenv("BKAPP_UNIFORM_API_VERIFY_MAX_LIST_REQUESTS", 50))
+BKAPP_UNIFORM_API_VERIFY_MAX_META_SAMPLES = int(os.getenv("BKAPP_UNIFORM_API_VERIFY_MAX_META_SAMPLES", 5))
+BKAPP_UNIFORM_API_VERIFY_MAX_TOTAL_TIMEOUT = int(os.getenv("BKAPP_UNIFORM_API_VERIFY_MAX_TOTAL_TIMEOUT", 60))
 
 BKPAAS_SHARED_RES_URL = os.getenv("BKPAAS_SHARED_RES_URL", "")
 
@@ -224,3 +267,15 @@ MAX_WEBHOOK_RETRY_INTERVAL = int(os.getenv("MAX_WEBHOOK_RETRY_INTERVAL", 600))
 MAX_WEBHOOK_TIMEOUT = int(os.getenv("MAX_WEBHOOK_TIMEOUT", 10))
 
 PLUGIN_LOOP_OUTPUTS_KEY = os.getenv("PLUGIN_LOOP_OUTPUTS_KEY", "outputs")
+
+BKPAAS_USER_URL = os.getenv("BKPAAS_USER_URL")
+BKPAAS_IAM_URL = os.getenv("BKPAAS_IAM_URL")
+
+ENABLE_MULTI_TENANT_MODE = (
+    os.getenv("BKPAAS_MULTI_TENANT_MODE", os.getenv("ENABLE_MULTI_TENANT_MODE", "false")).lower() == "true"
+)
+BK_PLUGIN_SYNC_TENANTS = list(
+    dict.fromkeys(
+        tenant.strip() for tenant in os.getenv("BK_PLUGIN_SYNC_TENANTS", "system").split(",") if tenant.strip()
+    )
+) or ["system"]

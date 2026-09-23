@@ -23,9 +23,11 @@ from unittest import mock
 import pytest
 from bamboo_engine import states as bamboo_engine_states
 from bamboo_engine.api import EngineAPIResult
+from django.conf import settings
 from django.utils import timezone
 
-from bkflow.task.models import OpenPluginRunCallbackRef, TaskInstance
+from bkflow.constants import TaskTriggerMethod
+from bkflow.task.models import OpenPluginRunCallbackRef, TaskFlowRelation, TaskInstance
 from bkflow.task.open_plugin_callback import (
     callback_token_digest,
     issue_open_plugin_callback_token,
@@ -38,6 +40,13 @@ from bkflow.utils.pipeline import build_default_pipeline_tree
 class TestTaskNodeOperation:
     """测试 TaskNodeOperation 节点操作"""
 
+    def test_open_plugin_callback_ref_supports_runtime_node_version_length(self):
+        """真实运行时节点版本为 v 加 32 位十六进制串，存储字段不得截断。"""
+
+        node_version_field = OpenPluginRunCallbackRef._meta.get_field("node_version")
+
+        assert node_version_field.max_length >= len("v27b15e4ff8ec4a238e479331c5140cb5")
+
     def _create_task_instance_with_node(self):
         task_instance = TaskInstance.objects.create_instance(space_id=1, pipeline_tree=build_default_pipeline_tree())
         task_instance.calculate_tree_info()
@@ -45,6 +54,79 @@ class TestTaskNodeOperation:
         if not node_ids:
             pytest.skip("No nodes in pipeline tree")
         return task_instance, node_ids[0]
+
+    def test_get_node_data_can_preserve_loop_outputs_for_debug_sync(self, mocker):
+        task_instance, node_id = self._create_task_instance_with_node()
+        node_operation = TaskNodeOperation(task_instance, node_id)
+        aggregate = [{"result": "first"}, {"result": "second"}]
+        mocker.patch(
+            "bamboo_engine.api.get_children_states",
+            return_value=EngineAPIResult(result=True, data={node_id: {"loop": 1}}, message="success"),
+        )
+        mocker.patch(
+            "bamboo_engine.api.get_execution_data",
+            return_value=EngineAPIResult(
+                result=True,
+                data={
+                    "inputs": {},
+                    "outputs": {settings.PLUGIN_LOOP_OUTPUTS_KEY: aggregate, "ex_data": ""},
+                },
+                message="success",
+            ),
+        )
+        mocker.patch.object(
+            node_operation,
+            "_get_node_info",
+            return_value={"type": "ServiceActivity", "component": {"code": "subcanvas_plugin"}},
+        )
+        format_outputs = mocker.patch.object(
+            node_operation,
+            "_format_outputs",
+            return_value=(
+                True,
+                "",
+                [{"key": settings.PLUGIN_LOOP_OUTPUTS_KEY, "value": aggregate}],
+            ),
+        )
+
+        result = node_operation.get_node_data(
+            username="admin",
+            subprocess_stack=[],
+            include_loop_outputs=True,
+        )
+
+        assert result.result is True
+        assert result.data["outputs"] == [{"key": settings.PLUGIN_LOOP_OUTPUTS_KEY, "value": aggregate}]
+        formatted_raw_outputs = format_outputs.call_args.kwargs["outputs"]["outputs"]
+        assert formatted_raw_outputs[settings.PLUGIN_LOOP_OUTPUTS_KEY] == aggregate
+
+    def test_get_node_data_hides_loop_outputs_by_default(self, mocker):
+        task_instance, node_id = self._create_task_instance_with_node()
+        node_operation = TaskNodeOperation(task_instance, node_id)
+        mocker.patch(
+            "bamboo_engine.api.get_children_states",
+            return_value=EngineAPIResult(result=True, data={node_id: {"loop": 1}}, message="success"),
+        )
+        mocker.patch(
+            "bamboo_engine.api.get_execution_data",
+            return_value=EngineAPIResult(
+                result=True,
+                data={"inputs": {}, "outputs": {settings.PLUGIN_LOOP_OUTPUTS_KEY: ["hidden"], "ex_data": ""}},
+                message="success",
+            ),
+        )
+        mocker.patch.object(
+            node_operation,
+            "_get_node_info",
+            return_value={"type": "ServiceActivity", "component": {"code": "subcanvas_plugin"}},
+        )
+        format_outputs = mocker.patch.object(node_operation, "_format_outputs", return_value=(True, "", []))
+
+        result = node_operation.get_node_data(username="admin", subprocess_stack=[])
+
+        assert result.result is True
+        formatted_raw_outputs = format_outputs.call_args.kwargs["outputs"]["outputs"]
+        assert settings.PLUGIN_LOOP_OUTPUTS_KEY not in formatted_raw_outputs
 
     def _create_open_plugin_callback_ref(
         self,
@@ -71,6 +153,42 @@ class TestTaskNodeOperation:
             credential_key="default",
             consumed_at=consumed_at,
         )
+
+    def test_upsert_open_plugin_callback_ref(self):
+        from bkflow.pipeline_plugins.components.collections.uniform_api.v4_0_0 import (
+            UniformAPIService,
+        )
+
+        token, expire_at = issue_open_plugin_callback_token(
+            task_id=1,
+            node_id="node_a",
+            client_request_id="task-1-node-node_a-attempt-1",
+            node_version="v4.0.0",
+        )
+
+        UniformAPIService._upsert_open_plugin_callback_ref(
+            task_id=1,
+            node_id="node_a",
+            node_version="v4.0.0",
+            client_request_id="task-1-node-node_a-attempt-1",
+            open_plugin_run_id="run-001",
+            callback_token=token,
+            callback_expire_at=expire_at,
+            plugin_source="builtin",
+            source_key="sops",
+            plugin_id="open_plugin_001",
+            plugin_version="1.2.0",
+            cancel_url="https://bk-sops.example/open-plugin-runs/run-001/cancel",
+            credential_key="default",
+        )
+
+        callback_ref = OpenPluginRunCallbackRef.objects.get(client_request_id="task-1-node-node_a-attempt-1")
+        assert callback_ref.open_plugin_run_id == "run-001"
+        assert callback_ref.callback_token_digest == callback_token_digest(token)
+        assert callback_ref.plugin_id == "open_plugin_001"
+        assert callback_ref.source_key == "sops"
+        assert callback_ref.cancel_url == "https://bk-sops.example/open-plugin-runs/run-001/cancel"
+        assert callback_ref.credential_key == "default"
 
     def test_retry_node(self, mocker):
         """测试重试节点"""
@@ -134,6 +252,32 @@ class TestTaskNodeOperation:
         result = node_operation.callback(operator="test_operator", data={"key": "value"})
         assert isinstance(result, OperationResult)
         assert result.result is True
+
+    def test_callback_keeps_legacy_path_when_business_field_collides(self, mocker):
+        """普通回调即使携带 open_plugin_run_id，没有 _callback_token 仍走 bamboo callback。"""
+        task_instance, node_id = self._create_task_instance_with_node()
+        node_operation = TaskNodeOperation(task_instance, node_id)
+        mock_state = type("State", (), {"version": 1})()
+        mocker.patch("pipeline.eri.runtime.BambooDjangoRuntime.get_state", return_value=mock_state)
+        callback_api = mocker.patch(
+            "bamboo_engine.api.callback", return_value=EngineAPIResult(result=True, message="success")
+        )
+        payload = {"open_plugin_run_id": "biz-001", "status": "success", "data": {"result": "done"}}
+
+        result = node_operation.callback(operator="test_operator", data=payload)
+
+        assert result.result is True
+        callback_api.assert_called_once_with(runtime=mock.ANY, node_id=node_id, version=1, data=payload)
+
+    def test_open_plugin_callback_token_ttl_covers_max_node_timeout(self, settings):
+        """回调 token 默认有效期对齐节点最长执行时间，避免纯回调插件中途过期。"""
+        settings.MAX_NODE_EXECUTE_TIMEOUT = 60 * 60 * 24
+        settings.OPEN_PLUGIN_CALLBACK_TOKEN_TTL = settings.MAX_NODE_EXECUTE_TIMEOUT
+        issued_at = timezone.now()
+
+        _, expire_at = issue_open_plugin_callback_token(task_id=1, node_id="node_a", client_request_id="cid-1")
+
+        assert expire_at - issued_at >= timedelta(seconds=settings.MAX_NODE_EXECUTE_TIMEOUT - 5)
 
     def test_open_plugin_callback_accepts_valid_payload(self, mocker):
         """开放插件回调由 engine 校验 token/ref 后再回调 bamboo engine。"""
@@ -336,7 +480,9 @@ class TestTaskNodeOperation:
         """测试强制失败"""
         space_id = 1
         task_instance = TaskInstance.objects.create_instance(
-            space_id=space_id, pipeline_tree=build_default_pipeline_tree()
+            space_id=space_id,
+            pipeline_tree=build_default_pipeline_tree(),
+            create_method="DEBUG",
         )
         task_instance.calculate_tree_info()
         node_ids = list(task_instance.node_id_set)
@@ -345,17 +491,102 @@ class TestTaskNodeOperation:
 
         node_id = node_ids[0]
         node_operation = TaskNodeOperation(task_instance, node_id)
-        cancel_open_plugin_runs = mocker.patch("bkflow.task.operations.cancel_open_plugin_runs_for_node", create=True)
+        suppress_failure_side_effects = mocker.patch(
+            "bkflow.task.operations.suppress_node_failure_side_effects", create=True
+        )
+        cancel_open_plugin_runs = mocker.patch("bkflow.task.celery.tasks.cancel_open_plugin_runs.delay")
+        forced_fail_activity = mocker.patch(
+            "bamboo_engine.api.forced_fail_activity",
+            return_value=EngineAPIResult(result=True, message="success"),
+        )
+
+        result = node_operation.forced_fail(
+            operator="test_operator",
+            ex_data="test error",
+            suppress_failure_side_effects=True,
+        )
+        assert isinstance(result, OperationResult)
+        assert result.result is True
+        suppress_failure_side_effects.assert_called_once_with(task_instance.instance_id, node_id)
+        forced_fail_activity.assert_called_once_with(
+            runtime=node_operation.runtime,
+            node_id=node_id,
+            ex_data="test error",
+            send_post_set_state_signal=True,
+        )
+        cancel_open_plugin_runs.assert_called_once_with(
+            task_id=task_instance.id, node_id=node_id, operator="test_operator"
+        )
+
+    def test_debug_subcanvas_forced_fail_revokes_its_active_child_task(self, mocker):
+        task_instance, node_id = self._create_task_instance_with_node()
+        task_instance.create_method = "DEBUG"
+        task_instance.save(update_fields=["create_method"])
+        child = TaskInstance.objects.create_instance(
+            space_id=1,
+            pipeline_tree=build_default_pipeline_tree(),
+            trigger_method=TaskTriggerMethod.sub_canvas.name,
+            creator="admin",
+        )
+        child.is_started = True
+        child.save(update_fields=["is_started"])
+        TaskFlowRelation.objects.create(
+            task_id=child.id,
+            parent_task_id=task_instance.id,
+            root_task_id=task_instance.id,
+            extra_info={"node_id": node_id, "trigger_method": TaskTriggerMethod.sub_canvas.name},
+        )
+        mocker.patch(
+            "bamboo_engine.api.forced_fail_activity",
+            return_value=EngineAPIResult(result=True, message="success"),
+        )
+        revoke_pipeline = mocker.patch(
+            "bamboo_engine.api.revoke_pipeline",
+            return_value=EngineAPIResult(result=True, message="success"),
+        )
+        mocker.patch("bkflow.task.operations._dispatch_open_plugin_cancellation")
+
+        result = TaskNodeOperation(task_instance, node_id).forced_fail(
+            operator="admin",
+            suppress_failure_side_effects=True,
+        )
+
+        assert result.result is True
+        revoke_pipeline.assert_called_once_with(runtime=mock.ANY, pipeline_id=child.instance_id)
+
+    def test_forced_fail_on_mock_task_does_not_suppress_side_effects(self, mocker):
+        """存量 MOCK 任务 forced_fail 不屏蔽失败副作用，但仍取消开放插件。"""
+        task_instance = TaskInstance.objects.create_instance(
+            space_id=1,
+            pipeline_tree=build_default_pipeline_tree(),
+            create_method="MOCK",
+        )
+        task_instance.calculate_tree_info()
+        node_ids = list(task_instance.node_id_set)
+        if not node_ids:
+            pytest.skip("No nodes in pipeline tree")
+
+        node_id = node_ids[0]
+        node_operation = TaskNodeOperation(task_instance, node_id)
+        suppress_failure_side_effects = mocker.patch(
+            "bkflow.task.operations.suppress_node_failure_side_effects", create=True
+        )
+        cancel_open_plugin_runs = mocker.patch("bkflow.task.celery.tasks.cancel_open_plugin_runs.delay")
         mocker.patch(
             "bamboo_engine.api.forced_fail_activity",
             return_value=EngineAPIResult(result=True, message="success"),
         )
 
-        result = node_operation.forced_fail(operator="test_operator", ex_data="test error")
-        assert isinstance(result, OperationResult)
+        result = node_operation.forced_fail(
+            operator="test_operator",
+            ex_data="test error",
+            suppress_failure_side_effects=True,
+        )
+
         assert result.result is True
+        suppress_failure_side_effects.assert_not_called()
         cancel_open_plugin_runs.assert_called_once_with(
-            task_instance=task_instance, node_id=node_id, operator="test_operator"
+            task_id=task_instance.id, node_id=node_id, operator="test_operator"
         )
 
     def test_get_node_detail_not_executed(self, mocker):

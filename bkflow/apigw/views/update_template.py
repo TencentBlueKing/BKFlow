@@ -23,7 +23,6 @@ from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from webhook.models import Webhook
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.exceptions import UpdateTemplateException
@@ -31,22 +30,24 @@ from bkflow.apigw.serializers.template import (
     UpdateTemplateLabelsSerializer,
     UpdateTemplateSerializer,
 )
-from bkflow.constants import (
-    TemplateOperationSource,
-    TemplateOperationType,
-    WebhookScopeType,
-)
+from bkflow.constants import TemplateOperationSource, TemplateOperationType
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.label.serializers import LabelSerializer
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
-from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
+from bkflow.template.models import (
+    Template,
+    TemplateOperationRecord,
+    TemplateSnapshot,
+    Trigger,
+)
+from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
 from bkflow.utils.version import bump_custom
-from bkflow.utils.webhook import apply_webhook_configs
+from bkflow.utils.webhook import apply_webhook_configs, clear_scope_webhooks
 
 
 @login_exempt
@@ -68,6 +69,7 @@ def update_template(request, space_id, template_id):
 
     auto_release = validated_data_dict.pop("auto_release", False)
     version = validated_data_dict.pop("version", None)
+    triggers = validated_data_dict.pop("triggers", None)
 
     pipeline_tree = validated_data_dict.pop("pipeline_tree", None)
     if pipeline_tree:
@@ -149,18 +151,27 @@ def update_template(request, space_id, template_id):
         except Exception as e:
             raise UpdateTemplateException(_(f"保存模板失败，错误: {str(e)}"))
 
+        # 批量修改流程绑定的触发器:
+        try:
+            if triggers is not None:
+                Trigger.objects.compare_constants(
+                    template.pipeline_tree.get("constants", {}),
+                    (pipeline_tree or template.pipeline_tree).get("constants", {}),
+                    triggers,
+                )
+                Trigger.objects.batch_modify_triggers(template, triggers, validated_data_dict["updated_by"])
+        except Exception as e:
+            raise UpdateTemplateException(_(f"更新失败，错误: {str(e)}"))
+
         enable_webhook = validated_data_dict.pop("enable_webhook", None)
         webhook_configs = validated_data_dict.pop("webhook_configs", [])
-        if enable_webhook is not None:
-            Webhook.objects.filter(scope_type=WebhookScopeType.TEMPLATE.value, scope_code=str(template.id)).update(
-                enable_webhook=enable_webhook
-            )
-
         if enable_webhook is True and webhook_configs:
             apply_result = apply_webhook_configs(webhook_configs, str(template.id))
             if not apply_result["result"]:
                 message = apply_result["message"]
                 raise UpdateTemplateException(_(f"保存模板失败，错误: {str(message)}"))
+        elif enable_webhook is False:
+            clear_scope_webhooks([str(template.id)])
 
         if label_ids is not None:
             TemplateLabelRelation.objects.set_labels(template.id, label_ids)
@@ -168,6 +179,9 @@ def update_template(request, space_id, template_id):
     template = Template.objects.get(id=template_id)
 
     resp_data = template.to_json()
+    template_triggers = Trigger.objects.filter(template_id=template.id, is_deleted=False)
+    resp_data["triggers"] = TriggerSerializer(template_triggers, many=True).data
+
     current_label_ids = list(
         TemplateLabelRelation.objects.filter(template_id=template.id).values_list("label_id", flat=True)
     )

@@ -753,6 +753,7 @@ git commit -m "test(plugin): 全量插件能力两层准入回归与修补 --sto
 - ✅ 两层准入：平台 `OpenPluginSpaceGrant` + 空间 `SpaceOpenPluginAvailability`
 - ✅ 查询 / 模板保存 / 任务创建 / 任务启动四处服务端强校验
 - ✅ 存量已配置来源空间默认授 grant，新空间保守默认无 grant
+- ✅ 前端协作补充：按最新 `prototype-wireframe` 规范补充节点使用 API 插件时新增“版本”选择项的最小 wiremd 线框
 - ⏳ 依赖项：
   1. 真正「使用全部插件」依赖标准运维侧组件运行壳落地（见 bk-sops 计划）
   2. operator 权限是产品前提（BKFlow 用户需在对应业务有权限）
@@ -786,6 +787,8 @@ git commit -m "test(plugin): 全量插件能力两层准入回归与修补 --sto
 - 快照与版本治理回归不退化
 - `OpenPluginSpaceGrant` 迁移 + 存量空间默认授 grant 生效
 - 任何 `bkflow/apigw/` 改动已同步 `api-resources.yml` + docs zip（`bash scripts/apigw_docs.sh`）
+- 前端原型只覆盖 V4.0.0 节点 API 插件新增“版本”选择项，避免引入调度模式、历史版本治理、版本差异对比等额外 UI
+- 前端对接文档明确 `context` 不入表单、不保存节点，由 BKFlow runtime execute 时注入
 
 ---
 

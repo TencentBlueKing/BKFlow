@@ -151,7 +151,8 @@ class TestUpdateTemplate(TestCase):
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
-    def test_update_template_with_enable_webhook_false(self):
+    @patch("bkflow.apigw.views.update_template.clear_scope_webhooks")
+    def test_update_template_with_enable_webhook_false(self, mock_clear_webhook):
         """测试 enable_webhook=False 时清除 webhook 配置"""
         space = self.create_space()
         pipeline_tree = self.build_pipeline_tree()
@@ -173,6 +174,7 @@ class TestUpdateTemplate(TestCase):
 
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp_data["result"], True)
+        mock_clear_webhook.assert_called_once_with([str(template.id)])
 
     @patch("bkflow.template.models.PeriodicTriggerHandler.create")
     @patch("bkflow.template.models.PeriodicTriggerHandler.update")

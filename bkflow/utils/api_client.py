@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -47,13 +46,16 @@ class ApigwClientMixin:
         return check_url_from_apigw(url)
 
     @staticmethod
-    def gen_default_apigw_header(app_code: str, app_secret: str, username: str = None):
+    def gen_default_apigw_header(app_code: str, app_secret: str, username: str = None, headers: dict = None):
+        if headers is None:
+            headers = {}
         auth_info = {"bk_app_code": app_code, "bk_app_secret": app_secret}
         if username:
             auth_info["bk_username"] = username
         return {
             "Content-Type": "application/json",
             "X-Bkapi-Authorization": json.dumps(auth_info),
+            **headers,
         }
 
 
@@ -120,6 +122,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             elif method == "HEAD":
                 response = requests.head(
@@ -129,6 +132,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             elif method == "POST":
                 response = requests.post(
@@ -139,6 +143,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             elif method == "DELETE":
                 response = requests.delete(
@@ -149,6 +154,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             elif method == "PUT":
                 response = requests.put(
@@ -159,6 +165,7 @@ class HttpRequestMixin:
                     cert=cert,
                     timeout=timeout,
                     cookies=cookie,
+                    **kwargs,
                 )
             else:
                 message = f"request api error: method {method} is not supported."
@@ -214,7 +221,7 @@ class ApiGwClient(ApigwClientMixin, HttpRequestMixin):
 
     def __init__(self, from_apigw_check=True, *args, **kwargs):
         self.from_apigw_check = from_apigw_check
-        super(ApiGwClient, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def request(self, url: str, method: str, data=None, headers=None, *args, **kwargs) -> HttpRequestResult:
         """

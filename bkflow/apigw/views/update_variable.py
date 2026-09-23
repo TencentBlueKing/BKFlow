@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 
 from apigw_manager.apigw.decorators import apigw_require
@@ -23,7 +24,7 @@ from blueapps.account.decorators import login_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from bkflow.apigw.decorators import return_json_response
+from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.utils import err_code
 from bkflow.variable_manager.models import VariableManager
 from bkflow.variable_manager.serializers import VariableManagerSerializer
@@ -33,6 +34,7 @@ from bkflow.variable_manager.serializers import VariableManagerSerializer
 @csrf_exempt
 @require_http_methods(["PUT", "PATCH"])
 @apigw_require
+@check_jwt_and_space
 @return_json_response
 def update_variable(request, space_id, variable_id):
     try:

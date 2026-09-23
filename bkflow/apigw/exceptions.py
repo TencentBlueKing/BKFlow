@@ -43,3 +43,9 @@ class PaginateParamsException(BKFLOWException):
     CODE = None
     MESSAGE = _("分页参数校验失败")
     STATUS_CODE = 500
+
+
+class GatewayExpressionException(BKFLOWException):
+    CODE = None
+    MESSAGE = _("网关表达式校验失败")
+    STATUS_CODE = 500

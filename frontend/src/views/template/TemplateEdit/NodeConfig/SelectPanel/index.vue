@@ -18,6 +18,7 @@
       :scope-info="scopeInfo"
       :space-id="spaceId"
       :space-related-config="spaceRelatedConfig"
+      :is-plugin-scope-hidden="isPluginScopeHidden"
       @select="$emit('select', $event)" />
   </div>
 </template>
@@ -69,6 +70,10 @@
       spaceRelatedConfig: {
         type: Object,
         default: () => ({}),
+      },
+      isPluginScopeHidden: {
+        type: Boolean,
+        default: false,
       },
     },
   };

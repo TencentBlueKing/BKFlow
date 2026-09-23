@@ -16,11 +16,13 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import datetime
 import logging
 from copy import deepcopy
 
 from django.db import models, transaction
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from pipeline.core.constants import PE
 from pipeline.parser.utils import replace_all_id
@@ -33,8 +35,9 @@ from bkflow.constants import (
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.exceptions import APIResponseError, NotFoundError, ValidationError
-from bkflow.space.configs import FlowVersioning
-from bkflow.space.models import SpaceConfig
+from bkflow.space.configs import FlowVersioning, GatewayExpressionConfig
+from bkflow.space.models import Space, SpaceConfig
+from bkflow.template.utils import validate_pipeline_tree_gateway_expression
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.md5 import compute_pipeline_md5
 from bkflow.utils.models import CommonModel, CommonSnapshot
@@ -54,6 +57,9 @@ class TemplateManager(models.Manager):
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
         template_pipeline_tree = template.get_pipeline_tree_by_version(version)
+        # 校验流程树中的网关表达式语言是否与空间配置一致
+        space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
+        validate_pipeline_tree_gateway_expression(template_pipeline_tree, space_gateway_expression)
         for node in template_pipeline_tree["activities"].values():
             if node["type"] == "SubProcess":
                 if copy_subprocess:
@@ -69,6 +75,11 @@ class TemplateManager(models.Manager):
                     node["version"] = new_sub_template.version
                 else:
                     continue
+            elif node["type"] == "SubCanvas":
+                pipeline = node.get("pipeline", {})
+                for sub_node in pipeline["activities"].values():
+                    if sub_node.get("component", {}).get("code") == "dmn_plugin":
+                        raise ValidationError("流程中存在决策节点 暂不支持拷贝")
             elif node["component"]["code"] == "dmn_plugin":
                 raise ValidationError("流程中存在决策节点 暂不支持拷贝")
         template.pk = None
@@ -156,7 +167,11 @@ class Template(CommonModel):
 
     @property
     def pipeline_tree(self):
-        return self.snapshot.data
+        from bkflow.template.tenant import validate_template_references
+
+        pipeline_tree = self.snapshot.data
+        validate_template_references(self.space_id, pipeline_tree)
+        return pipeline_tree
 
     def build_callback_data(self, operate_type):
         return {"type": "template", "data": {"id": self.id, "operate_type": operate_type}}
@@ -180,12 +195,17 @@ class Template(CommonModel):
         if not version:
             return self.pipeline_tree
         if self.validate_space("true"):
-            data = {"template_id": self.id, "version": version}
+            data = {"version": version}
         else:
             data = {"md5sum": version}
-        snapshot = TemplateSnapshot.objects.filter(**data).order_by("-id").first()
+        # 旧数据可能未填反向归属，只兼容本模板明确指向的当前快照，不能按版本全局回退。
+        ownership = models.Q(template_id=self.id) | models.Q(id=self.snapshot_id, template_id__isnull=True)
+        snapshot = TemplateSnapshot.objects.filter(ownership, **data).order_by("-id").first()
         if snapshot is None:
             raise ValidationError(f"Template snapshot with version {version} not found for template {self.id}")
+        from bkflow.template.tenant import validate_template_references
+
+        validate_template_references(self.space_id, snapshot.data)
         return snapshot.data
 
     @property
@@ -203,12 +223,24 @@ class Template(CommonModel):
 
     @property
     def subprocess_info(self):
+        from bkflow.template.tenant import validate_template_references
+
         subprocess_info = TemplateReference.objects.filter(root_template_id=self.id).values(
             "subprocess_template_id", "subprocess_node_id", "version", "always_use_latest"
         )
         info = []
         if not subprocess_info:
             return info
+
+        validate_template_references(
+            self.space_id,
+            {
+                "activities": {
+                    item["subprocess_node_id"]: {"type": "SubProcess", "template_id": item["subprocess_template_id"]}
+                    for item in subprocess_info
+                }
+            },
+        )
 
         temp_current_versions = {
             item.id: item
@@ -229,8 +261,12 @@ class Template(CommonModel):
         md5_to_version_map = {}
         version_to_snapshot_map = {}
         if md5sums_to_query:
-            snapshots = TemplateSnapshot.objects.filter(md5sum__in=md5sums_to_query, draft=False).order_by("id")
-            md5_to_version_map = {snapshot.md5sum: snapshot.version for snapshot in snapshots}
+            snapshots = TemplateSnapshot.objects.filter(
+                template_id__in=temp_current_versions, md5sum__in=md5sums_to_query, draft=False
+            ).order_by("id")
+            md5_to_version_map = {
+                (str(snapshot.template_id), snapshot.md5sum): snapshot.version for snapshot in snapshots
+            }
         if version_to_query:
             templates = TemplateSnapshot.objects.filter(template_id__in=version_to_query, draft=False).order_by("id")
             for template in templates:
@@ -238,7 +274,7 @@ class Template(CommonModel):
 
         for item in subprocess_info:
             if self.validate_space("true") and len(item["version"]) == TEMPLATE_MD5SUM_LENGTH:
-                version = md5_to_version_map.get(item["version"], item["version"])
+                version = md5_to_version_map.get((item["subprocess_template_id"], item["version"]), item["version"])
             elif not self.validate_space("true") and len(item["version"]) != TEMPLATE_MD5SUM_LENGTH:
                 version = version_to_snapshot_map.get(item["subprocess_template_id"], {}).get(item["version"])
             else:
@@ -505,18 +541,23 @@ class BaseTriggerHandler:
 class PeriodicTriggerHandler(BaseTriggerHandler):
     """定时触发器处理器"""
 
+    @staticmethod
+    def _timezone_config(config):
+        return {"timezone": config["timezone"]} if config.get("timezone") else {}
+
     def create(self, trigger, template):
         client = TaskComponentClient(space_id=trigger.space_id)
         data = {
             "name": template.name,
             "trigger_id": trigger.id,
             "template_id": trigger.template_id,
-            "cron": trigger.config.get("cron"),
+            "cron": {**trigger.config.get("cron", {}), **self._timezone_config(trigger.config)},
             "config": {
                 "space_id": trigger.space_id,
                 "constants": trigger.config.get("constants"),
                 "scope_type": template.scope_type,
                 "scope_value": template.scope_value,
+                "tenant_id": Space.objects.get(id=template.space_id).tenant_id,
             },
             "creator": template.creator,
             "extra_info": {"notify_config": template.notify_config},
@@ -530,12 +571,13 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
         update_data = {
             "name": template.name,
             "trigger_id": trigger.id,
-            "cron": data["config"].get("cron"),
+            "cron": {**data["config"].get("cron", {}), **self._timezone_config(data["config"])},
             "config": {
                 "space_id": trigger.space_id,
                 "constants": data["config"].get("constants"),
                 "scope_type": template.scope_type,
                 "scope_value": template.scope_value,
+                "tenant_id": Space.objects.get(id=template.space_id).tenant_id,
             },
             "extra_info": {"notify_config": template.notify_config},
             "is_enabled": trigger.is_enabled,
@@ -546,27 +588,38 @@ class PeriodicTriggerHandler(BaseTriggerHandler):
 
 
 class TriggerManager(models.Manager):
-    def create_trigger(self, data, template):
+    def create_trigger(self, data, template, username):
         config = {
-            "space_id": data.get("space_id"),
+            "space_id": template.space_id,
             "pipeline_tree": template.pipeline_tree,
             "scope_type": template.scope_type,
             "scope_value": template.scope_value,
         }
         data["config"] = {**data["config"], **config}
+        if data.get("type", Trigger.TYPE_PERIODIC) == Trigger.TYPE_PERIODIC:
+            data["config"].setdefault("timezone", timezone.get_current_timezone_name())
+        data["creator"] = username
+        data["space_id"] = template.space_id
+        data["template_id"] = template.id
         with transaction.atomic():
             trigger = Trigger.objects.create(**data)
             handler = self._get_handler(trigger.type)
             handler.create(trigger, template)
         return trigger
 
-    def update_trigger(self, trigger, data, template):
+    def update_trigger(self, trigger, data, template, username):
         config = {
             "pipeline_tree": template.pipeline_tree,
             "scope_type": template.scope_type,
             "scope_value": template.scope_value,
         }
         data["config"] = {**data["config"], **config}
+        # 编辑者切换时区不应隐式改变既有计划；未标时区的旧计划由 Engine 保留原 crontab 时区。
+        if trigger.config.get("timezone"):
+            data["config"].setdefault("timezone", trigger.config["timezone"])
+        data["updated_by"] = username
+        data["space_id"] = template.space_id
+        data["template_id"] = template.id
         with transaction.atomic():
             for field, value in data.items():
                 setattr(trigger, field, value)
@@ -617,15 +670,20 @@ class TriggerManager(models.Manager):
                     f"该流程下的触发器 #{index}:{cron_config} 有以下新增参数未填写：{', '.join(new_constants - trigger_constants)}"
                 )
 
-    def batch_modify_triggers(self, template, triggers):
+    def batch_modify_triggers(self, template, triggers, username):
         """批量更新、创建和删除单个流程下的多个触发器"""
 
         input_trigger_ids = [trigger.get("id") for trigger in triggers if trigger.get("id")]
-        exist_triggers = self.filter(template_id=template.id)
+        exist_triggers = self.filter(template_id=template.id, is_deleted=False)
 
         # 根据入参中触发器的id集合和数据库中存在的触发器id集合，筛选出待更新、待创建和待删除的触发器id列表
         exist_triggers_dict = {trigger.id: trigger for trigger in exist_triggers}
         exist_trigger_ids = exist_triggers_dict.keys()
+
+        invalid_ids = set(input_trigger_ids) - exist_trigger_ids
+        if invalid_ids:
+            raise ValidationError(f"触发器 id {sorted(invalid_ids)} 不属于当前模板(template_id={template.id})或已删除，不允许更新")
+
         to_update_trigger_ids = list(set(input_trigger_ids) & set(exist_trigger_ids))
         to_delete_trigger_ids = list(set(exist_trigger_ids) - set(input_trigger_ids))
         to_update_triggers = [
@@ -636,10 +694,10 @@ class TriggerManager(models.Manager):
 
         for update_instance in to_update_triggers:
             trigger = exist_triggers_dict[update_instance.get("id")]
-            self.update_trigger(trigger, update_instance, template)
+            self.update_trigger(trigger, update_instance, template, username)
 
         for create_instance in to_create_triggers:
-            self.create_trigger(create_instance, template)
+            self.create_trigger(create_instance, template, username)
 
         # 批量删除触发器以及其对应的周期任务
         if to_delete_trigger_ids:
@@ -694,6 +752,16 @@ class DebugContext(CommonModel):
     """
 
     STATUS_CHOICES = (("idle", "idle"), ("running", "running"), ("terminating", "terminating"))
+    RUN_TYPE_CHOICES = (("global", "global"), ("step", "step"))
+    RUN_STATUS_CHOICES = (
+        ("not_run", "not_run"),
+        ("running", "running"),
+        ("waiting", "waiting"),
+        ("paused", "paused"),
+        ("finished", "finished"),
+        ("failed", "failed"),
+        ("revoked", "revoked"),
+    )
 
     template_id = models.BigIntegerField(_("模板ID"), unique=True)
     space_id = models.IntegerField(_("空间ID"), db_index=True)
@@ -701,6 +769,12 @@ class DebugContext(CommonModel):
     tree_fingerprint = models.JSONField(_("树指纹"), default=dict, blank=True)
     status = models.CharField(_("调试状态"), max_length=16, choices=STATUS_CHOICES, default="idle")
     active_task_id = models.BigIntegerField(_("当前DEBUG任务ID"), null=True, blank=True)
+    active_run_type = models.CharField(_("当前调试类型"), max_length=16, choices=RUN_TYPE_CHOICES, blank=True, default="")
+    active_node_id = models.CharField(_("当前单步节点ID"), max_length=33, blank=True, default="")
+    last_task_id = models.BigIntegerField(_("最近DEBUG任务ID"), null=True, blank=True)
+    last_run_type = models.CharField(_("最近调试类型"), max_length=16, choices=RUN_TYPE_CHOICES, blank=True, default="")
+    last_run_status = models.CharField(_("最近调试状态"), max_length=16, choices=RUN_STATUS_CHOICES, default="not_run")
+    last_error_detail = models.JSONField(_("最近调试错误详情"), default=dict, blank=True)
     last_inputs = models.JSONField(_("最近一次输入"), default=dict, blank=True)
     locked_by = models.CharField(_("持锁用户"), max_length=32, blank=True, default="")
     locked_at = models.DateTimeField(_("持锁时间"), null=True, blank=True)
@@ -718,8 +792,11 @@ class DebugNodeState(models.Model):
     STATUS_CHOICES = (
         ("not_run", "not_run"),
         ("running", "running"),
+        ("waiting", "waiting"),
+        ("paused", "paused"),
         ("finished", "finished"),
         ("failed", "failed"),
+        ("revoked", "revoked"),
     )
 
     debug_context = models.ForeignKey(
@@ -732,6 +809,7 @@ class DebugNodeState(models.Model):
     mock_outputs = models.JSONField(_("Mock预设输出"), default=dict, blank=True)
     mock_error = models.CharField(_("Mock错误信息"), max_length=1024, blank=True, default="")
     status = models.CharField(_("运行状态"), max_length=16, choices=STATUS_CHOICES, default="not_run")
+    waiting_reason = models.CharField(_("等待原因"), max_length=32, blank=True, default="")
     inputs = models.JSONField(_("最近输入快照"), default=dict, blank=True)
     outputs = models.JSONField(_("最近输出快照"), default=dict, blank=True)
     duration_ms = models.IntegerField(_("耗时(ms)"), null=True, blank=True)

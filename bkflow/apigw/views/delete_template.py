@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
 from django.db import transaction
+from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -47,7 +48,12 @@ def delete_template(request, space_id, template_id):
         failed_data["parent_templates"] = list(template_references.values_list("root_template_id", flat=True))
     # 如果存在任何引用，返回错误信息
     if failed_data:
-        return {"result": False, "data": failed_data, "code": err_code.VALIDATION_ERROR.code, "message": "模板被引用，无法删除"}
+        return {
+            "result": False,
+            "data": failed_data,
+            "code": err_code.VALIDATION_ERROR.code,
+            "message": _("模板被引用，无法删除"),
+        }
 
     # 如果没有引用，执行删除操作，统一事务控制
     with transaction.atomic():

@@ -30,6 +30,12 @@ class TestDebugModels:
         assert ctx.last_inputs == {}
         assert ctx.tree_fingerprint == {}
         assert ctx.active_task_id is None
+        assert ctx.active_run_type == ""
+        assert ctx.active_node_id == ""
+        assert ctx.last_task_id is None
+        assert ctx.last_run_type == ""
+        assert ctx.last_run_status == "not_run"
+        assert ctx.last_error_detail == {}
         assert ctx.locked_by == ""
         assert ctx.locked_at is None
 
@@ -48,6 +54,7 @@ class TestDebugModels:
         assert ns.node_type == "ServiceActivity"
         assert ns.mock_outputs == {} and ns.inputs == {} and ns.outputs == {}
         assert ns.error_detail == {} and ns.duration_ms is None and ns.last_run_at is None
+        assert ns.waiting_reason == ""
         with pytest.raises(IntegrityError):
             with transaction.atomic():
                 DebugNodeState.objects.create(debug_context=ctx, node_id="n1")

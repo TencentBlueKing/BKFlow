@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 from unittest.mock import MagicMock, patch
 
@@ -37,6 +38,7 @@ def create_open_plugin_catalog(space_id=1, source_key="sops"):
         group_name="作业平台",
         default_version="1.2.0",
         latest_version="1.3.0",
+        wrapper_version="v4.0.0",
         versions=["1.2.0", "1.3.0"],
         meta_url_template="https://bk-sops.example/open-plugins/open_plugin_001?version={version}",
         status=OpenPluginCatalogIndex.Status.AVAILABLE,
@@ -87,7 +89,7 @@ class TestGetPluginSchemaView(SimpleTestCase):
         """测试插件不存在"""
         mock_cm.objects.filter.return_value.values_list.return_value = []
         mock_cm.objects.filter.return_value.exists.return_value = False
-        mock_bp.objects.filter.return_value.exists.return_value = False
+        mock_bp.objects.for_space.return_value.filter.return_value.exists.return_value = False
 
         request = self.factory.get("/space/1/get_plugin_schema/", {"code": "nonexistent"})
         request.user = MagicMock(username="admin")
@@ -124,13 +126,118 @@ class TestGetPluginSchemaView(SimpleTestCase):
             code="open_plugin_001",
             version="1.2.0",
             plugin_type="uniform_api",
+            plugin_source=None,
+            source_key=None,
+        )
+
+    @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
+    @patch("bkflow.apigw.views.get_plugin_schema.PluginSchemaService")
+    def test_get_schema_accepts_plugin_id_without_code(self, mock_service_cls):
+        """公开合同允许只传 plugin_id。"""
+        mock_service = MagicMock()
+        mock_service.get_plugin_schema.return_value = {
+            "code": "open_plugin_001",
+            "plugin_type": "uniform_api",
+            "version": "1.2.0",
+            "inputs": [],
+            "outputs": [],
+        }
+        mock_service_cls.return_value = mock_service
+
+        request = self.factory.get(
+            "/space/1/get_plugin_schema/",
+            {"plugin_id": "open_plugin_001", "plugin_type": "uniform_api", "plugin_version": "1.2.0"},
+        )
+        request.user = MagicMock(username="admin")
+        response = get_plugin_schema(request, space_id="1")
+
+        data = json.loads(response.content)
+        assert data["result"] is True
+        mock_service.get_plugin_schema.assert_called_once_with(
+            code="open_plugin_001",
+            version="1.2.0",
+            plugin_type="uniform_api",
+            plugin_source=None,
+            source_key=None,
+        )
+
+    @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
+    @patch("bkflow.apigw.views.get_plugin_schema.PluginSchemaService")
+    def test_get_schema_forwards_plugin_source(self, mock_service_cls):
+        """plugin_source 需传到 schema 查询，用于区分同 code 的开放插件。"""
+        mock_service = MagicMock()
+        mock_service.get_plugin_schema.return_value = {
+            "code": "open_plugin_001",
+            "plugin_type": "uniform_api",
+            "version": "1.2.0",
+            "inputs": [],
+            "outputs": [],
+        }
+        mock_service_cls.return_value = mock_service
+
+        request = self.factory.get(
+            "/space/1/get_plugin_schema/",
+            {
+                "plugin_id": "open_plugin_001",
+                "plugin_type": "uniform_api",
+                "plugin_source": "builtin",
+            },
+        )
+        request.user = MagicMock(username="admin")
+        response = get_plugin_schema(request, space_id="1")
+
+        data = json.loads(response.content)
+        assert data["result"] is True
+        mock_service.get_plugin_schema.assert_called_once_with(
+            code="open_plugin_001",
+            version=None,
+            plugin_type="uniform_api",
+            plugin_source="builtin",
+            source_key=None,
+        )
+
+    @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
+    @patch("bkflow.apigw.views.get_plugin_schema.PluginSchemaService")
+    def test_get_schema_forwards_source_key(self, mock_service_cls):
+        """公开合同必须把 source_key 转到服务层，避免跨来源同 plugin_id 串 schema。"""
+        mock_service = MagicMock()
+        mock_service.get_plugin_schema.return_value = {
+            "code": "open_plugin_001",
+            "plugin_type": "uniform_api",
+            "version": "1.2.0",
+            "source_key": "source-b",
+            "inputs": [],
+            "outputs": [],
+        }
+        mock_service_cls.return_value = mock_service
+
+        request = self.factory.get(
+            "/space/1/get_plugin_schema/",
+            {
+                "plugin_id": "open_plugin_001",
+                "plugin_type": "uniform_api",
+                "source_key": "source-b",
+            },
+        )
+        request.user = MagicMock(username="admin")
+        response = get_plugin_schema(request, space_id="1")
+
+        data = json.loads(response.content)
+        assert data["result"] is True
+        mock_service.get_plugin_schema.assert_called_once_with(
+            code="open_plugin_001",
+            version=None,
+            plugin_type="uniform_api",
+            plugin_source=None,
+            source_key="source-b",
         )
 
 
 @pytest.mark.django_db
 @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
-def test_get_plugin_schema_rejects_ungranted_uniform_api_source():
+def test_get_plugin_schema_rejects_disabled_uniform_api_source():
     create_open_plugin_catalog(space_id=1, source_key="sops")
+    SpaceOpenPluginAvailability.objects.filter(space_id=1, source_key="sops").update(enabled=False)
 
     factory = RequestFactory()
     request = factory.get("/space/1/get_plugin_schema/", {"code": "open_plugin_001", "plugin_type": "uniform_api"})
@@ -139,4 +246,4 @@ def test_get_plugin_schema_rejects_ungranted_uniform_api_source():
 
     data = json.loads(response.content)
     assert data["result"] is False
-    assert "来源未准入" in data["message"]
+    assert "未开放" in data["message"]

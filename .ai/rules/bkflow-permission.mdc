@@ -4,11 +4,21 @@
 
 ## 架构总览
 
-请求经过四层鉴权，每层独立生效，使用 OR 语义组合（任一 permission class 通过即放行）。
+请求经过四层鉴权，各层约束需要同时满足。仅显式使用 `|` 组合的 DRF permission class 之间是 OR；不能将网关、租户或资源范围校验作为管理员权限的 OR 分支。
 
 ```
 消费方 → [1] API Gateway 鉴权 → [2] Django 中间件 → [3] DRF permission_classes → [4] 视图业务逻辑
 ```
+
+### 租户边界
+
+开启多租户时，用户身份租户必须等于资源所属空间租户，普通用户、空间管理员和平台管理员均适用。没有租户身份时拒绝请求。当前仅支持 `tenant_mode=single` 的空间，全租户应用应在每个租户分别创建空间。
+
+Interface 的用户态视图使用 `TenantScopeMixin`，在原有权限 OR 组合之前检查显式空间及模板/快照引用，并约束列表、详情和统计范围。函数式空间接口调用 `ensure_space_tenant`。增加新的资源关联字段或绕过 queryset 的查询时，需要沿资源归属补充校验。
+
+模块内部凭证仅可用于显式标记的内部视图。Engine 只接受经过 Interface 授权的模块请求，并将任务及周期任务限制到内部调用空间；不能使用平台管理员标记跳过空间检查。多租户下原生 Django admin 不提供租户管理入口。
+
+插件 code 全局唯一，系统租户插件允许所有租户访问。第三方 API 插件协议不依赖用户身份；调用协议与用户访问空间的权限校验分别处理。
 
 ## 第 1 层：API Gateway（网关资源级）
 
@@ -96,11 +106,17 @@ TokenMiddleware → ApiGatewayJWTGenericMiddleware → ApiGatewayJWTAppMiddlewar
 
 `Token` model（`bkflow/permission/models.py`）：
 - 主键：32 位 UUID hex（`uuid.uuid3(uuid.uuid1(), uuid.uuid4().hex).hex`）
-- 字段：`space_id`, `user`, `resource_type`, `resource_id`, `permission_type`, `expired_time`
+- 字段：`space_id`, `user`, `expired_time`, `grant_set_hash`
+
+`TokenGrant` 是所有单项和组合票据的唯一授权来源：
+- 每条明细保存 `resource_type`, `resource_id`, `permission_type`, `grant_hash`
+- 单项票据恰好一条明细，组合票据有多条明细
+- 主票据集合摘要和全部明细必须一致；缺失、重复、非法字段或摘要不匹配时整张票据无效
+- 不向 `Token` 主表写入旧资源三元组，也不提供 ORM 兼容字段
 
 ### 校验
 
-`Token.verify(space_id, user, resource_type, resource_id, permission_type, token)` 查询数据库验证 token 是否存在、是否过期、资源是否匹配。
+`Token.verify(space_id, user, resource_type, resource_id, permission_type, token)` 先验证票据用户、空间、有效期和完整授权集合，再匹配同一条 `TokenGrant` 明细及资源关系。scope 的 HTTP 消费者还应传入实际目标资源类型，避免模板与任务的相同 ID 混淆。
 
 ### 传递路径
 

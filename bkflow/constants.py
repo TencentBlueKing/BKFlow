@@ -94,6 +94,7 @@ class TaskTriggerMethod(Enum):
     manual = _("手动")
     timing = _("定时")
     subprocess = _("子流程")
+    sub_canvas = _("子画布")
 
 
 class TemplateOperationSource(Enum):

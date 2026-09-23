@@ -29,6 +29,20 @@ PIPELINE = {
     "constants": {},
 }
 
+PIPELINE_SUBCANVAS = {
+    "activities": {
+        "S": {
+            "id": "S",
+            "type": "SubCanvas",
+            "loop_config": {"enable": True, "type": "time_loop", "loop_times": 2, "loop_params": {}},
+            "pipeline": {"activities": {}, "flows": {}, "gateways": {}, "constants": {}, "outputs": []},
+        }
+    },
+    "flows": {},
+    "gateways": {},
+    "constants": {},
+}
+
 
 def _create_task_payload(client):
     call = client.create_task.call_args
@@ -63,6 +77,12 @@ class TestGlobalRun:
         assert result["task_id"] == 456
         assert ctx.status == "running"
         assert ctx.active_task_id == 456
+        assert ctx.active_run_type == "global"
+        assert ctx.active_node_id == ""
+        assert ctx.last_task_id == 456
+        assert ctx.last_run_type == "global"
+        assert ctx.last_run_status == "running"
+        assert ctx.last_error_detail == {}
         assert ctx.last_inputs == {"${biz}": "100"}
 
         # 重置运行结果、保留 mock 配置
@@ -125,6 +145,10 @@ class TestGlobalRun:
         assert ctx.status == "idle"
         assert ctx.locked_by == ""
         assert ctx.active_task_id is None
+        assert ctx.last_task_id == 456
+        assert ctx.last_run_type == "global"
+        assert ctx.last_run_status == "failed"
+        assert ctx.last_error_detail == {"type": "start", "message": "start boom", "task_id": 456}
         client.delete_task.assert_called_once_with(456)
 
     def test_acquire_lock_conflict_branch(self, mocker):
@@ -156,3 +180,28 @@ class TestGlobalRun:
         sent = _create_task_payload(client)
         assert sent["mock_data"]["fail_nodes"] == ["A"]
         assert sent["mock_data"]["errors"] == {"A": "boom"}
+
+    def test_global_run_can_mock_subcanvas_container(self, mocker):
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE_SUBCANVAS)
+        client = mocker.MagicMock()
+        client.create_task.return_value = {"result": True, "data": {"id": 456}, "message": ""}
+        client.operate_task.return_value = {"result": True, "data": {}, "message": ""}
+        mocker.patch.object(svc, "_task_client", return_value=client)
+        svc.sync_node_states()
+        svc.node_mock(
+            node_id="S",
+            enable=True,
+            mock_result="success",
+            mock_outputs={"outputs": [{"result": "mocked"}]},
+        )
+
+        svc.global_run(inputs={}, operator="admin")
+
+        sent = _create_task_payload(client)
+        assert sent["pipeline_tree"]["activities"]["S"]["type"] == "SubCanvas"
+        assert sent["mock_data"] == {
+            "nodes": ["S"],
+            "outputs": {"S": {"outputs": [{"result": "mocked"}]}},
+            "fail_nodes": [],
+            "errors": {},
+        }

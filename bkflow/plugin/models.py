@@ -19,6 +19,8 @@ to the current version of the project delivered to anyone in the future.
 
 from django.db import models
 
+OPEN_PLUGIN_WRAPPER_VERSION = "v4.0.0"
+
 
 class SpacePluginConfigManager(models.Manager):
     def get_space_allow_list(self, space_id):
@@ -73,6 +75,7 @@ class OpenPluginCatalogIndex(models.Model):
     plugin_name = models.CharField(verbose_name="插件名称", max_length=255)
     plugin_source = models.CharField(verbose_name="插件来源类型", max_length=64)
     group_name = models.CharField(verbose_name="插件分组", max_length=128, blank=True, default="")
+    group_display_name = models.CharField(verbose_name="插件分组展示名", max_length=128, blank=True, default="")
     wrapper_version = models.CharField(verbose_name="包装器版本", max_length=32, blank=True, default="")
     default_version = models.CharField(verbose_name="默认业务版本", max_length=64, blank=True, default="")
     latest_version = models.CharField(verbose_name="最新业务版本", max_length=64, blank=True, default="")
@@ -94,8 +97,8 @@ class OpenPluginCatalogIndex(models.Model):
         app_label = "plugin"
         unique_together = ("space_id", "source_key", "plugin_id")
         indexes = [
-            models.Index(fields=["space_id", "source_key"]),
-            models.Index(fields=["space_id", "status"]),
+            models.Index(fields=["space_id", "source_key"], name="plugin_open_space_i_7102c4_idx"),
+            models.Index(fields=["space_id", "status"], name="plugin_open_space_i_2c81d6_idx"),
         ]
 
     def __str__(self):
@@ -125,22 +128,3 @@ class SpaceOpenPluginAvailability(models.Model):
 
     def __str__(self):
         return f"{self.space_id}:{self.source_key}:{self.plugin_id}:{self.enabled}"
-
-
-class OpenPluginSpaceGrant(models.Model):
-    space_id = models.IntegerField(verbose_name="空间ID", db_index=True)
-    source_key = models.CharField(verbose_name="开放插件来源", max_length=64)
-    enabled = models.BooleanField(verbose_name="是否准入", default=True)
-    operator = models.CharField(verbose_name="操作人", max_length=64, blank=True, default="")
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
-    update_time = models.DateTimeField(auto_now=True, verbose_name="更新时间")
-
-    class Meta:
-        verbose_name = "空间开放插件来源准入"
-        verbose_name_plural = "空间开放插件来源准入"
-        app_label = "plugin"
-        unique_together = ("space_id", "source_key")
-        indexes = [models.Index(fields=["space_id", "source_key", "enabled"], name="plugin_open_space_i_6a5a4b_idx")]
-
-    def __str__(self):
-        return f"{self.space_id}:{self.source_key}:{self.enabled}"

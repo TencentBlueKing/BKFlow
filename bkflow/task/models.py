@@ -44,7 +44,7 @@ from bkflow.constants import (
     TaskTriggerMethod,
 )
 from bkflow.contrib.operation_record.models import BaseOperateRecord
-from bkflow.pipeline_plugins.components.collections.subprocess_plugin.converter import (
+from bkflow.pipeline_plugins.components.collections.converter import (
     PipelineTreeSubprocessConverter,
 )
 from bkflow.task.auto_retry import AutoRetryNodeStrategyCreator
@@ -97,8 +97,9 @@ class TaskInstanceManager(models.Manager):
         """
         pipeline 注入原始模板节点 ID
         """
-        for act_id, act in pipeline_tree[PE.activities].items():
-            act["template_node_id"] = act["template_node_id"] = act.get("template_node_id") or act_id
+        for node_type in (PE.activities, PE.gateways):
+            for node_id, node in pipeline_tree.get(node_type, {}).items():
+                node["template_node_id"] = node.get("template_node_id") or node_id
 
     def create_instance(self, *args, **kwargs):
         """
@@ -160,6 +161,7 @@ class TaskInstance(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     space_id = models.IntegerField("空间ID", db_index=True)
+    tenant_id = models.CharField(max_length=255, default="default", verbose_name="租户ID")
     scope_type = models.CharField("空间域类型", max_length=128, null=True, blank=True)
     scope_value = models.CharField("空间域值", max_length=128, null=True, blank=True)
     instance_id = models.CharField("实例ID", max_length=33, unique=True, db_index=True)
@@ -314,8 +316,13 @@ class TaskInstance(models.Model):
         }
 
     def change_parent_task_node_state_to_running(self):
-        if not self.trigger_method == TaskTriggerMethod.subprocess.name:
-            logger.info("taskflow[id=%s] is not child taskflow, cannot change parent task node state to running")
+        if self.trigger_method not in [
+            TaskTriggerMethod.subprocess.name,
+            TaskTriggerMethod.sub_canvas.name,
+        ]:
+            logger.info(
+                "taskflow[id=%s] is not child taskflow, cannot change parent task node state to running", self.id
+            )
             return
 
         with transaction.atomic():
@@ -348,7 +355,7 @@ class TaskInstance(models.Model):
 class OpenPluginRunCallbackRef(models.Model):
     task_id = models.BigIntegerField(verbose_name="任务ID", db_index=True)
     node_id = models.CharField(verbose_name="节点ID", max_length=64, db_index=True)
-    node_version = models.CharField(verbose_name="节点版本", max_length=32, blank=True, default="")
+    node_version = models.CharField(verbose_name="节点版本", max_length=64, blank=True, default="")
     client_request_id = models.CharField(verbose_name="客户端请求ID", max_length=128, unique=True)
     open_plugin_run_id = models.CharField(verbose_name="开放插件运行ID", max_length=64, unique=True, db_index=True)
     callback_token_digest = models.CharField(verbose_name="回调令牌摘要", max_length=128)
@@ -559,7 +566,7 @@ class PeriodicTaskManager(models.Manager):
                 day_of_week=cron.get("day_of_week", "*"),
                 day_of_month=cron.get("day_of_month", "*"),
                 month_of_year=cron.get("month_of_year", "*"),
-                timezone=timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai",
+                timezone=timezone.pytz.timezone(cron.get("timezone") or settings.TIME_ZONE),
             )
             _ = schedule.schedule  # noqa
             celery_task = DjangoCeleryBeatPeriodicTask.objects.create(
@@ -623,7 +630,7 @@ class PeriodicTask(models.Model):
             day_of_week=cron.get("day_of_week", "*"),
             day_of_month=cron.get("day_of_month", "*"),
             month_of_year=cron.get("month_of_year", "*"),
-            timezone=timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai",
+            timezone=timezone.pytz.timezone(cron.get("timezone") or str(self.celery_task.crontab.timezone)),
         )
         _ = schedule.schedule  # noqa
         self.cron = schedule.__str__()
@@ -712,7 +719,6 @@ class TaskLabelRelation(models.Model):
     objects = BaseLabelRelationManager()
 
     class Meta:
-        app_label = "task"
         verbose_name = _("任务标签关系 TaskLabelRelation")
         verbose_name_plural = _("任务标签关系 TaskLabelRelation")
         unique_together = ("task_id", "label_id")

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 import os
 from enum import Enum
@@ -110,6 +111,17 @@ class BKFLOWModule(BaseModel):
 def check_engine_admin_permission(request, *args, **kwargs):
     from django.conf import settings  # noqa
 
+    if settings.ENABLE_MULTI_TENANT_MODE:
+        token = getattr(request, "app_internal_token", None)
+        if not token or token != settings.APP_INTERNAL_TOKEN:
+            return False
+        space_id = request.headers.get(settings.APP_INTERNAL_SPACE_ID_HEADER_KEY)
+        if not space_id or space_id == "0":
+            return False
+        from bkflow.task.models import TaskInstance
+
+        return TaskInstance.objects.filter(instance_id=kwargs.get("instance_id"), space_id=space_id).exists()
+
     if (
         request.user.is_superuser
         or (request.app_internal_token and request.app_internal_token == settings.APP_INTERNAL_TOKEN)
@@ -120,6 +132,14 @@ def check_engine_admin_permission(request, *args, **kwargs):
 
 
 BKFLOW_MODULE = BKFLOWModule.get_module()
+
+# Python 代码节点子进程执行限制
+PYTHON_CODE_PLUGIN_TIMEOUT = env.PYTHON_CODE_PLUGIN_TIMEOUT
+PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT = env.PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT
+PYTHON_CODE_PLUGIN_MAX_LENGTH = env.PYTHON_CODE_PLUGIN_MAX_LENGTH
+PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB = env.PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB
+PYTHON_CODE_PLUGIN_MAX_CONCURRENT_PROCESSES = env.PYTHON_CODE_PLUGIN_MAX_CONCURRENT_PROCESSES
+PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES = env.PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES
 
 if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
 
@@ -170,6 +190,8 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
         "bkflow.contrib.expired_cleaner",
+        "bkflow.contrib.itsm_workflow",
+        "bkflow.contrib.init_tenant",
         "bkflow.statistics",
     )
 
@@ -185,6 +207,10 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "expired_task_cleaning": {
             "task": "bkflow.contrib.expired_cleaner.tasks.clean_task",
             "schedule": crontab(env.CLEAN_TASK_CRONTAB),
+        },
+        "clean_expired_open_plugin_callback_refs": {
+            "task": "bkflow.task.celery.tasks.clean_expired_open_plugin_callback_refs",
+            "schedule": _parse_crontab(env.OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB),
         },
         "generate_daily_summary": {
             "task": "bkflow.statistics.tasks.summary_tasks.generate_daily_summary_task",
@@ -271,6 +297,8 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.api_plugin_demo",
         "plugin_service",
         "bkflow.contrib.operation_record",
+        "bkflow.contrib.itsm_workflow",
+        "bkflow.contrib.init_tenant",
         "django_dbconn_retry",
         "webhook",
         "version_log",
@@ -323,6 +351,10 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
 
     # 添加定时任务
     app.conf.beat_schedule = {
+        "dispatch_open_plugin_catalog_sync": {
+            "task": "bkflow.plugin.tasks.dispatch_open_plugin_catalog_sync",
+            "schedule": _parse_crontab(env.OPEN_PLUGIN_CATALOG_SYNC_CRONTAB),
+        },
         # 同步蓝鲸插件任务
         "sync_bk_plugins": {
             "task": "bkflow.bk_plugin.tasks.sync_bk_plugins",

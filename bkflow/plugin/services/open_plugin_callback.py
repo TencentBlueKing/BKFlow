@@ -18,7 +18,6 @@ to the current version of the project delivered to anyone in the future.
 """
 
 from bkflow.task.open_plugin_callback import (  # noqa
-    build_open_plugin_callback_url,
     build_open_plugin_client_request_id,
     callback_token_digest,
     issue_open_plugin_callback_token,

@@ -17,7 +17,8 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from unittest.mock import MagicMock, patch
+import logging
+from unittest.mock import MagicMock, Mock, patch
 
 from bamboo_engine.eri import ContextValue, ContextValueType
 from django.test import TestCase
@@ -30,6 +31,10 @@ from pipeline.component_framework.test import (
     Patcher,
 )
 
+from bkflow.pipeline_plugins.components.collections.python_code.executor import (
+    ERROR_PHASE_EXECUTOR,
+    PythonCodeExecutionResult,
+)
 from bkflow.pipeline_plugins.components.collections.python_code.v1_0_0 import (
     PythonCodeComponent,
     PythonCodeService,
@@ -62,6 +67,10 @@ class PythonCodeComponentTest(TestCase, ComponentTestMixin):
             NO_MAIN_FUNCTION_CASE,
             INVALID_SIGNATURE_CASE,
             COMPLEX_LOGIC_CASE,
+            EXECUTOR_ERROR_CASE,
+            SELECTED_OUTPUT_CASE,
+            SELECTED_EMPTY_OUTPUT_CASE,
+            MISSING_OUTPUT_KEY_CASE,
         ]
 
 
@@ -343,3 +352,92 @@ COMPLEX_LOGIC_CASE = ComponentTestCase(
     schedule_assertion=None,
     patchers=[],
 )
+
+
+# ==================== Test Case 10: Executor Error ====================
+
+EXECUTOR_ERROR_MESSAGE = "执行器错误: 子进程异常退出（-9）"
+EXECUTOR_ERROR_CASE = ComponentTestCase(
+    name="executor_error_case",
+    inputs={"bk_python_code": SIMPLE_CODE, "bk_input_vars": SIMPLE_INPUT_VARS},
+    parent_data={},
+    execute_assertion=ExecuteAssertion(
+        success=False,
+        outputs={"output": {}, "error": EXECUTOR_ERROR_MESSAGE, "ex_data": EXECUTOR_ERROR_MESSAGE},
+    ),
+    schedule_assertion=None,
+    patchers=[
+        Patcher(
+            target="bkflow.pipeline_plugins.components.collections.python_code.v1_0_0.PythonCodeExecutor.execute_code",
+            return_value=PythonCodeExecutionResult(
+                False,
+                None,
+                EXECUTOR_ERROR_MESSAGE,
+                ERROR_PHASE_EXECUTOR,
+            ),
+        )
+    ],
+)
+
+
+SELECTED_OUTPUT_CASE = ComponentTestCase(
+    name="selected_output_skips_unserializable_field",
+    inputs={
+        "bk_python_code": "def main():\n    return {'selected': 'ok', 'scratch': itertools.count()}",
+        "bk_output_key": "selected",
+    },
+    parent_data={},
+    execute_assertion=ExecuteAssertion(success=True, outputs={"output": "ok", "error": ""}),
+    schedule_assertion=None,
+    patchers=[],
+)
+
+SELECTED_EMPTY_OUTPUT_CASE = ComponentTestCase(
+    name="selected_empty_output_is_preserved",
+    inputs={"bk_python_code": "def main():\n    return {'selected': {}}", "bk_output_key": "selected"},
+    parent_data={},
+    execute_assertion=ExecuteAssertion(success=True, outputs={"output": {}, "error": ""}),
+    schedule_assertion=None,
+    patchers=[],
+)
+
+MISSING_OUTPUT_KEY_ERROR = "输出key 'missing' 不存在于main函数返回的字典中"
+MISSING_OUTPUT_KEY_CASE = ComponentTestCase(
+    name="missing_output_key_sets_failure_outputs",
+    inputs={
+        "bk_python_code": "def main():\n    return {'scratch': itertools.count()}",
+        "bk_output_key": "missing",
+    },
+    parent_data={},
+    execute_assertion=ExecuteAssertion(
+        success=False,
+        outputs={"output": {}, "error": MISSING_OUTPUT_KEY_ERROR, "ex_data": MISSING_OUTPUT_KEY_ERROR},
+    ),
+    schedule_assertion=None,
+    patchers=[],
+)
+
+
+def test_large_result_log_is_bounded_without_changing_output(caplog):
+    """大字符串和嵌套大结果仍完整输出，但成功日志不能包含完整内容。"""
+    service = PythonCodeService()
+    service.logger = logging.getLogger("python_code_bounded_log")
+    for code in ["'x' * (11 * 1024 * 1024)", "{'payload': ['x' * (1024 * 1024)]}", "range(10 ** 100)"]:
+        data = Mock()
+        outputs = {}
+        data.set_outputs.side_effect = outputs.__setitem__
+        inputs = {"bk_python_code": "def main():\n    return " + code}
+        data.get_one_of_inputs.side_effect = inputs.get
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger=service.logger.name):
+            assert service.plugin_execute(data, None) is True
+        message = next(record.getMessage() for record in caplog.records if "main函数执行成功" in record.getMessage())
+        assert len(message) < 1024
+        assert "x" * 1024 not in message
+        assert outputs["error"] == ""
+        if isinstance(outputs["output"], str):
+            assert len(outputs["output"]) == 11 * 1024 * 1024
+        elif isinstance(outputs["output"], dict):
+            assert len(outputs["output"]["payload"][0]) == 1024 * 1024
+        else:
+            assert outputs["output"].stop == 10**100

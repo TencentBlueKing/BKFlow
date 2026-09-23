@@ -6,27 +6,27 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('statistics', '0001_initial'),
+        ("statistics", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='pluginexecutionsummary',
-            name='plugin_source',
-            field=models.CharField(db_index=True, default='', max_length=64, verbose_name='插件来源'),
+            model_name="pluginexecutionsummary",
+            name="plugin_source",
+            field=models.CharField(db_index=True, default="", max_length=64, verbose_name="插件来源"),
         ),
         migrations.AddField(
-            model_name='taskflowexecutednodestatistics',
-            name='plugin_source',
-            field=models.CharField(db_index=True, default='', max_length=64, verbose_name='插件来源'),
+            model_name="taskflowexecutednodestatistics",
+            name="plugin_source",
+            field=models.CharField(db_index=True, default="", max_length=64, verbose_name="插件来源"),
         ),
         migrations.AddField(
-            model_name='templatenodestatistics',
-            name='plugin_source',
-            field=models.CharField(db_index=True, default='', max_length=64, verbose_name='插件来源'),
+            model_name="templatenodestatistics",
+            name="plugin_source",
+            field=models.CharField(db_index=True, default="", max_length=64, verbose_name="插件来源"),
         ),
         migrations.AlterUniqueTogether(
-            name='pluginexecutionsummary',
-            unique_together={('period_type', 'period_start', 'space_id', 'plugin_source', 'component_code', 'version')},
+            name="pluginexecutionsummary",
+            unique_together={("period_type", "period_start", "space_id", "plugin_source", "component_code", "version")},
         ),
     ]

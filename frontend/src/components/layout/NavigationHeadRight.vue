@@ -50,24 +50,11 @@
         {{ $t('版本日志') }}
       </div>
     </div>
-    <!-- 用户icon -->
-    <div
-      v-bk-tooltips="{
-        ...basicTipsConfig,
-        distance: 25,
-        extCls: 'logout-tips',
-        content: '#logout-html'
-      }"
-      class="user-avatar">
-      {{ username }}
-      <i class="bk-icon icon-down-shape" />
-    </div>
-    <div id="logout-html">
-      <div
-        class="operate-item"
-        @click="handleLogout">
-        {{ $t('退出登录') }}
-      </div>
+    <!-- 用户信息 -->
+    <div class="user-info">
+      <BkLoginUserinfo
+        :userinfo="userinfo"
+        :action-list="actionList" />
     </div>
     <!-- 日志组件 -->
     <version-log
@@ -80,15 +67,20 @@
   </div>
 </template>
 <script>
+  import { updatePlatformLanguage } from '@/utils/platformLanguage';
   import { mapActions, mapMutations, mapState } from 'vuex';
   import VersionLog from './VersionLog.vue';
+  import { buildUserNavigationActions } from '@/utils/userNavigation';
+  import BkLoginUserinfo from '@blueking/login-userinfo/vue2';
+  import '@blueking/login-userinfo/vue2/vue2.css';
   import Cookies from 'js-cookie';
-    import axios from 'axios';
+  import axios from 'axios';
 
   export default {
     name: 'NavigationHeadRight',
     components: {
       VersionLog,
+      BkLoginUserinfo,
     },
     data() {
       return {
@@ -107,12 +99,25 @@
           theme: 'light',
           hideOnClick: false,
         },
+        userinfo: {
+            name: window.DISPLAY_NAME || window.USERNAME || '',
+            organization: window.ENABLE_MULTI_TENANT_MODE ? window.TENANT_ID : '',
+            timezone: window.TIMEZONE,
+        },
       };
     },
     computed: {
       ...mapState({
         username: state => state.username,
       }),
+      actionList() {
+        return buildUserNavigationActions({
+          iamUrl: window.BK_IAM_SAAS_HOST,
+          userUrl: window.BKPAAS_USER_URL,
+          translate: text => this.$t(text),
+          logout: this.handleLogout,
+        });
+      },
     },
     watch: {
 
@@ -136,27 +141,23 @@
         'setProjectId',
       ]),
       async toggleLanguage(language) {
-        this.curLanguage = language;
         const local = language === 'chinese' ? 'zh-cn' : 'en';
         const domain = window.BK_DOMAIN || window.location.hostname.replace(/^[^.]+(.*)$/, '$1');
+        try {
+          await updatePlatformLanguage(axios, window, local);
+        } catch (error) {
+          console.warn(error);
+          this.$bkMessage({ theme: 'error', message: this.$t('语言偏好保存失败') });
+          return;
+        }
+        this.curLanguage = language;
         Cookies.set('blueking_language', local, {
           expires: 1,
           domain,
           path: '/',
         });
-        if (window.BK_PAAS_ESB_HOST) {
-            const url = `${window.BK_PAAS_ESB_HOST}/api/c/compapi/v2/usermanage/fe_update_user_language/`;
-            try {
-              await axios.jsonp(url, { language: local });
-            } catch (error) {
-              console.warn(error);
-            } finally {
-              window.location.reload();
-            }
-        } else {
-            window.location.reload();
-        }
-    },
+        window.location.reload();
+      },
       goToHelpDoc() {
         window.open(this.bkDocUrl, '_blank');
       },
@@ -258,6 +259,10 @@
     }
     ::v-deep .bk-select.is-disabled {
       background: none;
+    }
+    .user-info {
+      color: #768197;
+      margin-top: -4px;
     }
   }
 </style>

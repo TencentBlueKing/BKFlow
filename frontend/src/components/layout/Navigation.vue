@@ -26,6 +26,7 @@
 </template>
 
 <script>
+  import logoUrl from '../../assets/images/logo.png';
   import { mapState, mapActions, mapMutations } from 'vuex';
   import NavigatorHeadLeft from './NavigationHeadLeft.vue';
   import NavigatorHeadRight from './NavigationHeadRight.vue';
@@ -39,7 +40,7 @@
     },
     data() {
       return {
-        logo: require('../../assets/images/logo.png'),
+        logo: logoUrl,
         isExpand: false,
       };
     },
@@ -68,6 +69,7 @@
             this.loadCurSpacePermission();
           }
         },
+        immediate: true,
       },
     },
     methods: {
@@ -116,6 +118,10 @@
       .nav-slider-list {
         height: 100% !important;
       }
+    }
+    ::v-deep .bk-navigation-header {
+      overflow: visible !important;
+      z-index: 999;
     }
   }
 </style>

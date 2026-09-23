@@ -52,11 +52,13 @@
 - `prototypes/output/sops-open-plugin-space-open-plugin-management.html`
 - `prototypes/output/sops-open-plugin-template-plugin-selection.html`
 - `prototypes/output/sops-open-plugin-task-plugin-error-state.html`
+- `prototypes/output/sops-open-plugin-v4-node-api-plugin/README.md`
 
 其中：
 
 - 主流程原型负责讲清整体链路
 - 独立页面原型负责展开各自页面的信息结构与状态
+- `sops-open-plugin-v4-node-api-plugin/` 按最新 `prototype-wireframe` 规范补充节点使用 API 插件时的 V4.0.0 前端变动：wiremd 线框真源、Mermaid 状态流、全状态覆盖、编号 callout 交互标注
 
 ## 页面关键信息结构
 
@@ -94,6 +96,38 @@
 - 版本区
 - 参数配置区
 - 历史模板回看说明区
+
+### 2.1 V4.0.0 节点使用 API 插件的前端变动补充
+
+本节按最新 `prototype-wireframe` 工具规范补充，范围限定在模板编辑的节点配置抽屉，不覆盖空间治理页和任务异常页。线框源文件位于 `prototypes/output/sops-open-plugin-v4-node-api-plugin/screens/`。
+
+**基线页面**
+
+- `frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue`
+- `frontend/src/views/template/TemplateEdit/NodeConfig/SelectPanel/apiPlugin.vue`
+- `frontend/src/store/modules/template.js`
+
+现有布局是“API 插件选择 + 参数配置 + 保存”。V4.0.0 不新增插件类型，也不新增独立入口，只在 API 插件节点配置中增加“版本”选择项。
+
+**字段与交互**
+
+| 字段/能力 | 控件/展示 | 交互与保存规则 |
+|---|---|---|
+| `plugin_version` | “版本”下拉选择 | 默认选 `default_version`；候选项来自 `versions/latest_version/default_version`；单版本插件可展示为只读 |
+| `inputs` | 原参数配置区 | 版本变化后按新版本重新获取 schema 并刷新参数表单 |
+| 保存 | 原保存按钮 | 保存节点时带上用户选择的版本，服务端继续做版本可用性校验 |
+
+**状态覆盖**
+
+当前原型只覆盖正常节点配置态：用户选择 API 插件后，节点配置里多一个“版本”选项。版本不可用、历史快照、调度模式等不额外设计复杂 UI，交由服务端校验和现有错误提示承载。
+
+**交互标注汇总**
+
+| 编号 | 元素 | 交互说明 |
+|---|---|---|
+| 1 | 版本选择 | 仅新增“版本”选择项，默认选 `default_version` |
+| 2 | 参数配置 | 切换版本后按新版本刷新参数 schema，其余交互保持现状 |
+| 3 | 保存 | 保存时提交所选版本，服务端继续校验来源、插件开关和版本可用性 |
 
 ### 3. 任务页异常提示
 

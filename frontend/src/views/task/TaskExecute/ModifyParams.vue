@@ -21,6 +21,7 @@
         :is-used-tip-show="(state !== 'CREATED' && !paramsCanBeModify) ? false : true"
         :pre-mako-disabled="(paramsCanBeModify && state === 'CREATED') ? false : true"
         :constants="constants"
+        :activities="activities"
         :template-id="templateId"
         :un-used-constants="unUsedConstants"
         :editable="paramsCanBeModify && !isChildTaskFlow && editable"
@@ -106,6 +107,7 @@
       return {
         bkMessageInstance: null,
         constants: [],
+        activities: {},
         cntLoading: true, // 全局变量加载
         configLoading: true, // 变量配置项加载
         pending: false, // 提交修改中
@@ -153,24 +155,18 @@
       this.getTaskData();
     },
     mounted() {
-      bus.$on('onCloseErrorNotify', (data) => {
+      this.handleCloseErrorNotify = (data) => {
         const varRegExp = /\${[a-zA-Z_]\w*}/g;
         const matchList = data.match(varRegExp) || [];
         const paramEditComp = this.$refs.TaskParamEdit;
-        if (matchList.length && paramEditComp) {
-          matchList.forEach((key) => {
-            const config = paramEditComp.renderConfig.find(item => item.tag_code === key);
-            if (!config.attrs) {
-              config.attrs = {};
-            }
-            config.attrs.disabled = true;
-            config.attrs.used_tip = i18n.t('参数已被使用，不可修改');
-          });
-          paramEditComp.randomKey = new Date().getTime();
+        if (matchList.length && paramEditComp && typeof paramEditComp.disableFields === 'function') {
+          paramEditComp.disableFields(matchList, i18n.t('参数已被使用，不可修改'));
         }
-      });
+      };
+      bus.$on('onCloseErrorNotify', this.handleCloseErrorNotify);
     },
     beforeDestroy() {
+      bus.$off('onCloseErrorNotify', this.handleCloseErrorNotify);
       $.context.exec_env = '';
     },
     methods: {
@@ -194,6 +190,7 @@
             }
           });
           this.isChildTaskFlow = instanceData.is_child_taskflow;
+          this.activities = pipelineData.activities || {};
           this.constants = constants;
         } catch (e) {
           console.log(e);
@@ -274,7 +271,7 @@
         let modifiedKeys = [];
         let formValid = true;
         if (paramEditComp) {
-          formValid = paramEditComp.validate();
+          formValid = await paramEditComp.validate();
           if (!formValid) return false;
           const variables = await paramEditComp.getVariableData();
           Object.keys(variables).forEach((key) => {

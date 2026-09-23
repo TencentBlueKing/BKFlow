@@ -9,7 +9,49 @@ paths:
   /create_space:
     post:
       operationId: create_space
-      description: 创建空间
+      description: 创建独立租户空间；多租户开启时 tenant_id 必须与已认证应用本次请求租户一致，关闭时省略或空字符串使用 default。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, platform_url, app_code]
+              properties:
+                name:
+                  type: string
+                  maxLength: 32
+                platform_url:
+                  type: string
+                  format: uri
+                  maxLength: 256
+                app_code:
+                  type: string
+                  maxLength: 32
+                desc:
+                  type: string
+                  maxLength: 128
+                  nullable: true
+                tenant_id:
+                  type: string
+                  maxLength: 32
+                  description: 多租户开启时必填且须等于本次请求租户；关闭时省略或空字符串使用 default。
+                tenant_mode:
+                  type: string
+                  enum: [single]
+                  default: single
+                  description: 仅支持独立租户空间；全租户应用在每个租户分别创建空间。
+                config:
+                  type: object
+                  additionalProperties: true
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -46,7 +88,156 @@ paths:
           content:
             application/json:
               schema: {}
+        '200':
+          description: HTTP 200 包含业务成功或原错误包装（result=false，code=400/500，data=null）。成功；返回形态取决于请求格式。相同用户、空间和完整授权集合才复用；grants 去重后仅一项可与旧格式请求复用同一票据，授权统一存于 TokenGrant，响应仍含 grants。旧格式请求不复用包含该项的多项票据；并发允许多张完整等价票据。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - type: object
+                  additionalProperties: true
+                  required:
+                  - result
+                  - data
+                  - code
+                  properties:
+                    result:
+                      type: boolean
+                      enum:
+                      - true
+                    code:
+                      type: integer
+                      enum:
+                      - 0
+                    trace_id:
+                      type: string
+                    data:
+                      oneOf:
+                      - type: object
+                        additionalProperties: false
+                        required:
+                        - space_id
+                        - user
+                        - token
+                        - expired_time
+                        - resource_type
+                        - resource_id
+                        properties:
+                          space_id:
+                            type: integer
+                          user:
+                            type: string
+                          token:
+                            type: string
+                            minLength: 32
+                            maxLength: 32
+                          expired_time:
+                            type: string
+                            format: date-time
+                            description: 沿用申请响应的时间编码，例如2026-09-09T05:00:00Z
+                          resource_type:
+                            type: string
+                            enum:
+                            - TEMPLATE
+                            - TASK
+                            - SCOPE
+                          resource_id:
+                            type: string
+                        title: 旧响应：无permission_type或grants
+                      - type: object
+                        additionalProperties: false
+                        required:
+                        - space_id
+                        - user
+                        - token
+                        - expired_time
+                        - grants
+                        properties:
+                          space_id:
+                            type: integer
+                          user:
+                            type: string
+                          token:
+                            type: string
+                            minLength: 32
+                            maxLength: 32
+                          expired_time:
+                            type: string
+                            format: date-time
+                            description: 沿用申请响应的时间编码，例如2026-09-09T05:00:00Z
+                          grants:
+                            type: array
+                            minItems: 1
+                            maxItems: 32
+                            items:
+                              type: object
+                              additionalProperties: false
+                              required:
+                              - resource_type
+                              - resource_id
+                              - permission_type
+                              properties:
+                                resource_type:
+                                  type: string
+                                  enum:
+                                  - TEMPLATE
+                                  - TASK
+                                  - SCOPE
+                                  description: LABEL 虽在模型 choices 中，但申请资源校验不支持签发
+                                resource_id:
+                                  type: string
+                                  maxLength: 32
+                                permission_type:
+                                  type: string
+                                  enum:
+                                  - VIEW
+                                  - EDIT
+                                  - OPERATE
+                                  - MOCK
+                                  description: 不新增资源与操作组合限制；FLOW_* 仅为展示标记，不接受签发
+                        title: 新响应：无顶层资源字段或内部摘要
+                - type: object
+                  additionalProperties: true
+                  required:
+                  - result
+                  - data
+                  - message
+                  - code
+                  properties:
+                    result:
+                      type: boolean
+                      enum:
+                      - false
+                    data:
+                      nullable: true
+                      enum:
+                      - null
+                      description: 沿用原错误包装，data为null
+                    message:
+                      type: string
+                    code:
+                      type: integer
+                      enum:
+                      - 400
+                      - 500
+                      description: 参数校验400，其他业务异常500；HTTP状态仍为200
+                    trace_id:
+                      type: string
+                  example:
+                    result: false
+                    message: '{"resource_type": "\u8be5\u5b57\u6bb5\u662f\u5fc5\u586b\u9879\u3002", "resource_id":
+                      "\u8be5\u5b57\u6bb5\u662f\u5fc5\u586b\u9879\u3002", "permission_type": "\u201cFLOW_INVALID\u201d
+                      \u4e0d\u662f\u5408\u6cd5\u9009\u9879\u3002"}'
+                    code: 400
+                    data: null
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -71,6 +262,94 @@ paths:
         descriptionEn: Apply a token
         enableWebsocket: false
         pluginConfigs: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: 顶层出现任意旧字段时优先旧格式并忽略grants，缺少旧字段报原必填错误。仅无旧字段且含grants时用新格式。TOKEN_COMPOSITE_ENABLED默认开启；未设置BKAPP_TOKEN_COMPOSITE_ENABLED时启用，显式配置仅字面量true（大小写不敏感）启用，1/0/false不启用。开关不影响已有组合票据消费。
+              oneOf:
+              - type: object
+                additionalProperties: true
+                required:
+                - resource_type
+                - resource_id
+                - permission_type
+                properties:
+                  resource_type:
+                    type: string
+                    enum:
+                    - TEMPLATE
+                    - TASK
+                    - SCOPE
+                    description: LABEL 虽在模型 choices 中，但申请资源校验不支持签发
+                  resource_id:
+                    description: 最长32位，按旧DRF规则转换为字符串；SCOPE为scope_type_scope_value且空间内须存在相同scope模板
+                    anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 32
+                    - type: number
+                  permission_type:
+                    type: string
+                    enum:
+                    - VIEW
+                    - EDIT
+                    - OPERATE
+                    - MOCK
+                    description: 不新增资源与操作组合限制；FLOW_* 仅为展示标记，不接受签发
+                title: 旧单项申请（额外grants忽略）
+              - type: object
+                additionalProperties: true
+                required:
+                - grants
+                not:
+                  anyOf:
+                  - required:
+                    - resource_type
+                  - required:
+                    - resource_id
+                  - required:
+                    - permission_type
+                properties:
+                  grants:
+                    type: array
+                    minItems: 1
+                    maxItems: 32
+                    description: 按原始条目数限制，之后按完整三元组排序去重；全部资源验证成功后签发，错误包含从0开始的grants[index]
+                    items:
+                      type: object
+                      additionalProperties: true
+                      required:
+                      - resource_type
+                      - resource_id
+                      - permission_type
+                      properties:
+                        resource_type:
+                          type: string
+                          enum:
+                          - TEMPLATE
+                          - TASK
+                          - SCOPE
+                          description: LABEL 虽在模型 choices 中，但申请资源校验不支持签发
+                        resource_id:
+                          description: 最长32位，按旧DRF规则转换为字符串；SCOPE为scope_type_scope_value且空间内须存在相同scope模板
+                          anyOf:
+                          - type: string
+                            minLength: 1
+                            maxLength: 32
+                          - type: number
+                        permission_type:
+                          type: string
+                          enum:
+                          - VIEW
+                          - EDIT
+                          - OPERATE
+                          - MOCK
+                          description: 不新增资源与操作组合限制；FLOW_* 仅为展示标记，不接受签发
+                title: grants申请（不得含旧顶层字段）
   /space/{space_id}/revoke_token/:
     post:
       operationId: revoke_token
@@ -82,7 +361,75 @@ paths:
           content:
             application/json:
               schema: {}
+        '200':
+          description: HTTP 200 包含业务成功或原错误包装（result=false，code=400/500，data=null）。按匹配的不同主票据计数，包含已过期票据；多条明细只计一张。撤销在事务内协调主行锁，续期不能恢复已失效票据。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - type: object
+                  additionalProperties: true
+                  required:
+                  - result
+                  - data
+                  - message
+                  - code
+                  properties:
+                    result:
+                      type: boolean
+                      enum:
+                      - true
+                    data:
+                      type: string
+                      example: 1 tokens revoke success
+                    message:
+                      type: string
+                    code:
+                      type: integer
+                      enum:
+                      - 0
+                    trace_id:
+                      type: string
+                - type: object
+                  additionalProperties: true
+                  required:
+                  - result
+                  - data
+                  - message
+                  - code
+                  properties:
+                    result:
+                      type: boolean
+                      enum:
+                      - false
+                    data:
+                      nullable: true
+                      enum:
+                      - null
+                      description: 沿用原错误包装，data为null
+                    message:
+                      type: string
+                    code:
+                      type: integer
+                      enum:
+                      - 400
+                      - 500
+                      description: 参数校验400，其他业务异常500；HTTP状态仍为200
+                    trace_id:
+                      type: string
+                  example:
+                    result: false
+                    message: '{"permission_type": "\u201cFLOW_INVALID\u201d \u4e0d\u662f\u5408\u6cd5\u9009\u9879\u3002"}'
+                    code: 400
+                    data: null
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -107,6 +454,46 @@ paths:
         descriptionEn: Revoke a token
         enableWebsocket: false
         pluginConfigs: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: 不增加grants或撤销模式参数。空间与token/user条件AND匹配；全部资源条件必须命中同一条授权，随后撤销整张票据。空对象撤销URL空间全部票据；不按scope成员、父子任务或权限包含关系扩展。
+              properties:
+                resource_type:
+                  type: string
+                  enum:
+                  - TEMPLATE
+                  - TASK
+                  - SCOPE
+                  - LABEL
+                  description: 精确资源类型过滤；LABEL不能通过apply_token签发
+                resource_id:
+                  description: 最长32位，按旧DRF规则转换为字符串后精确匹配存储授权ID；不检查目标资源是否仍然存在，也不展开scope成员或父子任务
+                  anyOf:
+                  - type: string
+                    minLength: 1
+                    maxLength: 32
+                  - type: number
+                permission_type:
+                  type: string
+                  enum:
+                  - VIEW
+                  - EDIT
+                  - OPERATE
+                  - MOCK
+                  description: 不新增资源与操作组合限制；FLOW_* 仅为展示标记，不接受签发
+                token:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+                user:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
   /space/{space_id}/create_label/:
     post:
       operationId: create_label
@@ -170,6 +557,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -295,6 +689,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -436,6 +837,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -556,6 +964,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -649,6 +1064,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -734,6 +1156,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -795,6 +1224,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -868,6 +1304,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -914,7 +1357,7 @@ paths:
   /space/{space_id}/create_task/:
     post:
       operationId: create_task
-      description: 创建任务
+      description: 创建任务（包含开放插件治理校验与快照固化）
       tags: []
       responses:
         '200':
@@ -1008,6 +1451,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -1062,7 +1512,7 @@ paths:
   /space/{space_id}/create_task_without_template/:
     post:
       operationId: create_task_without_template
-      description: 创建无模版任务
+      description: 任务租户由服务端按目标空间补齐，不接受请求体覆盖。创建无模版任务
       tags: []
       responses:
         '200':
@@ -1158,6 +1608,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -1250,6 +1707,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -1318,6 +1782,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -1448,6 +1919,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -1623,6 +2101,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -1633,8 +2118,8 @@ paths:
         name: code
         schema:
           type: string
-        required: true
-        description: 插件 code
+        required: false
+        description: 插件 code，与 plugin_id 至少传一个
       - in: query
         name: plugin_id
         schema:
@@ -1659,6 +2144,12 @@ paths:
           type: string
         required: false
         description: 开放插件来源类型
+      - in: query
+        name: source_key
+        schema:
+          type: string
+        required: false
+        description: 开放插件来源标识，同 plugin_id 多来源时消歧
       - in: query
         name: plugin_type
         schema:
@@ -1764,6 +2255,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -1908,6 +2406,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -1983,7 +2488,7 @@ paths:
   /space/{space_id}/create_template/:
     post:
       operationId: create_template
-      description: 创建模版
+      description: 创建模版；多租户下嵌套子流程仅可引用当前空间模板，单租户保留原有引用行为。
       tags: []
       responses:
         '200':
@@ -2067,6 +2572,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -2185,6 +2697,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -2323,6 +2842,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -2369,6 +2895,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -2494,6 +3027,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -2575,6 +3115,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -2684,6 +3231,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -2718,6 +3272,14 @@ paths:
     post:
       operationId: create_variable
       description: 创建空间变量
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -2747,6 +3309,14 @@ paths:
     post:
       operationId: delete_variable
       description: 删除空间变量
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -2776,6 +3346,14 @@ paths:
     put:
       operationId: update_variable
       description: 更新空间变量
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -2805,6 +3383,14 @@ paths:
     get:
       operationId: get_variable_list
       description: 获取空间变量列表
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -2865,6 +3451,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -2934,6 +3527,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -2986,7 +3586,7 @@ paths:
   /space/{space_id}/task/{task_id}/node/{node_id}/operate_node/{operation}/:
     post:
       operationId: operate_task_node
-      description: 操作任务节点（开放插件 callback 时需携带 X-Callback-Token 请求头）
+      description: 操作任务节点（开放插件 callback 需携带 X-Callback-Token，并校验回调字段）
       tags: []
       responses:
         default:
@@ -2995,6 +3595,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -3025,6 +3632,46 @@ paths:
           type: string
         required: false
         description: 开放插件 callback 场景使用的回调鉴权 token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+                required:
+                - operator
+                properties:
+                  operator:
+                    type: string
+                    description: 操作人
+              - type: object
+                required:
+                - open_plugin_run_id
+                - status
+                properties:
+                  open_plugin_run_id:
+                    type: string
+                    description: 标准运维开放插件运行实例 ID
+                  status:
+                    type: string
+                    description: 开放插件运行状态
+                  outputs:
+                    type: object
+                    additionalProperties: true
+                    description: 插件输出数据
+                  error_message:
+                    type: string
+                    description: 失败原因
+                  truncated:
+                    type: boolean
+                    description: 输出是否被截断
+                  truncated_fields:
+                    type: array
+                    items:
+                      type: string
+                    description: 被截断的字段列表
+        required: true
+        description: 普通节点操作传 operator；开放插件 callback 传运行 ID、状态及可选结果字段
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
@@ -3136,6 +3783,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -3234,6 +3888,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -3336,6 +3997,24 @@ paths:
                         has_interval_trigger:
                           type: boolean
                           description: 是否有定时触发器
+                        labels:
+                          type: array
+                          description: 标签列表
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                                description: 标签ID
+                              name:
+                                type: string
+                                description: 标签名称
+                              color:
+                                type: string
+                                description: 标签颜色
+                              full_path:
+                                type: string
+                                description: 标签完整路径
                   count:
                     type: integer
                     description: 总数
@@ -3349,6 +4028,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -3403,6 +4089,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -3475,7 +4168,7 @@ paths:
   /space/{space_id}/update_template/{template_id}/:
     post:
       operationId: update_template
-      description: 更新模板
+      description: 更新模板；多租户下嵌套子流程仅可引用当前空间模板，单租户保留原有引用行为。定时触发器 config.timezone 支持 IANA 时区，新建默认请求时区，编辑省略时保留计划原时区。
       tags: []
       responses:
         '200':
@@ -3559,6 +4252,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -3669,6 +4369,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -3711,6 +4418,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -3784,6 +4498,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -3851,6 +4572,14 @@ paths:
     post:
       operationId: grant_apigw_permissions_to_app
       description: 给其他 app 授予 apigw 权限
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -3986,6 +4715,14 @@ paths:
     get:
       operationId: sdk_get_user_decision_table
       description: 获取用户决策表插件列表
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4014,6 +4751,14 @@ paths:
     get:
       operationId: sdk_get_plugin_list
       description: 获取内置插件列表
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4050,6 +4795,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: plugin_id
         schema:
@@ -4073,6 +4825,84 @@ paths:
         disabledStages: []
         enableWebsocket: false
         pluginConfigs: []
+  /sdk/plugin/detail/:
+    post:
+      operationId: sdk_get_plugin_all_types_detail
+      description: 获取三类插件配置详情
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/plugin/detail/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/plugin_query/uniform_api/list/{space_id}/:
+    get:
+      operationId: sdk_get_api_plugin_list
+      description: 获取uniform_api插件列表
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/plugin_query/uniform_api/list/{space_id}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        enableWebsocket: false
+        pluginConfigs: []
   /sdk/plugin_query/uniform_api/category_list/{space_id}/:
     get:
       operationId: sdk_get_api_plugin_category_list
@@ -4085,6 +4915,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -4112,6 +4949,14 @@ paths:
     get:
       operationId: sdk_get_plugin_service_detail
       description: 获取第三方插件配置详情
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4140,6 +4985,14 @@ paths:
     get:
       operationId: sdk_get_bk_plugin_list
       description: 获取第三方插件列表
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4168,6 +5021,14 @@ paths:
     get:
       operationId: sdk_get_plugin_service_app_detail
       description: 获取插件服务App详情
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4196,6 +5057,14 @@ paths:
     get:
       operationId: sdk_get_plugin_service_meta
       description: 获取第三方插件元数据
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4224,6 +5093,14 @@ paths:
     get:
       operationId: sdk_get_plugin_tags
       description: 获取插件Tag分类
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4260,6 +5137,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: task_id
         schema:
@@ -4295,6 +5179,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: task_id
         schema:
@@ -4336,6 +5227,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -4363,6 +5261,14 @@ paths:
     post:
       operationId: sdk_copy_template
       description: 拷贝流程
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4391,6 +5297,14 @@ paths:
     post:
       operationId: sdk_get_template_constant_reference
       description: 变量引用统计
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4419,6 +5333,14 @@ paths:
     get:
       operationId: sdk_get_template_variable_list
       description: 获取流程变量类型
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4447,6 +5369,14 @@ paths:
     get:
       operationId: sdk_template_variable_check_variable_key
       description: 检测流程变量的key
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4475,6 +5405,14 @@ paths:
     post:
       operationId: sdk_template_variable_constant_preview_result
       description: 流程常量预览结果
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4503,6 +5441,14 @@ paths:
     get:
       operationId: sdk_get_template_system_variable
       description: 获取系统变量
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4539,6 +5485,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: variable_id
         schema:
@@ -4574,6 +5527,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -4599,7 +5559,7 @@ paths:
         pluginConfigs: []
     put:
       operationId: sdk_update_template
-      description: 保存流程
+      description: 保存流程；定时触发器 config.timezone 支持 IANA 时区，新建默认请求时区，编辑省略时保留计划原时区。
       tags: []
       responses:
         default:
@@ -4608,6 +5568,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -4643,6 +5610,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -4678,6 +5652,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -4713,6 +5694,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -4748,6 +5736,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -4783,6 +5778,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -4818,6 +5820,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -4853,6 +5862,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -4880,6 +5896,14 @@ paths:
     get:
       operationId: sdk_list_snapshot
       description: 获取流程快照列表
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4916,6 +5940,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: snapshot_id
         schema:
@@ -4943,6 +5974,14 @@ paths:
     get:
       operationId: sdk_get_control_config
       description: 获取空间下触发器控制配置
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -4979,6 +6018,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -5012,6 +6058,14 @@ paths:
     post:
       operationId: sdk_draw_pipeline
       description: 画布自动排版
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -5048,6 +6102,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -5089,6 +6150,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -5202,6 +6270,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -5229,7 +6304,7 @@ paths:
   /template/{template_id}/create_task_by_app/:
     post:
       operationId: create_task_by_app
-      description: 通过 bk_app_code 权限校验创建任务
+      description: 通过 bk_app_code 权限校验创建任务（包含开放插件治理校验与快照固化）
       tags: []
       responses:
         '200':
@@ -5323,6 +6398,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: template_id
         schema:
@@ -5368,7 +6450,7 @@ paths:
   /task/{task_id}/operate_task_by_app/{operation}/:
     post:
       operationId: operate_task_by_app
-      description: 通过 bk_app_code 权限校验执行任务操作
+      description: 通过 bk_app_code 权限校验执行任务操作（start 时校验开放插件治理状态）
       tags: []
       responses:
         '200':
@@ -5395,6 +6477,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: task_id
         schema:
@@ -5498,6 +6587,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: task_id
         schema:
@@ -5560,6 +6656,13 @@ paths:
                     type: string
                     description: open telemetry trace_id
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: path
         name: space_id
         schema:
@@ -5594,6 +6697,14 @@ paths:
     get:
       operationId: sdk_get_task_node_detail
       summary: Get task node detail
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: [ ]
       responses:
         default:
@@ -5622,6 +6733,14 @@ paths:
     get:
       operationId: sdk_get_node_snapshot_config
       summary: Get node snapshot config
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: [ ]
       responses:
         default:
@@ -5650,6 +6769,14 @@ paths:
     get:
       operationId: sdk_get_task_node_log
       summary: Get task node log
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: [ ]
       responses:
         default:
@@ -5678,6 +6805,14 @@ paths:
     post:
       operationId: sdk_create_mock_task
       summary: 创建MOCK任务
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -5714,6 +6849,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: query
         name: space_id
         schema:
@@ -5755,6 +6897,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: query
         name: space_id
         schema:
@@ -5796,6 +6945,13 @@ paths:
             application/json:
               schema: {}
       parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       - in: query
         name: space_id
         schema:
@@ -5829,6 +6985,14 @@ paths:
     post:
       operationId: sdk_debug_global_run
       summary: 执行流程全局调试
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -5876,6 +7040,14 @@ paths:
     post:
       operationId: sdk_debug_reset
       summary: 重置流程调试上下文
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -5924,6 +7096,14 @@ paths:
     post:
       operationId: sdk_debug_terminate
       summary: 终止流程调试运行
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -5945,7 +7125,7 @@ paths:
                   description: 流程模板ID
                 node_id:
                   type: string
-                  description: 节点ID，不传则终止全局调试任务
+                  description: 节点ID；传入时终止单节点并恢复为未调试，不传时终止全局调试任务
               required:
               - space_id
               - template_id
@@ -5970,6 +7150,14 @@ paths:
     post:
       operationId: sdk_debug_reset_impact
       summary: 获取流程调试重置影响
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -6013,6 +7201,14 @@ paths:
     post:
       operationId: sdk_debug_step_run
       summary: 执行流程单步调试
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -6077,6 +7273,14 @@ paths:
     post:
       operationId: sdk_debug_node_mock
       summary: 配置流程调试节点 mock
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -6137,6 +7341,14 @@ paths:
     post:
       operationId: sdk_debug_context_var
       summary: 设置流程调试上下文变量
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: []
       responses:
         default:
@@ -6187,6 +7399,14 @@ paths:
     post:
       operationId: sdk_get_plugin_service_logs
       summary: Get plugin service logs
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: [ ]
       responses:
         default:
@@ -6215,6 +7435,14 @@ paths:
     post:
       operationId: get_plugin_outputs
       description: 获取插件输出
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: [ ]
       responses:
         default:
@@ -6244,6 +7472,14 @@ paths:
     post:
       operationId: sdk_operate_task_node
       description: 操作任务节点
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: [ ]
       responses:
         default:
@@ -6268,10 +7504,18 @@ paths:
         disabledStages: [ ]
         enableWebsocket: false
         pluginConfigs: [ ]
-  /sdk/create_label/:
+  /space/{space_id}/batch_delete_template/:
     post:
-      operationId: sdk_create_label
-      description: 创建标签
+      operationId: batch_delete_template
+      description: 批量删除模板
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
       tags: [ ]
       responses:
         default:
@@ -6284,155 +7528,16 @@ paths:
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          name: sdk
           method: post
-          path: /{env.api_sub_path}api/label/
+          path: /{env.api_sub_path}apigw/space/{space_id}/batch_delete_template/
           matchSubpath: false
           timeout: 0
+          name: default
         authConfig:
-          userVerifiedRequired: true
+          userVerifiedRequired: false
           appVerifiedRequired: true
           resourcePermissionRequired: true
         disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/delete_label/{label_id}/:
-    delete:
-      operationId: sdk_delete_label
-      description: 删除标签
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: delete
-          path: /{env.api_sub_path}api/label/{label_id}/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/get_label_list/:
-    get:
-      operationId: sdk_get_label_list
-      description: 获取标签列表
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: get
-          path: /{env.api_sub_path}api/label/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/get_label_ref_count/:
-    get:
-      operationId: sdk_get_label_ref_count
-      description: 获取标签引用次数
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: get
-          path: /{env.api_sub_path}api/label/get_label_ref_count/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/update_label/{label_id}/:
-    put:
-      operationId: sdk_update_label
-      description: 更新标签
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: put
-          path: /{env.api_sub_path}api/label/{label_id}/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
-        enableWebsocket: false
-        pluginConfigs: [ ]
-  /sdk/template/update_template_labels/{template_id}/:
-    post:
-      operationId: sdk_update_template_labels
-      description: 更新模板标签
-      tags: [ ]
-      responses:
-        default:
-          description: ''
-          content:
-            application/json:
-              schema: { }
-      x-bk-apigateway-resource:
-        isPublic: true
-        allowApplyPermission: true
-        matchSubpath: false
-        backend:
-          name: sdk
-          method: post
-          path: /{env.api_sub_path}api/template/{template_id}/update_labels/
-          matchSubpath: false
-          timeout: 0
-        authConfig:
-          userVerifiedRequired: true
-          appVerifiedRequired: true
-          resourcePermissionRequired: true
-        disabledStages: [ ]
+        descriptionEn: Batch delete template
         enableWebsocket: false
         pluginConfigs: [ ]

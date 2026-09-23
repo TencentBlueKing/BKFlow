@@ -24,7 +24,7 @@ from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from pipeline.models import CompressJSONField, SnapshotManager
 
-from bkflow.utils.crypt import BaseCrypt
+from bkflow.utils.crypt import BaseCrypt, CredentialCrypt
 from bkflow.utils.md5 import compute_pipeline_md5
 
 
@@ -147,7 +147,7 @@ class SecretSingleJsonField(models.JSONField):
         存储时：{"username": "encrypted_admin", "password": "encrypted_secret123"}
     """
 
-    _crypt = BaseCrypt(instance_key=settings.PRIVATE_SECRET)
+    _crypt = CredentialCrypt(instance_key=settings.PRIVATE_SECRET)
 
     def from_db_value(self, value, expression, connection):
         """
@@ -174,6 +174,8 @@ class SecretSingleJsonField(models.JSONField):
                 try:
                     decrypted_data[key] = self._crypt.decrypt(val)
                 except Exception:
+                    if isinstance(val, str) and val.startswith(CredentialCrypt.SM4_PREFIX):
+                        raise
                     # 如果解密失败，返回原值（可能是未加密的旧数据）
                     decrypted_data[key] = val
             else:

@@ -27,9 +27,20 @@ from django.conf import settings
 from django.utils import timezone
 
 import env
-from config.default import BKAPP_INNER_CALLBACK_ENTRY
 
 DEFAULT_CALLBACK_TOKEN_TTL = timedelta(hours=2)
+OPEN_PLUGIN_CALLBACK_TOKEN_META_KEY = "HTTP_X_CALLBACK_TOKEN"
+
+
+def get_open_plugin_callback_token_ttl():
+    """回调 token 有效期，默认对齐节点最长执行时间。"""
+    seconds = getattr(settings, "OPEN_PLUGIN_CALLBACK_TOKEN_TTL", None)
+    if seconds:
+        return timedelta(seconds=int(seconds))
+    max_timeout = getattr(settings, "MAX_NODE_EXECUTE_TIMEOUT", None)
+    if max_timeout:
+        return timedelta(seconds=int(max_timeout))
+    return DEFAULT_CALLBACK_TOKEN_TTL
 
 
 def _get_callback_fernet():
@@ -47,16 +58,12 @@ def build_open_plugin_client_request_id(task_id, node_id, retry_no=1):
     return f"task-{task_id}-node-{node_id}-attempt-{retry_no}"
 
 
-def build_open_plugin_callback_url(space_id, task_id, node_id):
-    return f"{BKAPP_INNER_CALLBACK_ENTRY}apigw/space/{space_id}/task/{task_id}/node/{node_id}/operate_node/callback/"
-
-
 def callback_token_digest(token):
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def issue_open_plugin_callback_token(task_id, node_id, client_request_id, node_version="", expire_at=None):
-    expire_at = expire_at or (timezone.now() + DEFAULT_CALLBACK_TOKEN_TTL)
+    expire_at = expire_at or (timezone.now() + get_open_plugin_callback_token_ttl())
     payload = {
         "task_id": task_id,
         "node_id": node_id,

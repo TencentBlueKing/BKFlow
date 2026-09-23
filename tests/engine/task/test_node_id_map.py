@@ -56,8 +56,29 @@ class TestGetNodeIdMap:
 
     def test_get_node_id_map_returns_template_to_runtime_mapping(self):
         tree = build_default_pipeline_tree()
+        original_flow_id = tree["start_event"]["outgoing"]
+        original_act_id = next(iter(tree["activities"]))
+        gateway_id = "gateway_template_id"
+        gateway_flow_id = "gateway_flow_id"
+        tree["flows"][original_flow_id]["target"] = gateway_id
+        tree["flows"][gateway_flow_id] = {
+            "id": gateway_flow_id,
+            "is_default": True,
+            "source": gateway_id,
+            "target": original_act_id,
+        }
+        tree["activities"][original_act_id]["incoming"] = [gateway_flow_id]
+        tree["gateways"][gateway_id] = {
+            "id": gateway_id,
+            "type": "ExclusiveGateway",
+            "incoming": original_flow_id,
+            "outgoing": [gateway_flow_id],
+            "conditions": {},
+            "default_condition": {"flow_id": gateway_flow_id},
+        }
         # create_instance 会就地修改 tree（replace_all_id），故提前捕获原始模板节点 id
         original_act_ids = set(tree["activities"].keys())
+        original_gateway_ids = set(tree["gateways"].keys())
         instance = TaskInstance.objects.create_instance(
             pipeline_tree=tree, space_id=1, create_method="DEBUG", creator="admin"
         )
@@ -69,11 +90,13 @@ class TestGetNodeIdMap:
         assert response.status_code == status.HTTP_200_OK
         mapping = response.data["data"]
         # 每个模板节点 id 都应出现在映射的 key 中
-        assert set(mapping.keys()) == original_act_ids
+        assert set(mapping.keys()) == original_act_ids | original_gateway_ids
         # 运行时 id 应与模板 id 不同，证明确实发生了重映射
         assert all(mapping[k] != k for k in mapping)
         # value 应为任务执行数据中真实的运行时节点 id
-        runtime_ids = set(instance.execution_data["activities"].keys())
+        runtime_ids = set(instance.execution_data["activities"].keys()) | set(
+            instance.execution_data["gateways"].keys()
+        )
         assert set(mapping.values()) == runtime_ids
 
     def test_get_node_id_map_returns_empty_when_no_activities(self):
