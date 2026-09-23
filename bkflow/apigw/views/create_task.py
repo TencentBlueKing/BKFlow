@@ -60,6 +60,10 @@ def create_task(request, space_id):
             )
         )
 
+    # 模板仅存在草稿版本、没有正式版本时不允许创建任务
+    if not template.has_published_version():
+        raise ValidationError(_("模版没有正式版本，不允许创建任务"))
+
     create_task_data = dict(ser.data)
     create_task_data["scope_type"] = template.scope_type
     create_task_data["scope_value"] = template.scope_value

@@ -156,3 +156,29 @@ class VariableType(Enum):
 
 
 VARIABLE_TYPES = [VariableType.SPACE.value, VariableType.SCOPE.value]
+
+
+class ValidateType(Enum):
+    TEMPLATE = "template"
+    TASK = "task"
+    GENERAL = "general"
+
+
+class ValidatorCode(Enum):
+    """流程校验器编码，集中管理各校验器的 code 标识，按归属类型分类"""
+
+    # 模板类校验器
+    TEMPLATE_SCHEMA = "schema_validator"
+    TEMPLATE_CONSTANTS_KEY_PATTERN = "constants_key_pattern_validator"
+    TEMPLATE_CONSTANTS_SOURCE_INFO = "constants_source_info_validator"
+    TEMPLATE_OUTPUTS_KEY_PATTERN = "outputs_key_pattern_validator"
+    TEMPLATE_MUTUAL_EXCLUSION = "mutual_exclusion_validator"
+    TEMPLATE_LOOP_VARIABLE = "loop_variable_validator"
+
+    # 任务类校验器
+    TASK_CONTEXT_HYDRATE = "context_hydrate_validator"
+    TASK_MAKO_KEYWORD = "mako_keyword_validator"
+
+    # 通用类校验器
+    GENERAL_PIPELINE_TREE = "pipeline_tree_validator"
+    GENERAL_CONSTANTS = "constants_validator"
