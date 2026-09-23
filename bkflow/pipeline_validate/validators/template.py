@@ -26,7 +26,6 @@ from bkflow.pipeline_validate.validators.base import (
 )
 from bkflow.pipeline_web.parser.format import classify_constants
 from bkflow.pipeline_web.parser.schemas import KEY_PATTERN_RE, WEB_PIPELINE_SCHEMA
-from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 
 
 class SchemaValidator(BasePipelineValidator):
@@ -162,6 +161,8 @@ class LoopVariableValidator(BasePipelineValidator):
         - 数组循环时，循环次数需与各循环变量参数数量匹配
         - 循环变量不能与全局变量冲突
         """
+        from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
+
         result = PipelineTemplateWebPreviewer.validate_loop_variables(web_pipeline_tree)
         if not result.get("has_loop"):
             return ValidatorResult(is_valid=False, error=result.get("error_message", ""))
