@@ -193,6 +193,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.contrib.itsm_workflow",
         "bkflow.contrib.init_tenant",
         "bkflow.statistics",
+        "bkflow.pipeline_validate",
     )
 
     BKFLOW_CELERY_ROUTES = {
@@ -308,6 +309,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.statistics",
         "bkflow.variable_manager",
         "bkflow.label",
+        "bkflow.pipeline_validate",
     )
 
     TEMPLATES[0]["OPTIONS"]["context_processors"] += ("bkflow.interface.context_processors.bkflow_settings",)

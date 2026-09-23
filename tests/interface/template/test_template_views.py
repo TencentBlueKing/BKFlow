@@ -97,8 +97,8 @@ def build_open_plugin_pipeline_tree():
     activity["component"]["code"] = "uniform_api"
     activity["component"]["version"] = "v4.0.0"
     activity["component"]["data"] = {
-        "uniform_api_plugin_id": {"value": "open_plugin_001"},
-        "uniform_api_plugin_version": {"value": "1.2.0"},
+        "uniform_api_plugin_id": {"hook": False, "need_render": True, "value": "open_plugin_001"},
+        "uniform_api_plugin_version": {"hook": False, "need_render": True, "value": "1.2.0"},
     }
     activity["component"]["api_meta"] = {"source_key": "sops"}
     return pipeline_tree
