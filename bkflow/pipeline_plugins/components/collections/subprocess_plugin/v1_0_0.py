@@ -58,15 +58,6 @@ class SubprocessPluginService(LoopBaseService):
             data.set_outputs("ex_data", f"get subprocess data failed: {template['message']}")
             return None, None
 
-        # 子流程模板仅存在草稿、无正式版本时，接口会返回空 data，需明确报错，避免下游取 pipeline_tree 触发 KeyError
-        template_data = template.get("data") or {}
-        if not template_data.get("pipeline_tree"):
-            data.set_outputs(
-                "ex_data",
-                f"子流程模板(template_id={template_id})没有正式版本或未发布，无法执行，请先发布该子流程模板",
-            )
-            return None, None
-
         return template, subprocess
 
     def _process_subprocess_constants(self, subprocess, pipeline_tree):
@@ -102,6 +93,15 @@ class SubprocessPluginService(LoopBaseService):
 
         template, subprocess = self._get_subprocess_template(data, space_id=parent_task.space_id)
         if not template:
+            return False
+
+        # 子流程模板仅存在草稿、无正式版本时，接口会返回空 data，需明确报错，避免下游取 pipeline_tree 触发 KeyError
+        template_data = template.get("data") or {}
+        if not template_data.get("pipeline_tree"):
+            data.set_outputs(
+                "ex_data",
+                f"子流程模板(template_id={subprocess.template_id})没有正式版本或未发布，" "无法执行，请先发布该子流程模板",
+            )
             return False
 
         pipeline_tree = template["data"]["pipeline_tree"]
