@@ -7,9 +7,17 @@ from pathlib import Path
 import pytest
 
 
-def run_release(tmp_path, failed_step="", module="default"):
+def run_release(tmp_path, failed_step="", module="default", cache_table_exists=False):
     executable = tmp_path / "python"
-    executable.write_text('#!/bin/bash\necho "$2" >> "$STEP_LOG"\nif [ "$2" = "$FAILED_STEP" ]; then exit 19; fi\n')
+    executable.write_text(
+        "#!/bin/bash\n"
+        'echo "$2" >> "$STEP_LOG"\n'
+        'if [ "$2" = "createcachetable" ] && [ "$CACHE_TABLE_EXISTS" = "1" ]; then\n'
+        "  echo \"Cache table 'django_cache' already exists.\" >&2\n"
+        "  exit 1\n"
+        "fi\n"
+        'if [ "$2" = "$FAILED_STEP" ]; then exit 19; fi\n'
+    )
     executable.chmod(0o755)
     log = tmp_path / "steps.log"
     result = subprocess.run(
@@ -20,6 +28,7 @@ def run_release(tmp_path, failed_step="", module="default"):
             "STEP_LOG": str(log),
             "FAILED_STEP": failed_step,
             "BKPAAS_APP_MODULE_NAME": module,
+            "CACHE_TABLE_EXISTS": "1" if cache_table_exists else "",
         },
         capture_output=True,
         text=True,
@@ -46,6 +55,17 @@ def test_required_release_failure_stops_immediately(tmp_path, step):
     result, steps = run_release(tmp_path, step)
     assert result.returncode == 19
     assert steps[-1] == step
+
+
+@pytest.mark.parametrize("module", ["default", "default-engine"])
+def test_existing_cache_table_does_not_stop_release(tmp_path, module):
+    """现网 django_cache 已存在时，跳过建表并继续后续发布步骤。"""
+    result, steps = run_release(tmp_path, module=module, cache_table_exists=True)
+    assert result.returncode == 0
+    assert "django_cache already exists, skip createcachetable" in result.stderr
+    assert steps[0] == "migrate"
+    assert steps[1] == "createcachetable"
+    assert "update_component_models" in steps
 
 
 @pytest.mark.parametrize("module", ["default", "default-engine"])
