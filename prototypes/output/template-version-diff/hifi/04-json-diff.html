@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>04 JSON 对比</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css">
+<style>
+  .jr { display: grid; grid-template-columns: 1fr 150px 150px; gap: 12px; padding: 0 0 0 18px; line-height: 26px; }
+  .jr .o { color: #c62828; background: #fff0f0; padding: 0 8px; border-radius: 2px; }
+  .jr .n { color: #0f8a55; background: #ecfbf1; padding: 0 8px; border-radius: 2px; }
+  .jh { display: grid; grid-template-columns: 1fr 150px 150px; gap: 12px; padding: 0 16px 0 34px; height: 36px; align-items: center; color: #979ba5; border-bottom: 1px solid #f0f1f5; background: #fafbfd; font-family: -apple-system, "PingFang SC", sans-serif; }
+</style></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 04 · 流程编排人员 / 研发排障</div>
+    <h2>JSON 对比</h2>
+    <div class="sub">在设计稿 01 的底栏点「JSON 对比」，或在设计稿 03 点「查看 JSON 片段」（直接定位到该节点）。</div>
+    <div class="note"><b class="n">1</b><span>JSON 对比需要主动进入，面包屑为「发布流程 / JSON 对比」；默认入口始终是总览。</span></div>
+    <div class="note"><b class="n">2</b><span>分为「执行字段」和「画布字段」两个范围。画布字段只有节点位置和连线锚点（location、line），与总览里的「画布调整」一致。</span></div>
+    <div class="note"><b class="n">3</b><span>只列出有变化的字段路径和前后值，不展示整棵流程树。</span></div>
+    <div class="note"><b class="n">4</b><span>节点 ID 后面标注节点名和变化类型，方便和画布对应。</span></div>
+    <div class="note"><b class="n">5</b><span>新增、删除的节点和连线默认折叠，展开后显示完整内容。</span></div>
+    <div class="note"><b class="n">6</b><span>「复制差异」复制的内容包含基线版本号、草稿保存时间和字段路径，便于排障。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="diff.js"></script>
+<script>
+  renderBg();
+  function row(path, o, n) { return '<div class="jr"><span>' + path + '</span><span class="o">' + o + '</span><span class="n">' + n + '</span></div>'; }
+  function blk(id, name, kind, body, fold) {
+    const k = { mod: '<span class="stat mod">修改</span>', add: '<span class="stat add">新增</span>', del: '<span class="stat del">删除</span>' }[kind];
+    return '<div class="blk"><div class="bh">' + ic(fold ? 'right' : 'down', 's12') + '<span>' + id + '</span><span class="nm">' + name + '</span>' + k +
+      (fold ? '<span class="nm">' + fold + '</span>' : '') + '</div>' + (body || '') + '</div>';
+  }
+  const panel =
+    '<div class="pnl-hd"><span class="seg"><span class="on">执行字段</span><span>画布字段 <span class="muted">2</span></span></span>' +
+    '<span class="muted">只显示有变化的字段路径 · v1.3.0（2026-09-18 10:24 发布）→ 当前草稿（2026-09-24 14:32 由 admin 保存）</span>' +
+    '<button class="btn sm ml-auto">' + ic('copy', 's12') + '复制差异</button></div>' +
+    '<div class="jh"><span>字段路径</span><span>基线 v1.3.0</span><span>当前草稿</span></div>' +
+    '<div class="jd">' +
+    blk('activities.node3f1ca7b25e8d4c61a0f9e2b7d4c8', '灰度发布', 'mod',
+      row('component.data.gray_ratio.value', '20', '30') +
+      row('timeout_config.seconds', '600', '900') +
+      row('auto_retry.enable', 'false', 'true') +
+      row('auto_retry.interval', '0', '30')) +
+    blk('activities.node9b2e41c07d3a5f68e1b4c9027a17', '全量发布', 'mod', row('component.data.batch_interval.value', '30', '60')) +
+    blk('activities.node7c4a0e93b1d64f2a8c5e7b19e0b2', '审批确认', 'add', '', '展开查看完整节点') +
+    blk('activities.node1e6fb8d24a07c93e5f1a2d68b54d', '灰度验证', 'add', '', '展开查看完整节点') +
+    blk('activities.node5d81f2a6c93e47b0d8a1e6f43c9a', '旧版通知', 'del', '', '展开查看完整节点') +
+    '<div class="blk"><div class="bh">' + ic('right', 's12') + '<span>flows</span><span class="nm">连线</span><span class="stat add">新增 4</span><span class="stat del">删除 3</span><span class="nm">展开查看</span></div></div>' +
+    '</div>' +
+    '<i class="mk" style="left:-10px;top:14px">2</i>' +
+    '<i class="mk" style="right:-12px;top:14px">6</i>' +
+    '<i class="mk" style="left:-10px;top:122px">3</i>' +
+    '<i class="mk" style="left:462px;top:92px">4</i>' +
+    '<i class="mk" style="left:-10px;top:330px">5</i>';
+  document.getElementById('dlg').outerHTML = releaseDialog({
+    crumb: 'JSON 对比',
+    panel: panel,
+    leftFt: '<button class="btn">返回总览</button>',
+  }).replace('<span class="crumb">发布流程</span>', '<span class="crumb rel">发布流程<i class="mk" style="left:-26px;top:4px">1</i></span>');
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
