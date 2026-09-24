@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>06 只调整了画布布局</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 06 · 流程编排人员</div>
+    <h2>只调整了画布布局</h2>
+    <div class="sub">假设草稿相对 v1.3.0 只把「旧版通知」从下排挪到了主干上，节点配置和连接关系都没变。</div>
+    <div class="note"><b class="n">1</b><span>内容有差异，但都是画布布局上的改动。统计全部为 0，并说明「没有影响执行的变更」。</span></div>
+    <div class="note"><b class="n">2</b><span>画布用蓝框标出位置变化的节点，灰色虚线框为原位置；锚点变化的连线用蓝色显示。</span></div>
+    <div class="note"><b class="n">3</b><span>清单只有「画布调整」一组：节点位置、连线锚点，不计入统计。</span></div>
+    <div class="note"><b class="n">4</b><span>照常发布。</span></div>
+    <div class="note"><b class="n" style="background:#ff9c01">?</b><span>待确认：节点名称、连线显示名等只影响展示的字段，目前按执行变更处理。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="diff.js"></script>
+<script>
+  renderBg();
+  const stats = '<span class="stat zero">新增 0</span><span class="stat zero">删除 0</span><span class="stat zero">修改 0</span><span class="stat zero">连线变化 0</span>';
+  const list = clistHtml([
+    { name: '画布调整', cnt: 3, items: [
+      { dot: 'mv', name: '节点位置', sub: '旧版通知：下排 → 主干' },
+      { dot: 'mv', name: '连线锚点', sub: '灰度发布 → 旧版通知' },
+      { dot: 'mv', name: '连线锚点', sub: '旧版通知 → 全量发布' }] },
+  ], '<span class="muted">画布调整不计入统计</span>');
+  const legend = '<div class="legend"><span class="lg"><i style="border-color:#699df4"></i>位置变化</span><span class="lg"><i style="border:1px dashed #979ba5"></i>原位置</span></div>';
+  document.getElementById('dlg').outerHTML = releaseDialog({
+    desc: '调整画布布局', descCnt: '6/500',
+    panel: summaryBar('v1.3.0（2026-09-18 10:24 发布）', stats) +
+      '<div class="alert info" style="border-width:0 0 1px;border-radius:0"><i data-ic="info" class="s14"></i><span>没有影响执行的变更。本次只调整了画布布局（3 处），发布后执行效果不变。</span></div>' +
+      '<div class="pnl-bd">' + diffCanvas(CANVAS.layoutOnly(), { legend: false, extra: legend }) + list + '</div>' +
+      '<i class="mk" style="left:-10px;top:58px">1</i>' +
+      '<i class="mk" style="left:470px;top:250px">2</i>' +
+      '<i class="mk" style="right:290px;top:190px">3</i>',
+    pubMk: '<i class="mk" style="left:-10px;top:-10px">4</i>',
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
