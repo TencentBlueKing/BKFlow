@@ -7541,3 +7541,114 @@ paths:
         descriptionEn: Batch delete template
         enableWebsocket: false
         pluginConfigs: [ ]
+  /space/{space_id}/task/{task_id}/get_task_operation_record/:
+    get:
+      operationId: get_task_operation_record
+      description: 获取任务操作记录
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/task/{task_id}/get_task_operation_record/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get task operation record
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/get_node_outputs/:
+    post:
+      operationId: get_node_outputs
+      description: 获取节点输出
+      parameters:
+        - in: header
+          name: X-Bk-Tenant-Id
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+          description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_node_outputs/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get task operation record
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/get_tasks_pipeline/:
+    get: 
+      operationId: get_tasks_pipeline
+      description: 获取任务流水线
+      parameters:
+        - in: header
+          name: X-Bk-Tenant-Id
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+          description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_tasks_pipeline/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get task operation record
+        enableWebsocket: false
+        pluginConfigs: [ ]
