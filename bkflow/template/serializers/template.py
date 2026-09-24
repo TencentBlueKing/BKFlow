@@ -343,6 +343,8 @@ class TemplateSerializer(serializers.ModelSerializer):
         webhook_configs = get_webhook_configs(scope_code=str(instance.id))
         data["webhook_configs"] = webhook_configs
         data["enable_webhook"] = True if webhook_configs else False
+        templates_labels = TemplateLabelRelation.objects.fetch_labels(instance.id)
+        data["labels"] = templates_labels
         return data
 
     class Meta:
