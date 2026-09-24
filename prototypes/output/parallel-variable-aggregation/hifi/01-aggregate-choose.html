@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>01 同名输出：选择聚合</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="slider"></div>
+    <div class="mask" style="z-index:35;background:rgba(0,0,0,.45)"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 01 · 流程编排人员</div>
+    <h2>同名输出：选择聚合</h2>
+    <div class="sub">流程「多区域资源巡检」的并行网关下有两个分支，都调用「资源巡检」插件。分支 1「华南区资源检查」已把输出 result 勾选为全局变量 ${result}，现在在分支 2「华北区资源检查」勾选同一个输出。</div>
+    <div class="note"><b class="n">1</b><span>勾选输出时先分析作用域。只有同一并行网关的其他分支已把同名输出勾为全局变量时，才弹出本向导；其余情况沿用现状：直接创建变量，KEY 冲突时自动加随机后缀。</span></div>
+    <div class="note"><b class="n">2</b><span>步骤条在向导全程展示。选聚合时三步依次可达；选其他方式时第 2、3 步置灰（见设计稿 02）。</span></div>
+    <div class="note"><b class="n">3</b><span>创建方式默认「聚合到 ${result}（推荐）」，另有「复用 ${result}（仍为单值）」「手动创建（改个名字）」。选聚合时沿用原 KEY，不做「KEY 已存在」校验。</span></div>
+    <div class="note"><b class="n">4</b><span>影响范围列出同一并行网关下勾选了该输出的节点，按分支顺序排列，当前节点单独标记。</span></div>
+    <div class="note"><b class="n">5</b><span>可以聚合时校验摘要显示为绿色。下游引用数来自引用分析，在第 3 步逐条确认。</span></div>
+    <div class="note"><b class="n">6</b><span>「下一步」进入同一弹窗的第 2 步。点取消或关闭不写入任何配置，输出参数恢复为未勾选。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>空间未开启「并行变量聚合」时不做分析、不弹向导，完全沿用现状。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="agg.js"></script>
+<script>
+  const f = FLOWS.two('b');
+  renderEditor(document.querySelector('[data-editor]'), { tpl: '多区域资源巡检', saveEnabled: true, nodes: f.nodes, edges: f.edges });
+  document.getElementById('slider').outerHTML = nodeConfig({
+    name: '华北区资源检查', region: '华北',
+    tableMk: '<i class="mk" style="right:-10px;top:48px">1</i>',
+    outputs: [
+      { name: '检查结果', key: 'result', hook: 'on' },
+      { name: '巡检日志', key: 'check_log' },
+      { name: '执行结果', key: '_result' },
+    ],
+  });
+  document.getElementById('dlg').outerHTML = varDialog({
+    top: 150,
+    body:
+      '<div class="rel">' + stepsHtml(['on', '', '']) + '<i class="mk" style="left:-22px;top:6px">2</i></div>' +
+      '<div class="alert info" style="margin-bottom:18px"><i data-ic="info" class="s14"></i><span>「华南区资源检查」已把同名输出勾选为全局变量 <span class="var">${result}</span>。两个节点位于同一并行网关的不同分支，可以把两份输出聚合到一个变量。</span></div>' +
+      '<div class="fv"><label class="req">创建方式</label><div class="select focus"><span class="dark">聚合到 ${result}（推荐）</span><i data-ic="down" class="s12"></i></div><i class="mk" style="right:-12px;top:30px">3</i></div>' +
+      '<div class="sec-label">影响范围</div>' +
+      '<div class="rel"><div class="tb-wrap"><table class="tb compact"><colgroup><col style="width:90px"><col><col style="width:150px"><col style="width:96px"></colgroup>' +
+      '<thead><tr><th>来源分支</th><th>节点</th><th>输出</th><th></th></tr></thead><tbody>' +
+      '<tr><td>分支 1</td><td class="name">华南区资源检查</td><td>检查结果 <span class="muted">result</span></td><td><span class="tag sm">已勾选</span></td></tr>' +
+      '<tr><td>分支 2</td><td class="name">华北区资源检查</td><td>检查结果 <span class="muted">result</span></td><td><span class="tag sm primary">当前节点</span></td></tr>' +
+      '</tbody></table></div><i class="mk" style="right:-12px;top:-10px">4</i></div>' +
+      '<div class="okline rel"><i data-ic="success" class="s14"></i><span>可以聚合：2 个来源分属同一并行网关的不同分支。下游有 3 处引用，将在第 3 步确认。</span><i class="mk" style="right:-12px;top:0">5</i></div>',
+    foot: '<span class="rel"><button class="btn primary">下一步：设置聚合方式</button><i class="mk" style="left:-10px;top:-10px">6</i></span><button class="btn">取消</button>',
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>04 确认下游引用</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="slider"></div>
+    <div class="mask" style="z-index:35;background:rgba(0,0,0,.45)"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 04 · 流程编排人员</div>
+    <h2>确认下游引用</h2>
+    <div class="sub">第 3 步。流程里有 3 处按单值使用 ${result}，升级为列表后要逐条确认。</div>
+    <div class="note"><b class="n">1</b><span>摘要说明值会从单值变为列表，并给出升级后的示例，与第 2 步所选方式一致。</span></div>
+    <div class="note"><b class="n">2</b><span>逐条列出引用 ${result} 的位置（节点输入参数、网关分支条件、其他变量），说明要注意什么；和单个值做比较的条件标记「需改写」。</span></div>
+    <div class="note"><b class="n">3</b><span>「定位」跳到对应节点的配置项并高亮。向导进度会暂存，返回后回到本步，已选的聚合方式不丢失。</span></div>
+    <div class="note"><b class="n">4</b><span>勾选确认后，「确认升级并完成」才可以点击。</span></div>
+    <div class="note"><b class="n">5</b><span>完成后关闭弹窗，回到节点配置，KEY 列显示 ${result} 和「聚合」标记（见设计稿 06）。系统不会自动改写引用，需要编排人员自行调整。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>提示只说明要做什么，不直接给表达式：分支条件默认用 boolrule，只支持二元比较，不支持函数调用。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>去掉了原设计的「先保存为草稿，稍后逐个调整」：未开启版本管理的空间没有草稿，保存即生效，这个选项起不到作用。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="agg.js"></script>
+<script>
+  const f = FLOWS.two('b');
+  renderEditor(document.querySelector('[data-editor]'), { tpl: '多区域资源巡检', saveEnabled: true, nodes: f.nodes, edges: f.edges });
+  document.getElementById('slider').outerHTML = nodeConfig({
+    name: '华北区资源检查', region: '华北',
+    outputs: [
+      { name: '检查结果', key: 'result', hook: 'on' },
+      { name: '巡检日志', key: 'check_log' },
+      { name: '执行结果', key: '_result' },
+    ],
+  });
+  document.getElementById('dlg').outerHTML = varDialog({
+    top: 120,
+    body:
+      stepsHtml(['done', 'done', 'on']) +
+      '<div class="alert warning rel" style="margin-bottom:16px"><i data-ic="warn" class="s14"></i><div>' +
+      '<div><span class="var">${result}</span> 将从单值变为列表，下游 3 处引用拿到的是整个列表，请逐条确认。</div>' +
+      '<div class="mono" style="color:#63656e">[{"branch": "branch_1", "value": …}, {"branch": "branch_2", "value": …}]</div></div>' +
+      '<i class="mk" style="right:-12px;top:-10px">1</i></div>' +
+      '<div class="rel"><div class="tb-wrap"><table class="tb compact wrap"><colgroup><col style="width:168px"><col style="width:146px"><col><col style="width:52px"></colgroup>' +
+      '<thead><tr><th>引用位置</th><th>当前写法</th><th>需要注意</th><th></th></tr></thead><tbody>' +
+      '<tr><td><span class="dark">汇总通知</span><br><span class="muted">输入参数「消息内容」</span></td><td class="mono">巡检结果：${result}</td><td>消息里会出现整个列表的文本，确认展示格式</td><td class="link">定位</td></tr>' +
+      '<tr><td><span class="dark">结果判断</span><br><span class="muted">分支「巡检通过」的条件</span></td><td class="mono">${result} == "passed"</td><td><span class="tag sm warning">需改写</span> 列表与单个值比较永远不成立</td><td class="link">定位</td></tr>' +
+      '<tr><td><span class="dark">结果归档</span><br><span class="muted">输入参数「归档内容」</span></td><td class="mono">${result}</td><td>确认接收方支持列表</td><td class="link">定位</td></tr>' +
+      '</tbody></table></div><i class="mk" style="left:-22px;top:64px">2</i><i class="mk" style="right:-12px;top:100px">3</i></div>' +
+      '<div class="rel" style="margin-top:16px"><span class="check on">我已了解以上 3 处引用将按列表取值</span><i class="mk" style="left:-22px;top:-2px">4</i></div>',
+    foot: '<button class="btn">上一步</button><span class="rel"><button class="btn primary">确认升级并完成</button><i class="mk" style="left:-10px;top:-10px">5</i></span><button class="btn">取消</button>',
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
