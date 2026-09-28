@@ -84,21 +84,23 @@ def create_template_with_a2flow(request, space_id):
             }
         validated_data = dict(ser.validated_data)
         a2flow_data = validated_data.pop("a2flow")
-        name = a2flow_data.get("name", "")
-        desc = a2flow_data.get("desc", "")
         auto_release = validated_data.pop("auto_release", False)
 
         try:
-            from bkflow.pipeline_converter.converters.a2flow_v2 import A2FlowV2Converter
+            from bkflow.template.services.a2flow_template import (
+                create_template_from_a2flow,
+            )
 
-            converter = A2FlowV2Converter(
-                a2flow_data,
+            app = getattr(request, "app", None)
+            template = create_template_from_a2flow(
                 space_id=int(space_id),
                 username=request.user.username,
+                a2flow=a2flow_data,
                 scope_type=validated_data.get("scope_type"),
                 scope_value=validated_data.get("scope_value"),
+                bind_app_code=getattr(app, "bk_app_code", ""),
+                auto_release=auto_release,
             )
-            pipeline_tree = converter.convert()
         except ValidationError as e:
             logger.exception("create_template_with_a2flow v2: pydantic validation failed")
             return {
@@ -122,6 +124,7 @@ def create_template_with_a2flow(request, space_id):
                 "message": "流程转换失败: {}".format(str(e)),
                 "code": err_code.VALIDATION_ERROR.code,
             }
+        return {"result": True, "data": template.to_json(), "code": err_code.SUCCESS.code}
     elif isinstance(a2flow_raw, dict):
         return {
             "result": False,

@@ -271,27 +271,36 @@ class Template(CommonModel):
 
     def update_draft_snapshot(self, pipeline_tree, username, version=None):
         try:
-            template = TemplateSnapshot.objects.filter(template_id=self.id, draft=True).first()
-
-            if template is None:
-                template = TemplateSnapshot.objects.create(
-                    template_id=self.id,
-                    draft=True,
-                    data=pipeline_tree,
-                    md5sum=compute_pipeline_md5(pipeline_tree),
-                    creator=username,
-                    operator=username,
+            with transaction.atomic():
+                locked_template = Template.objects.select_for_update().get(pk=self.pk)
+                drafts = list(
+                    TemplateSnapshot.objects.select_for_update()
+                    .filter(template_id=locked_template.id, draft=True)
+                    .order_by("id")[:2]
                 )
-            else:
-                template.data = pipeline_tree
-                template.md5sum = compute_pipeline_md5(pipeline_tree)
-                template.operator = username
+                if len(drafts) > 1:
+                    raise ValidationError("模板存在多个草稿版本")
+                template = drafts[0] if drafts else None
 
-            if version:
-                template.desc = f"基于 {version} 版本的草稿"
+                if template is None:
+                    template = TemplateSnapshot.objects.create(
+                        template_id=locked_template.id,
+                        draft=True,
+                        data=pipeline_tree,
+                        md5sum=compute_pipeline_md5(pipeline_tree),
+                        creator=username,
+                        operator=username,
+                    )
+                else:
+                    template.data = pipeline_tree
+                    template.md5sum = compute_pipeline_md5(pipeline_tree)
+                    template.operator = username
 
-            template.save()
-            return template
+                if version:
+                    template.desc = f"基于 {version} 版本的草稿"
+
+                template.save()
+                return template
 
         except Exception as e:
             logger.error("[Template->update_draft_snapshot] 更新草稿快照失败，错误: %s", e)

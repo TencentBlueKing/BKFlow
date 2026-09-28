@@ -1,0 +1,435 @@
+schema_version: 1
+
+trusted_context: &trusted_context
+  platform_key: bkaidev
+  platform_app: trusted-app
+  actor: dannydeng
+  space_id: 905
+  scope_type: project
+  scope_value: "905"
+  target_environment: stag
+  policy_version: risk-2026.09
+  mcp_contract_version: 1.3.0
+
+predecessor: &predecessor
+  relation: latest
+  sequence: 1
+  validation: passed
+
+fingerprint: &fingerprint
+  relation: exact
+  algorithm: sha256
+
+policy: &policy
+  profile: risk-2026.09
+  publish_enabled: true
+  execution_enabled: true
+  global_real_enabled: false
+
+forbidden: &forbidden
+  - P3_GOLDEN_SECRET_SENTINEL
+  - Bearer p3-golden-secret
+  - approval://provider/raw-secret
+
+defaults: &defaults
+  trusted_context: *trusted_context
+  predecessor_revision: *predecessor
+  draft_fingerprint: *fingerprint
+  policy: *policy
+  approval: {mode: none, action: none}
+  engine_sequence: []
+  expected:
+    envelope_code: OK
+    run_status: unchanged
+    execution_status: none
+    evidence_events: []
+    token_lease_result: none
+    mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}
+  forbidden_markers: *forbidden
+
+cases:
+  # prepare_and_manifest: 8
+  - <<: *defaults
+    id: prepare-manifest-canonical-success
+    category: prepare_and_manifest
+    setup: {driver: prepare, replay: false}
+    request: {tool: prepare_release, payload: {run_id: $run_id, revision_id: $revision_id, expected_plan_hash: $plan_hash, idempotency_key: p3-prepare-success}}
+    expected: {envelope_code: OK, run_status: APPROVAL_PENDING, execution_status: none, evidence_events: [RELEASE_PREPARED], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: prepare-same-key-replay
+    category: prepare_and_manifest
+    setup: {driver: prepare, replay: true}
+    request: {tool: prepare_release, payload: {run_id: $run_id, revision_id: $revision_id, expected_plan_hash: $plan_hash, idempotency_key: p3-prepare-replay}}
+    expected: {envelope_code: OK, run_status: APPROVAL_PENDING, execution_status: none, evidence_events: [RELEASE_PREPARED], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: prepare-current-schema-drift
+    category: prepare_and_manifest
+    setup: {driver: prepare, resolver_schema_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd}
+    request: {tool: prepare_release, payload: {run_id: $run_id, revision_id: $revision_id, expected_plan_hash: $plan_hash, idempotency_key: p3-prepare-schema-drift}}
+    expected: {envelope_code: VALIDATION_STALE, run_status: DRAFT_READY, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: prepare-plan-hash-mismatch
+    category: prepare_and_manifest
+    setup: {driver: prepare}
+    request: {tool: prepare_release, payload: {run_id: $run_id, revision_id: $revision_id, expected_plan_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, idempotency_key: p3-prepare-plan-drift}}
+    expected: {envelope_code: VALIDATION_STALE, run_status: DRAFT_READY, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: prepare-draft-fingerprint-drift
+    category: prepare_and_manifest
+    setup: {driver: prepare, converter: tree_drift}
+    request: {tool: prepare_release, payload: {run_id: $run_id, revision_id: $revision_id, expected_plan_hash: $plan_hash, idempotency_key: p3-prepare-tree-drift}}
+    expected: {envelope_code: VALIDATION_STALE, run_status: DRAFT_READY, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: prepare-superseded-revision
+    category: prepare_and_manifest
+    setup: {driver: prepare, supersede_revision: true}
+    predecessor_revision: {relation: superseded, sequence: 1, validation: passed}
+    request: {tool: prepare_release, payload: {run_id: $run_id, revision_id: $revision_id, expected_plan_hash: $plan_hash, idempotency_key: p3-prepare-superseded}}
+    expected: {envelope_code: VALIDATION_STALE, run_status: DRAFT_READY, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: prepare-global-debug-evidence-missing
+    category: prepare_and_manifest
+    setup: {driver: prepare, remove_debug_evidence: true}
+    request: {tool: prepare_release, payload: {run_id: $run_id, revision_id: $revision_id, expected_plan_hash: $plan_hash, idempotency_key: p3-prepare-no-debug-evidence}}
+    expected: {envelope_code: DEBUG_SESSION, run_status: DRAFT_READY, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: prepare-release-policy-unavailable
+    category: prepare_and_manifest
+    setup: {driver: prepare, release_policy: unavailable}
+    request: {tool: prepare_release, payload: {run_id: $run_id, revision_id: $revision_id, expected_plan_hash: $plan_hash, idempotency_key: p3-prepare-policy-missing}}
+    expected: {envelope_code: RELEASE_POLICY_UNAVAILABLE, run_status: RELEASE_READY, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+
+  # approval_binding_and_expiry: 6
+  - <<: *defaults
+    id: publish-first-call-creates-pending
+    category: approval_binding_and_expiry
+    setup: {driver: publish, phase: approval_only}
+    approval: {mode: missing, action: publish_workflow}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 1.0.0, description: Golden publish approval, idempotency_key: p3-publish-approval}}
+    expected: {envelope_code: APPROVAL_REQUIRED, run_status: APPROVAL_PENDING, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: start-first-call-creates-distinct-pending
+    category: approval_binding_and_expiry
+    setup: {driver: start, phase: approval_only}
+    approval: {mode: missing, action: start_workflow_execution}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden execution, constants: {}, idempotency_key: p3-start-approval}}
+    expected: {envelope_code: APPROVAL_REQUIRED, run_status: PUBLISHED, execution_status: none, approval: {action: start_workflow_execution, status: PENDING, distinct_from: publish_workflow, digest: present}, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: publish-exact-receipt-verifies
+    category: approval_binding_and_expiry
+    setup: {driver: publish, phase: approved, assertion_focus: approval_binding}
+    approval: {mode: valid_test_double, action: publish_workflow, receipt_ref: approval://golden/publish-valid}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 1.0.1, description: Golden verified publish, idempotency_key: p3-publish-verified, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: PUBLISHED, execution_status: none, evidence_events: [WORKFLOW_PUBLISHED], token_lease_result: none, mutations: {publish: 1, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: publish-approval-cannot-authorize-start
+    category: approval_binding_and_expiry
+    setup: {driver: start, phase: wrong_action}
+    approval: {mode: wrong_action, action: publish_workflow, receipt_ref: approval://golden/wrong-action}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden wrong approval, constants: {}, idempotency_key: p3-start-wrong-approval, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: APPROVAL_INVALID, run_status: PUBLISHED, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: approval-action-digest-mismatch
+    category: approval_binding_and_expiry
+    setup: {driver: publish, phase: digest_mismatch}
+    approval: {mode: forged_test_double, action: publish_workflow, receipt_ref: approval://golden/digest-mismatch}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 1.0.2, description: Golden digest mismatch, idempotency_key: p3-publish-digest-mismatch, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: APPROVAL_INVALID, run_status: APPROVAL_PENDING, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: approval-expired
+    category: approval_binding_and_expiry
+    setup: {driver: publish, phase: expired}
+    approval: {mode: expired_test_double, action: publish_workflow, receipt_ref: approval://golden/expired}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 1.0.3, description: Golden expired, idempotency_key: p3-publish-expired, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: APPROVAL_INVALID, run_status: APPROVAL_PENDING, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+
+  # publish_idempotency_and_drift: 6
+  - <<: *defaults
+    id: publish-approved-success
+    category: publish_idempotency_and_drift
+    setup: {driver: publish, phase: approved, assertion_focus: publication_atomicity}
+    approval: {mode: valid_test_double, action: publish_workflow, receipt_ref: approval://golden/publish-success}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 2.0.0, description: Golden publish success, idempotency_key: p3-publish-success, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: PUBLISHED, execution_status: none, evidence_events: [WORKFLOW_PUBLISHED], token_lease_result: none, mutations: {publish: 1, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: publish-same-key-replay
+    category: publish_idempotency_and_drift
+    setup: {driver: publish, phase: approved, replay: true}
+    approval: {mode: valid_test_double, action: publish_workflow, receipt_ref: approval://golden/publish-replay}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 2.0.1, description: Golden publish replay, idempotency_key: p3-publish-replay, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: PUBLISHED, execution_status: none, evidence_events: [WORKFLOW_PUBLISHED], token_lease_result: none, mutations: {publish: 1, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: publish-action-digest-drift-after-success
+    category: publish_idempotency_and_drift
+    setup: {driver: publish, phase: conflict_after_success}
+    approval: {mode: valid_test_double, action: publish_workflow, receipt_ref: approval://golden/publish-conflict}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 2.0.2, description: Golden original, idempotency_key: p3-publish-conflict, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: APPROVAL_INVALID, run_status: PUBLISHED, execution_status: none, evidence_events: [WORKFLOW_PUBLISHED], token_lease_result: none, mutations: {publish: 1, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: publish-version-collision
+    category: publish_idempotency_and_drift
+    setup: {driver: publish, phase: version_collision}
+    approval: {mode: valid_test_double, action: publish_workflow, receipt_ref: approval://golden/version-collision}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 2.0.3, description: Golden collision, idempotency_key: p3-version-collision, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: VERSION_CONFLICT, run_status: APPROVAL_PENDING, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: publish-anchor-crash-rolls-back-and-retries
+    category: publish_idempotency_and_drift
+    setup: {driver: publish}
+    approval: {mode: valid_test_double, action: publish_workflow, receipt_ref: approval://golden/anchor-crash}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 2.0.4, description: Golden anchor retry, idempotency_key: p3-anchor-crash, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    engine_sequence: [database_anchor_error, retry]
+    after_fault: {run_status: APPROVAL_PENDING, approval_status: VERIFIED, draft: true, publications: 0, publish_mutations: 0, evidence: 0, idempotency: 0}
+    after_retry: {run_status: PUBLISHED, draft: false, publications: 1, publish_mutations: 1, evidence: 1, idempotency: 1}
+    expected: {envelope_code: OK, run_status: PUBLISHED, execution_status: none, evidence_events: [WORKFLOW_PUBLISHED], token_lease_result: none, mutations: {publish: 1, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: publish-response-loss-exact-readback-no-duplicate
+    category: publish_idempotency_and_drift
+    setup: {driver: publish}
+    approval: {mode: valid_test_double, action: publish_workflow, receipt_ref: approval://golden/publish-readback}
+    request: {tool: publish_workflow, payload: {run_id: $run_id, manifest_id: $manifest_id, manifest_hash: $manifest_hash, version: 2.0.5, description: Golden response loss, idempotency_key: p3-publish-readback, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    engine_sequence: [release_committed_response_lost, exact_readback]
+    preexisting: {draft: false, publications: 0, publish_mutations: 1, evidence: 0, idempotency: 0}
+    expected: {envelope_code: OK, run_status: PUBLISHED, execution_status: none, evidence_events: [WORKFLOW_PUBLISHED], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+
+  # create_start_recovery: 8
+  - <<: *defaults
+    id: create-start-approved-success
+    category: create_start_recovery
+    setup: {driver: start}
+    approval: {mode: valid_test_double, action: start_workflow_execution, receipt_ref: approval://golden/start-success}
+    engine_sequence: [create:8101, start:ack]
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden execution success, constants: {}, idempotency_key: p3-start-success, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, task_ref: "8101", idempotency_status: COMPLETED, resource_binding: execution, evidence_events: [CREATE_DISPATCHING, TASK_CREATED, START_DISPATCHING, EXECUTION_STARTED], token_lease_result: none, mutations: {publish: 0, create: 1, start: 1, control: 0, read: 1}}
+  - <<: *defaults
+    id: create-barrier-crash-before-dispatch
+    category: create_start_recovery
+    setup: {driver: start}
+    approval: {mode: valid_test_double, action: start_workflow_execution, receipt_ref: approval://golden/create-before-crash}
+    engine_sequence: [barrier_committed, crash_before_create]
+    after_fault: {execution_status: CREATE_DISPATCHING, task_ref: "", idempotency_status: IN_FLIGHT, mutations: {create: 0, start: 0, read: 0}}
+    after_retry: {execution_status: CREATE_DISPATCHING, task_ref: "", idempotency_status: IN_FLIGHT, mutations: {create: 0, start: 0, read: 0}}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden pre-create crash, constants: {}, idempotency_key: p3-create-before-crash, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: RETRYABLE_INFRA, run_status: PUBLISHED, execution_status: CREATE_DISPATCHING, task_ref: "", idempotency_status: IN_FLIGHT, resource_binding: execution, evidence_events: [CREATE_DISPATCHING], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: create-ack-without-task-ref-uncertain
+    category: create_start_recovery
+    setup: {driver: start}
+    approval: {mode: valid_test_double, action: start_workflow_execution, receipt_ref: approval://golden/create-uncertain}
+    engine_sequence: [create:uncertain]
+    after_fault: {execution_status: CREATE_UNCERTAIN, task_ref: "", idempotency_status: IN_FLIGHT, mutations: {create: 1, start: 0, read: 0}}
+    after_retry: {execution_status: CREATE_UNCERTAIN, task_ref: "", idempotency_status: IN_FLIGHT, mutations: {create: 1, start: 0, read: 0}}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden create uncertain, constants: {}, idempotency_key: p3-create-uncertain, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: RETRYABLE_INFRA, run_status: PUBLISHED, execution_status: CREATE_UNCERTAIN, task_ref: "", idempotency_status: IN_FLIGHT, resource_binding: execution, evidence_events: [CREATE_DISPATCHING, CREATE_UNCERTAIN], token_lease_result: none, mutations: {publish: 0, create: 1, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: create-receipt-before-task-ref-persist-crash
+    category: create_start_recovery
+    setup: {driver: start}
+    approval: {mode: valid_test_double, action: start_workflow_execution, receipt_ref: approval://golden/create-persist-crash}
+    engine_sequence: [create:8102, persist_task_ref_crash]
+    after_fault: {execution_status: CREATE_UNCERTAIN, task_ref: "", idempotency_status: IN_FLIGHT, mutations: {create: 1, start: 0, read: 0}}
+    after_retry: {execution_status: CREATE_UNCERTAIN, task_ref: "", idempotency_status: IN_FLIGHT, mutations: {create: 1, start: 0, read: 0}}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden persist crash, constants: {}, idempotency_key: p3-create-persist-crash, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: RETRYABLE_INFRA, run_status: PUBLISHED, execution_status: CREATE_UNCERTAIN, task_ref: "", idempotency_status: IN_FLIGHT, resource_binding: execution, evidence_events: [CREATE_DISPATCHING, CREATE_UNCERTAIN], token_lease_result: none, mutations: {publish: 0, create: 1, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: late-original-create-receipt-converges
+    category: create_start_recovery
+    setup: {driver: start}
+    approval: {mode: valid_test_double, action: start_workflow_execution, receipt_ref: approval://golden/late-create}
+    engine_sequence: [create:uncertain, late_receipt:8103, start:ack]
+    after_fault: {execution_status: CREATE_UNCERTAIN, task_ref: "", idempotency_status: IN_FLIGHT, mutations: {create: 0, start: 0, read: 0}}
+    after_retry: {execution_status: EXECUTING, task_ref: "8103", idempotency_status: COMPLETED, mutations: {create: 1, start: 1, read: 1}}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden late create, constants: {}, idempotency_key: p3-late-create, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, task_ref: "8103", idempotency_status: COMPLETED, resource_binding: execution, evidence_events: [CREATE_DISPATCHING, CREATE_UNCERTAIN, TASK_CREATED, START_DISPATCHING, EXECUTION_STARTED], token_lease_result: none, mutations: {publish: 0, create: 1, start: 1, control: 0, read: 1}}
+  - <<: *defaults
+    id: task-ref-persisted-before-start-crash
+    category: create_start_recovery
+    setup: {driver: start}
+    approval: {mode: valid_test_double, action: start_workflow_execution, receipt_ref: approval://golden/start-before-crash}
+    engine_sequence: [create:8104, task_ref_persisted, crash_before_start]
+    after_fault: {execution_status: CREATED, task_ref: "8104", idempotency_status: IN_FLIGHT, mutations: {create: 1, start: 0, read: 0}}
+    after_retry: {execution_status: EXECUTING, task_ref: "8104", idempotency_status: COMPLETED, mutations: {create: 1, start: 1, read: 1}}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden start crash, constants: {}, idempotency_key: p3-start-before-crash, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, task_ref: "8104", idempotency_status: COMPLETED, resource_binding: execution, evidence_events: [CREATE_DISPATCHING, TASK_CREATED, START_DISPATCHING, EXECUTION_STARTED], token_lease_result: none, mutations: {publish: 0, create: 1, start: 1, control: 0, read: 1}}
+  - <<: *defaults
+    id: start-ack-loss-readback-running
+    category: create_start_recovery
+    setup: {driver: start}
+    approval: {mode: valid_test_double, action: start_workflow_execution, receipt_ref: approval://golden/start-ack-loss}
+    engine_sequence: [create:8105, start:uncertain, read:RUNNING]
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden start ack loss, constants: {}, idempotency_key: p3-start-ack-loss, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, task_ref: "8105", idempotency_status: COMPLETED, resource_binding: execution, evidence_events: [CREATE_DISPATCHING, TASK_CREATED, START_DISPATCHING, EXECUTION_STARTED], token_lease_result: none, mutations: {publish: 0, create: 1, start: 1, control: 0, read: 1}}
+  - <<: *defaults
+    id: start-ack-loss-readback-unavailable
+    category: create_start_recovery
+    setup: {driver: start}
+    approval: {mode: valid_test_double, action: start_workflow_execution, receipt_ref: approval://golden/start-readback-down}
+    engine_sequence: [create:8106, start:uncertain, read:unavailable]
+    after_fault: {execution_status: START_UNCERTAIN, task_ref: "8106", idempotency_status: IN_FLIGHT, mutations: {create: 1, start: 1, read: 1}}
+    after_retry: {execution_status: EXECUTING, task_ref: "8106", idempotency_status: COMPLETED, mutations: {create: 1, start: 1, read: 2}}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden start readback down, constants: {}, idempotency_key: p3-start-readback-down, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, task_ref: "8106", idempotency_status: COMPLETED, resource_binding: execution, evidence_events: [CREATE_DISPATCHING, TASK_CREATED, START_DISPATCHING, START_UNCERTAIN, EXECUTION_STARTED], token_lease_result: none, mutations: {publish: 0, create: 1, start: 1, control: 0, read: 2}}
+
+  # execution_readback: 5
+  - <<: *defaults
+    id: execution-flag-off-persistence-only
+    category: execution_readback
+    setup: {driver: read, execution_status: EXECUTING}
+    policy: {profile: risk-2026.09, publish_enabled: true, execution_enabled: false, global_real_enabled: false}
+    engine_sequence: []
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 20}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: execution-running-projection
+    category: execution_readback
+    setup: {driver: read, execution_status: EXECUTING}
+    engine_sequence: [read:RUNNING]
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 20}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 1}}
+  - <<: *defaults
+    id: execution-suspended-projection
+    category: execution_readback
+    setup: {driver: read, execution_status: EXECUTING}
+    engine_sequence: [read:SUSPENDED]
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 20}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: PAUSED, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 1}}
+  - <<: *defaults
+    id: execution-task-404-stale
+    category: execution_readback
+    setup: {driver: read, execution_status: EXECUTING}
+    engine_sequence: [read:404]
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 20}}
+    expected: {envelope_code: VALIDATION_STALE, run_status: EXECUTING, execution_status: EXECUTING, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 1}}
+  - <<: *defaults
+    id: execution-history-bounded-cursor
+    category: execution_readback
+    setup: {driver: read, execution_status: EXECUTING, seed_events: 24, page_limit: 5}
+    engine_sequence: [read:RUNNING]
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 5}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, history: {items: 5, has_cursor: true, stable: true}, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 3}}
+
+  # postcondition_false_success: 5
+  - <<: *defaults
+    id: postcondition-all-pass-succeeds
+    category: postcondition_false_success
+    setup: {driver: read, execution_status: EXECUTING}
+    engine_sequence: [read:FINISHED, output:A.result=ok]
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 20}}
+    expected: {envelope_code: OK, run_status: SUCCEEDED, execution_status: SUCCEEDED, evidence_events: [EXECUTION_SUCCEEDED], token_lease_result: revoked, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 1}}
+  - <<: *defaults
+    id: finished-output-exists-missing-fails
+    category: postcondition_false_success
+    setup: {driver: read, execution_status: EXECUTING}
+    engine_sequence: [read:FINISHED, output:A.result=missing]
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 20}}
+    expected: {envelope_code: POSTCONDITION_FAILED, run_status: FAILED, execution_status: FAILED, evidence_events: [EXECUTION_FAILED], token_lease_result: revoked, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 1}}
+  - <<: *defaults
+    id: finished-output-equals-mismatch-fails
+    category: postcondition_false_success
+    setup: {driver: read, execution_status: EXECUTING}
+    engine_sequence: [read:FINISHED, output:A.result=unexpected]
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 20}}
+    expected: {envelope_code: POSTCONDITION_FAILED, run_status: FAILED, execution_status: FAILED, evidence_events: [EXECUTION_FAILED], token_lease_result: revoked, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 1}}
+  - <<: *defaults
+    id: nonterminal-evidence-pending
+    category: postcondition_false_success
+    setup: {driver: read, execution_status: EXECUTING}
+    engine_sequence: [read:RUNNING]
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 20}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 1}}
+  - <<: *defaults
+    id: webhook-evidence-unavailable-deadline-fails
+    category: postcondition_false_success
+    setup: {driver: postcondition}
+    engine_sequence: [read:FINISHED, webhook:unavailable]
+    request: {tool: get_workflow_execution, payload: {execution_id: $execution_id, limit: 20}}
+    expected: {envelope_code: POSTCONDITION_FAILED, run_status: FAILED, execution_status: FAILED, evidence_events: [EXECUTION_FAILED], token_lease_result: revoked, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 2}}
+
+  # task_controls: 4
+  - <<: *defaults
+    id: control-pause-and-readback
+    category: task_controls
+    setup: {driver: control, action: pause}
+    approval: {mode: valid_test_double, action: pause, receipt_ref: approval://golden/pause}
+    engine_sequence: [preflight:RUNNING, control:ack, read:SUSPENDED]
+    request: {tool: control_workflow_execution, payload: {execution_id: $execution_id, expected_manifest_hash: $manifest_hash, action: pause, idempotency_key: p3-control-pause, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: PAUSED, evidence_events: [EXECUTION_CONTROL_DISPATCHING], token_lease_result: active, mutations: {publish: 0, create: 0, start: 0, control: 1, read: 1}}
+  - <<: *defaults
+    id: control-resume-and-readback
+    category: task_controls
+    setup: {driver: control, action: resume, execution_status: PAUSED}
+    approval: {mode: valid_test_double, action: resume, receipt_ref: approval://golden/resume}
+    engine_sequence: [preflight:SUSPENDED, control:ack, read:RUNNING]
+    request: {tool: control_workflow_execution, payload: {execution_id: $execution_id, expected_manifest_hash: $manifest_hash, action: resume, idempotency_key: p3-control-resume, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, evidence_events: [EXECUTION_CONTROL_DISPATCHING], token_lease_result: active, mutations: {publish: 0, create: 0, start: 0, control: 1, read: 1}}
+  - <<: *defaults
+    id: control-revoke-revokes-lease-and-bundles
+    category: task_controls
+    setup: {driver: control, action: revoke}
+    approval: {mode: valid_test_double, action: revoke, receipt_ref: approval://golden/revoke}
+    engine_sequence: [preflight:RUNNING, control:ack, read:REVOKED]
+    request: {tool: control_workflow_execution, payload: {execution_id: $execution_id, expected_manifest_hash: $manifest_hash, action: revoke, idempotency_key: p3-control-revoke, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: CANCELLED, execution_status: CANCELLED, evidence_bundle: finalized, evidence_events: [EXECUTION_CONTROL_DISPATCHING, EXECUTION_CANCELLED], token_lease_result: revoked, mutations: {publish: 0, create: 0, start: 0, control: 1, read: 1}}
+  - <<: *defaults
+    id: control-after-dispatch-crash-get-reconciles
+    category: task_controls
+    setup: {driver: control, action: pause}
+    approval: {mode: valid_test_double, action: pause, receipt_ref: approval://golden/pause-crash}
+    engine_sequence: [preflight:RUNNING, control:ack, crash_after_dispatch, read:SUSPENDED]
+    after_fault: {execution_status: CONTROL_DISPATCHING, idempotency_status: IN_FLIGHT, mutations: {control: 1, read: 0}}
+    after_retry: {execution_status: PAUSED, idempotency_status: COMPLETED, mutations: {control: 1, read: 1}}
+    request: {tool: control_workflow_execution, payload: {execution_id: $execution_id, expected_manifest_hash: $manifest_hash, action: pause, idempotency_key: p3-control-pause-crash, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: PAUSED, evidence_events: [EXECUTION_CONTROL_DISPATCHING], token_lease_result: active, mutations: {publish: 0, create: 0, start: 0, control: 1, read: 1}}
+
+  # node_controls: 4
+  - <<: *defaults
+    id: control-retry-mapping-version-advance
+    category: node_controls
+    setup: {driver: control, action: retry}
+    approval: {mode: valid_test_double, action: retry, receipt_ref: approval://golden/retry}
+    engine_sequence: [preflight:FAILED/v7, control:ack, read:RUNNING/v8]
+    request: {tool: control_workflow_execution, payload: {execution_id: $execution_id, expected_manifest_hash: $manifest_hash, action: retry, template_node_id: A, loop: false, idempotency_key: p3-control-retry, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, evidence_events: [EXECUTION_CONTROL_DISPATCHING], token_lease_result: active, mutations: {publish: 0, create: 0, start: 0, control: 1, read: 1}}
+  - <<: *defaults
+    id: control-skip-finished
+    category: node_controls
+    setup: {driver: control, action: skip}
+    approval: {mode: valid_test_double, action: skip, receipt_ref: approval://golden/skip}
+    engine_sequence: [preflight:FAILED/v7, control:ack, read:FINISHED/v8]
+    request: {tool: control_workflow_execution, payload: {execution_id: $execution_id, expected_manifest_hash: $manifest_hash, action: skip, template_node_id: A, loop: false, idempotency_key: p3-control-skip, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, evidence_events: [EXECUTION_CONTROL_DISPATCHING], token_lease_result: active, mutations: {publish: 0, create: 0, start: 0, control: 1, read: 1}}
+  - <<: *defaults
+    id: control-forced-fail
+    category: node_controls
+    setup: {driver: control, action: forced_fail}
+    approval: {mode: valid_test_double, action: forced_fail, receipt_ref: approval://golden/forced-fail}
+    engine_sequence: [preflight:RUNNING/v7, control:ack, read:FAILED/v8]
+    request: {tool: control_workflow_execution, payload: {execution_id: $execution_id, expected_manifest_hash: $manifest_hash, action: forced_fail, template_node_id: A, reason_code: operator_requested, idempotency_key: p3-control-forced-fail, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: OK, run_status: EXECUTING, execution_status: EXECUTING, evidence_events: [EXECUTION_CONTROL_DISPATCHING], token_lease_result: active, mutations: {publish: 0, create: 0, start: 0, control: 1, read: 1}}
+  - <<: *defaults
+    id: control-after-barrier-before-dispatch-no-mutation
+    category: node_controls
+    setup: {driver: control, action: retry}
+    approval: {mode: valid_test_double, action: retry, receipt_ref: approval://golden/retry-barrier}
+    engine_sequence: [preflight:FAILED/v7, barrier_committed, crash_before_control]
+    after_fault: {execution_status: CONTROL_DISPATCHING, idempotency_status: IN_FLIGHT, mutations: {control: 0, read: 0}}
+    after_retry: {execution_status: CONTROL_DISPATCHING, idempotency_status: IN_FLIGHT, mutations: {control: 0, read: 0}}
+    request: {tool: control_workflow_execution, payload: {execution_id: $execution_id, expected_manifest_hash: $manifest_hash, action: retry, template_node_id: A, loop: false, idempotency_key: p3-control-retry-barrier, approval_request_id: $approval_request_id, approval_receipt_ref: $approval_receipt_ref}}
+    expected: {envelope_code: RETRYABLE_INFRA, run_status: EXECUTING, execution_status: CONTROL_DISPATCHING, evidence_events: [EXECUTION_CONTROL_DISPATCHING], token_lease_result: active, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+
+  # secret_and_cross_space_denial: 2
+  - <<: *defaults
+    id: cross-space-start-denied-before-verifier-runtime
+    category: secret_and_cross_space_denial
+    setup: {driver: start, phase: cross_space, foreign_space_id: 999}
+    trusted_context: {platform_key: bkaidev, platform_app: trusted-app, actor: dannydeng, space_id: 999, scope_type: project, scope_value: "999", target_environment: stag, policy_version: risk-2026.09, mcp_contract_version: 1.3.0}
+    approval: {mode: missing, action: start_workflow_execution}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden foreign start, constants: {}, idempotency_key: p3-cross-space}}
+    expected: {envelope_code: CAPABILITY_FORBIDDEN, run_status: PUBLISHED, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}
+  - <<: *defaults
+    id: secret-shaped-runtime-input-denied-before-persistence
+    category: secret_and_cross_space_denial
+    setup: {driver: start, phase: secret_input}
+    approval: {mode: none, action: start_workflow_execution}
+    request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden secret denied, constants: {password: P3_GOLDEN_SECRET_SENTINEL}, idempotency_key: p3-secret-input}}
+    expected: {envelope_code: SCHEMA_VALIDATION_ERROR, run_status: PUBLISHED, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}

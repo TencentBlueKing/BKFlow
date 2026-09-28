@@ -97,7 +97,7 @@ class TestCreateTask(TestCase):
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
-    @mock.patch("bkflow.apigw.views.create_task.TaskComponentClient")
+    @mock.patch("bkflow.task.services.task_creator.TaskComponentClient")
     def test_create_task_with_custom_span_attributes(self, mock_client_class):
         """Test create_task with custom_span_attributes parameter"""
         pipeline_tree = build_pipeline_tree()
@@ -139,7 +139,7 @@ class TestCreateTask(TestCase):
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
-    @mock.patch("bkflow.apigw.views.create_task.TaskComponentClient")
+    @mock.patch("bkflow.task.services.task_creator.TaskComponentClient")
     def test_create_task_rejects_disabled_open_plugin(self, mock_client_class):
         """开放插件在空间未开启时，不允许继续创建任务"""
         pipeline_tree = build_open_plugin_pipeline_tree()

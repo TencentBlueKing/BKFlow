@@ -43,25 +43,32 @@
 
 #### 节点结构（nodes 数组元素）
 
-| 字段                  | 类型          | 必选    | 描述                                                      |
-|---------------------|-------------|-------|---------------------------------------------------------|
-| id                  | string      | 是     | 节点唯一 ID                                                 |
-| name                | string      | 否     | 节点显示名称                                                  |
-| type                | string      | 否     | 节点类型，默认 `"Activity"`；可选值见下表                              |
-| code                | string      | Activity 是 | 插件 code                                                 |
-| data                | object      | 否     | 插件参数，扁平 `{"key": value}` 格式                             |
-| next                | string/list | 非 EndEvent 是 | 下一个节点 ID（Activity/ConvergeGateway 为字符串，分支网关为数组）         |
-| plugin_type         | string      | 否     | 插件类型提示：`component` / `remote_plugin` / `uniform_api`    |
-| conditions          | list        | ExclusiveGateway 是 | 条件数组 `[{"evaluate": "表达式"}]`，与 next 数组一一对应              |
-| default_next        | string      | 否     | ExclusiveGateway 默认分支目标 ID                               |
-| converge_gateway_id | string      | 否     | 手动指定汇聚网关 ID，不填时自动推断                                     |
-| stage_name          | string      | 否     | 步骤名称，默认与 name 相同                                        |
+| 字段                  | 类型          | 必选    | 描述                                                   |
+|---------------------|-------------|-------|------------------------------------------------------|
+| id                  | string      | 是     | 节点唯一 ID                                              |
+| name                | string      | 否     | 节点显示名称                                               |
+| type                | string      | 否     | 节点类型，默认 `"Activity"`；可选值见下表                          |
+| code                | string      | Activity 是 | 插件 code                                              |
+| data                | object      | 否     | 插件参数，扁平 `{"key": value}` 格式                          |
+| next                | string/list | 非 EndEvent 是 | 下一个节点 ID（Activity/ConvergeGateway 为字符串，分支网关为数组）      |
+| plugin_type         | string      | 否     | 插件类型提示：`component` / `remote_plugin` / `uniform_api` |
+| conditions          | list        | ExclusiveGateway 是 | 条件数组 `[{"evaluate": "表达式"}]`，与 next 数组一一对应           |
+| default_next        | string      | 否     | ExclusiveGateway 默认分支目标 ID                           |
+| converge_gateway_id | string      | 否     | 手动指定汇聚网关 ID，不填时自动推断                                  |
+| stage_name          | string      | 否     | 步骤名称，默认与 name 相同                                     |
+| template_id         | string      | 否     | 子流程模板ID                                              |
+| always_use_latest   | bool        | 否     | 子流程是否总是使用最新版                                         |
+| constants           | dict        | 否     | 子流程变量入参                                              |
+| failure_strategy    | object      | 否     | 失败处理策略，字段见下表                                         |
+
+当 type 为 SubProcess 时，template_id 是必传字段，constants 是子流程的变量入参，格式为 `{"变量key": 变量值}`，此处变量格式为 `${xx}` 格式，不传使用变量默认值
 
 #### 节点类型
 
 | type                        | 说明     | next 类型 |
 |-----------------------------|--------|---------|
 | Activity（默认）                | 活动节点   | string  |
+| SubProcess                  | 子流程节点  | string  |
 | StartEvent                  | 开始事件   | string  |
 | EndEvent                    | 结束事件   | 无       |
 | ParallelGateway             | 并行网关   | list    |
@@ -69,19 +76,98 @@
 | ExclusiveGateway            | 排他网关   | list    |
 | ConvergeGateway             | 汇聚网关   | string  |
 
+#### 失败处理策略字段
+
+| 字段                     | 类型     | 默认          | 描述                                    |
+|------------------------|--------|-------------|---------------------------------------|
+| error_ignorable        | bool   | false       | 节点失败时是否自动忽略并继续                        |
+| retryable              | bool   | true        | 失败后是否允许人工重试                           |
+| skippable              | bool   | true        | 失败后是否允许人工跳                            |
+| auto_retry.enable      | bool   | false       | 是否开启自动重试                              |
+| auto_retry.interval    | int    | 0           | 重试间隔（秒）                               |
+| auto_retry.times       | int    | 1           | 最大重试次数                                |
+| timeout_config.enable  | bool   | false       | 是否开启超时控制                              |
+| timeout_config.seconds | int    | 10          | 超时时长（秒）                               |
+| timeout_config.action  | string | forced_fail | 超时动作：forced_fail/forced_fail_and_skip |
+
+##### 互斥规则
+
+`error_ignorable`（自动跳过）、`auto_retry.enable`（自动重试）、`timeout_config.enable`（超时控制）为三种主策略，**至多只能启用其中一项**。启用不同主策略时，其它字段的允许取值如下：
+
+| 主策略                              | error_ignorable | auto_retry.enable | timeout_config.enable | retryable（手动重试） | skippable（手动跳过） |
+|----------------------------------|-----------------|-------------------|-----------------------|-----------------|-----------------|
+| 全部不启用（默认）                        | false           | false             | false                 | 任意              | 任意              |
+| 自动跳过（error_ignorable=true）       | true            | 必须 false          | 必须 false              | 必须 false        | 必须 false        |
+| 自动重试（auto_retry.enable=true）     | 必须 false        | true              | 必须 false              | 必须 false        | 任意              |
+| 超时控制（timeout_config.enable=true） | 必须 false        | 必须 false          | true                  | 任意              | 任意              |
+
+违反上述规则时，接口返回错误：
+- `FAILURE_STRATEGY_CONFLICT`：同时启用了两个及以上主策略
+- `FAILURE_STRATEGY_INVALID_COMBO`：主策略与其余字段的组合非法
+
+示例（未启用任何主策略，仅允许人工重试与人工跳过）：
+```json
+{
+  "id": "n2",
+  "name": "执行脚本",
+  "code": "job_fast_execute_script",
+  "data": {"script_content": "echo hi"},
+  "next": "end",
+  "failure_strategy": {
+    "error_ignorable": false,
+    "retryable": true,
+    "skippable": true,
+    "auto_retry": {"enable": false, "interval": 5, "times": 3},
+    "timeout_config": {"enable": false, "seconds": 60, "action": "forced_fail"}
+  }
+}
+```
+
 **隐式注入**：若 nodes 中没有 StartEvent / EndEvent，转换器会自动注入。
 
 #### 变量结构（variables 数组元素）
 
-| 字段          | 类型     | 必选 | 描述                                          |
-|-------------|--------|----|---------------------------------------------|
-| key         | string | 是  | 变量引用键，格式 `${变量名}`                           |
-| name        | string | 否  | 变量显示名称                                      |
-| value       | any    | 否  | 默认值                                         |
-| source_type | string | 否  | `custom`（默认） / `component_outputs` / `system` |
-| custom_type | string | 否  | `input`（默认） / `textarea`                     |
-| description | string | 否  | 变量描述                                        |
-| show_type   | string | 否  | `show`（默认） / `hide`                          |
+| 字段               | 类型     | 必选  | 描述                                            |
+|------------------|--------|-----|-----------------------------------------------|
+| key              | string | 是   | 变量引用键，格式 `${变量名}`                             |
+| name             | string | 否   | 变量显示名称                                        |
+| value            | any    | 否   | 默认值                                           |
+| source_type      | string | 否   | `custom`（默认） / `component_outputs` / `system` |
+| custom_type      | string | 否   | `input`（默认） / `textarea`                      |
+| source_info      | dict   | 否   | 节点引用信息                                        |
+| description      | string | 否   | 变量描述                                          |
+| show_type        | string | 否   | `show`（默认） / `hide`                           |
+| validation       | string | 否   | 正则表达式，用于校验value                               |
+
+##### source_info 说明
+
+`source_info` 用于描述**变量的来源节点及其输出键**，仅在 `source_type = component_outputs`（组件输出变量）时有意义。它是一个字典，其结构为：`{"<节点 ID>": ["<该节点输出键>"]}`
+
+- **key**：产出该变量的节点 ID（即 nodes 数组中某个节点的 `id`）
+- **value**：字符串数组，元素为该节点插件的输出字段名（output key，不带 `${}` 包裹）
+
+语义示例（对应用户贴出的 constants 片段）：
+
+```json
+{
+  "${_result}": {
+    "name": "执行结果",
+    "key": "${_result}",
+    "custom_type": "boolean",
+    "source_type": "component_outputs",
+    "source_info": {
+      "n1": ["_result"]
+    },
+    "show_type": "hide"
+  }
+}
+```
+
+含义：变量 `${_result}` 来源于节点 `n1` 的插件输出字段 `_result`。
+
+在 a2flow v2 请求中通常无需手动填写 `source_info`：
+- 若变量的 `source_type` 为 `custom`（默认）或 `system`，`source_info` 可省略；
+- 若变量的 `source_type` 为 `component_outputs`，请务必填写 `source_info`，且 key 必须与 `nodes[].id` 保持一致，value 必须是对应插件真实存在的 output key，否则运行时无法解析引用。
 
 #### v2 请求示例
 
@@ -146,6 +232,8 @@ v2 协议返回结构化错误数组，便于 AI Agent 解析和修复：
 | CONVERGE_INFER_FAILED    | 无法自动推断汇聚网关    |
 | UNSUPPORTED_VERSION      | 不支持的协议版本      |
 | RESERVED_ID_CONFLICT     | 保留 ID 与节点类型冲突 |
+| FAILURE_STRATEGY_CONFLICT     | 失败处理策略互斥冲突：自动跳过 / 自动重试 / 超时控制 同时开启 |
+| FAILURE_STRATEGY_INVALID_COMBO | 失败处理策略组合非法：主策略与其它开关的取值不匹配 |
 
 ---
 

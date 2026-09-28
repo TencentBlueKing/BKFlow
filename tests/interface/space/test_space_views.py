@@ -11,7 +11,13 @@ from webhook.base_models import Scope
 
 from bkflow.constants import WebhookScopeType
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.space.configs import ApiGatewayCredentialConfig, SuperusersConfig
+from bkflow.space.configs import (
+    ApiGatewayCredentialConfig,
+    HarnessDeploymentConfig,
+    HarnessEnabledConfig,
+    SpaceConfigValueType,
+    SuperusersConfig,
+)
 from bkflow.space.models import (
     Credential,
     CredentialType,
@@ -710,7 +716,35 @@ class TestSpaceConfigViewSet:
             username="testuser", defaults={"is_superuser": False, "is_staff": False}
         )
         self.space = Space.objects.create(name="Test Space", app_code="test_app")
-        SpaceConfig.objects.create(space_id=self.space.id, name=SuperusersConfig.name, json_value=["testuser"])
+        SpaceConfig.objects.create(
+            space_id=self.space.id,
+            name=SuperusersConfig.name,
+            value_type=SpaceConfigValueType.JSON.value,
+            json_value=["testuser"],
+        )
+        self.unrelated_user, _ = User.objects.get_or_create(
+            username="unrelated-user", defaults={"is_superuser": False, "is_staff": False}
+        )
+        SpaceConfig.objects.create(
+            space_id=self.space.id,
+            name=HarnessEnabledConfig.name,
+            value_type=SpaceConfigValueType.TEXT.value,
+            text_value="true",
+        )
+        SpaceConfig.objects.create(
+            space_id=self.space.id,
+            name=HarnessDeploymentConfig.name,
+            value_type=SpaceConfigValueType.JSON.value,
+            json_value={
+                "platform_key": "private-platform-marker",
+                "allowed_scope_types": ["biz"],
+                "scope_type": None,
+                "scope_value": None,
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.0.0",
+            },
+        )
 
     def test_get_control_config_success(self):
         """Test get_control_config action"""
@@ -721,6 +755,19 @@ class TestSpaceConfigViewSet:
         response = view(request)
 
         assert response.status_code == 200
+
+    def test_get_control_config_hides_private_harness_deployment(self):
+        """Catch control-config discovery that lists a private Harness server binding."""
+        view = SpaceConfigViewSet.as_view({"get": "get_control_config"})
+        request = self.factory.get("/space_configs/get_control_config/")
+        force_authenticate(request, user=self.unrelated_user)
+
+        response = view(request)
+
+        configs = response.data["data"]
+        assert HarnessDeploymentConfig.name not in configs
+        assert HarnessEnabledConfig.name in configs
+        assert "private-platform-marker" not in str(response.data)
 
     def test_get_control_config_exception(self):
         """Test get_control_config with exception"""
@@ -751,6 +798,46 @@ class TestSpaceConfigViewSet:
         response = view(request, pk=self.space.id)
         data = response.data.get("data", response.data)
         assert isinstance(data, dict) and ("detail" in data or any("detail" in str(v) for v in data.values()))
+
+    def test_check_space_config_hides_private_harness_deployment_from_unrelated_user(self):
+        """Catch an exempt control lookup that returns a non-public deployment binding."""
+        view = SpaceConfigViewSet.as_view({"get": "check_space_config"})
+        request = self.factory.get(
+            f"/space_configs/{self.space.id}/check_space_config/?name={HarnessDeploymentConfig.name}"
+        )
+        force_authenticate(request, user=self.unrelated_user)
+
+        response = view(request, pk=self.space.id)
+
+        assert response.status_code == 200
+        assert response.data["result"] is False
+        assert "private-platform-marker" not in str(response.data)
+
+    def test_check_space_config_allows_space_superuser_to_read_private_harness_deployment(self):
+        """Preserve the intended space-administrator path for non-public control bindings."""
+        view = SpaceConfigViewSet.as_view({"get": "check_space_config"})
+        request = self.factory.get(
+            f"/space_configs/{self.space.id}/check_space_config/?name={HarnessDeploymentConfig.name}"
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=self.space.id)
+
+        assert response.status_code == 200
+        assert response.data["data"]["value"]["platform_key"] == "private-platform-marker"
+
+    def test_check_space_config_keeps_public_harness_enabled_checkable(self):
+        """Preserve public control-flag reads for callers outside the space administration list."""
+        view = SpaceConfigViewSet.as_view({"get": "check_space_config"})
+        request = self.factory.get(
+            f"/space_configs/{self.space.id}/check_space_config/?name={HarnessEnabledConfig.name}"
+        )
+        force_authenticate(request, user=self.unrelated_user)
+
+        response = view(request, pk=self.space.id)
+
+        assert response.status_code == 200
+        assert response.data["data"]["value"] == "true"
 
     def test_check_space_config_exception(self):
         """Test check_space_config with exception"""

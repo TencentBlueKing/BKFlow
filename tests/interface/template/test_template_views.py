@@ -39,6 +39,7 @@ from bkflow.template.models import (
     Trigger,
 )
 from bkflow.template.serializers.template import TemplateSerializer
+from bkflow.template.services.release import TemplateReleaseService
 from bkflow.template.views.template import (
     AdminTemplateViewSet,
     TemplateInternalViewSet,
@@ -97,8 +98,8 @@ def build_open_plugin_pipeline_tree():
     activity["component"]["code"] = "uniform_api"
     activity["component"]["version"] = "v4.0.0"
     activity["component"]["data"] = {
-        "uniform_api_plugin_id": {"value": "open_plugin_001"},
-        "uniform_api_plugin_version": {"value": "1.2.0"},
+        "uniform_api_plugin_id": {"hook": False, "need_render": True, "value": "open_plugin_001"},
+        "uniform_api_plugin_version": {"hook": False, "need_render": True, "value": "1.2.0"},
     }
     activity["component"]["api_meta"] = {"source_key": "sops"}
     return pipeline_tree
@@ -1153,7 +1154,11 @@ class TestTemplateViewSet:
         data = {"version": "1.0.0", "desc": "Release version"}
         request = self.factory.post(f"/templates/{template.id}/release_template/", data, format="json")
         force_authenticate(request, user=self.user)
-        response = view(request, pk=template.id)
+        with mock.patch(
+            "bkflow.template.views.template.TemplateReleaseService.release",
+            wraps=TemplateReleaseService.release,
+        ) as release:
+            response = view(request, pk=template.id)
 
         assert response.status_code == 200
         resp_data = response.data.get("data", response.data)
@@ -1161,6 +1166,9 @@ class TestTemplateViewSet:
             assert resp_data.get("template_id") == template.id
         else:
             assert response.status_code == 200
+        release.assert_called_once()
+        assert release.call_args.kwargs["source"] == "app"
+        assert release.call_args.kwargs["emit_webhook"] is True
 
     def test_rollback_template(self):
         """测试回滚模板"""

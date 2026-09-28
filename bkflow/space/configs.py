@@ -26,6 +26,7 @@ from pydantic import BaseModel, constr
 from pytimeparse import parse
 
 from bkflow.exceptions import ValidationError
+from bkflow.harness.services.canonical import canonical_scope
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.utils.apigw import check_url_from_apigw
 
@@ -441,6 +442,227 @@ class FlowVersioning(BaseSpaceConfig):
             raise ValidationError(
                 f"[validate flow version error]: flow version only support 'true' or 'false', value: {value}"
             )
+        return True
+
+
+class HarnessEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can create new Harness runs."""
+
+    name = "harness_enabled"
+    desc = _("是否启用 AI 流程生成 Harness")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_enabled only supports true or false")
+        return True
+
+
+class HarnessKnowledgeRouterEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can use the P1 Harness knowledge-search tool."""
+
+    name = "harness_knowledge_router_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 知识检索")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_knowledge_router_enabled only supports true or false")
+        return True
+
+
+class HarnessDebugEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can start, run, or control Harness debug sessions."""
+
+    name = "harness_debug_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 调试")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_debug_enabled only supports true or false")
+        return True
+
+
+class HarnessRealStepEnabledConfig(BaseSpaceConfig):
+    """Control whether real step execution may pass the first policy predicate."""
+
+    name = "harness_real_step_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 真实单步调试")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_real_step_enabled only supports true or false")
+        return True
+
+
+class HarnessPublishEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can prepare and publish Harness releases."""
+
+    name = "harness_publish_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 发布")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_publish_enabled only supports true or false")
+        return True
+
+
+class HarnessExecutionEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can mutate P3 workflow executions."""
+
+    name = "harness_execution_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 流程执行")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_execution_enabled only supports true or false")
+        return True
+
+
+class HarnessGlobalRealDebugEnabledConfig(BaseSpaceConfig):
+    """Control the P3 leaf gate for globally executing real debug nodes."""
+
+    name = "harness_global_real_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 全局真实调试")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_global_real_enabled only supports true or false")
+        return True
+
+
+class HarnessFeedbackEnabledConfig(BaseSpaceConfig):
+    """Control whether a space may retain new P4 generation feedback."""
+
+    name = "harness_feedback_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 反馈摄入")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_feedback_enabled only supports true or false")
+        return True
+
+
+class HarnessCandidatePromotionEnabledConfig(BaseSpaceConfig):
+    """Owner-only switch for acknowledging governed P4 promotions."""
+
+    name = "harness_candidate_promotion_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 候选晋级")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+    is_public = False
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_candidate_promotion_enabled only supports true or false")
+        return True
+
+
+class HarnessDeploymentConfig(BaseSpaceConfig):
+    """Validate the server-managed, non-public Harness deployment binding."""
+
+    name = "harness_deployment"
+    desc = _("AI 流程生成 Harness 可信部署绑定")
+    value_type = SpaceConfigValueType.JSON.value
+    default_value = {}
+    is_public = False
+    control = True
+
+    MAX_TEXT_LENGTH = 64
+    MAX_SCOPE_VALUE_LENGTH = 128
+    MAX_ALLOWED_SCOPE_TYPES = 20
+
+    SCHEMA = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "platform_key",
+            "allowed_scope_types",
+            "scope_type",
+            "scope_value",
+            "target_environment",
+            "risk_policy_version",
+            "mcp_contract_version",
+        ],
+        "properties": {
+            "platform_key": {"type": "string", "minLength": 1, "maxLength": MAX_TEXT_LENGTH},
+            "allowed_scope_types": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1, "maxLength": MAX_TEXT_LENGTH},
+                "maxItems": MAX_ALLOWED_SCOPE_TYPES,
+                "uniqueItems": True,
+            },
+            "scope_type": {
+                "type": ["string", "null"],
+                "minLength": 1,
+                "maxLength": MAX_TEXT_LENGTH,
+            },
+            "scope_value": {
+                "type": ["string", "null"],
+                "minLength": 1,
+                "maxLength": MAX_SCOPE_VALUE_LENGTH,
+            },
+            "target_environment": {"type": "string", "minLength": 1, "maxLength": MAX_TEXT_LENGTH},
+            "risk_policy_version": {"type": "string", "minLength": 1, "maxLength": MAX_TEXT_LENGTH},
+            "mcp_contract_version": {"enum": ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0"]},
+        },
+    }
+
+    @classmethod
+    def validate(cls, value: dict):
+        try:
+            jsonschema.validate(instance=value, schema=cls.SCHEMA)
+        except (jsonschema.ValidationError, jsonschema.SchemaError, TypeError):
+            raise ValidationError("Invalid harness deployment configuration")
+        scope_type = value["scope_type"]
+        scope_value = value["scope_value"]
+        if (scope_type is None) != (scope_value is None):
+            raise ValidationError("Invalid harness deployment configuration")
+        if scope_type is not None and scope_type not in value["allowed_scope_types"]:
+            raise ValidationError("Invalid harness deployment configuration")
+        try:
+            for text in (
+                value["platform_key"],
+                value["target_environment"],
+                value["risk_policy_version"],
+                *value["allowed_scope_types"],
+            ):
+                text.encode("utf-8")
+            canonical_scope(scope_type, scope_value)
+        except (UnicodeError, ValueError):
+            raise ValidationError("Invalid harness deployment configuration")
         return True
 
 

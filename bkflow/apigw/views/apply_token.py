@@ -16,27 +16,24 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-import datetime
 import json
-import logging
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
-from django.utils import timezone
+from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from pytimeparse import parse
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.exceptions import CreateTokenException
-from bkflow.apigw.serializers.token import ApiGwTokenSerializer, TokenResourceValidator
-from bkflow.permission.models import Token
-from bkflow.space.configs import TokenAutoRenewalConfig, TokenExpirationConfig
-from bkflow.space.models import SpaceConfig
+from bkflow.apigw.serializers.token import ApiGwTokenSerializer
+from bkflow.permission.services.token_issuer import (
+    TokenIssueContext,
+    TokenResource,
+    issue_resource_token,
+)
 from bkflow.utils import err_code
-
-logger = logging.getLogger("root")
 
 
 @login_exempt
@@ -60,42 +57,36 @@ def apply_token(request, space_id):
     ser = ApiGwTokenSerializer(data=data)
     ser.is_valid(raise_exception=True)
 
-    # 获取空间下的过期时间配置
-    expiration = SpaceConfig.get_config(space_id, config_name=TokenExpirationConfig.name)
-
     if not request.user.username:
         raise CreateTokenException(_("用户名不能为空"))
 
     try:
-        # 计算过期时间
-        expire_time = timezone.now() + datetime.timedelta(seconds=parse(expiration))
-    except Exception:
+        issued = issue_resource_token(
+            TokenIssueContext(
+                platform_app=request.app.bk_app_code,
+                actor=request.user.username,
+                space_id=int(space_id),
+            ),
+            TokenResource(
+                resource_type=ser.validated_data["resource_type"],
+                resource_id=ser.validated_data["resource_id"],
+            ),
+            ser.validated_data["permission_type"],
+        )
+    except ValidationError:
         raise CreateTokenException()
 
-    TokenResourceValidator(space_id, ser.data["resource_type"], ser.data["resource_id"]).validate()
-
-    # 检查该token是否存在，考虑可能有多个token的情况
-    tokens = Token.objects.filter(
-        **ser.data, expired_time__gte=timezone.now(), user=request.user.username, space_id=space_id
-    ).order_by(
-        "-expired_time"
-    )  # 按过期时间降序排列，选择最晚过期的token
-
-    if tokens.exists():
-        token = tokens.first()
-        # 只有开启了自动续期开关才刷新过期时间
-        token_auto_renewal = SpaceConfig.get_config(space_id, TokenAutoRenewalConfig.name)
-        if token_auto_renewal == "true":
-            token.expired_time = expire_time
-            token.save(update_fields=["expired_time"])
-    else:
-        logger.error("[apigw>apply_token], the token is not exists, now while create a new token。")
-        token = Token.objects.create(
-            **ser.data,
-            expired_time=expire_time,
-            token=Token.generate_token(),
-            user=request.user.username,
-            space_id=space_id
-        )
-
-    return {"result": True, "data": token.to_json(), "code": err_code.SUCCESS.code}
+    # This legacy API intentionally preserves its plaintext response contract.
+    # Harness callers use TokenBroker and never receive this projection.
+    return {
+        "result": True,
+        "data": {
+            "space_id": int(issued.space_id),
+            "user": issued.actor,
+            "resource_type": issued.resource_type,
+            "resource_id": issued.resource_id,
+            "token": issued.secret,
+            "expired_time": issued.expires_at,
+        },
+        "code": err_code.SUCCESS.code,
+    }

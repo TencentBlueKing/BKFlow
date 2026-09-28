@@ -1,5 +1,7 @@
 from unittest import mock
 
+import pytest
+
 from bkflow.contrib.api import http
 
 
@@ -154,6 +156,7 @@ class TestHttpApi:
         result = http.get("http://example.com", {})
         assert result["result"] is False
         assert "Network Error" in result["message"]
+        assert "http_status" not in result
 
         # Failure status with JSON
         mock_resp = mock.Mock()
@@ -167,13 +170,15 @@ class TestHttpApi:
         result = http.get("http://example.com", {})
         assert result["result"] is False
         assert "status_code: 500" in result["message"]
+        assert result["http_status"] == 500
 
         # Failure status without JSON
         mock_resp.json.side_effect = Exception("Not JSON")
         mock_resp.content = b"Raw Error"
         result = http.get("http://example.com", {})
         assert result["result"] is False
-        assert "Raw Error" in result["message"]
+        assert result["http_status"] == 500
+        assert "Raw Error" not in result["message"]
 
         # Invalid JSON response
         mock_resp.ok = True
@@ -195,6 +200,180 @@ class TestHttpApi:
         result = http._http_request("PATCH", "http://example.com")
         assert result["result"] is False
         assert "Unsupported http method PATCH" in result["message"]
+        assert "http_status" not in result
+
+    @mock.patch("bkflow.contrib.api.http.requests.get")
+    def test_non_2xx_returns_safe_structured_integer_http_status(self, mock_get, caplog):
+        """Expose transport status without returning or logging the response body."""
+        response_secret = "HTTP_404_RESPONSE_BODY_SENTINEL"
+        response = mock.Mock()
+        response.ok = False
+        response.status_code = 404
+        response.json.return_value = {"detail": response_secret}
+        response.content = response_secret.encode()
+        mock_get.return_value = response
+        caplog.set_level("DEBUG", logger="component")
+
+        result = http.get(
+            "http://example.com/tasks/404",
+            {},
+            headers={"aUtHoRiZaTiOn": "HTTP_404_AUTHORIZATION_SENTINEL"},
+        )
+
+        assert result == {
+            "result": False,
+            "message": "Request API error, status_code: 404",
+            "http_status": 404,
+        }
+        assert response_secret not in repr(result)
+        assert response_secret not in caplog.text
+
+    @pytest.mark.parametrize("response_result", [True, False])
+    @mock.patch("bkflow.contrib.api.http.requests.post")
+    def test_sensitive_request_redacts_curl_and_success_or_api_error_response_logs(
+        self, mock_post, response_result, caplog
+    ):
+        request_secret = "CUSTOM_AUTH_REQUEST_SENTINEL"
+        response_secret = "CUSTOM_AUTH_RESPONSE_SENTINEL"
+        message_secret = "CUSTOM_AUTH_MESSAGE_SENTINEL"
+        response = mock.Mock()
+        response.ok = True
+        response.status_code = 200
+        response.request = mock.Mock()
+        response.json.return_value = {
+            "result": response_result,
+            "message": message_secret,
+            "request_id": "request-1",
+            "credentials": {"auth": response_secret},
+        }
+        response.text = response_secret
+        mock_post.return_value = response
+        caplog.set_level("DEBUG", logger="component")
+
+        result = http.post(
+            "http://example.com/tasks",
+            {"name": "safe", "credentials": {"auth": request_secret}},
+        )
+
+        assert result["result"] is response_result
+        assert request_secret not in caplog.text
+        assert response_secret not in caplog.text
+        assert message_secret not in caplog.text
+        assert "***REDACTED***" in caplog.text
+
+    @mock.patch("bkflow.contrib.api.http.requests.post")
+    def test_sensitive_request_redacts_http_error_response_log(self, mock_post, caplog):
+        request_secret = "CUSTOM_AUTH_HTTP_ERROR_REQUEST_SENTINEL"
+        response_secret = "CUSTOM_AUTH_HTTP_ERROR_RESPONSE_SENTINEL"
+        response = mock.Mock()
+        response.ok = False
+        response.status_code = 500
+        response.request = mock.Mock()
+        response.json.return_value = {"error": response_secret}
+        response.content = response_secret.encode()
+        mock_post.return_value = response
+        caplog.set_level("DEBUG", logger="component")
+
+        result = http.post(
+            "http://example.com/tasks",
+            {"credentials": {"auth": request_secret}},
+        )
+
+        assert result["result"] is False
+        assert result["http_status"] == 500
+        assert response_secret not in result["message"]
+        assert request_secret not in caplog.text
+        assert response_secret not in caplog.text
+        assert "***REDACTED***" in caplog.text
+
+    @mock.patch("bkflow.contrib.api.http.requests.post")
+    def test_sensitive_request_redacts_exception_log_without_changing_return_contract(self, mock_post, caplog):
+        request_secret = "CUSTOM_AUTH_EXCEPTION_REQUEST_SENTINEL"
+        exception_secret = "CUSTOM_AUTH_EXCEPTION_RESPONSE_SENTINEL"
+        mock_post.side_effect = RuntimeError(exception_secret)
+        caplog.set_level("DEBUG", logger="component")
+
+        result = http.post(
+            "http://example.com/tasks",
+            {"credentials": {"auth": request_secret}},
+        )
+
+        assert result == {"result": False, "message": "Request API error, exception: {}".format(exception_secret)}
+        assert request_secret not in caplog.text
+        assert exception_secret not in caplog.text
+        assert "***REDACTED***" in caplog.text
+
+    @mock.patch("bkflow.contrib.api.http.requests.post")
+    def test_cookie_container_is_removed_from_sanitized_curl(self, mock_post, caplog):
+        cookie_secret = "CUSTOM_COOKIE_SESSION_SENTINEL"
+        response = mock.Mock()
+        response.ok = True
+        response.status_code = 200
+        response.json.return_value = {"result": True, "message": "done", "request_id": "request-2"}
+        response.text = "safe"
+        mock_post.return_value = response
+        caplog.set_level("DEBUG", logger="component")
+
+        result = http.post(
+            "http://example.com/tasks",
+            {"name": "safe"},
+            cookies={"session": cookie_secret},
+        )
+
+        assert result["result"] is True
+        assert cookie_secret not in caplog.text
+        assert "***REDACTED***" in caplog.text
+
+    @pytest.mark.parametrize("header_name", ["cOoKiE", "sEt-CoOkIe"])
+    @mock.patch("bkflow.contrib.api.http.requests.post")
+    def test_cookie_headers_are_removed_from_sanitized_curl(self, mock_post, header_name, caplog):
+        header_secret = "CUSTOM_COOKIE_HEADER_SENTINEL"
+        response_secret = "CUSTOM_COOKIE_HEADER_RESPONSE_SENTINEL"
+        response = mock.Mock()
+        response.ok = True
+        response.status_code = 200
+        response.json.return_value = {
+            "result": True,
+            "message": response_secret,
+            "request_id": "request-3",
+        }
+        response.text = response_secret
+        mock_post.return_value = response
+        caplog.set_level("DEBUG", logger="component")
+
+        result = http.post(
+            "http://example.com/tasks",
+            {"name": "safe"},
+            headers={"Content-Type": "application/json", header_name: header_secret},
+        )
+
+        assert result["result"] is True
+        assert header_secret not in caplog.text
+        assert response_secret not in caplog.text
+        assert header_name.lower() not in caplog.text.lower()
+        assert "***REDACTED***" in caplog.text
+
+    @mock.patch("bkflow.contrib.api.http.requests.post")
+    def test_authorization_header_is_redacted_only_in_diagnostic_curl(self, mock_post, caplog):
+        authorization_secret = "CUSTOM_AUTHORIZATION_HEADER_SENTINEL"
+        headers = {
+            "Content-Type": "application/json",
+            "aUtHoRiZaTiOn": authorization_secret,
+        }
+        response = mock.Mock()
+        response.ok = True
+        response.status_code = 200
+        response.json.return_value = {"result": True, "message": "safe", "request_id": "request-4"}
+        response.text = "safe"
+        mock_post.return_value = response
+        caplog.set_level("DEBUG", logger="component")
+
+        result = http.post("http://example.com/tasks", {"name": "safe"}, headers=headers)
+
+        assert result["result"] is True
+        assert authorization_secret not in caplog.text
+        assert "***REDACTED***" in caplog.text
+        assert mock_post.call_args.kwargs["headers"] == headers
 
     @mock.patch("bkflow.contrib.api.http.curlify")
     @mock.patch("bkflow.contrib.api.http.requests.get")

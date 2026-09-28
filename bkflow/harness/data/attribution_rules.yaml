@@ -1,0 +1,93 @@
+version: p4-attribution-v1
+human_triage_threshold: 0.7
+rules:
+  - rule_id: permission-denied
+    priority: 10
+    category: PERMISSION
+    source: validation_report
+    typed_codes: [CAPABILITY_FORBIDDEN, HARNESS_ACCESS_DENIED, TOKEN_LEASE]
+    event_types: []
+    confidence: 1.0
+    high_risk: true
+    candidate_types: [VALIDATOR_POLICY, EVAL]
+  - rule_id: schema-drift
+    priority: 20
+    category: SCHEMA
+    source: validation_report
+    typed_codes: [SCHEMA_DRIFT, SCHEMA_VALIDATION_ERROR]
+    event_types: []
+    confidence: 1.0
+    high_risk: true
+    candidate_types: [VALIDATOR_POLICY, EVAL, REGISTRY]
+  - rule_id: deterministic-validator
+    priority: 30
+    category: VALIDATOR
+    source: validation_report
+    typed_codes: [PIPELINE_VALIDATION_ERROR, A2FLOW_CONVERSION_ERROR]
+    event_types: []
+    confidence: 0.95
+    high_risk: true
+    candidate_types: [VALIDATOR_POLICY, EVAL]
+  - rule_id: failed-postcondition
+    priority: 40
+    category: POSTCONDITION
+    source: evidence_event
+    typed_codes: [POSTCONDITION_FAILED]
+    event_types: [POSTCONDITION_EVALUATED]
+    confidence: 1.0
+    high_risk: true
+    candidate_types: [VALIDATOR_POLICY, EVAL]
+  - rule_id: capability-resolution
+    priority: 50
+    category: RESOLVER
+    source: validation_report
+    typed_codes: [CAPABILITY_NOT_FOUND, AMBIGUOUS_CAPABILITY, VALIDATION_STALE]
+    event_types: []
+    confidence: 0.95
+    high_risk: false
+    candidate_types: [REGISTRY, EVAL]
+  - rule_id: plugin-runtime
+    priority: 60
+    category: PLUGIN
+    source: evidence_event
+    typed_codes: [PLUGIN_RUNTIME_FAILED]
+    event_types: [PLUGIN_RUNTIME_FAILED]
+    confidence: 0.9
+    high_risk: false
+    candidate_types: [REGISTRY, EVAL]
+  - rule_id: runtime-environment
+    priority: 70
+    category: ENVIRONMENT
+    source: evidence_event
+    typed_codes: [RUNTIME_ENVIRONMENT_UNAVAILABLE]
+    event_types: [RUNTIME_ENVIRONMENT_UNAVAILABLE]
+    confidence: 0.9
+    high_risk: false
+    candidate_types: [EVAL]
+  - rule_id: knowledge-snapshot
+    priority: 80
+    category: KNOWLEDGE
+    source: any
+    typed_codes: [KNOWLEDGE_MISS, KNOWLEDGE_SNAPSHOT_STALE, KNOWLEDGE_CONFLICT]
+    event_types: []
+    confidence: 0.9
+    high_risk: false
+    candidate_types: [KNOWLEDGE, EVAL]
+  - rule_id: requirement-mismatch
+    priority: 90
+    category: REQUIREMENT
+    source: validation_report
+    typed_codes: [REQUIREMENT_MISMATCH]
+    event_types: []
+    confidence: 0.85
+    high_risk: false
+    candidate_types: [PROMPT_SKILL, EVAL]
+  - rule_id: prompt-constraint
+    priority: 100
+    category: PROMPT
+    source: validation_report
+    typed_codes: [PROMPT_CONSTRAINT_MISSED]
+    event_types: []
+    confidence: 0.8
+    high_risk: false
+    candidate_types: [PROMPT_SKILL, EVAL]

@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 
 import logging
+from collections.abc import Mapping
 
 import curlify
 import requests
@@ -27,7 +28,18 @@ from bkflow.utils.handlers import handle_plain_log
 logger = logging.getLogger("component")
 
 # 敏感字段关键词列表，用于日志脱敏
-SENSITIVE_KEYWORDS = ["credential", "password", "secret", "token", "api_key", "apikey", "access_key", "accesskey"]
+SENSITIVE_KEYWORDS = [
+    "credential",
+    "password",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+    "access_key",
+    "accesskey",
+    "authorization",
+    "cookie",
+]
 
 
 def _sanitize_sensitive_data(data, max_depth=10):
@@ -43,20 +55,62 @@ def _sanitize_sensitive_data(data, max_depth=10):
     if data is None:
         return None
 
-    if isinstance(data, dict):
+    if isinstance(data, Mapping):
         sanitized = {}
         for key, value in data.items():
-            key_lower = key.lower()
+            key_lower = str(key).lower()
             # 检查 key 是否包含敏感关键词
             if any(keyword in key_lower for keyword in SENSITIVE_KEYWORDS):
                 sanitized[key] = "***REDACTED***"
             else:
                 sanitized[key] = _sanitize_sensitive_data(value, max_depth - 1)
         return sanitized
-    elif isinstance(data, list):
-        return [_sanitize_sensitive_data(item, max_depth - 1) for item in data]
+    elif isinstance(data, (list, tuple)):
+        sanitized = [_sanitize_sensitive_data(item, max_depth - 1) for item in data]
+        return type(data)(sanitized)
     else:
         return data
+
+
+def _contains_sensitive_material(data, max_depth=10):
+    """Return whether a structured value contains a secret-shaped key."""
+    if max_depth <= 0 or data is None:
+        return False
+    if isinstance(data, Mapping):
+        for key, value in data.items():
+            if any(keyword in str(key).lower() for keyword in SENSITIVE_KEYWORDS):
+                return True
+            if _contains_sensitive_material(value, max_depth - 1):
+                return True
+        return False
+    if isinstance(data, (list, tuple)):
+        return any(_contains_sensitive_material(item, max_depth - 1) for item in data)
+    return False
+
+
+def _prepare_sanitized_log_request(method, url, headers, data, cookies):
+    """Build curl input only from a structurally redacted request copy."""
+    sanitized_headers = {}
+    for key, value in headers.items() if isinstance(headers, Mapping) else ():
+        key_lower = str(key).lower()
+        if key_lower in {"cookie", "set-cookie"}:
+            continue
+        sanitized_headers[key] = (
+            "***REDACTED***"
+            if any(keyword in key_lower for keyword in SENSITIVE_KEYWORDS)
+            else _sanitize_sensitive_data(value)
+        )
+    kwargs = {
+        "headers": sanitized_headers,
+        # Cookie names are application-defined and cannot be classified safely;
+        # never copy any Cookie value into diagnostic curl output.
+        "cookies": None,
+    }
+    if method == "GET":
+        kwargs["params"] = _sanitize_sensitive_data(data)
+    elif method != "HEAD":
+        kwargs["json"] = _sanitize_sensitive_data(data)
+    return requests.Request(method, url, **kwargs).prepare()
 
 
 def _gen_header():
@@ -78,6 +132,7 @@ def _http_request(
 ):
     resp = requests.Response()
     request_id = None
+    sensitive_request = _contains_sensitive_material(data) or _contains_sensitive_material(headers) or bool(cookies)
 
     try:
         if method == "GET":
@@ -132,7 +187,15 @@ def _http_request(
         else:
             return {"result": False, "message": "Unsupported http method %s" % method}
     except Exception as e:
-        logger.exception("Error occurred when requesting method={} url={}".format(method, url))
+        if sensitive_request:
+            logger.error(
+                "Error occurred when requesting method=%s url=%s: %s",
+                method,
+                url,
+                "***REDACTED***",
+            )
+        else:
+            logger.exception("Error occurred when requesting method={} url={}".format(method, url))
         return {"result": False, "message": "Request API error, exception: %s" % str(e)}
     else:
         if not resp.ok:
@@ -140,8 +203,15 @@ def _http_request(
                 resp_message = resp.json()
             except Exception:
                 resp_message = resp.content
-            message = "Request API error, status_code: {}, url: {}, method: {}, resp: {}".format(
-                resp.status_code, url, method, resp_message
+            http_status = (
+                resp.status_code
+                if isinstance(resp.status_code, int) and not isinstance(resp.status_code, bool)
+                else None
+            )
+            message = (
+                "Request API error, status_code: {}".format(http_status)
+                if http_status is not None
+                else "Request API returned a non-success HTTP status"
             )
             # 日志中记录脱敏后的请求数据，便于问题排查
             logger.error(
@@ -150,9 +220,12 @@ def _http_request(
                 url,
                 method,
                 _sanitize_sensitive_data(data),
-                resp_message,
+                "***REDACTED***" if sensitive_request else resp_message,
             )
-            return {"result": False, "message": message}
+            result = {"result": False, "message": message}
+            if http_status is not None:
+                result["http_status"] = http_status
+            return result
 
         log_message = (
             "API return: message: %(message)s, request_id=%(request_id)s, "
@@ -164,15 +237,16 @@ def _http_request(
             request_id = json_resp.get("request_id")
             # 对日志中的敏感数据进行脱敏处理
             sanitized_data = _sanitize_sensitive_data(data)
+            sanitized_message = "***REDACTED***" if sensitive_request else json_resp.get("message")
             if not json_resp.get("result"):
                 logger.error(
                     log_message
                     % {
                         "request_id": request_id,
-                        "message": json_resp.get("message"),
+                        "message": sanitized_message,
                         "url": url,
                         "data": sanitized_data,
-                        "response": resp.text,
+                        "response": "***REDACTED***" if sensitive_request else resp.text,
                     }
                 )
             else:
@@ -180,26 +254,35 @@ def _http_request(
                     log_message
                     % {
                         "request_id": request_id,
-                        "message": json_resp.get("message"),
+                        "message": sanitized_message,
                         "url": url,
                         "data": sanitized_data,
-                        "response": resp.text,
+                        "response": "***REDACTED***" if sensitive_request else resp.text,
                     }
                 )
         except Exception:
-            logger.exception("Return data format is incorrect, which shall be unified as json: %s", resp.content[200:])
+            if sensitive_request:
+                logger.error(
+                    "Return data format is incorrect, which shall be unified as json: %s",
+                    "***REDACTED***",
+                )
+            else:
+                logger.exception(
+                    "Return data format is incorrect, which shall be unified as json: %s", resp.content[200:]
+                )
             return {"result": False, "message": "API return is not a valid json"}
 
         return json_resp
     finally:
-        if resp.request is None:
-            resp.request = requests.Request(method, url, headers=headers, data=data, cookies=cookies).prepare()
-
-        logger.debug(
-            "the request_id: `%s`. curl: `%s`",
-            request_id,
-            handle_plain_log(curlify.to_curl(resp.request, verify=False)),
-        )
+        try:
+            log_request = _prepare_sanitized_log_request(method, url, headers, data, cookies)
+            logger.debug(
+                "the request_id: `%s`. curl: `%s`",
+                request_id,
+                handle_plain_log(curlify.to_curl(log_request, verify=False)),
+            )
+        except Exception:
+            logger.debug("the request_id: `%s`. sanitized curl unavailable", request_id)
 
 
 def get(url, data, headers=None, verify=False, cert=None, timeout=None, cookies=None):
