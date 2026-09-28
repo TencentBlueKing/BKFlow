@@ -483,7 +483,8 @@ def _request_hash(run, request):
 
 
 def _existing_attempt(context, scope, request_hash, execution):
-    record = HarnessIdempotencyRecord.objects.filter(**scope.as_dict()).first()
+    record = HarnessIdempotencyRecord.objects.filter(**scope.lookup()).first()
+    scope.check_record(record)
     if record is not None and record.request_hash != request_hash:
         raise IdempotencyConflict("idempotency key was already used for a different request")
     if record is not None and record.status == "COMPLETED":

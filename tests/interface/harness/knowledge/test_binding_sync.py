@@ -493,6 +493,7 @@ def test_unknown_database_vendor_fails_closed_before_write(tmp_path, governance_
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.skipif(connections["default"].vendor != "sqlite", reason="SQLite 专用的事务外锁范围验证")
 def test_sqlite_apply_inside_outer_atomic_fails_before_lock_or_write(tmp_path, governance_setup):
     """Reject SQLite synchronization when its process lock cannot cover the caller's outer transaction."""
     assert connections["default"].vendor == "sqlite"

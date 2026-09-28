@@ -1884,7 +1884,8 @@ def test_malformed_or_mismatched_control_journal_is_manual_before_readback(contr
 def test_misbound_control_idempotency_record_is_manual_before_readback(control_case, field, value):
     case = control_case
     record = seed_node_control_attempt(case, "retry")
-    HarnessIdempotencyRecord.objects.filter(pk=record.pk).update(**{field: value})
+    # 故意绕过身份摘要保护，模拟数据库已有损坏记录。
+    HarnessIdempotencyRecord._base_manager.filter(pk=record.pk).update(**{field: value})
     adapter_instance = FixedControlReadAdapter(error=AssertionError("readback must not run"))
 
     response = read_control(case, adapter_instance)

@@ -9,6 +9,7 @@ you may not use this file except in compliance with the License.
 Minimal real Harness chains used by the versioned P0 Golden Cases.
 """
 
+import hashlib
 from contextlib import ExitStack
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -66,6 +67,7 @@ class GoldenCatalog:
 
     def __init__(self, snapshot, *, candidates=1, space_id=1, username="golden-actor"):
         self.snapshot = dict(snapshot)
+        self.credential_name = "golden-" + hashlib.sha256(self.snapshot["code"].encode()).hexdigest()[:20]
         self.candidates = candidates
         self.space_id = space_id
         self.stack = ExitStack()
@@ -165,7 +167,7 @@ class GoldenCatalog:
         if self.snapshot["plugin_type"] == "uniform_api" and not self.snapshot.get("use_database_credentials"):
             Credential.objects.create(
                 space_id=self.space_id,
-                name="golden-gateway-{}".format(self.snapshot["code"]),
+                name=self.credential_name,
                 type=CredentialType.BK_APP.value,
                 content={
                     "bk_app_code": "golden",
@@ -254,7 +256,7 @@ class GoldenCatalog:
             and self.snapshot["plugin_type"] == "uniform_api"
             and not self.snapshot.get("use_database_credentials")
         ):
-            return "golden-gateway-{}".format(self.snapshot["code"])
+            return self.credential_name
         if config_name == "uniform_api" and self.snapshot.get("source_key") is None:
             return {
                 "api": {
@@ -585,7 +587,7 @@ def run_golden_case(case):
         accepted = response
         assert accepted["ok"] is True, accepted
         foreign_space = Space.objects.create(
-            name="Golden foreign {}".format(case["id"]),
+            name="Golden foreign " + hashlib.sha256(case["id"].encode()).hexdigest()[:16],
             app_code="golden-owned-foreign",
             platform_url="https://golden.invalid",
             creator="foreign-owner",

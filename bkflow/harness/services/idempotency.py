@@ -25,6 +25,7 @@ from bkflow.harness.exceptions import (
     IdempotencyInFlight,
     IdempotencyRecordImmutable,
 )
+from bkflow.harness.idempotency_identity import normalize_scope, scope_hash
 from bkflow.harness.models import HarnessIdempotencyRecord
 
 
@@ -62,6 +63,19 @@ class IdempotencyScope:
             "idempotency_key": self.idempotency_key,
         }
 
+    def lookup(self):
+        """通过定长唯一索引定位，不依赖数据库文本排序规则。"""
+        return {"scope_hash": scope_hash(self.as_dict())}
+
+    def matches(self, record):
+        """摘要仅用于定位，必须核对完整身份后才能使用记录。"""
+        return normalize_scope(self.as_dict()) == {name: getattr(record, name) for name in self.as_dict()}
+
+    def check_record(self, record):
+        """对碰撞或损坏记录拒绝回放，不暴露其他身份内容。"""
+        if record is not None and not self.matches(record):
+            raise IdempotencyConflict("idempotency scope digest does not match stored identity")
+
 
 @dataclass(frozen=True)
 class IdempotencyOutcome:
@@ -93,7 +107,7 @@ class IdempotencyResult:
 
 def _record_query(scope):
     """Return the exact unique lookup for an idempotency namespace."""
-    return HarnessIdempotencyRecord.objects.select_for_update().filter(**scope.as_dict())
+    return HarnessIdempotencyRecord.objects.select_for_update().filter(**scope.lookup())
 
 
 def _check_request_hash(record, request_hash):
@@ -121,6 +135,8 @@ def acquire_idempotency(scope, request_hash):
             except IntegrityError:
                 record = _record_query(scope).get()
 
+        if not created:
+            scope.check_record(record)
         _check_request_hash(record, request_hash)
         if created:
             return IdempotencyAcquisition(record, owner=True, replayed=False)

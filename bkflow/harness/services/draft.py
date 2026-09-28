@@ -106,7 +106,8 @@ def _create_workflow_draft(context, request, plugin_schema_service=None):
             raise DraftPermissionError("run is not eligible for draft creation")
         scope = _scope(context, run, request["idempotency_key"])
         request_hash = sha256_json(request)
-        existing_idempotency = HarnessIdempotencyRecord.objects.filter(**scope.as_dict()).first()
+        existing_idempotency = HarnessIdempotencyRecord.objects.filter(**scope.lookup()).first()
+        scope.check_record(existing_idempotency)
         if existing_idempotency is not None and existing_idempotency.request_hash != request_hash:
             raise IdempotencyConflict("idempotency key was already used for a different request")
         if run.status == "DRAFT_READY" and existing_idempotency is not None:

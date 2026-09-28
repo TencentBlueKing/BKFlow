@@ -46,6 +46,7 @@ from bkflow.harness.constants import (
     RiskLevel,
     ValidationCheckpoint,
 )
+from bkflow.harness.idempotency_identity import SCOPE_FIELDS, scope_hash
 from bkflow.harness.safety import (
     is_bounded_non_secret_json,
     is_safe_idempotency_key,
@@ -201,6 +202,23 @@ class ValidationReport(CommonModel):
         ordering = ["-id"]
 
 
+class HarnessIdempotencyRecordQuerySet(models.QuerySet):
+    """所有常规插入派生身份摘要，拒绝无法逐行派生的集合身份更新。"""
+
+    def bulk_create(self, objs, batch_size=None, ignore_conflicts=False):
+        """批量插入使用与 save 相同的身份编码。"""
+        objs = list(objs)
+        for obj in objs:
+            obj.derive_scope_hash()
+        return super().bulk_create(objs, batch_size=batch_size, ignore_conflicts=ignore_conflicts)
+
+    def update(self, **kwargs):
+        """状态更新保持兼容，身份更新需使用逐条 save。"""
+        if set(kwargs).intersection((*SCOPE_FIELDS, "scope_hash")):
+            raise ValueError("idempotency identity updates require Model.save")
+        return super().update(**kwargs)
+
+
 class HarnessIdempotencyRecord(CommonModel):
     """A scoped snapshot for safely replaying a Harness write request."""
 
@@ -218,6 +236,7 @@ class HarnessIdempotencyRecord(CommonModel):
         blank=True,
     )
     idempotency_key = models.CharField(_("幂等键"), max_length=255)
+    scope_hash = models.CharField(_("幂等作用域摘要"), max_length=64, unique=True, editable=False)
     request_hash = models.CharField(_("请求哈希"), max_length=64)
     status = models.CharField(
         _("幂等状态"), max_length=16, choices=IdempotencyRecordStatus.choices, default=IdempotencyRecordStatus.IN_FLIGHT
@@ -225,15 +244,33 @@ class HarnessIdempotencyRecord(CommonModel):
     response_snapshot = models.JSONField(_("响应快照"), default=dict)
     resource_reference = models.CharField(_("资源引用"), max_length=255, null=True, blank=True)
 
+    objects = HarnessIdempotencyRecordQuerySet.as_manager()
+
+    def derive_scope_hash(self):
+        """保留完整字段，用定长摘要提供数据库唯一性。"""
+        self.scope_hash = scope_hash({name: getattr(self, name) for name in SCOPE_FIELDS})
+
+    def save(self, *args, **kwargs):
+        """包括部分身份更新在内，摘要必须与写入的六维身份同步。"""
+        update_fields = kwargs.get("update_fields")
+        if update_fields is None or set(update_fields).intersection((*SCOPE_FIELDS, "scope_hash")):
+            if update_fields is not None:
+                # 未参与本次写入的内存字段不能改变持久化身份摘要。
+                alias = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+                with transaction.atomic(using=alias):
+                    stored = type(self)._base_manager.using(alias).select_for_update().get(pk=self.pk)
+                    values = {name: getattr(self if name in update_fields else stored, name) for name in SCOPE_FIELDS}
+                    self.scope_hash = scope_hash(values)
+                    kwargs["update_fields"] = set(update_fields) | {"scope_hash"}
+                    kwargs["using"] = alias
+                    return super().save(*args, **kwargs)
+            else:
+                self.derive_scope_hash()
+        return super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = _("Harness 幂等记录")
         verbose_name_plural = verbose_name
-        constraints = [
-            models.UniqueConstraint(
-                fields=["platform_app", "actor", "space_id", "tool_name", "run_scope", "idempotency_key"],
-                name="uniq_harness_idempotency_scope",
-            )
-        ]
 
 
 class KnowledgeSourceBindingQuerySet(models.QuerySet):

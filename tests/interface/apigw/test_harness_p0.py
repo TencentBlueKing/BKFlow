@@ -245,7 +245,7 @@ def _assert_no_persisted_sentinel(sentinel):
     assert sentinel not in "\n".join(records)
 
 
-def _assert_audit_record(record, *, tool, risk, result):
+def _assert_audit_record(record, *, tool, risk, result, space_id):
     """Assert the structured audit event contains only the fixed public metadata fields."""
     event = record.harness_audit
     assert set(event) == {
@@ -262,7 +262,7 @@ def _assert_audit_record(record, *, tool, risk, result):
     assert event["tool"] == tool
     assert event["risk"] == risk
     assert event["caller"] == "trusted-user"
-    assert event["space"] == 1
+    assert event["space"] == space_id
     assert event["correlation"] == "gateway-trace"
     assert event["result"] is result
     assert isinstance(event["duration_ms"], int)
@@ -684,7 +684,13 @@ def test_rejected_transport_input_is_audited_redacted_and_never_calls_task5(
     assert SENTINEL not in str(response.data)
     assert SENTINEL not in caplog.text
     downstream.assert_not_called()
-    _assert_audit_record(caplog.records[-1], tool="search_workflow_capabilities", risk="L0", result=False)
+    _assert_audit_record(
+        caplog.records[-1],
+        tool="search_workflow_capabilities",
+        risk="L0",
+        result=False,
+        space_id=authorized_harness_space.id,
+    )
     _assert_no_persisted_sentinel(SENTINEL)
 
 
@@ -722,7 +728,9 @@ def test_downstream_exception_is_a_safe_audited_retryable_envelope(monkeypatch, 
     assert response.data["errors"][0]["code"] == "RETRYABLE_INFRA"
     assert SENTINEL not in str(response.data)
     assert SENTINEL not in caplog.text
-    _assert_audit_record(caplog.records[-1], tool="validate_workflow", risk="L0", result=False)
+    _assert_audit_record(
+        caplog.records[-1], tool="validate_workflow", risk="L0", result=False, space_id=authorized_harness_space.id
+    )
     _assert_no_persisted_sentinel(SENTINEL)
 
 
@@ -742,7 +750,9 @@ def test_downstream_error_message_is_not_reflected_in_response_or_audit(monkeypa
     assert response.data["errors"][0]["code"] == "SCHEMA_DRIFT"
     assert SENTINEL not in str(response.data)
     assert SENTINEL not in caplog.text
-    _assert_audit_record(caplog.records[-1], tool="validate_workflow", risk="L0", result=False)
+    _assert_audit_record(
+        caplog.records[-1], tool="validate_workflow", risk="L0", result=False, space_id=authorized_harness_space.id
+    )
     _assert_no_persisted_sentinel(SENTINEL)
 
 

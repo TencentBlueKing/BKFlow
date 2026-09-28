@@ -1019,8 +1019,8 @@ class WorkflowValidator:
         """Separate a user payload collision from a completed stale pre-run context."""
         from bkflow.harness.models import HarnessIdempotencyRecord
 
-        record = HarnessIdempotencyRecord.objects.select_related("run").filter(**scope.as_dict()).first()
-        if record and record.run and not self._run_matches_context(record.run):
+        record = HarnessIdempotencyRecord.objects.select_related("run").filter(**scope.lookup()).first()
+        if record and scope.matches(record) and record.run and not self._run_matches_context(record.run):
             return WorkflowValidationFailure("TRUSTED_CONTEXT_STALE", path="trusted_context", repairable=False)
         return WorkflowValidationFailure("IDEMPOTENCY_CONFLICT", path="idempotency_key", repairable=False)
 

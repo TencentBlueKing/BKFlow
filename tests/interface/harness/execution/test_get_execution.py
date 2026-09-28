@@ -647,7 +647,7 @@ def test_application_read_adapter_maps_only_transport_http_status_404_to_not_fou
 def test_real_http_404_flows_through_task_client_to_safe_stale_envelope(mock_get, execution_case, caplog):
     execution = started_execution(execution_case)
     response_secret = "TASK_HTTP_404_RESPONSE_BODY_SENTINEL"
-    internal_token = "TASK_HTTP_404_INTERNAL_TOKEN_SENTINEL"
+    internal_token = "TASK_404_TOKEN_SENTINEL"
     ModuleInfo.objects.update_or_create(
         space_id=execution.space_id,
         defaults={

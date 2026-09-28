@@ -9,6 +9,7 @@ you may not use this file except in compliance with the License.
 P0 security-negative release gates measure public-boundary observations.
 """
 
+import hashlib
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
@@ -96,7 +97,7 @@ def _disable_template_statistics_delivery(monkeypatch):
 def _security_space(app_code, *, scope_type="project", scope_value="security"):
     """Build the real permission and trusted-context configuration for one space."""
     space = Space.objects.create(
-        name="Security {}".format(app_code),
+        name="Security " + hashlib.sha256(app_code.encode()).hexdigest()[:20],
         app_code=app_code,
         platform_url="https://bkflow.example.invalid",
         creator="security-user",
@@ -1476,7 +1477,7 @@ def test_public_routes_reject_high_phase_and_direct_plugin_fields_before_domain(
 ):
     """Catch any closed-DTO regression that reaches P0, Task 7, provider, release, task or debug code."""
     high_phase = _guard_high_phase(monkeypatch)
-    space = _security_space("security-forbidden-{}".format(case_id))
+    space = _security_space("forbidden-{}".format(case_id))
     before = ReleaseDatabaseObservation.capture()
     guarded = []
     with ExitStack() as stack:

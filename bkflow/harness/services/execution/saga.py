@@ -680,7 +680,8 @@ class ExecutionSaga:
         )
 
     def _locked_record(self):
-        record = HarnessIdempotencyRecord.objects.select_for_update().get(**self.scope.as_dict())
+        record = HarnessIdempotencyRecord.objects.select_for_update().get(**self.scope.lookup())
+        self.scope.check_record(record)
         if record.request_hash != self.request_hash:
             raise IdempotencyConflict()
         return record
@@ -858,7 +859,8 @@ class ExecutionSaga:
         raise StartExecutionRejected("VALIDATION_STALE", "execution", repairable=False)
 
     def start(self):
-        existing_record = HarnessIdempotencyRecord.objects.filter(**self.scope.as_dict()).first()
+        existing_record = HarnessIdempotencyRecord.objects.filter(**self.scope.lookup()).first()
+        self.scope.check_record(existing_record)
         if existing_record is not None:
             if existing_record.request_hash != self.request_hash:
                 raise IdempotencyConflict()
