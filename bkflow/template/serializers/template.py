@@ -22,7 +22,6 @@ import logging
 from django.conf import settings
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
-from pipeline.validators import validate_pipeline_tree
 from rest_framework import serializers
 from webhook.signals import event_broadcast_signal
 
@@ -31,6 +30,7 @@ from bkflow.constants import (
     MAX_LEN_OF_TEMPLATE_NAME,
     TemplateOperationSource,
     TemplateOperationType,
+    ValidateType,
     WebhookEventType,
     WebhookScopeType,
 )
@@ -38,6 +38,7 @@ from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.permission.models import TEMPLATE_PERMISSION_TYPE
 from bkflow.permission.services import iter_user_grants
+from bkflow.pipeline_validate.handler import ValidatorHandler
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.configs import (
@@ -155,7 +156,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         # 校验树的合法性
 
         try:
-            validate_pipeline_tree(pipeline_tree, cycle_tolerate=True)
+            ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
         except Exception as e:
             logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
             raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))

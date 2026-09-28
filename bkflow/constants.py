@@ -156,3 +156,9 @@ class VariableType(Enum):
 
 
 VARIABLE_TYPES = [VariableType.SPACE.value, VariableType.SCOPE.value]
+
+
+class ValidateType(Enum):
+    TEMPLATE = "template"
+    TASK = "task"
+    GENERAL = "general"

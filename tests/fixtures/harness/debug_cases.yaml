@@ -1,0 +1,408 @@
+schema_version: 2
+
+trusted_context: &trusted_context
+  platform_key: bkaidev
+  platform_app: trusted-app
+  actor: dannydeng
+  space_id: 902
+  scope_type: project
+  scope_value: "902"
+  target_environment: stag
+  policy_version: risk-2026.09
+  mcp_contract_version: 1.2.0
+
+latest_revision: &latest_revision
+  relation: latest
+  sequence: 1
+  validation: passed
+
+exact_fingerprint: &exact_fingerprint
+  relation: exact
+  algorithm: sha256
+
+forbidden_markers: &forbidden_markers
+  - FORBIDDEN_TOKEN_SENTINEL
+  - FORBIDDEN_PROVIDER_SENTINEL
+
+step_payload: &step_payload
+  session_id: $session_id
+  expected_plan_hash: $plan_hash
+  mode: step
+  execution_mode: mock
+  node_id: A
+  input_overrides: {}
+  mock_result: success
+  mock_outputs: {result: golden}
+  mock_error: ""
+  idempotency_key: step-default
+
+global_payload: &global_payload
+  session_id: $session_id
+  expected_plan_hash: $plan_hash
+  mode: global
+  execution_mode: mock
+  inputs: {}
+  idempotency_key: global-default
+
+get_payload: &get_payload
+  session_id: $session_id
+  limit: 20
+
+start_payload: &start_payload
+  run_id: $run_id
+  revision_id: $revision_id
+  expected_plan_hash: $plan_hash
+  mode: step
+  idempotency_key: start-default
+
+case_defaults: &case_defaults
+  trusted_context: *trusted_context
+  predecessor_revision: *latest_revision
+  draft_fingerprint: *exact_fingerprint
+  expected_envelope_code: OK
+  state_transition: {run: DEBUGGING->DEBUGGING, session: ACTIVE->ACTIVE}
+  evidence_events: []
+  token_lease_result: none
+  external_mutations: 0
+  forbidden_markers: *forbidden_markers
+
+cases:
+  - <<: *case_defaults
+    id: step-mock-success
+    category: step_mock_success_failure
+    setup: {handler: step, variant: success, session_mode: step, precondition: clean_session}
+    request: {tool: run_debug, payload: {<<: *step_payload, idempotency_key: step-mock-success}}
+    evidence_events: [DEBUG_RUN_STARTED, DEBUG_RUN_COMPLETED]
+  - <<: *case_defaults
+    id: step-mock-failure
+    category: step_mock_success_failure
+    setup: {handler: step, variant: failure, session_mode: step, precondition: active_template_lease}
+    request:
+      tool: run_debug
+      payload:
+        <<: *step_payload
+        mock_result: fail
+        mock_outputs: {}
+        mock_error: expected failure
+        idempotency_key: step-mock-failure
+    state_transition: {run: DEBUGGING->DRAFT_READY, session: ACTIVE->FAILED}
+    evidence_events: [DEBUG_RUN_STARTED, DEBUG_RUN_FAILED]
+    token_lease_result: revoked
+  - <<: *case_defaults
+    id: step-mock-empty-outputs
+    category: step_mock_success_failure
+    setup: {handler: step, variant: empty_outputs, session_mode: step, precondition: clean_session}
+    request:
+      tool: run_debug
+      payload: {<<: *step_payload, mock_outputs: {}, idempotency_key: step-mock-empty-outputs}
+    evidence_events: [DEBUG_RUN_STARTED, DEBUG_RUN_COMPLETED]
+  - <<: *case_defaults
+    id: step-mock-multiple-outputs
+    category: step_mock_success_failure
+    setup: {handler: step, variant: multiple_outputs, session_mode: step, precondition: clean_session}
+    request:
+      tool: run_debug
+      payload:
+        <<: *step_payload
+        mock_outputs: {result: primary, detail: secondary}
+        idempotency_key: step-mock-multiple-outputs
+    evidence_events: [DEBUG_RUN_STARTED, DEBUG_RUN_COMPLETED]
+  - <<: *case_defaults
+    id: step-input-override
+    category: step_mock_success_failure
+    setup: {handler: step, variant: input_override, session_mode: step, precondition: explicit_input_override}
+    request:
+      tool: run_debug
+      payload:
+        <<: *step_payload
+        input_overrides: {"${input}": override}
+        idempotency_key: step-input-override
+    evidence_events: [DEBUG_RUN_STARTED, DEBUG_RUN_COMPLETED]
+  - <<: *case_defaults
+    id: step-updates-globals
+    category: step_mock_success_failure
+    setup: {handler: step, variant: updates_globals, session_mode: step, precondition: output_bound_constant}
+    request:
+      tool: run_debug
+      payload: {<<: *step_payload, mock_outputs: {result: persisted-global}, idempotency_key: step-updates-globals}
+    evidence_events: [DEBUG_RUN_STARTED, DEBUG_RUN_COMPLETED]
+  - <<: *case_defaults
+    id: step-same-key-replay
+    category: step_mock_success_failure
+    setup: {handler: step, variant: replay, session_mode: step, precondition: repeat_same_request}
+    request: {tool: run_debug, payload: {<<: *step_payload, idempotency_key: step-same-key-replay}}
+    evidence_events: [DEBUG_RUN_STARTED, DEBUG_RUN_COMPLETED]
+  - <<: *case_defaults
+    id: step-safe-output-projection
+    category: step_mock_success_failure
+    setup: {handler: step, variant: safe_projection, session_mode: step, precondition: credential_residue_in_context}
+    request: {tool: run_debug, payload: {<<: *step_payload, idempotency_key: step-safe-output-projection}}
+    evidence_events: [DEBUG_RUN_STARTED, DEBUG_RUN_COMPLETED]
+
+  - <<: *case_defaults
+    id: dependency-direct-missing
+    category: step_dependency_blocked
+    setup: {handler: dependency, variant: direct_missing, session_mode: step, precondition: node_B_requires_A_output}
+    request: {tool: run_debug, payload: {<<: *step_payload, node_id: B, mock_outputs: {}, idempotency_key: dependency-direct-missing}}
+    expected_envelope_code: DEBUG_DEPENDENCY
+  - <<: *case_defaults
+    id: dependency-transitive-missing
+    category: step_dependency_blocked
+    setup: {handler: dependency, variant: transitive_missing, session_mode: step, precondition: node_C_requires_B_requires_A}
+    request: {tool: run_debug, payload: {<<: *step_payload, node_id: C, mock_outputs: {}, idempotency_key: dependency-transitive-missing}}
+    expected_envelope_code: DEBUG_DEPENDENCY
+  - <<: *case_defaults
+    id: dependency-global-var-missing
+    category: step_dependency_blocked
+    setup: {handler: dependency, variant: global_var_missing, session_mode: step, precondition: node_A_requires_missing_Z_output}
+    request: {tool: run_debug, payload: {<<: *step_payload, node_id: A, mock_outputs: {}, idempotency_key: dependency-global-var-missing}}
+    expected_envelope_code: DEBUG_DEPENDENCY
+  - <<: *case_defaults
+    id: dependency-gateway-input-missing
+    category: step_dependency_blocked
+    setup: {handler: dependency, variant: gateway_input_missing, session_mode: step, precondition: gateway_requires_missing_A_output}
+    request:
+      tool: run_debug
+      payload:
+        <<: *step_payload
+        execution_mode: real
+        node_id: G
+        mock_outputs: {}
+        approval_receipt_ref: approval://golden/gateway-missing
+        idempotency_key: dependency-gateway-input-missing
+    expected_envelope_code: DEBUG_DEPENDENCY
+    token_lease_result: active
+  - <<: *case_defaults
+    id: dependency-no-result-evidence
+    category: step_dependency_blocked
+    setup: {handler: dependency, variant: no_result_evidence, session_mode: step, precondition: node_A_finished_without_required_result}
+    request: {tool: run_debug, payload: {<<: *step_payload, node_id: B, mock_outputs: {}, idempotency_key: dependency-no-result-evidence}}
+    expected_envelope_code: DEBUG_DEPENDENCY
+
+  - <<: *case_defaults
+    id: global-fast-ack
+    category: global_mock_lifecycle
+    setup: {handler: global, variant: fast_ack, session_mode: global, precondition: clean_session}
+    request: {tool: run_debug, payload: {<<: *global_payload, idempotency_key: global-fast-ack}}
+    state_transition: {run: DEBUGGING->DEBUGGING, session: ACTIVE->RUNNING}
+    evidence_events: [DEBUG_RUN_STARTED]
+    external_mutations: 2
+  - <<: *case_defaults
+    id: global-same-key-replay
+    category: global_mock_lifecycle
+    setup: {handler: global, variant: replay, session_mode: global, precondition: repeat_same_request}
+    request: {tool: run_debug, payload: {<<: *global_payload, idempotency_key: global-same-key-replay}}
+    state_transition: {run: DEBUGGING->DEBUGGING, session: ACTIVE->RUNNING}
+    evidence_events: [DEBUG_RUN_STARTED]
+    external_mutations: 2
+  - <<: *case_defaults
+    id: global-force-all-mock
+    category: global_mock_lifecycle
+    setup: {handler: global, variant: force_all_mock, session_mode: global, precondition: all_nodes_initially_real}
+    request: {tool: run_debug, payload: {<<: *global_payload, idempotency_key: global-force-all-mock}}
+    state_transition: {run: DEBUGGING->DEBUGGING, session: ACTIVE->RUNNING}
+    evidence_events: [DEBUG_RUN_STARTED]
+    external_mutations: 2
+  - <<: *case_defaults
+    id: global-completion-poll
+    category: global_mock_lifecycle
+    setup: {handler: global, variant: completion_poll, session_mode: global, precondition: owned_task_finishes}
+    request: {tool: get_debug_session, payload: *get_payload}
+    state_transition: {run: DEBUGGING->RELEASE_READY, session: RUNNING->COMPLETED}
+    evidence_events: [DEBUG_SESSION_COMPLETED]
+    external_mutations: 1
+  - <<: *case_defaults
+    id: global-failure-poll
+    category: global_mock_lifecycle
+    setup: {handler: global, variant: failure_poll, session_mode: global, precondition: owned_task_fails_with_active_lease}
+    request: {tool: get_debug_session, payload: *get_payload}
+    state_transition: {run: DEBUGGING->DRAFT_READY, session: RUNNING->FAILED}
+    evidence_events: [DEBUG_SESSION_FAILED]
+    token_lease_result: revoked
+    external_mutations: 1
+
+  - <<: *case_defaults
+    id: lock-second-start
+    category: session_lock_conflict
+    setup: {handler: lock, variant: second_start, session_mode: step, precondition: same_run_has_active_session}
+    request: {tool: start_debug_session, payload: {<<: *start_payload, idempotency_key: lock-second-start}}
+    expected_envelope_code: DEBUG_CONFLICT
+  - <<: *case_defaults
+    id: lock-run-while-running
+    category: session_lock_conflict
+    setup: {handler: lock, variant: run_while_running, session_mode: global, precondition: same_session_owns_running_task}
+    request: {tool: run_debug, payload: {<<: *global_payload, idempotency_key: lock-run-while-running}}
+    expected_envelope_code: DEBUG_CONFLICT
+    state_transition: {run: DEBUGGING->DEBUGGING, session: RUNNING->RUNNING}
+  - <<: *case_defaults
+    id: lock-cross-tool-inflight
+    category: session_lock_conflict
+    setup: {handler: lock, variant: cross_tool_inflight, session_mode: step, precondition: run_debug_barrier_inflight}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: reset, node_ids: [A], idempotency_key: lock-cross-tool-inflight}
+    expected_envelope_code: RETRYABLE_INFRA
+  - <<: *case_defaults
+    id: lock-template-context-busy
+    category: session_lock_conflict
+    setup: {handler: lock, variant: template_context_busy, session_mode: none, precondition: template_debug_context_owned_by_task_7799}
+    request: {tool: start_debug_session, payload: {<<: *start_payload, idempotency_key: lock-template-context-busy}}
+    expected_envelope_code: DEBUG_CONFLICT
+    state_transition: {run: DRAFT_READY->DRAFT_READY, session: NONE->NONE}
+  - <<: *case_defaults
+    id: lock-active-template-unique
+    category: session_lock_conflict
+    setup: {handler: lock, variant: active_template_unique, session_mode: step, precondition: second_validated_run_targets_same_template}
+    request:
+      tool: start_debug_session
+      payload:
+        <<: *start_payload
+        run_id: $run_id
+        revision_id: $revision_id
+        expected_plan_hash: $plan_hash
+        idempotency_key: lock-active-template-unique
+    expected_envelope_code: DEBUG_CONFLICT
+
+  - <<: *case_defaults
+    id: control-reset-selected
+    category: reset_and_control
+    setup: {handler: control, variant: reset_selected, session_mode: step, precondition: node_A_has_finished_result}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: reset, node_ids: [A], idempotency_key: control-reset-selected}
+    evidence_events: [DEBUG_CONTROL_REQUESTED, DEBUG_CONTROL_COMPLETED]
+  - <<: *case_defaults
+    id: control-set-node-mock
+    category: reset_and_control
+    setup: {handler: control, variant: set_node_mock, session_mode: step, precondition: node_A_real}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: set_node_mock, node_id: A, enabled: true, mock_result: success, mock_outputs: {result: preset}, mock_error: "", idempotency_key: control-set-node-mock}
+    evidence_events: [DEBUG_CONTROL_REQUESTED, DEBUG_CONTROL_COMPLETED]
+  - <<: *case_defaults
+    id: control-set-context-var
+    category: reset_and_control
+    setup: {handler: control, variant: set_context_var, session_mode: step, precondition: context_missing_safe_var}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: set_context_var, key: "${safe}", value: {nested: value}, idempotency_key: control-set-context-var}
+    evidence_events: [DEBUG_CONTROL_REQUESTED, DEBUG_CONTROL_COMPLETED]
+  - <<: *case_defaults
+    id: control-same-key-replay
+    category: reset_and_control
+    setup: {handler: control, variant: replay, session_mode: step, precondition: repeat_context_var_request}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: set_context_var, key: "${safe}", value: {nested: value}, idempotency_key: control-same-key-replay}
+    evidence_events: [DEBUG_CONTROL_REQUESTED, DEBUG_CONTROL_COMPLETED]
+
+  - <<: *case_defaults
+    id: terminate-active-session
+    category: terminate_and_recovery
+    setup: {handler: terminate, variant: active, session_mode: step, precondition: active_session_with_lease}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: terminate, idempotency_key: terminate-active-session}
+    state_transition: {run: DEBUGGING->DRAFT_READY, session: ACTIVE->TERMINATED}
+    evidence_events: [DEBUG_CONTROL_REQUESTED, DEBUG_CONTROL_COMPLETED]
+    token_lease_result: revoked
+  - <<: *case_defaults
+    id: terminate-active-node-rejected
+    category: terminate_and_recovery
+    setup: {handler: terminate, variant: active_node_rejected, session_mode: step, precondition: active_session_without_engine_task}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: terminate, node_id: A, idempotency_key: terminate-active-node-rejected}
+    expected_envelope_code: DEBUG_EXECUTION_FAILED
+    evidence_events: [DEBUG_CONTROL_REQUESTED, DEBUG_CONTROL_FAILED]
+  - <<: *case_defaults
+    id: terminate-running-global
+    category: terminate_and_recovery
+    setup: {handler: terminate, variant: running_global, session_mode: step, precondition: owned_global_task_with_lease}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: terminate, idempotency_key: terminate-running-global}
+    state_transition: {run: DEBUGGING->DEBUGGING, session: RUNNING->RUNNING}
+    evidence_events: [DEBUG_CONTROL_REQUESTED, DEBUG_CONTROL_COMPLETED]
+    token_lease_result: revoked
+    external_mutations: 1
+  - <<: *case_defaults
+    id: terminate-running-node
+    category: terminate_and_recovery
+    setup: {handler: terminate, variant: running_node, session_mode: step, precondition: owned_step_task_node_A_with_lease}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: terminate, node_id: A, idempotency_key: terminate-running-node}
+    state_transition: {run: DEBUGGING->DEBUGGING, session: RUNNING->ACTIVE}
+    evidence_events: [DEBUG_CONTROL_REQUESTED, DEBUG_CONTROL_COMPLETED]
+    token_lease_result: revoked
+    external_mutations: 2
+
+  - <<: *case_defaults
+    id: drift-plan-hash
+    category: plan_or_fingerprint_drift
+    setup: {handler: drift, variant: plan_hash, session_mode: step, precondition: caller_uses_wrong_plan_hash}
+    request: {tool: run_debug, payload: {<<: *step_payload, expected_plan_hash: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, idempotency_key: drift-plan-hash}}
+    expected_envelope_code: VALIDATION_STALE
+  - <<: *case_defaults
+    id: drift-tree-fingerprint
+    category: plan_or_fingerprint_drift
+    setup: {handler: drift, variant: tree_fingerprint, session_mode: step, precondition: draft_tree_changed_after_session_start}
+    request: {tool: run_debug, payload: {<<: *step_payload, idempotency_key: drift-tree-fingerprint}}
+    expected_envelope_code: VALIDATION_STALE
+    draft_fingerprint: {relation: drifted, algorithm: sha256}
+  - <<: *case_defaults
+    id: drift-superseded-revision
+    category: plan_or_fingerprint_drift
+    setup: {handler: drift, variant: superseded_revision, session_mode: step, precondition: newer_revision_exists}
+    request: {tool: run_debug, payload: {<<: *step_payload, idempotency_key: drift-superseded-revision}}
+    expected_envelope_code: VALIDATION_STALE
+    predecessor_revision: {relation: superseded, sequence: 1, validation: passed}
+
+  - <<: *case_defaults
+    id: token-issue-template-lease
+    category: token_lifecycle
+    setup: {handler: token, variant: issue, session_mode: step, precondition: no_existing_lease}
+    request: {tool: get_debug_session, payload: *get_payload}
+    token_lease_result: active
+  - <<: *case_defaults
+    id: token-expire-and-renew
+    category: token_lifecycle
+    setup: {handler: token, variant: renew, session_mode: step, precondition: underlying_legacy_token_expired}
+    request: {tool: get_debug_session, payload: *get_payload}
+    token_lease_result: renewed
+  - <<: *case_defaults
+    id: token-revoke-before-terminal
+    category: token_lifecycle
+    setup: {handler: token, variant: revoke, session_mode: step, precondition: active_lease_before_terminal_control}
+    request:
+      tool: control_debug_session
+      payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: terminate, idempotency_key: token-revoke-before-terminal}
+    state_transition: {run: DEBUGGING->DRAFT_READY, session: ACTIVE->TERMINATED}
+    evidence_events: [DEBUG_CONTROL_REQUESTED, DEBUG_CONTROL_COMPLETED]
+    token_lease_result: revoked
+
+  - <<: *case_defaults
+    id: approval-missing-receipt
+    category: forged_or_expired_approval
+    setup: {handler: approval, variant: missing, session_mode: step, precondition: real_enabled_without_receipt}
+    request:
+      tool: run_debug
+      payload: {<<: *step_payload, execution_mode: real, mock_outputs: {}, idempotency_key: approval-missing-receipt}
+    expected_envelope_code: APPROVAL_REQUIRED
+  - <<: *case_defaults
+    id: approval-forged-claims
+    category: forged_or_expired_approval
+    setup: {handler: approval, variant: forged, session_mode: step, precondition: verifier_rejects_claim_mismatch}
+    request:
+      tool: run_debug
+      payload: {<<: *step_payload, execution_mode: real, mock_outputs: {}, approval_receipt_ref: approval://golden/forged, idempotency_key: approval-forged-claims}
+    expected_envelope_code: APPROVAL_INVALID
+  - <<: *case_defaults
+    id: approval-expired-receipt
+    category: forged_or_expired_approval
+    setup: {handler: approval, variant: expired, session_mode: step, precondition: verifier_rejects_expired_receipt}
+    request:
+      tool: run_debug
+      payload: {<<: *step_payload, execution_mode: real, mock_outputs: {}, approval_receipt_ref: approval://golden/expired, idempotency_key: approval-expired-receipt}
+    expected_envelope_code: APPROVAL_INVALID

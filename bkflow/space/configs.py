@@ -28,6 +28,7 @@ from pydantic import BaseModel, constr
 from pytimeparse import parse
 
 from bkflow.exceptions import ValidationError
+from bkflow.harness.services.canonical import canonical_scope
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.utils.apigw import check_url_from_apigw
 
@@ -243,7 +244,7 @@ class TokenAutoRenewalConfig(BaseSpaceConfig):
         "label": _("启用自动续期"),
         "true_value": "true",
         "false_value": "false",
-        "help": _("关闭后到期即失效，需重新获取")
+        "help": _("关闭后到期即失效，需重新获取"),
     }
 
     @classmethod
@@ -450,7 +451,10 @@ class UniformApiConfig(BaseSpaceConfig):
         :param credential_name: 用于鉴权的凭证名，默认取空间默认网关凭证
         :param operator: 操作人用户名，用于 apigw 请求头
         """
-        from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient, resolve_meta_url
+        from bkflow.pipeline_plugins.query.uniform_api.utils import (
+            UniformAPIClient,
+            resolve_meta_url,
+        )
         from bkflow.space.models import Credential, SpaceConfig
 
         # 获取待测试的api
@@ -485,10 +489,9 @@ class UniformApiConfig(BaseSpaceConfig):
 
         # 获取测试用的凭证
         if not credential_name:
-            cred_config = SpaceConfig.objects.filter(
-                space_id=space_id, name=ApiGatewayCredentialConfig.name).first()
+            cred_config = SpaceConfig.objects.filter(space_id=space_id, name=ApiGatewayCredentialConfig.name).first()
             if cred_config:
-                credential_name = ApiGatewayCredentialConfig.get_value(cred_config, scope='default')
+                credential_name = ApiGatewayCredentialConfig.get_value(cred_config, scope="default")
 
         if not credential_name:
             raise ValidationError("[uniform_api verify] 空间未配置默认网关凭证，无法测试")
@@ -509,16 +512,15 @@ class UniformApiConfig(BaseSpaceConfig):
         )
         logger.info(
             f"[uniform_api verify] 测试用凭证.credential_name: {credential_name},app_code: {content['bk_app_code']}，"
-            f"app_secret: ******，username：{operator}")
+            f"app_secret: ******，username：{operator}"
+        )
 
         # 整体验证时间预算控制
         start_time = time.time()
 
         def _check_timeout():
             if time.time() - start_time > cls.MAX_VERIFY_TOTAL_TIMEOUT:
-                raise ValidationError(
-                    f"[uniform_api verify] 验证总耗时超过 {cls.MAX_VERIFY_TOTAL_TIMEOUT} 秒，请检查接口响应速度"
-                )
+                raise ValidationError(f"[uniform_api verify] 验证总耗时超过 {cls.MAX_VERIFY_TOTAL_TIMEOUT} 秒，请检查接口响应速度")
 
         # 1. 调用 category_list 接口 → 获取分类列表
         _check_timeout()
@@ -537,11 +539,9 @@ class UniformApiConfig(BaseSpaceConfig):
             cat_result.json_resp.get("data", []),
             client.UNIFORM_API_CATEGORY_LIST_RESPONSE_DATA_SCHEMA,
         )
-        categories_info = cat_result.json_resp.get('data') or []
+        categories_info = cat_result.json_resp.get("data") or []
         if len(categories_info) > cls.MAX_VERIFY_CATEGORIES:
-            logger.warning(
-                f"[uniform_api verify] 分类数量({len(categories_info)})超过上限{cls.MAX_VERIFY_CATEGORIES}，已截断"
-            )
+            logger.warning(f"[uniform_api verify] 分类数量({len(categories_info)})超过上限{cls.MAX_VERIFY_CATEGORIES}，已截断")
             categories_info = categories_info[: cls.MAX_VERIFY_CATEGORIES]
         category_length = len(categories_info)
 
@@ -551,10 +551,8 @@ class UniformApiConfig(BaseSpaceConfig):
             try:
                 categories.append(category.get("id", "all"))
             except Exception as e:
-                logger.error(
-                    f"[uniform_api verify] categories 接口获取数据失败: {str(e)},data: {str(category)}")
-                raise ValidationError(
-                    f"[uniform_api verify] categories 接口获取数据失败: {str(e)}，请检查接口地址或者接口内容是否符合规范.")
+                logger.error(f"[uniform_api verify] categories 接口获取数据失败: {str(e)},data: {str(category)}")
+                raise ValidationError(f"[uniform_api verify] categories 接口获取数据失败: {str(e)}，请检查接口地址或者接口内容是否符合规范.")
 
         # 2. 调用 list 接口 → 获取接口总数和列表（用第一个分类做 category 参数）
         list_request_data = {
@@ -566,9 +564,7 @@ class UniformApiConfig(BaseSpaceConfig):
         api_length = 0
         for index, category in enumerate(categories):
             if index >= cls.MAX_VERIFY_LIST_REQUESTS:
-                logger.warning(
-                    f"[uniform_api verify] list 请求次数达到上限{cls.MAX_VERIFY_LIST_REQUESTS}，已停止继续请求"
-                )
+                logger.warning(f"[uniform_api verify] list 请求次数达到上限{cls.MAX_VERIFY_LIST_REQUESTS}，已停止继续请求")
                 break
             _check_timeout()
             list_request_data["category"] = category
@@ -582,8 +578,7 @@ class UniformApiConfig(BaseSpaceConfig):
             )
 
             if not list_result.result:
-                logger.error(
-                    f"[uniform_api verify] list 接口请求失败: {list_result.message},data: {str(list_request_data)}")
+                logger.error(f"[uniform_api verify] list 接口请求失败: {list_result.message},data: {str(list_request_data)}")
                 raise ValidationError(f"[uniform_api verify] list 接口请求失败: {list_result.message}")
             # 校验 list 响应协议
             client.validate_response_data(
@@ -595,7 +590,7 @@ class UniformApiConfig(BaseSpaceConfig):
 
             # 取某个分类的api
             if not api_list:
-                for api in list_data.get('apis') or []:
+                for api in list_data.get("apis") or []:
                     api_list.append(api)
 
         # 3. 调用 meta 接口 → 取 list 返回的最多 5 个 api 的 meta_url
@@ -620,7 +615,8 @@ class UniformApiConfig(BaseSpaceConfig):
             if not meta_result.result:
                 logger.error(
                     f"[uniform_api verify] meta_url_detail 接口请求失败: {meta_result.message},"
-                    f"meta_url_detail: {meta_url_detail}")
+                    f"meta_url_detail: {meta_url_detail}"
+                )
                 raise ValidationError(f"[uniform_api verify] meta_url_detail 接口请求失败: {meta_result.message}")
             # 校验 meta 响应协议
             client.validate_response_data(
@@ -628,11 +624,13 @@ class UniformApiConfig(BaseSpaceConfig):
                 client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA,
             )
             meta_data = meta_result.json_resp.get("data", {})
-            samples.append({
-                "id": meta_data.get("id", ""),
-                "name": meta_data.get("name", ""),
-                "method": meta_data.get("methods", [""])[0] if meta_data.get("methods") else ""
-            })
+            samples.append(
+                {
+                    "id": meta_data.get("id", ""),
+                    "name": meta_data.get("name", ""),
+                    "method": meta_data.get("methods", [""])[0] if meta_data.get("methods") else "",
+                }
+            )
 
         if api_length and not samples:
             raise ValidationError("[uniform_api verify] 接口列表非空但未能校验任何接口详情")
@@ -803,12 +801,7 @@ class SpacePluginConfig(BaseSpaceConfig):
     desc = _("空间插件配置")
     value_type = SpaceConfigValueType.JSON.value
     example = {"default": {"mode": "{allow_list/deny_list/allow_all}", "plugin_codes": ["plugin_1", "plugin_2"]}}
-    default_value = {
-        "default": {
-            "mode": "allow_all",
-            "plugin_codes": []
-        }
-    }
+    default_value = {"default": {"mode": "allow_all", "plugin_codes": []}}
 
     group = "api_integration"
     help = {
@@ -850,6 +843,227 @@ class FlowVersioning(BaseSpaceConfig):
             raise ValidationError(
                 f"[validate flow version error]: flow version only support 'true' or 'false', value: {value}"
             )
+        return True
+
+
+class HarnessEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can create new Harness runs."""
+
+    name = "harness_enabled"
+    desc = _("是否启用 AI 流程生成 Harness")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_enabled only supports true or false")
+        return True
+
+
+class HarnessKnowledgeRouterEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can use the P1 Harness knowledge-search tool."""
+
+    name = "harness_knowledge_router_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 知识检索")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_knowledge_router_enabled only supports true or false")
+        return True
+
+
+class HarnessDebugEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can start, run, or control Harness debug sessions."""
+
+    name = "harness_debug_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 调试")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_debug_enabled only supports true or false")
+        return True
+
+
+class HarnessRealStepEnabledConfig(BaseSpaceConfig):
+    """Control whether real step execution may pass the first policy predicate."""
+
+    name = "harness_real_step_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 真实单步调试")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_real_step_enabled only supports true or false")
+        return True
+
+
+class HarnessPublishEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can prepare and publish Harness releases."""
+
+    name = "harness_publish_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 发布")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_publish_enabled only supports true or false")
+        return True
+
+
+class HarnessExecutionEnabledConfig(BaseSpaceConfig):
+    """Control whether a space can mutate P3 workflow executions."""
+
+    name = "harness_execution_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 流程执行")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_execution_enabled only supports true or false")
+        return True
+
+
+class HarnessGlobalRealDebugEnabledConfig(BaseSpaceConfig):
+    """Control the P3 leaf gate for globally executing real debug nodes."""
+
+    name = "harness_global_real_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 全局真实调试")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_global_real_enabled only supports true or false")
+        return True
+
+
+class HarnessFeedbackEnabledConfig(BaseSpaceConfig):
+    """Control whether a space may retain new P4 generation feedback."""
+
+    name = "harness_feedback_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 反馈摄入")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_feedback_enabled only supports true or false")
+        return True
+
+
+class HarnessCandidatePromotionEnabledConfig(BaseSpaceConfig):
+    """Owner-only switch for acknowledging governed P4 promotions."""
+
+    name = "harness_candidate_promotion_enabled"
+    desc = _("是否启用 AI 流程生成 Harness 候选晋级")
+    default_value = "false"
+    choices = ["true", "false"]
+    control = True
+    is_public = False
+
+    @classmethod
+    def validate(cls, value: str):
+        if value not in cls.choices:
+            raise ValidationError("harness_candidate_promotion_enabled only supports true or false")
+        return True
+
+
+class HarnessDeploymentConfig(BaseSpaceConfig):
+    """Validate the server-managed, non-public Harness deployment binding."""
+
+    name = "harness_deployment"
+    desc = _("AI 流程生成 Harness 可信部署绑定")
+    value_type = SpaceConfigValueType.JSON.value
+    default_value = {}
+    is_public = False
+    control = True
+
+    MAX_TEXT_LENGTH = 64
+    MAX_SCOPE_VALUE_LENGTH = 128
+    MAX_ALLOWED_SCOPE_TYPES = 20
+
+    SCHEMA = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "platform_key",
+            "allowed_scope_types",
+            "scope_type",
+            "scope_value",
+            "target_environment",
+            "risk_policy_version",
+            "mcp_contract_version",
+        ],
+        "properties": {
+            "platform_key": {"type": "string", "minLength": 1, "maxLength": MAX_TEXT_LENGTH},
+            "allowed_scope_types": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1, "maxLength": MAX_TEXT_LENGTH},
+                "maxItems": MAX_ALLOWED_SCOPE_TYPES,
+                "uniqueItems": True,
+            },
+            "scope_type": {
+                "type": ["string", "null"],
+                "minLength": 1,
+                "maxLength": MAX_TEXT_LENGTH,
+            },
+            "scope_value": {
+                "type": ["string", "null"],
+                "minLength": 1,
+                "maxLength": MAX_SCOPE_VALUE_LENGTH,
+            },
+            "target_environment": {"type": "string", "minLength": 1, "maxLength": MAX_TEXT_LENGTH},
+            "risk_policy_version": {"type": "string", "minLength": 1, "maxLength": MAX_TEXT_LENGTH},
+            "mcp_contract_version": {"enum": ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0"]},
+        },
+    }
+
+    @classmethod
+    def validate(cls, value: dict):
+        try:
+            jsonschema.validate(instance=value, schema=cls.SCHEMA)
+        except (jsonschema.ValidationError, jsonschema.SchemaError, TypeError):
+            raise ValidationError("Invalid harness deployment configuration")
+        scope_type = value["scope_type"]
+        scope_value = value["scope_value"]
+        if (scope_type is None) != (scope_value is None):
+            raise ValidationError("Invalid harness deployment configuration")
+        if scope_type is not None and scope_type not in value["allowed_scope_types"]:
+            raise ValidationError("Invalid harness deployment configuration")
+        try:
+            for text in (
+                value["platform_key"],
+                value["target_environment"],
+                value["risk_policy_version"],
+                *value["allowed_scope_types"],
+            ):
+                text.encode("utf-8")
+            canonical_scope(scope_type, scope_value)
+        except (UnicodeError, ValueError):
+            raise ValidationError("Invalid harness deployment configuration")
         return True
 
 

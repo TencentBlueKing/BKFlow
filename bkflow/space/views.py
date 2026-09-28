@@ -560,10 +560,10 @@ class SpaceConfigViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewSet):
     @action(methods=["GET"], detail=False)
     def get_control_config(self, request, *args, **kwargs):
         try:
-            configs = SpaceConfigHandler.get_control_configs()
+            configs = SpaceConfigHandler.get_control_configs(only_public=True)
             return Response({name: self.process_config(config.to_dict()) for name, config in configs.items()})
-        except Exception as e:
-            err_msg = f"获取控制配置失败 {str(e)}"
+        except Exception:
+            err_msg = "获取控制配置失败"
             logger.error(err_msg)
             return Response(exception=True, data={"detail": err_msg})
 
@@ -574,15 +574,15 @@ class SpaceConfigViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewSet):
         if not name:
             return Response(exception=True, data={"detail": "name 配置名称不能为空"})
         try:
+            config_cls = SpaceConfigHandler.get_config(name)
             superusers = SpaceConfig.get_config(space_id=space_id, config_name=SuperusersConfig.name)
-            if request.user.username not in superusers and not getattr(
-                SpaceConfigHandler.get_config(name), "control", False
-            ):
+            is_space_superuser = request.user.username in superusers
+            if not is_space_superuser and not (getattr(config_cls, "control", False) and config_cls.is_public):
                 return Response(exception=True, data={"detail": "您无权限查看此配置"})
             config = SpaceConfig.get_config(space_id, name)
             return Response({"value": config}, status=200)
-        except Exception as e:
-            err_msg = f"检查空间配置失败：space_id: {space_id}, name: {name}, error: {str(e)}"
+        except Exception:
+            err_msg = "检查空间配置失败"
             logger.error(err_msg)
             return Response(exception=True, data={"detail": err_msg})
 

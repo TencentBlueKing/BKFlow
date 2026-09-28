@@ -149,7 +149,7 @@ class TestCreateTemplate(TestCase):
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
-    @mock.patch("bkflow.apigw.serializers.template.validate_pipeline_tree")
+    @mock.patch("bkflow.apigw.serializers.template.ValidatorHandler.validate")
     def test_create_template_rejected_when_gateway_parse_lang_mismatch(self, mock_validate_structure):
         """
         选中逻辑：直接传入的 pipeline_tree 含网关，其 parse_lang 与空间默认配置(boolrule)不符 -> 应拒绝
@@ -172,7 +172,7 @@ class TestCreateTemplate(TestCase):
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
-    @mock.patch("bkflow.apigw.serializers.template.validate_pipeline_tree")
+    @mock.patch("bkflow.apigw.serializers.template.ValidatorHandler.validate")
     def test_create_template_ok_when_gateway_parse_lang_matches_default(self, mock_validate_structure):
         """
         选中逻辑：传入的 pipeline_tree 含网关但未显式设置 parse_lang（默认按 boolrule 解析），

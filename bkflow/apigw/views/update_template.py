@@ -43,6 +43,7 @@ from bkflow.template.models import (
     Trigger,
 )
 from bkflow.template.serializers.trigger import TriggerSerializer
+from bkflow.template.services.release import TemplateReleaseService
 from bkflow.utils import err_code
 from bkflow.utils.canvas import OperateType
 from bkflow.utils.pipeline import replace_pipeline_tree_node_ids
@@ -119,18 +120,12 @@ def update_template(request, space_id, template_id):
                     except Exception as e:
                         raise UpdateTemplateException(_(f"版本号不符合规范: {str(e)}"))
 
-                    snapshot = template.release_template(
-                        {"version": release_version, "username": validated_data_dict["updated_by"]}
-                    )
-                    template.snapshot_id = snapshot.id
-
-                    # 添加发布记录
-                    TemplateOperationRecord.objects.create(
-                        operate_source=TemplateOperationSource.api.name,
-                        operate_type=TemplateOperationType.release.name,
-                        instance_id=template.id,
+                    TemplateReleaseService.release(
+                        template,
+                        {"version": release_version, "force": False},
                         operator=validated_data_dict["updated_by"],
-                        extra_info={"version": release_version},
+                        source=TemplateOperationSource.api.name,
+                        emit_webhook=False,
                     )
             else:
                 if not template.snapshot_version:

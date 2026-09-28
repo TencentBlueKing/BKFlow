@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,12 +20,13 @@ to the current version of the project delivered to anyone in the future.
 
 from pipeline.parser.pipeline_parser import PipelineParser
 
+from bkflow.constants import ValidateType
+from bkflow.pipeline_validate.handler import ValidatorHandler
 from bkflow.pipeline_web.parser.format import format_web_data_to_pipeline
-from bkflow.pipeline_web.parser.validator import validate_web_pipeline_tree
 
 
 class WebPipelineAdapter(PipelineParser):
     def __init__(self, web_pipeline_tree):
-        validate_web_pipeline_tree(web_pipeline_tree)
+        ValidatorHandler.validate(web_pipeline_tree, validate_type=ValidateType.TEMPLATE)
         pipeline_tree = format_web_data_to_pipeline(web_pipeline_tree)
-        super(WebPipelineAdapter, self).__init__(pipeline_tree, cycle_tolerate=True)
+        super().__init__(pipeline_tree, cycle_tolerate=True)

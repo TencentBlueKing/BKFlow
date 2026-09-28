@@ -22,6 +22,7 @@ from unittest import mock
 import pytest
 
 from bkflow.exceptions import ValidationError
+from bkflow.space import configs as space_configs
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
     ApiModel,
@@ -30,6 +31,9 @@ from bkflow.space.configs import (
     CanvasModeConfig,
     FlowVersioning,
     GatewayExpressionConfig,
+    HarnessDeploymentConfig,
+    HarnessEnabledConfig,
+    HarnessKnowledgeRouterEnabledConfig,
     SchemaV2Model,
     SpaceConfigHandler,
     SpaceConfigValueType,
@@ -42,14 +46,15 @@ from bkflow.space.configs import (
     UniformApiConfig,
     UniformAPIConfigHandler,
 )
+from bkflow.space.models import SpaceConfig
 
 
 class TestSpaceConfigHandler:
     def test_get_all_configs(self):
         configs = SpaceConfigHandler.get_all_configs()
-        assert len(configs) == 12
+        assert len(configs) == 22
         configs = SpaceConfigHandler.get_all_configs(only_public=True)
-        assert len(configs) == 10
+        assert len(configs) == 18
 
     def test_get_config(self):
         # valid cases
@@ -183,6 +188,251 @@ class TestSpaceConfigHandler:
         assert SpaceConfigHandler.validate(name="flow_versioning", value="false")
         with pytest.raises(ValidationError):
             config_cls.validate("invalid")
+
+    def test_harness_enabled_config(self):
+        """Reject values that could silently enable a Harness space."""
+        config_cls = SpaceConfigHandler.get_config("harness_enabled")
+
+        assert config_cls == HarnessEnabledConfig
+        assert config_cls.default_value == "false"
+        assert config_cls.choices == ["true", "false"]
+        assert config_cls.control is True
+        assert config_cls.validate("true")
+        assert config_cls.validate("false")
+        with pytest.raises(ValidationError):
+            config_cls.validate("True")
+
+    def test_harness_knowledge_router_enabled_config(self):
+        """Reject values that could silently enable the P1 knowledge-search capability."""
+        config_cls = SpaceConfigHandler.get_config("harness_knowledge_router_enabled")
+
+        assert config_cls == HarnessKnowledgeRouterEnabledConfig
+        assert config_cls.default_value == "false"
+        assert config_cls.choices == ["true", "false"]
+        assert config_cls.control is True
+        assert config_cls.validate("true")
+        assert config_cls.validate("false")
+        with pytest.raises(ValidationError):
+            config_cls.validate("True")
+
+    @pytest.mark.parametrize(
+        "config_name,config_class_name",
+        [
+            ("harness_debug_enabled", "HarnessDebugEnabledConfig"),
+            ("harness_real_step_enabled", "HarnessRealStepEnabledConfig"),
+            ("harness_publish_enabled", "HarnessPublishEnabledConfig"),
+            ("harness_execution_enabled", "HarnessExecutionEnabledConfig"),
+            ("harness_global_real_enabled", "HarnessGlobalRealDebugEnabledConfig"),
+        ],
+    )
+    def test_harness_phase_flags_are_strict_and_default_off(self, config_name, config_class_name):
+        """P2/P3 switches accept only canonical text booleans and never self-enable."""
+        config_class = getattr(space_configs, config_class_name, None)
+        assert config_class is not None
+        config_cls = SpaceConfigHandler.get_config(config_name)
+
+        assert config_cls == config_class
+        assert config_cls.default_value == "false"
+        assert len(config_cls.name) <= 32
+        assert config_cls.choices == ["true", "false"]
+        assert config_cls.control is True
+        assert config_cls.validate("true")
+        assert config_cls.validate("false")
+        assert SpaceConfigHandler.validate(name=config_name, value="true")
+        for invalid_value in ("True", "FALSE", True, 1, None):
+            with pytest.raises(ValidationError):
+                config_cls.validate(invalid_value)
+
+    @pytest.mark.parametrize(
+        "config_name,config_class_name,is_public",
+        [
+            ("harness_feedback_enabled", "HarnessFeedbackEnabledConfig", True),
+            ("harness_candidate_promotion_enabled", "HarnessCandidatePromotionEnabledConfig", False),
+        ],
+    )
+    def test_harness_p4_flags_are_strict_default_off_and_promotion_is_owner_only(
+        self, config_name, config_class_name, is_public
+    ):
+        """Feedback is opt-in and the promotion control is never a public Agent-facing config."""
+        config_class = getattr(space_configs, config_class_name, None)
+        assert config_class is not None
+        config_cls = SpaceConfigHandler.get_config(config_name)
+
+        assert config_cls == config_class
+        assert config_cls.default_value == "false"
+        assert config_cls.choices == ["true", "false"]
+        assert config_cls.control is True
+        assert config_cls.is_public is is_public
+        assert config_cls.validate("true")
+        assert config_cls.validate("false")
+        for invalid_value in ("True", "FALSE", True, 1, None):
+            with pytest.raises(ValidationError):
+                config_cls.validate(invalid_value)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            {
+                "allowed_scope_types": ["biz"],
+                "scope_type": None,
+                "scope_value": None,
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.0.0",
+            },
+            {
+                "platform_key": "bkaidev",
+                "allowed_scope_types": ["biz"],
+                "scope_type": None,
+                "scope_value": None,
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.0.0",
+                "app_secret": "must-not-be-configured",
+            },
+            {
+                "platform_key": "bkaidev",
+                "allowed_scope_types": ["biz"],
+                "scope_type": "biz",
+                "scope_value": None,
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.0.0",
+            },
+            {
+                "platform_key": "bkaidev",
+                "allowed_scope_types": ["biz"],
+                "scope_type": "project",
+                "scope_value": "42",
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.0.0",
+            },
+            {
+                "platform_key": "bkaidev",
+                "allowed_scope_types": ["biz"],
+                "scope_type": None,
+                "scope_value": None,
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "2.0.0",
+            },
+        ],
+    )
+    def test_harness_deployment_config_rejects_untrusted_or_inconsistent_bindings(self, value):
+        """Reject incomplete, credential-bearing, incompatible, and unsupported deployment bindings."""
+        with pytest.raises(ValidationError):
+            HarnessDeploymentConfig.validate(value)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            {
+                "platform_key": "bkaidev",
+                "allowed_scope_types": ["biz"],
+                "scope_type": None,
+                "scope_value": None,
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.0.0",
+            },
+            {
+                "platform_key": "bkaidev",
+                "allowed_scope_types": ["biz", "project"],
+                "scope_type": "project",
+                "scope_value": "project-42",
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.0.0",
+            },
+            {
+                "platform_key": "bkaidev",
+                "allowed_scope_types": ["biz"],
+                "scope_type": None,
+                "scope_value": None,
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.1.0",
+            },
+            {
+                "platform_key": "bkaidev",
+                "allowed_scope_types": ["project"],
+                "scope_type": "project",
+                "scope_value": "project-42",
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.3.0",
+            },
+            {
+                "platform_key": "bkaidev",
+                "allowed_scope_types": ["project"],
+                "scope_type": "project",
+                "scope_value": "project-42",
+                "target_environment": "stag",
+                "risk_policy_version": "risk-2026.09",
+                "mcp_contract_version": "1.4.0",
+            },
+        ],
+    )
+    def test_harness_deployment_config_accepts_space_wide_and_allowed_scoped_bindings(self, value):
+        """Accept only the server-side binding shapes valid for P0 generation."""
+        assert HarnessDeploymentConfig.validate(value) is True
+
+    def test_space_config_name_persists_the_exact_owner_only_p4_flag(self):
+        """The planned promotion flag must fit the production database column without truncation."""
+        assert SpaceConfig._meta.get_field("name").max_length >= len("harness_candidate_promotion_enabled")
+
+    @pytest.mark.parametrize(
+        "scope_type,scope_value",
+        [("a:b", "c"), ("a", "b:c"), ('项目:"\\', '值:😀"\\')],
+    )
+    def test_harness_deployment_config_accepts_unambiguous_delimiter_and_unicode_scopes(self, scope_type, scope_value):
+        """Delimiter and Unicode text remain legal when the combined canonical scope fits persistence."""
+        value = {
+            "platform_key": "bkaidev",
+            "allowed_scope_types": [scope_type],
+            "scope_type": scope_type,
+            "scope_value": scope_value,
+            "target_environment": "stag",
+            "risk_policy_version": "risk-2026.09",
+            "mcp_contract_version": "1.0.0",
+        }
+
+        assert HarnessDeploymentConfig.validate(value) is True
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"platform_key": "平" * 65},
+            {"target_environment": "环" * 65},
+            {"risk_policy_version": "策" * 65},
+            {"allowed_scope_types": ["scope-{}".format(index) for index in range(21)]},
+            {"allowed_scope_types": ["类" * 65], "scope_type": "类" * 65},
+            {"scope_value": "😀" * 129},
+            {"platform_key": "bad\ud800"},
+            {"scope_value": "bad\ud800"},
+            {
+                "allowed_scope_types": ['"' * 64],
+                "scope_type": '"' * 64,
+                "scope_value": '"' * 128,
+            },
+        ],
+    )
+    def test_harness_deployment_config_rejects_values_beyond_persistence_and_utf8_bounds(self, overrides):
+        """A trusted binding must fail before oversized or unencodable facts reach model writes."""
+        value = {
+            "platform_key": "bkaidev",
+            "allowed_scope_types": ["project"],
+            "scope_type": "project",
+            "scope_value": "42",
+            "target_environment": "stag",
+            "risk_policy_version": "risk-2026.09",
+            "mcp_contract_version": "1.0.0",
+        }
+        value.update(overrides)
+
+        with pytest.raises(ValidationError):
+            HarnessDeploymentConfig.validate(value)
 
     def test_space_engine_config(self):
         config_cls = SpaceConfigHandler.get_config("engine_space_config")

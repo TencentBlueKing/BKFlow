@@ -7541,3 +7541,1497 @@ paths:
         descriptionEn: Batch delete template
         enableWebsocket: false
         pluginConfigs: [ ]
+  /space/{space_id}/harness/search_workflow_capabilities/:
+    post:
+      operationId: harness_search_workflow_capabilities
+      description: Harness P0 搜索当前空间已授权的流程能力摘要
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              additionalProperties: false
+              properties:
+                query:
+                  type: string
+                  maxLength: 256
+                top_k:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                plugin_source:
+                  type: string
+                  maxLength: 64
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/search_workflow_capabilities/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Search governed workflow capabilities for Harness P0
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/get_plugin_schema/:
+    post:
+      operationId: harness_get_plugin_schema
+      description: Harness P0 获取一个精确能力身份的 Schema
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [capability_ref, expected_schema_hash]
+              additionalProperties: false
+              properties:
+                capability_ref:
+                  type: string
+                  maxLength: 1799
+                expected_schema_hash:
+                  type: string
+                  minLength: 64
+                  maxLength: 64
+                  pattern: '^[a-f0-9]{64}$'
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/get_plugin_schema/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get an exact governed plugin schema for Harness P0
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/validate_workflow/:
+    post:
+      operationId: harness_validate_workflow
+      description: Harness P0 校验并持久化受治理的 a2flow 修订
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [intent_spec, a2flow, bindings, idempotency_key]
+              additionalProperties: false
+              properties:
+                intent_spec:
+                  type: object
+                a2flow:
+                  type: object
+                bindings:
+                  type: array
+                run_id:
+                  type: string
+                  format: uuid
+                expected_plan_hash:
+                  type: string
+                  maxLength: 64
+                idempotency_key:
+                  type: string
+                  maxLength: 255
+                client_context:
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    conversation_ref:
+                      type: string
+                      maxLength: 255
+                    agent_release:
+                      type: string
+                      maxLength: 255
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/validate_workflow/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Validate a governed Harness P0 workflow revision
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/create_workflow_draft/:
+    post:
+      operationId: harness_create_workflow_draft
+      description: Harness P0 将已校验修订幂等写入受管理草稿
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [run_id, revision_id, plan_hash, idempotency_key]
+              additionalProperties: false
+              properties:
+                run_id:
+                  type: string
+                  format: uuid
+                revision_id:
+                  type: string
+                  format: uuid
+                plan_hash:
+                  type: string
+                  maxLength: 64
+                idempotency_key:
+                  type: string
+                  maxLength: 255
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/create_workflow_draft/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Create or update a draft-only Harness P0 workflow
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/search_workflow_knowledge/:
+    post:
+      operationId: harness_search_workflow_knowledge
+      description: Harness P1 按可信平台、空间与 Scope 检索联邦流程知识
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              additionalProperties: false
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                top_k:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                  default: 10
+                run_id:
+                  type: string
+                  format: uuid
+                data_classification:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                  pattern: '^[A-Za-z][A-Za-z0-9_.-]{0,63}$'
+                  default: internal
+                client_context:
+                  type: object
+                  additionalProperties: false
+                  properties:
+                    conversation_ref:
+                      type: string
+                      maxLength: 255
+                    agent_release:
+                      type: string
+                      maxLength: 255
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/search_workflow_knowledge/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Search federated advisory workflow knowledge for Harness P1
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/start_debug_session/:
+    post:
+      operationId: harness_start_debug_session
+      description: Harness P2 为已校验修订建立隔离调试会话
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: header
+        name: X-Idempotency-Key
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+        required: false
+        description: 可选；提供时必须与 Body idempotency_key 完全一致
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [run_id, revision_id, expected_plan_hash, mode, idempotency_key]
+              additionalProperties: false
+              properties:
+                run_id:
+                  type: string
+                  format: uuid
+                revision_id:
+                  type: string
+                  format: uuid
+                expected_plan_hash:
+                  type: string
+                  minLength: 64
+                  maxLength: 64
+                  pattern: '^[a-f0-9]{64}$'
+                mode:
+                  type: string
+                  enum: [step, global]
+                idempotency_key:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/start_debug_session/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Start one revision-bound Harness P2 debug session
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/run_debug/:
+    post:
+      operationId: harness_run_debug
+      description: Harness P2 发起受策略约束的单步或全局调试
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: header
+        name: X-Idempotency-Key
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+        required: false
+        description: 可选；提供时必须与 Body idempotency_key 完全一致
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+                required: [session_id, expected_plan_hash, mode, execution_mode, node_id, input_overrides, mock_result, mock_outputs, mock_error, idempotency_key]
+                additionalProperties: false
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  expected_plan_hash:
+                    type: string
+                    minLength: 64
+                    maxLength: 64
+                    pattern: '^[a-f0-9]{64}$'
+                  mode:
+                    type: string
+                    enum: [step]
+                  execution_mode:
+                    type: string
+                    enum: [mock]
+                  node_id:
+                    type: string
+                    maxLength: 255
+                  input_overrides:
+                    type: object
+                  mock_result:
+                    type: string
+                    enum: [success, fail]
+                  mock_outputs:
+                    type: object
+                  mock_error:
+                    type: string
+                    maxLength: 4096
+                  idempotency_key:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+              - type: object
+                required: [session_id, expected_plan_hash, mode, execution_mode, node_id, input_overrides, mock_result, mock_outputs, mock_error, idempotency_key]
+                additionalProperties: false
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  expected_plan_hash:
+                    type: string
+                    minLength: 64
+                    maxLength: 64
+                    pattern: '^[a-f0-9]{64}$'
+                  mode:
+                    type: string
+                    enum: [step]
+                  execution_mode:
+                    type: string
+                    enum: [real]
+                  node_id:
+                    type: string
+                    maxLength: 255
+                  input_overrides:
+                    type: object
+                  mock_result:
+                    type: string
+                    enum: [success, fail]
+                  mock_outputs:
+                    type: object
+                  mock_error:
+                    type: string
+                    maxLength: 4096
+                  approval_receipt_ref:
+                    type: string
+                    maxLength: 255
+                  idempotency_key:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+              - type: object
+                required: [session_id, expected_plan_hash, mode, execution_mode, inputs, idempotency_key]
+                additionalProperties: false
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  expected_plan_hash:
+                    type: string
+                    minLength: 64
+                    maxLength: 64
+                    pattern: '^[a-f0-9]{64}$'
+                  mode:
+                    type: string
+                    enum: [global]
+                  execution_mode:
+                    type: string
+                    enum: [mock]
+                  inputs:
+                    type: object
+                  idempotency_key:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/run_debug/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Run one policy-gated Harness P2 step or global debug operation
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/get_debug_session/:
+    post:
+      operationId: harness_get_debug_session
+      description: Harness P2 查询调试会话与脱敏 Evidence
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id]
+              additionalProperties: false
+              properties:
+                session_id:
+                  type: string
+                  format: uuid
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 20
+                cursor:
+                  type: string
+                  maxLength: 512
+                  pattern: '^[A-Za-z0-9_-]+$'
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/get_debug_session/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get one owned Harness P2 debug session and Evidence page
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/control_debug_session/:
+    post:
+      operationId: harness_control_debug_session
+      description: Harness P2 对调试会话执行受控操作
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: header
+        name: X-Idempotency-Key
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+        required: false
+        description: 可选；提供时必须与 Body idempotency_key 完全一致
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+                required: [session_id, expected_plan_hash, action, node_ids, idempotency_key]
+                additionalProperties: false
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  expected_plan_hash:
+                    type: string
+                    minLength: 64
+                    maxLength: 64
+                    pattern: '^[a-f0-9]{64}$'
+                  action:
+                    type: string
+                    enum: [reset]
+                  node_ids:
+                    type: array
+                    maxItems: 100
+                    uniqueItems: true
+                    items:
+                      type: string
+                      maxLength: 255
+                  idempotency_key:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+              - type: object
+                required: [session_id, expected_plan_hash, action, idempotency_key]
+                additionalProperties: false
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  expected_plan_hash:
+                    type: string
+                    minLength: 64
+                    maxLength: 64
+                    pattern: '^[a-f0-9]{64}$'
+                  action:
+                    type: string
+                    enum: [terminate]
+                  node_id:
+                    type: string
+                    maxLength: 255
+                  idempotency_key:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+              - type: object
+                required: [session_id, expected_plan_hash, action, node_id, enabled, mock_result, mock_outputs, mock_error, idempotency_key]
+                additionalProperties: false
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  expected_plan_hash:
+                    type: string
+                    minLength: 64
+                    maxLength: 64
+                    pattern: '^[a-f0-9]{64}$'
+                  action:
+                    type: string
+                    enum: [set_node_mock]
+                  node_id:
+                    type: string
+                    maxLength: 255
+                  enabled:
+                    type: boolean
+                  mock_result:
+                    type: string
+                    enum: [success, fail]
+                  mock_outputs:
+                    type: object
+                  mock_error:
+                    type: string
+                    maxLength: 4096
+                  idempotency_key:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+              - type: object
+                required: [session_id, expected_plan_hash, action, key, value, idempotency_key]
+                additionalProperties: false
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  expected_plan_hash:
+                    type: string
+                    minLength: 64
+                    maxLength: 64
+                    pattern: '^[a-f0-9]{64}$'
+                  action:
+                    type: string
+                    enum: [set_context_var]
+                  key:
+                    type: string
+                    maxLength: 131
+                  value: { }
+                  idempotency_key:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/control_debug_session/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Control one owned Harness P2 debug session
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/prepare_release/:
+    post:
+      operationId: harness_prepare_release
+      description: Harness P3 只读复验并准备不可变发布清单
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: header
+        name: X-Idempotency-Key
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+        required: false
+        description: 可选；提供时必须与 Body idempotency_key 完全一致
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [run_id, revision_id, expected_plan_hash, idempotency_key]
+              additionalProperties: false
+              properties:
+                run_id:
+                  type: string
+                  format: uuid
+                revision_id:
+                  type: string
+                  format: uuid
+                expected_plan_hash:
+                  type: string
+                  minLength: 64
+                  maxLength: 64
+                  pattern: '^[a-f0-9]{64}$'
+                idempotency_key:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/prepare_release/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Prepare one immutable Harness P3 release manifest
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/publish_workflow/:
+    post:
+      operationId: harness_publish_workflow
+      description: Harness P3 审批绑定并发布精确清单
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: header
+        name: X-Idempotency-Key
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+        required: false
+        description: 可选；提供时必须与 Body idempotency_key 完全一致
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+                required: &publish_required [run_id, manifest_id, manifest_hash, version, description, idempotency_key]
+                additionalProperties: false
+                properties: &publish_properties
+                  run_id:
+                    type: string
+                    format: uuid
+                  manifest_id:
+                    type: string
+                    format: uuid
+                  manifest_hash:
+                    type: string
+                    minLength: 64
+                    maxLength: 64
+                    pattern: '^[a-f0-9]{64}$'
+                  version:
+                    type: string
+                    minLength: 1
+                    maxLength: 32
+                  description:
+                    type: string
+                    maxLength: 255
+                  idempotency_key:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+              - type: object
+                required: [run_id, manifest_id, manifest_hash, version, description, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *publish_properties
+                  approval_request_id: &approval_uuid
+                    type: string
+                    format: uuid
+                  approval_receipt_ref: &approval_ref
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/publish_workflow/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Publish one approved Harness P3 workflow manifest
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/start_workflow_execution/:
+    post:
+      operationId: harness_start_workflow_execution
+      description: Harness P3 审批绑定并启动一次发布快照执行
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: header
+        name: X-Idempotency-Key
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+        required: false
+        description: 可选；提供时必须与 Body idempotency_key 完全一致
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+                required: [run_id, manifest_id, publication_id, expected_plan_hash, name, constants, idempotency_key]
+                additionalProperties: false
+                properties: &start_execution_properties
+                  run_id:
+                    type: string
+                    format: uuid
+                  manifest_id:
+                    type: string
+                    format: uuid
+                  publication_id:
+                    type: string
+                    format: uuid
+                  expected_plan_hash:
+                    type: string
+                    minLength: 64
+                    maxLength: 64
+                    pattern: '^[a-f0-9]{64}$'
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+                  constants:
+                    type: object
+                  idempotency_key:
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+              - type: object
+                required: [run_id, manifest_id, publication_id, expected_plan_hash, name, constants, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *start_execution_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/start_workflow_execution/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Start one approval-bound Harness P3 workflow execution
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/get_workflow_execution/:
+    post:
+      operationId: harness_get_workflow_execution
+      description: Harness P3 查询并收敛一次执行的脱敏状态与证据
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [execution_id]
+              additionalProperties: false
+              properties:
+                execution_id:
+                  type: string
+                  format: uuid
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 20
+                cursor:
+                  type: string
+                  minLength: 1
+                  maxLength: 512
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/get_workflow_execution/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get and converge one owned Harness P3 execution
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/control_workflow_execution/:
+    post:
+      operationId: harness_control_workflow_execution
+      description: Harness P3 对已发布执行进行审批绑定的受控操作
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: header
+        name: X-Idempotency-Key
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+        required: false
+        description: 可选；提供时必须与 Body idempotency_key 完全一致
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, idempotency_key]
+                additionalProperties: false
+                properties: &control_pause_properties
+                  <<: &control_common_properties
+                    execution_id:
+                      type: string
+                      format: uuid
+                    expected_manifest_hash:
+                      type: string
+                      minLength: 64
+                      maxLength: 64
+                      pattern: '^[a-f0-9]{64}$'
+                    idempotency_key:
+                      type: string
+                      minLength: 1
+                      maxLength: 128
+                  action:
+                    type: string
+                    enum: [pause]
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *control_pause_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, idempotency_key]
+                additionalProperties: false
+                properties: &control_resume_properties
+                  <<: *control_common_properties
+                  action:
+                    type: string
+                    enum: [resume]
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *control_resume_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, idempotency_key]
+                additionalProperties: false
+                properties: &control_revoke_properties
+                  <<: *control_common_properties
+                  action:
+                    type: string
+                    enum: [revoke]
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *control_revoke_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_node_id, loop, idempotency_key]
+                additionalProperties: false
+                properties: &control_retry_properties
+                  <<: *control_common_properties
+                  action:
+                    type: string
+                    enum: [retry]
+                  template_node_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                  loop:
+                    type: boolean
+                  inputs:
+                    type: object
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_node_id, loop, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *control_retry_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_node_id, loop, idempotency_key]
+                additionalProperties: false
+                properties: &control_skip_properties
+                  <<: *control_common_properties
+                  action:
+                    type: string
+                    enum: [skip]
+                  template_node_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                  loop:
+                    type: boolean
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_node_id, loop, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *control_skip_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_node_id, callback_data, idempotency_key]
+                additionalProperties: false
+                properties: &control_callback_properties
+                  <<: *control_common_properties
+                  action:
+                    type: string
+                    enum: [callback]
+                  template_node_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                  callback_data:
+                    type: object
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_node_id, callback_data, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *control_callback_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_node_id, reason_code, idempotency_key]
+                additionalProperties: false
+                properties: &control_forced_fail_properties
+                  <<: *control_common_properties
+                  action:
+                    type: string
+                    enum: [forced_fail]
+                  template_node_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                  reason_code:
+                    type: string
+                    enum: [operator_requested]
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_node_id, reason_code, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *control_forced_fail_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_gateway_id, template_flow_id, idempotency_key]
+                additionalProperties: false
+                properties: &control_skip_exg_properties
+                  <<: *control_common_properties
+                  action:
+                    type: string
+                    enum: [skip_exg]
+                  template_gateway_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                  template_flow_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_gateway_id, template_flow_id, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *control_skip_exg_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_gateway_id, template_flow_ids, template_converge_gateway_id, idempotency_key]
+                additionalProperties: false
+                properties: &control_skip_cpg_properties
+                  <<: *control_common_properties
+                  action:
+                    type: string
+                    enum: [skip_cpg]
+                  template_gateway_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+                  template_flow_ids:
+                    type: array
+                    minItems: 1
+                    maxItems: 32
+                    uniqueItems: true
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 255
+                  template_converge_gateway_id:
+                    type: string
+                    minLength: 1
+                    maxLength: 255
+              - type: object
+                required: [execution_id, expected_manifest_hash, action, template_gateway_id, template_flow_ids, template_converge_gateway_id, idempotency_key, approval_request_id, approval_receipt_ref]
+                additionalProperties: false
+                properties:
+                  <<: *control_skip_cpg_properties
+                  approval_request_id: *approval_uuid
+                  approval_receipt_ref: *approval_ref
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/control_workflow_execution/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Control one approval-bound Harness P3 workflow execution
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /space/{space_id}/harness/submit_generation_feedback/:
+    post:
+      operationId: harness_submit_generation_feedback
+      description: Harness P4 提交绑定既有运行与修订的生成反馈
+      tags: [ ]
+      responses:
+        default:
+          description: Harness frozen Envelope
+          content:
+            application/json:
+              schema:
+                type: object
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        schema:
+          type: string
+        required: true
+        description: ''
+      - in: header
+        name: X-Idempotency-Key
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+        required: false
+        description: 可选；提供时必须与 Body idempotency_key 完全一致
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [run_id, revision_id, expected_plan_hash, feedback_type, consent_scope, idempotency_key]
+              additionalProperties: false
+              properties:
+                run_id:
+                  type: string
+                  format: uuid
+                revision_id:
+                  type: string
+                  format: uuid
+                expected_plan_hash:
+                  type: string
+                  minLength: 64
+                  maxLength: 64
+                  pattern: '^[a-f0-9]{64}$'
+                feedback_type:
+                  type: string
+                  enum: [ACCEPTED, REJECTED, CORRECTION, RUNTIME_ISSUE, BUSINESS_OUTCOME]
+                consent_scope:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                idempotency_key:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                summary:
+                  type: string
+                  minLength: 1
+                  maxLength: 4096
+                correction_artifact_ref:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                execution_id:
+                  type: string
+                  format: uuid
+                observed_outcome: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/harness/submit_generation_feedback/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Submit consent-bound untrusted generation feedback for Harness P4
+        enableWebsocket: false
+        pluginConfigs: [ ]

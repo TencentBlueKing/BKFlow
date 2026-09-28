@@ -58,7 +58,7 @@ def reference_tree(template_id, converted=False, nested=False):
     if converted:
         node = {
             "type": "ServiceActivity",
-            "component": {"code": "subprocess_plugin", "data": {"subprocess": {"value": node}}},
+            "component": {"code": "subprocess_plugin", "data": {"subprocess": {"value": node, "hook": False}}},
         }
     tree = {"activities": {"ref": node}}
     if nested:

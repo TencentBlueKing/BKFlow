@@ -444,6 +444,32 @@ class TestCreateTemplateWithA2FlowV2View(TestCase):
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
+    @patch("bkflow.template.services.a2flow_template.create_template_from_a2flow")
+    def test_v2_creator_is_authenticated_user_not_request_controlled_value(self, create_template):
+        """Extraction preserves the original v2 audit attribution contract."""
+        space = self.create_space()
+        create_template.return_value.to_json.return_value = {"id": 1, "name": "v2"}
+        response = self.client.post(
+            "/apigw/space/{}/create_template_with_a2flow/".format(space.id),
+            data=json.dumps(
+                {
+                    "creator": "forged-user",
+                    "a2flow": {
+                        "version": "2.0",
+                        "name": "v2",
+                        "nodes": [{"id": "n1", "name": "wait", "code": "sleep_timer", "next": "end"}],
+                    },
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertTrue(response.json()["result"])
+        self.assertNotEqual(create_template.call_args.kwargs["username"], "forged-user")
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
     @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.BKPlugin")
     @patch("bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.ComponentModel")
     def test_v2_create_template_success(self, mock_cm, mock_bkp):

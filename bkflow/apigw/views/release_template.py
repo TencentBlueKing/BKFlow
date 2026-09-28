@@ -21,23 +21,17 @@ import logging
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
-from django.db import transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from webhook.signals import event_broadcast_signal
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
-from bkflow.constants import (
-    TemplateOperationSource,
-    TemplateOperationType,
-    WebhookEventType,
-    WebhookScopeType,
-)
+from bkflow.constants import TemplateOperationSource
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
-from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
+from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.template.serializers.template import TemplateReleaseSerializer
+from bkflow.template.services.release import TemplateReleaseService
 from bkflow.utils import err_code
 from bkflow.utils.version import bump_custom
 
@@ -73,28 +67,12 @@ def release_template(request, space_id, template_id):
         logger.error(str(e))
         return JsonResponse({"result": False, "message": f"版本号不符合规范: {str(e)}", "code": err_code.VALIDATION_ERROR.code})
 
-    with transaction.atomic():
-        data = {"username": request.user.username, **ser.validated_data}
-        snapshot = instance.release_template(data)
-        instance.snapshot_id = snapshot.id
-        instance.save()
-
-    TemplateOperationRecord.objects.create(
-        operate_source=TemplateOperationSource.app.name,
-        operate_type=TemplateOperationType.release.name,
-        instance_id=instance.id,
+    TemplateReleaseService.release(
+        instance,
+        ser.validated_data,
         operator=request.user.username,
-        extra_info={"version": new_version},
-    )
-
-    event_broadcast_signal.send(
-        sender=WebhookEventType.TEMPLATE_RELEASE.value,
-        scopes=[(WebhookScopeType.SPACE.value, str(space_id))],
-        extra_info={
-            "template_id": template_id,
-            "version": new_version,
-            "username": request.user.username,
-        },
+        source=TemplateOperationSource.app.name,
+        emit_webhook=True,
     )
 
     return JsonResponse({"result": True, "data": instance.to_json(), "code": err_code.SUCCESS.code})

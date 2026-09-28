@@ -229,7 +229,7 @@ class SpaceConfig(models.Model):
     value_type = models.CharField(
         _("配置类型"), choices=CONFIG_VALUE_TYPE_CHOICES, default=SpaceConfigValueType.TEXT.value, max_length=32
     )
-    name = models.CharField(_("配置项"), choices=CONFIG_CHOICES, max_length=32)
+    name = models.CharField(_("配置项"), choices=CONFIG_CHOICES, max_length=64)
     text_value = models.CharField(_("配置值"), max_length=128, default="")
     json_value = models.JSONField(_("配置值(JSON)"), default=dict, blank=True)
 
