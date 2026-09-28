@@ -33,6 +33,7 @@ from bkflow.template.models import Template, Trigger
 from bkflow.template.serializers.trigger import TriggerSerializer
 from bkflow.template.tenant import validate_template_references
 from bkflow.template.utils import validate_pipeline_tree_gateway_expression
+from bkflow.utils.validate import validate_password_variable_enabled
 
 logger = logging.getLogger("root")
 
@@ -115,6 +116,8 @@ class CreateTemplateSerializer(serializers.Serializer):
             except Exception as e:
                 logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
                 raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
+
+            validate_password_variable_enabled(pipeline_tree)
 
         creator = attrs.get("creator")
         if not creator and not self.context.get("request").user.username:
@@ -212,6 +215,7 @@ class UpdateTemplateSerializer(serializers.Serializer):
             _validate_template_label_ids(attrs.get("label_ids") or [], self.context.get("space_id"))
 
         if pipeline_tree:
+            validate_password_variable_enabled(pipeline_tree)
             validate_template_references(self.context.get("space_id"), pipeline_tree)
 
         return attrs

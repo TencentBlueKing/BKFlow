@@ -38,6 +38,12 @@ class VariableViewSet(TenantScopeMixin, ReadOnlyViewSet):
     queryset = VariableModel.objects.filter(status=True)
     lookup_field = "code"
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if not settings.ENABLE_PASSWORD_VARIABLE:
+            queryset = queryset.exclude(code="password")
+        return queryset
+
     @action(methods=["GET"], detail=False)
     def check_variable_key(self, request, *args, **kwargs):
         """

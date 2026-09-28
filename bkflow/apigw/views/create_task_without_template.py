@@ -30,6 +30,7 @@ from bkflow.constants import TaskTriggerMethod
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
 from bkflow.space.models import Space
+from bkflow.utils.validate import validate_no_password_variable_in_apigw
 
 
 @login_exempt
@@ -76,6 +77,8 @@ def create_task_without_template(request, space_id):
         scope_type=create_task_data.get("scope_type"),
         scope_id=create_task_data.get("scope_value"),
     )
+
+    validate_no_password_variable_in_apigw(create_task_data["pipeline_tree"])
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)

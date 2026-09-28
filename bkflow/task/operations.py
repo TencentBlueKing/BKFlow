@@ -47,6 +47,7 @@ from pipeline.parser.context import get_pipeline_context
 from pydantic import BaseModel, validator
 
 from bkflow.constants import (
+    MASK_META_SYSTEM_MASK_INFO_KEY,
     PipelineContextObjType,
     RecordType,
     TaskOperationSource,
@@ -1210,6 +1211,10 @@ class TaskNodeOperation:
         subprocess_stack: Optional[list] = None,
     ) -> (bool, str, list):
         outputs_table = []
+        # 过滤引擎内部私有字段（如密码变量掩码恢复信息），不作为输出参数对外展示
+        raw_outputs = outputs.get("outputs")
+        if isinstance(raw_outputs, dict):
+            raw_outputs.pop(MASK_META_SYSTEM_MASK_INFO_KEY, None)
         if component_code:
             try:
                 version = (

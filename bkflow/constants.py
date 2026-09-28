@@ -30,6 +30,11 @@ WHITE_LIST = "white_list"
 BK_PLUGIN_SYNC_NUM = 100
 TEMPLATE_MD5SUM_LENGTH = 32
 
+# 密码变量掩码处理：节点 outputs 中暂存掩码前原始 inputs 的私有 key，
+# 仅供 schedule 阶段恢复被掩码覆盖的输入数据使用，不作为插件输出对外暴露
+# （对外展示时会在 TaskNodeOperation._format_outputs 中过滤掉）
+MASK_META_SYSTEM_MASK_INFO_KEY = "_mask_meta_system_mask_info"
+
 formatted_key_pattern = re.compile(r"^\${(.*?)}$")
 
 

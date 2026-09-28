@@ -39,6 +39,7 @@ from bkflow.task.operations import TaskNodeOperation, TaskOperation
 from bkflow.utils.handlers import mask_sensitive_data_for_display
 from bkflow.utils.strings import standardize_pipeline_node_name
 from bkflow.utils.tenant import TenantIDField
+from bkflow.utils.validate import validate_password_variable_enabled
 
 logger = logging.getLogger("root")
 
@@ -108,6 +109,8 @@ class CreateTaskInstanceSerializer(serializers.ModelSerializer):
             # 注意：在apigw视图中已经解析了credentials，这里只是确保它们被保留
             if credentials and "credentials" not in pipeline_tree:
                 pipeline_tree["credentials"] = credentials
+
+            validate_password_variable_enabled(pipeline_tree)
 
             standardize_pipeline_node_name(pipeline_tree)
             validate_web_pipeline_tree(pipeline_tree)

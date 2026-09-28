@@ -109,6 +109,7 @@ class TestBKVisionContextProcessor:
         mock_settings.APP_CODE = "bkflow"
         mock_settings.APP_NAME = "BKFlow"
         mock_settings.RUN_VER_NAME = "BKFlow"
+        mock_settings.ENABLE_PASSWORD_VARIABLE = False
         mock_env_vars.objects.get_var = MagicMock(return_value=0)
 
         from bkflow.interface.context_processors import bkflow_settings
@@ -140,6 +141,7 @@ class TestBKVisionContextProcessor:
         mock_settings.APP_CODE = "bkflow"
         mock_settings.APP_NAME = "BKFlow"
         mock_settings.RUN_VER_NAME = "BKFlow"
+        mock_settings.ENABLE_PASSWORD_VARIABLE = False
         mock_env_vars.objects.get_var = MagicMock(return_value=0)
 
         from bkflow.interface.context_processors import bkflow_settings
@@ -151,6 +153,38 @@ class TestBKVisionContextProcessor:
         assert ctx["BKVISION_BASE_URL"] == "https://bkvision.example.com"
         assert ctx["BKVISION_MAIN_JS_SRC_URL"] == "https://bkvision.example.com/main.js"
 
+    @patch("bkflow.interface.context_processors.env", _make_mock_env())
+    @patch("bkflow.interface.context_processors.EnvironmentVariables")
+    @patch("bkflow.interface.context_processors.settings")
+    @patch("bkflow.utils.crypto.get_default_asymmetric_key_config")
+    def test_password_variable_public_key_exposed_when_enabled(
+        self, mock_get_key_config, mock_settings, mock_env_vars
+    ):
+        """密码变量开关开启时，应向前端暴露公钥与密文前缀"""
+        mock_settings.ENABLE_PASSWORD_VARIABLE = True
+        mock_settings.BKCRYPTO_ASYMMETRIC_CIPHER_TYPE = "SM2"
+        mock_settings.STATIC_URL = "/static/"
+        mock_settings.RUN_VER = "open"
+        mock_settings.MAX_NODE_EXECUTE_TIMEOUT = 3600
+        mock_settings.MEMBER_SELECTOR_DATA_HOST = ""
+        mock_settings.APP_CODE = "bkflow"
+        mock_settings.APP_NAME = "BKFlow"
+        mock_settings.RUN_VER_NAME = "BKFlow"
+        mock_env_vars.objects.get_var = MagicMock(return_value=0)
+
+        class _FakeKeyConfig:
+            public_key_string = "FAKE_PUB"
+
+        mock_get_key_config.return_value = _FakeKeyConfig()
+
+        from bkflow.interface.context_processors import bkflow_settings
+
+        ctx = bkflow_settings(_make_mock_request())
+
+        assert ctx["ASYMMETRIC_CIPHER_TYPE"] == "SM2"
+        assert ctx["ASYMMETRIC_PUBLIC_KEY"] == "FAKE_PUB"
+        assert ctx["ASYMMETRIC_PREFIX"] == "sm2_str:::"
+
 
 class TestBKVisionFrontendTemplates:
     """BK-Vision 前端模板变量注入测试"""
@@ -158,5 +192,5 @@ class TestBKVisionFrontendTemplates:
     def test_bkvision_main_js_src_url_exists_in_frontend_templates(self):
         """前端模板应暴露 BKVISION_MAIN_JS_SRC_URL 全局变量"""
         for template in ("frontend/index.html", "frontend/index-dev.html"):
-            content = Path(template).read_text()
+            content = Path(template).read_text(encoding="utf-8")
             assert "var BKVISION_MAIN_JS_SRC_URL" in content

@@ -520,3 +520,47 @@ BKPAAS_USER_URL = env.BKPAAS_USER_URL
 BKPAAS_IAM_URL = env.BKPAAS_IAM_URL
 ENABLE_MULTI_TENANT_MODE = env.ENABLE_MULTI_TENANT_MODE
 BK_PLUGIN_SYNC_TENANTS = env.BK_PLUGIN_SYNC_TENANTS
+
+# ===================== 密码变量加解密（RSA / SM2） =====================
+# 默认密钥仅用于本地/测试环境，生产环境请通过环境变量覆盖（参照标准运维）
+
+
+from bkcrypto import constants as bkcrypto_constants  # noqa: E402
+from bkcrypto.asymmetric.options import RSAAsymmetricOptions, SM2AsymmetricOptions  # noqa: E402
+
+BKCRYPTO = {
+    "ASYMMETRIC_CIPHERS": {
+        "default": {
+            "get_key_config": "bkflow.utils.crypto.get_default_asymmetric_key_config",
+            "cipher_options": {
+                bkcrypto_constants.AsymmetricCipherType.RSA.value: RSAAsymmetricOptions(
+                    padding=bkcrypto_constants.RSACipherPadding.PKCS1_v1_5
+                ),
+                bkcrypto_constants.AsymmetricCipherType.SM2.value: SM2AsymmetricOptions(),
+            },
+        },
+    },
+}
+
+# 加密算法类型：为空或 "RSA" 走 RSA，配置为 "SHANGMI" 走国密 SM2
+# if env.BKPAAS_BK_CRYPTO_TYPE == "SHANGMI":
+# elif env.BKPAAS_BK_CRYPTO_TYPE == "RSA":
+if bool(env.SM2_PRIV_KEY and env.SM2_PUB_KEY):
+    SM2_PRIV_KEY = base64.b64decode(env.SM2_PRIV_KEY).decode("utf-8")
+    SM2_PUB_KEY = base64.b64decode(env.SM2_PUB_KEY).decode("utf-8")
+    BKCRYPTO_ASYMMETRIC_CIPHER_TYPE = bkcrypto_constants.AsymmetricCipherType.SM2.value
+    ENABLE_PASSWORD_VARIABLE = True
+elif bool(env.RSA_PRIV_KEY and env.RSA_PUB_KEY):
+    RSA_PRIV_KEY = base64.b64decode(env.RSA_PRIV_KEY).decode("utf-8")
+    RSA_PUB_KEY = base64.b64decode(env.RSA_PUB_KEY).decode("utf-8")
+    BKCRYPTO_ASYMMETRIC_CIPHER_TYPE = bkcrypto_constants.AsymmetricCipherType.RSA.value
+    ENABLE_PASSWORD_VARIABLE = True
+else:
+    ENABLE_PASSWORD_VARIABLE = False
+
+if ENABLE_PASSWORD_VARIABLE:
+    BKCRYPTO.update(
+        {
+            "ASYMMETRIC_CIPHER_TYPE": BKCRYPTO_ASYMMETRIC_CIPHER_TYPE,
+        }
+    )

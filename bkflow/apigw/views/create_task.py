@@ -37,6 +37,7 @@ from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotServic
 from bkflow.space.models import Space
 from bkflow.template.models import Template
 from bkflow.utils.trace import CallFrom, trace_view
+from bkflow.utils.validate import validate_no_password_variable_in_apigw
 
 
 @login_exempt
@@ -96,6 +97,8 @@ def create_task(request, space_id):
             "custom_span_attributes"
         ] = custom_span_attributes
     create_task_data["tenant_id"] = Space.objects.get(id=space_id).tenant_id
+
+    validate_no_password_variable_in_apigw(create_task_data["pipeline_tree"])
 
     client = TaskComponentClient(space_id=space_id)
     result = client.create_task(create_task_data)
