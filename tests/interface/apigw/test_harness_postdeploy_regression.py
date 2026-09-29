@@ -1,13 +1,18 @@
 """Real P0 transport regressions: public HTTP inputs, repair guidance and stop semantics."""
 
 from copy import deepcopy
+from unittest.mock import MagicMock
 
 import pytest
 from django.urls import resolve
 from pipeline.component_framework.models import ComponentModel
+from pipeline.core.data.base import DataObject
 
 from bkflow.harness.models import HarnessIdempotencyRecord, WorkflowPlanRevision
-from bkflow.pipeline_plugins.components.collections.http.v1_0 import HttpComponent
+from bkflow.pipeline_plugins.components.collections.http.v1_0 import (
+    HttpComponent,
+    HttpRequestService,
+)
 from bkflow.pipeline_plugins.components.collections.pause.legacy import PauseComponent
 from bkflow.template.models import Template, TemplateSnapshot
 from tests.interface.apigw.test_harness_p0 import (
@@ -66,9 +71,109 @@ def http_inputs(headers):
         "bk_http_request_url": "https://example.invalid/local-only",
         "bk_http_request_header": headers,
         "bk_http_request_body": "",
-        "bk_http_request_timeout": 5,
+        "bk_http_timeout": 5,
         "bk_http_success_exp": "resp.status_code == 200",
     }
+
+
+@pytest.mark.parametrize("timeout,expected_timeout", [(1, 1), (0, 60), (60, 60)])
+def test_http_schema_to_draft_to_runtime_preserves_timeout(
+    monkeypatch, harness_call, settings, timeout, expected_timeout
+):
+    """Schema 生成的草稿必须能直接交给真实插件，并保留超时与零值语义。"""
+    settings.ENABLE_HTTP_PLUGIN_DOMAINS_CHECK = False
+    inputs = http_inputs([{"name": "X-Test-Case", "value": "synthetic"}])
+    inputs.update(bk_http_timeout=timeout, bk_http_success_exp="resp.result == True")
+    request = request_for_component(monkeypatch, harness_call, HttpComponent, inputs)
+    binding = request["bindings"][0]
+    schema = harness_call(
+        "get_plugin_schema",
+        {"capability_ref": binding["capability_ref"], "expected_schema_hash": binding["schema_hash"]},
+    )
+    assert schema["ok"], schema
+    accepted = harness_call("validate_workflow", request)
+    assert accepted["ok"], accepted
+    payload = {key: accepted[key] for key in ("run_id", "revision_id", "plan_hash")}
+    drafted = harness_call("create_workflow_draft", dict(payload, idempotency_key="http-runtime-draft"))
+    assert drafted["ok"], drafted
+    tree = Template.objects.get().pipeline_tree
+    values = next(iter(tree["activities"].values()))["component"]["data"]
+    assert values["bk_http_timeout"]["value"] == timeout
+    assert "bk_http_request_timeout" not in values
+    data = DataObject(inputs={key: item["value"] for key, item in values.items()})
+    response = MagicMock(status_code=200)
+    response.json.return_value = {"result": True}
+    send = MagicMock(return_value=response)
+    monkeypatch.setattr("bkflow.pipeline_plugins.components.collections.http.v1_0.request", send)
+    service = HttpComponent({}).service()
+    service.logger = MagicMock()
+    assert service.plugin_schedule(data, DataObject(inputs={})) is True
+    assert data.outputs.status_code == 200
+    assert data.outputs.data == {"result": True}
+    send.assert_called_once_with(
+        method="GET",
+        url="https://example.invalid/local-only",
+        verify=False,
+        timeout=expected_timeout,
+        headers={"X-Test-Case": "synthetic"},
+    )
+
+
+def test_http_legacy_schema_requires_revalidation_and_updates_same_draft(monkeypatch, harness_call):
+    """旧错误字段的草稿不能绕过 Schema 漂移检查，可经新 Revision 原位修复。"""
+    current_format = HttpRequestService.inputs_format
+
+    def legacy_format(service):
+        fields = current_format(service)
+        for field in fields:
+            if field.key == "bk_http_timeout":
+                field.key = "bk_http_request_timeout"
+        return fields
+
+    monkeypatch.setattr(HttpRequestService, "inputs_format", legacy_format)
+    inputs = http_inputs([])
+    inputs["bk_http_request_timeout"] = inputs.pop("bk_http_timeout")
+    request = request_for_component(monkeypatch, harness_call, HttpComponent, inputs)
+    accepted = harness_call("validate_workflow", request)
+    assert accepted["ok"], accepted
+    payload = {key: accepted[key] for key in ("run_id", "revision_id", "plan_hash")}
+    created = harness_call("create_workflow_draft", dict(payload, idempotency_key="legacy-http-draft"))
+    assert created["ok"], created
+    original_tree = deepcopy(Template.objects.get().pipeline_tree)
+
+    monkeypatch.setattr(HttpRequestService, "inputs_format", current_format)
+    stale = harness_call("create_workflow_draft", dict(payload, idempotency_key="legacy-http-new-write"))
+    assert stale["ok"] is False
+    assert stale["errors"][0]["code"] == "VALIDATION_STALE"
+    assert Template.objects.get().pipeline_tree == original_tree
+    old_binding = request["bindings"][0]
+    drift = harness_call(
+        "get_plugin_schema",
+        {"capability_ref": old_binding["capability_ref"], "expected_schema_hash": old_binding["schema_hash"]},
+    )
+    assert drift["ok"] is False
+    assert drift["errors"][0]["code"] == "SCHEMA_DRIFT"
+    card = harness_call("search_workflow_capabilities", {"query": HttpComponent.code})["artifact_refs"][0]["payload"][0]
+    assert card["schema_hash"] != old_binding["schema_hash"]
+    old_binding["schema_hash"] = card["schema_hash"]
+    request.update(run_id=accepted["run_id"], idempotency_key="reject-legacy-http-input")
+    rejected = harness_call("validate_workflow", request)
+    assert rejected["ok"] is False
+    assert rejected["errors"][0]["code"] == "SCHEMA_VALIDATION_ERROR"
+    assert Template.objects.get().pipeline_tree == original_tree
+    inputs["bk_http_timeout"] = inputs.pop("bk_http_request_timeout")
+    request["idempotency_key"] = "repair-http-input"
+    repaired = harness_call("validate_workflow", request)
+    assert repaired["ok"], repaired
+    payload = {key: repaired[key] for key in ("run_id", "revision_id", "plan_hash")}
+    updated = harness_call("create_workflow_draft", dict(payload, idempotency_key="repair-http-draft"))
+    assert updated["ok"], updated
+    assert updated["artifact_refs"][0]["template_id"] == created["artifact_refs"][0]["template_id"]
+    assert Template.objects.count() == 1
+    assert TemplateSnapshot.objects.filter(draft=False).count() == 0
+    values = next(iter(Template.objects.get().pipeline_tree["activities"].values()))["component"]["data"]
+    assert values["bk_http_timeout"]["value"] == 5
+    assert "bk_http_request_timeout" not in values
 
 
 @pytest.mark.parametrize("wire_key", ["inputs", "data"])
