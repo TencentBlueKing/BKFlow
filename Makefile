@@ -7,6 +7,7 @@ HARNESS_P2_GATE_PATHS := \
 	tests/interface/permission/test_token_issuer.py \
 	tests/interface/template/debug \
 	tests/interface/apigw/test_harness_p0.py \
+	tests/interface/apigw/test_harness_postdeploy_regression.py \
 	tests/interface/apigw/test_harness_p1.py \
 	tests/interface/apigw/test_harness_p2.py \
 	tests/interface/apigw/test_harness_resource_contract.py \

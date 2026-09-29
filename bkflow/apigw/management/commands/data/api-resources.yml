@@ -7669,7 +7669,7 @@ paths:
   /space/{space_id}/harness/validate_workflow/:
     post:
       operationId: harness_validate_workflow
-      description: Harness P0 校验并持久化受治理的 a2flow 修订
+      description: Harness P0 校验并持久化含画布布局的受治理 a2flow 修订，返回安全的规则修复提示
       tags: [ ]
       responses:
         default:
@@ -7770,7 +7770,7 @@ paths:
   /space/{space_id}/harness/create_workflow_draft/:
     post:
       operationId: harness_create_workflow_draft
-      description: Harness P0 将已校验修订幂等写入受管理草稿
+      description: Harness P0 将已校验修订及画布布局幂等写入受管理草稿，DRAFT_READY 后停止
       tags: [ ]
       responses:
         default:

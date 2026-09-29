@@ -47,3 +47,11 @@ POST `/space/{space_id}/harness/create_workflow_draft/`
 草稿只接受已经由受治理 Schema 读取和 `validate_workflow` 固化的计划；Agent 不得用 raw code、版本或来源字段绕过搜索卡片的 `capability_ref` 与 Schema 哈希门禁。
 
 该接口只产生版本为空的 managed DRAFT，不触发 release、debug、任务创建、执行、SDK 调用或令牌签发。Agent 报告 DRAFT 后必须停止，后续发布与执行仅属于更高阶段的独立 Tool allowlist。
+
+#### 完整画布与停止语义
+
+草稿使用与校验报告相同的受治理转换结果，包含全部节点位置 `location` 和连线 `line`。节点/边 ID 不因布局而变化，逻辑树、画布、Artifact 与校验报告的 `pipeline_tree_hash` 必须一致；首次创建和后续修订更新均适用。
+
+成功响应的 `status` 为 `DRAFT_READY`，`next_actions` 固定为空数组。同一幂等键重放也必须停止，不再推荐 `create_workflow_draft`。旧幂等记录的停止提示在响应层兼容处理，不改写不可变历史记录。
+
+部署升级不会自动补齐既有草稿的布局；重放旧创建请求也不会重新生成画布。确需更新受管理草稿时，必须在原 run 上使用新幂等键执行 `validate_workflow`，再用新修订和新幂等键调用本接口。旧校验指纹不匹配时返回 `VALIDATION_STALE`。本次升级不隐式发布、执行或迁移历史草稿。

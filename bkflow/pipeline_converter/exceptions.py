@@ -43,6 +43,10 @@ class A2FlowConvertError(Exception):
         return result
 
 
+class SubprocessDraftError(A2FlowConvertError):
+    """Distinguish the draft-only rule without changing the legacy converter error DTO."""
+
+
 class A2FlowValidationError(Exception):
     """包含多个结构化错误的校验异常"""
 

@@ -431,10 +431,19 @@ def _safe_domain_result(context, result, method):
             "revision_id": _safe_identifier(result.get("revision_id")),
             "plan_hash": _safe_identifier(result.get("plan_hash")),
             "status": _safe_identifier(result.get("status")),
-            "summary": "Harness request accepted.",
+            "summary": (
+                "Workflow draft created; stop the draft-only workflow."
+                if method == "create_workflow_draft" and result.get("status") == "DRAFT_READY"
+                else "Harness request accepted."
+            ),
             "artifact_refs": artifact_refs,
             "errors": [],
-            "next_actions": _safe_next_actions(context, result.get("next_actions")),
+            # Also project old idempotency snapshots without rewriting durable evidence.
+            "next_actions": (
+                []
+                if method == "create_workflow_draft" and result.get("status") == "DRAFT_READY"
+                else _safe_next_actions(context, result.get("next_actions"))
+            ),
             "correlation_id": _safe_identifier(context.correlation_id),
         }
     safe_errors = [_safe_error(error) for error in raw_errors] if isinstance(raw_errors, list) and raw_errors else []

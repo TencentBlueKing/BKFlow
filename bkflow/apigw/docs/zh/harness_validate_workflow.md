@@ -56,3 +56,28 @@ Activity 可以省略 `code` 和 `plugin_type`：服务端以该节点的精确 
 能力 Binding 的 `capability_ref` 必须来自受治理搜索卡片；精确 Schema 读取只向 `get_plugin_schema` 传递该卡片的 `capability_ref` 与 `schema_hash`，不得使用 raw code、版本或来源字段重建身份。
 
 校验成功不等于模板发布或执行成功。只有同一 run 的最新成功校验、匹配的 `plan_hash` 和新写幂等键可进入 `create_workflow_draft`；结果为 DRAFT 后停止。
+
+#### HTTP 公开 Header 输入边界
+
+仅当精确 binding 重新授权为内置 `component / bk_http_request`，且字段符合实时 Schema 时，允许在节点的 `inputs`（或兼容字段 `data`）中传入 `bk_http_request_header`。其他插件、意图、全局变量及任意嵌套位置不享受该例外。
+
+Header 必须是闭合的 `{name, value}` 对象数组；也支持 `{hook: false, value: [...]}` 包装，`need_render` 可选且必须是布尔值。名称大小写不敏感，仅允许：`Accept`、`Accept-Language`、`Content-Type`、`Content-Language`、`Cache-Control`、`X-Test-Case`、`X-Request-Id`、`X-Correlation-Id`。值必须是公开的字面字符串；拒绝控制字符、动态变量/模板、敏感文本及额外字段，原有深度、项数和总字节数上限不变。
+
+```json
+{"bk_http_request_header": [{"name": "Content-Type", "value": "application/json"}]}
+```
+
+不开放任意 `X-*` 名称。`Authorization`、`Cookie`、网关认证头、自定义密钥头及令牌不得随模型输入传入；需经服务端受治理的凭证机制处理。本例外不会自动给 HTTP 插件增加凭证注入能力，也不允许执行请求。
+
+#### 可修复规则与画布证据
+
+| 错误码 | 修复方式 |
+|---|---|
+| FAILURE_STRATEGY_CONFLICT | 自动跳过、自动重试、超时控制至多启用一项。 |
+| FAILURE_STRATEGY_INVALID_COMBO | 自动跳过时关闭手动重试/跳过；自动重试时关闭手动重试。 |
+| SUBPROCESS_DRAFT_NOT_ALLOWED | 选择同空间、同 Scope 的已发布子流程；不得为了修复候选流程而自动发布草稿。 |
+| HOOK_REFERENCE_INVALID | `hook=true` 的表达式只使用已声明的纯变量引用，如 `${variable}`；不支持与字面文本混合。 |
+
+上述错误仅返回服务端白名单文案和安全字段路径，不回显转换器异常、输入值或内部细节。修复后使用新幂等键再次校验。
+
+受治理转换结果包含完整 `location`、`line`，与逻辑节点、边一起参与 `pipeline_tree_hash`；`plan_hash` 仍描述 canonical a2flow、能力绑定和可信策略。布局实现版本计入转换器指纹。升级前的校验不能直接作为新布局的验收证据：遇到 `VALIDATION_STALE`，须重新校验，而不是绕过哈希检查。

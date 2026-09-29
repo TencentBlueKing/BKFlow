@@ -40,6 +40,7 @@ from bkflow.harness.models import (
     WorkflowPlanRevision,
 )
 from bkflow.harness.safety import (
+    HTTP_HEADER_INPUT,
     MAX_HARNESS_JSON_DEPTH,
     MAX_HARNESS_JSON_ITEMS,
     MAX_HARNESS_JSON_STRING_BYTES,
@@ -75,6 +76,8 @@ from bkflow.pipeline_converter.converters.a2flow_v2.data_models import A2FlowPip
 from bkflow.pipeline_converter.exceptions import (
     A2FlowConvertError,
     A2FlowValidationError,
+    ErrorTypes,
+    SubprocessDraftError,
 )
 from bkflow.pipeline_validate.handler import ValidatorHandler
 from bkflow.space.models import Credential
@@ -113,6 +116,28 @@ class WorkflowValidationFailure(ValueError):
         "SCHEMA_DRIFT": ("SCHEMA_DRIFT", "The selected capability schema changed.", "get_plugin_schema"),
         "SCHEMA_VALIDATION_ERROR": ("VALIDATION", "The workflow input does not match its schema.", "repair_a2flow"),
         "A2FLOW_CONVERSION_ERROR": ("VALIDATION", "The workflow structure cannot be converted.", "repair_a2flow"),
+        "FAILURE_STRATEGY_CONFLICT": (
+            "VALIDATION",
+            "Enable at most one of error_ignorable, auto_retry.enable and timeout_config.enable.",
+            "repair_a2flow",
+        ),
+        "FAILURE_STRATEGY_INVALID_COMBO": (
+            "VALIDATION",
+            "With error_ignorable enabled, set retryable and skippable to false; "
+            "with auto_retry.enable enabled, set retryable to false.",
+            "repair_a2flow",
+        ),
+        "SUBPROCESS_DRAFT_NOT_ALLOWED": (
+            "VALIDATION",
+            "Select an already published subprocess template in the same space and scope; drafts cannot be referenced.",
+            "repair_a2flow",
+        ),
+        "HOOK_REFERENCE_INVALID": (
+            "VALIDATION",
+            "Use only declared variable references such as ${variable} with hook=true; "
+            "mixed literal interpolation is not supported.",
+            "repair_a2flow",
+        ),
         "PIPELINE_VALIDATION_ERROR": ("VALIDATION", "The converted workflow is not valid.", "repair_a2flow"),
         "PLAN_HASH_MISMATCH": ("VALIDATION", "The workflow plan changed.", "revalidate_workflow"),
         "VALIDATION_STALE": ("SCHEMA_DRIFT", "The accepted validation is stale.", "validate_workflow"),
@@ -502,6 +527,9 @@ class WorkflowValidator:
             raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="bindings.{}".format(node_id))
         canonical_a2flow = self._canonical_a2flow(request["a2flow"])
         canonical_nodes = {node["id"]: node for node in canonical_a2flow["nodes"]}
+        for node in canonical_nodes.values():
+            if HTTP_HEADER_INPUT in node.get("data", {}) and node["type"] != NodeType.ACTIVITY:
+                raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="a2flow.<field>")
         variable_keys = {item["key"] for item in canonical_a2flow.get("variables", [])}
         for binding in resolved:
             node = canonical_nodes[binding["node_id"]]
@@ -518,6 +546,10 @@ class WorkflowValidator:
             node["code"] = capability.code
             node["plugin_type"] = capability.plugin_type
             binding["credential_ref"] = self._credential_ref(binding["credential_ref"], binding["node_id"])
+            if HTTP_HEADER_INPUT in node.get("data", {}) and (
+                capability.plugin_type != "component" or capability.code != "bk_http_request"
+            ):
+                raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="a2flow.<field>")
             self._validate_node_inputs(binding["node_id"], node.get("data", {}), binding["schema"], variable_keys)
             binding.pop("schema")
         return resolved, canonical_a2flow
@@ -633,9 +665,9 @@ class WorkflowValidator:
                 if isinstance(value["value"], str) and "${" in value["value"]:
                     references = self._TEMPLATE_REF.findall(value["value"])
                     if not references or "".join("${{{}}}".format(item) for item in references) != value["value"]:
-                        raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="{}.value".format(path))
+                        raise WorkflowValidationFailure("HOOK_REFERENCE_INVALID", path="{}.value".format(path))
                     if any("${{{}}}".format(item) not in variable_keys for item in references):
-                        raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="{}.value".format(path))
+                        raise WorkflowValidationFailure("HOOK_REFERENCE_INVALID", path="{}.value".format(path))
                 return
             candidate = value["value"]
         schema = self._field_json_schema(definition)
@@ -838,7 +870,16 @@ class WorkflowValidator:
             path = "a2flow.{}".format(field)
         else:
             path = "a2flow"
-        return WorkflowValidationFailure("A2FLOW_CONVERSION_ERROR", path=path)
+        if isinstance(item, SubprocessDraftError):
+            code = "SUBPROCESS_DRAFT_NOT_ALLOWED"
+        elif getattr(item, "error_type", None) in (
+            ErrorTypes.FAILURE_STRATEGY_CONFLICT,
+            ErrorTypes.FAILURE_STRATEGY_INVALID_COMBO,
+        ):
+            code = item.error_type
+        else:
+            code = "A2FLOW_CONVERSION_ERROR"
+        return WorkflowValidationFailure(code, path=path)
 
     def _idempotency_scope(self, run, idempotency_key):
         """Use pre-run scope for the first write and durable run scope thereafter."""
@@ -943,6 +984,12 @@ class WorkflowValidator:
 
     def _reject_sensitive_json(self, value, path, depth=0, total_bytes=0):
         """Reject secret-like key aliases recursively before any durable DTO is built."""
+        if depth == 0 and path == "a2flow":
+            # Structural exception only; exact component identity and live Schema
+            # are independently re-authorized before persisting a revision.
+            if not is_bounded_non_secret_json(value, allow_public_http_headers=True):
+                raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="a2flow.<field>")
+            return
         if depth > self._MAX_JSON_DEPTH:
             raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path=path)
         if isinstance(value, dict):
@@ -1007,11 +1054,17 @@ class WorkflowValidator:
             "revision_id": str(revision.id) if revision else None,
             "plan_hash": plan_hash_value,
             "status": status,
-            "summary": "Workflow validation accepted." if ok else "Workflow validation requires repair.",
+            "summary": (
+                "Workflow draft created; stop the draft-only workflow."
+                if ok and status == "DRAFT_READY"
+                else "Workflow validation accepted."
+                if ok
+                else "Workflow validation requires repair."
+            ),
             "artifact_refs": artifact_refs or [],
             "errors": errors or [],
             "next_actions": (
-                ["create_workflow_draft"]
+                (["create_workflow_draft"] if status == "VALIDATING" else [])
                 if ok
                 else list(dict.fromkeys(error["suggested_action"] for error in (errors or [])))
             ),

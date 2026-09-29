@@ -373,7 +373,7 @@ def test_real_component_search_and_schema_transport(monkeypatch, authorized_harn
     assert result["artifact_refs"][0]["payload"]["schema_hash"] == card["schema_hash"]
 
 
-@pytest.mark.parametrize("graph", [1, 6, 20, "parallel", "exclusive", "conditional_parallel", "nested"])
+@pytest.mark.parametrize("graph", [1, 6, 20, "parallel", "exclusive", "conditional_parallel", "nested", "loop"])
 def test_real_pause_io_validate_and_draft_chain(monkeypatch, authorized_harness_space, graph):
     """本地真实转换、校验、草稿写入和回放链路，不调用插件执行。"""
     from pipeline.component_framework.models import ComponentModel
@@ -434,6 +434,13 @@ def test_real_pause_io_validate_and_draft_chain(monkeypatch, authorized_harness_
                 {"id": "inner", "type": "ParallelGateway", "next": ["n3", "n4"], "converge_gateway_id": "inner_join"},
                 {"id": "inner_join", "type": "ConvergeGateway", "next": "join"},
             ]
+        elif graph == "loop":
+            nodes[3]["next"] = "fork"
+            fork.update(
+                type="ExclusiveGateway",
+                default_next="n2",
+                conditions=[{"evaluate": "False", "name": "退出"}, {"evaluate": "True", "name": "循环"}],
+            )
     payload = {
         "intent_spec": {"goal": "仅本地草稿"},
         "a2flow": {"version": "2.0", "name": "回归草稿", "nodes": nodes},
@@ -450,12 +457,19 @@ def test_real_pause_io_validate_and_draft_chain(monkeypatch, authorized_harness_
     }
     validated = call("validate_workflow", payload)
     assert validated["ok"] is True, validated
+    assert validated["next_actions"] == ["create_workflow_draft"]
+    # A fresh validation must reproduce exactly the same drawn tree/hash, including loops.
+    payload["idempotency_key"] = "actual-io-revalidate"
+    revalidated = call("validate_workflow", payload)
+    assert revalidated["ok"] is True, revalidated
+    assert revalidated["artifact_refs"][0]["pipeline_tree_hash"] == validated["artifact_refs"][0]["pipeline_tree_hash"]
     payload = {key: validated[key] for key in ("run_id", "revision_id", "plan_hash")}
     payload["idempotency_key"] = "actual-io-draft"
     drafted = call("create_workflow_draft", payload)
     assert drafted["ok"] is True, drafted
     assert drafted["status"] == "DRAFT_READY"
-    assert call("create_workflow_draft", payload)["artifact_refs"] == drafted["artifact_refs"]
+    replayed = call("create_workflow_draft", payload)
+    assert replayed["artifact_refs"] == drafted["artifact_refs"]
     from bkflow.template.models import Template
 
     template = Template.objects.get(space_id=authorized_harness_space.id)
@@ -463,6 +477,18 @@ def test_real_pause_io_validate_and_draft_chain(monkeypatch, authorized_harness_
     assert len(tree["activities"]) == node_count
     assert len(tree["gateways"]) == len(nodes) - node_count
     assert all(item["component"]["code"] == component.code for item in tree["activities"].values())
+    node_ids = set(tree["activities"]) | set(tree["gateways"]) | {tree["start_event"]["id"], tree["end_event"]["id"]}
+    assert {item["id"] for item in tree.get("location", [])} == node_ids
+    assert len(tree["location"]) == len(node_ids)
+    assert {item["id"] for item in tree["line"]} == set(tree["flows"])
+    for line in tree["line"]:
+        assert line["source"]["id"] == tree["flows"][line["id"]]["source"]
+        assert line["target"]["id"] == tree["flows"][line["id"]]["target"]
+    from bkflow.harness.services.canonical import sha256_json
+
+    assert sha256_json(tree) == drafted["artifact_refs"][0]["pipeline_tree_hash"]
+    assert sha256_json(tree) == validated["artifact_refs"][0]["pipeline_tree_hash"]
+    assert drafted["next_actions"] == replayed["next_actions"] == []
 
 
 @pytest.mark.parametrize("value", [123, 1.5, True])

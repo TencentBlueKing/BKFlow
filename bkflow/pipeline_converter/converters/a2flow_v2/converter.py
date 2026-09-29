@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+import copy
 import hashlib
 import json
 import logging
@@ -53,7 +54,9 @@ from bkflow.pipeline_converter.exceptions import (
     A2FlowConvertError,
     A2FlowValidationError,
     ErrorTypes,
+    SubprocessDraftError,
 )
+from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline
 from bkflow.template.models import Template, TemplateSnapshot
 
 logger = logging.getLogger("root")
@@ -96,7 +99,9 @@ class A2FlowV2Converter:
     def converter_fingerprint(self):
         """Return the stable P0 converter implementation identity."""
         payload = json.dumps(
-            {"converter": "a2flow_v2", "contract_version": "2.0"}, sort_keys=True, separators=(",", ":")
+            {"converter": "a2flow_v2", "contract_version": "2.0", "layout_version": "pipeline-drawing-v1"},
+            sort_keys=True,
+            separators=(",", ":"),
         ).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
 
@@ -107,6 +112,12 @@ class A2FlowV2Converter:
     def convert_with_metadata(self) -> ConversionResult:
         """Convert once and retain the generated-node to source-node mapping."""
         pipeline_tree = self._convert(deterministic_ids=True)
+        # Drawing uses temporary nodes and mutates edge lists. Keep logical facts
+        # untouched and include only the final canvas data in the governed hash.
+        drawn_tree = copy.deepcopy(pipeline_tree)
+        draw_pipeline(drawn_tree)
+        pipeline_tree["location"] = sorted(drawn_tree["location"], key=lambda item: item["id"])
+        pipeline_tree["line"] = sorted(drawn_tree["line"], key=lambda item: item["id"])
         return ConversionResult(
             pipeline_tree=pipeline_tree,
             converter_fingerprint=self.converter_fingerprint,
@@ -405,7 +416,7 @@ class A2FlowV2Converter:
                     template_snapshot = TemplateSnapshot.objects.get(id=template.snapshot_id)
                     if template_snapshot.draft:
                         errors.append(
-                            A2FlowConvertError(
+                            SubprocessDraftError(
                                 error_type=ErrorTypes.MISSING_REQUIRED_FIELD,
                                 message="节点 '{}' 选择的子流程版本为草稿版本，无法使用".format(node.id),
                                 node_id=node.id,
