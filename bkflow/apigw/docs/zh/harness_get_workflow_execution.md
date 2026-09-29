@@ -1,5 +1,7 @@
 ### Harness P3：查询工作流执行
 
+传输参数校验失败统一返回 `SCHEMA_VALIDATION_ERROR`；`path` 仅引用服务端声明字段（无法安全定位时为 `request`），修复动作是 `repair_tool_arguments`，不回显原始参数或未知字段名。业务拒绝的错误分类及治理动作保持不变。
+
 #### 接口说明
 
 `harness_get_workflow_execution` 对应 MCP Tool `get_workflow_execution`，属于 `BKFlow Workflow Harness MCP` contract `1.3.0`。它查询服务端持久化状态，并在执行开关开启时从 Engine 进行有界、安全的状态与后置条件读回；开关关闭时保持 persistence-only，零 Engine/provider 调用和零写入。

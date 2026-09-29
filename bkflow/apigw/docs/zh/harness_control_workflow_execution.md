@@ -1,5 +1,7 @@
 ### Harness P3：控制工作流执行
 
+传输参数校验失败统一返回 `SCHEMA_VALIDATION_ERROR`；`path` 仅引用服务端声明字段（无法安全定位时为 `request`），修复动作是 `repair_tool_arguments`，不回显原始参数或未知字段名。业务拒绝的错误分类及治理动作保持不变。
+
 #### 接口说明
 
 `harness_control_workflow_execution` 对应 MCP Tool `control_workflow_execution`，属于 `BKFlow Workflow Harness MCP` contract `1.3.0`。它接受 `pause`、`resume`、`revoke`、`retry`、`skip`、`callback`、`forced_fail`、`skip_exg`、`skip_cpg` 九种闭合集合动作；每次动作均绑定审批、幂等 barrier 和 Evidence journal。

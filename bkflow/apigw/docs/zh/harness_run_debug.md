@@ -1,5 +1,7 @@
 ### Harness P2：执行单步或全局调试
 
+传输参数校验失败统一返回 `SCHEMA_VALIDATION_ERROR`；`path` 仅引用服务端声明字段（无法安全定位时为 `request`），修复动作是 `repair_tool_arguments`，不回显原始参数或未知字段名。业务拒绝的错误分类及治理动作保持不变。
+
 #### 接口说明
 
 `harness_run_debug` 对应 MCP Tool `run_debug`，属于 `BKFlow Workflow Harness MCP` contract `1.2.0`。它以 tagged request 执行单步或全局调试；默认且推荐使用 Mock。

@@ -1,5 +1,7 @@
 ### Harness P4：提交生成反馈
 
+传输参数校验失败统一返回 `SCHEMA_VALIDATION_ERROR`；`path` 仅引用服务端声明字段（无法安全定位时为 `request`），修复动作是 `repair_tool_arguments`，不回显原始参数或未知字段名。业务拒绝的错误分类及治理动作保持不变。
+
 #### 接口说明
 
 `harness_submit_generation_feedback` 对应 `BKFlow Workflow Harness MCP` contract `1.4.0` 的第 15 个 Tool `submit_generation_feedback`，累计恰好 `15 Tools`。它把用户对既有 Run/Revision 的评价记录为不可信 Evidence，不自动学习，不直接修改线上知识、Registry、Validator、Prompt 或 Skill，也不会直接生成或晋级候选。

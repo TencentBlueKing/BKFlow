@@ -1,5 +1,7 @@
 ### Harness P3：发布工作流
 
+传输参数校验失败统一返回 `SCHEMA_VALIDATION_ERROR`；`path` 仅引用服务端声明字段（无法安全定位时为 `request`），修复动作是 `repair_tool_arguments`，不回显原始参数或未知字段名。业务拒绝的错误分类及治理动作保持不变。
+
 #### 接口说明
 
 `harness_publish_workflow` 对应 MCP Tool `publish_workflow`，属于 `BKFlow Workflow Harness MCP` contract `1.3.0`。它以两次调用完成审批绑定：首次不带审批字段时只创建待审批申请；第二次携带对应申请与 opaque receipt 后，服务端重新复验 Manifest 和 DRAFT 快照，再原子发布。

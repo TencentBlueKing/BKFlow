@@ -7578,6 +7578,7 @@ paths:
               properties:
                 query:
                   type: string
+                  minLength: 1
                   maxLength: 256
                 top_k:
                   type: integer
@@ -7706,6 +7707,29 @@ paths:
                   type: object
                 bindings:
                   type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [node_id, capability_ref, schema_hash, credential_ref]
+                    properties:
+                      node_id:
+                        type: string
+                        minLength: 1
+                        maxLength: 128
+                      capability_ref:
+                        type: string
+                        minLength: 1
+                        maxLength: 1799
+                      schema_hash:
+                        type: string
+                        minLength: 64
+                        maxLength: 64
+                        pattern: '^[a-f0-9]{64}$'
+                      credential_ref:
+                        type: string
+                        nullable: true
+                        pattern: '^credential://id/([1-9][0-9]{0,18})$'
                 run_id:
                   type: string
                   format: uuid

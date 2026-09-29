@@ -1122,7 +1122,12 @@ def test_real_resolver_converter_and_validator_handler_keep_exact_governed_ident
             {
                 "node_id": "node_1",
                 "capability_ref": capability_ref,
-                "schema_hash": schema_hash({"inputs": schema["inputs"], "outputs": []}),
+                "schema_hash": schema_hash(
+                    {
+                        "inputs": [{"key": key, "required": True, "type": "integer"} for key in inputs],
+                        "outputs": [],
+                    }
+                ),
                 "credential_ref": None,
             }
         ],

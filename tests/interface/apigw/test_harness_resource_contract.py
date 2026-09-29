@@ -111,6 +111,31 @@ def _resource_contracts():
     }
 
 
+def test_validation_binding_schema_teaches_exact_dto_and_rejects_incomplete_items():
+    """MCP 应公布 binding 的必填字段和边界，而不是无法据此构造参数的裸 array。"""
+    from jsonschema import ValidationError, validate
+
+    body = _resources()["paths"]["/space/{space_id}/harness/validate_workflow/"]["post"]["requestBody"]["content"][
+        "application/json"
+    ]["schema"]
+    binding = body["properties"]["bindings"]["items"]
+    valid = {
+        "node_id": "n1",
+        "capability_ref": "opaque-reference",
+        "schema_hash": "a" * 64,
+        "credential_ref": "credential://id/1",
+    }
+    validate(valid, binding)
+    for field in valid:
+        with pytest.raises(ValidationError):
+            validate({key: value for key, value in valid.items() if key != field}, binding)
+    with pytest.raises(ValidationError):
+        validate({**valid, "unexpected": True}, binding)
+    with pytest.raises(ValidationError):
+        validate({**valid, "schema_hash": "not-a-hash"}, binding)
+    assert binding["properties"]["credential_ref"]["nullable"] is True
+
+
 def _resources():
     """Load APIGW source definitions structurally, never by text substitution."""
     return yaml.safe_load(RESOURCE_FILE.read_text(encoding="utf-8"))

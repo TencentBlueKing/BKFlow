@@ -314,6 +314,178 @@ def test_transport_envelope_has_exact_safe_shape():
 
 
 @pytest.mark.parametrize(
+    "tool,kind,depth,accepted",
+    [
+        ("get_plugin_schema", "plugin_schema", 8, True),
+        ("get_plugin_schema", "plugin_schema", 13, False),
+        ("get_plugin_schema", "capability_search", 8, False),
+        ("validate_workflow", "plugin_schema", 8, False),
+    ],
+)
+def test_schema_depth_allowance_is_bounded_and_only_for_exact_schema(tool, kind, depth, accepted):
+    """深层 Schema 支持不能扩大写接口、其他 artifact 或取消响应深度上限。"""
+    from bkflow.apigw.views.harness.common import _safe_domain_result
+
+    value = "public"
+    for _ in range(depth):
+        value = {"nested": value}
+    domain = _domain_envelope("trace", ok=True)
+    domain["artifact_refs"] = [{"type": kind, "payload": value}]
+    assert _safe_domain_result(_context(), domain, tool)["ok"] is accepted
+
+
+@pytest.mark.parametrize("component_name", ["pause", "http"])
+def test_real_component_search_and_schema_transport(monkeypatch, authorized_harness_space, component_name):
+    """真实内置 IO 必须跨过搜索、指纹和 Envelope，不只在纯字符串夹具上通过。"""
+    from pipeline.component_framework.models import ComponentModel
+
+    from bkflow.pipeline_plugins.components.collections.http.v1_0 import HttpComponent
+    from bkflow.pipeline_plugins.components.collections.pause.legacy import (
+        PauseComponent,
+    )
+
+    component = {"pause": PauseComponent, "http": HttpComponent}[component_name]
+    version = component.version
+    ComponentModel.objects.create(code=component.code, version=version, name="验收-" + component_name, status=True)
+    monkeypatch.setattr(
+        "bkflow.plugin.services.plugin_schema_service.ComponentLibrary.get_component_class",
+        lambda code, version: component,
+    )
+    base = "/apigw/space/{}/harness/".format(authorized_harness_space.id)
+    path = base + "search_workflow_capabilities/"
+    result = (
+        resolve(path)
+        .func(_request_for(path, {"query": component.code}), space_id=str(authorized_harness_space.id))
+        .data
+    )
+    assert result["ok"] is True, result
+    card = result["artifact_refs"][0]["payload"][0]
+    path = base + "get_plugin_schema/"
+    result = (
+        resolve(path)
+        .func(
+            _request_for(path, {"capability_ref": card["capability_ref"], "expected_schema_hash": card["schema_hash"]}),
+            space_id=str(authorized_harness_space.id),
+        )
+        .data
+    )
+    assert result["ok"] is True, result
+    assert result["artifact_refs"][0]["payload"]["schema_hash"] == card["schema_hash"]
+
+
+@pytest.mark.parametrize("graph", [1, 6, 20, "parallel", "exclusive", "conditional_parallel", "nested"])
+def test_real_pause_io_validate_and_draft_chain(monkeypatch, authorized_harness_space, graph):
+    """本地真实转换、校验、草稿写入和回放链路，不调用插件执行。"""
+    from pipeline.component_framework.models import ComponentModel
+
+    from bkflow.pipeline_plugins.components.collections.pause.legacy import (
+        PauseComponent,
+    )
+
+    component = PauseComponent
+    ComponentModel.objects.create(code=component.code, version=component.version, name="验收-暂停", status=True)
+    monkeypatch.setattr(
+        "bkflow.plugin.services.plugin_schema_service.ComponentLibrary.get_component_class",
+        lambda code, version: component,
+    )
+    base = "/apigw/space/{}/harness/".format(authorized_harness_space.id)
+
+    def call(tool, payload):
+        path = base + tool + "/"
+        return resolve(path).func(_request_for(path, payload), space_id=str(authorized_harness_space.id)).data
+
+    found = call("search_workflow_capabilities", {"query": component.code})
+    assert found["ok"] is True, found
+    card = found["artifact_refs"][0]["payload"][0]
+    node_count = graph if isinstance(graph, int) else 6
+    nodes = [
+        {
+            "id": "n{}".format(i),
+            "type": "Activity",
+            "name": "仅草稿",
+            "inputs": {"description": "不得执行"},
+            "next": "n{}".format(i + 1) if i < node_count else "end",
+        }
+        for i in range(1, node_count + 1)
+    ]
+    activities = list(nodes)
+    if isinstance(graph, str):
+        nodes[0]["next"] = "fork"
+        nodes[1]["next"] = "join"
+        nodes[3]["next"] = "join"
+        fork = {"id": "fork", "type": "ParallelGateway", "next": ["n2", "n3"], "converge_gateway_id": "join"}
+        nodes += [fork, {"id": "join", "type": "ConvergeGateway", "next": "n5"}]
+        if graph == "exclusive":
+            fork.update(
+                type="ExclusiveGateway",
+                default_next="n3",
+                conditions=[{"evaluate": "True", "name": "条件"}, {"evaluate": "False", "name": "默认"}],
+            )
+        elif graph == "conditional_parallel":
+            fork.update(
+                type="ConditionalParallelGateway",
+                conditions=[{"evaluate": "True", "name": "分支一"}, {"evaluate": "False", "name": "分支二"}],
+            )
+        elif graph == "nested":
+            fork["next"] = ["n2", "inner"]
+            nodes[2]["next"] = "inner_join"
+            nodes[3]["next"] = "inner_join"
+            nodes += [
+                {"id": "inner", "type": "ParallelGateway", "next": ["n3", "n4"], "converge_gateway_id": "inner_join"},
+                {"id": "inner_join", "type": "ConvergeGateway", "next": "join"},
+            ]
+    payload = {
+        "intent_spec": {"goal": "仅本地草稿"},
+        "a2flow": {"version": "2.0", "name": "回归草稿", "nodes": nodes},
+        "bindings": [
+            {
+                "node_id": n["id"],
+                "capability_ref": card["capability_ref"],
+                "schema_hash": card["schema_hash"],
+                "credential_ref": None,
+            }
+            for n in activities
+        ],
+        "idempotency_key": "actual-io-validate",
+    }
+    validated = call("validate_workflow", payload)
+    assert validated["ok"] is True, validated
+    payload = {key: validated[key] for key in ("run_id", "revision_id", "plan_hash")}
+    payload["idempotency_key"] = "actual-io-draft"
+    drafted = call("create_workflow_draft", payload)
+    assert drafted["ok"] is True, drafted
+    assert drafted["status"] == "DRAFT_READY"
+    assert call("create_workflow_draft", payload)["artifact_refs"] == drafted["artifact_refs"]
+    from bkflow.template.models import Template
+
+    template = Template.objects.get(space_id=authorized_harness_space.id)
+    tree = template.pipeline_tree
+    assert len(tree["activities"]) == node_count
+    assert len(tree["gateways"]) == len(nodes) - node_count
+    assert all(item["component"]["code"] == component.code for item in tree["activities"].values())
+
+
+@pytest.mark.parametrize("value", [123, 1.5, True])
+def test_search_query_rejects_non_string_values_instead_of_coercing(value):
+    """实际请求类型必须符合 MCP 公布的 string Schema。"""
+    assert SearchCapabilitiesSerializer(data={"query": value}).is_valid() is False
+
+
+@pytest.mark.parametrize(
+    "payload,path",
+    [({"query": ""}, "query"), ({"query": "/", "top_k": 0}, "top_k"), ({"query": "/", SENTINEL: True}, "request")],
+)
+def test_transport_errors_locate_only_declared_fields_without_echoing_values(payload, path):
+    """向 Agent 返回可修正的安全字段名，不能回显原始参数或未知字段。"""
+    serializer = SearchCapabilitiesSerializer(data=payload)
+    assert serializer.is_valid() is False
+    result = envelope(_context(), serializer)
+    assert result["errors"][0]["path"] == path
+    assert result["next_actions"] == ["repair_tool_arguments"]
+    assert SENTINEL not in str(result)
+
+
+@pytest.mark.parametrize(
     "mutation,request_kwargs,expected_code",
     [
         ("disabled", {}, "HARNESS_DISABLED"),
@@ -728,6 +900,12 @@ def test_downstream_exception_is_a_safe_audited_retryable_envelope(monkeypatch, 
     assert response.data["errors"][0]["code"] == "RETRYABLE_INFRA"
     assert SENTINEL not in str(response.data)
     assert SENTINEL not in caplog.text
+    diagnostics = [record.harness_failure for record in caplog.records if hasattr(record, "harness_failure")]
+    assert diagnostics and diagnostics[0]["exception_type"] == "RuntimeError"
+    assert diagnostics[0]["correlation"] == "gateway-trace"
+    assert diagnostics[0]["tool"] == "validate_workflow"
+    assert diagnostics[0]["frames"]
+    assert SENTINEL not in str(diagnostics)
     _assert_audit_record(
         caplog.records[-1], tool="validate_workflow", risk="L0", result=False, space_id=authorized_harness_space.id
     )

@@ -38,4 +38,10 @@ POST `/space/{space_id}/harness/get_plugin_schema/`
 
 #### P0 边界
 
+返回的是 Harness 专用 IO 视图：内置 Bamboo `int/float` 映射为 JSON Schema `integer/number`，默认空枚举表示不限取值并被移除；非空枚举和嵌套约束保留。外部插件的原生 JSON Schema 不按 Bamboo 空枚举语义放宽。普通插件/画布接口不受此适配影响。延迟翻译使用部署语言生成稳定指纹。
+
+精确 Schema 返回的有界深度单独预留 4 层 artifact/IO 包装开销，以容纳对象数组等正常结构；仍执行总体 64 KiB、集合/字符串和敏感字段限制，不放宽请求或其他 Tool 响应的深度。
+
+请求参数校验失败的 `path` 仅引用已声明字段（否则为 `request`），`suggested_action` / `next_actions` 为 `repair_tool_arguments`；不回显请求内容。部署后旧卡片若出现 `SCHEMA_DRIFT`，应重新搜索并重新验证，而不是改写返回哈希。
+
 本 Tool 不创建 run，不接受 `idempotency_key` 或计划哈希，也不执行、调试、发布或运行插件。服务端每次读取都重新验证卡片引用的当前目录、ACL、生命周期、精确版本和 `expected_schema_hash`；调用方必须把返回的精确版本和 Schema 绑定到 a2flow，并由 `validate_workflow` 重新治理；草稿创建后仅报告 DRAFT 并停止。

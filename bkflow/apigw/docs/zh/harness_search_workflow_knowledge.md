@@ -1,5 +1,7 @@
 ### Harness P1：检索联邦流程知识
 
+传输参数校验失败统一返回 `SCHEMA_VALIDATION_ERROR`；`path` 仅引用服务端声明字段（无法安全定位时为 `request`），修复动作是 `repair_tool_arguments`，不回显原始参数或未知字段名。业务拒绝的错误分类及治理动作保持不变。
+
 #### 接口说明
 
 `harness_search_workflow_knowledge` 是 `BKFlow Workflow Harness MCP` 在 contract `1.1.0` 增加的第 5 个只读 Tool。它按照可信平台、空间和 Scope 选择已经启用的外部知识源，返回带来源、快照、信任等级和 citation 的流程经验；BKFlow 只维护路由绑定与审计，不保存完整知识正文或向量索引。

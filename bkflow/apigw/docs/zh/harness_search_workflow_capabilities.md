@@ -20,7 +20,7 @@ Body 仅接受下表字段，未知字段和任何伪造的 `platform`、`app`�
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| query | string | 是 | 长度不超过 256 的能力查询词。 |
+| query | string | 是 | 去除首尾空白后长度为 1–256 的能力查询词；不接受数字、布尔值、空串或纯空白。 |
 | top_k | integer | 否 | 1–20，默认 10。 |
 | plugin_source | string | 否 | 仅用于受治理的 Uniform API 来源过滤，长度不超过 64。 |
 
@@ -40,5 +40,9 @@ Body 仅接受下表字段，未知字段和任何伪造的 `platform`、`app`�
 ```
 
 #### P0 边界
+
+请求参数校验失败返回 `SCHEMA_VALIDATION_ERROR`，`path` 仅包含服务端声明的字段名（无法安全定位时为 `request`），`suggested_action` / `next_actions` 为 `repair_tool_arguments`。不会回显原始参数值或未知字段名。内部异常以 `correlation_id` 关联有界代码坐标，不向调用方返回异常原文。
+
+内置插件 IO 在 Harness 内转换为 JSON Schema：解析延迟翻译、转换 `int/float` 类型和 Bamboo 默认空枚举。搜索与精确解析共用这一视图和指纹；延迟翻译固定使用部署的 `LANGUAGE_CODE`，不随请求语言切换。已有卡片在规范化规则或部署语言变更后可能出现 `SCHEMA_DRIFT`，须重新检索和校验，不能复用旧哈希绕过检查。
 
 本 Tool 不创建 run、不会执行插件，也不接受 `idempotency_key`、版本或计划哈希作为授权条件。选择候选时只能原样保留卡片的 `capability_ref` 和 `schema_hash` 并交给 `get_plugin_schema`；模型不得解码引用或凭 code、source、version 自行构造 Schema 请求。后续只有将精确 Schema 绑定到 a2flow 并通过 `validate_workflow` 后，才可携带服务器返回的版本、哈希和幂等键进入草稿流程；最终只报告 DRAFT 状态并停止。

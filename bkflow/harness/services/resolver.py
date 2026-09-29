@@ -26,6 +26,7 @@ from bkflow.harness.services.capability_ref import (
     decode_capability_ref,
 )
 from bkflow.harness.services.catalog import list_authorized_plugins
+from bkflow.harness.services.plugin_schema import generator_schema as _schema_payload
 from bkflow.harness.services.projection import (
     ALLOWED_LIFECYCLES,
     load_manifest,
@@ -78,11 +79,6 @@ class ResolvedCapability:
     risk_level: str
     conversion_metadata: Optional[Dict[str, Any]] = None
     conversion_fingerprint: Optional[str] = None
-
-
-def _schema_payload(plugin_schema):
-    """Extract only IO schema facts for the shared canonical schema fingerprint."""
-    return {"inputs": plugin_schema.get("inputs", []), "outputs": plugin_schema.get("outputs", [])}
 
 
 def _conversion_metadata(plugin_schema, reference, resolved_version):
@@ -221,7 +217,7 @@ class CapabilityResolver:
         resolved_version = plugin_schema.get("resolved_version") or plugin_schema.get("version") or UNVERSIONED
         if resolved_version != reference.version:
             raise SchemaDriftError()
-        resolved_schema = _schema_payload(plugin_schema)
+        resolved_schema = _schema_payload(plugin_schema, reference.plugin_type)
         resolved_schema_hash = schema_hash(resolved_schema)
         if expected_schema_hash is not None and expected_schema_hash != resolved_schema_hash:
             raise SchemaDriftError()

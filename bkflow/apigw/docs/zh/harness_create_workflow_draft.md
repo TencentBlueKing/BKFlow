@@ -42,6 +42,8 @@ POST `/space/{space_id}/harness/create_workflow_draft/`
 
 #### P0 边界
 
+传输参数校验失败的 `path` 仅引用已声明字段（否则为 `request`），`suggested_action` / `next_actions` 为 `repair_tool_arguments`；领域拒绝仍保留原来的错误分类与动作，不允许绕过校验直接创建草稿。
+
 草稿只接受已经由受治理 Schema 读取和 `validate_workflow` 固化的计划；Agent 不得用 raw code、版本或来源字段绕过搜索卡片的 `capability_ref` 与 Schema 哈希门禁。
 
 该接口只产生版本为空的 managed DRAFT，不触发 release、debug、任务创建、执行、SDK 调用或令牌签发。Agent 报告 DRAFT 后必须停止，后续发布与执行仅属于更高阶段的独立 Tool allowlist。

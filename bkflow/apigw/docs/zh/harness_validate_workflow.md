@@ -34,6 +34,8 @@ POST `/space/{space_id}/harness/validate_workflow/`
 
 #### 请求示例
 
+以下仅展示外层结构；空 `nodes` 会被拒绝，不是成功校验样例。实际调用须先检索能力、获取精确 Schema，构建 Activity 与一一对应的 binding。
+
 ```json
 {
   "intent_spec": {"goal": "restart safely"},
@@ -44,6 +46,12 @@ POST `/space/{space_id}/harness/validate_workflow/`
 ```
 
 #### P0 边界
+
+网关 Tool Schema 明确声明 `bindings` 为至多 100 项的闭合对象数组。每项必须包含 `node_id`、`capability_ref`、64 位小写 `schema_hash`、`credential_ref` 四个键；不需要凭证时显式传 `credential_ref: null`。非空值只能使用服务端已有的受治理凭证引用，格式以 Tool Schema 为准，不得放入密钥或令牌，引用本身也不构成授权。
+
+Activity 可以省略 `code` 和 `plugin_type`：服务端以该节点的精确 `capability_ref` binding 重新校验目录授权、版本和 Schema 后补齐并持久化身份；无需客户端解码引用或猜测插件 code。若显式传入，必须与解析后的身份一致，否则仍返回 `SCHEMA_DRIFT`。缺失 binding、未授权或 Schema 漂移仍然拒绝。
+
+传输参数校验失败的 `path` 仅引用已声明字段（否则为 `request`），`suggested_action` / `next_actions` 为 `repair_tool_arguments`；业务流程校验失败仍使用对应领域修复动作。内部异常只在服务端保留有界代码坐标和 `correlation_id`，不记录原始请求、异常文案或局部变量。
 
 能力 Binding 的 `capability_ref` 必须来自受治理搜索卡片；精确 Schema 读取只向 `get_plugin_schema` 传递该卡片的 `capability_ref` 与 `schema_hash`，不得使用 raw code、版本或来源字段重建身份。
 

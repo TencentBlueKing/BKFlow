@@ -1,5 +1,7 @@
 ### Harness P2：建立调试会话
 
+传输参数校验失败统一返回 `SCHEMA_VALIDATION_ERROR`；`path` 仅引用服务端声明字段（无法安全定位时为 `request`），修复动作是 `repair_tool_arguments`，不回显原始参数或未知字段名。业务拒绝的错误分类及治理动作保持不变。
+
 #### 接口说明
 
 `harness_start_debug_session` 对应 MCP Tool `start_debug_session`，属于 `BKFlow Workflow Harness MCP` contract `1.2.0`。它把已校验的最新 Revision、managed DRAFT 与画布树指纹绑定成一个服务端 `DebugSession`，但不执行节点、不创建 Engine task。

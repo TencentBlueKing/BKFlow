@@ -15,6 +15,7 @@ specific language governing permissions and limitations under the License.
 We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
+
 import hashlib
 import re
 from pathlib import Path
@@ -30,6 +31,7 @@ from bkflow.harness.services.capability_ref import (
     validate_capability_identity,
 )
 from bkflow.harness.services.catalog import list_authorized_plugins
+from bkflow.harness.services.plugin_schema import generator_schema as _schema_payload
 
 DEFAULT_TOP_K = 10
 MAX_TOP_K = 20
@@ -244,11 +246,6 @@ def _diagnostic_ref(plugin):
     return "sha256:{}".format(hashlib.sha256(raw).hexdigest()[:16])
 
 
-def _schema_payload(plugin_schema):
-    """Keep the schema fingerprint limited to generator-visible IO schema facts."""
-    return {"inputs": plugin_schema.get("inputs", []), "outputs": plugin_schema.get("outputs", [])}
-
-
 class CapabilityProjection:
     """Project a trusted plugin registry into a bounded, governed search directory."""
 
@@ -375,7 +372,7 @@ class CapabilityProjection:
                     "summary": (_bounded_registry_text(plugin.get("description")) or "")[:SUMMARY_MAX_LENGTH],
                     "plugin_type": plugin["plugin_type"],
                     "resolved_version": resolved_version,
-                    "schema_hash": schema_hash(_schema_payload(plugin_schema)),
+                    "schema_hash": schema_hash(_schema_payload(plugin_schema, plugin["plugin_type"])),
                     "lifecycle": metadata["lifecycle"],
                     "risk_level": metadata["risk_level"],
                     "side_effects": metadata["side_effects"],

@@ -510,10 +510,13 @@ class WorkflowValidator:
                 raise WorkflowValidationFailure(
                     "SCHEMA_DRIFT", path="bindings.{}.schema_hash".format(binding["node_id"])
                 )
-            if node.get("code") != capability.code:
+            if node.get("code") is not None and node["code"] != capability.code:
                 raise WorkflowValidationFailure("SCHEMA_DRIFT", path="nodes.{}.code".format(binding["node_id"]))
-            if node.get("plugin_type") != capability.plugin_type:
+            if node.get("plugin_type") is not None and node["plugin_type"] != capability.plugin_type:
                 raise WorkflowValidationFailure("SCHEMA_DRIFT", path="nodes.{}.plugin_type".format(binding["node_id"]))
+            # opaque capability_ref 不要求模型解码；身份只取自重新授权后的精确 binding。
+            node["code"] = capability.code
+            node["plugin_type"] = capability.plugin_type
             binding["credential_ref"] = self._credential_ref(binding["credential_ref"], binding["node_id"])
             self._validate_node_inputs(binding["node_id"], node.get("data", {}), binding["schema"], variable_keys)
             binding.pop("schema")

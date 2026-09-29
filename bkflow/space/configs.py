@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 import time
 from enum import Enum
@@ -854,6 +855,7 @@ class HarnessEnabledConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+    ui = {"control": "switch", "label": desc, "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
@@ -870,6 +872,7 @@ class HarnessKnowledgeRouterEnabledConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+    ui = {"control": "switch", "label": desc, "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
@@ -886,6 +889,7 @@ class HarnessDebugEnabledConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+    ui = {"control": "switch", "label": desc, "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
@@ -902,6 +906,7 @@ class HarnessRealStepEnabledConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+    ui = {"control": "switch", "label": desc, "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
@@ -918,6 +923,7 @@ class HarnessPublishEnabledConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+    ui = {"control": "switch", "label": desc, "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
@@ -934,6 +940,7 @@ class HarnessExecutionEnabledConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+    ui = {"control": "switch", "label": desc, "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
@@ -950,6 +957,7 @@ class HarnessGlobalRealDebugEnabledConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+    ui = {"control": "switch", "label": desc, "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
@@ -966,6 +974,7 @@ class HarnessFeedbackEnabledConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+    ui = {"control": "switch", "label": desc, "true_value": "true", "false_value": "false"}
 
     @classmethod
     def validate(cls, value: str):
@@ -982,6 +991,7 @@ class HarnessCandidatePromotionEnabledConfig(BaseSpaceConfig):
     default_value = "false"
     choices = ["true", "false"]
     control = True
+    ui = {"control": "switch", "label": desc, "true_value": "true", "false_value": "false"}
     is_public = False
 
     @classmethod

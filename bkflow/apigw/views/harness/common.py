@@ -2,8 +2,10 @@
 
 import logging
 import math
+import os
 import re
 import time
+import traceback
 import uuid
 from collections.abc import Mapping
 from types import SimpleNamespace
@@ -160,16 +162,50 @@ def harness_view(tool):
 
 def envelope(context, serializer):
     """Adapt rejected transport input to the frozen safe response shape."""
-    return _failure_envelope(context)
+    result = _failure_envelope(context)
+    if serializer is not None:
+        # 仅引用服务端声明字段，不透传 DRF 文案、未知字段名或客户端值。
+        paths = [name for name in serializer.fields if name in serializer.errors]
+        result["errors"] = []
+        for path in (paths or ["request"])[:16]:
+            error = WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path=path).as_error()
+            error["message"] = "The tool arguments do not match the request schema."
+            error["suggested_action"] = "repair_tool_arguments"
+            result["errors"].append(error)
+        result["next_actions"] = ["repair_tool_arguments"]
+    return result
 
 
-def _safe_artifact_refs(value):
+def _log_failure(context, method, error):
+    """记录有界代码坐标，不记录异常文案、请求、局部变量或原始堆栈。"""
+    frames = [
+        {
+            "file": _safe_identifier(os.path.basename(frame.f_code.co_filename)),
+            "function": _safe_identifier(frame.f_code.co_name),
+            "line": line,
+        }
+        for frame, line in traceback.walk_tb(error.__traceback__)
+    ][-8:]
+    logger.error(
+        "harness internal failure",
+        extra={
+            "harness_failure": {
+                "tool": method,
+                "correlation": _safe_identifier(context.correlation_id),
+                "exception_type": _safe_identifier(type(error).__name__),
+                "frames": frames,
+            }
+        },
+    )
+
+
+def _safe_artifact_refs(value, max_depth=_MAX_ARTIFACT_DEPTH):
     """Keep only bounded canonical service artifacts in a successful frozen response."""
     if not isinstance(value, list):
         return None
     if _contains_reserved_approval_projection(value):
         return None
-    if not _safe_artifact_value(value):
+    if not _safe_artifact_value(value, max_depth=max_depth):
         return None
     if _contains_secret_value(value):
         return None
@@ -250,9 +286,9 @@ def _safe_required_credentials(value):
     return True
 
 
-def _safe_artifact_value(value, depth=0):
+def _safe_artifact_value(value, depth=0, max_depth=_MAX_ARTIFACT_DEPTH):
     """Recursively accept only bounded JSON-safe artifact mappings and values."""
-    if depth > _MAX_ARTIFACT_DEPTH:
+    if depth > max_depth:
         return False
     if isinstance(value, Mapping):
         if len(value) > _MAX_ARTIFACT_ITEMS:
@@ -263,11 +299,13 @@ def _safe_artifact_value(value, depth=0):
                     return False
             elif _is_sensitive_artifact_key(key) and item == _REDACTED_VALUE:
                 continue
-            elif not _safe_artifact_key(key) or not _safe_artifact_value(item, depth + 1):
+            elif not _safe_artifact_key(key) or not _safe_artifact_value(item, depth + 1, max_depth):
                 return False
         return True
     if isinstance(value, list):
-        return len(value) <= _MAX_ARTIFACT_ITEMS and all(_safe_artifact_value(item, depth + 1) for item in value)
+        return len(value) <= _MAX_ARTIFACT_ITEMS and all(
+            _safe_artifact_value(item, depth + 1, max_depth) for item in value
+        )
     if isinstance(value, str):
         return is_safe_harness_text(
             value,
@@ -373,7 +411,18 @@ def _safe_domain_result(context, result, method):
     if result.get("ok") is True:
         if approval_request_id is not None:
             return _failure_envelope(context, "RETRYABLE_INFRA", category="RETRYABLE_INFRA", retryable=True)
-        artifact_refs = _safe_artifact_refs(result.get("artifact_refs"))
+        raw_artifacts = result.get("artifact_refs")
+        # 精确 Schema 多了 artifact/payload/IO/field 包装层；其他响应维持原深度。
+        schema_response = (
+            method == "get_plugin_schema"
+            and isinstance(raw_artifacts, list)
+            and len(raw_artifacts) == 1
+            and isinstance(raw_artifacts[0], Mapping)
+            and raw_artifacts[0].get("type") == "plugin_schema"
+        )
+        artifact_refs = _safe_artifact_refs(
+            raw_artifacts, max_depth=_MAX_ARTIFACT_DEPTH + (4 if schema_response else 0)
+        )
         if artifact_refs is None:
             return _failure_envelope(context, "RETRYABLE_INFRA", category="RETRYABLE_INFRA", retryable=True)
         return {
@@ -557,7 +606,8 @@ def dispatch(request, serializer_class, method):
         require_tool_enabled(context, method)
     except HarnessContextError as error:
         result = _failure_envelope(context, error.code, category="PERMISSION")
-    except DatabaseError:
+    except DatabaseError as error:
+        _log_failure(context, method, error)
         result = _failure_envelope(context, "RETRYABLE_INFRA", category="RETRYABLE_INFRA", retryable=True)
     else:
         if not _idempotency_header_matches(request, serializer_class):
@@ -577,7 +627,8 @@ def dispatch(request, serializer_class, method):
                         getattr(HarnessFacade(), method)(context, serializer.validated_data),
                         method,
                     )
-                except Exception:
+                except Exception as error:
+                    _log_failure(context, method, error)
                     result = _failure_envelope(context, "RETRYABLE_INFRA", category="RETRYABLE_INFRA", retryable=True)
     result = _bounded_response(request, context, result, method)
     _audit(context, method, result, (time.monotonic() - started) * 1000, risk=audit_risk)
