@@ -137,7 +137,7 @@ module.exports = {
       'window.jQuery': 'jquery',
     }),
     new MonacoWebpackPlugin({
-      languages: ['javascript', 'json'],
+      languages: ['javascript', 'typescript', 'json'],
     }),
     // 严格组件名大小写，避免linux系统上打包报错
     // https://github.com/chemzqm/keng/issues/4
