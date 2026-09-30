@@ -305,3 +305,13 @@ export const fetchSubflowTemplateList = (params) => {
     },
   }).then(response => response.data.data);
 };
+
+/**
+ * 获取标签列表（二级标签通过 parent_id 递归拉取）
+ */
+export const fetchLabelList = params => axios.get('/api/label/', { params }).then(response => response.data.data);
+
+/**
+ * 新建标签
+ */
+export const createLabel = params => axios.post('/api/label/', params).then(response => response.data);

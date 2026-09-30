@@ -67,7 +67,8 @@
           @save="onSaveFlowTemplate"
           @subflow-view="onViewSubflow"
           @back="handleFlowBack"
-          @exit-edit="handleFlowBack" />
+          @exit-edit="handleFlowBack"
+          @label-manage="handleLabelManage" />
         <FlowViewBridge
           v-if="useCanvasEditor && isViewMode"
           ref="flowViewRef"
@@ -77,6 +78,7 @@
           :enable-version="isEnableVersionManage"
           :flow-version="compVersion"
           :on-execute-success="onFlowExecuteSuccess"
+          @label-manage="handleLabelManage"
           @edit="onEditFlowTemplate"
           @back="handleFlowBack" />
         <!-- 子流程更新提示 -->
@@ -2828,6 +2830,17 @@
             },
           });
         }
+      },
+      handleLabelManage() {
+        console.log('handleLabelManage', this.spaceId);
+        const { href } = this.$router.resolve({
+          name: 'spaceAdmin',
+          query: {
+            space_id: this.spaceId,
+            activeTab: 'labelManage',
+          },
+        });
+        window.open(href, '_blank');
       },
       // 新版画布 - 离开前确认
       handleBeforeLeave(isEdited) {
