@@ -277,6 +277,39 @@
         ret = ret.toString(16).padEnd(6, 'f');
         return `#${ret}`;
       },
+      /**
+       * 恢复用户上次选择的空间
+       */
+      async restoreLastSelectedSpace() {
+        try {
+          const resp = await this.getUserPreference();
+          // 后端可能包装响应为 {result, data} 格式，需要兼容处理
+          const data = resp.data || resp;
+          if (data && data.last_selected_space_id) {
+            const lastSpaceId = data.last_selected_space_id;
+            // 检查该空间是否在当前列表中
+            const spaceExists = this.spaceList.some(space => space.id === lastSpaceId);
+            if (spaceExists) {
+              // 如果空间存在，则切换到该空间
+              this.setSpaceId(lastSpaceId);
+              console.log(`[MenuSelect] 恢复上次选择的空间: ${lastSpaceId}`);
+            }
+          }
+        } catch (error) {
+          console.warn('[MenuSelect] 获取用户偏好设置失败:', error);
+        }
+      },
+      /**
+       * 保存用户选择的空间到后台
+       */
+      async saveUserSpacePreference(spaceId) {
+        try {
+          await this.saveUserPreference(spaceId);
+          console.log(`[MenuSelect] 保存用户选择的空间: ${spaceId}`);
+        } catch (error) {
+          console.warn('[MenuSelect] 保存用户偏好设置失败:', error);
+        }
+      },
     },
   };
 </script>

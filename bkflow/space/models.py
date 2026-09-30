@@ -445,3 +445,21 @@ class CredentialScope(models.Model):
         indexes = [
             models.Index(fields=["credential_id", "scope_type", "scope_value"]),
         ]
+
+
+class UserPreference(models.Model):
+    """用户偏好设置"""
+
+    username = models.CharField(_("用户名"), max_length=128, unique=True, db_index=True)
+    last_selected_space_id = models.IntegerField(_("最后选择的空间ID"), null=True, blank=True)
+    preferences = models.JSONField(_("其他偏好设置"), default=dict, blank=True)
+    create_at = models.DateTimeField(_("创建时间"), auto_now_add=True)
+    update_at = models.DateTimeField(_("更新时间"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("用户偏好设置 UserPreference")
+        verbose_name_plural = _("用户偏好设置 UserPreference")
+        db_table = "user_preference"
+
+    def __str__(self):
+        return f"{self.username} - Space: {self.last_selected_space_id}"
