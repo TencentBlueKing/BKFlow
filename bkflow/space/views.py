@@ -60,6 +60,7 @@ from bkflow.space.models import (
     Space,
     SpaceConfig,
     SpaceCreateType,
+    UserPreference,
 )
 from bkflow.space.permissions import (
     SpaceConfigExemptionPermission,
@@ -69,6 +70,7 @@ from bkflow.space.permissions import (
 from bkflow.space.serializers import (
     CredentialBaseQuerySerializer,
     CredentialScopeSerializer,
+    SaveUserPreferenceSerializer,
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
     SpaceConfigSerializer,
@@ -79,6 +81,8 @@ from bkflow.space.serializers import (
     SpaceOpenPluginToggleSerializer,
     SpacePluginConfigQuerySerializer,
     SpaceSerializer,
+    UserPreferenceResponseSerializer,
+    UserPreferenceSerializer,
 )
 from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
@@ -593,3 +597,55 @@ class SpaceConfigViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewSet):
         ser.is_valid(raise_exception=True)
         value = SpaceConfig.get_config(space_id=ser.validated_data["space_id"], config_name=SpacePluginConfig.name)
         return Response({"value": value})
+
+
+class UserPreferenceViewSet(SimpleGenericViewSet):
+    """用户偏好设置接口"""
+
+    queryset = UserPreference.objects.all()
+    serializer_class = UserPreferenceSerializer
+
+    @swagger_auto_schema(
+        method="get",
+        operation_summary="获取用户偏好设置",
+        responses={200: UserPreferenceResponseSerializer()}
+    )
+    @action(detail=False, methods=["GET"])
+    def get_preference(self, request, *args, **kwargs):
+        """获取用户偏好设置"""
+        username = request.user.username
+        try:
+            preference = UserPreference.objects.get(username=username)
+            serializer = self.get_serializer(preference)
+            return Response(serializer.data)
+        except UserPreference.DoesNotExist:
+            default_data = {
+                "last_selected_space_id": None,
+                "preferences": {},
+            }
+            return Response(default_data)
+
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="保存用户偏好设置",
+        request_body=SaveUserPreferenceSerializer,
+        responses={200: UserPreferenceResponseSerializer()}
+    )
+    @action(detail=False, methods=["POST"])
+    def save_preference(self, request, *args, **kwargs):
+        """保存用户偏好设置"""
+        username = request.user.username
+        serializer = SaveUserPreferenceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        space_id = serializer.validated_data["space_id"]
+
+        preference, created = UserPreference.objects.update_or_create(
+            username=username,
+            defaults={"last_selected_space_id": space_id}
+        )
+
+        logger.info(f"[UserPreferenceViewSet.save_preference] User: {username}, Space ID: {space_id}, Created: {created}")
+
+        response_serializer = self.get_serializer(preference)
+        return Response(response_serializer.data)
