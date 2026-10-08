@@ -143,6 +143,10 @@
         'getSpaceDetail',
         'getCurrentSpacePermission',
       ]),
+      ...mapActions('user', [
+        'getUserPreference',
+        'saveUserPreference',
+      ]),
       ...mapMutations([
         'setSpaceId',
         'setSpaceList',
@@ -161,6 +165,27 @@
           console.warn(error);
         }
       },
+      async loadUserPreferredSpace() {
+        try {
+          const resp = await this.getUserPreference();
+          // API 返回的数据在 resp.data 中
+          const lastSelectedSpaceId = resp.data?.last_selected_space_id || resp.last_selected_space_id;
+          console.log('加载用户偏好:', resp, '最后选择的空间ID:', lastSelectedSpaceId);
+          // 如果用户有偏好且该空间在列表中，使用偏好的空间
+          if (lastSelectedSpaceId && this.spaceList.some(item => item.id === lastSelectedSpaceId)) {
+            this.setSpaceId(lastSelectedSpaceId);
+            console.log('使用用户偏好的空间:', lastSelectedSpaceId);
+          } else {
+            // 否则使用第一个空间
+            this.setSpaceId(this.spaceList[0]?.id);
+            console.log('使用默认空间:', this.spaceList[0]?.id);
+          }
+        } catch (error) {
+          console.warn('加载用户偏好失败，使用默认空间:', error);
+          // 出错时使用第一个空间
+          this.setSpaceId(this.spaceList[0]?.id);
+        }
+      },
       async getSpaceList() {
         try {
           const { limit, current } = this.pagination;
@@ -175,9 +200,9 @@
           } else {
             this.spaceList.push(...resp.data.results);
           }
-          // 默认获取第一个
-          if (!this.spaceId) {
-            this.setSpaceId(this.spaceList[0]?.id);
+          // 默认获取第一个，如果有用户偏好则使用用户上次选择的空间
+          if (!this.spaceId && current === 1) {
+            await this.loadUserPreferredSpace();
           }
           // 计算总页数
           this.pagination.count = resp.data.count;
@@ -210,6 +235,10 @@
       },
       handleSpaceSelected(val) {
         this.setSpaceId(val);
+        // 保存用户选择的空间
+        this.saveUserPreference({ space_id: val }).catch((error) => {
+          console.warn('保存用户偏好失败:', error);
+        });
         const redirectMap = {
           '/template': {
             name: 'spaceAdmin',

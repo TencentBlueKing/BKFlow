@@ -22,6 +22,7 @@ import credentialConfig from './modules/credentialConfig';
 import plugin from './modules/plugin';
 import stageCanvas from './modules/stageCanvas';
 import label from './modules/label';
+import user from './modules/user';
 Vue.use(Vuex);
 
 const getAppLang = () => {
@@ -46,6 +47,7 @@ const store = new Vuex.Store({
     plugin,
     stageCanvas,
     label,
+    user,
   },
   // 公共 store
   state: {

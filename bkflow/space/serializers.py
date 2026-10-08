@@ -25,7 +25,7 @@ from rest_framework import serializers
 
 from bkflow.exceptions import ValidationError
 from bkflow.space.configs import SpaceConfigHandler, SpaceConfigValueType
-from bkflow.space.models import CredentialScope, Space, SpaceConfig
+from bkflow.space.models import CredentialScope, Space, SpaceConfig, UserPreference
 from bkflow.utils.tenant import TenantIDField, get_request_tenant_id
 
 logger = logging.getLogger(__name__)
@@ -145,3 +145,33 @@ class SpacePluginConfigQuerySerializer(serializers.Serializer):
         if value != SpacePluginConfig.name:
             raise serializers.ValidationError(_("只能查询空间插件配置"))
         return value
+
+
+class UserPreferenceSerializer(serializers.ModelSerializer):
+    """用户偏好设置序列化器"""
+
+    class Meta:
+        model = UserPreference
+        fields = ["username", "last_selected_space_id", "preferences"]
+        read_only_fields = ["username"]
+
+    def to_representation(self, instance):
+        """自定义响应格式"""
+        data = super().to_representation(instance)
+        return {
+            "last_selected_space_id": data.get("last_selected_space_id"),
+            "preferences": data.get("preferences", {}),
+        }
+
+
+class SaveUserPreferenceSerializer(serializers.Serializer):
+    """保存用户偏好设置序列化器"""
+
+    space_id = serializers.IntegerField(help_text=_("空间ID"), required=True)
+
+
+class UserPreferenceResponseSerializer(serializers.Serializer):
+    """用户偏好响应序列化器（用于 API 文档）"""
+
+    last_selected_space_id = serializers.IntegerField(help_text=_("最后选择的空间ID"), allow_null=True)
+    preferences = serializers.JSONField(help_text=_("用户偏好设置"), default=dict)
