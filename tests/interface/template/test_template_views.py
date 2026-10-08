@@ -183,7 +183,7 @@ def test_template_serializer_writes_schema_snapshot(mock_is_circular_reference, 
 
     with mock.patch(
         "bkflow.template.serializers.template.PipelineTemplateWebPreviewer.validate_loop_variables",
-        return_value={"has_loop": True},
+        return_value={"is_valid": True},
     ), mock.patch("bkflow.template.serializers.template.SpaceConfig.get_config", return_value="false"), mock.patch(
         "bkflow.template.serializers.template.event_broadcast_signal.send"
     ):
@@ -230,7 +230,7 @@ def test_template_serializer_clears_open_plugin_snapshots_after_switching_to_nor
         return_value={"has_cycle": False},
     ), mock.patch(
         "bkflow.template.serializers.template.PipelineTemplateWebPreviewer.validate_loop_variables",
-        return_value={"has_loop": True},
+        return_value={"is_valid": True},
     ), mock.patch(
         "bkflow.template.serializers.template.SpaceConfig.get_config",
         return_value="false",
