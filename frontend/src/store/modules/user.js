@@ -25,6 +25,20 @@ const user = {
     saveUserPreference(context, params) {
       return axios.post('/api/space/user-preference/save/', params).then(response => response.data);
     },
+    /**
+     * 获取用户收藏的空间列表
+     */
+    getUserFavorites() {
+      return axios.get('/api/space/user-preference/favorites/').then(response => response.data);
+    },
+    /**
+     * 切换空间收藏状态
+     * @param {Object} context - vuex context
+     * @param {Number} spaceId - 空间ID
+     */
+    toggleSpaceFavorite(context, spaceId) {
+      return axios.post('/api/space/user-preference/toggle_favorite/', { space_id: spaceId }).then(response => response.data);
+    },
   },
 };
 

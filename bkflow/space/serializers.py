@@ -175,3 +175,19 @@ class UserPreferenceResponseSerializer(serializers.Serializer):
 
     last_selected_space_id = serializers.IntegerField(help_text=_("最后选择的空间ID"), allow_null=True)
     preferences = serializers.JSONField(help_text=_("用户偏好设置"), default=dict)
+
+
+class ToggleFavoriteSerializer(serializers.Serializer):
+    """切换收藏状态序列化器"""
+
+    space_id = serializers.IntegerField(help_text=_("空间ID"), required=True)
+
+
+class FavoriteSpaceListSerializer(serializers.Serializer):
+    """收藏空间列表响应序列化器"""
+
+    favorite_space_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text=_("收藏的空间ID列表"),
+        default=list
+    )
