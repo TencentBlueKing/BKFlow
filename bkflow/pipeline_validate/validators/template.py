@@ -16,110 +16,15 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from jsonschema import Draft4Validator
+
+from mako.codegen import RESERVED_NAMES
 
 from bkflow.constants import ValidateType, ValidatorCode
 from bkflow.pipeline_validate.validators.base import (
     BasePipelineValidator,
     ValidatorResult,
-    _get_constant_display_name,
 )
-from bkflow.pipeline_web.parser.format import classify_constants
-from bkflow.pipeline_web.parser.schemas import KEY_PATTERN_RE, WEB_PIPELINE_SCHEMA
-
-
-class SchemaValidator(BasePipelineValidator):
-    code = ValidatorCode.TEMPLATE_SCHEMA.value
-    validate_type = ValidateType.TEMPLATE.value
-
-    @classmethod
-    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
-        valid = Draft4Validator(WEB_PIPELINE_SCHEMA)
-        errors = []
-        for error in sorted(valid.iter_errors(web_pipeline_tree), key=str):
-            errors.append("{}: {}".format("→".join(map(str, error.absolute_path)), error.message))
-
-        if errors:
-            error_message = "流程结构校验失败，请检查流程配置是否完整: {}".format("; ".join(errors))
-            return ValidatorResult(is_valid=False, error=error_message)
-
-        return ValidatorResult(is_valid=True)
-
-
-class ConstantsKeyPatternValidator(BasePipelineValidator):
-    code = ValidatorCode.TEMPLATE_CONSTANTS_KEY_PATTERN.value
-    validate_type = ValidateType.TEMPLATE.value
-
-    @classmethod
-    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
-        key_validation_errors = []
-
-        for key, const in web_pipeline_tree["constants"].items():
-            key_value = const.get("key")
-            display_name = _get_constant_display_name(const, key)
-
-            if key != key_value:
-                key_validation_errors.append(display_name)
-                continue
-
-            if not KEY_PATTERN_RE.match(key):
-                key_validation_errors.append(display_name)
-
-        if key_validation_errors:
-            err_message = "变量 {} 的 key 格式不合法或与属性 key 不匹配，请检查变量配置".format(", ".join(key_validation_errors))
-            return ValidatorResult(is_valid=False, error=err_message)
-
-        return ValidatorResult(is_valid=True)
-
-
-class ConstantsSourceInfoValidator(BasePipelineValidator):
-    code = ValidatorCode.TEMPLATE_CONSTANTS_SOURCE_INFO.value
-    validate_type = ValidateType.TEMPLATE.value
-
-    @classmethod
-    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
-        """执行Constants Source Info校验"""
-        key_validation_errors = []
-        classification = classify_constants(web_pipeline_tree["constants"], is_subprocess=False)
-
-        for key, const in web_pipeline_tree["constants"].items():
-            key_value = const.get("key")
-            display_name = _get_constant_display_name(const, key)
-
-            # Skip constants that are not in data_inputs (e.g., component_outputs with empty source_info)
-            if key_value not in classification["data_inputs"]:
-                # If it's a component_outputs type with invalid source_info, report error
-                if const.get("source_type") == "component_outputs":
-                    source_info = const.get("source_info")
-                    # source_info is empty dict or all values are empty lists
-                    if not source_info or not any(v for v in source_info.values() if v):
-                        key_validation_errors.append(display_name)
-
-        if key_validation_errors:
-            err_message = "输出变量 {} 配置无效：该变量类型为组件输出，但未选择有效的输出字段，" "请在对应节点中重新勾选输出变量或删除该变量".format(
-                ", ".join(key_validation_errors)
-            )
-            return ValidatorResult(is_valid=False, error=err_message)
-
-        return ValidatorResult(is_valid=True)
-
-
-class OutputsKeyPatternValidator(BasePipelineValidator):
-    code = ValidatorCode.TEMPLATE_OUTPUTS_KEY_PATTERN.value
-    validate_type = ValidateType.TEMPLATE.value
-
-    @classmethod
-    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
-        key_validation_errors = []
-
-        for output_key in web_pipeline_tree["outputs"]:
-            if not KEY_PATTERN_RE.match(output_key):
-                key_validation_errors.append(output_key)
-
-        if key_validation_errors:
-            return ValidatorResult(is_valid=False, error=f"输出变量 {'，'.join(key_validation_errors)} 的 key 格式不合法")
-
-        return ValidatorResult(is_valid=True)
+from bkflow.pipeline_web.parser.schemas import KEY_PATTERN_RE
 
 
 class MutualExclusionValidator(BasePipelineValidator):
@@ -164,7 +69,33 @@ class LoopVariableValidator(BasePipelineValidator):
         from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 
         result = PipelineTemplateWebPreviewer.validate_loop_variables(web_pipeline_tree)
-        if not result.get("has_loop"):
+        if not result.get("is_valid"):
             return ValidatorResult(is_valid=False, error=result.get("error_message", ""))
+
+        return ValidatorResult(is_valid=True)
+
+
+class MakoKeywordValidator(BasePipelineValidator):
+    code = ValidatorCode.TASK_MAKO_KEYWORD.value
+    validate_type = ValidateType.TASK.value
+
+    @classmethod
+    def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
+        validation_errors = []
+
+        # 遍历所有常量变量
+        for key, const in web_pipeline_tree["constants"].items():
+            # key 格式为 ${variable_name}，需提取内部变量名再与 Mako 保留关键字比对
+            match = KEY_PATTERN_RE.match(key)
+            if not match:
+                continue
+            # 提取 ${ 和 } 之间的变量名
+            var_name = key[2:-1]
+            if var_name in RESERVED_NAMES:
+                validation_errors.append(key)
+
+        if validation_errors:
+            error_message = "变量命名校验失败: 变量 {} 使用了Mako模板引擎的保留关键字".format("; ".join(validation_errors))
+            return ValidatorResult(is_valid=False, error=error_message)
 
         return ValidatorResult(is_valid=True)

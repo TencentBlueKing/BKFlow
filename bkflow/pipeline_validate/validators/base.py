@@ -30,6 +30,8 @@ class ValidatorResult:
 class BasePipelineValidator:
     code = None
     validate_type = None
+    # 执行顺序，数值越小越先执行。默认值为 100，SchemaValidator 等必须先执行的校验器可显式设置更小的值。
+    order = 100
 
     def __init_subclass__(cls, *args, **kwargs):
         super().__init_subclass__(*args, **kwargs)

@@ -27,7 +27,6 @@ from bkflow.constants import (
     MAX_LEN_OF_TEMPLATE_NAME,
     USER_NAME_MAX_LENGTH,
     ValidateType,
-    ValidatorCode,
 )
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label
@@ -120,22 +119,11 @@ class CreateTemplateSerializer(serializers.Serializer):
 
         pipeline_tree = attrs.get("pipeline_tree")
         validate_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
-        if pipeline_tree:
+        # 草稿态保存（开启版本管理 且 未自动发布）跳过 pipeline 校验，
+        is_draft_save = validate_config and not auto_release
+        if pipeline_tree and not is_draft_save:
             try:
-                # 开启版本管理且未自动发布（仅保存草稿）时只做基础结构校验，
-                # 其余情况（未开启版本管理，或开启后自动发布）做完整模板校验，
-                # 避免 auto_release=True 直接发布时绕过循环变量/互斥/key/source_info/outputs 等业务校验
-                if validate_config and not auto_release:
-                    ValidatorHandler.validate_by_codes(
-                        pipeline_tree,
-                        [
-                            ValidatorCode.GENERAL_PIPELINE_TREE.value,
-                            ValidatorCode.GENERAL_CONSTANTS.value,
-                            ValidatorCode.TEMPLATE_SCHEMA.value,
-                        ],
-                    )
-                else:
-                    ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
+                ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
             except Exception as e:
                 logger.exception(f"CreateTemplateSerializer pipeline validate error, err = {e}")
                 raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))
@@ -222,21 +210,11 @@ class UpdateTemplateSerializer(serializers.Serializer):
 
         validate_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
 
-        if pipeline_tree:
+        # 草稿态保存（开启版本管理 且 未自动发布）跳过 pipeline 校验，
+        is_draft_save = validate_config and not auto_release
+        if pipeline_tree and not is_draft_save:
             try:
-                # 开启版本管理且未自动发布（仅保存草稿）时只做基础结构校验，
-                # 其余情况（未开启版本管理，或开启后自动发布）做完整模板校验
-                if validate_config and not auto_release:
-                    ValidatorHandler.validate_by_codes(
-                        pipeline_tree,
-                        [
-                            ValidatorCode.GENERAL_PIPELINE_TREE.value,
-                            ValidatorCode.GENERAL_CONSTANTS.value,
-                            ValidatorCode.TEMPLATE_SCHEMA.value,
-                        ],
-                    )
-                else:
-                    ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
+                ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
             except Exception as e:
                 logger.exception(f"UpdateTemplateSerializer pipeline validate error, err = {e}")
                 raise serializers.ValidationError(_(f"参数校验失败，pipeline校验不通过, err={e}"))

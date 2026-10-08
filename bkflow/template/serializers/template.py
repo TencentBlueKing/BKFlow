@@ -31,7 +31,6 @@ from bkflow.constants import (
     TemplateOperationSource,
     TemplateOperationType,
     ValidateType,
-    ValidatorCode,
     WebhookEventType,
     WebhookScopeType,
 )
@@ -166,16 +165,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             scope_value = getattr(self.instance, "scope_value", None)
 
         try:
-            if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-                ValidatorHandler.validate_by_codes(
-                    pipeline_tree,
-                    [
-                        ValidatorCode.GENERAL_PIPELINE_TREE.value,
-                        ValidatorCode.GENERAL_CONSTANTS.value,
-                        ValidatorCode.TEMPLATE_SCHEMA.value,
-                    ],
-                )
-            else:
+            if not SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
                 ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
         except Exception as e:
             logger.exception(f"TemplateSerializer pipeline validate error, err = {e}")
