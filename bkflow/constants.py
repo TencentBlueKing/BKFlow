@@ -168,12 +168,12 @@ class ValidatorCode(Enum):
     """流程校验器编码，集中管理各校验器的 code 标识，按归属类型分类"""
 
     # 模板类校验器
+    TEMPLATE_MAKO_KEYWORD = "mako_keyword_validator"
     TEMPLATE_MUTUAL_EXCLUSION = "mutual_exclusion_validator"
     TEMPLATE_LOOP_VARIABLE = "loop_variable_validator"
 
     # 任务类校验器
     TASK_CONTEXT_HYDRATE = "context_hydrate_validator"
-    TASK_MAKO_KEYWORD = "mako_keyword_validator"
 
     # 通用类校验器
     GENERAL_SCHEMA = "schema_validator"

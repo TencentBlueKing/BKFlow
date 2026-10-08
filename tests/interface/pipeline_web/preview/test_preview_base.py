@@ -735,7 +735,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             }
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertTrue(result["has_loop"])
+        self.assertTrue(result["is_valid"])
         self.assertNotIn("error_message", result)
 
     def test_validate_loop_variables_time_loop_type_skipped(self):
@@ -754,7 +754,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             }
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertTrue(result["has_loop"])
+        self.assertTrue(result["is_valid"])
 
     def test_validate_loop_variables_array_loop_match(self):
         """array_loop 且 loop_times 与循环变量数量一致 -> 通过"""
@@ -772,7 +772,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             }
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertTrue(result["has_loop"])
+        self.assertTrue(result["is_valid"])
 
     def test_validate_loop_variables_array_loop_multi_param_take_min(self):
         """array_loop 多参数时按最短列表长度判断，min 与 loop_times 一致 -> 通过"""
@@ -791,7 +791,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             }
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertTrue(result["has_loop"])
+        self.assertTrue(result["is_valid"])
 
     def test_validate_loop_variables_array_loop_no_loop_params(self):
         """array_loop 但未配置 loop_params -> 不参与不匹配判断 -> 通过"""
@@ -804,7 +804,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             }
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertTrue(result["has_loop"])
+        self.assertTrue(result["is_valid"])
 
     def test_validate_loop_variables_array_loop_mismatch(self):
         """array_loop 但 loop_times 与循环变量数量不匹配 -> 返回错误信息"""
@@ -822,7 +822,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             }
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertFalse(result["has_loop"])
+        self.assertFalse(result["is_valid"])
         self.assertIn("数组循环", result["error_message"])
         self.assertIn("循环次数与循环变量参数不匹配", result["error_message"])
 
@@ -845,7 +845,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             }
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertFalse(result["has_loop"])
+        self.assertFalse(result["is_valid"])
         self.assertIn("超次数循环", result["error_message"])
         self.assertIn("循环次数超过最大值", result["error_message"])
 
@@ -870,7 +870,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             }
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertTrue(result["has_loop"])
+        self.assertTrue(result["is_valid"])
 
     def test_validate_loop_variables_multiple_mismatch_nodes(self):
         """多个节点循环次数与变量不匹配 -> 错误节点名以 '; ' 拼接"""
@@ -897,7 +897,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             }
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertFalse(result["has_loop"])
+        self.assertFalse(result["is_valid"])
         self.assertIn("节点A", result["error_message"])
         self.assertIn("节点B", result["error_message"])
         self.assertIn("; ", result["error_message"])
@@ -923,7 +923,7 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             constants=constants,
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertFalse(result["has_loop"])
+        self.assertFalse(result["is_valid"])
         self.assertIn("循环变量与全局变量冲突", result["error_message"])
         self.assertIn("${items}", result["error_message"])
 
@@ -946,4 +946,4 @@ class PipelineTemplateWebPreviewerTestCase(TestCase):
             constants=constants,
         )
         result = PipelineTemplateWebPreviewer.validate_loop_variables(pipeline_tree)
-        self.assertTrue(result["has_loop"])
+        self.assertTrue(result["is_valid"])

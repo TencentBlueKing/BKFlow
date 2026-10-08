@@ -76,8 +76,8 @@ class LoopVariableValidator(BasePipelineValidator):
 
 
 class MakoKeywordValidator(BasePipelineValidator):
-    code = ValidatorCode.TASK_MAKO_KEYWORD.value
-    validate_type = ValidateType.TASK.value
+    code = ValidatorCode.TEMPLATE_MAKO_KEYWORD.value
+    validate_type = ValidateType.TEMPLATE.value
 
     @classmethod
     def validate(cls, web_pipeline_tree: dict) -> ValidatorResult:
