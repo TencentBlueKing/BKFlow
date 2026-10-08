@@ -52,8 +52,18 @@ class ValidatorHandler:
                 # 指定类型：执行匹配类型和通用类型的校验器
                 validators_to_run.append((validator_name, validator_cls))
 
+        # 按 order 显式排序，避免依赖 import / 注册顺序；order 相同则保持注册顺序稳定
+        validators_to_run.sort(key=lambda item: getattr(item[1], "order", 100))
+
         for validator_name, validator_cls in validators_to_run:
-            result = validator_cls.validate(web_pipeline_tree)
+            try:
+                result = validator_cls.validate(web_pipeline_tree)
+            except PipelineException:
+                raise
+            except Exception as e:
+                # 校验器内部抛出的非 PipelineException 异常统一包装，避免个别校验器
+                # 取值不严谨（如 KeyError）时直接 500
+                raise PipelineException(f"流程校验异常（校验器 {validator_cls.__name__}，code={validator_cls.code}）：{str(e)}")
             if not result.is_valid:
                 raise PipelineException(
                     f"流程校验未通过（校验器 {validator_cls.__name__}，code={validator_cls.code}）：{result.error}"
@@ -71,11 +81,20 @@ class ValidatorHandler:
 
         unknown_codes = [code for code in validator_codes if code not in cls.__hub]
         if unknown_codes:
-            raise ValueError(f"存在未注册的校验器代码: {unknown_codes}")
+            raise PipelineException(f"存在未注册的校验器代码: {unknown_codes}")
 
-        for validator_code in validator_codes:
+        # 按 order 显式排序，保证如 SchemaValidator 等前置校验器先执行
+        sorted_codes = sorted(validator_codes, key=lambda code: getattr(cls.__hub[code], "order", 100))
+
+        for validator_code in sorted_codes:
             validator_cls = cls.__hub[validator_code]
-            result = validator_cls.validate(web_pipeline_tree)
+            try:
+                result = validator_cls.validate(web_pipeline_tree)
+            except PipelineException:
+                raise
+            except Exception as e:
+                # 校验器内部抛出的非 PipelineException 异常统一包装，避免 500
+                raise PipelineException(f"流程校验异常（校验器 {validator_cls.__name__}，code={validator_cls.code}）：{str(e)}")
             if not result.is_valid:
                 raise PipelineException(
                     f"流程校验未通过（校验器 {validator_cls.__name__}，code={validator_cls.code}）：{result.error}"

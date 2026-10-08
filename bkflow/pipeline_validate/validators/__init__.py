@@ -18,18 +18,16 @@ to the current version of the project delivered to anyone in the future.
 """
 
 from bkflow.pipeline_validate.validators.general import (  # noqa
-    ConstantsValidator,
-    PipelineTreeValidator,
-)
-from bkflow.pipeline_validate.validators.task import (  # noqa
-    ContextHydrateValidator,
-    MakoKeywordValidator,
-)
-from bkflow.pipeline_validate.validators.template import (  # noqa
     ConstantsKeyPatternValidator,
     ConstantsSourceInfoValidator,
-    LoopVariableValidator,
-    MutualExclusionValidator,
+    ConstantsValidator,
     OutputsKeyPatternValidator,
+    PipelineTreeValidator,
     SchemaValidator,
+)
+from bkflow.pipeline_validate.validators.task import ContextHydrateValidator  # noqa
+from bkflow.pipeline_validate.validators.template import (  # noqa
+    LoopVariableValidator,
+    MakoKeywordValidator,
+    MutualExclusionValidator,
 )
