@@ -21,6 +21,13 @@ from django.db import models
 MAX_SCOPE_KEY_LENGTH = 255
 
 
+class DebugContextEvidenceType(models.TextChoices):
+    """Display-only debug snapshots, never trusted failure-attribution signals."""
+
+    SNAPSHOT = "DEBUG_CONTEXT_SNAPSHOT", "Debug context snapshot"
+    NODES = "DEBUG_CONTEXT_NODES", "Debug context nodes"
+
+
 class HarnessRunStatus(models.TextChoices):
     """Lifecycle states for a Harness run, independent from Engine execution states."""
 

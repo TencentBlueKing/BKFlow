@@ -16,13 +16,16 @@ POST `/space/{space_id}/harness/get_debug_session/`
 
 #### 可信字段与不可信字段
 
-APIGW 应用、用户、路径空间、Scope、环境与 Session 归属是可信字段。Body 仅允许 `session_id`、`limit`、`cursor`；Body 身份、Token、任意模板历史或 Engine task ID 都是不可信字段并拒绝。读请求不接受幂等请求头。
+APIGW 应用、用户、路径空间、Scope、环境与 Session 归属是可信字段。Body 仅允许下表字段；Body 身份、Token、任意模板历史或 Engine task ID 都是不可信字段并拒绝。读请求不接受幂等请求头。
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | session_id | uuid | 是 | 必须由当前可信上下文拥有。 |
 | limit | integer | 否 | 1 至 100，默认 20。 |
 | cursor | safe opaque string | 否 | 按 `(occurred_at,id)` 稳定翻页当前 Session 的 Evidence。 |
+| node_limit | integer | 否 | 1 至 20，默认 10；独立控制节点页数量，实际还受 8 KiB 字节预算限制。 |
+| node_cursor | safe opaque string | 否 | 使用 `context_page.next_cursor`；绑定当前 Session 和脱敏快照，不可跨会话或跨快照复用。 |
+| node_id | string | 否 | 使用节点页返回的调试节点 id，定点读取单节点；不得与 node_cursor 同传。 |
 
 #### 响应 Envelope
 
@@ -30,14 +33,32 @@ Envelope 顶层固定为 10 个键：`ok`、`run_id`、`revision_id`、`plan_has
 
 调试 feature flag 关闭时，本 Tool 仍可读取已持久化的 Session 与 Evidence，但不会解析 capability、访问插件目录、调用 Template DebugService、Engine 或 Token Broker，也不会做终态化或写 Evidence。生命周期清理由服务端 reaper 负责。
 
+#### 大流程节点摘要与分页
+
+`artifact_refs[0].context` 保留原兼容投影，超预算时可能仍返回 `omitted`。Agent 应读取新增的 `context_page`：
+
+- `summary.total_nodes` / `summary.status_counts`：完整有界节点集合的数量和状态汇总；不把未运行节点误算为成功。
+- `items`：当前页的脱敏节点状态、等待原因、错误、Mock 结果和网关选择等可用字段。
+- `metadata`：有界脱敏的任务、输入及上下文信息；超限单独标记，不阻断节点读取。
+- `snapshot_id` / `next_cursor`：快照标识和下一页。`next_cursor` 为 null 时本次遍历结束。
+
+每页最大 8 KiB、每个节点明细最大 4 KiB、最多 100 个节点；未提高原 Evidence 深度/字节限制。单节点明细超限时保留安全状态摘要，并标记 `details_omitted: true`，不伪称返回了完整日志。明细若含审批保留字段或内部元数据字段，则局部省略并标记 `reason: reserved_metadata`，不能冒充 Harness 审批结果。元数据过大也不会让其他节点整体消失。超过支持的节点总量不返回部分成功页，仍保持省略语义。
+
+活动会话的上下文可能变化；返回 `DEBUG_CONTEXT_CHANGED` 时移除 `node_cursor`，重新读取第一页，不要继续拼接旧快照。不存在的 `node_id` 返回安全的参数错误。分页参数错误不回滚本次已确认的终态归并与凭证回收。
+
+当本 Tool 归并到精确任务的 finished/failed/revoked 终态时，在同一事务内保存会话归属的脱敏快照分片，后续分页仅从这些 Evidence 读取，不访问模板的新 DebugContext。历史终态会话和未捕获快照的其他终止路径不会伪造明细。内部快照分片不重复混入 `history`，业务事件仍用原 `cursor` 独立翻页。快照业务输出中的 `code` 等字段不作为反馈归因的可信失败信号。
+
 #### 请求示例
 
 ```json
 {
   "session_id": "<session_id>",
-  "limit": 20
+  "limit": 20,
+  "node_limit": 5
 }
 ```
+
+下一页仍传同一 `session_id`，并将响应中的 `context_page.next_cursor` 原样放入 `node_cursor`。单节点查询则只增加 `node_id`。这些参数不改变执行模式、身份或权限。
 
 #### 边界
 

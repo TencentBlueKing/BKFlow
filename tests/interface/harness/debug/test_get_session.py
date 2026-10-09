@@ -142,8 +142,14 @@ def test_get_does_not_send_work_budget_overflow_to_artifact_writer(
     debug_context.save(update_fields=["global_vars"])
     written = []
 
-    def forbidden_regex(_value):
-        raise AssertionError("work-budget overflow reached credential regex")
+    from bkflow.harness.services.evidence import contains_secret_shaped_text
+
+    def forbidden_regex(value):
+        # Valid node summaries can now be projected independently. The oversized
+        # global_vars subtree must still be rejected before any credential scan.
+        if value == "value" or len(value) > 16384:
+            raise AssertionError("work-budget overflow reached credential regex")
+        return contains_secret_shaped_text(value)
 
     monkeypatch.setattr(
         "bkflow.harness.services.evidence.contains_secret_shaped_text",

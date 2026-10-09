@@ -117,6 +117,17 @@ def test_feedback_text_cannot_override_hard_evidence_or_inject_rules(feedback):
     )
 
 
+@pytest.mark.parametrize("event_type", ["DEBUG_CONTEXT_SNAPSHOT", "DEBUG_CONTEXT_NODES"])
+def test_debug_context_business_codes_are_not_typed_failure_evidence(feedback, event_type):
+    event = evidence_event("KNOWLEDGE_MISS", event_type)
+    event["redacted_payload"] = {"items": [{"mock_outputs": {"code": "KNOWLEDGE_MISS"}}]}
+    results = attribute_feedback(feedback, validation_reports=[], evidence_events=[event])
+    assert len(results) == 1
+    assert results[0].category is None
+    assert results[0].ambiguity_reasons == ("INSUFFICIENT_TYPED_EVIDENCE",)
+    assert results[0].evidence_refs == ()
+
+
 def test_same_normalized_evidence_and_rule_version_has_same_order_and_hash(feedback):
     """Database return order and mapping key order do not affect attribution identity."""
     first_reports = [validation_report("SCHEMA_DRIFT", 2), validation_report("CAPABILITY_FORBIDDEN", 1)]

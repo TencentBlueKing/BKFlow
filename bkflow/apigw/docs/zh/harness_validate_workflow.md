@@ -19,11 +19,11 @@ POST `/space/{space_id}/harness/validate_workflow/`
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | intent_spec | object | 是 | 有界的意图与约束 DTO。 |
-| a2flow | object | 是 | 有界的候选 a2flow；不是底层 pipeline_tree。 |
+| a2flow | object | 是 | 网关 Schema 已展开 v2 的 nodes/next/inputs、变量与失败策略；不是底层 pipeline_tree 或画布 JSON。 |
 | bindings | array | 是 | 闭合的能力绑定 DTO。 |
 | idempotency_key | string | 是 | 最长 255；相同键与相同 canonical 请求仅返回同一结果。 |
 | run_id | uuid | 否 | 后续修订指定既有 run；首次可由本操作隐式创建。 |
-| expected_plan_hash | string | 否 | 最长 64；用于防止在已知计划上静默覆盖。 |
+| expected_plan_hash | string | 否 | 最长 64；断言本次计算出的计划哈希。没有预期值时省略，不传 null。 |
 | client_context | object | 否 | 仅可含非敏感 `conversation_ref` 与 `agent_release`。 |
 
 #### 响应 Envelope 与错误
@@ -34,16 +34,30 @@ POST `/space/{space_id}/harness/validate_workflow/`
 
 #### 请求示例
 
-以下仅展示外层结构；空 `nodes` 会被拒绝，不是成功校验样例。实际调用须先检索能力、获取精确 Schema，构建 Activity 与一一对应的 binding。
+以下是合法的编排结构示例（两个串行暂停节点）。先检索暂停能力，再获取精确插件 Schema；替换示例 binding 的引用和哈希，并按实时 Schema 核对 `description`。占位引用不是可直接调用的能力或授权。
 
 ```json
 {
-  "intent_spec": {"goal": "restart safely"},
-  "a2flow": {"version": "2.0", "name": "restart", "nodes": []},
-  "bindings": [],
-  "idempotency_key": "validate-restart-v1"
+  "intent_spec": {"goal": "生成两个串行暂停节点，只创建草稿"},
+  "a2flow": {
+    "version": "2.0",
+    "name": "串行暂停示例",
+    "nodes": [
+      {"id": "check_1", "type": "Activity", "name": "检查一", "inputs": {"description": "检查一"}, "next": "check_2"},
+      {"id": "check_2", "type": "Activity", "name": "检查二", "inputs": {"description": "检查二"}, "next": "end"}
+    ]
+  },
+  "bindings": [
+    {"node_id": "check_1", "capability_ref": "<search 返回的引用>", "schema_hash": "<get_plugin_schema 确认的 64 位哈希>", "credential_ref": null},
+    {"node_id": "check_2", "capability_ref": "<search 返回的引用>", "schema_hash": "<get_plugin_schema 确认的 64 位哈希>", "credential_ref": null}
+  ],
+  "idempotency_key": "validate-pause-v1"
 }
 ```
+
+`type` 是编排类型，不是 `pause_node` 等插件 code，也不是引擎内部的 `ServiceActivity`。默认类型为 `Activity`，也支持 `SubProcess`、`StartEvent`、`EndEvent`、四类网关。普通节点通过 `next` 连线，末节点指向 `end`；开始和结束事件可自动补齐。不要发送 `edges`、`config`、`position` 或 `label`；节点参数用 `inputs`，名称用 `name`，布局由服务端生成。
+
+编排协议与按需检索的插件输入 Schema 是两层契约，都不依赖业务知识库。知识库提供案例或领域经验，不应作为获取基本协议的唯一途径。当前仍为 15 个 Harness Tool，本次未增加独立的协议 Tool。
 
 #### P0 边界
 
@@ -73,6 +87,10 @@ Header 必须是闭合的 `{name, value}` 对象数组；也支持 `{hook: false
 
 | 错误码 | 修复方式 |
 |---|---|
+| A2FLOW_NODE_TYPE_INVALID | 按 `path` 定位节点，改用 `Activity` 等编排类型；插件身份通过 binding 指定。 |
+| BINDING_FIELD_REQUIRED | 补齐指出的必填字段；无需凭证时保留 `credential_ref: null`。 |
+| BINDING_NODE_MISMATCH | 每个 Activity 恰好对应一个 binding，其他类型不得绑定；检查 node_id 与节点 id。 |
+| BINDING_NODE_DUPLICATE | 删除路径所指的重复 binding，保留每个 Activity 的唯一绑定。 |
 | FAILURE_STRATEGY_CONFLICT | 自动跳过、自动重试、超时控制至多启用一项。 |
 | FAILURE_STRATEGY_INVALID_COMBO | 自动跳过时关闭手动重试/跳过；自动重试时关闭手动重试。 |
 | SUBPROCESS_DRAFT_NOT_ALLOWED | 选择同空间、同 Scope 的已发布子流程；不得为了修复候选流程而自动发布草稿。 |

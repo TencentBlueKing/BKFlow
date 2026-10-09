@@ -115,6 +115,30 @@ class WorkflowValidationFailure(ValueError):
         "TRUSTED_CONTEXT_STALE": ("PERMISSION", "The trusted deployment context changed.", "start_new_validation"),
         "SCHEMA_DRIFT": ("SCHEMA_DRIFT", "The selected capability schema changed.", "get_plugin_schema"),
         "SCHEMA_VALIDATION_ERROR": ("VALIDATION", "The workflow input does not match its schema.", "repair_a2flow"),
+        "A2FLOW_NODE_TYPE_INVALID": (
+            "VALIDATION",
+            "Use an a2flow node type: Activity, SubProcess, StartEvent, EndEvent, ParallelGateway, "
+            "ConditionalParallelGateway, ExclusiveGateway or ConvergeGateway. "
+            "A plugin code is not a node type; bind the capability to an Activity.",
+            "repair_a2flow",
+        ),
+        "BINDING_FIELD_REQUIRED": (
+            "VALIDATION",
+            "Each binding requires node_id, capability_ref, schema_hash and credential_ref. "
+            "Use credential_ref: null when no credential is needed; do not remove that field.",
+            "repair_a2flow",
+        ),
+        "BINDING_NODE_MISMATCH": (
+            "VALIDATION",
+            "Provide exactly one binding for every Activity node and no bindings for other node types. "
+            "Each binding.node_id must match the Activity id.",
+            "repair_a2flow",
+        ),
+        "BINDING_NODE_DUPLICATE": (
+            "VALIDATION",
+            "Keep exactly one binding per Activity node. Remove the duplicate binding at the indicated index.",
+            "repair_a2flow",
+        ),
         "A2FLOW_CONVERSION_ERROR": ("VALIDATION", "The workflow structure cannot be converted.", "repair_a2flow"),
         "FAILURE_STRATEGY_CONFLICT": (
             "VALIDATION",
@@ -144,6 +168,11 @@ class WorkflowValidationFailure(ValueError):
         "DEBUG_CONFLICT": (
             "DEBUG_CONFLICT",
             "The managed template already has an active debug operation.",
+            "get_debug_session",
+        ),
+        "DEBUG_CONTEXT_CHANGED": (
+            "DEBUG_CONFLICT",
+            "The debug context page is stale or unavailable. Read get_debug_session again without node_cursor.",
             "get_debug_session",
         ),
         "APPROVAL_REQUIRED": (
@@ -510,6 +539,22 @@ class WorkflowValidator:
                 }
             )
 
+        # Resolve authorized capabilities first, but diagnose invalid node types before
+        # the derived Activity/binding set mismatch can send the Agent down a false repair path.
+        valid_types = {
+            NodeType.ACTIVITY,
+            NodeType.SUBPROCESS,
+            NodeType.START_EVENT,
+            NodeType.END_EVENT,
+            NodeType.PARALLEL_GATEWAY,
+            NodeType.CONDITIONAL_PARALLEL_GATEWAY,
+            NodeType.EXCLUSIVE_GATEWAY,
+            NodeType.CONVERGE_GATEWAY,
+        }
+        for index, node in enumerate(request["a2flow"]["nodes"]):
+            node_type = node.get("type", NodeType.ACTIVITY)
+            if not isinstance(node_type, str) or node_type not in valid_types:
+                raise WorkflowValidationFailure("A2FLOW_NODE_TYPE_INVALID", path="a2flow.nodes.{}.type".format(index))
         expected_nodes = set(activity_ids)
         binding_node_ids = [binding["node_id"] for binding in resolved]
         seen_binding_nodes = set(binding_node_ids)
@@ -517,14 +562,16 @@ class WorkflowValidator:
             duplicate_node_id = next(node_id for node_id in activity_ids if activity_ids.count(node_id) > 1)
             raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="nodes.{}.id".format(duplicate_node_id))
         if len(binding_node_ids) != len(seen_binding_nodes):
-            duplicate_node_id = next(node_id for node_id in binding_node_ids if binding_node_ids.count(node_id) > 1)
+            duplicate_index = next(
+                index for index, node_id in enumerate(binding_node_ids) if node_id in binding_node_ids[:index]
+            )
             raise WorkflowValidationFailure(
-                "SCHEMA_VALIDATION_ERROR", path="bindings.{}.node_id".format(duplicate_node_id)
+                "BINDING_NODE_DUPLICATE", path="bindings.{}.node_id".format(duplicate_index)
             )
         actual_nodes = set(seen_binding_nodes)
         if expected_nodes != actual_nodes:
             node_id = sorted((expected_nodes - actual_nodes) or (actual_nodes - expected_nodes))[0]
-            raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="bindings.{}".format(node_id))
+            raise WorkflowValidationFailure("BINDING_NODE_MISMATCH", path="bindings.{}".format(node_id))
         canonical_a2flow = self._canonical_a2flow(request["a2flow"])
         canonical_nodes = {node["id"]: node for node in canonical_a2flow["nodes"]}
         for node in canonical_nodes.values():
@@ -599,8 +646,15 @@ class WorkflowValidator:
             raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="bindings")
         result = []
         required = {"node_id", "capability_ref", "schema_hash", "credential_ref"}
-        for binding in bindings:
-            if not isinstance(binding, dict) or set(binding) != required:
+        for index, binding in enumerate(bindings):
+            if not isinstance(binding, dict):
+                raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="bindings.<index>")
+            missing = required - set(binding)
+            if missing:
+                raise WorkflowValidationFailure(
+                    "BINDING_FIELD_REQUIRED", path="bindings.{}.{}".format(index, sorted(missing)[0])
+                )
+            if set(binding) != required:
                 raise WorkflowValidationFailure("SCHEMA_VALIDATION_ERROR", path="bindings.<index>")
             node_id = binding["node_id"]
             capability_ref = binding["capability_ref"]

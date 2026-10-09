@@ -141,6 +141,35 @@ def _resources():
     return yaml.safe_load(RESOURCE_FILE.read_text(encoding="utf-8"))
 
 
+def test_a2flow_schema_exposes_composition_separately_from_plugin_inputs():
+    """An Agent can construct nodes/next without guessing canvas JSON or plugin types."""
+    from jsonschema import ValidationError, validate
+
+    from bkflow.pipeline_converter.converters.a2flow_v2.data_models import (
+        A2FlowNode,
+        A2FlowPipeline,
+    )
+
+    schema = _resources()["paths"]["/space/{space_id}/harness/validate_workflow/"]["post"]["requestBody"]["content"][
+        "application/json"
+    ]["schema"]["properties"]["a2flow"]
+    example = schema["example"]
+    validate(example, schema)
+    for version in schema["properties"]["version"]["enum"]:
+        A2FlowPipeline.parse_obj({**example, "version": version})
+    assert set(schema["properties"]) == set(A2FlowPipeline.__fields__)
+    node_schema = schema["properties"]["nodes"]["items"]
+    assert set(node_schema["properties"]) == set(A2FlowNode.__fields__) | {"inputs"}
+    for bad_type in ["pause_node", "ServiceActivity"]:
+        bad = {**example, "nodes": [{**example["nodes"][0], "type": bad_type}]}
+        with pytest.raises(ValidationError):
+            validate(bad, schema)
+    with pytest.raises(ValidationError):
+        validate({**example, "edges": []}, schema)
+    with pytest.raises(ValidationError):
+        validate({**example, "nodes": []}, schema)
+
+
 def _operation_inventory(resources):
     """Index each OpenAPI operation once by operation ID and path/method pair."""
     inventory = []
@@ -318,6 +347,25 @@ def test_p2_resources_publish_closed_tagged_debug_schemas():
             "session_id": {"type": "string", "format": "uuid"},
             "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
             "cursor": {"type": "string", "maxLength": 512, "pattern": "^[A-Za-z0-9_-]+$"},
+            "node_limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20,
+                "default": 10,
+                "description": "context_page 中节点数量上限，另受 8 KiB 字节预算约束；与 Evidence 的 limit 独立。",
+            },
+            "node_cursor": {
+                "type": "string",
+                "maxLength": 512,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "description": "直接使用 context_page.next_cursor；游标绑定会话和快照，状态变化后移除此字段重新读取。",
+            },
+            "node_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "可选，读取指定调试节点；使用 context_page.items 中的 node_id，不与 node_cursor 同传。",
+            },
         },
     }
     run_schema = schemas["harness_run_debug"]

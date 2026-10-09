@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 from bkflow.harness.constants import (
+    DebugContextEvidenceType,
     FeedbackAttributionCategory,
     ImprovementCandidateType,
 )
@@ -213,7 +214,9 @@ def _event_signals(events):
         event_id = _value(event, "id")
         event_type = _valid_code(_value(event, "event_type"))
         payload = _value(event, "redacted_payload", {})
-        if event_id is None or event_type is None:
+        # Snapshot payloads contain business outputs/global variables. A field
+        # named code inside them is data, not a service-issued failure signal.
+        if event_id is None or event_type is None or event_type in DebugContextEvidenceType.values:
             continue
         ref = "evidence://event/{}".format(event_id)
         for code in _payload_codes(payload):

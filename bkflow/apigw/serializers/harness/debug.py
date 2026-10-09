@@ -86,6 +86,9 @@ class GetDebugSessionSerializer(_DomainValidatedSerializer):
     session_id = UUIDStringField()
     limit = serializers.IntegerField(required=False, min_value=1, max_value=100, default=20)
     cursor = serializers.RegexField(r"^[A-Za-z0-9_-]+$", required=False, max_length=512)
+    node_limit = serializers.IntegerField(required=False, min_value=1, max_value=20)
+    node_cursor = serializers.RegexField(r"^[A-Za-z0-9_-]+$", required=False, max_length=512)
+    node_id = serializers.CharField(required=False, min_length=1, max_length=255)
 
 
 class ControlDebugSessionSerializer(_DebugWriteSerializer):

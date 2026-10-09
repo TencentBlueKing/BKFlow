@@ -276,7 +276,7 @@ def test_resolves_every_reference_before_rejecting_duplicate_bindings(context, r
         (resolved_capability.capability_ref, None),
         (resolved_capability.capability_ref, None),
     ]
-    assert failed["errors"][0]["code"] == "SCHEMA_VALIDATION_ERROR"
+    assert failed["errors"][0]["code"] == "BINDING_NODE_DUPLICATE"
 
 
 @pytest.mark.django_db

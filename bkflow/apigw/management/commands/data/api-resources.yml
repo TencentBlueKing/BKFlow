@@ -7705,8 +7705,166 @@ paths:
                   type: object
                 a2flow:
                   type: object
+                  description: >-
+                    a2flow v2 编排协议，不是画布 JSON。插件节点使用 type=Activity，插件身份由 bindings 提供，
+                    参数放 inputs（兼容 data），连线使用 next，不使用 edges/config/position/label。
+                    先检索能力并获取精确插件 Schema，再按该协议构造流程。协议本身无需检索业务知识库。
+                  required: [name, nodes]
+                  additionalProperties: false
+                  properties:
+                    version:
+                      description: 推荐显式使用字符串 2.0；兼容历史 v2 表示，省略时默认 2.0。
+                      enum: ['2.0', '2', 2, '']
+                    name:
+                      type: string
+                    desc:
+                      type: string
+                    nodes:
+                      type: array
+                      minItems: 1
+                      maxItems: 100
+                      items:
+                        type: object
+                        required: [id]
+                        additionalProperties: false
+                        properties:
+                          id:
+                            type: string
+                            minLength: 1
+                            maxLength: 128
+                          name:
+                            type: string
+                          type:
+                            type: string
+                            default: Activity
+                            enum: [Activity, SubProcess, StartEvent, EndEvent, ParallelGateway, ConditionalParallelGateway, ExclusiveGateway, ConvergeGateway]
+                            description: 编排节点类型；不得填写 pause_node 等插件 code 或 ServiceActivity 等引擎类型。
+                          inputs:
+                            type: object
+                            description: 按 get_plugin_schema 返回的输入定义填写；允许字面值或 hook/value 包装。
+                          data:
+                            type: object
+                            description: inputs 的兼容别名，不得同时提供不同的值。
+                          next:
+                            description: 后继节点 id；分支网关使用 id 数组，普通节点使用字符串，最后一个活动指向 end。
+                            nullable: true
+                            oneOf:
+                            - type: string
+                            - type: array
+                              items:
+                                type: string
+                          code:
+                            type: string
+                            nullable: true
+                            description: 通常省略，由已授权 binding 补齐；若填写必须与 capability_ref 一致。
+                          plugin_type:
+                            type: string
+                            nullable: true
+                            enum: [component, remote_plugin, uniform_api]
+                          stage_name:
+                            type: string
+                            nullable: true
+                          conditions:
+                            type: array
+                            nullable: true
+                            items:
+                              type: object
+                              additionalProperties: false
+                              properties:
+                                evaluate:
+                                  type: string
+                                name:
+                                  type: string
+                          default_next:
+                            type: string
+                            nullable: true
+                          converge_gateway_id:
+                            type: string
+                            nullable: true
+                          constants:
+                            type: object
+                            nullable: true
+                          template_id:
+                            type: string
+                            nullable: true
+                            description: SubProcess 必填，同空间及 Scope 的已发布模板 id。
+                          always_use_latest:
+                            type: boolean
+                            default: false
+                          failure_strategy:
+                            type: object
+                            nullable: true
+                            additionalProperties: false
+                            properties:
+                              error_ignorable:
+                                type: boolean
+                              retryable:
+                                type: boolean
+                              skippable:
+                                type: boolean
+                              auto_retry:
+                                type: object
+                                additionalProperties: false
+                                properties:
+                                  enable:
+                                    type: boolean
+                                  interval:
+                                    type: integer
+                                  times:
+                                    type: integer
+                              timeout_config:
+                                type: object
+                                additionalProperties: false
+                                properties:
+                                  enable:
+                                    type: boolean
+                                  seconds:
+                                    type: integer
+                                  action:
+                                    type: string
+                    variables:
+                      type: array
+                      items:
+                        type: object
+                        required: [key]
+                        additionalProperties: false
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                          value: {}
+                          source_type:
+                            type: string
+                          custom_type:
+                            type: string
+                          description:
+                            type: string
+                          show_type:
+                            type: string
+                          source_info:
+                            type: object
+                          validation:
+                            type: string
+                  example:
+                    version: '2.0'
+                    name: 串行暂停示例
+                    nodes:
+                    - id: check_1
+                      type: Activity
+                      name: 检查一
+                      inputs:
+                        description: 检查一
+                      next: check_2
+                    - id: check_2
+                      type: Activity
+                      name: 检查二
+                      inputs:
+                        description: 检查二
+                      next: end
                 bindings:
                   type: array
+                  description: 每个 Activity 恰好对应一个 binding；四个字段均必填，无需凭证时 credential_ref 显式传 null。
                   maxItems: 100
                   items:
                     type: object
@@ -7736,6 +7894,7 @@ paths:
                 expected_plan_hash:
                   type: string
                   maxLength: 64
+                  description: 可选；无已知计划哈希时省略，不要传 null。填写时断言本次计算所得的计划哈希。
                 idempotency_key:
                   type: string
                   maxLength: 255
@@ -8150,7 +8309,7 @@ paths:
   /space/{space_id}/harness/get_debug_session/:
     post:
       operationId: harness_get_debug_session
-      description: Harness P2 查询调试会话与脱敏 Evidence
+      description: Harness P2 查询调试会话、节点状态摘要与脱敏 Evidence；context_page 支持独立节点分页或 node_id 定位
       tags: [ ]
       responses:
         default:
@@ -8194,6 +8353,22 @@ paths:
                   type: string
                   maxLength: 512
                   pattern: '^[A-Za-z0-9_-]+$'
+                node_limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                  default: 10
+                  description: context_page 中节点数量上限，另受 8 KiB 字节预算约束；与 Evidence 的 limit 独立。
+                node_cursor:
+                  type: string
+                  maxLength: 512
+                  pattern: '^[A-Za-z0-9_-]+$'
+                  description: 直接使用 context_page.next_cursor；游标绑定会话和快照，状态变化后移除此字段重新读取。
+                node_id:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  description: 可选，读取指定调试节点；使用 context_page.items 中的 node_id，不与 node_cursor 同传。
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true

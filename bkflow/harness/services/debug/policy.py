@@ -174,6 +174,9 @@ class GetDebugSessionRequest:
     session_id: str
     limit: int = 20
     cursor: str = None
+    node_limit: int = 10
+    node_cursor: str = None
+    node_id: str = None
 
 
 @dataclass(frozen=True)
@@ -309,7 +312,8 @@ def _validated_session_id(value):
 
 def validate_get_request(payload):
     """Parse a bounded Evidence-page request without admitting identity fields."""
-    if not isinstance(payload, dict) or not {"session_id"} <= set(payload) <= {"session_id", "limit", "cursor"}:
+    allowed = {"session_id", "limit", "cursor", "node_limit", "node_cursor", "node_id"}
+    if not isinstance(payload, dict) or not {"session_id"} <= set(payload) <= allowed:
         raise DebugStartRejected("SCHEMA_VALIDATION_ERROR", "request")
     session_id = _validated_session_id(payload.get("session_id"))
     limit = payload.get("limit", 20)
@@ -320,7 +324,29 @@ def validate_get_request(payload):
         not isinstance(cursor, str) or len(cursor) > 512 or re.fullmatch(r"[A-Za-z0-9_-]+", cursor) is None
     ):
         raise DebugStartRejected("SCHEMA_VALIDATION_ERROR", "cursor")
-    return GetDebugSessionRequest(session_id=session_id, limit=limit, cursor=cursor)
+    node_limit = payload.get("node_limit", 10)
+    node_cursor = payload.get("node_cursor")
+    node_id = payload.get("node_id")
+    if isinstance(node_limit, bool) or not isinstance(node_limit, int) or not 1 <= node_limit <= 20:
+        raise DebugStartRejected("SCHEMA_VALIDATION_ERROR", "node_limit")
+    if node_cursor is not None and (
+        not isinstance(node_cursor, str)
+        or len(node_cursor) > 512
+        or re.fullmatch(r"[A-Za-z0-9_-]+", node_cursor) is None
+    ):
+        raise DebugStartRejected("SCHEMA_VALIDATION_ERROR", "node_cursor")
+    if node_id is not None and not is_safe_harness_text(node_id, max_chars=255, max_bytes=1020):
+        raise DebugStartRejected("SCHEMA_VALIDATION_ERROR", "node_id")
+    if node_id is not None and (not node_id or node_cursor is not None):
+        raise DebugStartRejected("SCHEMA_VALIDATION_ERROR", "node_id")
+    return GetDebugSessionRequest(
+        session_id=session_id,
+        limit=limit,
+        cursor=cursor,
+        node_limit=node_limit,
+        node_cursor=node_cursor,
+        node_id=node_id,
+    )
 
 
 def validate_control_request(payload):

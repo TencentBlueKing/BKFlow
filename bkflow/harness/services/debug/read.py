@@ -23,6 +23,15 @@ from bkflow.harness.services.debug.adapter import (
     DebugContextOwnershipConflict,
 )
 from bkflow.harness.services.debug.policy import DebugStartRejected, context_matches_run
+from bkflow.harness.services.debug.projection import (
+    META_EVENT,
+    NODES_EVENT,
+    build_context_snapshot,
+    context_page,
+    load_context_snapshot,
+    persist_context_snapshot,
+    project_debug_payload,
+)
 from bkflow.harness.services.debug.session import (
     _reresolve_bindings,
     _validate_session_artifact_identity,
@@ -31,12 +40,15 @@ from bkflow.harness.services.debug.session import (
 from bkflow.harness.services.evidence import (
     is_safe_evidence_ref,
     prepare_evidence_artifact_payload,
-    project_evidence_payload,
     record_evidence,
 )
 from bkflow.harness.services.state import transition_run
 from bkflow.harness.services.token_broker import TokenBroker
-from bkflow.harness.services.validator import WorkflowValidator, recompute_p0_plan_hash
+from bkflow.harness.services.validator import (
+    WorkflowValidationFailure,
+    WorkflowValidator,
+    recompute_p0_plan_hash,
+)
 from bkflow.template.debug.dependency import compute_tree_fingerprint
 from bkflow.template.debug.service import DebugConflictError, DebugStateError
 from bkflow.template.models import Template, TemplateSnapshot
@@ -70,7 +82,11 @@ def _decode_cursor(value):
 
 
 def _history(session, request):
-    query = EvidenceEvent.objects.filter(debug_session=session).order_by("occurred_at", "id")
+    query = (
+        EvidenceEvent.objects.filter(debug_session=session)
+        .exclude(event_type__in=(META_EVENT, NODES_EVENT))
+        .order_by("occurred_at", "id")
+    )
     decoded = _decode_cursor(request.cursor)
     if decoded is not None:
         occurred_at, event_id = decoded
@@ -102,8 +118,14 @@ def _history(session, request):
 
 
 def _project(value, artifact_writer):
-    projection = project_evidence_payload(value)
+    # Reserve artifact_refs -> artifact -> field nesting. A legacy context that
+    # cannot survive the final APIGW guard must not mask the safe node page.
+    projection = project_debug_payload([{"context": value}])
+    if isinstance(projection, list):
+        projection = projection[0]["context"]
     if not (isinstance(projection, dict) and projection.get("omitted") is True):
+        return projection
+    if projection.get("reason") == "reserved_metadata":
         return projection
     if artifact_writer is None:
         return projection
@@ -285,12 +307,13 @@ def _converge(context, session, adapter, *, token_broker):
         terminal_status, reason = DebugSessionStatus.FAILED, "debug_failed"
     else:
         terminal_status, reason = DebugSessionStatus.TERMINATED, "debug_terminated"
+    persist_context_snapshot(session, view)
     _terminalize(context, session, terminal_status, reason, token_broker=token_broker)
     return view
 
 
-def _artifact(session, context_view, history, reset_impact, *, artifact_writer):
-    return {
+def _artifact(session, context_view, history, reset_impact, *, artifact_writer, node_page):
+    artifact = {
         "type": "debug_session_status",
         "session": {
             "session_id": str(session.id),
@@ -305,6 +328,9 @@ def _artifact(session, context_view, history, reset_impact, *, artifact_writer):
         "history": history,
         "reset_impact": _project(reset_impact, artifact_writer),
     }
+    if node_page is not None:
+        artifact["context_page"] = node_page
+    return artifact
 
 
 def _next_actions(session, *, runtime_enabled):
@@ -328,7 +354,23 @@ def _response(
     runtime_enabled,
 ):
     history = _history(session, request)
+    snapshot = build_context_snapshot(context_view)
+    if snapshot is None and session.status in DebugSession.TERMINAL_STATUSES:
+        snapshot = load_context_snapshot(session)
     validator = WorkflowValidator(context, resolver=object())
+    try:
+        node_page = context_page(session.id, snapshot, request)
+    except DebugStartRejected as error:
+        # A stale browsing cursor is not a reason to roll back an observed
+        # terminal task, its immutable snapshot, or credential revocation.
+        return validator._envelope(
+            ok=False,
+            run=session.run,
+            revision=session.revision,
+            plan_hash_value=session.plan_hash,
+            status=session.run.status,
+            errors=[WorkflowValidationFailure(error.code, path=error.path).as_error()],
+        )
     response = validator._envelope(
         ok=True,
         run=session.run,
@@ -342,6 +384,7 @@ def _response(
                 history,
                 reset_impact,
                 artifact_writer=artifact_writer,
+                node_page=node_page,
             )
         ],
     )

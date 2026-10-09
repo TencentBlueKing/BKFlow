@@ -209,7 +209,7 @@ cases:
     setup: {handler: global, variant: completion_poll, session_mode: global, precondition: owned_task_finishes}
     request: {tool: get_debug_session, payload: *get_payload}
     state_transition: {run: DEBUGGING->RELEASE_READY, session: RUNNING->COMPLETED}
-    evidence_events: [DEBUG_SESSION_COMPLETED]
+    evidence_events: [DEBUG_CONTEXT_SNAPSHOT, DEBUG_CONTEXT_NODES, DEBUG_SESSION_COMPLETED]
     external_mutations: 1
   - <<: *case_defaults
     id: global-failure-poll
@@ -217,7 +217,7 @@ cases:
     setup: {handler: global, variant: failure_poll, session_mode: global, precondition: owned_task_fails_with_active_lease}
     request: {tool: get_debug_session, payload: *get_payload}
     state_transition: {run: DEBUGGING->DRAFT_READY, session: RUNNING->FAILED}
-    evidence_events: [DEBUG_SESSION_FAILED]
+    evidence_events: [DEBUG_CONTEXT_SNAPSHOT, DEBUG_CONTEXT_NODES, DEBUG_SESSION_FAILED]
     token_lease_result: revoked
     external_mutations: 1
 
