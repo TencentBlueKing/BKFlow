@@ -169,3 +169,6 @@ pre-*-bkcodeai
 backup/
 cov.xml
 .DS_Store
+
+owner/
+owner1/

@@ -35,10 +35,23 @@
         </span>
       </div>
       <bk-option
-        v-for="option in spaceList"
+        v-for="option in sortedSpaceList"
         :id="option.id"
         :key="option.id"
-        :name="`${option.name} (${option.id})`" />
+        :name="`${option.name} (${option.id})`">
+        <div class="space-option-wrapper">
+          <span class="space-name">{{ option.name }} ({{ option.id }})</span>
+          <i
+            v-bk-tooltips="{
+              content: isFavorite(option.id) ? '取消收藏' : '收藏',
+              placement: 'right',
+              boundary: 'window'
+            }"
+            :class="['bk-icon', 'favorite-icon', isFavorite(option.id) ? 'icon-star-shape' : 'icon-star']"
+            :style="{ color: isFavorite(option.id) ? '#FFB848' : '#C4C6CC' }"
+            @click="handleToggleFavorite(option.id, $event)" />
+        </div>
+      </bk-option>
       <div
         slot="extension"
         style="text-align: center;"
@@ -73,6 +86,7 @@
     data() {
       return {
         spaceList: [],
+        favoriteSpaceIds: [], // 收藏的空间ID列表
         bottomLoadingOptions: {
           size: 'mini',
           isLoading: false,
@@ -95,6 +109,22 @@
         isAdmin: state => state.isAdmin,
         isSpaceSuperuser: state => state.isSpaceSuperuser,
       }),
+      // 排序后的空间列表：收藏的空间置顶
+      sortedSpaceList() {
+        const favoriteSet = new Set(this.favoriteSpaceIds);
+        const favoriteSpaces = [];
+        const normalSpaces = [];
+
+        this.spaceList.forEach(space => {
+          if (favoriteSet.has(space.id)) {
+            favoriteSpaces.push(space);
+          } else {
+            normalSpaces.push(space);
+          }
+        });
+
+        return [...favoriteSpaces, ...normalSpaces];
+      },
     },
     watch: {
       isExpand(val) {
@@ -134,6 +164,8 @@
         this.handleSpaceSelected(this.spaceList[0].id);
       });
       await this.getSpaceList();
+      // 加载用户收藏列表
+      await this.loadFavorites();
       // 如果没有空间列表则打开空间申请弹框
       this.isVisible = !this.spaceList.length && (this.isAdmin || this.isSpaceSuperuser);
     },
@@ -142,6 +174,12 @@
         'loadSpaceList',
         'getSpaceDetail',
         'getCurrentSpacePermission',
+      ]),
+      ...mapActions('user', [
+        'getUserPreference',
+        'saveUserPreference',
+        'getUserFavorites',
+        'toggleSpaceFavorite',
       ]),
       ...mapMutations([
         'setSpaceId',
@@ -161,6 +199,27 @@
           console.warn(error);
         }
       },
+      async loadUserPreferredSpace() {
+        try {
+          const resp = await this.getUserPreference();
+          // API 返回的数据在 resp.data 中
+          const lastSelectedSpaceId = resp.data?.last_selected_space_id || resp.last_selected_space_id;
+          console.log('加载用户偏好:', resp, '最后选择的空间ID:', lastSelectedSpaceId);
+          // 如果用户有偏好且该空间在列表中，使用偏好的空间
+          if (lastSelectedSpaceId && this.spaceList.some(item => item.id === lastSelectedSpaceId)) {
+            this.setSpaceId(lastSelectedSpaceId);
+            console.log('使用用户偏好的空间:', lastSelectedSpaceId);
+          } else {
+            // 否则使用第一个空间
+            this.setSpaceId(this.spaceList[0]?.id);
+            console.log('使用默认空间:', this.spaceList[0]?.id);
+          }
+        } catch (error) {
+          console.warn('加载用户偏好失败，使用默认空间:', error);
+          // 出错时使用第一个空间
+          this.setSpaceId(this.spaceList[0]?.id);
+        }
+      },
       async getSpaceList() {
         try {
           const { limit, current } = this.pagination;
@@ -175,9 +234,9 @@
           } else {
             this.spaceList.push(...resp.data.results);
           }
-          // 默认获取第一个
-          if (!this.spaceId) {
-            this.setSpaceId(this.spaceList[0]?.id);
+          // 默认获取第一个，如果有用户偏好则使用用户上次选择的空间
+          if (!this.spaceId && current === 1) {
+            await this.loadUserPreferredSpace();
           }
           // 计算总页数
           this.pagination.count = resp.data.count;
@@ -210,6 +269,10 @@
       },
       handleSpaceSelected(val) {
         this.setSpaceId(val);
+        // 保存用户选择的空间
+        this.saveUserPreference({ space_id: val }).catch((error) => {
+          console.warn('保存用户偏好失败:', error);
+        });
         const redirectMap = {
           '/template': {
             name: 'spaceAdmin',
@@ -256,6 +319,55 @@
         } finally {
           this.bottomLoadingOptions.isLoading = false;
         }
+      },
+      /**
+       * 加载用户收藏列表
+       */
+      async loadFavorites() {
+        try {
+          const resp = await this.getUserFavorites();
+          this.favoriteSpaceIds = resp.favorite_space_ids || [];
+          console.log('[MenuSelect] 收藏列表加载成功:', this.favoriteSpaceIds);
+        } catch (error) {
+          console.warn('[MenuSelect] 加载收藏列表失败:', error);
+          this.favoriteSpaceIds = [];
+        }
+      },
+      /**
+       * 切换收藏状态
+       * @param {Number} spaceId - 空间ID
+       * @param {Event} event - 事件对象
+       */
+      async handleToggleFavorite(spaceId, event) {
+        // 阻止事件冒泡，防止触发空间切换
+        event.stopPropagation();
+
+        try {
+          const resp = await this.toggleSpaceFavorite(spaceId);
+          this.favoriteSpaceIds = resp.favorite_space_ids || [];
+
+          // 显示提示信息
+          this.$bkMessage({
+            theme: 'success',
+            message: resp.message || '操作成功',
+          });
+
+          console.log('[MenuSelect] 收藏状态已更新:', this.favoriteSpaceIds);
+        } catch (error) {
+          console.error('[MenuSelect] 切换收藏失败:', error);
+          this.$bkMessage({
+            theme: 'error',
+            message: '操作失败，请重试',
+          });
+        }
+      },
+      /**
+       * 检查空间是否已收藏
+       * @param {Number} spaceId - 空间ID
+       * @returns {Boolean}
+       */
+      isFavorite(spaceId) {
+        return this.favoriteSpaceIds.includes(spaceId);
       },
       randomColor(seed = 0) {
         const totalColors = 1000; // 最大支持颜色种类数
@@ -321,6 +433,28 @@
       ::v-deep .tippy-popper{
         .tippy-content{
           padding: 0 !important;
+        }
+      }
+    }
+    .space-option-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      .space-name {
+        flex: 1;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        margin-right: 8px;
+      }
+      .favorite-icon {
+        flex-shrink: 0;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+        &:hover {
+          transform: scale(1.2);
         }
       }
     }

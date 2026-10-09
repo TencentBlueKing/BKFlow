@@ -26,12 +26,14 @@ from bkflow.space.views import (
     SpaceConfigViewSet,
     SpaceInternalViewSet,
     SpaceViewSet,
+    UserPreferenceViewSet,
 )
 
 router = DefaultRouter()
 router.register(r"", SpaceViewSet)
 router.register(r"internal", SpaceInternalViewSet, basename="internal")
 router.register(r"config", SpaceConfigViewSet, basename="config")
+router.register(r"user-preference", UserPreferenceViewSet, basename="user-preference")
 
 admin_router = DefaultRouter()
 admin_router.register(r"space_config", SpaceConfigAdminViewSet, basename="space_config")
