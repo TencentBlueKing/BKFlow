@@ -2832,7 +2832,6 @@
         }
       },
       handleLabelManage() {
-        console.log('handleLabelManage', this.spaceId);
         const { href } = this.$router.resolve({
           name: 'spaceAdmin',
           query: {
@@ -2844,7 +2843,6 @@
       },
       // 新版画布 - 离开前确认
       handleBeforeLeave(isEdited) {
-        console.log('离开前确认-isEdited', isEdited);
         if (!isEdited) return Promise.resolve(true);
         // return new Promise((resolve) => {
         //   this.$bkInfo({
