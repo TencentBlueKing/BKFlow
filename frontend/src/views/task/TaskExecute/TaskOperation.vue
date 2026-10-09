@@ -416,6 +416,7 @@
         selectedFlowPath: path, // 选择面包屑路径
         cacheStatus: undefined, // 总任务缓存状态信息；只有总任务完成、终止时才存在
         instanceStatus: {},
+        subCanvasChildrenStatus: {}, // 已收集的子画布子节点执行状态缓存
         taskParamsType: '',
         timer: null,
         isTaskOperationDestroyed: false,
@@ -598,7 +599,16 @@
         if (!children) return {};
         const result = {};
         Object.keys(children).forEach((id) => {
-          result[id] = { status: children[id].state };
+          const node = children[id] || {};
+          // 供SDK侧展示节点与循环容器的 retry / skip / loop 角标
+          result[id] = {
+            status: node.state,
+            retry: node.retry,
+            skip: node.skip,
+            error_ignored: node.error_ignored,
+            loop: node.loop,
+            phase: node.phase,
+          };
         });
         return result;
       },
@@ -754,6 +764,14 @@
           if (instanceStatus.result) {
             this.state = instanceStatus.data.state;
             this.instanceStatus = instanceStatus.data;
+            // 回填上一轮已收集的容器子节点状态
+            if (Object.keys(this.subCanvasChildrenStatus).length > 0) {
+              this.instanceStatus.children = Object.assign(
+                {},
+                this.instanceStatus.children || {},
+                this.subCanvasChildrenStatus,
+              );
+            }
             this.pollErrorTimes = 0;
             // 收集已执行 subcanvas_plugin 的子节点执行状态
             await this.collectSubCanvasChildrenStatus();
@@ -879,6 +897,12 @@
               }
             });
             if (Object.keys(mergedChildren).length > 0) {
+              // 缓存本轮收集结果：后续轮询instanceStatus被整体替换时用它回填，确保子节点被替换过程中状态不丢失
+              this.subCanvasChildrenStatus = Object.assign(
+                {},
+                this.subCanvasChildrenStatus,
+                mergedChildren,
+              );
               this.instanceStatus.children = Object.assign(
                 {},
                 this.instanceStatus.children || {},
@@ -2100,8 +2124,13 @@
         this[actionType]();
       },
       onCanvasEditorNodeClick(event) {
-        const { nodeId } = event || {};
+        const { nodeId, condition } = event || {};
         if (!nodeId) return;
+        if (condition) {
+          this.onNodeClick(nodeId, undefined, condition);
+          this.defaultActiveId = `${condition.name}-${condition.id}`;
+          return;
+        }
         const location = this.instanceFlow.location?.find(item => item.id === nodeId);
         const nodeType = location?.type;
         this.onNodeClick(nodeId, nodeType);

@@ -3,6 +3,8 @@
  */
 
 import './public-path';
+// 在router之前冻结 MonacoEnvironment,避免 ESM worker
+import './freeze-monaco-env';
 import Vue from 'vue';
 import App from './App';
 import router from './router/index.js';

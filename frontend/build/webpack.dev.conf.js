@@ -82,6 +82,16 @@ module.exports = merge(webpackBase, {
       },
     ],
   },
+  // 不转发vue-loader@15生成 `export * from` default 导致的良性告警
+  ignoreWarnings: [
+    (warning) => {
+      const message = warning.message || ''
+      return (
+        /export ['"]default['"] \(imported as 'style\d+'\) was not found/.test(message) ||
+        /module has no exports/.test(message)
+      )
+    },
+  ],
   // 插件
   plugins: [
     new webpack.HotModuleReplacementPlugin(),
