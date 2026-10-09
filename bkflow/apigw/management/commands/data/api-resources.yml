@@ -7669,7 +7669,7 @@ paths:
   /space/{space_id}/harness/validate_workflow/:
     post:
       operationId: harness_validate_workflow
-      description: Harness P0 校验并持久化含画布布局的受治理 a2flow 修订，返回安全的规则修复提示
+      description: Harness P0 校验并持久化含画布布局的受治理 a2flow 修订。首次生成必须省略 run_id，由服务端分配；后续只使用本会话服务端返回的引用。PERMISSION 错误必须停止工具调用，不换插件、身份或 Run 重试。
       tags: [ ]
       responses:
         default:
@@ -7891,6 +7891,7 @@ paths:
                 run_id:
                   type: string
                   format: uuid
+                  description: 首次生成必须省略 run_id（不要生成 UUID、复制示例或传 null），由服务端分配。后续修订仅原样使用本会话服务端返回的 run_id；被拒绝时停止，不换 ID 或删除引用重试。
                 expected_plan_hash:
                   type: string
                   maxLength: 64

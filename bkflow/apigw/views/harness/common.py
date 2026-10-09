@@ -104,7 +104,11 @@ def _safe_path(value):
 def _failure_envelope(context, code="SCHEMA_VALIDATION_ERROR", category=None, retryable=False):
     """Build one frozen failure shape without accepting message text from an untrusted boundary."""
     error = WorkflowValidationFailure(
-        code, path="request", category=category, repairable=not retryable, retryable=retryable
+        code,
+        path="request",
+        category=category,
+        repairable=not retryable and category != "PERMISSION",
+        retryable=retryable,
     ).as_error()
     return {
         "ok": False,
@@ -112,10 +116,10 @@ def _failure_envelope(context, code="SCHEMA_VALIDATION_ERROR", category=None, re
         "revision_id": None,
         "plan_hash": None,
         "status": None,
-        "summary": "Workflow validation requires repair.",
+        "summary": _failure_summary([error]),
         "artifact_refs": [],
         "errors": [error],
-        "next_actions": [error["suggested_action"]],
+        "next_actions": _safe_failure_next_actions([error], []),
         "correlation_id": _safe_identifier(context.correlation_id),
     }
 
@@ -360,6 +364,8 @@ def _safe_next_actions(context, value):
 
 def _safe_failure_next_actions(errors, raw_next_actions):
     """Keep regenerated taxonomy remediation plus a tiny fixed service remediation set."""
+    if any(error["category"] == "PERMISSION" for error in errors):
+        return []
     actions = list(dict.fromkeys(error["suggested_action"] for error in errors))
     if isinstance(raw_next_actions, list) and len(raw_next_actions) <= _MAX_NEXT_ACTIONS:
         for action in raw_next_actions:
@@ -376,6 +382,13 @@ def _safe_failure_next_actions(errors, raw_next_actions):
             ):
                 actions.append(action)
     return actions[:_MAX_NEXT_ACTIONS]
+
+
+def _failure_summary(errors):
+    """Permission denial is a stop condition, not an automatic repair instruction."""
+    if any(error["category"] == "PERMISSION" for error in errors):
+        return "Workflow request denied; stop tool calls and report the error."
+    return "Workflow validation requires repair."
 
 
 def _canonical_approval_request_id(value):
@@ -461,7 +474,7 @@ def _safe_domain_result(context, result, method):
         "revision_id": _safe_identifier(result.get("revision_id")),
         "plan_hash": _safe_identifier(result.get("plan_hash")),
         "status": _safe_identifier(result.get("status")),
-        "summary": "Workflow validation requires repair.",
+        "summary": _failure_summary(safe_errors),
         "artifact_refs": artifact_refs,
         "errors": safe_errors,
         "next_actions": _safe_failure_next_actions(safe_errors, result.get("next_actions")),

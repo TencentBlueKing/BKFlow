@@ -295,6 +295,8 @@ def test_untrusted_run_id_returns_a_permission_envelope(context, resolved_capabi
     assert rejected["ok"] is False
     assert rejected["errors"][0]["code"] == "CAPABILITY_FORBIDDEN"
     assert rejected["errors"][0]["category"] == "PERMISSION"
+    assert rejected["next_actions"] == []
+    assert "run reference" in rejected["errors"][0]["message"]
 
 
 @pytest.mark.django_db
@@ -313,8 +315,12 @@ def test_malformed_run_id_returns_a_closed_permission_envelope(context, resolved
             "path": "run_id",
             "repairable": False,
             "retryable": False,
-            "message": "The selected capability is not permitted.",
-            "suggested_action": "search_workflow_capabilities",
+            "message": (
+                "The workflow run reference is invalid or unavailable in the current authorized context. "
+                "Stop tool calls and ask the space administrator to verify the server-issued run reference. "
+                "Do not invent, replace or omit a referenced run to bypass this denial."
+            ),
+            "suggested_action": "contact_space_administrator",
         }
     ]
 

@@ -8,7 +8,11 @@ from django.urls import resolve
 from pipeline.component_framework.models import ComponentModel
 from pipeline.core.data.base import DataObject
 
-from bkflow.harness.models import HarnessIdempotencyRecord, WorkflowPlanRevision
+from bkflow.harness.models import (
+    HarnessIdempotencyRecord,
+    HarnessRun,
+    WorkflowPlanRevision,
+)
 from bkflow.pipeline_plugins.components.collections.http.v1_0 import (
     HttpComponent,
     HttpRequestService,
@@ -358,6 +362,42 @@ def test_revalidated_revision_updates_same_managed_draft_with_complete_layout(mo
     assert sha256_json(tree) == accepted["artifact_refs"][0]["pipeline_tree_hash"]
     assert sha256_json(tree) == updated["artifact_refs"][0]["pipeline_tree_hash"]
     assert updated["next_actions"] == []
+
+
+def test_invented_run_reference_stops_without_creating_artifacts(monkeypatch, harness_call):
+    """模型虚构 Run 时安全拒绝，不应将其误导为换插件重试或隐式创建新 Run。"""
+    request = request_for_component(monkeypatch, harness_call, PauseComponent, {"description": "safe"})
+    request["run_id"] = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    response = harness_call("validate_workflow", request)
+    assert response["ok"] is False
+    error = response["errors"][0]
+    assert (error["code"], error["category"], error["path"]) == ("CAPABILITY_FORBIDDEN", "PERMISSION", "run_id")
+    assert error["repairable"] is error["retryable"] is False
+    assert "run reference" in error["message"]
+    assert "Stop tool calls" in error["message"]
+    assert error["suggested_action"] == "contact_space_administrator"
+    assert response["next_actions"] == []
+    assert "denied" in response["summary"]
+    assert response["run_id"] is response["revision_id"] is response["plan_hash"] is None
+    assert response["artifact_refs"] == []
+    assert request["run_id"] not in str(response)
+    for model in (HarnessRun, WorkflowPlanRevision, HarnessIdempotencyRecord, Template):
+        assert model.objects.count() == 0
+
+
+@pytest.mark.parametrize("code", ["CAPABILITY_FORBIDDEN", "TRUSTED_CONTEXT_STALE", "HARNESS_ACCESS_DENIED"])
+def test_permission_projection_cannot_restore_automatic_remediation_from_old_result(code):
+    """最终响应须关闭旧持久化结果或下游返回附带的自动恢复建议。"""
+    from bkflow.apigw.views.harness.common import _safe_domain_result
+
+    persisted = _domain_envelope("trace", code=code, category="PERMISSION")
+    persisted["errors"][0]["path"] = "run_id"
+    persisted["next_actions"] = ["search_workflow_capabilities", "obtain_approval"]
+    original = deepcopy(persisted)
+    response = _safe_domain_result(_context(), persisted, "validate_workflow")
+    assert response["next_actions"] == []
+    assert "denied" in response["summary"]
+    assert persisted == original
 
 
 def test_public_header_allowance_does_not_relax_generic_json_safety():

@@ -22,7 +22,7 @@ POST `/space/{space_id}/harness/validate_workflow/`
 | a2flow | object | 是 | 网关 Schema 已展开 v2 的 nodes/next/inputs、变量与失败策略；不是底层 pipeline_tree 或画布 JSON。 |
 | bindings | array | 是 | 闭合的能力绑定 DTO。 |
 | idempotency_key | string | 是 | 最长 255；相同键与相同 canonical 请求仅返回同一结果。 |
-| run_id | uuid | 否 | 后续修订指定既有 run；首次可由本操作隐式创建。 |
+| run_id | uuid | 否 | 首次生成必须省略，由服务端分配；不要生成 UUID、复制示例或传 null。后续修订仅原样使用本会话服务端返回的 run_id。被拒绝时停止，不换 ID 或删除引用重试。 |
 | expected_plan_hash | string | 否 | 最长 64；断言本次计算出的计划哈希。没有预期值时省略，不传 null。 |
 | client_context | object | 否 | 仅可含非敏感 `conversation_ref` 与 `agent_release`。 |
 
@@ -31,6 +31,12 @@ POST `/space/{space_id}/harness/validate_workflow/`
 无论成功或失败，顶层固定为 10 个键：`ok`、`run_id`、`revision_id`、`plan_hash`、`status`、`summary`、`artifact_refs`、`errors`、`next_actions`、`correlation_id`。每个错误固定包含 `category`、`code`、`message`、`path`、`repairable`、`suggested_action`、`retryable`，分类仅可能为 `USER_INPUT`、`CAPABILITY_NOT_FOUND`、`AMBIGUOUS_CAPABILITY`、`SCHEMA_DRIFT`、`VALIDATION`、`PERMISSION`、`APPROVAL_REQUIRED`、`APPROVAL_INVALID`、`TOKEN_LEASE`、`DEBUG_CONFLICT`、`RUNTIME`、`POSTCONDITION`、`RETRYABLE_INFRA`。
 
 `SCHEMA_DRIFT` 表示精确版本、来源或 Schema 已变化；`RETRYABLE_INFRA` 才允许以相同 `idempotency_key` 重试。修复必须以新的 revision 再次校验，不能覆盖已验证修订。
+
+首次请求不传 `run_id`，服务端校验后返回实际 Run 引用；`idempotency_key` 由调用方生成，两者不能混淆。后续修订不能为了规避拒绝而省略已引用的 Run。
+
+`CAPABILITY_FORBIDDEN` 且 `path=run_id` 表示该 Run 引用在当前授权上下文不可用，**不表示应更换插件**。不会回显 Run 输入值或证明它是否存在。应停止调用，向空间管理员核对服务端引用；不得编造、替换或删除 Run 引用绕过拒绝。可信上下文变化 `TRUSTED_CONTEXT_STALE` 同样需要停止并核对部署绑定。
+
+任一 Harness 最终响应包含 `PERMISSION` 错误时，`next_actions=[]`，`summary` 明确提示停止；错误中的人工处理建议不是继续调用 MCP 的授权。Agent 应报告错误和 `correlation_id` 并等待处理，不能换身份、空间、能力或 Run 重试。此停止指引不替代服务端每次请求的权限校验，也不是 BKAIDev 调度器的强制终止机制。
 
 #### 请求示例
 

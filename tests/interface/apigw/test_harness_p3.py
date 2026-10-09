@@ -549,7 +549,7 @@ def test_failure_uses_only_taxonomy_and_fixed_remediation_actions(monkeypatch, a
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("raw_next_actions", ({"malformed": True}, ["obtain_approval"] * 17))
-def test_failure_taxonomy_actions_remain_bounded_when_raw_remediation_is_invalid(
+def test_permission_error_stops_mixed_failures_even_when_raw_remediation_is_invalid(
     monkeypatch, authorized_p3_space, raw_next_actions
 ):
     error_codes = [
@@ -588,25 +588,8 @@ def test_failure_taxonomy_actions_remain_bounded_when_raw_remediation_is_invalid
         _request(path, P3_CASES["get_workflow_execution"]["payload"]), space_id=str(authorized_p3_space.id)
     )
 
-    assert len(response.data["next_actions"]) <= 16
-    assert response.data["next_actions"] == [
-        "search_workflow_capabilities",
-        "clarify_capability",
-        "retry_search",
-        "start_new_validation",
-        "get_plugin_schema",
-        "repair_a2flow",
-        "revalidate_workflow",
-        "validate_workflow",
-        "get_debug_session",
-        "request_debug_approval",
-        "start_debug_session",
-        "run_dependency_node",
-        "prepare_release",
-        "publish_workflow",
-        "get_workflow_execution",
-        "retry_validation",
-    ]
+    assert response.data["next_actions"] == []
+    assert "denied" in response.data["summary"]
 
 
 @pytest.mark.django_db

@@ -109,10 +109,14 @@ class WorkflowValidationFailure(ValueError):
         ),
         "CAPABILITY_FORBIDDEN": (
             "PERMISSION",
-            "The selected capability is not permitted.",
-            "search_workflow_capabilities",
+            "The selected capability is not permitted. Stop tool calls and contact the space administrator.",
+            "contact_space_administrator",
         ),
-        "TRUSTED_CONTEXT_STALE": ("PERMISSION", "The trusted deployment context changed.", "start_new_validation"),
+        "TRUSTED_CONTEXT_STALE": (
+            "PERMISSION",
+            "The trusted deployment context changed. Stop tool calls and contact the space administrator.",
+            "contact_space_administrator",
+        ),
         "SCHEMA_DRIFT": ("SCHEMA_DRIFT", "The selected capability schema changed.", "get_plugin_schema"),
         "SCHEMA_VALIDATION_ERROR": ("VALIDATION", "The workflow input does not match its schema.", "repair_a2flow"),
         "A2FLOW_NODE_TYPE_INVALID": (
@@ -264,6 +268,12 @@ class WorkflowValidationFailure(ValueError):
             code, ("VALIDATION", "The workflow validation request is invalid.", "repair_a2flow")
         )
         self.category = category or default_category
+        if code == "CAPABILITY_FORBIDDEN" and path == "run_id":
+            self.message = (
+                "The workflow run reference is invalid or unavailable in the current authorized context. "
+                "Stop tool calls and ask the space administrator to verify the server-issued run reference. "
+                "Do not invent, replace or omit a referenced run to bypass this denial."
+            )
         self.repairable = repairable
         self.retryable = retryable
         super().__init__(code)
@@ -1102,6 +1112,7 @@ class WorkflowValidator:
 
     def _envelope(self, ok, run, revision, plan_hash_value, status, errors=None, artifact_refs=None):
         """Return the stable P0 response shape before APIGW transport adapters exist."""
+        permission_denied = any(error["category"] == "PERMISSION" for error in (errors or []))
         return {
             "ok": ok,
             "run_id": str(run.run_id) if run else None,
@@ -1113,6 +1124,8 @@ class WorkflowValidator:
                 if ok and status == "DRAFT_READY"
                 else "Workflow validation accepted."
                 if ok
+                else "Workflow request denied; stop tool calls and report the error."
+                if permission_denied
                 else "Workflow validation requires repair."
             ),
             "artifact_refs": artifact_refs or [],
@@ -1120,6 +1133,8 @@ class WorkflowValidator:
             "next_actions": (
                 (["create_workflow_draft"] if status == "VALIDATING" else [])
                 if ok
+                else []
+                if permission_denied
                 else list(dict.fromkeys(error["suggested_action"] for error in (errors or [])))
             ),
             "correlation_id": self.context.correlation_id,
