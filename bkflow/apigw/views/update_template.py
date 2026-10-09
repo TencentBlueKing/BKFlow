@@ -120,7 +120,11 @@ def update_template(request, space_id, template_id):
                         raise UpdateTemplateException(_(f"版本号不符合规范: {str(e)}"))
 
                     snapshot = template.release_template(
-                        {"version": release_version, "username": validated_data_dict["updated_by"]}
+                        {
+                            "version": release_version,
+                            "username": validated_data_dict["updated_by"],
+                            "is_validate": False,
+                        }
                     )
                     template.snapshot_id = snapshot.id
 

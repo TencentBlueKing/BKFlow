@@ -31,10 +31,12 @@ from bkflow.constants import (
     TEMPLATE_MD5SUM_LENGTH,
     TemplateOperationSource,
     TemplateOperationType,
+    ValidateType,
 )
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.exceptions import APIResponseError, NotFoundError, ValidationError
+from bkflow.pipeline_validate.handler import ValidatorHandler
 from bkflow.space.configs import FlowVersioning, GatewayExpressionConfig
 from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.utils import validate_pipeline_tree_gateway_expression
@@ -221,6 +223,10 @@ class Template(CommonModel):
     def validate_space(self, target):
         return SpaceConfig.get_config(space_id=self.space_id, config_name=FlowVersioning.name) == target
 
+    def has_published_version(self):
+        """是否存在已发布的正式版本（非草稿、未删除的快照）"""
+        return TemplateSnapshot.objects.filter(template_id=self.id, draft=False, is_deleted=False).exists()
+
     @property
     def subprocess_info(self):
         from bkflow.template.tenant import validate_template_references
@@ -339,6 +345,8 @@ class Template(CommonModel):
             raise ValidationError("版本号不能为空")
         try:
             template_snapshot = TemplateSnapshot.objects.get(template_id=self.id, draft=True)
+            if data.get("is_validate", True):
+                ValidatorHandler.validate(template_snapshot.data, validate_type=ValidateType.TEMPLATE)
             template_snapshot.draft = False
             template_snapshot.version = version
             template_snapshot.desc = data.get("desc")
@@ -357,7 +365,7 @@ class Template(CommonModel):
                 raise ValidationError(f"该模板{self.id}没有草稿版本")
         except Exception as e:
             logger.error(f"发布模板草稿时发生错误（template_id={self.id}）: {e}", exc_info=True)
-            raise ValidationError("发布模板失败，请稍后重试")
+            raise ValidationError(f"发布模板失败: {e}")
         return template_snapshot
 
 

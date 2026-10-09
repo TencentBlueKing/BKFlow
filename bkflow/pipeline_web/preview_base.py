@@ -459,12 +459,12 @@ class PipelineTemplateWebPreviewer:
 
         if exceeded_loop_times_nodes:
             return {
-                "has_loop": False,
+                "is_valid": False,
                 "error_message": f"节点 {'; '.join(exceeded_loop_times_nodes)} 的循环次数超过最大值{settings.MAX_LOOP_TIMES}",
             }
         if loop_variables:
-            return {"has_loop": False, "error_message": f"节点 {'; '.join(loop_variables)} 的循环次数与循环变量参数不匹配"}
+            return {"is_valid": False, "error_message": f"节点 {'; '.join(loop_variables)} 的循环次数与循环变量参数不匹配"}
         if conflicting_global_variables:
-            return {"has_loop": False, "error_message": f"循环变量与全局变量冲突: {'; '.join(conflicting_global_variables)}"}
+            return {"is_valid": False, "error_message": f"循环变量与全局变量冲突: {'; '.join(conflicting_global_variables)}"}
 
-        return {"has_loop": True}
+        return {"is_valid": True}

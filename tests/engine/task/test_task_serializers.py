@@ -28,7 +28,7 @@ from bkflow.task.serializers import CreateTaskInstanceSerializer
 class TestCreateTaskInstanceSerializer:
     """测试 CreateTaskInstanceSerializer 中的 validate 方法"""
 
-    @mock.patch("bkflow.task.serializers.validate_web_pipeline_tree")
+    @mock.patch("bkflow.task.serializers.ValidatorHandler.validate")
     @mock.patch("bkflow.task.serializers.standardize_pipeline_node_name")
     def test_validate_pipeline_tree_exception(self, mock_standardize, mock_validate):
         """测试 pipeline_tree 校验抛出 PipelineException 的情况"""
@@ -59,7 +59,7 @@ class TestCreateTaskInstanceSerializer:
         assert "pipeline_tree" in serializer.errors
         # 验证异常被正确捕获并转换为 ValidationError
 
-    @mock.patch("bkflow.task.serializers.validate_web_pipeline_tree")
+    @mock.patch("bkflow.task.serializers.ValidatorHandler.validate")
     @mock.patch("bkflow.task.serializers.standardize_pipeline_node_name")
     def test_validate_success(self, mock_standardize, mock_validate):
         """测试正常校验通过的情况"""

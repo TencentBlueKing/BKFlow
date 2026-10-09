@@ -97,8 +97,8 @@ def build_open_plugin_pipeline_tree():
     activity["component"]["code"] = "uniform_api"
     activity["component"]["version"] = "v4.0.0"
     activity["component"]["data"] = {
-        "uniform_api_plugin_id": {"value": "open_plugin_001"},
-        "uniform_api_plugin_version": {"value": "1.2.0"},
+        "uniform_api_plugin_id": {"hook": False, "need_render": True, "value": "open_plugin_001"},
+        "uniform_api_plugin_version": {"hook": False, "need_render": True, "value": "1.2.0"},
     }
     activity["component"]["api_meta"] = {"source_key": "sops"}
     return pipeline_tree
@@ -183,7 +183,7 @@ def test_template_serializer_writes_schema_snapshot(mock_is_circular_reference, 
 
     with mock.patch(
         "bkflow.template.serializers.template.PipelineTemplateWebPreviewer.validate_loop_variables",
-        return_value={"has_loop": True},
+        return_value={"is_valid": True},
     ), mock.patch("bkflow.template.serializers.template.SpaceConfig.get_config", return_value="false"), mock.patch(
         "bkflow.template.serializers.template.event_broadcast_signal.send"
     ):
@@ -230,7 +230,7 @@ def test_template_serializer_clears_open_plugin_snapshots_after_switching_to_nor
         return_value={"has_cycle": False},
     ), mock.patch(
         "bkflow.template.serializers.template.PipelineTemplateWebPreviewer.validate_loop_variables",
-        return_value={"has_loop": True},
+        return_value={"is_valid": True},
     ), mock.patch(
         "bkflow.template.serializers.template.SpaceConfig.get_config",
         return_value="false",

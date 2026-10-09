@@ -149,11 +149,11 @@ class TestCreateTemplate(TestCase):
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
-    @mock.patch("bkflow.apigw.serializers.template.validate_pipeline_tree")
-    def test_create_template_rejected_when_gateway_parse_lang_mismatch(self, mock_validate_structure):
+    @mock.patch("bkflow.apigw.serializers.template.ValidatorHandler")
+    def test_create_template_rejected_when_gateway_parse_lang_mismatch(self, mock_validator_handler):
         """
         选中逻辑：直接传入的 pipeline_tree 含网关，其 parse_lang 与空间默认配置(boolrule)不符 -> 应拒绝
-        注：mock 掉 serializer 中的 pipeline 结构校验，使请求树直达视图层的网关表达式校验分支
+        注：mock 掉 serializer 中的 pipeline 结构校验（ValidatorHandler），使请求树直达视图层的网关表达式校验分支
         """
         space = self.create_space()
         invalid_tree = self._build_tree_with_gateway(parse_lang="FEEL")
@@ -172,11 +172,12 @@ class TestCreateTemplate(TestCase):
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
-    @mock.patch("bkflow.apigw.serializers.template.validate_pipeline_tree")
-    def test_create_template_ok_when_gateway_parse_lang_matches_default(self, mock_validate_structure):
+    @mock.patch("bkflow.apigw.serializers.template.ValidatorHandler")
+    def test_create_template_ok_when_gateway_parse_lang_matches_default(self, mock_validator_handler):
         """
         选中逻辑：传入的 pipeline_tree 含网关但未显式设置 parse_lang（默认按 boolrule 解析），
         与空间默认配置(boolrule)一致 -> 应创建成功
+        注：mock 掉 serializer 中的 pipeline 结构校验（ValidatorHandler），使请求树直达视图层的网关表达式校验分支
         """
         space = self.create_space()
         valid_tree = self._build_tree_with_gateway(parse_lang=None)
@@ -189,7 +190,9 @@ class TestCreateTemplate(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp_data["result"], True)
         template = Template.objects.get(name="网关表达式合法")
-        self.assertIn("gateway_1", template.pipeline_tree.get("gateways", {}))
+        gateways = template.pipeline_tree.get("gateways", {})
+        self.assertEqual(len(gateways), 1)
+        self.assertEqual(next(iter(gateways.values())).get("type"), "ExclusiveGateway")
 
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)

@@ -34,6 +34,7 @@ from bkflow.constants import (
     WebhookEventType,
     WebhookScopeType,
 )
+from bkflow.exceptions import ValidationError
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
@@ -73,11 +74,14 @@ def release_template(request, space_id, template_id):
         logger.error(str(e))
         return JsonResponse({"result": False, "message": f"版本号不符合规范: {str(e)}", "code": err_code.VALIDATION_ERROR.code})
 
-    with transaction.atomic():
-        data = {"username": request.user.username, **ser.validated_data}
-        snapshot = instance.release_template(data)
-        instance.snapshot_id = snapshot.id
-        instance.save()
+    try:
+        with transaction.atomic():
+            data = {"username": request.user.username, "is_validate": True, **ser.validated_data}
+            snapshot = instance.release_template(data)
+            instance.snapshot_id = snapshot.id
+            instance.save()
+    except ValidationError as e:
+        return JsonResponse({"result": False, "message": str(e), "code": err_code.VALIDATION_ERROR.code})
 
     TemplateOperationRecord.objects.create(
         operate_source=TemplateOperationSource.app.name,

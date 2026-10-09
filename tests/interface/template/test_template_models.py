@@ -69,7 +69,21 @@ def build_pipeline_tree():
             "flow2": {"id": "flow2", "source": "node1", "target": "end_event_id", "is_default": False},
         },
         "gateways": {},
-        "constants": {"${key1}": {"key": "key1", "value": "value1", "show_type": "show"}},
+        "constants": {
+            "${key1}": {
+                "key": "${key1}",
+                "value": "value1",
+                "show_type": "show",
+                "custom_type": "",
+                "source_type": "custom",
+                "source_tag": "",
+                "source_info": {},
+                "name": "key1",
+                "desc": "",
+                "index": 0,
+                "validation": "",
+            }
+        },
         "outputs": ["${key1}"],
     }
 
@@ -566,7 +580,7 @@ class TestTemplate:
 
         outputs = template.outputs()
         assert "${key1}" in outputs
-        assert outputs["${key1}"]["key"] == "key1"
+        assert outputs["${key1}"]["key"] == "${key1}"
 
     @mock.patch("bkflow.template.models.SpaceConfig.get_config")
     def test_outputs_with_version(self, mock_get_config):

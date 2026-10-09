@@ -283,6 +283,13 @@ def bkflow_periodic_task_start(*args, **kwargs):
         template = interface_client.get_template_data(
             template_id=periodic_task.template_id, data={"space_id": periodic_task.config["space_id"]}
         )
+        # 模板仅存在草稿版本、没有正式版本时，接口返回空，此时不执行任务
+        if not template or not template.get("data"):
+            logger.warning(
+                "[bkflow_periodic_task_start] template(%s) has no published version (draft only), skip",
+                periodic_task.template_id,
+            )
+            return
         periodic_task.config["pipeline_tree"] = template["data"]["pipeline_tree"]
 
         task_data = {
