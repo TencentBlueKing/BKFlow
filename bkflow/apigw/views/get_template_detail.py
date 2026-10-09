@@ -26,6 +26,7 @@ from django.views.decorators.http import require_GET
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.template import TemplateDetailQuerySerializer
 from bkflow.apigw.utils import parse_pipeline_tree_to_plugin_schema
+from bkflow.label.models import TemplateLabelRelation
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.space.configs import FlowVersioning
@@ -121,6 +122,8 @@ def get_template_detail(request, space_id, template_id):
 
     flow_version_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
     copy_pipeline_tree = replace_subprocess_version(copy_pipeline_tree, flow_version_config)
+    template_label = TemplateLabelRelation.objects.fetch_labels(template.id)
+    response["data"]["labels"] = template_label
 
     triggers = Trigger.objects.filter(template_id=template.id, is_deleted=False)
     response["data"]["triggers"] = TriggerSerializer(triggers, many=True).data

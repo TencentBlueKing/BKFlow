@@ -287,3 +287,12 @@ class UpdateTaskLabelsSerializer(serializers.Serializer):
     def validate_label_ids(self, value):
         _validate_task_label_ids(value, self.context.get("space_id"))
         return value
+
+
+class GetNodeOutputsSerializer(serializers.Serializer):
+    task_id = serializers.IntegerField(required=True)
+    node_ids = serializers.ListField(child=serializers.CharField())
+
+
+class GetTaskPipelineSerializer(serializers.Serializer):
+    task_ids = serializers.CharField(help_text=_("任务ID，多个用逗号分隔"), required=True)
