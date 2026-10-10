@@ -588,7 +588,8 @@ def test_get_with_debug_disabled_is_persisted_only_and_has_zero_side_effects(sta
         "available": False,
         "reason": "debug_disabled",
     }
-    assert response["next_actions"] == ["get_debug_session"]
+    assert response["next_actions"] == []
+    assert response["artifact_refs"][0]["read_guidance"]["poll_required"] is False
     assert session.status == DebugSessionStatus.ACTIVE
     assert session.run.status == HarnessRunStatus.DEBUGGING
     assert list(EvidenceEvent.objects.values_list("id", flat=True)) == evidence_before

@@ -22,6 +22,8 @@ POST `/space/{space_id}/harness/run_debug/`
 
 #### 执行策略
 
+- 同一会话写入串行调用；`DEBUG_OPERATION_IN_FLIGHT` 表示先前写入未结束或结果不确定，不能换 key 绕过。等待原调用、回读已有会话，仍不确定时停止交人工核对。
+- `DEBUG_SESSION` 先回读旧会话，完成过期收尾并确认 Run 已退出 DEBUGGING 后再新建；`DEBUG_NODE_NOT_FOUND` 则从节点页取回真实 `node_id`，不要按名称或 `source_node_id` 猜测。
 - Mock 是默认模式；global real 明确禁止，所有可执行节点必须有 Mock 决策。
 - real step 同时需要空间 real-step 开关、策略允许、服务端验证通过且 claims 精确匹配的 approval receipt，以及 Token Broker 签发并绑定本会话的 live MOCK TokenLease。缺少任一条件都会在 DebugService 前失败。
 - Token 只在 BKFlow 服务端授权域内使用，对 BKAIDev Agent 不可见，也不会作为 SDK 参数、Artifact 或日志字段返回。

@@ -560,11 +560,8 @@ def test_engine_dispatch_is_barriered_before_post_ack_database_failure(start_cas
     )
 
     assert first["ok"] is retry["ok"] is new_key_retry["ok"] is False
-    assert {
-        first["errors"][0]["code"],
-        retry["errors"][0]["code"],
-        new_key_retry["errors"][0]["code"],
-    } == {"RETRYABLE_INFRA"}
+    assert first["errors"][0]["code"] == "RETRYABLE_INFRA"
+    assert retry["errors"][0]["code"] == new_key_retry["errors"][0]["code"] == "DEBUG_OPERATION_IN_FLIGHT"
     assert task_client.create_task.call_count == 1
     assert task_client.operate_task.call_count == 1
     barrier = HarnessIdempotencyRecord.objects.get(tool_name="run_debug", idempotency_key=request["idempotency_key"])

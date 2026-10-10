@@ -14,7 +14,11 @@ from bkflow.harness.services.debug.adapter import (
     DebugAdapter,
     DebugContextOwnershipConflict,
 )
-from bkflow.harness.services.debug.policy import DebugStartRejected, context_matches_run
+from bkflow.harness.services.debug.policy import (
+    DebugStartRejected,
+    context_matches_run,
+    validate_debug_node_references,
+)
 from bkflow.harness.services.debug.session import (
     _reresolve_bindings,
     _validate_session_artifact_identity,
@@ -296,6 +300,7 @@ def control_debug_session(context, request, *, resolver, adapter_class=DebugAdap
                 or compute_tree_fingerprint(snapshot.data) != session.tree_fingerprint
             ):
                 raise DebugStartRejected("VALIDATION_STALE", "tree_fingerprint")
+            validate_debug_node_references(snapshot.data, node_id=request.node_id, node_ids=request.node_ids)
             _reresolve_bindings(revision, resolver)
             adapter = adapter_class(
                 template_id=template.id,

@@ -8,6 +8,8 @@
 
 #### 请求方法
 
+若旧会话写入返回 `DEBUG_SESSION`，先 `get_debug_session` 检查旧会话并完成过期收尾；确认其已进入终态且 Run 不再是 DEBUGGING 后再新建。不要通过新建或更换引用绕过活动会话。`DEBUG_OPERATION_IN_FLIGHT` 表示同一建立请求尚在处理或结果不确定；等待原调用，已有 session_id 时回读，无可回读引用或结果仍不确定则停止交人工核对，不用新 key 重复建立。
+
 POST `/space/{space_id}/harness/start_debug_session/`
 
 #### 租户边界

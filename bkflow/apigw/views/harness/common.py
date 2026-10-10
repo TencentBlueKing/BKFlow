@@ -388,6 +388,8 @@ def _failure_summary(errors):
     """Permission denial is a stop condition, not an automatic repair instruction."""
     if any(error["category"] == "PERMISSION" for error in errors):
         return "Workflow request denied; stop tool calls and report the error."
+    if any(error["code"].startswith("DEBUG_") for error in errors):
+        return "Debug request requires attention; follow errors and next_actions."
     return "Workflow validation requires repair."
 
 

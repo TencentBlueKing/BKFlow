@@ -102,6 +102,15 @@ class DebugStartRejected(ValueError):
         super().__init__(code)
 
 
+def validate_debug_node_references(pipeline_tree, *, node_id=None, node_ids=None):
+    """仅检查已授权且已校验树中的节点归属，在任何调试派发前拒绝错误定位。"""
+    known = set(pipeline_tree.get("activities", {})) | set(pipeline_tree.get("gateways", {}))
+    if node_id is not None and node_id not in known:
+        raise DebugStartRejected("DEBUG_NODE_NOT_FOUND", "node_id")
+    if node_ids is not None and any(node not in known for node in node_ids):
+        raise DebugStartRejected("DEBUG_NODE_NOT_FOUND", "node_ids")
+
+
 @dataclass(frozen=True)
 class StartDebugRequest:
     """Closed write request containing references, never trusted identity fields."""

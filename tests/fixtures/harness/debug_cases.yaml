@@ -241,7 +241,7 @@ cases:
     request:
       tool: control_debug_session
       payload: {session_id: $session_id, expected_plan_hash: $plan_hash, action: reset, node_ids: [A], idempotency_key: lock-cross-tool-inflight}
-    expected_envelope_code: RETRYABLE_INFRA
+    expected_envelope_code: DEBUG_OPERATION_IN_FLIGHT
   - <<: *case_defaults
     id: lock-template-context-busy
     category: session_lock_conflict

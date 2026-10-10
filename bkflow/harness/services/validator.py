@@ -174,6 +174,22 @@ class WorkflowValidationFailure(ValueError):
             "The managed template already has an active debug operation.",
             "get_debug_session",
         ),
+        "DEBUG_OPERATION_IN_FLIGHT": (
+            "DEBUG_CONFLICT",
+            "An earlier debug write is still in flight or its outcome is uncertain. "
+            "Do not send parallel writes or change idempotency keys to bypass it. "
+            "Wait for the outstanding call and read the existing session if known. "
+            "Retry only the original request and key after its outcome is known; "
+            "if the outcome remains uncertain, stop for operator reconciliation.",
+            "get_debug_session",
+        ),
+        "DEBUG_NODE_NOT_FOUND": (
+            "USER_INPUT",
+            "The node reference is not in this session's workflow. "
+            "Read get_debug_session context_page.items and use the returned node_id, "
+            "not a guessed ID, node name, or source_node_id. Then correct the arguments with a new idempotency key.",
+            "get_debug_session",
+        ),
         "DEBUG_CONTEXT_CHANGED": (
             "DEBUG_CONFLICT",
             "The debug context page is stale or unavailable. Read get_debug_session again without node_cursor.",
@@ -196,8 +212,11 @@ class WorkflowValidationFailure(ValueError):
         ),
         "DEBUG_SESSION": (
             "DEBUG_CONFLICT",
-            "The debug session is inactive, stale, or incompatible with this request.",
-            "start_debug_session",
+            "The debug session is inactive, stale, or incompatible with this request. "
+            "Read get_debug_session first to inspect the mode and converge expiry. "
+            "Start a new session only after the old session is terminal and the run is no longer DEBUGGING. "
+            "Do not bypass an unresolved session by changing references or idempotency keys.",
+            "get_debug_session",
         ),
         "DEBUG_DEPENDENCY": (
             "VALIDATION",
@@ -1122,20 +1141,26 @@ class WorkflowValidator:
             "summary": (
                 "Workflow draft created; stop the draft-only workflow."
                 if ok and status == "DRAFT_READY"
-                else "Workflow validation accepted."
-                if ok
-                else "Workflow request denied; stop tool calls and report the error."
-                if permission_denied
-                else "Workflow validation requires repair."
+                else (
+                    "Workflow validation accepted."
+                    if ok
+                    else (
+                        "Workflow request denied; stop tool calls and report the error."
+                        if permission_denied
+                        else "Workflow validation requires repair."
+                    )
+                )
             ),
             "artifact_refs": artifact_refs or [],
             "errors": errors or [],
             "next_actions": (
                 (["create_workflow_draft"] if status == "VALIDATING" else [])
                 if ok
-                else []
-                if permission_denied
-                else list(dict.fromkeys(error["suggested_action"] for error in (errors or [])))
+                else (
+                    []
+                    if permission_denied
+                    else list(dict.fromkeys(error["suggested_action"] for error in (errors or [])))
+                )
             ),
             "correlation_id": self.context.correlation_id,
         }

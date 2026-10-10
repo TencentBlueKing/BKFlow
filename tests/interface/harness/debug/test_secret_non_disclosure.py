@@ -202,9 +202,8 @@ def test_engine_ack_then_session_write_crash_is_barriered_for_same_and_new_keys(
         resolver=resolver,
     )
 
-    assert {first["errors"][0]["code"], same_key["errors"][0]["code"], new_key["errors"][0]["code"]} == {
-        "RETRYABLE_INFRA"
-    }
+    assert first["errors"][0]["code"] == "RETRYABLE_INFRA"
+    assert same_key["errors"][0]["code"] == new_key["errors"][0]["code"] == "DEBUG_OPERATION_IN_FLIGHT"
     assert task_client.create_task.call_count == 1
     assert task_client.operate_task.call_count == 1
     barrier = HarnessIdempotencyRecord.objects.get(tool_name="run_debug")
@@ -257,9 +256,8 @@ def test_domain_completion_then_idempotency_crash_rolls_back_and_never_redispatc
         adapter_class=SecretResultAdapter,
     )
 
-    assert {first["errors"][0]["code"], same_key["errors"][0]["code"], new_key["errors"][0]["code"]} == {
-        "RETRYABLE_INFRA"
-    }
+    assert first["errors"][0]["code"] == "RETRYABLE_INFRA"
+    assert same_key["errors"][0]["code"] == new_key["errors"][0]["code"] == "DEBUG_OPERATION_IN_FLIGHT"
     assert SecretResultAdapter.calls == 1
     assert SecretResultAdapter.saw_secret is True
     barrier = HarnessIdempotencyRecord.objects.get(tool_name="run_debug")

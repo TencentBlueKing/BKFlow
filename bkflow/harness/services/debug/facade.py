@@ -1,5 +1,7 @@
 """Stable Envelope boundary for ``start_debug_session``."""
 
+import logging
+
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError
 
@@ -10,6 +12,7 @@ from bkflow.harness.exceptions import (
     IdempotencyRecordImmutable,
 )
 from bkflow.harness.models import DebugSession, HarnessRun, WorkflowPlanRevision
+from bkflow.harness.safety import safe_opaque_identifier
 from bkflow.harness.services.contract_versions import (
     is_harness_debug_enabled,
     require_tool_enabled,
@@ -37,6 +40,8 @@ from bkflow.harness.services.validator import (
 )
 from bkflow.template.models import Template, TemplateSnapshot
 
+logger = logging.getLogger("bkflow.harness")
+
 
 def _failure(context, rejection):
     validator = WorkflowValidator(context, resolver=object())
@@ -48,6 +53,26 @@ def _failure(context, rejection):
         repairable=rejection.repairable,
         retryable=rejection.retryable,
     )
+
+
+def _pending_write(context):
+    """并发与不确定派发均保持保护，不能指示 Agent 换键重试。"""
+    return _failure(context, DebugStartRejected("DEBUG_OPERATION_IN_FLIGHT", "debug", repairable=False))
+
+
+def _infrastructure_failure(context, tool, error, *, path="debug"):
+    """记录错误类型与关联号，不记录异常文案、参数、凭证或原始堆栈。"""
+    logger.error(
+        "harness debug infrastructure failure",
+        extra={
+            "harness_failure": {
+                "tool": tool,
+                "correlation": safe_opaque_identifier(context.correlation_id),
+                "exception_type": safe_opaque_identifier(type(error).__name__),
+            }
+        },
+    )
+    return _failure(context, DebugStartRejected("RETRYABLE_INFRA", path, retryable=True))
 
 
 def start_debug_session_with_context(context, payload, plugin_schema_service=None, *, resolver=None):
@@ -63,18 +88,14 @@ def start_debug_session_with_context(context, payload, plugin_schema_service=Non
             context,
             DebugStartRejected("IDEMPOTENCY_CONFLICT", "idempotency_key", repairable=False),
         )
-    except ProviderInfrastructureError:
-        return _failure(
-            context,
-            DebugStartRejected("RETRYABLE_INFRA", "bindings", retryable=True),
-        )
+    except ProviderInfrastructureError as error:
+        return _infrastructure_failure(context, "start_debug_session", error, path="bindings")
     except (CapabilityResolutionError, SchemaDriftError):
         return _failure(context, DebugStartRejected("VALIDATION_STALE", "bindings"))
-    except (IdempotencyInFlight, IdempotencyRecordImmutable, DatabaseError):
-        return _failure(
-            context,
-            DebugStartRejected("RETRYABLE_INFRA", "debug", retryable=True),
-        )
+    except IdempotencyInFlight:
+        return _pending_write(context)
+    except (IdempotencyRecordImmutable, DatabaseError) as error:
+        return _infrastructure_failure(context, "start_debug_session", error)
     except (
         HarnessRun.DoesNotExist,
         WorkflowPlanRevision.DoesNotExist,
@@ -85,11 +106,8 @@ def start_debug_session_with_context(context, payload, plugin_schema_service=Non
             context,
             DebugStartRejected("CAPABILITY_FORBIDDEN", "run_id", category="PERMISSION", repairable=False),
         )
-    except Exception:
-        return _failure(
-            context,
-            DebugStartRejected("RETRYABLE_INFRA", "debug", retryable=True),
-        )
+    except Exception as error:
+        return _infrastructure_failure(context, "start_debug_session", error)
 
 
 def run_debug_with_context(
@@ -120,12 +138,14 @@ def run_debug_with_context(
         return _failure(context, rejection)
     except IdempotencyConflict:
         return _failure(context, DebugStartRejected("IDEMPOTENCY_CONFLICT", "idempotency_key", repairable=False))
-    except ProviderInfrastructureError:
-        return _failure(context, DebugStartRejected("RETRYABLE_INFRA", "bindings", retryable=True))
+    except ProviderInfrastructureError as error:
+        return _infrastructure_failure(context, "run_debug", error, path="bindings")
     except (CapabilityResolutionError, SchemaDriftError):
         return _failure(context, DebugStartRejected("VALIDATION_STALE", "bindings"))
-    except (IdempotencyInFlight, IdempotencyRecordImmutable, DatabaseError):
-        return _failure(context, DebugStartRejected("RETRYABLE_INFRA", "debug", retryable=True))
+    except IdempotencyInFlight:
+        return _pending_write(context)
+    except (IdempotencyRecordImmutable, DatabaseError) as error:
+        return _infrastructure_failure(context, "run_debug", error)
     except (
         DebugSession.DoesNotExist,
         HarnessRun.DoesNotExist,
@@ -136,8 +156,8 @@ def run_debug_with_context(
             context,
             DebugStartRejected("CAPABILITY_FORBIDDEN", "session_id", category="PERMISSION", repairable=False),
         )
-    except Exception:
-        return _failure(context, DebugStartRejected("RETRYABLE_INFRA", "debug", retryable=True))
+    except Exception as error:
+        return _infrastructure_failure(context, "run_debug", error)
 
 
 def get_debug_session_with_context(
@@ -169,12 +189,12 @@ def get_debug_session_with_context(
         return _failure(context, rejection)
     except HarnessContextError as error:
         return _failure(context, DebugStartRejected(error.code, "debug", repairable=False))
-    except ProviderInfrastructureError:
-        return _failure(context, DebugStartRejected("RETRYABLE_INFRA", "bindings", retryable=True))
+    except ProviderInfrastructureError as error:
+        return _infrastructure_failure(context, "get_debug_session", error, path="bindings")
     except (CapabilityResolutionError, SchemaDriftError):
         return _failure(context, DebugStartRejected("VALIDATION_STALE", "bindings"))
-    except (DatabaseError, ValidationError):
-        return _failure(context, DebugStartRejected("RETRYABLE_INFRA", "debug", retryable=True))
+    except (DatabaseError, ValidationError) as error:
+        return _infrastructure_failure(context, "get_debug_session", error)
     except (
         DebugSession.DoesNotExist,
         HarnessRun.DoesNotExist,
@@ -186,8 +206,8 @@ def get_debug_session_with_context(
             context,
             DebugStartRejected("CAPABILITY_FORBIDDEN", "session_id", category="PERMISSION", repairable=False),
         )
-    except Exception:
-        return _failure(context, DebugStartRejected("RETRYABLE_INFRA", "debug", retryable=True))
+    except Exception as error:
+        return _infrastructure_failure(context, "get_debug_session", error)
 
 
 def control_debug_session_with_context(
@@ -214,12 +234,14 @@ def control_debug_session_with_context(
         return _failure(context, DebugStartRejected(error.code, "debug", repairable=False))
     except IdempotencyConflict:
         return _failure(context, DebugStartRejected("IDEMPOTENCY_CONFLICT", "idempotency_key", repairable=False))
-    except ProviderInfrastructureError:
-        return _failure(context, DebugStartRejected("RETRYABLE_INFRA", "bindings", retryable=True))
+    except ProviderInfrastructureError as error:
+        return _infrastructure_failure(context, "control_debug_session", error, path="bindings")
     except (CapabilityResolutionError, SchemaDriftError):
         return _failure(context, DebugStartRejected("VALIDATION_STALE", "bindings"))
-    except (IdempotencyInFlight, IdempotencyRecordImmutable, DatabaseError, ValidationError):
-        return _failure(context, DebugStartRejected("RETRYABLE_INFRA", "debug", retryable=True))
+    except IdempotencyInFlight:
+        return _pending_write(context)
+    except (IdempotencyRecordImmutable, DatabaseError, ValidationError) as error:
+        return _infrastructure_failure(context, "control_debug_session", error)
     except (
         DebugSession.DoesNotExist,
         HarnessRun.DoesNotExist,
@@ -231,8 +253,8 @@ def control_debug_session_with_context(
             context,
             DebugStartRejected("CAPABILITY_FORBIDDEN", "session_id", category="PERMISSION", repairable=False),
         )
-    except Exception:
-        return _failure(context, DebugStartRejected("RETRYABLE_INFRA", "debug", retryable=True))
+    except Exception as error:
+        return _infrastructure_failure(context, "control_debug_session", error)
 
 
 __all__ = [

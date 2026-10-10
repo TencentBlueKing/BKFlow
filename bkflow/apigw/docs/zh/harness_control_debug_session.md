@@ -27,6 +27,10 @@ POST `/space/{space_id}/harness/control_debug_session/`
 
 所有分支还必须提供 `session_id`、`expected_plan_hash` 与 `idempotency_key`。相同 key 同请求完整重放，相同 key 异请求冲突；可选请求头只能与 Body key 完全一致。
 
+同一会话的写入必须串行。`DEBUG_OPERATION_IN_FLIGHT` 表示先前写入尚未结束或结果不确定，返回 `retryable=false`，提示回读而非重新校验；不得换 key 绕过。等待原调用并回读已有会话，仍不确定则停止交人工核对。
+
+写入返回 `DEBUG_SESSION` 时先回读旧会话，待过期收尾且 Run 退出 DEBUGGING 后再新建。`DEBUG_NODE_NOT_FOUND` 表示请求中的节点不属于已绑定流程；从 `get_debug_session` 返回的 `context_page.items[].node_id` 取值，不能使用名称、猜测 ID 或 `source_node_id`。`reset` 中任一节点不存在时整次拒绝，不执行部分重置。修正参数后使用新 key；与结果不确定时的禁止换键不同。
+
 字段语义以闭集请求为准：reset 的 `node_ids` 必填，空数组不会重置任何节点；需要重置哪些节点就显式列出其 ID。terminate 的 `node_id` 可选：缺省时关闭 ACTIVE Session，或终止 RUNNING Session 绑定的 task；提供时仅适用于 RUNNING Session 的指定节点。set_node_mock 精确要求 `node_id`、`enabled`、`mock_result`、`mock_outputs`、`mock_error`，没有简写字段或隐式默认值。
 
 terminate 的具体行为还取决于 Session 状态：

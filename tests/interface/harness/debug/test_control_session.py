@@ -480,7 +480,7 @@ def test_run_debug_inflight_barrier_blocks_control_across_keys(start_case):
     )
 
     assert response["ok"] is False
-    assert response["errors"][0]["code"] == "RETRYABLE_INFRA"
+    assert response["errors"][0]["code"] == "DEBUG_OPERATION_IN_FLIGHT"
     assert "${safe}" not in DebugContext.objects.get(pk=session.debug_context_id).global_vars
     assert not HarnessIdempotencyRecord.objects.filter(tool_name="control_debug_session").exists()
 
@@ -540,7 +540,8 @@ def test_uncertain_terminate_new_key_never_redispatches(start_case, mocker):
     session.refresh_from_db()
     session.run.refresh_from_db()
     assert first["ok"] is second["ok"] is False
-    assert first["errors"][0]["code"] == second["errors"][0]["code"] == "RETRYABLE_INFRA"
+    assert first["errors"][0]["code"] == "RETRYABLE_INFRA"
+    assert second["errors"][0]["code"] == "DEBUG_OPERATION_IN_FLIGHT"
     assert calls == {"terminate": 1, "revoke": 1}
     assert session.status == DebugSessionStatus.RUNNING
     assert session.run.status == HarnessRunStatus.DEBUGGING

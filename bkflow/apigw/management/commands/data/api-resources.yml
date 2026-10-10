@@ -8076,7 +8076,7 @@ paths:
   /space/{space_id}/harness/start_debug_session/:
     post:
       operationId: harness_start_debug_session
-      description: Harness P2 为已校验修订建立隔离调试会话
+      description: Harness P2 为已校验修订建立隔离调试会话。旧会话返回 DEBUG_SESSION 时先 get_debug_session 收尾，确认终态且 Run 不再 DEBUGGING 后再新建；DEBUG_OPERATION_IN_FLIGHT 不得换键重试。
       tags: [ ]
       responses:
         default:
@@ -8155,7 +8155,7 @@ paths:
   /space/{space_id}/harness/run_debug/:
     post:
       operationId: harness_run_debug
-      description: Harness P2 发起受策略约束的单步或全局调试
+      description: Harness P2 发起受策略约束的单步或全局调试。同一会话写入串行；DEBUG_OPERATION_IN_FLIGHT 先等原调用并回读，不得换键绕过；DEBUG_SESSION 先回读旧会话收尾。节点使用 context_page.items 返回的 node_id，不猜测名称或 source_node_id。
       tags: [ ]
       responses:
         default:
@@ -8310,7 +8310,7 @@ paths:
   /space/{space_id}/harness/get_debug_session/:
     post:
       operationId: harness_get_debug_session
-      description: Harness P2 查询调试会话；context_page 返回节点 name/source_node_id、实际 outputs、configured_execution_mode 与 last_execution_mode。按 next_cursor 读完同一快照所有页，核对 coverage 和 verification；任务结束不等于验收通过，mock_outputs 只是预设，verification 仅检查调试回读一致性。
+      description: Harness P2 查询调试会话。优先读取 context_page 的实际 outputs、节点映射和最近执行模式；终态 context.available=false 不代表节点快照不可读。read_guidance 区分运行轮询与两套分页：node_cursor 对应节点页，cursor 对应历史页。终态两套分页均到底后 next_actions 为空，不重复查询。按同一 snapshot_id 核对 coverage、verification；读完或任务结束不等于业务验收通过，mock_outputs 只是预设。
       tags: [ ]
       responses:
         default:
@@ -8391,7 +8391,7 @@ paths:
   /space/{space_id}/harness/control_debug_session/:
     post:
       operationId: harness_control_debug_session
-      description: Harness P2 对调试会话执行受控操作
+      description: Harness P2 对调试会话执行受控操作。同一会话写入串行；DEBUG_OPERATION_IN_FLIGHT 等待原调用并回读，仍不确定则停止核对，不能换键绕过。DEBUG_SESSION 先回读旧会话收尾；DEBUG_NODE_NOT_FOUND 从 context_page.items 取真实 node_id，reset 任一节点不存在时整次拒绝。
       tags: [ ]
       responses:
         default:

@@ -314,7 +314,7 @@ def _converge(context, session, adapter, *, token_broker):
     return view
 
 
-def _artifact(session, context_view, history, reset_impact, *, artifact_writer, node_page):
+def _artifact(session, context_view, history, reset_impact, *, artifact_writer, node_page, read_guidance):
     artifact = {
         "type": "debug_session_status",
         "session": {
@@ -329,20 +329,22 @@ def _artifact(session, context_view, history, reset_impact, *, artifact_writer, 
         "context": _project(context_view, artifact_writer),
         "history": history,
         "reset_impact": _project(reset_impact, artifact_writer),
+        "read_guidance": read_guidance,
     }
     if node_page is not None:
         artifact["context_page"] = node_page
     return artifact
 
 
-def _next_actions(session, *, runtime_enabled):
+def _next_actions(session, *, runtime_enabled, read_guidance):
+    further_pages = read_guidance["node_page_has_more"] or read_guidance["history_has_more"]
     if not runtime_enabled:
-        return ["get_debug_session"]
+        return ["get_debug_session"] if further_pages else []
     if session.status == DebugSessionStatus.ACTIVE:
         return ["run_debug", "control_debug_session", "get_debug_session"]
     if session.status == DebugSessionStatus.RUNNING:
         return ["control_debug_session", "get_debug_session"]
-    return ["get_debug_session"]
+    return ["get_debug_session"] if further_pages else []
 
 
 def _response(
@@ -374,6 +376,14 @@ def _response(
             status=session.run.status,
             errors=[WorkflowValidationFailure(error.code, path=error.path).as_error()],
         )
+    # 这里只描述本次返回及当前位置，不声称调用者读过前页或业务验收通过。
+    read_guidance = {
+        "context_source": "context_page" if node_page is not None else "unavailable",
+        "poll_required": runtime_enabled and session.status == DebugSessionStatus.RUNNING,
+        "node_query": "single_node" if request.node_id else "all_nodes",
+        "node_page_has_more": node_page is not None and node_page["next_cursor"] is not None,
+        "history_has_more": history["next_cursor"] is not None,
+    }
     response = validator._envelope(
         ok=True,
         run=session.run,
@@ -388,11 +398,12 @@ def _response(
                 reset_impact,
                 artifact_writer=artifact_writer,
                 node_page=node_page,
+                read_guidance=read_guidance,
             )
         ],
     )
     response["summary"] = "Debug session status is available."
-    response["next_actions"] = _next_actions(session, runtime_enabled=runtime_enabled)
+    response["next_actions"] = _next_actions(session, runtime_enabled=runtime_enabled, read_guidance=read_guidance)
     return response
 
 

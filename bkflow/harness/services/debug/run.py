@@ -23,7 +23,11 @@ from bkflow.harness.services.debug.approval import (
     DebugApprovalVerifier,
     normalize_approval_decision,
 )
-from bkflow.harness.services.debug.policy import DebugStartRejected, context_matches_run
+from bkflow.harness.services.debug.policy import (
+    DebugStartRejected,
+    context_matches_run,
+    validate_debug_node_references,
+)
 from bkflow.harness.services.debug.session import (
     _reresolve_bindings,
     _validate_session_artifact_identity,
@@ -360,6 +364,7 @@ def run_debug(
                     or compute_tree_fingerprint(pipeline_tree) != session.tree_fingerprint
                 ):
                     raise DebugStartRejected("VALIDATION_STALE", "tree_fingerprint")
+                validate_debug_node_references(pipeline_tree, node_id=request.node_id)
                 _reresolve_bindings(session.revision, resolver)
 
                 token_handle = None
