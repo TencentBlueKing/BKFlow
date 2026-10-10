@@ -5,7 +5,7 @@ import json
 import re
 
 from bkflow.harness.constants import DebugContextEvidenceType
-from bkflow.harness.models import EvidenceEvent
+from bkflow.harness.models import EvidenceEvent, ValidationReport
 from bkflow.harness.safety import is_safe_harness_text
 from bkflow.harness.services.canonical import canonical_json_bytes, sha256_json
 from bkflow.harness.services.debug.policy import DebugStartRejected
@@ -24,8 +24,13 @@ META_EVENT = DebugContextEvidenceType.SNAPSHOT
 NODES_EVENT = DebugContextEvidenceType.NODES
 NODE_FIELDS = (
     "node_id",
+    "name",
+    "source_node_id",
     "node_type",
     "execution_mode",
+    "configured_execution_mode",
+    "last_execution_mode",
+    "outputs",
     "supports_step",
     "supports_mock",
     "mock_result",
@@ -55,6 +60,78 @@ CONTEXT_FIELDS = (
     "global_vars",
 )
 STATUSES = frozenset(choice[0] for choice in DebugNodeState.STATUS_CHOICES)
+
+
+def enrich_context_view(session, view):
+    """补充当前修订的节点映射及会话内运行证据，不修改节点默认配置。"""
+    if not isinstance(view, dict) or not isinstance(view.get("nodes"), list):
+        return view
+    # 原始输出交给下游有界投影，不在预算检查前递归复制插件数据。
+    view = {**view, "nodes": [dict(node) for node in view["nodes"]]}
+    report = ValidationReport.objects.filter(revision=session.revision, checkpoint="VALIDATE").order_by("-id").first()
+    source_map = report.result.get("source_map", {}) if report and report.result.get("valid") is True else {}
+    # Evidence 属于本会话；达到扫描预算仍无证据时返回未知，绝不按配置猜测。
+    runs = list(
+        EvidenceEvent.objects.filter(debug_session=session, event_type="DEBUG_RUN_STARTED")
+        .order_by("-occurred_at", "-id")
+        .values_list("redacted_payload", flat=True)[:1000]
+    )
+    for node in view["nodes"]:
+        node["source_node_id"] = source_map.get(node["node_id"])
+        node["last_execution_mode"] = None
+        if node.get("status") == "not_run":
+            continue
+        for run in runs:
+            if run.get("node_id") == node["node_id"] or run.get("mode") == "global":
+                mode = run.get("execution_mode")
+                if node.get("node_type") in {
+                    "ExclusiveGateway",
+                    "ParallelGateway",
+                    "ConvergeGateway",
+                    "ConditionalParallelGateway",
+                }:
+                    mode = "real"
+                node["last_execution_mode"] = mode if mode in {"real", "mock"} else None
+                break
+    return view
+
+
+def _verify_context(view, nodes, metadata):
+    """仅检查调试回读一致性，不代替业务验收、分页覆盖或发布审批。"""
+    missing = sum(node.get("status") == "finished" and bool(node.get("missing_vars")) for node in nodes)
+    failed = sum(node.get("status") in {"failed", "revoked"} for node in nodes)
+    omitted = sum(bool(node.get("details_omitted")) for node in nodes)
+    pending = sum(node.get("status") not in {"finished", "not_run"} for node in nodes)
+    unobserved = sum(
+        node.get("status") == "finished"
+        and (
+            not isinstance(node.get("outputs"), dict)
+            or node.get("last_execution_mode") not in {"real", "mock"}
+            or not isinstance(node.get("missing_vars"), list)
+        )
+        for node in nodes
+    )
+    if missing or failed or view.get("last_run_status") in {"failed", "revoked"}:
+        status = "failed"
+    elif (
+        not nodes
+        or pending
+        or omitted
+        or unobserved
+        or metadata.get("omitted")
+        or view.get("last_run_status") != "finished"
+    ):
+        status = "incomplete"
+    else:
+        status = "passed"
+    return {
+        "scope": "debug_context_consistency",
+        "status": status,
+        "finished_nodes_with_missing_vars": missing,
+        "failed_or_revoked_nodes": failed,
+        "omitted_nodes": omitted,
+        "finished_nodes_without_observed_evidence": unobserved,
+    }
 
 
 def _has_reserved_metadata(value):
@@ -124,6 +201,7 @@ def build_context_snapshot(view):
         "metadata": metadata[0]["context_page"]["metadata"] if isinstance(metadata, list) else metadata,
         "nodes": projected,
     }
+    snapshot["verification"] = _verify_context(view, projected, snapshot["metadata"])
     return {**snapshot, "snapshot_id": sha256_json(snapshot)}
 
 
@@ -161,10 +239,18 @@ def context_page(session_id, snapshot, request):
         "metadata": snapshot["metadata"],
         "items": [],
         "next_cursor": None,
+        "verification": snapshot.get("verification", {"scope": "debug_context_consistency", "status": "incomplete"}),
+        "coverage": {"offset": offset, "returned": 0, "total": len(nodes), "has_more": False},
     }
     for index in range(offset, min(len(nodes), offset + request.node_limit)):
         cursor = _encode_cursor(session_id, snapshot["snapshot_id"], index + 1) if index + 1 < len(nodes) else None
         candidate = {**page, "items": page["items"] + [nodes[index]], "next_cursor": cursor}
+        candidate["coverage"] = {
+            "offset": offset,
+            "returned": len(candidate["items"]),
+            "total": len(nodes),
+            "has_more": cursor is not None,
+        }
         # Reserve space for cursor/metadata and serialized punctuation in every page.
         if len(canonical_json_bytes(candidate)) > MAX_PAGE_BYTES - 256:
             break

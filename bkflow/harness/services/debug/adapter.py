@@ -109,6 +109,16 @@ class DebugAdapter:
             or (view.get("active_task_id") is None and view.get("last_task_id") == current_task_id)
         ):
             raise DebugContextOwnershipConflict("Debug context changed task ownership")
+        states = {node.node_id: node for node in DebugNodeState.objects.filter(debug_context_id=debug_context_id)}
+        definitions = {
+            **self.service.pipeline_tree.get("activities", {}),
+            **self.service.pipeline_tree.get("gateways", {}),
+        }
+        for node in view["nodes"]:
+            state = states[node["node_id"]]
+            node["name"] = definitions.get(node["node_id"], {}).get("name", "")
+            node["configured_execution_mode"] = node["execution_mode"]
+            node["outputs"] = state.outputs
         return view
 
     def require_context_ownership(self, debug_context_id, *, current_task_id=None):

@@ -13,6 +13,128 @@ from bkflow.harness.services.debug.adapter import DebugAdapter
 from bkflow.harness.services.debug.facade import get_debug_session_with_context
 from tests.interface.harness.debug.test_get_session import _get_request, _started
 
+
+@pytest.mark.django_db
+def test_mock_step_read_distinguishes_configuration_from_observed_run(start_case):
+    """Agent 得到实际输出和运行模式，而不是把 Mock 预设当成执行证据。"""
+    from bkflow.harness.models import ValidationReport
+    from bkflow.harness.services.debug.facade import run_debug_with_context
+    from bkflow.template.models import DebugNodeState
+    from tests.interface.harness.debug.test_run_debug import _step_request
+
+    context, session, resolver = _started(start_case)
+    report = ValidationReport.objects.get(revision=session.revision)
+    report.result["source_map"] = {"A": "collect", "B": "check"}
+    report.save(update_fields=["result"])
+    assert run_debug_with_context(context, _step_request(session), resolver=resolver)["ok"]
+    response = get_debug_session_with_context(context, _get_request(session), resolver=resolver)
+    page = _safe_domain_result(context, response, "get_debug_session")["artifact_refs"][0]["context_page"]
+    node = next(item for item in page["items"] if item["node_id"] == "A")
+    assert node["source_node_id"] == "collect"
+    assert "name" in node
+    assert node["configured_execution_mode"] == "real"
+    assert node["last_execution_mode"] == "mock"
+    assert node["outputs"] == {"result": "mocked"}
+    assert DebugNodeState.objects.get(debug_context_id=session.debug_context_id, node_id="A").execution_mode == "real"
+
+
+def test_page_reports_coverage_and_context_inconsistency_from_all_nodes():
+    """第一页也必须暴露未回填变量，不能以任务完成或当前页正常代替验收。"""
+    from bkflow.harness.services.debug.policy import validate_get_request
+    from bkflow.harness.services.debug.projection import (
+        build_context_snapshot,
+        context_page,
+    )
+
+    view = _view()
+    view["nodes"][-1]["missing_vars"] = [{"key": "${result}", "source_node_id": "node_00"}]
+    snapshot = build_context_snapshot(view)
+    session_id = "00000000-0000-0000-0000-000000000001"
+    page = context_page(session_id, snapshot, validate_get_request({"session_id": session_id, "node_limit": 3}))
+    assert page["coverage"] == {"offset": 0, "returned": 3, "total": 26, "has_more": True}
+    assert page["verification"]["status"] == "failed"
+    assert page["verification"]["finished_nodes_with_missing_vars"] == 1
+
+
+@pytest.mark.parametrize(
+    "change,expected",
+    [
+        ({}, "passed"),
+        ({"last_run_status": "running"}, "incomplete"),
+        ({"last_run_status": "failed"}, "failed"),
+    ],
+)
+def test_context_verification_does_not_certify_unfinished_run(change, expected):
+    """节点状态不能代替任务收敛，历史不完整时不得返回已通过。"""
+    from bkflow.harness.services.debug.projection import build_context_snapshot
+
+    view = _view()
+    view.update(change)
+    assert build_context_snapshot(view)["verification"]["status"] == expected
+
+
+@pytest.mark.parametrize("field", ["outputs", "last_execution_mode", "missing_vars"])
+def test_context_without_observed_node_evidence_is_incomplete(field):
+    """旧接口缺字段时，不将未知信息按空结果验收通过。"""
+    from bkflow.harness.services.debug.projection import build_context_snapshot
+
+    view = _view()
+    view["nodes"][0].pop(field)
+    assert build_context_snapshot(view)["verification"]["status"] == "incomplete"
+
+
+@pytest.mark.django_db
+def test_node_name_comes_from_bound_pipeline_not_mock_preset():
+    """返回画布节点名称、实际输出，且不把预设当成执行结果。"""
+    from copy import deepcopy
+
+    from tests.interface.harness.debug.test_adapter_contract import PIPELINE_TREE
+
+    tree = deepcopy(PIPELINE_TREE)
+    tree["activities"]["A"]["name"] = "采集故障摘要"
+    adapter = DebugAdapter(template_id=42, space_id=902, pipeline_tree=tree)
+    prepared = adapter.prepare()
+    adapter.set_node_mock(
+        prepared.debug_context_id,
+        node_id="A",
+        enabled=True,
+        mock_result="success",
+        mock_outputs={"result": "preset"},
+        mock_error="",
+    )
+    node = adapter.context_view(prepared.debug_context_id)["nodes"][0]
+    assert node["name"] == "采集故障摘要"
+    assert node["outputs"] == {}
+    assert node["mock_outputs"] == {"result": "preset"}
+
+
+@pytest.mark.django_db
+def test_deep_raw_outputs_reach_bounded_projection_without_recursive_copy(start_case, monkeypatch):
+    from bkflow.harness.services.debug.projection import (
+        build_context_snapshot,
+        enrich_context_view,
+    )
+    from bkflow.template.models import DebugNodeState
+
+    _, session, _ = _started(start_case)
+    adapter = DebugAdapter(template_id=session.template_id, space_id=session.run.space_id, pipeline_tree={})
+    nested = {}
+    for _ in range(600):
+        nested = {"child": nested}
+    state = DebugNodeState(node_id="A", outputs=nested)
+    monkeypatch.setattr(adapter, "require_context_ownership", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        adapter.service,
+        "build_context_view",
+        lambda: {"nodes": [{"node_id": "A", "status": "finished", "execution_mode": "real"}]},
+    )
+    monkeypatch.setattr(DebugNodeState.objects, "filter", lambda **kwargs: [state])
+    view = adapter.context_view(session.debug_context_id)
+    snapshot = build_context_snapshot(enrich_context_view(session, view))
+    assert snapshot["nodes"][0]["details_omitted"] is True
+    assert snapshot["verification"]["status"] == "incomplete"
+
+
 pytest_plugins = ("tests.interface.harness.debug.test_start_session",)
 
 
@@ -29,6 +151,9 @@ def _view():
                 "node_id": "node_{:02d}".format(i),
                 "status": "finished",
                 "node_type": "ServiceActivity",
+                "outputs": {},
+                "last_execution_mode": "mock",
+                "missing_vars": [],
                 "error_detail": "公开诊断" * 60,
             }
             for i in range(26)

@@ -42,6 +42,16 @@ Envelope 顶层固定为 10 个键：`ok`、`run_id`、`revision_id`、`plan_has
 - `metadata`：有界脱敏的任务、输入及上下文信息；超限单独标记，不阻断节点读取。
 - `snapshot_id` / `next_cursor`：快照标识和下一页。`next_cursor` 为 null 时本次遍历结束。
 
+#### 节点定位与执行证据
+
+- `items[].name` 是已绑定流程中的节点名称，`source_node_id` 是校验时保存的原 a2flow 节点 ID；旧记录无映射时为 null，不按名称猜测。调用调试工具仍使用 `node_id`。
+- `configured_execution_mode`（与兼容字段 `execution_mode` 同义）是节点默认配置；`last_execution_mode` 是本会话运行记录中的最近执行模式，无证据或节点已重置时为 null。单步 Mock 不改默认配置，二者可以不同；网关的 real 仅指路由计算。
+- `outputs` 是节点已保存的实际运行结果，`mock_outputs` 只是预设。二者均经过脱敏；不能将配置了 Mock 输出当作节点已经执行。
+- `coverage.offset/returned/total/has_more` 表示本页范围。完整检查必须从第一页开始，按 `next_cursor` 读取同一 `snapshot_id` 的全部节点，按 `node_id` 去重后核对 `summary.total_nodes`。单节点查询的 coverage 只覆盖该筛选结果。
+- `verification.scope=debug_context_consistency` 只检查调试回读一致性：完成节点仍缺变量或存在失败/撤销节点时为 failed；尚未收敛、记录缺失或明细省略时为 incomplete；其余为 passed。计数基于整个快照，不仅当前页。旧快照没有该检查时返回 incomplete。
+
+`verification=passed` 不证明业务结果符合意图、所有分支均已覆盖、调用者已读完分页或已获发布批准。需结合实际输出、未运行分支与用户需求逐项核验；不得仅凭 `COMPLETED` 或 `RELEASE_READY` 宣布全部通过。
+
 每页最大 8 KiB、每个节点明细最大 4 KiB、最多 100 个节点；未提高原 Evidence 深度/字节限制。单节点明细超限时保留安全状态摘要，并标记 `details_omitted: true`，不伪称返回了完整日志。明细若含审批保留字段或内部元数据字段，则局部省略并标记 `reason: reserved_metadata`，不能冒充 Harness 审批结果。元数据过大也不会让其他节点整体消失。超过支持的节点总量不返回部分成功页，仍保持省略语义。
 
 活动会话的上下文可能变化；返回 `DEBUG_CONTEXT_CHANGED` 时移除 `node_cursor`，重新读取第一页，不要继续拼接旧快照。不存在的 `node_id` 返回安全的参数错误。分页参数错误不回滚本次已确认的终态归并与凭证回收。

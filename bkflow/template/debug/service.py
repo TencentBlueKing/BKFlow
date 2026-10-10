@@ -523,6 +523,26 @@ class DebugService:
         constants = copy.deepcopy(self.pipeline_tree.get("constants", {}))
         return classify_constants(constants, is_subprocess=False)["acts_outputs"]
 
+    def _original_node_outputs(self, node_id, rows, *, restore_aliases=True):
+        """将任务详情的展示别名还原为输出 key；重复别名不猜测其来源。"""
+        source_aliases = {}
+        constants = self.pipeline_tree.get("constants", {}) if restore_aliases else {}
+        for key, constant in constants.items():
+            sources = constant.get("source_info", {}).get(node_id, [])
+            if constant.get("source_type") == "component_outputs" and sources:
+                # 与 Engine 的展示规则一致：同一输出最终使用最后一个变量别名。
+                source_aliases[sources[0]] = key[2:-1]
+        alias_sources = {alias: source for source, alias in source_aliases.items()}
+        outputs, ambiguous = {}, set()
+        for row in rows:
+            if not isinstance(row, dict) or "key" not in row or "value" not in row:
+                continue
+            key = alias_sources.get(row["key"], row["key"])
+            if key in outputs:
+                ambiguous.add(key)
+            outputs[key] = row["value"]
+        return {key: value for key, value in outputs.items() if key not in ambiguous}
+
     @staticmethod
     def _flatten_state_children(children):
         flattened = {}
@@ -631,7 +651,10 @@ class DebugService:
                 ddata = detail.get("data", {}) if detail.get("result") else {}
                 version = ddata.get("version") or ddata.get("history_id") or "v1"
                 ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version}
-                outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
+                # 单步微型流程把产出变量降为 custom，Engine 返回的是原始 key。
+                outputs = self._original_node_outputs(
+                    tpl_node_id, ddata.get("outputs", []), restore_aliases=ctx.active_run_type == "global"
+                )
                 if ns.status == "finished":
                     if self._is_debuggable_gateway(tpl_node_id):
                         try:

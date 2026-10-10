@@ -8310,7 +8310,7 @@ paths:
   /space/{space_id}/harness/get_debug_session/:
     post:
       operationId: harness_get_debug_session
-      description: Harness P2 查询调试会话、节点状态摘要与脱敏 Evidence；context_page 支持独立节点分页或 node_id 定位
+      description: Harness P2 查询调试会话；context_page 返回节点 name/source_node_id、实际 outputs、configured_execution_mode 与 last_execution_mode。按 next_cursor 读完同一快照所有页，核对 coverage 和 verification；任务结束不等于验收通过，mock_outputs 只是预设，verification 仅检查调试回读一致性。
       tags: [ ]
       responses:
         default:

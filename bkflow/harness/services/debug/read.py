@@ -28,6 +28,7 @@ from bkflow.harness.services.debug.projection import (
     NODES_EVENT,
     build_context_snapshot,
     context_page,
+    enrich_context_view,
     load_context_snapshot,
     persist_context_snapshot,
     project_debug_payload,
@@ -307,6 +308,7 @@ def _converge(context, session, adapter, *, token_broker):
         terminal_status, reason = DebugSessionStatus.FAILED, "debug_failed"
     else:
         terminal_status, reason = DebugSessionStatus.TERMINATED, "debug_terminated"
+    view = enrich_context_view(session, view)
     persist_context_snapshot(session, view)
     _terminalize(context, session, terminal_status, reason, token_broker=token_broker)
     return view
@@ -354,6 +356,7 @@ def _response(
     runtime_enabled,
 ):
     history = _history(session, request)
+    context_view = enrich_context_view(session, context_view)
     snapshot = build_context_snapshot(context_view)
     if snapshot is None and session.status in DebugSession.TERMINAL_STATUSES:
         snapshot = load_context_snapshot(session)
