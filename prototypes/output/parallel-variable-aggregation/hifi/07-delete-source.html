@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>07 删除聚合来源</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <i class="mk" style="left:600px;top:293px">1</i>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 07 · 流程编排人员</div>
+    <h2>删除聚合来源</h2>
+    <div class="sub">接设计稿 06。流程里有两个聚合变量：${result}（来源为 3 个分支）和 ${check_log}（字典，来源为华南、华北）。编排人员删除「华北区资源检查」。</div>
+    <div class="note"><b class="n">1</b><span>在画布上选中节点后按删除键或点「删除」。节点是聚合变量的来源时先弹出本确认框；不是来源时按现状直接删除。</span></div>
+    <div class="note"><b class="n">2</b><span>列出受影响的聚合变量及删除前后的来源数。删除后还有 2 个及以上来源的保持聚合，不需要选择。</span></div>
+    <div class="note"><b class="n">3</b><span>只剩 1 个来源时，默认勾选「降级为普通变量」：变量变回单值，取剩余来源的输出。取消勾选则保持聚合，全局变量列表显示「建议降级」（见设计稿 08）。</span></div>
+    <div class="note"><b class="n">4</b><span>确认后删除节点，同时更新变量的来源；取消则不删除。</span></div>
+    <div class="note"><b class="n" style="background:#ff9c01">?</b><span>待确认：计划中的保存校验要求聚合变量至少有 2 个来源，与「保持聚合」冲突。建议放宽为至少 1 个：值仍是列表，下游引用不受影响。</span></div>
+    <div class="note"><b class="n" style="background:#ff9c01">?</b><span>待确认：分支标识按出线顺序编号，删除分支后，后面的分支会重新编号（华东区由 branch_3 变为 branch_2）。字典模式下键名随之改变，按键名取值的引用会失效。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="agg.js"></script>
+<script>
+  const f = FLOWS.three('b');
+  renderEditor(document.querySelector('[data-editor]'), { tpl: '多区域资源巡检', saveEnabled: true, nodes: f.nodes, edges: f.edges });
+  document.getElementById('dlg').outerHTML =
+    '<div class="dialog" style="width:640px;top:400px">' +
+    '<div class="hd"><i data-ic="warn" class="s24" style="color:#ff9c01"></i>删除「华北区资源检查」？<span class="x"><i data-ic="close" class="s14"></i></span></div>' +
+    '<div class="bd">' +
+    '<div style="margin-bottom:12px">该节点是 2 个聚合变量的来源，删除后来源会变化：</div>' +
+    '<div class="rel"><div class="tb-wrap"><table class="tb compact"><colgroup><col style="width:130px"><col style="width:80px"><col style="width:110px"><col></colgroup>' +
+    '<thead><tr><th>变量</th><th>聚合方式</th><th>来源数</th><th>处理</th></tr></thead><tbody>' +
+    '<tr><td class="var">${result}</td><td>列表</td><td>3 <span class="muted">→</span> 2</td><td class="muted">保持聚合</td></tr>' +
+    '<tr><td class="var">${check_log}</td><td>字典</td><td>2 <span class="muted">→</span> <span style="color:#ff9c01">1</span></td><td><span class="check on">降级为普通变量</span></td></tr>' +
+    '</tbody></table></div><i class="mk" style="left:-22px;top:52px">2</i><i class="mk" style="right:-12px;top:96px">3</i></div>' +
+    '<div class="help">降级后 ${check_log} 变回单值，取「华南区资源检查」的输出；引用它的 1 处下游需要重新确认。</div>' +
+    '</div>' +
+    '<div class="ft"><span class="rel"><button class="btn danger">删除</button><i class="mk" style="left:-10px;top:-10px">4</i></span><button class="btn">取消</button></div></div>';
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
