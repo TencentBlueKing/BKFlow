@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>02 切换对比基线</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 02 · 流程编排人员</div>
+    <h2>切换对比基线</h2>
+    <div class="sub">接设计稿 01。编排人员想看从 v1.1.0 以来的全部改动，把对比基线切换为 v1.1.0。v1.1.0 里还有「发布前检查」「回滚预案」两个节点。</div>
+    <div class="note"><b class="n">1</b><span>下拉只列已发布的版本，每项显示版本号、发布时间和发布人，上一发布版带标记；草稿不在列表中。</span></div>
+    <div class="note"><b class="n">2</b><span>基线不是上一发布版时，差异区顶部给出提示，并提供「恢复为上一发布版」。</span></div>
+    <div class="note"><b class="n">3</b><span>切换后重新计算，统计、画布和清单一起刷新。</span></div>
+    <div class="note"><b class="n">4</b><span>清单分组可以折叠，组名后显示数量。</span></div>
+    <div class="note"><b class="n">5</b><span>可以按节点名或参数名搜索；搜索时画布只高亮匹配的节点。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>每个版本都保存完整快照，任意两个版本可以直接对比，不需要逐个版本累加。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="diff.js"></script>
+<script>
+  renderBg();
+  const stats = '<span class="stat add">新增 2</span><span class="stat del">删除 3</span><span class="stat mod">修改 2</span><span class="stat lnk">连线变化 1</span>';
+  const list = clistHtml([
+    { name: '新增节点', cnt: 2, open: false },
+    { name: '删除节点', cnt: 3, items: [
+      { dot: 'del', name: '发布前检查', sub: '作业平台(JOB)-快速执行脚本' },
+      { dot: 'del', name: '旧版通知', sub: '蓝鲸服务(BK)-消息展示' },
+      { dot: 'del', name: '回滚预案', sub: '作业平台(JOB)-快速执行脚本' }] },
+    { name: '修改节点', cnt: 2, items: [{ dot: 'mod', name: '灰度发布', sub: '5 个字段', go: true }, { dot: 'mod', name: '全量发布', sub: '2 个字段', go: true }] },
+    { name: '连线变化', cnt: 1, open: false },
+  ], ic('eye', 's14') + '画布调整 4 项，不影响执行<span class="link ml-auto">展开</span>');
+  const dropdown =
+    '<div class="dropdown" style="top:62px;right:-90px">' +
+    '<div class="opt">v1.3.0<span class="tag sm">上一发布版</span><span class="hint">2026-09-18 10:24 · admin</span></div>' +
+    '<div class="opt">v1.2.0<span class="hint">2026-09-05 16:10 · jerry</span></div>' +
+    '<div class="opt on">v1.1.0<span class="hint">2026-08-21 11:02 · tom</span></div>' +
+    '<div class="opt hover">v1.0.0<span class="hint">2026-08-02 09:30 · admin</span></div>' +
+    '<div class="foot">只列出已发布的版本</div></div>';
+  document.getElementById('dlg').outerHTML = releaseDialog({
+    baseline: '<div class="select focus"><span class="dark">v1.1.0</span><span class="muted">2026-08-21 发布</span>' + ic('down', 's12') + '</div>',
+    baseHelp: '',
+    dropdown: dropdown,
+    formMk: '<i class="mk" style="right:-102px;top:334px">1</i>',
+    panel:
+      '<div class="alert warning" style="border-width:0 0 1px;border-radius:0"><i data-ic="warn" class="s14"></i><span>当前对比基线不是上一发布版（v1.3.0），差异中包含 v1.1.0 之后已经发布过的改动。</span><span class="link ml-auto nowrap">恢复为上一发布版</span></div>' +
+      summaryBar('v1.1.0（2026-08-21 11:02 发布）', stats) +
+      '<div class="pnl-bd">' + diffCanvas(CANVAS.v110(), { scale: 0.82, y: 140 }) + list + '</div>' +
+      '<i class="mk" style="right:-12px;top:6px">2</i>' +
+      '<i class="mk" style="right:-12px;top:50px">3</i>' +
+      '<i class="mk" style="right:290px;top:146px">4</i>' +
+      '<i class="mk" style="right:-12px;top:98px">5</i>',
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
