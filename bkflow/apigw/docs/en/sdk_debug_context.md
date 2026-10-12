@@ -62,6 +62,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
       "supports_step": true,
       "supports_mock": true,
       "status": "waiting",
+      "config_changed": true,
       "waiting_reason": "callback",
       "selected_flow_ids": [],
       "condition_results": []
@@ -73,6 +74,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
       "supports_step": true,
       "supports_mock": false,
       "status": "finished",
+      "config_changed": false,
       "waiting_reason": null,
       "selected_flow_ids": ["flow_true"],
       "condition_results": [
@@ -92,6 +94,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
       "supports_step": false,
       "supports_mock": false,
       "status": "finished",
+      "config_changed": false,
       "waiting_reason": null,
       "selected_flow_ids": [],
       "condition_results": []
@@ -105,6 +108,21 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
 `active_task_id` is populated only while the task is running and is cleared on completion; `last_task_id` retains the latest real engine task ID. Node `status` values are `not_run | running | waiting | paused | finished | failed`. When global debugging is terminated, active nodes revert to `not_run`; completed or naturally failed nodes retain their states. When engine scheduling records exist, `waiting_reason` is `callback | multiple_callback | poll`。
 
 `nodes` contains activity nodes and all gateways: exclusive (`ExclusiveGateway`), conditional parallel (`ConditionalParallelGateway`), parallel (`ParallelGateway`), and converge (`ConvergeGateway`). Start and end nodes are excluded.
+
+### Node configuration changes
+
+| Field | Type | Description |
+| --- | --- | --- |
+| nodes[].config_changed | bool | Whether the saved node execution configuration differs from the configuration used for its latest completed debug attempt. Independent of `status` and debug success or failure. |
+
+The comparison uses the draft, or the published snapshot when no draft exists. Saving preserves previous node results, duration, input/output data and log references. Repeated saves do not clear a mismatch. Restoring the previously debugged configuration makes the flag `false` again.
+
+- Real single-step runs, Mock runs and conditional gateway evaluation update only the executed node's baseline, on success or execution failure. Editing Mock presets does not update it.
+- Global debugging updates baselines only for nodes that finish or fail during execution. Unreached nodes, dependency rejections, task creation failures and start failures do not update them.
+- If configuration A is running when B is saved, A completing still leaves `config_changed=true` until B is debugged or A is restored.
+- New nodes initially have `status=not_run` and `config_changed=false`; subsequent execution configuration changes are detected. Legacy node states without a reliable baseline conservatively return `true` until debugged again.
+- The comparison covers plugin configuration, execution options, gateway conditions, embedded subprocesses and loop configuration. Node names, descriptions, coordinates and canvas layout are excluded. Changes to upstream outputs or global variables are not propagated to downstream nodes.
+- Unsaved frontend edits and click-to-canvas linking are outside this field's scope.
 
 `supports_step` indicates single-step support and `supports_mock` indicates mock support. Both are `true` for activities. Exclusive and conditional parallel gateways have `supports_step=true` and `supports_mock=false`. Parallel and converge gateways have both set to `false` and only display global debugging status. Debug panels should filter out nodes where both are `false`.
 
