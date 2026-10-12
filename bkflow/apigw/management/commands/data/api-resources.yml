@@ -1815,7 +1815,7 @@ paths:
                     additionalProperties: true
                 creator:
                   type: string
-                  description: 创建人
+                  description: 创建人；用于模板及初始快照归属记录，未传时使用网关用户，不改变插件查询身份
                 desc:
                   type: string
                   description: 模板描述

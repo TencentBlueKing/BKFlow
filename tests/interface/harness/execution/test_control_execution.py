@@ -237,7 +237,7 @@ def test_gateway_flow_list_rejects_non_string_items_as_schema_error():
 def adapter(client, **overrides):
     values = {
         "space_id": 905,
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "task_creator": mock.Mock(),
         "client_factory": lambda **_kwargs: client,
     }
@@ -316,7 +316,7 @@ def test_revoke_accepts_projected_failure_states_and_dispatches_once_as_trusted_
     assert observation.root_state == root_state
     assert receipt == ControlDispatchReceipt(acknowledged=True)
     assert "DOWNSTREAM_SENTINEL" not in repr(receipt)
-    client.operate_task.assert_called_once_with("8101", "revoke", {"operator": "dannydeng"})
+    client.operate_task.assert_called_once_with("8101", "revoke", {"operator": "test-operator"})
 
 
 def node_client(version="v7"):
@@ -440,7 +440,7 @@ def test_callback_and_gateway_actions_are_fixed_deny_before_task_api(payload):
 
 def test_control_sdk_runtime_mode_is_denied():
     with pytest.raises(ValueError, match="runtime authorization mode is unavailable"):
-        ApplicationTaskAdapter(runtime_authorization_mode="brokered_sdk_token", space_id=905, actor="dannydeng")
+        ApplicationTaskAdapter(runtime_authorization_mode="brokered_sdk_token", space_id=905, actor="test-operator")
 
 
 def test_task_and_node_dispatch_use_trusted_actor_and_return_safe_receipts():
@@ -465,9 +465,9 @@ def test_task_and_node_dispatch_use_trusted_actor_and_return_safe_receipts():
     assert task_receipt == ControlDispatchReceipt(acknowledged=True)
     assert node_receipt == ControlDispatchReceipt(acknowledged=True)
     assert "DOWNSTREAM_SENTINEL" not in repr(task_receipt) + repr(node_receipt)
-    task_client.operate_task.assert_called_once_with("8101", "pause", {"operator": "dannydeng"})
+    task_client.operate_task.assert_called_once_with("8101", "pause", {"operator": "test-operator"})
     runtime_client.node_operate.assert_called_once_with(
-        "8101", "runtime-A", "retry", {"operator": "dannydeng", "loop": False}
+        "8101", "runtime-A", "retry", {"operator": "test-operator", "loop": False}
     )
 
 
@@ -1914,9 +1914,11 @@ def test_missing_journal_or_wrong_last_ref_is_manual_before_readback(control_cas
         resource_reference=str(case.execution.id),
     )
     case.execution.control_idempotency_refs = [
-        "idempotency://execution/{}".format(record.id)
-        if mode == "missing_journal"
-        else "artifact://control/not-an-idempotency-record"
+        (
+            "idempotency://execution/{}".format(record.id)
+            if mode == "missing_journal"
+            else "artifact://control/not-an-idempotency-record"
+        )
     ]
     case.execution.status = ExecutionRun.Status.CONTROL_DISPATCHING
     case.execution.save(update_fields=["control_idempotency_refs", "status", "update_at"])

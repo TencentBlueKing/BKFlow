@@ -19,7 +19,7 @@ def execution_graph(db):
     run = harness_models.HarnessRun.objects.create(
         platform="bkaidev",
         platform_app="trusted-app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=904,
         scope=canonical_scope("project", "904"),
         environment="stag",

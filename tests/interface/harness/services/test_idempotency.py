@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -40,7 +41,7 @@ def pre_run_scope():
     """Create a stable first-write namespace from trusted caller context."""
     return IdempotencyScope(
         platform_app="bkfara_app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=100,
         tool_name="validate_workflow",
         run_scope="pre-run",
@@ -54,7 +55,7 @@ def harness_run(db):
     return HarnessRun.objects.create(
         platform="bkfara",
         platform_app="bkfara_app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=100,
         scope="project:100",
         environment="stag",
@@ -94,7 +95,7 @@ def test_same_scope_and_key_with_a_different_request_hash_conflicts(pre_run_scop
 @pytest.mark.django_db
 def test_different_actor_or_space_owns_an_independent_idempotency_namespace(pre_run_scope):
     """Catch cross-actor or cross-space replay of a write response."""
-    execute_idempotent(pre_run_scope, "a" * 64, lambda: {"owner": "dannydeng"})
+    execute_idempotent(pre_run_scope, "a" * 64, lambda: {"owner": "test-operator"})
     another_actor = IdempotencyScope(**{**pre_run_scope.as_dict(), "actor": "other_actor"})
     another_space = IdempotencyScope(**{**pre_run_scope.as_dict(), "space_id": 101})
 
@@ -117,7 +118,7 @@ def test_first_write_uses_literal_pre_run_and_completed_record_keeps_created_run
     record = HarnessIdempotencyRecord.objects.get(pk=result.record.pk)
     post_run_scope = IdempotencyScope.for_run(
         platform_app="bkfara_app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=100,
         tool_name="create_workflow_draft",
         run=harness_run,
@@ -181,7 +182,7 @@ class TestIdempotencyRowLockConcurrency(TransactionTestCase):
         """Build a stable namespace shared by the two independent connections."""
         return IdempotencyScope(
             platform_app="bkfara_app",
-            actor="dannydeng",
+            actor="test-operator",
             space_id=100,
             tool_name="validate_workflow",
             run_scope="pre-run",

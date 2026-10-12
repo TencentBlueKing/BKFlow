@@ -3,7 +3,7 @@ schema_version: 1
 trusted_context: &trusted_context
   platform_key: bkaidev
   platform_app: trusted-app
-  actor: dannydeng
+  actor: test-operator
   space_id: 905
   scope_type: project
   scope_value: "905"
@@ -422,7 +422,7 @@ cases:
     id: cross-space-start-denied-before-verifier-runtime
     category: secret_and_cross_space_denial
     setup: {driver: start, phase: cross_space, foreign_space_id: 999}
-    trusted_context: {platform_key: bkaidev, platform_app: trusted-app, actor: dannydeng, space_id: 999, scope_type: project, scope_value: "999", target_environment: stag, policy_version: risk-2026.09, mcp_contract_version: 1.3.0}
+    trusted_context: {platform_key: bkaidev, platform_app: trusted-app, actor: test-operator, space_id: 999, scope_type: project, scope_value: "999", target_environment: stag, policy_version: risk-2026.09, mcp_contract_version: 1.3.0}
     approval: {mode: missing, action: start_workflow_execution}
     request: {tool: start_workflow_execution, payload: {run_id: $run_id, manifest_id: $manifest_id, publication_id: $publication_id, expected_plan_hash: $plan_hash, name: Golden foreign start, constants: {}, idempotency_key: p3-cross-space}}
     expected: {envelope_code: CAPABILITY_FORBIDDEN, run_status: PUBLISHED, execution_status: none, evidence_events: [], token_lease_result: none, mutations: {publish: 0, create: 0, start: 0, control: 0, read: 0}}

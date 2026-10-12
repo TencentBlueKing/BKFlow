@@ -17,6 +17,7 @@ to the current version of the project delivered to anyone in the future.
 
 Template creation from server-owned a2flow documents.
 """
+
 from typing import Optional
 
 from django.core.exceptions import ValidationError
@@ -51,18 +52,20 @@ def create_template_from_a2flow(
     scope_value: Optional[str],
     bind_app_code: str,
     auto_release: bool = False,
+    creator: Optional[str] = None,
 ) -> Template:
-    """Create one template and its initial snapshot from an authoritative a2flow document."""
+    """创建模板与初始快照；可选 creator 仅用于归属记录，插件查询始终使用 username。"""
     tree = _pipeline_tree(a2flow, space_id, username, scope_type, scope_value)
+    creator = creator or username
     with transaction.atomic():
         versioning = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
         snapshot = (
-            TemplateSnapshot.create_draft_snapshot(tree, username, "1.0.0")
+            TemplateSnapshot.create_draft_snapshot(tree, creator, "1.0.0")
             if versioning and auto_release
             else (
-                TemplateSnapshot.create_draft_snapshot(tree, username)
+                TemplateSnapshot.create_draft_snapshot(tree, creator)
                 if versioning
-                else TemplateSnapshot.create_snapshot(tree, username, "1.0.0")
+                else TemplateSnapshot.create_snapshot(tree, creator, "1.0.0")
             )
         )
         template = Template.objects.create(
@@ -72,8 +75,8 @@ def create_template_from_a2flow(
             scope_type=scope_type,
             scope_value=scope_value,
             bk_app_code=bind_app_code,
-            creator=username,
-            updated_by=username,
+            creator=creator,
+            updated_by=creator,
             snapshot_id=snapshot.id,
         )
         snapshot.template_id = template.id

@@ -56,8 +56,6 @@ logger = logging.getLogger("root")
 PLUGIN_SCHEMA_CACHE_TTL = 300
 UNVERSIONED_PLUGIN_VERSION = "unversioned"
 UNIFORM_API_CATALOG_PAGE_SIZE = 200
-UNIFORM_API_CATALOG_TEXT_MAX_LENGTH = 240
-UNIFORM_API_CATALOG_TEXT_MAX_BYTES = 960
 
 WRAPPER_CODES = {"remote_plugin", "uniform_api", "subprocess_plugin"}
 
@@ -533,7 +531,7 @@ class PluginSchemaService:
 
     @staticmethod
     def _validate_remote_uniform_api_item(api_item):
-        """Reject malformed or unbounded legacy provider data before it reaches cache/model paths."""
+        """校验旧目录结构；展示文本的长度限制由 Harness 投影处理，不改变旧接口契约。"""
         if not isinstance(api_item, dict) or not isinstance(api_item.get("id"), str) or not api_item["id"]:
             raise ValueError("uniform API catalog identity is invalid")
         if len(api_item["id"]) > 128:
@@ -545,13 +543,9 @@ class PluginSchemaService:
             if not isinstance(value, str):
                 raise ValueError("uniform API catalog field is invalid")
             try:
-                value_bytes = len(value.encode("utf-8"))
+                value.encode("utf-8")
             except UnicodeError as error:
                 raise ValueError("uniform API catalog field is invalid") from error
-            if field in {"id", "name", "description", "category"} and (
-                len(value) > UNIFORM_API_CATALOG_TEXT_MAX_LENGTH or value_bytes > UNIFORM_API_CATALOG_TEXT_MAX_BYTES
-            ):
-                raise ValueError("uniform API catalog field is invalid")
 
     def _list_uniform_api_plugins_from_catalog(self, keyword=None, plugin_source=None):
         catalog_qs = OpenPluginCatalogIndex.objects.filter(

@@ -11,7 +11,7 @@ RECEIPT = "approval://bkaidev/receipt-1"
 def claims(**overrides):
     """Build the complete immutable authority expected from a receipt."""
     value = {
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "platform_app": "trusted-app",
         "space_id": 901,
         "scope": "project:901",

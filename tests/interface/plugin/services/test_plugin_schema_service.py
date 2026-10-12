@@ -309,6 +309,96 @@ class TestUniformApiSourceSelection:
 class TestUniformApiPlugins:
     """测试 API 插件查询"""
 
+    @pytest.mark.parametrize("cached", [False, True])
+    @pytest.mark.parametrize("field", ["name", "description", "category"])
+    @pytest.mark.parametrize("text", ["x" * 241, "界" * 241, "x" * 100000], ids=["long", "multibyte", "100k"])
+    def test_legacy_catalog_preserves_long_display_text(self, mocker, cached, field, text):
+        """合法展示文案不能使旧目录整批消失，缓存与远端查询都应保留原文。"""
+        items = [
+            {"id": "legacy-alpha", "name": "Alpha", "meta_url": "https://example.com/meta/alpha"},
+            {"id": "legacy-beta", "name": "Beta", "meta_url": "https://example.com/meta/beta"},
+        ]
+        items[0][field] = text
+        list_data = {"total": 2, "apis": items}
+        RealUniformAPIClient.validate_response_data(
+            list_data, RealUniformAPIClient.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA
+        )
+        store = {"plugin_list:uniform_api:1": items} if cached else {}
+        cache = mocker.patch("bkflow.plugin.services.plugin_schema_service.cache")
+        cache.get.side_effect = store.get
+        cache.set.side_effect = lambda key, value, timeout=None: store.__setitem__(key, value)
+        mocker.patch(
+            "bkflow.plugin.services.plugin_schema_service.SpaceConfig.get_config",
+            return_value={
+                "api": {
+                    "default": {
+                        "meta_apis": "https://example.com/catalog",
+                        "api_categories": "https://example.com/categories",
+                        "display_name": "Test API",
+                    }
+                }
+            },
+        )
+        service = PluginSchemaService(space_id=1, username="test-operator")
+        mocker.patch.object(
+            service,
+            "_get_apigw_credential",
+            return_value=MagicMock(content={"bk_app_code": "app", "bk_app_secret": "test"}),
+        )
+        mocker.patch(
+            "bkflow.plugin.services.plugin_schema_service.UniformAPIClient.request",
+            return_value=HttpRequestResult(result=True, json_resp={"result": True, "data": list_data}),
+        )
+
+        plugins, total = service.list_plugins(plugin_type="uniform_api")
+
+        assert total == 2
+        assert [plugin["code"] for plugin in plugins] == ["legacy-alpha", "legacy-beta"]
+        assert plugins[0]["group_name" if field == "category" else field] == text
+        assert store["plugin_list:uniform_api:1"][0][field] == text
+
+    def test_long_legacy_description_is_readable_but_bounded_for_harness(self, mocker):
+        """旧 Schema 保留合法描述；同一服务供 Harness 检索时只输出有界摘要。"""
+        from bkflow.harness.services.projection import CapabilityProjection
+
+        description = "界" * 100000
+        store = {
+            "plugin_list:uniform_api:1": [
+                {
+                    "id": "legacy-alpha",
+                    "name": "Alpha",
+                    "description": description,
+                    "meta_url": "https://example.com/meta/alpha",
+                }
+            ]
+        }
+        cache = mocker.patch("bkflow.plugin.services.plugin_schema_service.cache")
+        cache.get.side_effect = store.get
+        cache.set.side_effect = lambda key, value, timeout=None: store.__setitem__(key, value)
+        service = PluginSchemaService(space_id=1, username="test-operator")
+        mocker.patch.object(service, "_list_component_plugins", return_value=[])
+        mocker.patch.object(service, "_list_remote_plugins", return_value=[])
+        mocker.patch.object(
+            service,
+            "_get_apigw_credential",
+            return_value=MagicMock(content={"bk_app_code": "app", "bk_app_secret": "test"}),
+        )
+        mocker.patch("bkflow.plugin.services.plugin_schema_service.get_source_headers", return_value={})
+        mocker.patch(
+            "bkflow.plugin.services.plugin_schema_service.UniformAPIClient.request",
+            return_value=uniform_meta_result(
+                {"id": "legacy-alpha", "name": "Alpha", "desc": description, "inputs": [], "outputs": []}
+            ),
+        )
+
+        schema = service.get_plugin_schema("legacy-alpha", plugin_type="uniform_api")
+        projected = CapabilityProjection(service).search("alpha")
+
+        assert schema["description"] == description
+        assert len(projected["capabilities"]) == 1
+        assert projected["capabilities"][0]["summary"] == "界" * 240
+        assert projected["errors"] == []
+
     @patch("bkflow.plugin.services.plugin_schema_service.cache")
     @patch("bkflow.plugin.services.plugin_schema_service.Credential")
     @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
@@ -414,7 +504,8 @@ class TestUniformApiPlugins:
             ([1], {0: [{"id": "safe", "name": "Safe", "meta_url": "https://meta"}] * 201}),
             ([1], {0: [{"id": "safe", "name": "Safe", "meta_url": "https://meta"}] * 2}),
             ([1], {0: [{"id": "bad\ud800", "name": "Safe", "meta_url": "https://meta"}]}),
-            ([1], {0: [{"id": "safe", "name": "x" * 100000, "meta_url": "https://meta"}]}),
+            ([1], {0: [{"id": "x" * 129, "name": "Safe", "meta_url": "https://meta"}]}),
+            ([1], {0: [{"id": "safe", "name": "Safe", "description": ["invalid"], "meta_url": "https://meta"}]}),
         ),
     )
     @patch("bkflow.plugin.services.plugin_schema_service.cache")

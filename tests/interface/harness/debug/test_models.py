@@ -29,7 +29,7 @@ def run_values(**overrides):
     values = {
         "platform": "bkaidev",
         "platform_app": "trusted-app",
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "space_id": 902,
         "scope": canonical_scope("project", "902"),
         "environment": "stag",
@@ -46,7 +46,7 @@ def trusted_context_snapshot(**overrides):
     values = {
         "platform_key": "bkaidev",
         "platform_app": "trusted-app",
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "space_id": 902,
         "scope_type": "project",
         "scope_value": "902",
@@ -97,7 +97,7 @@ def debug_session_values(run, revision, **overrides):
         "status": DebugSessionStatus.ACTIVE,
         "plan_hash": "a" * 64,
         "tree_fingerprint": tree_fingerprint(),
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "policy_version": "risk-2026.09",
         "trusted_context_snapshot": trusted_context_snapshot(),
         "expires_at": now + timezone.timedelta(minutes=10),
@@ -117,7 +117,7 @@ def evidence_values(run, revision, session=None, **overrides):
         "action": "start_debug_session",
         "redacted_payload": {"mode": "step"},
         "artifact_refs": [],
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "correlation_id": "p2-model-test",
         "redaction_version": EVIDENCE_REDACTION_VERSION,
         "occurred_at": timezone.now(),
@@ -234,7 +234,7 @@ def test_models_report_missing_required_relations_as_validation_errors(run_and_r
     lease = TokenLease(
         session=None,
         platform_app="trusted-app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=902,
         resource_type="TEMPLATE",
         resource_id="42",
@@ -340,7 +340,7 @@ def test_token_lease_persists_metadata_only_and_separates_resource_from_mock_per
     lease = TokenLease.objects.create(
         session=session,
         platform_app="trusted-app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=902,
         resource_type="TEMPLATE",
         resource_id="42",
@@ -366,7 +366,7 @@ def test_token_lease_persists_metadata_only_and_separates_resource_from_mock_per
     scope_lease = TokenLease.objects.create(
         session=scope_session,
         platform_app="trusted-app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=902,
         resource_type="SCOPE",
         resource_id="project_902",
@@ -407,7 +407,7 @@ def test_token_lease_direct_create_rejects_untrusted_identity_or_unsafe_metadata
     values = {
         "session": session,
         "platform_app": "trusted-app",
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "space_id": 902,
         "resource_type": "TEMPLATE",
         "resource_id": "42",
@@ -435,7 +435,7 @@ def test_token_lease_enforces_status_times_and_governed_mutation(run_and_revisio
     common = {
         "session": session,
         "platform_app": "trusted-app",
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "space_id": 902,
         "resource_type": "TEMPLATE",
         "resource_id": "42",
@@ -493,7 +493,7 @@ def test_token_lease_cannot_be_active_on_terminal_session_or_resurrected(run_and
     values = {
         "session": session,
         "platform_app": "trusted-app",
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "space_id": 902,
         "resource_type": "TEMPLATE",
         "resource_id": "42",
@@ -531,7 +531,7 @@ def test_debug_session_requires_active_leases_to_end_before_terminal_transition(
     lease = TokenLease.objects.create(
         session=session,
         platform_app="trusted-app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=902,
         resource_type="TEMPLATE",
         resource_id="42",
@@ -568,7 +568,7 @@ def test_active_lease_create_rereads_locked_session_and_bulk_insert_is_closed(ru
     values = {
         "session": stale_session,
         "platform_app": "trusted-app",
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "space_id": 902,
         "resource_type": "TEMPLATE",
         "resource_id": "42",
@@ -616,7 +616,7 @@ def test_scope_lease_requires_exact_trusted_scope_and_rejects_space_wide_session
         TokenLease.objects.create(
             session=session,
             platform_app="trusted-app",
-            actor="dannydeng",
+            actor="test-operator",
             space_id=902,
             resource_type="SCOPE",
             resource_id="project_902",

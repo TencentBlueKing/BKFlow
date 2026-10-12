@@ -26,15 +26,15 @@ def release_template_case(db):
         draft=True,
         data={**build_pipeline_tree(), "id": "pipeline-v1"},
         md5sum="a" * 32,
-        creator="dannydeng",
-        operator="dannydeng",
+        creator="test-operator",
+        operator="test-operator",
     )
     template = Template.objects.create(
         name="release service",
         space_id=space.id,
         snapshot_id=draft.id,
-        creator="dannydeng",
-        updated_by="dannydeng",
+        creator="test-operator",
+        updated_by="test-operator",
     )
     draft.template_id = template.id
     draft.save(update_fields=["template_id"])
@@ -57,7 +57,7 @@ def test_release_locks_and_atomically_publishes_exact_draft_with_operation_and_p
     snapshot = TemplateReleaseService.release(
         template,
         {"version": "1.0.0", "desc": "first release", "force": False},
-        operator="dannydeng",
+        operator="test-operator",
         source=TemplateOperationSource.app.name,
         emit_webhook=True,
         expected_draft_snapshot_id=draft.id,
@@ -74,7 +74,7 @@ def test_release_locks_and_atomically_publishes_exact_draft_with_operation_and_p
             instance_id=template.id,
             operate_type=TemplateOperationType.release.name,
             operate_source=TemplateOperationSource.app.name,
-            operator="dannydeng",
+            operator="test-operator",
             extra_info={"version": "1.0.0"},
         ).count()
         == 1
@@ -95,7 +95,7 @@ def test_release_rolls_back_snapshot_when_operation_record_fails(release_templat
         TemplateReleaseService.release(
             template,
             {"version": "1.0.0", "force": False},
-            operator="dannydeng",
+            operator="test-operator",
             source=TemplateOperationSource.api.name,
             emit_webhook=False,
             expected_draft_snapshot_id=draft.id,
@@ -125,7 +125,7 @@ def test_release_rechecks_versioning_collision_and_exact_draft_under_lock(releas
         TemplateReleaseService.release(
             template,
             {"version": "1.0.0", "force": False},
-            operator="dannydeng",
+            operator="test-operator",
             source=TemplateOperationSource.api.name,
             emit_webhook=False,
             expected_draft_snapshot_id=draft.id,
@@ -136,7 +136,7 @@ def test_release_rechecks_versioning_collision_and_exact_draft_under_lock(releas
         TemplateReleaseService.release(
             template,
             {"version": "1.0.1", "force": False},
-            operator="dannydeng",
+            operator="test-operator",
             source=TemplateOperationSource.api.name,
             emit_webhook=False,
             expected_draft_snapshot_id=draft.id + 1,
@@ -159,7 +159,7 @@ def test_post_commit_webhook_failure_does_not_turn_committed_release_into_failur
     snapshot = TemplateReleaseService.release(
         template,
         {"version": "1.0.0", "force": False},
-        operator="dannydeng",
+        operator="test-operator",
         source=TemplateOperationSource.app.name,
         emit_webhook=True,
         expected_draft_snapshot_id=draft.id,
@@ -190,7 +190,7 @@ def test_update_draft_locks_template_before_the_draft_snapshot(release_template_
 
     updated = template.update_draft_snapshot(
         {"id": "pipeline-v2", "activities": {}, "gateways": {}, "flows": {}, "constants": {}, "outputs": []},
-        "dannydeng",
+        "test-operator",
     )
 
     assert updated.id == draft.id
@@ -206,12 +206,12 @@ def test_update_draft_rejects_multiple_drafts_without_mutating_either(release_te
         draft=True,
         data={"id": "pipeline-other"},
         md5sum="b" * 32,
-        creator="dannydeng",
-        operator="dannydeng",
+        creator="test-operator",
+        operator="test-operator",
     )
 
     with pytest.raises(ValidationError):
-        template.update_draft_snapshot({"id": "pipeline-v2"}, "dannydeng")
+        template.update_draft_snapshot({"id": "pipeline-v2"}, "test-operator")
 
     first.refresh_from_db()
     second.refresh_from_db()

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import json
 from unittest.mock import MagicMock, patch
 
@@ -444,28 +445,49 @@ class TestCreateTemplateWithA2FlowV2View(TestCase):
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
     )
-    @patch("bkflow.template.services.a2flow_template.create_template_from_a2flow")
-    def test_v2_creator_is_authenticated_user_not_request_controlled_value(self, create_template):
-        """Extraction preserves the original v2 audit attribution contract."""
+    @patch("bkflow.template.services.a2flow_template.A2FlowV2Converter")
+    def test_v2_preserves_creator_without_changing_plugin_lookup_identity(self, converter):
+        """应用传入的创建人用于归属记录，不得替换插件查询使用的已认证身份。"""
+        from bkflow.template.models import Template
+        from tests.interface.apigw.middlewares import OverrideMiddleware
+        from tests.interface.template.test_template_models import build_pipeline_tree
+
         space = self.create_space()
-        create_template.return_value.to_json.return_value = {"id": 1, "name": "v2"}
-        response = self.client.post(
-            "/apigw/space/{}/create_template_with_a2flow/".format(space.id),
-            data=json.dumps(
-                {
-                    "creator": "forged-user",
+        original_process_request = OverrideMiddleware.process_request
+        for username, creator, expected_creator in (
+            ("gateway-user", "platform-operator", "platform-operator"),
+            ("", "platform-operator", "platform-operator"),
+            ("gateway-user", None, "gateway-user"),
+        ):
+            with self.subTest(username=username, creator=creator):
+                converter.return_value.convert.return_value = build_pipeline_tree()
+
+                def process_request(middleware, request):
+                    original_process_request(middleware, request)
+                    request.user.username = username
+
+                payload = {
                     "a2flow": {
                         "version": "2.0",
                         "name": "v2",
                         "nodes": [{"id": "n1", "name": "wait", "code": "sleep_timer", "next": "end"}],
                     },
                 }
-            ),
-            content_type="application/json",
-        )
+                if creator is not None:
+                    payload["creator"] = creator
+                with patch.object(OverrideMiddleware, "process_request", process_request):
+                    response = self.client.post(
+                        "/apigw/space/{}/create_template_with_a2flow/".format(space.id),
+                        data=json.dumps(payload),
+                        content_type="application/json",
+                    )
 
-        self.assertTrue(response.json()["result"])
-        self.assertNotEqual(create_template.call_args.kwargs["username"], "forged-user")
+                self.assertTrue(response.json()["result"], response.json())
+                template = Template.objects.get(pk=response.json()["data"]["id"])
+                self.assertEqual(template.creator, expected_creator)
+                self.assertEqual(template.updated_by, expected_creator)
+                self.assertEqual(template.snapshot.creator, expected_creator)
+                self.assertEqual(converter.call_args.kwargs["username"], username)
 
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)

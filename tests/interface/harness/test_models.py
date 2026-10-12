@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import base64
 import json
 import uuid
@@ -40,7 +41,7 @@ def harness_run(db):
     return HarnessRun.objects.create(
         platform="bkfara",
         platform_app="bkfara_app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=100,
         scope="project:100",
         environment="stag",
@@ -295,7 +296,7 @@ class TestHarnessModels:
         """Deduplicate writes only inside the trusted caller and run scope."""
         common_values = {
             "platform_app": "bkfara_app",
-            "actor": "dannydeng",
+            "actor": "test-operator",
             "space_id": 100,
             "tool_name": "validate_workflow",
             "idempotency_key": "retry-key-1",
@@ -316,7 +317,7 @@ class TestHarnessModels:
         """Allow one identical key in every distinct trusted idempotency namespace."""
         common_values = {
             "platform_app": "bkfara_app",
-            "actor": "dannydeng",
+            "actor": "test-operator",
             "space_id": 100,
             "tool_name": "validate_workflow",
             "run_scope": "pre-run",

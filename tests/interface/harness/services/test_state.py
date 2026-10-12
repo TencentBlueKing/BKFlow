@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import pytest
 
 from bkflow.harness.exceptions import InvalidStateTransition
@@ -33,7 +34,7 @@ def harness_run(db):
     return HarnessRun.objects.create(
         platform="bkfara",
         platform_app="bkfara_app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=100,
         scope="project:100",
         environment="stag",

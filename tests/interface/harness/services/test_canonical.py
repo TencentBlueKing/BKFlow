@@ -124,7 +124,7 @@ def test_canonical_scope_character_maximum_fits_harness_run_model():
     run = HarnessRun(
         platform="bkfara",
         platform_app="bkfara_app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=42,
         scope=canonical_scope("t" * 64, "v" * 184),
         environment="stag",
@@ -211,7 +211,7 @@ def test_plan_hash_round_trips_mapping_to_persisted_capability_binding():
     run = HarnessRun.objects.create(
         platform="bkfara",
         platform_app="bkfara_app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=42,
         scope='["project","42"]',
         environment="stag",

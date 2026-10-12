@@ -57,7 +57,7 @@ def trusted_context(**overrides):
     values = {
         "platform_key": "bkaidev",
         "platform_app": "trusted-app",
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "space_id": 902,
         "scope_type": "project",
         "scope_value": "902",

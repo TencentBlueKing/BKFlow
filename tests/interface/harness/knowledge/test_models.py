@@ -40,7 +40,7 @@ def binding_values(**overrides):
         "priority": 100,
         "environment": "stag",
         "allowed_apps": ["trusted-app"],
-        "allowed_actors": ["dannydeng"],
+        "allowed_actors": ["test-operator"],
         "data_classification": "internal",
         "snapshot_version": "2026.09.04",
         "last_verified_at": timezone.now(),
@@ -565,7 +565,7 @@ def test_retrieval_audit_persists_only_bounded_retrieval_evidence():
         trusted_context_snapshot={
             "platform_key": "bkaidev",
             "platform_app": "trusted-app",
-            "actor": "dannydeng",
+            "actor": "test-operator",
             "space_id": 902,
             "scope_type": "project",
             "scope_value": "902",
@@ -751,7 +751,7 @@ def test_retrieval_audit_can_reference_a_run_and_isolates_json_defaults():
     run = HarnessRun.objects.create(
         platform="bkaidev",
         platform_app="trusted-app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=902,
         scope="project:902",
         environment="stag",

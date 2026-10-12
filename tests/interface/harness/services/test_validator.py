@@ -68,7 +68,7 @@ def context():
     return TrustedHarnessContext(
         platform_key="bkfara",
         platform_app="bkfara_app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=42,
         scope_type="project",
         scope_value="42",
@@ -254,7 +254,7 @@ def test_plan_hash_assertion_is_optimistic_and_never_client_authority(context, r
     from bkflow.harness.models import HarnessRun
 
     run = HarnessRun.objects.get()
-    assert (run.space_id, run.actor, run.platform_app) == (42, "dannydeng", "bkfara_app")
+    assert (run.space_id, run.actor, run.platform_app) == (42, "test-operator", "bkfara_app")
 
 
 @pytest.mark.django_db

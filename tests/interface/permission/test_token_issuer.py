@@ -29,7 +29,7 @@ def token_context(db):
         text_value="1h",
         value_type="TEXT",
     )
-    return TokenIssueContext(platform_app="trusted-app", actor="dannydeng", space_id=space.id)
+    return TokenIssueContext(platform_app="trusted-app", actor="test-operator", space_id=space.id)
 
 
 @pytest.fixture(autouse=True)
@@ -56,7 +56,7 @@ def test_issue_binds_trusted_context_validates_resource_before_create_and_return
     assert valid_resource == [(token_context.space_id, "TEMPLATE", "42")]
     assert Token.objects.filter(
         token=issued.secret,
-        user="dannydeng",
+        user="test-operator",
         space_id=token_context.space_id,
         grants__resource_type="TEMPLATE",
         grants__resource_id="42",

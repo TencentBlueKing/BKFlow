@@ -910,7 +910,7 @@ def test_fixture_has_exactly_forty_complete_cases_and_handlers_in_the_frozen_dis
         assert case["trusted_context"] == {
             "platform_key": "bkaidev",
             "platform_app": "trusted-app",
-            "actor": "dannydeng",
+            "actor": "test-operator",
             "space_id": 902,
             "scope_type": "project",
             "scope_value": "902",

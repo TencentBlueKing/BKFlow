@@ -26,7 +26,7 @@ def run_and_revision(db):
     run = HarnessRun.objects.create(
         platform="bkaidev",
         platform_app="trusted-app",
-        actor="dannydeng",
+        actor="test-operator",
         space_id=902,
         scope=canonical_scope("project", "902"),
         environment="stag",
@@ -52,7 +52,7 @@ def record_values(run, revision, **overrides):
         "event_type": "DEBUG_STEP_COMPLETED",
         "action": "run_debug",
         "payload": {"result": "ok"},
-        "actor": "dannydeng",
+        "actor": "test-operator",
         "correlation_id": "p2-evidence-test",
     }
     values.update(overrides)

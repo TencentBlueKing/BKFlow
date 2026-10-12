@@ -100,6 +100,7 @@ def create_template_with_a2flow(request, space_id):
                 scope_value=validated_data.get("scope_value"),
                 bind_app_code=getattr(app, "bk_app_code", ""),
                 auto_release=auto_release,
+                creator=validated_data.get("creator"),
             )
         except ValidationError as e:
             logger.exception("create_template_with_a2flow v2: pydantic validation failed")
