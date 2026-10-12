@@ -775,6 +775,7 @@ class DebugContext(CommonModel):
     space_id = models.IntegerField(_("空间ID"), db_index=True)
     global_vars = models.JSONField(_("调试全局变量"), default=dict, blank=True)
     tree_fingerprint = models.JSONField(_("树指纹"), default=dict, blank=True)
+    active_config_hashes = models.JSONField(_("本次调试采用的节点配置指纹"), default=dict, blank=True)
     status = models.CharField(_("调试状态"), max_length=16, choices=STATUS_CHOICES, default="idle")
     active_task_id = models.BigIntegerField(_("当前DEBUG任务ID"), null=True, blank=True)
     active_run_type = models.CharField(_("当前调试类型"), max_length=16, choices=RUN_TYPE_CHOICES, blank=True, default="")
@@ -824,6 +825,7 @@ class DebugNodeState(models.Model):
     error_detail = models.JSONField(_("错误详情"), default=dict, blank=True)
     log_ref = models.JSONField(_("引擎引用"), default=dict, blank=True)
     config_hash = models.CharField(_("配置指纹"), max_length=64, blank=True, default="")
+    debug_config_hash = models.CharField(_("最近调试配置指纹"), max_length=64, blank=True, default="")
     last_run_at = models.DateTimeField(_("最近运行时间"), null=True, blank=True)
 
     class Meta:
