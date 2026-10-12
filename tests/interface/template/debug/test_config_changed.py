@@ -3,11 +3,17 @@
 import copy
 
 import pytest
-from django.db import transaction
+from django.db import connection, transaction
+from django.db.migrations.loader import MigrationLoader
 
 from bkflow.template.debug.dependency import compute_debug_config_hashes
 from bkflow.template.debug.service import DebugService, DebugStateError
-from bkflow.template.models import DebugNodeState, Template, TemplateSnapshot
+from bkflow.template.models import (
+    DebugContext,
+    DebugNodeState,
+    Template,
+    TemplateSnapshot,
+)
 
 
 @pytest.fixture
@@ -195,10 +201,11 @@ class TestConfigChanged:
         assert context_nodes(template)["A"]["config_changed"] is True
 
     @pytest.mark.parametrize("status", ["finished", "not_run"])
-    def test_legacy_result_without_baseline_is_not_assumed_current(self, template, status):
+    @pytest.mark.parametrize("baseline", ["", None])
+    def test_legacy_result_without_baseline_is_not_assumed_current(self, template, status, baseline):
         """旧结果缺少可靠基准时，保守提示需要重新调试。"""
         ctx = DebugService(template.id).get_or_create_context()
-        DebugNodeState.objects.create(debug_context=ctx, node_id="A", status=status)
+        DebugNodeState.objects.create(debug_context=ctx, node_id="A", status=status, debug_config_hash=baseline)
         assert context_nodes(template)["A"]["config_changed"] is True
 
     def test_global_failure_does_not_reset_unknown_legacy_baseline(self, template, mocker):
@@ -258,6 +265,81 @@ class TestConfigChanged:
         node = context_nodes(template)["G"]
         assert node["config_changed"] is False
         assert node["status"] == status
+
+
+@pytest.fixture
+def legacy_debug_models(db):
+    """加载新增指纹字段之前的模型，在当前迁移后的表结构上模拟旧实例。"""
+    apps = MigrationLoader(connection).project_state([("template", "0013_debug_node_revoked_status")]).apps
+    return apps.get_model("template", "DebugContext"), apps.get_model("template", "DebugNodeState")
+
+
+@pytest.mark.django_db
+class TestRollingMigrationCompatibility:
+    def test_old_instance_can_create_context(self, template, legacy_debug_models):
+        """迁移后旧实例仍可首次创建上下文，不需要填写新增字段。"""
+        old_context, _ = legacy_debug_models
+        ctx, created = old_context.objects.get_or_create(
+            template_id=template.id, defaults={"space_id": template.space_id}
+        )
+        assert created is True
+        assert not DebugContext.objects.get(pk=ctx.pk).active_config_hashes
+        assert context_nodes(template)["A"]["status"] == "not_run"
+
+    def test_old_instance_can_bulk_create_nodes(self, template, legacy_debug_models):
+        """旧实例批量创建节点后，新实例可读取并在重新调试后建立基准。"""
+        _, old_node = legacy_debug_models
+        ctx = DebugService(template.id).get_or_create_context()
+        old_node.objects.bulk_create(
+            [old_node(debug_context_id=ctx.pk, node_id=node_id) for node_id in ("A", "B")],
+            ignore_conflicts=True,
+        )
+        # 忽略冲突不能悄悄丢弃因新增列不兼容而插入失败的节点。
+        states = list(DebugNodeState.objects.filter(debug_context=ctx))
+        assert len(states) == 2
+        assert all(not state.debug_config_hash for state in states)
+        assert all(node["config_changed"] is True for node in context_nodes(template).values())
+        mock_run(template)
+        assert context_nodes(template)["A"]["config_changed"] is False
+        assert context_nodes(template)["B"]["config_changed"] is True
+
+    @pytest.mark.parametrize("state, status", [("FINISHED", "finished"), ("FAILED", "failed")])
+    def test_run_without_fingerprints_can_finish(self, template, mocker, state, status):
+        """缺少运行指纹的旧任务完成时不报错，也不凭当前配置补写基准。"""
+        ctx = DebugService(template.id).sync_node_states()
+        DebugContext.objects.filter(pk=ctx.pk).update(
+            status="running", active_task_id=123, active_run_type="global", active_config_hashes=None
+        )
+        DebugNodeState.objects.filter(debug_context=ctx).update(debug_config_hash=None)
+        client = engine_client(mocker)
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": state, "children": {"rtA": {"state": state}}},
+        }
+        node = context_nodes(template)["A"]
+        assert node["status"] == status
+        assert node["config_changed"] is True
+        assert DebugNodeState.objects.get(debug_context=ctx, node_id="A").debug_config_hash is None
+
+    @pytest.mark.parametrize("run_type", ["global", "step"])
+    def test_new_real_run_establishes_baseline_from_null(self, template, mocker, run_type):
+        """新实例在空指纹的上下文上发起真实调试后，仍能正常解除标记。"""
+        ctx = DebugService(template.id).sync_node_states()
+        DebugContext.objects.filter(pk=ctx.pk).update(active_config_hashes=None)
+        DebugNodeState.objects.filter(debug_context=ctx).update(debug_config_hash=None)
+        client = engine_client(mocker)
+        svc = DebugService(template.id)
+        if run_type == "global":
+            svc.global_run({}, "tester")
+        else:
+            mocker.patch("bkflow.template.debug.pipeline_builder.build_single_node_pipeline_tree", return_value={})
+            svc.step_run("A", "tester", mode="real")
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "FINISHED", "children": {"rtA": {"state": "FINISHED"}}},
+        }
+        assert context_nodes(template)["A"]["config_changed"] is False
+        assert context_nodes(template)["B"]["config_changed"] is True
 
 
 @pytest.mark.parametrize("node_type", ["SubCanvas", "SubProcess"])

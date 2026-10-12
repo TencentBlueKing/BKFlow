@@ -634,7 +634,7 @@ class DebugService:
             observed_statuses.append(ns.status)
             ns.duration_ms = int((child.get("elapsed_time") or 0) * 1000)
             if ns.status in ("finished", "failed"):
-                run_config_hash = ctx.active_config_hashes.get(tpl_node_id)
+                run_config_hash = (ctx.active_config_hashes or {}).get(tpl_node_id)
                 if run_config_hash:
                     # 不使用当前草稿：调试运行期间可能已经保存了新配置。
                     ns.debug_config_hash = run_config_hash
