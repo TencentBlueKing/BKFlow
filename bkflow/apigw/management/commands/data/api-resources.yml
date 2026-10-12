@@ -6841,13 +6841,37 @@ paths:
     get:
       operationId: sdk_debug_context
       summary: 获取流程调试上下文
+      description: 返回节点最近调试状态及 config_changed，表示已保存的执行配置是否与最近调试配置不一致。保存不清空调试结果。
       tags: []
       responses:
         default:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: boolean
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      nodes:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            node_id:
+                              type: string
+                            status:
+                              type: string
+                            config_changed:
+                              type: boolean
+                              description: 已保存的节点执行配置与最近调试配置不一致；独立于 status，不影响历史调试结果。
       parameters:
       - in: header
         name: X-Bk-Tenant-Id

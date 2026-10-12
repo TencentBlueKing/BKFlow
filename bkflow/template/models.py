@@ -775,6 +775,8 @@ class DebugContext(CommonModel):
     space_id = models.IntegerField(_("空间ID"), db_index=True)
     global_vars = models.JSONField(_("调试全局变量"), default=dict, blank=True)
     tree_fingerprint = models.JSONField(_("树指纹"), default=dict, blank=True)
+    # 滚动发布期间，旧实例创建记录时不会填写新增字段。
+    active_config_hashes = models.JSONField(_("本次调试采用的节点配置指纹"), default=dict, blank=True, null=True)
     status = models.CharField(_("调试状态"), max_length=16, choices=STATUS_CHOICES, default="idle")
     active_task_id = models.BigIntegerField(_("当前DEBUG任务ID"), null=True, blank=True)
     active_run_type = models.CharField(_("当前调试类型"), max_length=16, choices=RUN_TYPE_CHOICES, blank=True, default="")
@@ -824,6 +826,8 @@ class DebugNodeState(models.Model):
     error_detail = models.JSONField(_("错误详情"), default=dict, blank=True)
     log_ref = models.JSONField(_("引擎引用"), default=dict, blank=True)
     config_hash = models.CharField(_("配置指纹"), max_length=64, blank=True, default="")
+    # 允许旧实例省略该字段；空值表示尚未建立可靠的调试配置基准。
+    debug_config_hash = models.CharField(_("最近调试配置指纹"), max_length=64, blank=True, null=True, default="")
     last_run_at = models.DateTimeField(_("最近运行时间"), null=True, blank=True)
 
     class Meta:

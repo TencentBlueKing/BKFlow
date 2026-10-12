@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import copy
 import hashlib
 import json
@@ -100,6 +101,29 @@ def compute_tree_fingerprint(pipeline_tree: dict) -> dict:
         "gateways": _hash_obj(gateways),
         "constants": _hash_obj(constants),
     }
+
+
+def compute_debug_config_hashes(pipeline_tree: dict) -> dict:
+    """逐节点调试配置指纹，独立于全局重置影响分析的指纹。
+
+    保留节点执行配置（包括网关条件、子流程及循环配置），排除名称、说明和画布布局。
+    不推断上游产出或全局变量变化的下游影响。
+    """
+    hashes = {}
+    display_fields = {"id", "name", "desc", "description", "stage_name", "icon", "x", "y", "width", "height"}
+    nodes = {**pipeline_tree.get("activities", {}), **pipeline_tree.get("gateways", {})}
+    for node_id, node in nodes.items():
+        config = {key: value for key, value in node.items() if key not in display_fields}
+        if isinstance(config.get("pipeline"), dict):
+            pipeline = config["pipeline"]
+            config["pipeline"] = {
+                "nodes": compute_debug_config_hashes(pipeline),
+                "flows": pipeline.get("flows", {}),
+                "constants": pipeline.get("constants", {}),
+                "outputs": pipeline.get("outputs", []),
+            }
+        hashes[node_id] = _hash_obj(config)
+    return hashes
 
 
 def build_dependency_graph(pipeline_tree: dict) -> dict:

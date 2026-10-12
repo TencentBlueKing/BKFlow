@@ -159,10 +159,6 @@ class VariableType(Enum):
 VARIABLE_TYPES = [VariableType.SPACE.value, VariableType.SCOPE.value]
 
 
-if settings.RUN_VER == "ieod":
-    from .ieod_constants import *  # noqa: F403, F401
-
-
 class ValidateType(Enum):
     TEMPLATE = "template"
     TASK = "task"
@@ -187,3 +183,7 @@ class ValidatorCode(Enum):
     GENERAL_OUTPUTS_KEY_PATTERN = "outputs_key_pattern_validator"
     GENERAL_PIPELINE_TREE = "pipeline_tree_validator"
     GENERAL_CONSTANTS = "constants_validator"
+
+
+if settings.RUN_VER == "ieod":
+    from .ieod_constants import *  # noqa: F403, F401
