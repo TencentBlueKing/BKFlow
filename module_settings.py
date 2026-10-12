@@ -292,6 +292,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.plugin",
         "bkflow.interface",
         "bkflow.decision_table",
+        "bkflow.harness",
         "apigw_manager.apigw",
         "bkflow.pipeline_plugins",
         "bkflow.admin",

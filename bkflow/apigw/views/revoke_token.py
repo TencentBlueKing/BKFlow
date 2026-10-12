@@ -56,7 +56,12 @@ def revoke_token(request, space_id):
     filter_kwargs = ser.validated_data
 
     revoke_num = revoke_tokens(space_id, filter_kwargs)
-
-    logger.info("[revoke tokens] params: %s, revoke numbers: %s", filter_kwargs, revoke_num)
+    # Filter values may contain token plaintext. Log structure only.
+    logger.info(
+        "[revoke tokens] space_id=%s, filter_fields=%s, revoke_numbers=%s",
+        space_id,
+        sorted(filter_kwargs),
+        revoke_num,
+    )
 
     return {"result": True, "data": f"{revoke_num} tokens revoke success", "message": "", "code": err_code.SUCCESS.code}

@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from django.conf import settings
 from django.conf.urls import url
 
@@ -66,6 +67,28 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.grant_apigw_permissions_to_app import (
         grant_apigw_permissions_to_app,
     )
+    from bkflow.apigw.views.harness.capabilities import (
+        get_plugin_schema as harness_get_plugin_schema,
+    )
+    from bkflow.apigw.views.harness.capabilities import search_workflow_capabilities
+    from bkflow.apigw.views.harness.debug import control_debug_session
+    from bkflow.apigw.views.harness.debug import (
+        get_debug_session as harness_get_debug_session,
+    )
+    from bkflow.apigw.views.harness.debug import run_debug, start_debug_session
+    from bkflow.apigw.views.harness.feedback import submit_generation_feedback
+    from bkflow.apigw.views.harness.knowledge import search_workflow_knowledge
+    from bkflow.apigw.views.harness.release_execution import (
+        control_workflow_execution,
+        get_workflow_execution,
+        prepare_release,
+        publish_workflow,
+        start_workflow_execution,
+    )
+    from bkflow.apigw.views.harness.workflow import (
+        create_workflow_draft,
+        validate_workflow,
+    )
     from bkflow.apigw.views.list_plugins import list_plugins
     from bkflow.apigw.views.operate_task import operate_task, update_task_labels
     from bkflow.apigw.views.operate_task_by_app import operate_task_by_app
@@ -85,6 +108,21 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.validate_pipeline_tree import validate_pipeline_tree
 
     urlpatterns += [
+        url(r"^space/(?P<space_id>\d+)/harness/search_workflow_capabilities/$", search_workflow_capabilities),
+        url(r"^space/(?P<space_id>\d+)/harness/get_plugin_schema/$", harness_get_plugin_schema),
+        url(r"^space/(?P<space_id>\d+)/harness/validate_workflow/$", validate_workflow),
+        url(r"^space/(?P<space_id>\d+)/harness/create_workflow_draft/$", create_workflow_draft),
+        url(r"^space/(?P<space_id>\d+)/harness/search_workflow_knowledge/$", search_workflow_knowledge),
+        url(r"^space/(?P<space_id>\d+)/harness/start_debug_session/$", start_debug_session),
+        url(r"^space/(?P<space_id>\d+)/harness/run_debug/$", run_debug),
+        url(r"^space/(?P<space_id>\d+)/harness/get_debug_session/$", harness_get_debug_session),
+        url(r"^space/(?P<space_id>\d+)/harness/control_debug_session/$", control_debug_session),
+        url(r"^space/(?P<space_id>\d+)/harness/prepare_release/$", prepare_release),
+        url(r"^space/(?P<space_id>\d+)/harness/publish_workflow/$", publish_workflow),
+        url(r"^space/(?P<space_id>\d+)/harness/start_workflow_execution/$", start_workflow_execution),
+        url(r"^space/(?P<space_id>\d+)/harness/get_workflow_execution/$", get_workflow_execution),
+        url(r"^space/(?P<space_id>\d+)/harness/control_workflow_execution/$", control_workflow_execution),
+        url(r"^space/(?P<space_id>\d+)/harness/submit_generation_feedback/$", submit_generation_feedback),
         url(r"^create_space/$", create_space),
         url(r"^grant_apigw_permissions_to_app/$", grant_apigw_permissions_to_app),
         url(r"^space/(?P<space_id>\d+)/apply_token/$", apply_token),

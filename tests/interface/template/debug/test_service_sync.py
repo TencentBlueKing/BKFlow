@@ -117,6 +117,82 @@ PIPELINE_ADDITIONAL_GATEWAYS = {
 
 @pytest.mark.django_db
 class TestSyncFromDebugTask:
+    def test_duplicate_display_alias_does_not_choose_an_arbitrary_output(self):
+        """同名展示项已丢失来源时，不把任意一项当作上游真实输出。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        assert (
+            svc._original_node_outputs("A", [{"key": "g1", "value": "first"}, {"key": "g1", "value": "second"}]) == {}
+        )
+
+    def test_output_aliases_are_normalized_simultaneously(self):
+        """输出别名与另一个原始 key 重叠时，不做递归重命名或串值。"""
+        from copy import deepcopy
+
+        tree = deepcopy(PIPELINE)
+        tree["constants"]["${k1}"] = {"source_type": "component_outputs", "source_info": {"A": ["k2"]}}
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=tree)
+        assert svc._original_node_outputs("A", [{"key": "g1", "value": "first"}, {"key": "k1", "value": "second"}]) == {
+            "k1": "first",
+            "k2": "second",
+        }
+
+    @pytest.mark.parametrize("value", [{"severity": "P2"}, 0, False, None, ""])
+    def test_sync_restores_display_alias_to_original_output(self, mocker, value):
+        """任务详情使用变量别名时，仍按原始输出回填变量并解除下游依赖。"""
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
+        ctx = svc.sync_node_states()
+        ctx.status, ctx.active_task_id, ctx.active_run_type = "running", 456, "global"
+        ctx.save()
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "FINISHED", "children": {"rtA": {"state": "FINISHED"}}},
+        }
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}}
+        client.get_task_node_detail.return_value = {
+            "result": True,
+            "data": {"outputs": [{"key": "g1", "value": value, "preset": True}]},
+        }
+        mocker.patch.object(svc, "_task_client", return_value=client)
+        svc.sync_from_debug_task(ctx)
+        ctx.refresh_from_db()
+        assert ctx.global_vars["${g1}"] == value
+        assert DebugNodeState.objects.get(debug_context=ctx, node_id="A").outputs == {"k1": value}
+
+    def test_real_step_keeps_raw_keys_even_when_template_alias_overlaps(self, mocker):
+        """单步微型流程不做输出别名替换，不能按完整模板反向转换。"""
+        from copy import deepcopy
+
+        tree = deepcopy(PIPELINE)
+        tree["constants"]["${k1}"] = {
+            **tree["constants"]["${g1}"],
+            "key": "${k1}",
+            "value": "",
+            "show_type": "hide",
+            "source_type": "component_outputs",
+            "source_info": {"A": ["k2"]},
+        }
+        svc = DebugService(template_id=1, space_id=10, pipeline_tree=tree)
+        ctx = svc.sync_node_states()
+        ctx.status, ctx.active_task_id, ctx.active_run_type, ctx.active_node_id = "running", 456, "step", "A"
+        ctx.save()
+        client = mocker.MagicMock()
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "FINISHED", "children": {"rtA": {"state": "FINISHED"}}},
+        }
+        client.get_node_id_map.return_value = {"result": True, "data": {"A": "rtA"}}
+        client.get_task_node_detail.return_value = {
+            "result": True,
+            "data": {"outputs": [{"key": "k1", "value": "first"}, {"key": "k2", "value": "second"}]},
+        }
+        mocker.patch.object(svc, "_task_client", return_value=client)
+        svc.sync_from_debug_task(ctx)
+        ctx.refresh_from_db()
+        assert ctx.global_vars["${g1}"] == "first"
+        assert ctx.global_vars["${k1}"] == "second"
+        assert DebugNodeState.objects.get(debug_context=ctx, node_id="A").outputs == {"k1": "first", "k2": "second"}
+
     def test_sync_writes_back_status_and_global_vars(self, mocker):
         svc = DebugService(template_id=1, space_id=10, pipeline_tree=PIPELINE)
         ctx = svc.get_or_create_context()

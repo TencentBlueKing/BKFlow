@@ -21,8 +21,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from bkflow.pipeline_plugins.query.uniform_api.utils import (
+    UniformAPIClient as RealUniformAPIClient,
+)
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
-from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
+from bkflow.plugin.services.plugin_schema_service import (
+    PluginSchemaAccessDenied,
+    PluginSchemaInfrastructureError,
+    PluginSchemaService,
+)
 from bkflow.utils.api_client import HttpRequestResult
 
 
@@ -42,6 +49,15 @@ def uniform_meta_result(data, result=True, response_result=True, message=""):
 
 class TestListComponentPlugins:
     """测试内置插件列表查询"""
+
+    @patch.object(PluginSchemaService, "_list_remote_uniform_api_plugins")
+    @pytest.mark.django_db
+    def test_strict_catalog_propagates_legacy_provider_outage(self, remote_catalog):
+        """A hard authorization replay cannot turn a provider outage into an empty legacy catalog."""
+        remote_catalog.side_effect = PluginSchemaInfrastructureError("sentinel-outage")
+
+        with pytest.raises(PluginSchemaInfrastructureError, match="sentinel-outage"):
+            PluginSchemaService(space_id=1).list_plugins(plugin_type="uniform_api", strict=True)
 
     @patch("bkflow.plugin.services.plugin_schema_service.SpacePluginConfigModel")
     @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
@@ -144,6 +160,17 @@ class TestComponentSchema:
 
         assert schema["description"] == "v2 版本"
         mock_lib.get_component_class.assert_called_with("test_code", "v2.0.0")
+
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_component_schema_rejects_explicit_unavailable_version(self, mock_cm, mock_lib):
+        """Falling back to latest for an explicit version would resolve a pinned binding incorrectly."""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0", "v2.0.0"]
+
+        with pytest.raises(ValueError, match="版本"):
+            PluginSchemaService(space_id=1)._get_component_schema("test_code", version="v9.0.0")
+
+        mock_lib.get_component_class.assert_not_called()
 
 
 class TestRemotePlugins:
@@ -263,6 +290,20 @@ class TestUniformApiSourceSelection:
         assert selected["version"] == "second-v2"
         assert selected["_meta_url"] == "https://second.example/second-v2"
 
+    @patch.object(PluginSchemaService, "_list_uniform_api_plugins")
+    def test_get_single_uniform_api_exact_source_mode_keeps_legacy_none_distinct(self, list_plugins):
+        """Harness exact lookup must not treat a None legacy source as the public wildcard."""
+        list_plugins.return_value = [
+            {"code": "shared", "source_key": "legacy_uniform_api", "_meta_url": "https://v4.example"},
+            {"code": "shared", "source_key": None, "_meta_url": "https://legacy.example"},
+        ]
+
+        selected = PluginSchemaService(space_id=1)._get_single_by_type(
+            "shared", "uniform_api", source_key=None, exact_source=True
+        )
+
+        assert selected["_meta_url"] == "https://legacy.example"
+
 
 @pytest.mark.django_db
 class TestUniformApiPlugins:
@@ -307,6 +348,127 @@ class TestUniformApiPlugins:
         assert len(results) == 1
         assert results[0]["code"] == "sops_execute"
         assert results[0]["plugin_type"] == "uniform_api"
+
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIConfigHandler")
+    def test_remote_uniform_catalog_exhausts_provider_pages_and_refresh_revokes_cached_item(
+        self, mock_handler, mock_sc, mock_client_cls, mock_cred, mock_cache
+    ):
+        """Legacy provider snapshots must include index 100/200 and replace, never extend, the cache on refresh."""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.side_effect = lambda space_id, config_name, scope=None: {
+            "uniform_api": {"api": {"default": {"meta_apis": "http://example.com/meta_apis"}}},
+            "api_gateway_credential_name": "test_cred",
+        }.get(config_name)
+        mock_handler.return_value.handle.return_value.api = {
+            "default": MagicMock(meta_apis="http://example.com/meta_apis")
+        }
+        mock_cred.objects.filter.return_value.first.return_value.content = {
+            "bk_app_code": "app",
+            "bk_app_secret": "secret",
+        }
+        items = [
+            {"id": "legacy-{}".format(index), "name": "Legacy {}".format(index), "meta_url": "https://meta"}
+            for index in range(201)
+        ]
+
+        def paged_response(url, method, data, headers, username):
+            response = MagicMock()
+            offset = data["offset"]
+            response.json_resp = {"data": {"total": len(items), "apis": items[offset : offset + data["limit"]]}}
+            return response
+
+        mock_client_cls.return_value.request.side_effect = paged_response
+        mock_client_cls.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA = (
+            RealUniformAPIClient.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA
+        )
+        mock_client_cls.return_value.validate_response_data.side_effect = RealUniformAPIClient.validate_response_data
+        service = PluginSchemaService(space_id=1)
+
+        populated = service._list_remote_uniform_api_plugins()
+        items.pop()
+        refreshed = service._list_remote_uniform_api_plugins(refresh=True)
+
+        assert populated[100]["code"] == "legacy-100"
+        assert populated[200]["code"] == "legacy-200"
+        offsets = [call.kwargs["data"]["offset"] for call in mock_client_cls.return_value.request.call_args_list]
+        assert offsets == [0, 200, 0]
+        assert len(refreshed) == 200
+        assert mock_cache.set.call_count == 2
+        expected_cached = items + [{"id": "legacy-200", "name": "Legacy 200", "meta_url": "https://meta"}]
+        assert mock_cache.set.call_args_list[0].args[1] == expected_cached
+
+    @pytest.mark.parametrize(
+        "totals,pages",
+        (
+            ([201, 202], None),
+            ([201], {0: []}),
+            ([201, 201], {200: [{"id": "legacy-0", "name": "Duplicate", "meta_url": "https://meta"}]}),
+            ([True], None),
+            ([-1], None),
+            ([1], {0: "not-a-list"}),
+            ([0], {0: [{"id": "safe", "name": "Safe", "meta_url": "https://meta"}]}),
+            ([1], {0: [{"id": "safe", "name": "Safe", "meta_url": "https://meta"}] * 201}),
+            ([1], {0: [{"id": "safe", "name": "Safe", "meta_url": "https://meta"}] * 2}),
+            ([1], {0: [{"id": "bad\ud800", "name": "Safe", "meta_url": "https://meta"}]}),
+            ([1], {0: [{"id": "safe", "name": "x" * 100000, "meta_url": "https://meta"}]}),
+        ),
+    )
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.Credential")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIClient")
+    @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
+    @patch("bkflow.plugin.services.plugin_schema_service.UniformAPIConfigHandler")
+    def test_remote_uniform_catalog_rejects_inconsistent_or_nonprogressing_snapshot(
+        self, mock_handler, mock_sc, mock_client_cls, mock_cred, mock_cache, totals, pages
+    ):
+        """A partial legacy provider result must not become an authorization cache entry."""
+        mock_cache.get.return_value = None
+        mock_sc.get_config.side_effect = lambda space_id, config_name, scope=None: {
+            "uniform_api": {"api": {"default": {"meta_apis": "http://example.com/meta_apis"}}},
+            "api_gateway_credential_name": "test_cred",
+        }.get(config_name)
+        mock_handler.return_value.handle.return_value.api = {
+            "default": MagicMock(meta_apis="http://example.com/meta_apis")
+        }
+        mock_cred.objects.filter.return_value.first.return_value.content = {
+            "bk_app_code": "app",
+            "bk_app_secret": "secret",
+        }
+        all_items = [
+            {"id": "legacy-{}".format(index), "name": "Legacy {}".format(index), "meta_url": "https://meta"}
+            for index in range(201)
+        ]
+        calls = []
+
+        def response(url, method, data, headers, username):
+            result = MagicMock()
+            calls.append(data["offset"])
+            result.json_resp = {
+                "data": {
+                    "total": totals[len(calls) - 1] if len(totals) > 1 else totals[0],
+                    "apis": (
+                        pages[data["offset"]]
+                        if pages and data["offset"] in pages
+                        else all_items[data["offset"] : data["offset"] + 200]
+                    ),
+                }
+            }
+            return result
+
+        mock_client_cls.return_value.request.side_effect = response
+        mock_client_cls.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA = (
+            RealUniformAPIClient.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA
+        )
+        mock_client_cls.return_value.validate_response_data.side_effect = RealUniformAPIClient.validate_response_data
+
+        with pytest.raises(ValueError, match="uniform API catalog"):
+            PluginSchemaService(space_id=1)._list_remote_uniform_api_plugins()
+
+        assert mock_cache.set.call_count == 0
 
     @patch("bkflow.plugin.services.plugin_schema_service.cache")
     @patch("bkflow.plugin.services.plugin_schema_service.Credential")
@@ -744,6 +906,74 @@ class TestGetPluginSchema:
         assert "inputs" in result
         assert "outputs" in result
 
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_plugin_schema_adds_resolved_version_without_changing_version(self, mock_cm, mock_lib):
+        """Harness callers need the exact version while legacy callers retain ``version``."""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0"]
+        mock_cm.objects.filter.return_value.first.return_value = MagicMock(
+            code="test_code", name="分组-插件", version="v1.0.0"
+        )
+        mock_component = MagicMock()
+        mock_component.desc = "测试描述"
+        mock_component.inputs_format.return_value = []
+        mock_component.outputs_format.return_value = []
+        mock_lib.get_component_class.return_value = mock_component
+
+        result = PluginSchemaService(space_id=1).get_plugin_schema(code="test_code", plugin_type="component")
+
+        assert result["version"] == "v1.0.0"
+        assert result["resolved_version"] == "v1.0.0"
+
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_harness_only_conversion_metadata_is_exact_and_not_exposed_by_default(self, mock_cm, mock_lib):
+        """The public schema API remains IO-only while the resolver gets trusted wrapper facts."""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0", "v2.0.0"]
+        mock_cm.objects.filter.return_value.first.return_value = MagicMock(
+            code="test_code", name="分组-插件", version="v2.0.0"
+        )
+        mock_component = MagicMock()
+        mock_component.desc = "测试描述"
+        mock_component.inputs_format.return_value = []
+        mock_component.outputs_format.return_value = []
+        mock_lib.get_component_class.return_value = mock_component
+        service = PluginSchemaService(space_id=1)
+
+        public = service.get_plugin_schema(code="test_code", version="v2.0.0", plugin_type="component")
+        harness = service.get_plugin_schema(
+            code="test_code", version="v2.0.0", plugin_type="component", include_conversion_metadata=True
+        )
+
+        assert "conversion_metadata" not in public
+        assert harness["conversion_metadata"] == {
+            "kind": "component",
+            "wrapper_code": "test_code",
+            "wrapper_version": "v2.0.0",
+        }
+
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentLibrary")
+    @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
+    def test_get_plugin_schema_component_reports_actual_requested_loaded_version(self, mock_cm, mock_lib):
+        """Reporting the row selected first instead of the loaded version breaks exact component references."""
+        mock_cm.objects.filter.return_value.values_list.return_value = ["v1.0.0", "v2.0.0"]
+        mock_cm.objects.filter.return_value.first.return_value = MagicMock(
+            code="test_code", name="分组-插件", version="v1.0.0"
+        )
+        mock_component = MagicMock()
+        mock_component.desc = "测试描述"
+        mock_component.inputs_format.return_value = []
+        mock_component.outputs_format.return_value = []
+        mock_lib.get_component_class.return_value = mock_component
+
+        result = PluginSchemaService(space_id=1).get_plugin_schema(
+            code="test_code", version="v2.0.0", plugin_type="component"
+        )
+
+        assert result["version"] == "v1.0.0"
+        assert result["resolved_version"] == "v2.0.0"
+        mock_lib.get_component_class.assert_called_with("test_code", "v2.0.0")
+
     @patch("bkflow.plugin.services.plugin_schema_service.BKPlugin")
     @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
     def test_get_plugin_schema_auto_resolve_not_found(self, mock_cm, mock_bp):
@@ -769,6 +999,62 @@ class TestGetPluginSchema:
             service.get_plugin_schema(code="ambiguous_code")
 
 
+class TestManifestIdentityRegistry:
+    """Exercise the explicit global-only manifest identity check separately from space ACL."""
+
+    @pytest.mark.django_db
+    def test_v4_uniform_manifest_identity_can_be_global_but_not_current_space_visible(self):
+        """Treating another space's catalog entry as current authorization would leak it into this space."""
+        OpenPluginCatalogIndex.objects.create(
+            space_id=2,
+            source_key="global-source",
+            plugin_id="global-plugin",
+            plugin_code="global-plugin-code",
+            plugin_name="Global Plugin",
+            plugin_source="bkaidev",
+            wrapper_version="v4.0.0",
+            status=OpenPluginCatalogIndex.Status.AVAILABLE,
+        )
+
+        service = PluginSchemaService(space_id=1)
+
+        assert service.manifest_identity_exists("uniform_api", "global-source", "global-plugin") is True
+        visible, total = service.list_plugins(plugin_type="uniform_api")
+        assert visible == []
+        assert total == 0
+
+    def test_legacy_uniform_manifest_identity_is_explicitly_unavailable(self):
+        """Guessing a legacy remote uniform identity without a global registry would make overrides unsafe."""
+        assert PluginSchemaService(space_id=1).manifest_identity_exists("uniform_api", None, "legacy-plugin") is False
+
+    @pytest.mark.django_db
+    def test_exact_v4_disabled_catalog_is_typed_as_access_loss(self):
+        """A V4 entry disappearing from availability between list and exact get is semantic revocation."""
+        OpenPluginCatalogIndex.objects.create(
+            space_id=1,
+            source_key="source-a",
+            plugin_id="disabled-plugin",
+            plugin_code="disabled-plugin",
+            plugin_name="disabled",
+            plugin_source="builtin",
+            wrapper_version="v4.0.0",
+            versions=["1.0.0"],
+            status=OpenPluginCatalogIndex.Status.AVAILABLE,
+        )
+        SpaceOpenPluginAvailability.objects.create(
+            space_id=1, source_key="source-a", plugin_id="disabled-plugin", enabled=False
+        )
+
+        with pytest.raises(PluginSchemaAccessDenied):
+            PluginSchemaService(space_id=1).get_plugin_schema(
+                code="disabled-plugin",
+                version="1.0.0",
+                plugin_type="uniform_api",
+                source_key="source-a",
+                exact_source=True,
+            )
+
+
 class TestCaching:
     """测试缓存行为"""
 
@@ -787,6 +1073,22 @@ class TestCaching:
 
         assert schema["version"] == "1.0.0"
         mock_client_cls.assert_not_called()
+
+    @patch("bkflow.plugin.services.plugin_schema_service.cache")
+    @patch("bkflow.plugin.services.plugin_schema_service.PluginServiceApiClient")
+    def test_remote_schema_refresh_bypasses_legacy_cache(self, mock_client_cls, mock_cache):
+        """A hard resolver must observe same-version provider schema drift immediately, not after cache TTL."""
+        mock_cache.get.return_value = {"version": "1.0.0", "inputs": [], "outputs": []}
+        mock_client_cls.return_value.get_meta.return_value = {
+            "result": True,
+            "data": {"versions": ["1.0.0"], "inputs": [{"key": "new"}], "outputs": []},
+        }
+
+        schema = PluginSchemaService(space_id=1)._get_remote_plugin_schema("cached_plugin", refresh=True)
+
+        assert schema["inputs"][0]["key"] == "new"
+        mock_cache.get.assert_not_called()
+        mock_client_cls.return_value.get_meta.assert_called_once_with()
 
     @pytest.mark.django_db
     @patch("bkflow.plugin.services.plugin_schema_service.cache")

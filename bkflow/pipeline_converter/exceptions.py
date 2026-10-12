@@ -43,6 +43,10 @@ class A2FlowConvertError(Exception):
         return result
 
 
+class SubprocessDraftError(A2FlowConvertError):
+    """Distinguish the draft-only rule without changing the legacy converter error DTO."""
+
+
 class A2FlowValidationError(Exception):
     """包含多个结构化错误的校验异常"""
 
@@ -69,3 +73,5 @@ class ErrorTypes:
     CONVERGE_INFER_FAILED = "CONVERGE_INFER_FAILED"
     UNSUPPORTED_VERSION = "UNSUPPORTED_VERSION"
     RESERVED_ID_CONFLICT = "RESERVED_ID_CONFLICT"
+    FAILURE_STRATEGY_CONFLICT = "FAILURE_STRATEGY_CONFLICT"
+    FAILURE_STRATEGY_INVALID_COMBO = "FAILURE_STRATEGY_INVALID_COMBO"

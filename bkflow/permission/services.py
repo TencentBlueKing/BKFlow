@@ -112,7 +112,7 @@ def renew_token(token_id, user=None) -> Tuple[bool, str, Optional[Token]]:
         return _renew_locked_token(token, user)
 
 
-def revoke_tokens(space_id, filters: dict) -> int:
+def revoke_tokens(space_id, filters: dict, *, revoked_at=None) -> int:
     """按完整授权条件筛选并撤销整张票据，返回不同主票据数量。"""
     resource_fields = {"resource_type", "resource_id", "permission_type"}
     resource_filters = {key: value for key, value in filters.items() if key in resource_fields}
@@ -127,7 +127,7 @@ def revoke_tokens(space_id, filters: dict) -> int:
         locked = _lock_token_candidates(candidate_ids)
         # 持锁后重新核对原过滤条件；删除或不再匹配的候选不纳入计数。
         token_ids = list(tokens.filter(pk__in=[token.pk for token in locked]).values_list("pk", flat=True))
-        return Token.objects.filter(pk__in=token_ids).update(expired_time=timezone.now())
+        return Token.objects.filter(pk__in=token_ids).update(expired_time=revoked_at or timezone.now())
 
 
 def get_valid_token(token_id, user, space_id=None, request=None) -> Optional[Token]:

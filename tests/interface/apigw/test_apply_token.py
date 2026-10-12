@@ -26,6 +26,7 @@ from django.utils import timezone
 
 from bkflow.permission.models import Token
 from bkflow.space.models import Space, SpaceConfig
+from tests.utils.token import create_token
 
 
 class TestApplyToken(TestCase):
@@ -53,6 +54,11 @@ class TestApplyToken(TestCase):
     def _apply_token(self, data):
         """调用 apply_token 接口"""
         url = f"/apigw/space/{self.space_id}/apply_token/"
+        return self.client.post(path=url, data=json.dumps(data), content_type="application/json")
+
+    def _revoke_token(self, data):
+        """调用 revoke_token 接口。"""
+        url = f"/apigw/space/{self.space_id}/revoke_token/"
         return self.client.post(path=url, data=json.dumps(data), content_type="application/json")
 
     @override_settings(
@@ -83,6 +89,52 @@ class TestApplyToken(TestCase):
             space_id=self.space_id, grants__resource_type="TASK", grants__resource_id="123"
         ).count()
         self.assertEqual(token_count, 1)
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.apigw.serializers.token.TokenResourceValidator.validate")
+    def test_apply_token_ignores_caller_user_and_binds_authenticated_user(self, mock_validate):
+        mock_validate.return_value = True
+
+        response = self._apply_token(
+            {
+                "user": "forged-user",
+                "resource_type": "TEMPLATE",
+                "resource_id": "42",
+                "permission_type": "MOCK",
+            }
+        )
+        payload = json.loads(response.content)
+
+        self.assertTrue(payload["result"])
+        self.assertEqual(payload["data"]["user"], "username")
+        self.assertTrue(Token.objects.filter(token=payload["data"]["token"], user="username").exists())
+        self.assertFalse(Token.objects.filter(user="forged-user").exists())
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True,
+        MIDDLEWARE=("tests.interface.apigw.middlewares.AppOnlyOverrideMiddleware",),
+    )
+    @patch("bkflow.apigw.views.revoke_token.logger.info")
+    def test_app_only_revoke_token_does_not_log_plaintext_filter(self, mock_log):
+        secret = Token.generate_token()
+        create_token(
+            token=secret,
+            space_id=self.space_id,
+            user="username",
+            resource_type="TEMPLATE",
+            resource_id="42",
+            permission_type="MOCK",
+            expired_time=timezone.now() + datetime.timedelta(hours=1),
+        )
+
+        response = self._revoke_token({"token": secret})
+        payload = json.loads(response.content)
+
+        self.assertTrue(payload["result"])
+        self.assertTrue(Token.objects.get(token=secret).has_expired())
+        self.assertNotIn(secret, repr(mock_log.call_args_list))
 
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)

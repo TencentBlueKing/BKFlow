@@ -16,9 +16,12 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
+
+from bkflow.harness.services.resolver import ResolvedCapability
 
 COMPONENT_PATCH = "bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.ComponentModel"
 BKPLUGIN_PATCH = "bkflow.pipeline_converter.converters.a2flow_v2.plugin_resolver.BKPlugin"
@@ -42,6 +45,20 @@ def _mock_component_model(mock_cm, codes_versions=None):
         return result
 
     mock_cm.objects.filter.side_effect = filter_side_effect
+
+
+def _mock_variable_model(valid_codes):
+    """Helper: mock VariableModel.objects.all().only('code') 返回内存假集合，
+    使基于 VariableModel 的 custom_type 校验在单测空库下可稳定运行（保留原始校验语义）。"""
+    fake_rows = [MagicMock(code=code) for code in valid_codes]
+    mock_qs = MagicMock()
+    mock_qs.only.return_value = fake_rows
+    mock_objects = MagicMock()
+    mock_objects.all.return_value = mock_qs
+    return patch(
+        "bkflow.pipeline_converter.converters.a2flow_v2.data_models.VariableModel.objects",
+        mock_objects,
+    )
 
 
 def _get_converter_class():
@@ -134,10 +151,158 @@ class TestConverterLinearFlow(TestCase):
             "nodes": [{"id": "n1", "name": "x", "code": "sleep_timer", "next": "end"}],
             "variables": [{"key": "${ip}", "name": "IP", "value": "10.0.0.1"}],
         }
-        result = Converter(a2flow_data, space_id=1).convert()
+        with _mock_variable_model(["input", "textarea", "datetime"]):
+            result = Converter(a2flow_data, space_id=1).convert()
 
         self.assertIn("${ip}", result["constants"])
         self.assertEqual(result["constants"]["${ip}"]["value"], "10.0.0.1")
+
+    @patch(BKPLUGIN_PATCH)
+    @patch(COMPONENT_PATCH)
+    def test_convert_with_metadata_keeps_legacy_tree_shape_and_exposes_source_map(self, mock_cm, mock_bkp):
+        """Metadata conversion must use the normal converter path without changing convert()."""
+        _mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"]})
+        mock_bkp.objects.filter.return_value.exists.return_value = False
+        Converter = _get_converter_class()
+        a2flow_data = {
+            "name": "metadata",
+            "nodes": [{"id": "node_1", "name": "wait", "code": "sleep_timer", "next": "end"}],
+        }
+
+        result = Converter(a2flow_data, space_id=1).convert_with_metadata()
+
+        self.assertIn("node_1", result.source_map.values())
+        mapped_node_id = next(node_id for node_id, source_id in result.source_map.items() if source_id == "node_1")
+        self.assertIn(mapped_node_id, result.pipeline_tree["activities"])
+        self.assertEqual(len(result.converter_fingerprint), 64)
+
+    @patch(BKPLUGIN_PATCH)
+    @patch(COMPONENT_PATCH)
+    def test_convert_with_metadata_is_deterministic_for_the_same_a2flow(self, mock_cm, mock_bkp):
+        """A later validation must be able to compare the exact accepted tree hash."""
+        _mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"]})
+        mock_bkp.objects.filter.return_value.exists.return_value = False
+        Converter = _get_converter_class()
+        a2flow_data = {
+            "name": "deterministic metadata",
+            "nodes": [{"id": "node_1", "name": "wait", "code": "sleep_timer", "next": "end"}],
+        }
+
+        first = Converter(a2flow_data, space_id=1).convert_with_metadata()
+        second = Converter(a2flow_data, space_id=1).convert_with_metadata()
+
+        self.assertEqual(first.pipeline_tree, second.pipeline_tree)
+        self.assertEqual(first.source_map, second.source_map)
+
+    @patch(BKPLUGIN_PATCH)
+    @patch(COMPONENT_PATCH)
+    def test_legacy_convert_keeps_generated_uuid4_ids(self, mock_cm, mock_bkp):
+        """Catch metadata determinism accidentally changing the legacy converter ID contract."""
+        _mock_component_model(mock_cm, {"sleep_timer": ["v1.0.0"]})
+        mock_bkp.objects.filter.return_value.exists.return_value = False
+        Converter = _get_converter_class()
+        a2flow_data = {
+            "name": "legacy generated ids",
+            "nodes": [{"id": "node_1", "name": "wait", "code": "sleep_timer", "next": "end"}],
+        }
+
+        first = Converter(a2flow_data, space_id=1).convert()
+        second = Converter(a2flow_data, space_id=1).convert()
+
+        self.assertNotEqual(set(first["activities"]), set(second["activities"]))
+
+    def test_governed_component_rejects_provider_wrapper_override(self):
+        """A resolved component identity, not provider metadata, owns its wrapper."""
+        Converter = _get_converter_class()
+        capability = ResolvedCapability(
+            capability_ref="cap-component",
+            plugin_type="component",
+            code="restart",
+            source_key=None,
+            resolved_version="1.0.0",
+            schema_hash="a" * 64,
+            schema={"inputs": [], "outputs": []},
+            risk_level="L1",
+            conversion_metadata={"kind": "component", "wrapper_code": "sleep_timer", "wrapper_version": "9.0.0"},
+        )
+        a2flow_data = {"name": "governed", "nodes": [{"id": "n1", "name": "n", "code": "restart", "next": "end"}]}
+
+        from bkflow.pipeline_converter.exceptions import A2FlowConvertError
+
+        with self.assertRaises(A2FlowConvertError):
+            Converter(a2flow_data, space_id=1, governed_plugins={"n1": capability}).convert_with_metadata()
+
+    def test_governed_remote_plugin_rejects_provider_wrapper_override(self):
+        """Remote wrapping is fixed while the exact remote version remains pinned."""
+        Converter = _get_converter_class()
+        capability = ResolvedCapability(
+            capability_ref="cap-remote",
+            plugin_type="remote_plugin",
+            code="remote-A",
+            source_key=None,
+            resolved_version="2.0.0",
+            schema_hash="b" * 64,
+            schema={"inputs": [], "outputs": []},
+            risk_level="L1",
+            conversion_metadata={
+                "kind": "remote_plugin",
+                "wrapper_code": "sleep_timer",
+                "wrapper_version": "9.0.0",
+                "remote_plugin_version": "8.0.0",
+            },
+        )
+        a2flow_data = {
+            "name": "governed remote",
+            "nodes": [{"id": "n1", "name": "n", "code": "remote-A", "plugin_type": "remote_plugin", "next": "end"}],
+        }
+
+        from bkflow.pipeline_converter.exceptions import A2FlowConvertError
+
+        with self.assertRaises(A2FlowConvertError):
+            Converter(a2flow_data, space_id=1, governed_plugins={"n1": capability}).convert_with_metadata()
+
+    def test_governed_uniform_api_preserves_exact_v4_source_identity(self):
+        """Uniform API conversion must carry the bound source/version into component runtime data."""
+        Converter = _get_converter_class()
+        capability = ResolvedCapability(
+            capability_ref="cap-uniform",
+            plugin_type="uniform_api",
+            code="open_plugin_001",
+            source_key="source-a",
+            resolved_version="2.0.0",
+            schema_hash="c" * 64,
+            schema={"inputs": [], "outputs": []},
+            risk_level="L1",
+            conversion_metadata={
+                "kind": "uniform_api",
+                "wrapper_code": "uniform_api",
+                "wrapper_version": "4.0.0",
+                "source_key": "source-a",
+                "plugin_id": "open_plugin_001",
+                "plugin_version": "2.0.0",
+                "url": "https://example.test/run",
+                "method": "POST",
+                "credential_key": "api-key",
+            },
+        )
+        a2flow_data = {
+            "name": "governed uniform",
+            "nodes": [
+                {
+                    "id": "n1",
+                    "name": "n",
+                    "code": "open_plugin_001",
+                    "plugin_type": "uniform_api",
+                    "next": "end",
+                }
+            ],
+        }
+
+        result = Converter(a2flow_data, space_id=1, governed_plugins={"n1": capability}).convert_with_metadata()
+        data = next(iter(result.pipeline_tree["activities"].values()))["component"]["data"]
+        assert data["uniform_api_plugin_id"]["value"] == "open_plugin_001"
+        assert data["uniform_api_plugin_version"]["value"] == "2.0.0"
+        assert data["uniform_api_plugin_source_key"]["value"] == "source-a"
 
 
 class TestConverterGatewayFlow(TestCase):
