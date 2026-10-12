@@ -120,7 +120,7 @@ The comparison uses the draft, or the published snapshot when no draft exists. S
 - Real single-step runs, Mock runs and conditional gateway evaluation update only the executed node's baseline, on success or execution failure. Editing Mock presets does not update it.
 - Global debugging updates baselines only for nodes that finish or fail during execution. Unreached nodes, dependency rejections, task creation failures and start failures do not update them.
 - If configuration A is running when B is saved, A completing still leaves `config_changed=true` until B is debugged or A is restored.
-- New nodes initially have `status=not_run` and `config_changed=false`; subsequent execution configuration changes are detected. Legacy node states without a reliable baseline conservatively return `true` until debugged again.
+- New nodes initially have `status=not_run` and `config_changed=false`; subsequent execution configuration changes are detected. Legacy node states with an empty or `null` baseline default to `false` without backfilling a historical baseline. Once debugged again, they acquire a baseline for detecting subsequent configuration changes. A `false` value does not imply that a node has been debugged or succeeded; check `status` separately.
 - The comparison covers plugin configuration, execution options, gateway conditions, embedded subprocesses and loop configuration. Node names, descriptions, coordinates and canvas layout are excluded. Changes to upstream outputs or global variables are not propagated to downstream nodes.
 - Unsaved frontend edits and click-to-canvas linking are outside this field's scope.
 

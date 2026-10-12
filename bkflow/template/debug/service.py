@@ -225,8 +225,9 @@ class DebugService:
                         else None
                     ),
                     "status": ns.status,
-                    # 老数据缺少基准时不能把历史结果误认为匹配当前配置。
-                    "config_changed": ns.debug_config_hash != config_hashes.get(ns.node_id),
+                    # 存量节点缺少基准时默认不标记，实际调试建立基准后再比较。
+                    "config_changed": bool(ns.debug_config_hash)
+                    and ns.debug_config_hash != config_hashes.get(ns.node_id),
                     "waiting_reason": ns.waiting_reason or None,
                     "can_step": can_step,
                     "missing_vars": missing,
