@@ -31,7 +31,8 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
+from rest_framework import mixins
 from webhook.base_models import Scope
 from webhook.signals import event_broadcast_signal
 
@@ -60,6 +61,7 @@ from bkflow.space.models import (
     Space,
     SpaceConfig,
     SpaceCreateType,
+    UserPreference,
 )
 from bkflow.space.permissions import (
     SpaceConfigExemptionPermission,
@@ -69,6 +71,7 @@ from bkflow.space.permissions import (
 from bkflow.space.serializers import (
     CredentialBaseQuerySerializer,
     CredentialScopeSerializer,
+    SaveUserPreferenceSerializer,
     SpaceConfigBaseQuerySerializer,
     SpaceConfigBatchApplySerializer,
     SpaceConfigSerializer,
@@ -79,6 +82,9 @@ from bkflow.space.serializers import (
     SpaceOpenPluginToggleSerializer,
     SpacePluginConfigQuerySerializer,
     SpaceSerializer,
+    UserPreferenceResponseSerializer,
+    UserPreferenceSerializer,
+    ToggleFavoriteSerializer,
 )
 from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
@@ -593,3 +599,129 @@ class SpaceConfigViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewSet):
         ser.is_valid(raise_exception=True)
         value = SpaceConfig.get_config(space_id=ser.validated_data["space_id"], config_name=SpacePluginConfig.name)
         return Response({"value": value})
+
+
+class UserPreferenceViewSet(GenericViewSet):
+    """用户偏好设置接口"""
+
+    queryset = UserPreference.objects.all()
+    serializer_class = UserPreferenceSerializer
+
+    @swagger_auto_schema(
+        method="get",
+        operation_summary="获取当前用户偏好设置",
+        responses={200: UserPreferenceResponseSerializer()}
+    )
+    @action(detail=False, methods=["GET"])
+    def current(self, request, *args, **kwargs):
+        """获取当前用户最后选择的空间ID"""
+        username = request.user.username
+        try:
+            preference = UserPreference.objects.get(username=username)
+            serializer = self.get_serializer(preference)
+            return Response(serializer.data)
+        except UserPreference.DoesNotExist:
+            default_data = {
+                "last_selected_space_id": None,
+                "preferences": {},
+            }
+            return Response(default_data)
+
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="保存用户最后选择的空间",
+        request_body=SaveUserPreferenceSerializer,
+        responses={200: UserPreferenceResponseSerializer()}
+    )
+    @action(detail=False, methods=["POST"])
+    def save(self, request, *args, **kwargs):
+        """保存用户最后选择的空间ID（创建或更新）"""
+        username = request.user.username
+        serializer = SaveUserPreferenceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        space_id = serializer.validated_data["space_id"]
+
+        preference, created = UserPreference.objects.update_or_create(
+            username=username,
+            defaults={"last_selected_space_id": space_id}
+        )
+
+        logger.info(
+            f"[UserPreferenceViewSet.save] User: {username}, "
+            f"Space ID: {space_id}, Created: {created}"
+        )
+
+        response_serializer = self.get_serializer(preference)
+        return Response(response_serializer.data)
+
+    @swagger_auto_schema(
+        method="get",
+        operation_summary="获取用户收藏的空间列表",
+        responses={200: "FavoriteSpaceListSerializer"}
+    )
+    @action(detail=False, methods=["GET"])
+    def favorites(self, request, *args, **kwargs):
+        """获取当前用户收藏的空间ID列表"""
+        username = request.user.username
+        try:
+            preference = UserPreference.objects.get(username=username)
+            preferences = preference.preferences or {}
+            favorite_space_ids = preferences.get("favorite_space_ids", [])
+        except UserPreference.DoesNotExist:
+            favorite_space_ids = []
+
+        logger.info(f"[UserPreferenceViewSet.favorites] User: {username}, Favorites: {favorite_space_ids}")
+        return Response({"favorite_space_ids": favorite_space_ids})
+
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="切换空间收藏状态",
+        request_body="ToggleFavoriteSerializer",
+        responses={200: "FavoriteSpaceListSerializer"}
+    )
+    @action(detail=False, methods=["POST"])
+    def toggle_favorite(self, request, *args, **kwargs):
+        """切换空间收藏状态（添加或取消收藏）"""
+        username = request.user.username
+        serializer = ToggleFavoriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        space_id = serializer.validated_data["space_id"]
+
+        # 获取或创建用户偏好记录
+        preference, created = UserPreference.objects.get_or_create(
+            username=username,
+            defaults={"preferences": {}}
+        )
+
+        # 获取当前收藏列表
+        preferences = preference.preferences or {}
+        favorite_space_ids = preferences.get("favorite_space_ids", [])
+
+        # 切换收藏状态
+        if space_id in favorite_space_ids:
+            # 取消收藏
+            favorite_space_ids.remove(space_id)
+            action_type = "removed"
+            message = "已取消收藏"
+        else:
+            # 添加收藏（添加到列表开头）
+            favorite_space_ids.insert(0, space_id)
+            action_type = "added"
+            message = "已收藏"
+
+        # 更新到数据库
+        preferences["favorite_space_ids"] = favorite_space_ids
+        preference.preferences = preferences
+        preference.save()
+
+        logger.info(
+            f"[UserPreferenceViewSet.toggle_favorite] User: {username}, "
+            f"Space ID: {space_id}, Action: {action_type}, Total: {len(favorite_space_ids)}"
+        )
+
+        return Response({
+            "favorite_space_ids": favorite_space_ids,
+            "message": message
+        })
