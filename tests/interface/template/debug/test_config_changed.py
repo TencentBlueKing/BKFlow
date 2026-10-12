@@ -200,16 +200,25 @@ class TestConfigChanged:
             DebugService(template.id).step_run("A", "tester", mode="real")
         assert context_nodes(template)["A"]["config_changed"] is True
 
-    @pytest.mark.parametrize("status", ["finished", "not_run"])
+    @pytest.mark.parametrize("status", ["finished", "failed", "not_run"])
     @pytest.mark.parametrize("baseline", ["", None])
-    def test_legacy_result_without_baseline_is_not_assumed_current(self, template, status, baseline):
-        """旧结果缺少可靠基准时，保守提示需要重新调试。"""
+    def test_legacy_result_without_baseline_defaults_to_false(self, template, status, baseline):
+        """空基准的存量节点默认不标记，重新调试后才开始比较后续配置变化。"""
         ctx = DebugService(template.id).get_or_create_context()
         DebugNodeState.objects.create(debug_context=ctx, node_id="A", status=status, debug_config_hash=baseline)
+        node = context_nodes(template)["A"]
+        assert node["config_changed"] is False
+        assert node["status"] == status
+        edit_node(template)
+        assert context_nodes(template)["A"]["config_changed"] is False
+        assert DebugNodeState.objects.get(debug_context=ctx, node_id="A").debug_config_hash == baseline
+        mock_run(template)
+        assert context_nodes(template)["A"]["config_changed"] is False
+        edit_node(template, "after-second-debug")
         assert context_nodes(template)["A"]["config_changed"] is True
 
     def test_global_failure_does_not_reset_unknown_legacy_baseline(self, template, mocker):
-        """升级前缺少基准的节点，全局调试未执行到时仍提示重新调试。"""
+        """全局调试未执行到的存量节点仍缺少基准，继续默认不标记。"""
         ctx = DebugService(template.id).get_or_create_context()
         DebugNodeState.objects.create(debug_context=ctx, node_id="B", status="finished")
         client = engine_client(mocker)
@@ -218,7 +227,7 @@ class TestConfigChanged:
             "result": True,
             "data": {"state": "FAILED", "children": {"rtA": {"state": "FAILED"}, "rtB": {"state": "READY"}}},
         }
-        assert context_nodes(template)["B"]["config_changed"] is True
+        assert context_nodes(template)["B"]["config_changed"] is False
 
     def test_new_node_is_not_run_without_stale_result(self, template):
         """新节点用 not_run 表示未调试，不伪造历史结果。"""
@@ -298,10 +307,10 @@ class TestRollingMigrationCompatibility:
         states = list(DebugNodeState.objects.filter(debug_context=ctx))
         assert len(states) == 2
         assert all(not state.debug_config_hash for state in states)
-        assert all(node["config_changed"] is True for node in context_nodes(template).values())
+        assert all(node["config_changed"] is False for node in context_nodes(template).values())
         mock_run(template)
         assert context_nodes(template)["A"]["config_changed"] is False
-        assert context_nodes(template)["B"]["config_changed"] is True
+        assert context_nodes(template)["B"]["config_changed"] is False
 
     @pytest.mark.parametrize("state, status", [("FINISHED", "finished"), ("FAILED", "failed")])
     def test_run_without_fingerprints_can_finish(self, template, mocker, state, status):
@@ -318,15 +327,16 @@ class TestRollingMigrationCompatibility:
         }
         node = context_nodes(template)["A"]
         assert node["status"] == status
-        assert node["config_changed"] is True
+        assert node["config_changed"] is False
         assert DebugNodeState.objects.get(debug_context=ctx, node_id="A").debug_config_hash is None
 
     @pytest.mark.parametrize("run_type", ["global", "step"])
     def test_new_real_run_establishes_baseline_from_null(self, template, mocker, run_type):
-        """新实例在空指纹的上下文上发起真实调试后，仍能正常解除标记。"""
+        """空指纹上下文完成真实调试后，正常识别后续配置变化。"""
         ctx = DebugService(template.id).sync_node_states()
         DebugContext.objects.filter(pk=ctx.pk).update(active_config_hashes=None)
         DebugNodeState.objects.filter(debug_context=ctx).update(debug_config_hash=None)
+        assert all(node["config_changed"] is False for node in context_nodes(template).values())
         client = engine_client(mocker)
         svc = DebugService(template.id)
         if run_type == "global":
@@ -339,7 +349,9 @@ class TestRollingMigrationCompatibility:
             "data": {"state": "FINISHED", "children": {"rtA": {"state": "FINISHED"}}},
         }
         assert context_nodes(template)["A"]["config_changed"] is False
-        assert context_nodes(template)["B"]["config_changed"] is True
+        assert context_nodes(template)["B"]["config_changed"] is False
+        edit_node(template)
+        assert context_nodes(template)["A"]["config_changed"] is True
 
 
 @pytest.mark.parametrize("node_type", ["SubCanvas", "SubProcess"])
