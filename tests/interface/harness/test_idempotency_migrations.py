@@ -23,6 +23,19 @@ def migrate_to(target):
     return executor.loader.project_state([target]).apps
 
 
+def idempotency_column_charset():
+    """按真实列字符集选择迁移路径，不能用客户端连接配置推断表结构。"""
+    if connection.vendor != "mysql":
+        return None
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT CHARACTER_SET_NAME FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND COLUMN_NAME=%s",
+            ["harness_harnessidempotencyrecord", "idempotency_key"],
+        )
+        return cursor.fetchone()[0]
+
+
 @pytest.fixture
 def legacy_records():
     """回到可空摘要阶段，在退出前恢复最新结构。"""
@@ -56,9 +69,12 @@ def test_replacement_preserves_the_entire_incremental_schema_state():
     assert replacement.models == incremental.models
 
 
-def test_mysql_utf8mb4_uses_a_full_digest_unique_index():
+@pytest.mark.parametrize("explicit_connection_charset", [True, False], ids=["explicit-charset", "default-charset"])
+def test_mysql_utf8mb4_uses_a_full_digest_unique_index(monkeypatch, explicit_connection_charset):
     """检查真实落库的字符集与唯一索引，防止配置错误让测试误通过。"""
-    if connection.vendor != "mysql" or connection.settings_dict.get("OPTIONS", {}).get("charset") != "utf8mb4":
+    if not explicit_connection_charset:
+        monkeypatch.delitem(connection.settings_dict.get("OPTIONS", {}), "charset", raising=False)
+    if idempotency_column_charset() != "utf8mb4":
         pytest.skip("仅用于真实 MySQL utf8mb4 建库验收")
     table = "harness_harnessidempotencyrecord"
     with connection.cursor() as cursor:
@@ -132,9 +148,14 @@ def test_final_schema_disallows_missing_or_duplicate_digest():
         Record.objects.create(**identity(actor="bob"), request_hash="a" * 64, scope_hash="a" * 64)
 
 
-def test_original_p4_history_upgrades_without_recreating_tables(legacy_records):
+@pytest.mark.parametrize("explicit_connection_charset", [True, False], ids=["explicit-charset", "default-charset"])
+def test_original_p4_history_upgrades_without_recreating_tables(
+    legacy_records, monkeypatch, explicit_connection_charset
+):
     """从真实 0007 结构和迁移记录升级，验证 Django 选择增量而不是重新建表。"""
-    if connection.vendor == "mysql" and connection.settings_dict.get("OPTIONS", {}).get("charset") == "utf8mb4":
+    if not explicit_connection_charset:
+        monkeypatch.delitem(connection.settings_dict.get("OPTIONS", {}), "charset", raising=False)
+    if idempotency_column_charset() == "utf8mb4":
         pytest.skip("旧 P4 索引无法在 utf8mb4 创建；此路径在 SQLite 和真实 MySQL utf8 上验证")
     _, _ = legacy_records
     old_target = ("harness", "0007_p4_feedback_evalops")
