@@ -16,9 +16,45 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from django.contrib import admin
 
+from django import forms
+from django.contrib import admin
+from django.utils.translation import ugettext_lazy as _
+
+from bkflow.exceptions import ValidationError as ConfigValidationError
 from bkflow.space import models
+from bkflow.space.configs import HarnessDeploymentConfig, SpaceConfigValueType
+
+
+class SpaceConfigAdminForm(forms.ModelForm):
+    """Select the active value field without changing the database storage contract."""
+
+    class Meta:
+        model = models.SpaceConfig
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["text_value"].required = False
+        self.fields["text_value"].help_text = _("文本配置必填；JSON 配置无需填写占位文本。")
+        self.fields["json_value"].help_text = _("Harness 可信部署绑定必须填写完整 JSON；保存不会自动开启任何开关。")
+
+    def clean(self):
+        values = super().clean()
+        value_type = values.get("value_type")
+        if value_type in (SpaceConfigValueType.TEXT.value, SpaceConfigValueType.REF.value) and not values.get(
+            "text_value"
+        ):
+            self.add_error("text_value", _("文本配置必须填写配置值。"))
+        if values.get("name") == HarnessDeploymentConfig.name:
+            if value_type != SpaceConfigValueType.JSON.value:
+                self.add_error("value_type", _("Harness 可信部署绑定必须使用 JSON 类型。"))
+            elif "json_value" in values:
+                try:
+                    HarnessDeploymentConfig.validate(values["json_value"])
+                except ConfigValidationError:
+                    self.add_error("json_value", _("可信部署绑定不完整或格式错误，请核对接入文档中的必填字段。"))
+        return values
 
 
 @admin.register(models.Space)
@@ -31,6 +67,7 @@ class SpaceAdmin(admin.ModelAdmin):
 
 @admin.register(models.SpaceConfig)
 class SpaceConfigAdmin(admin.ModelAdmin):
+    form = SpaceConfigAdminForm
     list_display = ("id", "space_id", "name", "value_type", "text_value", "json_value")
     search_fields = ("space_id", "name", "value_type")
     list_filter = ("space_id", "name", "value_type")

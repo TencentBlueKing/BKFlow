@@ -1,0 +1,6 @@
+manifest_version: p0-v1
+defaults:
+  lifecycle: VERIFIED
+  risk_level: L1
+  side_effects: unknown
+capabilities: []

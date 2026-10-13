@@ -13,6 +13,8 @@ Import simplified workflow JSON and create a template. Two formats are supported
 
 The endpoint selects the converter automatically from the type of `a2flow` (array or object).
 
+For both protocols, `creator` sets the attribution of the template and its initial snapshot; when omitted, the gateway user is used. It may be empty for application-only calls without either value. It does not replace the authenticated identity used for plugin lookup or change space access permissions. Harness endpoints continue to use the server-verified actor and do not accept this override.
+
 ### Common authentication parameters
 
 | Parameter          | Type   | Required | Description                                                       |

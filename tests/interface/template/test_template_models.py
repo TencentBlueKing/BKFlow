@@ -89,6 +89,40 @@ def build_pipeline_tree():
 
 
 @pytest.mark.django_db
+def test_release_validation_preserves_exact_snapshot_contents():
+    """发布校验不得将临时 is_param 字段持久化，导致 Harness 已批准的流程哈希失效。"""
+    tree = build_pipeline_tree()
+    draft = TemplateSnapshot.create_draft_snapshot(deepcopy(tree), "admin")
+    template = Template.objects.create(name="release validation", space_id=1, snapshot_id=draft.id)
+    draft.template_id = template.id
+    draft.save(update_fields=["template_id"])
+
+    published = template.release_template({"version": "1.0.0", "username": "admin"})
+
+    published.refresh_from_db()
+    assert published.draft is False
+    assert published.data == tree
+
+
+@pytest.mark.django_db
+def test_release_validation_still_rejects_invalid_tree():
+    """复制待校验数据不能绕过校验，非法草稿不得变为正式版本。"""
+    tree = build_pipeline_tree()
+    tree["constants"]["${key1}"]["key"] = "${wrong}"
+    draft = TemplateSnapshot.create_draft_snapshot(tree, "admin")
+    template = Template.objects.create(name="invalid release", space_id=1, snapshot_id=draft.id)
+    draft.template_id = template.id
+    draft.save(update_fields=["template_id"])
+
+    with pytest.raises(ValidationError):
+        template.release_template({"version": "1.0.0", "username": "admin"})
+
+    draft.refresh_from_db()
+    assert draft.draft is True
+    assert draft.version is None
+
+
+@pytest.mark.django_db
 class TestTemplateManager:
     """测试 TemplateManager"""
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -28,3 +27,11 @@ class OverrideMiddleware(MiddlewareMixin):
         request.app.bk_app_code = "test"
         request.user = MagicMock()
         request.user.username = "username"
+
+
+class AppOnlyOverrideMiddleware(MiddlewareMixin):
+    """Inject only gateway application identity for app-only resources."""
+
+    def process_request(self, request):
+        request.app = MagicMock()
+        request.app.bk_app_code = "test"

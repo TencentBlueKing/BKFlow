@@ -23,6 +23,7 @@ class NodeType:
     START_EVENT = "StartEvent"
     END_EVENT = "EndEvent"
     ACTIVITY = "Activity"
+    SUBPROCESS = "SubProcess"
     PARALLEL_GATEWAY = "ParallelGateway"
     CONDITIONAL_PARALLEL_GATEWAY = "ConditionalParallelGateway"
     EXCLUSIVE_GATEWAY = "ExclusiveGateway"

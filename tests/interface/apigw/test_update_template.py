@@ -30,8 +30,9 @@ from blueapps.account.models import User
 from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 
-from bkflow.space.models import Space
+from bkflow.space.models import Space, SpaceConfig
 from bkflow.template.models import Template, TemplateSnapshot
+from bkflow.template.services.release import TemplateReleaseService
 from bkflow.template.views.template import TemplateViewSet
 
 
@@ -121,6 +122,40 @@ class TestUpdateTemplate(TestCase):
         self.assertEqual(resp_data["result"], True)
         self.assertEqual(resp_data["data"]["name"], "测试流程更新")
         self.assertEqual(resp_data["data"]["desc"], "测试描述")
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.apigw.views.update_template.TemplateReleaseService.release", wraps=TemplateReleaseService.release)
+    def test_update_template_auto_release_uses_api_source_without_release_webhook(self, release):
+        """Auto-release stays API-sourced and does not add the explicit release webhook."""
+        space = self.create_space()
+        SpaceConfig.objects.create(space_id=space.id, name="flow_versioning", value_type="TEXT", text_value="true")
+        snapshot = TemplateSnapshot.create_snapshot(
+            pipeline_tree=self.build_pipeline_tree(), username="test_admin", version="1.0.0"
+        )
+        template = Template.objects.create(name="测试流程", space_id=space.id, snapshot_id=snapshot.id)
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+
+        response = self.client.post(
+            "/apigw/space/{}/update_template/{}/".format(space.id, template.id),
+            data=json.dumps(
+                {
+                    "pipeline_tree": self.build_pipeline_tree(),
+                    "auto_release": True,
+                    "version": "1.0.1",
+                    "operator": "test_admin",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(json.loads(response.content)["result"])
+        release.assert_called_once()
+        self.assertEqual(release.call_args.kwargs["source"], "api")
+        self.assertFalse(release.call_args.kwargs["emit_webhook"])
 
     @override_settings(
         BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)

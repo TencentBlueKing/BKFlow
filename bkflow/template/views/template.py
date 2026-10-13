@@ -110,6 +110,7 @@ from bkflow.template.serializers.template import (
     TemplateUpdateLabelSerializer,
     WebhookConfigQuerySerializer,
 )
+from bkflow.template.services.release import TemplateReleaseService
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
@@ -767,31 +768,15 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
             return Response(exception=True, data={"detail": f"版本号不符合规范: {str(e)}"})
 
         try:
-            with transaction.atomic():
-                data = {"username": request.user.username, "is_validate": True, **ser.validated_data}
-                snapshot = instance.release_template(data)
-                instance.snapshot_id = snapshot.id
-                instance.save()
+            TemplateReleaseService.release(
+                instance,
+                ser.validated_data,
+                operator=request.user.username,
+                source=TemplateOperationSource.app.name,
+                emit_webhook=True,
+            )
         except ValidationError as e:
             return Response(exception=True, data={"detail": str(e)})
-
-        TemplateOperationRecord.objects.create(
-            operate_source=TemplateOperationSource.app.name,
-            operate_type=TemplateOperationType.release.name,
-            instance_id=instance.id,
-            operator=request.user.username,
-            extra_info={"version": new_version},
-        )
-
-        event_broadcast_signal.send(
-            sender=WebhookEventType.TEMPLATE_RELEASE.value,
-            scopes=[(WebhookScopeType.SPACE.value, str(instance.space_id))],
-            extra_info={
-                "template_id": instance.id,
-                "version": new_version,
-                "username": request.user.username,
-            },
-        )
 
         return Response(data=self.get_serializer(instance).data)
 

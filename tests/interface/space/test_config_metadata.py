@@ -25,10 +25,10 @@ from bkflow.space.configs import (
     CanvasModeConfig,
     FlowVersioning,
     GatewayExpressionConfig,
-    SpacePluginConfig,
-    SpaceEngineConfig,
-    SuperusersConfig,
     SpaceConfigVerifyNotSupported,
+    SpaceEngineConfig,
+    SpacePluginConfig,
+    SuperusersConfig,
     TemplateTriggerConfig,
     TokenAutoRenewalConfig,
     TokenExpirationConfig,
@@ -70,7 +70,7 @@ class TestP1ConfigDeclarations:
             options = cfg.to_dict()["ui"]["options"]
             assert len(options) == len(cfg.choices)
             for opt in options:
-                assert set(("value", "label", "desc")) <= set(opt.keys())
+                assert {"value", "label", "desc"} <= set(opt.keys())
             assert {o["value"] for o in options} == set(cfg.choices)
 
     def test_token_expiration_is_input(self):
@@ -113,3 +113,23 @@ class TestComplexConfigDeclarations:
         data = SpaceEngineConfig.to_dict()
         assert data["ui"]["control"] == "engine_kv"
         assert data["group"] == "api_integration"
+
+
+def test_harness_boolean_configs_use_saveable_text_switch_values():
+    """Harness 布尔配置须走开关控件，不能进入仅接受对象的 JSON 编辑器。"""
+    from bkflow.space import configs
+
+    switches = [
+        value
+        for name, value in vars(configs).items()
+        if name.startswith("Harness")
+        and isinstance(value, type)
+        and getattr(value, "choices", None) == ["true", "false"]
+    ]
+    assert len(switches) == 9
+    for config in switches:
+        metadata = config.to_dict()
+        assert metadata["ui"]["control"] == "switch"
+        assert metadata["default_value"] == "false"
+        assert config.validate(metadata["ui"]["true_value"])
+        assert config.validate(metadata["ui"]["false_value"])
