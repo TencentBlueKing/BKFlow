@@ -531,10 +531,8 @@ class PluginSchemaService:
 
     @staticmethod
     def _validate_remote_uniform_api_item(api_item):
-        """校验旧目录结构；展示文本的长度限制由 Harness 投影处理，不改变旧接口契约。"""
+        """校验旧目录结构；身份和展示文本的长度限制仅由 Harness 自身边界处理。"""
         if not isinstance(api_item, dict) or not isinstance(api_item.get("id"), str) or not api_item["id"]:
-            raise ValueError("uniform API catalog identity is invalid")
-        if len(api_item["id"]) > 128:
             raise ValueError("uniform API catalog identity is invalid")
         for field in ("id", "name", "description", "category", "wrapper_version", "meta_url"):
             value = api_item.get(field)

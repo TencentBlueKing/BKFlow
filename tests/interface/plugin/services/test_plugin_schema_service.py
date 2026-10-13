@@ -17,6 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+from copy import deepcopy
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -309,6 +310,77 @@ class TestUniformApiSourceSelection:
 class TestUniformApiPlugins:
     """测试 API 插件查询"""
 
+    @pytest.mark.parametrize("cached", [False, True], ids=["remote", "cache"])
+    @pytest.mark.parametrize("long_id", ["x" * 129, "界" * 129], ids=["ascii", "multibyte"])
+    def test_long_legacy_id_preserves_catalog_and_schema_but_stays_outside_harness(self, mocker, cached, long_id):
+        """旧协议的长 ID 不影响同目录插件；AI 身份限制只能在 Harness 自身边界生效。"""
+        from bkflow.harness.services.catalog import CatalogPaginationError
+        from bkflow.harness.services.projection import CapabilityProjection
+
+        items = [
+            {"id": long_id, "name": "Long", "meta_url": "https://example.com/meta/long"},
+            {"id": "legacy-short", "name": "Short", "meta_url": "https://example.com/meta/short"},
+        ]
+        expected_items = deepcopy(items)
+        list_data = {"total": 2, "apis": items}
+        RealUniformAPIClient.validate_response_data(
+            list_data, RealUniformAPIClient.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA
+        )
+        store = {"plugin_list:uniform_api:1": items} if cached else {}
+        cache = mocker.patch("bkflow.plugin.services.plugin_schema_service.cache")
+        cache.get.side_effect = store.get
+        cache.set.side_effect = lambda key, value, timeout=None: store.__setitem__(key, value)
+        mocker.patch(
+            "bkflow.plugin.services.plugin_schema_service.SpaceConfig.get_config",
+            return_value={
+                "api": {
+                    "default": {
+                        "meta_apis": "https://example.com/catalog",
+                        "api_categories": "https://example.com/categories",
+                        "display_name": "Test API",
+                    }
+                }
+            },
+        )
+        service = PluginSchemaService(space_id=1, username="test-operator")
+        mocker.patch.object(service, "_list_component_plugins", return_value=[])
+        mocker.patch.object(service, "_list_remote_plugins", return_value=[])
+        mocker.patch.object(
+            service,
+            "_get_apigw_credential",
+            return_value=MagicMock(content={"bk_app_code": "app", "bk_app_secret": "test"}),
+        )
+        mocker.patch("bkflow.plugin.services.plugin_schema_service.get_source_headers", return_value={})
+        responses = {"https://example.com/catalog": HttpRequestResult(result=True, json_resp={"data": list_data})}
+        for item in items:
+            responses[item["meta_url"]] = uniform_meta_result(
+                {
+                    "id": item["id"],
+                    "name": item["name"],
+                    "inputs": [{"key": "request_id", "name": "Request ID", "type": "string", "required": True}],
+                    "outputs": [],
+                }
+            )
+        mocker.patch(
+            "bkflow.plugin.services.plugin_schema_service.UniformAPIClient.request",
+            side_effect=lambda url, **kwargs: responses[url],
+        )
+
+        plugins, total = service.list_plugins(plugin_type="uniform_api")
+
+        assert total == 2
+        assert [plugin["code"] for plugin in plugins] == [long_id, "legacy-short"]
+        for code in (long_id, "legacy-short"):
+            schema = service.get_plugin_schema(code, plugin_type="uniform_api")
+            assert schema["code"] == code
+            assert schema["inputs"][0]["key"] == "request_id"
+
+        with pytest.raises(CatalogPaginationError, match="identity") as error:
+            CapabilityProjection(service).search("short")
+        assert long_id not in str(error.value)
+        assert service.list_plugins(plugin_type="uniform_api") == (plugins, 2)
+        assert store["plugin_list:uniform_api:1"] == expected_items
+
     @pytest.mark.parametrize("cached", [False, True])
     @pytest.mark.parametrize("field", ["name", "description", "category"])
     @pytest.mark.parametrize("text", ["x" * 241, "界" * 241, "x" * 100000], ids=["long", "multibyte", "100k"])
@@ -504,7 +576,7 @@ class TestUniformApiPlugins:
             ([1], {0: [{"id": "safe", "name": "Safe", "meta_url": "https://meta"}] * 201}),
             ([1], {0: [{"id": "safe", "name": "Safe", "meta_url": "https://meta"}] * 2}),
             ([1], {0: [{"id": "bad\ud800", "name": "Safe", "meta_url": "https://meta"}]}),
-            ([1], {0: [{"id": "x" * 129, "name": "Safe", "meta_url": "https://meta"}]}),
+            ([1], {0: [{"id": "", "name": "Safe", "meta_url": "https://meta"}]}),
             ([1], {0: [{"id": "safe", "name": "Safe", "description": ["invalid"], "meta_url": "https://meta"}]}),
         ),
     )
