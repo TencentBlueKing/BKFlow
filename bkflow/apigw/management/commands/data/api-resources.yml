@@ -6871,7 +6871,7 @@ paths:
                               type: string
                             config_changed:
                               type: boolean
-                              description: 已保存的节点执行配置与最近调试配置不一致；独立于 status，不影响历史调试结果。
+                              description: 已保存的节点执行配置与最近调试配置不一致；存量节点缺少配置基准时默认 false，重新调试建立基准后开始比较。独立于 status，不影响历史调试结果。
       parameters:
       - in: header
         name: X-Bk-Tenant-Id
