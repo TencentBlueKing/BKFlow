@@ -31,6 +31,7 @@ from bkflow.pipeline_web.parser.format import classify_constants
 from bkflow.template.debug.dependency import (
     build_dependency_graph,
     closure,
+    compute_debug_config_hashes,
     compute_tree_fingerprint,
     get_activity_referenced_var_keys,
 )
@@ -116,11 +117,14 @@ class DebugService:
         tree_node_ids = set(debug_nodes)
 
         new_node_ids = [node_id for node_id in debug_nodes if node_id not in existing]
+        config_hashes = compute_debug_config_hashes(self.pipeline_tree) if new_node_ids else {}
         to_create = [
             DebugNodeState(
                 debug_context=ctx,
                 node_id=node_id,
                 node_type=debug_nodes[node_id].get("type", "ServiceActivity"),
+                # 首次出现时只建立比较起点，是否调试过仍由 status=not_run 表示。
+                debug_config_hash=config_hashes[node_id],
             )
             for node_id in new_node_ids
         ]
@@ -196,6 +200,7 @@ class DebugService:
         self.sync_from_debug_task(ctx)
         ctx.refresh_from_db()
         node_views = []
+        config_hashes = compute_debug_config_hashes(self.pipeline_tree)
         for ns in DebugNodeState.objects.filter(debug_context=ctx).order_by("node_id"):
             can_step, missing = self.compute_can_step(ctx, ns.node_id)
             is_gateway = self._is_gateway(ns.node_id)
@@ -220,6 +225,9 @@ class DebugService:
                         else None
                     ),
                     "status": ns.status,
+                    # 存量节点缺少基准时默认不标记，实际调试建立基准后再比较。
+                    "config_changed": bool(ns.debug_config_hash)
+                    and ns.debug_config_hash != config_hashes.get(ns.node_id),
                     "waiting_reason": ns.waiting_reason or None,
                     "can_step": can_step,
                     "missing_vars": missing,
@@ -323,6 +331,7 @@ class DebugService:
         ctx.active_task_id = None
         ctx.active_run_type = ""
         ctx.active_node_id = ""
+        ctx.active_config_hashes = {}
         ctx.save(
             update_fields=[
                 "status",
@@ -331,6 +340,7 @@ class DebugService:
                 "active_task_id",
                 "active_run_type",
                 "active_node_id",
+                "active_config_hashes",
             ]
         )
 
@@ -432,7 +442,9 @@ class DebugService:
                 ctx.global_vars = dict(inputs or {})
                 ctx.last_inputs = dict(inputs or {})
                 self._refresh_tree_fingerprint(ctx)
-                ctx.save(update_fields=["global_vars", "last_inputs"])
+                # 仅冻结运行采用的配置，未执行到的节点不能更新最近调试基准。
+                ctx.active_config_hashes = compute_debug_config_hashes(self.pipeline_tree)
+                ctx.save(update_fields=["global_vars", "last_inputs", "active_config_hashes"])
 
             template = Template.objects.filter(id=self.template_id).first()
             create_data = {
@@ -623,6 +635,10 @@ class DebugService:
             observed_statuses.append(ns.status)
             ns.duration_ms = int((child.get("elapsed_time") or 0) * 1000)
             if ns.status in ("finished", "failed"):
+                run_config_hash = (ctx.active_config_hashes or {}).get(tpl_node_id)
+                if run_config_hash:
+                    # 不使用当前草稿：调试运行期间可能已经保存了新配置。
+                    ns.debug_config_hash = run_config_hash
                 detail = client.get_task_node_detail(
                     task_id,
                     runtime_id,
@@ -1025,6 +1041,7 @@ class DebugService:
                 }
 
             ns.duration_ms = int((time.monotonic() - started_at) * 1000)
+            ns.debug_config_hash = compute_debug_config_hashes(self.pipeline_tree)[ns.node_id]
             ns.save()
             ctx.last_run_type = "step"
             ctx.save(update_fields=["last_run_type", "last_run_status", "last_error_detail"])
@@ -1033,6 +1050,8 @@ class DebugService:
             self._release_lock(ctx, status="idle")
 
     def _step_run_mock(self, ctx, ns, mock_result, mock_outputs, mock_error):
+        # Mock 同样是一次实际调试；纯 Mock 配置接口不更新此基准。
+        ns.debug_config_hash = compute_debug_config_hashes(self.pipeline_tree)[ns.node_id]
         ns.log_ref = {}
         ns.waiting_reason = ""
         ns.duration_ms = 0  # mock 不经引擎，耗时记 0
@@ -1138,6 +1157,7 @@ class DebugService:
             ctx.last_run_type = "step"
             ctx.last_run_status = "running"
             ctx.last_error_detail = {}
+            ctx.active_config_hashes = {ns.node_id: compute_debug_config_hashes(self.pipeline_tree)[ns.node_id]}
             ctx.save(
                 update_fields=[
                     "active_task_id",
@@ -1147,6 +1167,7 @@ class DebugService:
                     "last_run_type",
                     "last_run_status",
                     "last_error_detail",
+                    "active_config_hashes",
                 ]
             )
             return {

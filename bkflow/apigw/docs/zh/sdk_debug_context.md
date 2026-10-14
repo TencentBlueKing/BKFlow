@@ -62,6 +62,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
       "supports_step": true,
       "supports_mock": true,
       "status": "waiting",
+      "config_changed": true,
       "waiting_reason": "callback",
       "selected_flow_ids": [],
       "condition_results": []
@@ -73,6 +74,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
       "supports_step": true,
       "supports_mock": false,
       "status": "finished",
+      "config_changed": false,
       "waiting_reason": null,
       "selected_flow_ids": ["flow_true"],
       "condition_results": [
@@ -92,6 +94,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
       "supports_step": false,
       "supports_mock": false,
       "status": "finished",
+      "config_changed": false,
       "waiting_reason": null,
       "selected_flow_ids": [],
       "condition_results": []
@@ -105,6 +108,21 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
 `active_task_id` 仅在任务运行期间有值，任务结束后清空；`last_task_id` 会保留最近一次真实引擎任务 ID。节点 `status` 取值为 `not_run | running | waiting | paused | finished | failed`。全局调试终止时，仍活跃的节点会恢复为 `not_run`，已完成或自然失败节点保留原状态。存在引擎调度记录时，`waiting_reason` 为 `callback | multiple_callback | poll`。
 
 `nodes` 包含活动节点和流程中的全部网关节点：分支网关（`ExclusiveGateway`）、条件并行网关（`ConditionalParallelGateway`）、并行网关（`ParallelGateway`）和汇聚网关（`ConvergeGateway`）。开始、结束节点不在该数组中。
+
+### 节点配置变化标记
+
+| 字段 | 类型 | 描述 |
+| --- | --- | --- |
+| nodes[].config_changed | bool | 当前已保存的节点执行配置是否与最近调试的配置不一致。与节点 `status` 独立，不代表调试成功或失败。 |
+
+接口优先读取草稿，没有草稿时读取正式快照，并与该节点最近一次完成调试时采用的配置比较。保存配置不会清空节点原有的状态、耗时、输入输出或日志引用。重复保存不会解除不一致标记；恢复到已调试过的配置后，标记恢复为 `false`。
+
+- 单步真实执行、Mock 执行和条件网关求值，无论成功还是执行失败，均更新该节点的调试配置基准。只修改 Mock 预设不更新基准。
+- 全局调试仅更新实际完成或执行失败的节点，未执行到的节点不更新基准。请求被依赖检查拦截、创建任务失败或启动失败，也不更新基准。
+- 如果按配置 A 发起调试，运行期间保存为 B，A 完成后仍返回 `config_changed=true`，直到 B 被调试或配置恢复为 A。
+- 新节点首次出现时返回 `status=not_run`、`config_changed=false`；之后保存的执行配置发生变化时会标记为 `true`。存量节点缺少配置基准（空字符串或 `null`）时默认返回 `false`，不补写历史基准；重新调试建立基准后，开始比较后续配置变化。`false` 不代表已调试或调试成功，仍以 `status` 为准。
+- 比较范围包括节点插件及参数、执行选项、网关条件、内嵌子流程和循环配置。节点名称、说明、坐标及画布布局不参与比较；不推断上游输出或全局变量变更对下游的影响。
+- 此字段只反映已保存配置，不包含前端尚未保存的修改，也不决定历史节点与当前画布的点击联动。
 
 `supports_step` 表示节点是否支持单步调试，`supports_mock` 表示是否支持 Mock。活动节点两者均为 `true`；分支网关和条件并行网关为 `supports_step=true`、`supports_mock=false`；并行网关和汇聚网关两者均为 `false`，仅用于展示全局调试状态。前端调试控制面板应过滤 `supports_step=false` 且 `supports_mock=false` 的节点。
 
