@@ -113,17 +113,42 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
 
 | Field | Type | Description |
 | --- | --- | --- |
-| nodes[].config_changed | bool | Whether the saved node execution configuration differs from the configuration used for its latest completed debug attempt. Independent of `status` and debug success or failure. |
+| nodes[].config_changed | bool | Whether the saved node name or execution configuration differs from its latest debug baseline. Independent of `status` and debug success or failure. |
 
-The comparison uses the draft, or the published snapshot when no draft exists. Saving preserves previous node results, duration, input/output data and log references. Repeated saves do not clear a mismatch. Restoring the previously debugged configuration makes the flag `false` again.
+The comparison uses the draft, or the published snapshot when no draft exists. Saving preserves debug_snapshot node membership, order, names, results, duration, input/output data and log references; its difference flags reflect the saved draft. Repeated saves do not clear a mismatch. Restoring the previously debugged configuration makes the flag `false` again.
 
 - Real single-step runs, Mock runs and conditional gateway evaluation update only the executed node's baseline, on success or execution failure. Editing Mock presets does not update it.
 - Global debugging updates baselines only for nodes that finish or fail during execution. Unreached nodes, dependency rejections, task creation failures and start failures do not update them.
 - If configuration A is running when B is saved, A completing still leaves `config_changed=true` until B is debugged or A is restored.
 - New nodes initially have `status=not_run` and `config_changed=false`; subsequent execution configuration changes are detected. Legacy node states with an empty or `null` baseline default to `false` without backfilling a historical baseline. Once debugged again, they acquire a baseline for detecting subsequent configuration changes. A `false` value does not imply that a node has been debugged or succeeded; check `status` separately.
-- The comparison covers plugin configuration, execution options, gateway conditions, embedded subprocesses and loop configuration. Node names, descriptions, coordinates and canvas layout are excluded. Changes to upstream outputs or global variables are not propagated to downstream nodes.
+- The comparison covers plugin configuration, execution options, gateway conditions, embedded subprocesses and loop configuration. Node names are compared separately without changing existing configuration hashes. Descriptions, coordinates and canvas layout are excluded. Changes to upstream outputs or global variables are not propagated to downstream nodes.
 - Unsaved frontend edits and click-to-canvas linking are outside this field's scope.
 
 `supports_step` indicates single-step support and `supports_mock` indicates mock support. Both are `true` for activities. Exclusive and conditional parallel gateways have `supports_step=true` and `supports_mock=false`. Parallel and converge gateways have both set to `false` and only display global debugging status. Debug panels should filter out nodes where both are `false`.
 
 All gateways have `execution_mode=real`. After debugging a conditional gateway, the frontend uses `selected_flow_ids` to mark selected connections green. `condition_results` can display each branch's original expression, evaluated expression, and match result. Both fields are empty arrays for parallel gateways, converge gateways, and activity nodes.
+
+
+### Debug result snapshot
+
+`nodes` continues to describe the saved draft for step execution, Mock settings and eligibility checks. Its new `node_name` is the current name. Use `debug_snapshot.nodes` for the result list; those names and results belong to the debug attempt, not the current canvas.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| debug_snapshot | object / null | Latest accumulated debug results; null for legacy records without a reliable snapshot, before the first new debug attempt, or after a full reset. Historical data is never fabricated from the current draft. |
+| debug_snapshot.nodes[].node_id / node_type / node_name | string | Template node ID, type and debug-time name. |
+| debug_snapshot.nodes[].config_changed | bool | Saved name or execution configuration differs from the reliable debug baseline; defaults to false without a baseline. |
+| debug_snapshot.nodes[].node_deleted | bool | Node no longer exists in the saved draft. Its previous result and log reference remain available. |
+| debug_snapshot.nodes[].execution_mode | string | Actual mode used for this result: real / mock; independent of current Mock settings. |
+| debug_snapshot.nodes[].status / waiting_reason | string / string or null | Same runtime state and waiting reason meanings as existing node states. |
+| debug_snapshot.nodes[].inputs / outputs | object | Recorded input/output values. Gateway outputs contain selected_flow_ids and condition_results. Inputs are {} if not collected. |
+| debug_snapshot.nodes[].duration_ms / error_detail / log_ref | int or null / object or null / object or null | Recorded duration, error and engine log reference. |
+| debug_snapshot.nodes[].operator / last_run_at | string / string or null | Debug initiator and recorded run time; null when no reliable time was recorded. |
+
+- A successfully started global run replaces the full snapshot. Real, Mock and gateway steps update only their target; other nodes keep their own latest results. The snapshot can therefore combine several step attempts rather than represent one engine task.
+- Runtime results continue to update while running, using the frozen launch-time tree, names and output-variable bindings. Saving, renaming or deleting nodes does not rewrite the snapshot list. Dependency, create or start failures preserve the previous snapshot.
+- Ordering follows the frozen control flow: predecessors precede successors and joins follow all branches. Parallel branches use a stable node-ID order, not chronological execution order. Loop back-edges are not expanded repeatedly. A subcanvas is one node; start/end events are excluded.
+- A newly stepped node is inserted according to that run's flow order without reordering previous entries. The next global run establishes a new full ordering.
+- Explicit node reset clears only that result; full reset clears the snapshot. Termination preserves completed results and resets active nodes to not_run, as before.
+- Legacy names and snapshots are not backfilled. Existing configuration hashes remain valid; a new attempt establishes a name baseline. Restoring the original name/configuration clears the marker.
+- `node_deleted` and `config_changed` compare against the saved draft only. The frontend handles unsaved edits, canvas linking and user-facing hints. Deleted result nodes are not executable controls.
