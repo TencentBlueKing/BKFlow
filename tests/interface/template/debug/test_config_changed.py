@@ -97,7 +97,6 @@ class TestConfigChanged:
         mock_run(template)
         tree = copy.deepcopy(DebugService(template.id).pipeline_tree)
         tree["location"] = [{"id": "A", "x": 200, "y": 100}]
-        tree["activities"]["A"]["name"] = "renamed"
         template.update_draft_snapshot(tree, "tester")
         assert context_nodes(template)["A"]["config_changed"] is False
         with transaction.atomic():

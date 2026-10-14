@@ -6841,7 +6841,7 @@ paths:
     get:
       operationId: sdk_debug_context
       summary: 获取流程调试上下文
-      description: 返回节点最近调试状态及 config_changed，表示已保存的执行配置是否与最近调试配置不一致。保存不清空调试结果。
+      description: 返回当前节点调试控制状态及独立 debug_snapshot；config_changed 比较已保存的名称和执行配置，快照保留调试时名称、顺序和已删除节点结果。
       tags: []
       responses:
         default:
@@ -6867,11 +6867,70 @@ paths:
                           properties:
                             node_id:
                               type: string
+                            node_name:
+                              type: string
+                              description: 当前已保存草稿的节点名称；结果列表使用 debug_snapshot 中的名称。
                             status:
                               type: string
                             config_changed:
                               type: boolean
-                              description: 已保存的节点执行配置与最近调试配置不一致；存量节点缺少配置基准时默认 false，重新调试建立基准后开始比较。独立于 status，不影响历史调试结果。
+                              description: 已保存的名称或执行配置与可靠调试基准不一致。缺少基准时默认 false；名称独立比较，保留旧配置哈希。
+                      debug_snapshot:
+                        type: object
+                        nullable: true
+                        description: 最新调试上下文结果快照；全局重建、单步只更新目标。存量或从未调试以及全量重置后为 null。保存草稿不增删或重排此列表。
+                        properties:
+                          nodes:
+                            type: array
+                            description: 按冻结的控制流排序；并行稳定展开、汇聚在分支之后，循环节点不重复。包含已删除节点的历史结果，不用于执行控制。
+                            items:
+                              type: object
+                              properties:
+                                node_id:
+                                  type: string
+                                node_name:
+                                  type: string
+                                  description: 调试时名称。
+                                node_type:
+                                  type: string
+                                execution_mode:
+                                  type: string
+                                  enum: [real, mock]
+                                  description: 该结果实际采用的执行模式。
+                                status:
+                                  type: string
+                                waiting_reason:
+                                  type: string
+                                  nullable: true
+                                config_changed:
+                                  type: boolean
+                                  description: 已保存名称或执行配置与可靠调试基准不一致；无基准默认 false。
+                                node_deleted:
+                                  type: boolean
+                                  description: 节点已不在当前已保存草稿中，保留历史结果。
+                                inputs:
+                                  type: object
+                                  additionalProperties: true
+                                outputs:
+                                  type: object
+                                  additionalProperties: true
+                                duration_ms:
+                                  type: integer
+                                  nullable: true
+                                error_detail:
+                                  type: object
+                                  nullable: true
+                                  additionalProperties: true
+                                log_ref:
+                                  type: object
+                                  nullable: true
+                                  additionalProperties: true
+                                operator:
+                                  type: string
+                                last_run_at:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
       parameters:
       - in: header
         name: X-Bk-Tenant-Id
