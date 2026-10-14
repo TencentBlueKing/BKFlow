@@ -7639,7 +7639,7 @@ paths:
         allowApplyPermission: true
         matchSubpath: false
         backend:
-          method: post
+          method: get
           path: /{env.api_sub_path}apigw/space/{space_id}/get_tasks_pipeline/
           matchSubpath: false
           timeout: 0
