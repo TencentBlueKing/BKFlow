@@ -19,9 +19,11 @@ to the current version of the project delivered to anyone in the future.
 
 import json
 import os
+from datetime import timedelta
 from enum import Enum
 from urllib.parse import urlparse
 
+from bamboo_engine.config import Settings as BambooSettings
 from blueapps.core.celery.celery import app
 from celery.schedules import crontab
 from django.core.serializers.json import DjangoJSONEncoder
@@ -171,6 +173,52 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
 
     BKAPP_API_PLUGIN_REQUEST_TIMEOUT = env.BKAPP_API_PLUGIN_REQUEST_TIMEOUT
 
+    PIPELINE_DIAGNOSTICS_EVENT_ENABLED = env.DIAGNOSTICS_EVENT_ENABLED
+    PIPELINE_DIAGNOSTICS_SCAN_ENABLED = env.DIAGNOSTICS_SCAN_ENABLED
+    PIPELINE_DIAGNOSTICS_ALERT_ENABLED = env.DIAGNOSTICS_ALERT_ENABLED
+    PIPELINE_DIAGNOSTICS_APPLY_ENABLED = env.DIAGNOSTICS_APPLY_ENABLED
+    PIPELINE_DIAGNOSTICS_STALL_THRESHOLD_SECONDS = env.DIAGNOSTICS_STALL_THRESHOLD_SECONDS
+    PIPELINE_DIAGNOSTICS_SCAN_BATCH = env.DIAGNOSTICS_SCAN_BATCH
+    PIPELINE_DIAGNOSTICS_SCAN_MAX_SILENT_SECONDS = env.DIAGNOSTICS_SCAN_MAX_SILENT_SECONDS
+    PIPELINE_DIAGNOSTICS_SECOND_CONFIRM_SECONDS = env.DIAGNOSTICS_SECOND_CONFIRM_SECONDS
+    PIPELINE_DIAGNOSTICS_EVENT_RETENTION_DAYS = env.DIAGNOSTICS_EVENT_RETENTION_DAYS
+    PIPELINE_DIAGNOSTICS_CASE_RETENTION_DAYS = env.DIAGNOSTICS_CASE_RETENTION_DAYS
+    PIPELINE_DIAGNOSTICS_AUDIT_RETENTION_DAYS = env.DIAGNOSTICS_AUDIT_RETENTION_DAYS
+
+    PIPELINE_DIAGNOSTICS_WINDOW_SCAN_ENABLED = env.DIAGNOSTICS_WINDOW_SCAN_ENABLED
+    PIPELINE_DIAGNOSTICS_WINDOW_TIERS = env.DIAGNOSTICS_WINDOW_TIERS
+    PIPELINE_DIAGNOSTICS_WINDOW_MAX_ROOTS = env.DIAGNOSTICS_WINDOW_MAX_ROOTS
+    PIPELINE_DIAGNOSTICS_SIGNATURE_SCAN_ENABLED = env.DIAGNOSTICS_SIGNATURE_SCAN_ENABLED
+    PIPELINE_DIAGNOSTICS_SIGNATURE_FAST_THRESHOLD_SECONDS = env.DIAGNOSTICS_SIGNATURE_FAST_THRESHOLD_SECONDS
+    PIPELINE_DIAGNOSTICS_SIGNATURE_SLOW_THRESHOLD_SECONDS = env.DIAGNOSTICS_SIGNATURE_SLOW_THRESHOLD_SECONDS
+    PIPELINE_DIAGNOSTICS_POLL_EXCLUDE_CODES = env.DIAGNOSTICS_POLL_EXCLUDE_CODES
+    PIPELINE_DIAGNOSTICS_CALLBACK_SCAN_ENABLED = env.DIAGNOSTICS_CALLBACK_SCAN_ENABLED
+    PIPELINE_DIAGNOSTICS_CALLBACK_CONFIRM_SECONDS = env.DIAGNOSTICS_CALLBACK_CONFIRM_SECONDS
+
+    PIPELINE_FENCE_EMIT_ENABLED = env.PIPELINE_FENCE_EMIT_ENABLED
+    PIPELINE_FENCE_ENFORCE = env.PIPELINE_FENCE_ENFORCE
+    BambooSettings.FENCE_EMIT_ENABLED = PIPELINE_FENCE_EMIT_ENABLED
+    BambooSettings.FENCE_ENFORCE = PIPELINE_FENCE_ENFORCE
+
+    PIPELINE_DIAGNOSTICS_RECOVERY_ENABLED = env.DIAGNOSTICS_RECOVERY_ENABLED
+    PIPELINE_DIAGNOSTICS_RECOVERY_SETTLE_SECONDS = env.DIAGNOSTICS_RECOVERY_SETTLE_SECONDS
+    PIPELINE_DIAGNOSTICS_RECOVERY_BATCH = env.DIAGNOSTICS_RECOVERY_BATCH
+    PIPELINE_DIAGNOSTICS_RECOVERY_MODE = env.DIAGNOSTICS_RECOVERY_MODE
+    PIPELINE_DIAGNOSTICS_AUTO_REPLAY_TYPES = env.DIAGNOSTICS_AUTO_REPLAY_TYPES
+    PIPELINE_DIAGNOSTICS_RECOVERY_SCOPE_RESOLVER = "bkflow.contrib.diagnostics.recovery_scope.in_recovery_scope"
+    PIPELINE_DIAGNOSTICS_RECOVERY_MAX_ATTEMPTS = env.DIAGNOSTICS_RECOVERY_MAX_ATTEMPTS
+    PIPELINE_DIAGNOSTICS_RECOVERY_MAX_PER_ROUND = env.DIAGNOSTICS_RECOVERY_MAX_PER_ROUND
+    PIPELINE_DIAGNOSTICS_RECOVERY_BREAKER_WINDOW_SECONDS = env.DIAGNOSTICS_RECOVERY_BREAKER_WINDOW_SECONDS
+    PIPELINE_DIAGNOSTICS_RECOVERY_BREAKER_THRESHOLD = env.DIAGNOSTICS_RECOVERY_BREAKER_THRESHOLD
+
+    DIAGNOSTICS_SCAN_CRON = env.DIAGNOSTICS_SCAN_CRON
+    DIAGNOSTICS_SIGNATURE_SCAN_CRON = env.DIAGNOSTICS_SIGNATURE_SCAN_CRON
+    DIAGNOSTICS_CALLBACK_SCAN_INTERVAL = env.DIAGNOSTICS_CALLBACK_SCAN_INTERVAL
+    DIAGNOSTICS_RECOVERY_CRON = env.DIAGNOSTICS_RECOVERY_CRON
+    DIAGNOSTICS_CLEANUP_ENABLED = env.DIAGNOSTICS_CLEANUP_ENABLED
+    DIAGNOSTICS_CLEANUP_CRON = env.DIAGNOSTICS_CLEANUP_CRON
+    DIAGNOSTICS_RECOVERY_SCOPES = env.DIAGNOSTICS_RECOVERY_SCOPES
+
     INSTALLED_APPS += (
         "rest_framework",
         "drf_yasg",
@@ -182,6 +230,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "pipeline.log",
         "pipeline.contrib.engine_admin",
         "pipeline.contrib.periodic_task",
+        "pipeline.contrib.diagnostics",
         "pipeline.django_signal_valve",
         "bkflow.task",
         "django_extensions",
@@ -190,6 +239,7 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.contrib.operation_record",
         "django_dbconn_retry",
         "bkflow.contrib.expired_cleaner",
+        "bkflow.contrib.diagnostics",
         "bkflow.contrib.itsm_workflow",
         "bkflow.contrib.init_tenant",
         "bkflow.statistics",
@@ -230,6 +280,26 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "clean_expired_statistics": {
             "task": "bkflow.statistics.tasks.summary_tasks.clean_expired_statistics_task",
             "schedule": _parse_crontab(env.STATISTICS_CLEAN_CRONTAB),
+        },
+        "scan_stuck_diagnostics": {
+            "task": "bkflow.contrib.diagnostics.tasks.scan_stuck_diagnostics",
+            "schedule": _parse_crontab(env.DIAGNOSTICS_SCAN_CRON),
+        },
+        "scan_stuck_signatures": {
+            "task": "bkflow.contrib.diagnostics.tasks.scan_stuck_signatures",
+            "schedule": _parse_crontab(env.DIAGNOSTICS_SIGNATURE_SCAN_CRON),
+        },
+        "scan_stuck_callbacks": {
+            "task": "bkflow.contrib.diagnostics.tasks.scan_stuck_callbacks",
+            "schedule": timedelta(seconds=env.DIAGNOSTICS_CALLBACK_SCAN_INTERVAL),
+        },
+        "run_stuck_recovery": {
+            "task": "bkflow.contrib.diagnostics.tasks.run_stuck_recovery",
+            "schedule": _parse_crontab(env.DIAGNOSTICS_RECOVERY_CRON),
+        },
+        "cleanup_diagnostics": {
+            "task": "bkflow.contrib.diagnostics.tasks.cleanup_diagnostics",
+            "schedule": _parse_crontab(env.DIAGNOSTICS_CLEANUP_CRON),
         },
     }
 
