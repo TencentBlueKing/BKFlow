@@ -59,6 +59,13 @@ schedule_names = {
     "run_stuck_recovery",
     "cleanup_diagnostics",
 }
+task_paths = {
+    "bkflow.contrib.diagnostics.tasks.scan_stuck_diagnostics",
+    "bkflow.contrib.diagnostics.tasks.scan_stuck_signatures",
+    "bkflow.contrib.diagnostics.tasks.scan_stuck_callbacks",
+    "bkflow.contrib.diagnostics.tasks.run_stuck_recovery",
+    "bkflow.contrib.diagnostics.tasks.cleanup_diagnostics",
+}
 print(json.dumps({
     "pipeline_app": "pipeline.contrib.diagnostics" in settings.INSTALLED_APPS,
     "bkflow_app": "bkflow.contrib.diagnostics" in settings.INSTALLED_APPS,
@@ -66,6 +73,11 @@ print(json.dumps({
         name: app.conf.beat_schedule[name]["task"]
         for name in schedule_names
         if name in app.conf.beat_schedule
+    },
+    "routes": {
+        task_path: settings.CELERY_ROUTES[task_path]
+        for task_path in task_paths
+        if task_path in getattr(settings, "CELERY_ROUTES", {})
     },
     "event_enabled": getattr(settings, "PIPELINE_DIAGNOSTICS_EVENT_ENABLED", None),
     "scan_enabled": getattr(settings, "PIPELINE_DIAGNOSTICS_SCAN_ENABLED", None),
@@ -103,6 +115,13 @@ def test_engine_registers_diagnostics_with_safe_defaults():
     assert result["pipeline_app"] is True
     assert result["bkflow_app"] is True
     assert result["schedules"] == DIAGNOSTICS_SCHEDULES
+    assert result["routes"] == {
+        task_path: {
+            "queue": "clean_task_default",
+            "routing_key": "clean_task_default",
+        }
+        for task_path in DIAGNOSTICS_SCHEDULES.values()
+    }
     assert result["scope_resolver"] == "bkflow.contrib.diagnostics.recovery_scope.in_recovery_scope"
     assert all(
         result[name] is False
@@ -173,3 +192,4 @@ def test_interface_module_does_not_register_engine_diagnostics():
     assert result["pipeline_app"] is False
     assert result["bkflow_app"] is False
     assert result["schedules"] == {}
+    assert result["routes"] == {}

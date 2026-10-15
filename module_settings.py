@@ -246,11 +246,20 @@ if env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.engine.value:
         "bkflow.pipeline_validate",
     )
 
+    clean_task_queue = f"clean_task_{BKFLOW_MODULE.code}"
     BKFLOW_CELERY_ROUTES = {
-        "bkflow.contrib.expired_cleaner.tasks.clean_task": {
-            "queue": f"clean_task_{BKFLOW_MODULE.code}",
-            "routing_key": f"clean_task_{BKFLOW_MODULE.code}",
+        task_path: {
+            "queue": clean_task_queue,
+            "routing_key": clean_task_queue,
         }
+        for task_path in (
+            "bkflow.contrib.expired_cleaner.tasks.clean_task",
+            "bkflow.contrib.diagnostics.tasks.scan_stuck_diagnostics",
+            "bkflow.contrib.diagnostics.tasks.scan_stuck_signatures",
+            "bkflow.contrib.diagnostics.tasks.scan_stuck_callbacks",
+            "bkflow.contrib.diagnostics.tasks.run_stuck_recovery",
+            "bkflow.contrib.diagnostics.tasks.cleanup_diagnostics",
+        )
     }
     CELERY_ROUTES.update(BKFLOW_CELERY_ROUTES)
 
