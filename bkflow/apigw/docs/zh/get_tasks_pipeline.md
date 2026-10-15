@@ -27,6 +27,12 @@
 | task_ids   | string | 是     | 任务ID，多个以,号分割  |
 
 
+### 请求参数示例
+
+`GET /space/1/get_tasks_pipeline/?task_ids=17,18`。`task_ids` 必须是逗号分隔的正整数列表；空项、非数字、零和负数返回错误码 `400`，不调用 Engine。
+
+返回数据以任务 ID 为键。任务缺少执行快照时，对应值为 `null`；不存在或不属于该空间的任务不会出现在结果中。
+
 ### 返回结果示例
 
 ```json
@@ -193,7 +199,7 @@
 | 字段      | 类型     | 描述                   |
 |---------|--------|----------------------|
 | result  | bool   | 返回结果，true为成功，false为失败 |
-| code    | string | 返回码，"0"表示成功，其他值表示失败   |
+| code    | int/string | 返回码，"0"表示成功，其他值表示失败   |
 | message | string | 错误信息                 |
 | data    | dict   | 返回数据，key为任务ID，value为该任务的pipeline结构 |
 

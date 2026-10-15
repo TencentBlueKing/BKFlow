@@ -21,8 +21,10 @@ import json
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
+from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from rest_framework.exceptions import ValidationError
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.task import GetNodeOutputsSerializer
@@ -36,7 +38,10 @@ from bkflow.contrib.api.collections.task import TaskComponentClient
 @check_jwt_and_space
 @return_json_response
 def get_node_outputs(request, space_id):
-    body = json.loads(request.body)
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise ValidationError({"body": [_("请求体必须是有效的 JSON")]})
     serializer = GetNodeOutputsSerializer(data=body)
     serializer.is_valid(raise_exception=True)
 

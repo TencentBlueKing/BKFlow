@@ -41,6 +41,13 @@ from bkflow.template.debug.gateway import (
     evaluate_gateway,
     gateway_missing_vars,
 )
+from bkflow.template.debug.snapshot import (
+    config_changed,
+    debug_nodes,
+    merge_step_result,
+    node_result,
+    ordered_node_ids,
+)
 from bkflow.template.models import (
     DebugContext,
     DebugNodeState,
@@ -110,6 +117,7 @@ class DebugService:
     def sync_node_states(self) -> DebugContext:
         """按当前 pipeline_tree 增删 DebugNodeState；保留已存在节点的配置与运行态。"""
         ctx = self.get_or_create_context()
+        active_ids = set((ctx.active_debug_snapshot or {}).get("node_ids", [])) if ctx.status != "idle" else set()
         activities = self.pipeline_tree.get("activities", {})
         gateways = self.pipeline_tree.get("gateways", {})
         debug_nodes = {**activities, **gateways}
@@ -117,6 +125,7 @@ class DebugService:
         tree_node_ids = set(debug_nodes)
 
         new_node_ids = [node_id for node_id in debug_nodes if node_id not in existing]
+        historical = {node["node_id"]: node for node in (ctx.debug_snapshot or {}).get("nodes", [])}
         config_hashes = compute_debug_config_hashes(self.pipeline_tree) if new_node_ids else {}
         to_create = [
             DebugNodeState(
@@ -124,7 +133,8 @@ class DebugService:
                 node_id=node_id,
                 node_type=debug_nodes[node_id].get("type", "ServiceActivity"),
                 # 首次出现时只建立比较起点，是否调试过仍由 status=not_run 表示。
-                debug_config_hash=config_hashes[node_id],
+                debug_config_hash=historical.get(node_id, {}).get("_config_hash", config_hashes[node_id]),
+                debug_node_name=historical.get(node_id, {}).get("_node_name", debug_nodes[node_id].get("name", "")),
             )
             for node_id in new_node_ids
         ]
@@ -135,16 +145,17 @@ class DebugService:
         to_update = []
         for node_id, ns in existing.items():
             expected_type = (debug_nodes.get(node_id) or {}).get("type", "ServiceActivity")
-            if node_id in debug_nodes and ns.node_type != expected_type:
+            if node_id in debug_nodes and node_id not in active_ids and ns.node_type != expected_type:
                 ns.node_type = expected_type
                 to_update.append(ns)
         if to_update:
             DebugNodeState.objects.bulk_update(to_update, ["node_type"])
         if gateways:
             DebugNodeState.objects.filter(debug_context=ctx, node_id__in=gateways).exclude(
-                execution_mode="real"
-            ).update(execution_mode="real")
-        stale = set(existing.keys()) - tree_node_ids
+                node_id__in=active_ids
+            ).exclude(execution_mode="real").update(execution_mode="real")
+        # 运行中的节点可能已从草稿删除，仍需接收结果并写入独立快照。
+        stale = set(existing.keys()) - tree_node_ids - active_ids
         if stale:
             DebugNodeState.objects.filter(debug_context=ctx, node_id__in=stale).delete()
         return ctx
@@ -201,7 +212,8 @@ class DebugService:
         ctx.refresh_from_db()
         node_views = []
         config_hashes = compute_debug_config_hashes(self.pipeline_tree)
-        for ns in DebugNodeState.objects.filter(debug_context=ctx).order_by("node_id"):
+        current_nodes = debug_nodes(self.pipeline_tree)
+        for ns in DebugNodeState.objects.filter(debug_context=ctx, node_id__in=current_nodes).order_by("node_id"):
             can_step, missing = self.compute_can_step(ctx, ns.node_id)
             is_gateway = self._is_gateway(ns.node_id)
             supports_step = not is_gateway or self._is_debuggable_gateway(ns.node_id)
@@ -209,6 +221,7 @@ class DebugService:
             node_views.append(
                 {
                     "node_id": ns.node_id,
+                    "node_name": current_nodes[ns.node_id].get("name", ""),
                     "node_type": ns.node_type,
                     "execution_mode": "real" if is_gateway else ns.execution_mode,
                     "supports_step": supports_step,
@@ -226,8 +239,12 @@ class DebugService:
                     ),
                     "status": ns.status,
                     # 存量节点缺少基准时默认不标记，实际调试建立基准后再比较。
-                    "config_changed": bool(ns.debug_config_hash)
-                    and ns.debug_config_hash != config_hashes.get(ns.node_id),
+                    "config_changed": config_changed(
+                        ns.debug_config_hash,
+                        ns.debug_node_name,
+                        current_nodes[ns.node_id],
+                        config_hashes.get(ns.node_id),
+                    ),
                     "waiting_reason": ns.waiting_reason or None,
                     "can_step": can_step,
                     "missing_vars": missing,
@@ -252,7 +269,76 @@ class DebugService:
             "last_inputs": ctx.last_inputs,
             "global_vars": ctx.global_vars,
             "nodes": node_views,
+            "debug_snapshot": self._build_snapshot_view(ctx, current_nodes, config_hashes),
         }
+
+    def _build_snapshot_view(self, ctx, current_nodes, config_hashes):
+        """只计算当前草稿差异，读取时不增删快照节点、不补造存量历史。"""
+        if not ctx.debug_snapshot:
+            return None
+        snapshot = copy.deepcopy(ctx.debug_snapshot)
+        for node in snapshot["nodes"]:
+            node_id = node["node_id"]
+            node["node_deleted"] = node_id not in current_nodes
+            node["config_changed"] = config_changed(
+                node.pop("_config_hash", None),
+                node.pop("_node_name", None),
+                current_nodes.get(node_id),
+                config_hashes.get(node_id),
+            )
+        return snapshot
+
+    def _freeze_debug_tree(self, ctx, operator, node_id=None, execution_mode=None):
+        """请求引擎前冻结流程并保留运行节点，防止轮询按新草稿提前删除节点态。"""
+        tree = copy.deepcopy(self.pipeline_tree)
+        order = ordered_node_ids(tree)
+        node_ids = [node_id] if node_id else order
+        states = {ns.node_id: ns for ns in DebugNodeState.objects.filter(debug_context=ctx, node_id__in=node_ids)}
+        ctx.active_debug_snapshot = {
+            "pipeline_tree": tree,
+            "node_ids": node_ids,
+            "operator": operator,
+            "execution_modes": {nid: execution_mode or states[nid].execution_mode for nid in node_ids},
+        }
+        ctx.save(update_fields=["active_debug_snapshot"])
+
+    def _capture_debug_snapshot(self, ctx, operator, node_id=None, execution_mode=None):
+        """运行被接受后，全局替换结果列表，单步只合并目标节点。"""
+        if not ctx.active_debug_snapshot:
+            self._freeze_debug_tree(ctx, operator, node_id, execution_mode)
+        active = ctx.active_debug_snapshot
+        nodes = debug_nodes(active["pipeline_tree"])
+        states = {
+            ns.node_id: ns for ns in DebugNodeState.objects.filter(debug_context=ctx, node_id__in=active["node_ids"])
+        }
+        results = []
+        for nid in active["node_ids"]:
+            result = node_result(states[nid], nodes[nid], operator)
+            result["execution_mode"] = active["execution_modes"][nid]
+            results.append(result)
+        if node_id:
+            results = merge_step_result(
+                (ctx.debug_snapshot or {}).get("nodes", []), results[0], ordered_node_ids(active["pipeline_tree"])
+            )
+        ctx.debug_snapshot = {"nodes": results}
+        ctx.save(update_fields=["debug_snapshot"])
+
+    def _update_snapshot_results(self, ctx, states):
+        """使用本次运行的名称写结果，不能从新草稿重新取名称或类型。"""
+        active = ctx.active_debug_snapshot or {}
+        if not active or not states:
+            return
+        nodes = debug_nodes(active["pipeline_tree"])
+        results = {}
+        for ns in states:
+            result = node_result(ns, nodes[ns.node_id], active["operator"])
+            result["execution_mode"] = active["execution_modes"][ns.node_id]
+            results[ns.node_id] = result
+        ctx.debug_snapshot["nodes"] = [
+            results.get(previous["node_id"], previous) for previous in ctx.debug_snapshot["nodes"]
+        ]
+        # 整份 JSON 每轮只写一次，避免随节点数增长产生平方级序列化和数据库写入。
+        ctx.save(update_fields=["debug_snapshot"])
 
     def compute_can_step(self, ctx, node_id):
         """判定节点是否可单步：引用的产出型变量须已在 global_vars 有值，否则返回缺失项。"""
@@ -332,6 +418,7 @@ class DebugService:
         ctx.active_run_type = ""
         ctx.active_node_id = ""
         ctx.active_config_hashes = {}
+        ctx.active_debug_snapshot = {}
         ctx.save(
             update_fields=[
                 "status",
@@ -341,6 +428,7 @@ class DebugService:
                 "active_run_type",
                 "active_node_id",
                 "active_config_hashes",
+                "active_debug_snapshot",
             ]
         )
 
@@ -370,6 +458,8 @@ class DebugService:
             active_task_id=None,
             active_run_type="",
             active_node_id="",
+            active_config_hashes={},
+            active_debug_snapshot={},
         )
         if not reclaimed:
             return False
@@ -393,8 +483,12 @@ class DebugService:
         ctx.refresh_from_db()
         return True
 
-    def reset_run_results(self, ctx: DebugContext, node_ids=None):
+    @transaction.atomic
+    def reset_run_results(self, ctx: DebugContext, node_ids=None, update_snapshot=True):
         """清运行结果，保留 mock 配置；node_ids 为 None 时全量。"""
+        # 与存量回填使用相同锁顺序；重置不能使用等待锁之前读取的旧快照。
+        current = DebugContext.objects.select_for_update().get(pk=ctx.pk)
+        ctx.debug_snapshot = current.debug_snapshot
         qs = DebugNodeState.objects.filter(debug_context=ctx)
         if node_ids is not None:
             qs = qs.filter(node_id__in=node_ids)
@@ -409,6 +503,23 @@ class DebugService:
             log_ref={},
             last_run_at=None,
         )
+        if update_snapshot and (ctx.debug_snapshot or node_ids is None):
+            if node_ids is None:
+                ctx.debug_snapshot = {}
+            else:
+                for node in ctx.debug_snapshot["nodes"]:
+                    if node["node_id"] in node_ids:
+                        node.update(
+                            status="not_run",
+                            waiting_reason=None,
+                            inputs={},
+                            outputs={},
+                            duration_ms=None,
+                            error_detail=None,
+                            log_ref=None,
+                            last_run_at=None,
+                        )
+            ctx.save(update_fields=["debug_snapshot"])
         return reset_ids
 
     def materialize_mock_data(self, ctx: DebugContext):
@@ -434,17 +545,18 @@ class DebugService:
 
         # task_id 在 create 成功后才赋值；失败兜底据此判断是否需要清理孤儿任务
         task_id = None
+        previous_snapshot = copy.deepcopy(ctx.debug_snapshot)
         try:
             with transaction.atomic():
-                # M-2：每次全局运行都从干净状态开始，故先重置；若后续 create 失败，
-                # 这些被清空的历史结果是预期被丢弃的（设计如此）。
-                self.reset_run_results(ctx, node_ids=None)
+                # 当前控制态从干净状态开始；独立结果快照待任务成功启动后再替换。
+                self.reset_run_results(ctx, node_ids=None, update_snapshot=False)
                 ctx.global_vars = dict(inputs or {})
                 ctx.last_inputs = dict(inputs or {})
                 self._refresh_tree_fingerprint(ctx)
                 # 仅冻结运行采用的配置，未执行到的节点不能更新最近调试基准。
                 ctx.active_config_hashes = compute_debug_config_hashes(self.pipeline_tree)
                 ctx.save(update_fields=["global_vars", "last_inputs", "active_config_hashes"])
+                self._freeze_debug_tree(ctx, operator)
 
             template = Template.objects.filter(id=self.template_id).first()
             create_data = {
@@ -469,18 +581,12 @@ class DebugService:
                 )
                 raise DebugStateError(message)
             task_id = create_result["data"]["id"]
-            ctx.active_task_id = task_id
-            ctx.active_run_type = "global"
-            ctx.active_node_id = ""
             ctx.last_task_id = task_id
             ctx.last_run_type = "global"
             ctx.last_run_status = "running"
             ctx.last_error_detail = {}
             ctx.save(
                 update_fields=[
-                    "active_task_id",
-                    "active_run_type",
-                    "active_node_id",
                     "last_task_id",
                     "last_run_type",
                     "last_run_status",
@@ -501,6 +607,12 @@ class DebugService:
                 ctx.last_error_detail = {"type": "start", "message": message, "task_id": task_id}
                 ctx.save(update_fields=["last_run_status", "last_error_detail"])
                 raise DebugStateError(message)
+            with transaction.atomic():
+                self._capture_debug_snapshot(ctx, operator)
+                ctx.active_task_id = task_id
+                ctx.active_run_type = "global"
+                ctx.active_node_id = ""
+                ctx.save(update_fields=["active_task_id", "active_run_type", "active_node_id"])
             return {"task_id": task_id, "status": "running"}
         except DebugConflictError:
             # 理论上不会在持锁后再次发生并发冲突；直接抛出，不释放他人持有的锁
@@ -525,6 +637,8 @@ class DebugService:
                     )
                 ctx.active_task_id = None
                 ctx.save(update_fields=["active_task_id"])
+            ctx.debug_snapshot = previous_snapshot
+            ctx.save(update_fields=["debug_snapshot"])
             self._release_lock(ctx, status="idle")
             raise
 
@@ -591,6 +705,14 @@ class DebugService:
 
     def sync_from_debug_task(self, ctx: DebugContext):
         """惰性回写真实调试任务；全局和单步共用同一条状态生命周期。"""
+        # 串行化同一上下文的轮询及新运行，避免旧轮询覆盖新快照或提前释放新运行的锁。
+        with transaction.atomic():
+            current = DebugContext.objects.select_for_update().get(pk=ctx.pk)
+            self._sync_from_debug_task(current)
+        ctx.refresh_from_db()
+
+    def _sync_from_debug_task(self, ctx: DebugContext):
+        """调用方持有上下文行锁，运行结果使用被冻结的流程解释。"""
         # 单节点终止由 terminate() 在 forced_fail 返回后立即重置；期间不读取引擎 FAILED，
         # 避免轮询抢先把节点回写为失败并释放调试锁。
         if ctx.status == "terminating" and ctx.active_node_id:
@@ -616,12 +738,20 @@ class DebugService:
         if not id_map_resp.get("result"):
             return
         id_map = id_map_resp.get("data", {})
-        acts_outputs = self._acts_outputs()
+        active = ctx.active_debug_snapshot or {}
+        run_svc = DebugService(
+            self.template_id, space_id=self.space_id, pipeline_tree=active.get("pipeline_tree") or self.pipeline_tree
+        )
+        run_nodes = debug_nodes(run_svc.pipeline_tree)
+        acts_outputs = run_svc._acts_outputs()
         runtime_to_template = {runtime_id: tpl_node_id for tpl_node_id, runtime_id in id_map.items()}
         runtime_errors = {}
         observed_statuses = []
+        snapshot_states = []
 
         for tpl_node_id, runtime_id in id_map.items():
+            if active and tpl_node_id not in active["node_ids"]:
+                continue
             ns = DebugNodeState.objects.filter(debug_context=ctx, node_id=tpl_node_id).first()
             if ns is None:
                 continue
@@ -639,6 +769,9 @@ class DebugService:
                 if run_config_hash:
                     # 不使用当前草稿：调试运行期间可能已经保存了新配置。
                     ns.debug_config_hash = run_config_hash
+                    # 旧实例启动的任务没有名称快照，不能拿当前草稿补造历史。
+                    if active:
+                        ns.debug_node_name = run_nodes[tpl_node_id].get("name", "")
                 detail = client.get_task_node_detail(
                     task_id,
                     runtime_id,
@@ -649,9 +782,9 @@ class DebugService:
                 ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version}
                 outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
                 if ns.status == "finished":
-                    if self._is_debuggable_gateway(tpl_node_id):
+                    if run_svc._is_debuggable_gateway(tpl_node_id):
                         try:
-                            ns.outputs = evaluate_gateway(self.pipeline_tree, tpl_node_id, ctx.global_vars or {})
+                            ns.outputs = evaluate_gateway(run_svc.pipeline_tree, tpl_node_id, ctx.global_vars or {})
                         except GatewayEvaluationError as error:
                             logger.warning(
                                 "[debug] sync gateway selected flows failed, template_id=%s, node_id=%s, error=%s",
@@ -672,9 +805,9 @@ class DebugService:
                 else:
                     message = ddata.get("ex_data") or "step failed"
                     runtime_errors[runtime_id] = message
-                    if self._is_debuggable_gateway(tpl_node_id):
+                    if run_svc._is_debuggable_gateway(tpl_node_id):
                         try:
-                            gateway_result = evaluate_gateway(self.pipeline_tree, tpl_node_id, ctx.global_vars or {})
+                            gateway_result = evaluate_gateway(run_svc.pipeline_tree, tpl_node_id, ctx.global_vars or {})
                             ns.outputs = gateway_result
                         except GatewayEvaluationError as error:
                             ns.outputs = {
@@ -685,6 +818,9 @@ class DebugService:
                         ns.outputs = {}
                     ns.error_detail = {"type": "runtime", "message": message}
             ns.save()
+            snapshot_states.append(ns)
+
+        self._update_snapshot_results(ctx, snapshot_states)
 
         engine_state = data.get("state")
         active_child_statuses = []
@@ -988,7 +1124,14 @@ class DebugService:
                 raise DebugStateError("条件网关不支持 Mock")
             return self._step_run_gateway(ctx, ns, operator, input_overrides)
         if effective_mode == "mock":
-            return self._step_run_mock(ctx, ns, mock_result, mock_outputs, mock_error)
+            self._acquire_lock(ctx, operator)
+            try:
+                self._freeze_debug_tree(ctx, operator, node_id, execution_mode="mock")
+                response = self._step_run_mock(ctx, ns, mock_result, mock_outputs, mock_error)
+                self._capture_debug_snapshot(ctx, operator, node_id, execution_mode="mock")
+                return response
+            finally:
+                self._release_lock(ctx, status="idle")
         return self._step_run_real(ctx, ns, operator, input_overrides)
 
     def _step_run_gateway(self, ctx, ns, operator, input_overrides):
@@ -1000,6 +1143,7 @@ class DebugService:
         self._acquire_lock(ctx, operator)
         started_at = time.monotonic()
         try:
+            self._freeze_debug_tree(ctx, operator, ns.node_id, execution_mode="real")
             ns.execution_mode = "real"
             ns.status = "running"
             ns.waiting_reason = ""
@@ -1042,7 +1186,9 @@ class DebugService:
 
             ns.duration_ms = int((time.monotonic() - started_at) * 1000)
             ns.debug_config_hash = compute_debug_config_hashes(self.pipeline_tree)[ns.node_id]
+            ns.debug_node_name = debug_nodes(self.pipeline_tree)[ns.node_id].get("name", "")
             ns.save()
+            self._capture_debug_snapshot(ctx, operator, ns.node_id, execution_mode="real")
             ctx.last_run_type = "step"
             ctx.save(update_fields=["last_run_type", "last_run_status", "last_error_detail"])
             return response
@@ -1052,6 +1198,7 @@ class DebugService:
     def _step_run_mock(self, ctx, ns, mock_result, mock_outputs, mock_error):
         # Mock 同样是一次实际调试；纯 Mock 配置接口不更新此基准。
         ns.debug_config_hash = compute_debug_config_hashes(self.pipeline_tree)[ns.node_id]
+        ns.debug_node_name = debug_nodes(self.pipeline_tree)[ns.node_id].get("name", "")
         ns.log_ref = {}
         ns.waiting_reason = ""
         ns.duration_ms = 0  # mock 不经引擎，耗时记 0
@@ -1104,6 +1251,7 @@ class DebugService:
         client = self._task_client()
         task_id = None
         try:
+            self._freeze_debug_tree(ctx, operator, ns.node_id, execution_mode="real")
             mini_tree = build_single_node_pipeline_tree(self.pipeline_tree, ns.node_id, var_values)
             template = Template.objects.filter(id=self.template_id).first()
             create_result = client.create_task(
@@ -1150,6 +1298,7 @@ class DebugService:
             if not start_result.get("result"):  # I-2：启动失败必须收敛，否则会空轮询到超时
                 raise DebugStateError(start_result.get("message", "start step task failed"))
 
+            self._capture_debug_snapshot(ctx, operator, ns.node_id, execution_mode="real")
             ctx.active_task_id = task_id
             ctx.active_run_type = "step"
             ctx.active_node_id = ns.node_id

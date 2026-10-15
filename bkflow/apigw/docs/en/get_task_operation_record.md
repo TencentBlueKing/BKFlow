@@ -6,7 +6,7 @@ Application-authenticated endpoints do not require an additional user identity. 
 
 ### Resource description
 
-Get the tag tree
+Get task operation record
 
 ### Common authentication parameters
 
@@ -27,6 +27,10 @@ Get the tag tree
 | Field | Type | Required | Description |
 |---------|--------|----------|------|
 | node_id | string | NO    | Node ID |
+
+### Request example
+
+`GET /space/1/task/17/get_task_operation_record/?node_id=n1`. Omit `node_id` to return all operation records for the task.
 
 ### Response example
 
@@ -57,7 +61,7 @@ Get the tag tree
 |---------|--------|-----------------------|
 | result  | bool   | Returns the result: true for success, false for failure. |
 | message | string | error message                  |
-| data    | dict   | Return data                  |
+| data    | list   | Return data                  |
 
 
 #### data[item]

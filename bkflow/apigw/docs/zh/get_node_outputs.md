@@ -25,9 +25,17 @@
 
 | 字段        | 类型   | 必选 | 描述   |
 |-----------|------|----|------|
-| node_ids  | list | 是  | 节点ID |
+| node_ids  | list[string] | 是 | 属于该任务的节点 ID 列表 |
 | task_id   | int  | 是  | 任务ID |
 
+
+### 请求参数示例
+
+`POST /space/1/get_node_outputs/`，请求头 `Content-Type: application/json`。
+
+```json
+{"task_id": 17, "node_ids": ["n1", "n2"]}
+```
 
 ### 返回示例
 ```json
@@ -54,7 +62,19 @@
 | 字段      | 类型     | 描述                          |
 |---------|--------|-----------------------------|
 | result  | bool   | 返回结果，true为成功，false为失败       |
-| code    | string | 返回码，"0"表示成功，其他值表示失败         |
+| code    | int/string | 返回码，"0"表示成功，其他值表示失败         |
 | message | string | 错误信息                        |
 | data    | list   | 节点的输出，其中节点ID为key，值为该节点的输出列表 |
 
+### 参数错误示例
+
+空请求体、非法 JSON、编码错误或缺少必填字段均返回参数校验错误。HTTP 状态保持现有约定的 200，调用方应检查 `result` 和 `code`。
+
+```json
+{
+    "result": false,
+    "data": null,
+    "code": 400,
+    "message": "{\"body\": \"请求体必须是有效的 JSON\"}"
+}
+```

@@ -6,7 +6,7 @@ Application-authenticated endpoints do not require an additional user identity. 
 
 ### Resource description
 
-Get the tag tree
+Get tasks pipeline
 
 ### Common authentication parameters
 
@@ -27,6 +27,12 @@ Get the tag tree
 |------------|--------|----------|---------------------------------------------|
 | task_ids   | string | YES      | Task ID，separate multiple IDs with commas. |
 
+
+### Request example
+
+`GET /space/1/get_tasks_pipeline/?task_ids=17,18`. Task IDs must be comma-separated positive integers. Empty items, non-numeric values, zero and negative values return error code `400` before calling the Engine.
+
+The response maps task IDs to execution trees. A task without an execution snapshot maps to `null`; missing tasks and tasks outside the requested space are omitted.
 
 ### Response example
 
@@ -194,7 +200,7 @@ Get the tag tree
 | Field   | Type     | Description                                                                                                                      |
 |---------|----------|----------------------------------------------------------------------------------------------------------------------------------|
 | result  | bool     | Returns the result: true for success, false for failure.                                                                         |
-| code    | string   | Return code: 0 indicates success, while other values indicate failure.                                                           |
+| code    | int/string | Return code: 0 indicates success, while other values indicate failure.                                                           |
 | message | string   | error message                                                                                                                    |
 | data    | dict     | The returned data consists of key-value pairs where the key is the task ID and the value is the pipeline structure of that task. |
 

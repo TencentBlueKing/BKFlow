@@ -27,6 +27,10 @@
 |---------|--------|----|------|
 | node_id | string | 否  | 节点ID |
 
+### 请求参数示例
+
+`GET /space/1/task/17/get_task_operation_record/?node_id=n1`。省略 `node_id` 时返回该任务的全部操作记录。
+
 ### 返回结果示例
 
 ```json
@@ -57,7 +61,7 @@
 | result  | bool   | 返回结果，true为成功，false为失败 |
 | code    | int    | 返回码，0表示成功，其他值表示失败     |
 | message | string | 错误信息                  |
-| data    | dict   | 返回数据                  |
+| data    | list   | 返回数据                  |
 
 
 #### data[item]
