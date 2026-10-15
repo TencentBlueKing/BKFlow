@@ -7,11 +7,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from bkflow.template.debug.backfill import backfill_context
+from bkflow.template.debug.input_repair import repair_snapshot_inputs
 from bkflow.template.models import DebugContext
 
 
 class Command(BaseCommand):
-    help = "回填可核实的存量调试快照，默认只预览；不会启动任务或修改当前节点状态。"
+    help = "回填存量调试快照，或通过 --repair-inputs 修复空输入；默认只预览，不启动任务或修改当前节点状态。"
 
     def add_arguments(self, parser):
         """显式限定处理范围，支持分页续跑和预览。"""
@@ -21,6 +22,7 @@ class Command(BaseCommand):
         parser.add_argument("--batch-size", type=int, default=100, help="每批读取的上下文数，1 至 1000")
         parser.add_argument("--limit", type=int, default=1000, help="本次最多扫描的上下文数")
         parser.add_argument("--after-id", type=int, default=0, help="从此 DebugContext ID 之后续跑")
+        parser.add_argument("--repair-inputs", action="store_true", help="仅修复已有快照中遗漏的实际执行输入")
         mode = parser.add_mutually_exclusive_group()
         mode.add_argument("--apply", action="store_true", help="实际回填；省略时只预览")
         mode.add_argument("--dry-run", action="store_true", help="只预览（默认）")
@@ -48,6 +50,7 @@ class Command(BaseCommand):
         upper_id = query.values_list("id", flat=True).last() or 0
         after_id, scanned = options["after_id"], 0
         counts, reasons = Counter(), Counter()
+        process_context = repair_snapshot_inputs if options["repair_inputs"] else backfill_context
         while scanned < options["limit"]:
             rows = list(
                 query.filter(id__gt=after_id, id__lte=upper_id).values("id", "space_id", "template_id")[
@@ -58,7 +61,7 @@ class Command(BaseCommand):
                 break
             after_id = rows[-1]["id"]
             for row in rows:
-                result = backfill_context(row["id"], apply=options["apply"])
+                result = process_context(row["id"], apply=options["apply"])
                 counts[result["outcome"]] += 1
                 if "reason" in result:
                     reasons[result["reason"]] += 1
@@ -68,6 +71,7 @@ class Command(BaseCommand):
             json.dumps(
                 {
                     "mode": "apply" if options["apply"] else "dry_run",
+                    "operation": "repair_inputs" if options["repair_inputs"] else "backfill_snapshot",
                     "scanned": scanned,
                     "counts": dict(counts),
                     "reasons": dict(reasons),

@@ -778,6 +778,9 @@ class DebugService:
                     data={"include_data": True, "include_loop_outputs": True},
                 )
                 ddata = detail.get("data", {}) if detail.get("result") else {}
+                # 使用 Engine 已渲染、脱敏后的执行输入，不以当前草稿替代历史参数。
+                if isinstance(ddata.get("inputs"), dict):
+                    ns.inputs = copy.deepcopy(ddata["inputs"])
                 version = ddata.get("version") or ddata.get("history_id") or "v1"
                 ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": version}
                 outputs = {o["key"]: o["value"] for o in ddata.get("outputs", []) if isinstance(o, dict) and "key" in o}
@@ -1147,6 +1150,7 @@ class DebugService:
             ns.execution_mode = "real"
             ns.status = "running"
             ns.waiting_reason = ""
+            ns.inputs = {}
             ns.outputs = {}
             ns.error_detail = {}
             ns.log_ref = {}
@@ -1200,6 +1204,8 @@ class DebugService:
         ns.debug_config_hash = compute_debug_config_hashes(self.pipeline_tree)[ns.node_id]
         ns.debug_node_name = debug_nodes(self.pipeline_tree)[ns.node_id].get("name", "")
         ns.log_ref = {}
+        # 本地 Mock 不经过引擎，没有真实执行输入；不能沿用上一轮 real 参数。
+        ns.inputs = {}
         ns.waiting_reason = ""
         ns.duration_ms = 0  # mock 不经引擎，耗时记 0
         ns.last_run_at = timezone.now()
@@ -1278,6 +1284,7 @@ class DebugService:
             ns.status = "running"
             ns.waiting_reason = ""
             ns.duration_ms = None
+            ns.inputs = {}
             ns.outputs = {}
             ns.error_detail = {}
             ns.log_ref = {"instance_id": task_id, "node_id": runtime_id, "version": "v1"}
@@ -1287,6 +1294,7 @@ class DebugService:
                     "status",
                     "waiting_reason",
                     "duration_ms",
+                    "inputs",
                     "outputs",
                     "error_detail",
                     "log_ref",
